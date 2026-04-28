@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Agent",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/agent.py",
+            "args": ["--model", "${input:model}", "${input:userArg}"],
+            "console": "internalConsole",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "model",
+            "type": "pickString",
+            "description": "Select a model",
+            "options": ["minimax-m2.5:cloud", "qwen3.5:397b-cloud"],
+            "default": "minimax-m2.5:cloud"
+        },
+        {
+            "id": "userArg",
+            "type": "promptString",
+            "description": "Input prompt",
+            "default": "Default input"
+        }
+    ]
+}

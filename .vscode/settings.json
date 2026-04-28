@@ -1,0 +1,27 @@
+{
+    "editor.formatOnSave": true,
+    "editor.fontFamily": "Consolas, Microsoft YaHei, monospace",
+    "editor.smoothScrolling": true,
+    "editor.cursorSmoothCaretAnimation": "on",
+    "workbench.tree.indent": 24,
+    "workbench.tree.renderIndentGuides": "none",
+    "editor.inlayHints.enabled": "on",
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/*.pyo": true,
+        "**/*.pyd": true,
+        "**/.venv": true,
+        "**/venv": true,
+        "**/ENV": true
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/*.pyo": true,
+        "**/*.pyd": true,
+        "**/.venv": true,
+        "**/venv": true,
+        "**/ENV": true
+    }
+}
