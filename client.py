@@ -8,7 +8,7 @@ from typing import Any, Generator, Optional
 
 import requests
 
-DEFAULT_MODEL = "qwen3.5:397b-cloud"
+DEFAULT_MODEL = "minimax-m2.5:cloud"
 PORT = 11434
 
 

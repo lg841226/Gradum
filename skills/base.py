@@ -5,9 +5,10 @@ from typing import Any
 
 class Skill:
     """Base class for all skills."""
+    
     name: str = ""
     description: str = ""
-    alias: str = "" 
+    alias: str = ""
 
     def execute(self, **kwargs: Any) -> str:
         raise NotImplementedError

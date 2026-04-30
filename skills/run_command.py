@@ -60,7 +60,7 @@ class RunCommandSkill(Skill):
     """Skill for executing shell commands."""
     name = "run_command"
     alias = "Ran"
-    description = "Execute a shell command on the system and return the output. Note: Dangerous commands are blocked for security."
+    description = "Execute shell commands safely (dangerous commands blocked)"
 
     def get_schema(self) -> dict[str, Any]:
         return {

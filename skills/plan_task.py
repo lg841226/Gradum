@@ -72,7 +72,7 @@ class PlanTaskSkill(Skill):
     """Skill for initializing to-do item list."""
     name = "to_do"
     alias = "Planned"
-    description = "Create a to-do item list with all items. Call ONCE at the start."
+    description = "Create to-do list with all items. Call ONCE at start."
 
     def get_schema(self) -> dict[str, Any]:
         return {

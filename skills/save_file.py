@@ -10,7 +10,7 @@ class SaveFileSkill(Skill):
     """Skill for saving content to a file."""
     name = "save_file"
     alias = "Saved"
-    description = "Save content to a file on the local filesystem"
+    description = "Save content to file on local filesystem"
 
     def get_schema(self) -> dict[str, Any]:
         return {

@@ -5,13 +5,7 @@ from .base import Skill
 
 
 class EditFileSkill(Skill):
-    """
-        Skill for editing file content using search and replace.
-    
-        Works like human editing: select a code block and replace it with new content.
-        No line numbers needed - just provide the exact code to find and replace.
-        Supports both single edit and batch edits.
-    """
+    """Skill for editing file content using search and replace."""
     name = "edit_file"
     alias = "Edited"
     description = "Replace code using search-replace. Supports single or batch edits."

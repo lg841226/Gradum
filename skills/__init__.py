@@ -3,7 +3,7 @@
 import importlib
 import inspect
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from .base import Skill
 
@@ -23,7 +23,7 @@ class Skills:
                 continue
             
             module = importlib.import_module(f"skills.{file.stem}")
-            for name, obj in inspect.getmembers(module):
+            for _, obj in inspect.getmembers(module):
                 if (inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill):
                     instance = obj()
                     self.register(instance)

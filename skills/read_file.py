@@ -8,7 +8,7 @@ class ReadFileSkill(Skill):
     """Skill for reading file content."""
     name = "read_file"
     alias = "Read"
-    description = "Read specific line range from a file"
+    description = "Read file content (entire file or specific line range)"
 
     def get_schema(self) -> dict[str, Any]:
         return {

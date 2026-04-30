@@ -23,12 +23,13 @@ def _get_tool_alias(tool_name: str) -> str:
 
 def format_log_entry(entry: dict) -> Optional[str]:
     """Format log entry by type"""
-    if "_metadata" in entry:
-        return format_metadata(entry)
-
     entry_type = entry.get("type", "unknown")
     timestamp = entry.get("timestamp", "")
     data = entry.get("data", {})
+
+    # Handle _metadata type from agent.py
+    if entry_type == "_metadata":
+        return format_metadata(entry, timestamp)
 
     if entry_type == "thinking":
         return format_thinking(timestamp, data)
