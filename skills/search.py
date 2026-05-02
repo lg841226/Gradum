@@ -12,12 +12,10 @@ class SearchSkill(Skill):
     alias = "Searched"
     description = "Search for keywords in files (smart recursion with file filtering)"
     
-    # Configuration constants
     TIMEOUT = 120
     MAX_FILES = 600
     MAX_DEPTH = 6
     
-    # Directories to always exclude
     EXCLUDE_DIRS = {
         '__pycache__', 'node_modules', 'venv', '.venv', 'ENV',
         'build', 'dist', 'output', 'target',
@@ -89,7 +87,6 @@ class SearchSkill(Skill):
             if not file_pattern:
                 return True
             import fnmatch
-            # Check if file matches pattern
             return fnmatch.fnmatch(filename, file_pattern)
 
         def search_file(filepath: str) -> None:
@@ -117,7 +114,6 @@ class SearchSkill(Skill):
             if time.time() - start_time > timeout or files_processed >= max_files:
                 return
             
-            # Depth limit to prevent infinite recursion
             if depth > max_depth:
                 return
 
@@ -126,7 +122,6 @@ class SearchSkill(Skill):
             except (IOError, OSError):
                 return
 
-            # Process files first
             for entry in entries:
                 if time.time() - start_time > timeout or files_processed >= max_files:
                     break
@@ -135,7 +130,6 @@ class SearchSkill(Skill):
                 if os.path.isfile(filepath) and process_file(entry):
                     search_file(filepath)
 
-            # Then process directories if recursive
             if recursive:
                 for entry in entries:
                     if time.time() - start_time > timeout or files_processed >= max_files:
@@ -143,15 +137,12 @@ class SearchSkill(Skill):
                         
                     dirpath_entry = os.path.join(dirpath, entry)
                     if os.path.isdir(dirpath_entry) and entry not in exclude_dirs:
-                        # Skip hidden directories (start with .)
                         if entry.startswith('.') and entry not in {'.vscode', '.idea'}:
                             continue
                         process_directory(dirpath_entry, depth + 1)
 
-        # Start search from current directory
         process_directory('.')
 
-        # Build result message
         extra_info = []
         if files_processed >= max_files:
             extra_info.append(f"limited to {max_files} files")

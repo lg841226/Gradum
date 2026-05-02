@@ -41,7 +41,7 @@ class CompletePlanSkill(Skill):
         if not pm.initialized:
             return "Error: No to-do item list initialized. Call to_do() first."
 
-        # Batch mode: completed_count specified
+        # Batch mode
         if completed_count is not None:
             completed_count = int(completed_count)
             if completed_count <= 0:
@@ -53,13 +53,12 @@ class CompletePlanSkill(Skill):
             if new_total > max_items:
                 return f"Error: Cannot complete {completed_count} items. Only {max_items - pm.completed} items remaining (total: {max_items}, completed: {pm.completed})."
             
-            # Mark all items as completed
             for i in range(pm.completed, new_total):
                 pm.completed = i + 1
             
             return f"Success: Batch completed {completed_count} item(s) (total: {pm.completed}/{max_items})\n{pm.build_status_info()}"
 
-        # Sequential mode: to_do_items_completed specified
+        # Sequential mode
         if to_do_items_completed is not None:
             to_do_items_completed = int(to_do_items_completed)
             
@@ -90,7 +89,6 @@ class CompletePlanSkill(Skill):
 
             return f"Success: Completed to-do item {to_do_items_completed}\n{pm.build_status_info()}"
 
-        # Error: neither parameter provided
         return "Error: Must provide either 'to_do_items_completed' (sequential mode) or 'completed_count' (batch mode)."
 
     def format_content(self, arguments: dict, result: str) -> str:

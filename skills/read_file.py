@@ -74,7 +74,6 @@ class ReadFileSkill(Skill):
         if extras:
             title += " (" + ", ".join(extras) + ")"
 
-        # Build response
         result_parts = [f"Success: Read {title}"]
         result_parts.append(f"\nContent:\n{content}")
         

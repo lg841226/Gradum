@@ -68,28 +68,23 @@ class EditFileSkill(Skill):
         Returns:
             Success message with details of what was changed, or error description
         """
-        # Validate path
         if not path:
             return "Error: Missing 'path' parameter."
 
-        # Determine if single or batch mode
         if edits is not None and isinstance(edits, list) and len(edits) > 0:
-            # Batch mode
             return self._execute_batch_edits(path, edits)
-        else:
-            # Single edit mode
-            if not search:
-                return "Error: Missing 'search' parameter. Provide the exact code to find."
-            if replace is None:
-                return "Error: Missing 'replace' parameter. Use empty string to delete code."
-            if not isinstance(replace, str):
-                return "Error: 'replace' parameter must be a string."
-            
-            return self._execute_single_edit(path, search, replace)
+
+        if not search:
+            return "Error: Missing 'search' parameter. Provide the exact code to find."
+        if replace is None:
+            return "Error: Missing 'replace' parameter. Use empty string to delete code."
+        if not isinstance(replace, str):
+            return "Error: 'replace' parameter must be a string."
+
+        return self._execute_single_edit(path, search, replace)
 
     def _execute_single_edit(self, path: str, search: str, replace: str) -> str:
         """Execute a single search-replace edit."""
-        # Read file
         try:
             with open(path, 'r', encoding='utf-8') as file:
                 content = file.read()
@@ -98,7 +93,6 @@ class EditFileSkill(Skill):
         except (IOError, OSError) as e:
             return f"Error: {str(e)}"
 
-        # Find all occurrences
         occurrences = content.count(search)
         
         if occurrences == 0:
@@ -111,10 +105,8 @@ class EditFileSkill(Skill):
                    f"Reason: Search text appears multiple times.\n"
                    f"Fix: Include more unique context in 'search' parameter.")
         
-        # Perform replacement
         new_content = content.replace(search, replace)
         
-        # Validate the replacement didn't break the file
         if not new_content.strip():
             return "Error: Replacement would result in an empty file. Operation cancelled."
         
@@ -122,11 +114,9 @@ class EditFileSkill(Skill):
             with open(path, 'w', encoding='utf-8') as file:
                 file.write(new_content)
             
-            # Generate success message
             search_lines = search.count('\n') + 1
             replace_lines = replace.count('\n') + 1
             
-            # Clean preview (first meaningful line only)
             def clean_preview(text, max_len=60):
                 if not text.strip():
                     return "(deleted)"
@@ -143,7 +133,6 @@ class EditFileSkill(Skill):
             return '\n'.join(result_lines)
             
         except (IOError, OSError) as e:
-            # Attempt to restore original content on error
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(content)
@@ -156,14 +145,12 @@ class EditFileSkill(Skill):
         
         All edits are applied to the original file content in sequence.
         """
-        # Validate edits
         if not isinstance(edits, list):
             return "Error: 'edits' must be a list."
         
         if len(edits) == 0:
             return "Error: 'edits' list is empty."
 
-        # Read file
         try:
             with open(path, 'r', encoding='utf-8') as file:
                 content = file.read()
@@ -175,7 +162,6 @@ class EditFileSkill(Skill):
         original_content = content
         changes_summary = []
 
-        # Apply each edit in sequence
         for i, edit in enumerate(edits):
             if not isinstance(edit, dict):
                 return f"Error: Edit {i} must be a dictionary."
@@ -186,11 +172,9 @@ class EditFileSkill(Skill):
             search = edit['search']
             replace = edit['replace']
             
-            # Find occurrences
             occurrences = content.count(search)
             
             if occurrences == 0:
-                # Restore and return clean error
                 try:
                     with open(path, 'w', encoding='utf-8') as file:
                         file.write(original_content)
@@ -199,7 +183,6 @@ class EditFileSkill(Skill):
                 return f"Error: Edit {i+1} failed: Code not found. Original content restored."
             
             if occurrences > 1:
-                # Restore and return clean error
                 try:
                     with open(path, 'w', encoding='utf-8') as file:
                         file.write(original_content)
@@ -207,17 +190,13 @@ class EditFileSkill(Skill):
                     pass
                 return f"Error: Edit {i+1} failed: Found {occurrences} matches. Original content restored."
             
-            # Apply edit
             content = content.replace(search, replace)
             
-            # Record clean summary
             search_lines = search.count('\n') + 1
             replace_lines = replace.count('\n') + 1
             changes_summary.append(f"Edit {i+1}: {search_lines}→{replace_lines} lines")
         
-        # Validate the result
         if not content.strip():
-            # Restore original content
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(original_content)
@@ -225,12 +204,10 @@ class EditFileSkill(Skill):
                 pass
             return "Error: Edits would result in an empty file. Operation cancelled. Original content restored."
         
-        # Write back to file
         try:
             with open(path, 'w', encoding='utf-8') as file:
                 file.write(content)
             
-            # Generate clean success message
             result_lines = [f"Success: Batch edited {path} ({len(edits)} ops)"]
             result_lines.extend(changes_summary)
             result_lines.append("\nEdit complete! No need to repeatedly check the content, it may waste unnecessary time.")
@@ -238,7 +215,6 @@ class EditFileSkill(Skill):
             return '\n'.join(result_lines)
             
         except (IOError, OSError) as e:
-            # Attempt to restore original content on error
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(original_content)

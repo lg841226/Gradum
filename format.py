@@ -15,7 +15,7 @@ def _get_tool_alias(tool_name: str) -> str:
         skill = skills_manager.get(tool_name)
         if skill and skill.alias:
             return skill.alias
-    except Exception:
+    except (ImportError, AttributeError, KeyError):
         pass
     
     return tool_name
@@ -27,7 +27,6 @@ def format_log_entry(entry: dict) -> Optional[str]:
     timestamp = entry.get("timestamp", "")
     data = entry.get("data", {})
 
-    # Handle _metadata type from agent.py
     if entry_type == "_metadata":
         return format_metadata(entry, timestamp)
 
@@ -54,13 +53,11 @@ def format_metadata(entry: dict, timestamp: str = "") -> str:
     
     Handles both jsonl format (with _metadata key) and agent.py format (with data dict).
     """
-    # Handle jsonl format
     if "_metadata" in entry:
         meta = entry.get("_metadata", {})
         user_input = meta.get("user_input", "")
         start_time = meta.get("start_time", "")
         status = meta.get("status", "")
-    # Handle agent.py format
     else:
         data = entry.get("data", {})
         user_input = data.get("user_input", "")

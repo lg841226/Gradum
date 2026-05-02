@@ -28,8 +28,8 @@ class OllamaClient:
         self.base_url = config.base_url
         self.model = config.model
         self.timeout = config.timeout
-        self.think = config.think  # Thinking mode support
-        self.last_token_stats = None  # Store last token usage stats
+        self.think = config.think
+        self.last_token_stats = None
 
     def chat(
         self,
@@ -95,7 +95,6 @@ class OllamaClient:
                         yield content, tool_calls, thinking
                     elif "error" in data:
                         yield f"Error: {data['error']}", None, None
-                    # Handle token stats in non-streaming final chunk
                     elif "done" in data and data["done"]:
                         if "prompt_eval_count" in data or "eval_count" in data:
                             self.last_token_stats = {
@@ -113,8 +112,12 @@ class OllamaClient:
                 yield f"Error: Access denied, {str(e)}", None, None
             else:
                 yield f"Error: HTTP error - {str(e)}", None, None
-        except Exception as e:
-            yield f"Error: {str(e)}", None, None
+        except requests.exceptions.TooManyRedirects:
+            yield f"Error: Too many redirects", None, None
+        except json.JSONDecodeError:
+            yield f"Error: Invalid JSON response", None, None
+        except (KeyError, TypeError):
+            yield f"Error: Invalid response format", None, None
 
     def reset_token_stats(self) -> None:
         """Reset token usage statistics."""
