@@ -35,7 +35,7 @@ class Agent:
 
 
     def _setup_system_prompt(self) -> None:
-        prompt_path = Path(__file__).parent / "prompts" / "system_prompt.txt"
+        prompt_path = Path(__file__).parent / "prompts" / "system_prompt.md"
         try:
             with open(prompt_path, 'r', encoding='utf-8') as prompt_file:
                 content = prompt_file.read()

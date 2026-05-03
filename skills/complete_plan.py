@@ -1,7 +1,6 @@
 """Skill for marking to-do item completion."""
 
 from typing import Any, Optional
-
 from .base import Skill
 from .plan_task import get_plan_manager
 
@@ -74,13 +73,13 @@ class CompletePlanSkill(Skill):
             
             expected = pm.completed
             if to_do_items_completed > expected + 1:
-                next_to_do_item = pm.tasks[expected] if expected < len(pm.tasks) else "unknown"
+                skipped = to_do_items_completed - expected
                 tasks_list = ", ".join(f"{i+1}. {t}" for i, t in enumerate(pm.tasks))
-                return f"Error: Cannot skip items. You only completed {expected} to-do item(s). Next item is '{next_to_do_item}'. Complete it before marking more as done.\n\nComplete to-do list: {tasks_list}"
+                return f"Error: Cannot skip {skipped} items directly. You only completed {expected} item(s).\nHint: Use completed_count={skipped} to mark multiple items as done at once.\nComplete to-do list: {tasks_list}"
             if to_do_items_completed < expected:
                 current_item = pm.tasks[to_do_items_completed] if to_do_items_completed < len(pm.tasks) else "unknown"
                 tasks_list = ", ".join(f"{i+1}. {t}" for i, t in enumerate(pm.tasks))
-                return f"Error: Cannot go backwards. You already completed {expected} to-do item(s). Current item is '{current_item}'. Move forward, not backward.\n\nComplete to-do list: {tasks_list}"
+                return f"Error: Cannot go backwards. You already completed {expected} to-do item(s). Current item is '{current_item}'. Move forward, not backward.\nComplete to-do list: {tasks_list}"
 
             max_completed = len(pm.tasks)
             if to_do_items_completed > max_completed:

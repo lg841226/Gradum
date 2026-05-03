@@ -125,10 +125,23 @@ def _append_tool_arguments(lines: list, tool: str, arguments: dict) -> None:
     elif tool == "search":
         keyword = arguments.get("keyword", "")
         keywords = arguments.get("keywords", [])
+        filename = arguments.get("filename", "")
+        dirname = arguments.get("dirname", "")
+        recursive = arguments.get("recursive", False)
+        file_pattern = arguments.get("file_pattern", "")
+
         if keyword:
             lines.append(f"  keyword: {keyword}")
         if keywords:
             lines.append(f"  keywords: {', '.join(keywords)}")
+        if filename:
+            lines.append(f"  filename: {filename}")
+        if dirname:
+            lines.append(f"  dirname: {dirname}")
+        if recursive:
+            lines.append(f"  recursive: {recursive}")
+        if file_pattern:
+            lines.append(f"  file_pattern: {file_pattern}")
 
     elif tool == "read_file":
         path = arguments.get("path", "")
