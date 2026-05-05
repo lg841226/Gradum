@@ -118,6 +118,10 @@ Execute shell commands (dangerous commands blocked).
 
 **IMPORTANT: Use OS-appropriate commands.**
 
+**NOTE: Many commands produce no output on success** (e.g., `start`, `copy`, `mkdir`). 
+If the result says "Success" with "(command executed with no output)", the command worked. 
+Do NOT retry or re-verify just because there's no visible output.
+
 ```
 # Windows
 run_cmd(command="dir", reason="list files")

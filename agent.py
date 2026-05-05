@@ -80,17 +80,17 @@ class Agent:
             response_chunks, thinking_chunks, tool_calls = self._get_llm_response()
 
             if thinking_chunks:
-                self._process_thinking(thinking_chunks)
+                self._output_content("".join(thinking_chunks), "thinking", "thinking")
 
             if response_chunks:
                 full_response.extend(response_chunks)
                 if tool_calls:
-                    self._output_response(response_chunks)
+                    self._output_content("".join(response_chunks), "llm_response", "llm_response")
 
             if not tool_calls:
                 if full_response:
                     final_content = "".join(full_response)
-                    self._output_final(final_content)
+                    self._output_content(final_content, "final_response", "final_llm_response")
                     # Save assistant response to messages for context persistence
                     self.messages.append({"role": "assistant", "content": final_content})
                 break
@@ -110,11 +110,6 @@ class Agent:
         if self.output_file:
             with open(self.output_file, "a", encoding="utf-8", newline="\n") as file:
                 file.flush()
-
-    def _output_final(self, content: str) -> None:
-        """Output final LLM response."""
-        print(json.dumps({"type": "final_response", "content": content}, ensure_ascii=False))
-        self._append_to_log("final_llm_response", {"content": content})
 
     def _init_run(self, user_input: str, load_saved_context: bool = False) -> None:
         """Initialize execution and output file."""
@@ -147,6 +142,7 @@ class Agent:
                 "type": "error",
                 "content": f"Could not create log file: {self.output_file} - {e}"
             }, ensure_ascii=False))
+
             raise RuntimeError(f"Could not create log file: {self.output_file}") from e
 
         # Load context BEFORE writing metadata to ensure proper log order
@@ -184,17 +180,12 @@ class Agent:
 
         return response_chunks, thinking_chunks, tool_calls
 
-    def _process_thinking(self, thinking_chunks: list[str]) -> None:
-        """Process and output thinking process."""
-        content = "".join(thinking_chunks)
-        print(json.dumps({"type": "thinking", "content": content}, ensure_ascii=False))
-        self._append_to_log("thinking", {"content": content})
-
-    def _output_response(self, response_chunks: list[str]) -> None:
-        """Output real-time LLM response."""
-        content = "".join(response_chunks)
-        print(json.dumps({"type": "llm_response", "content": content}, ensure_ascii=False))
-        self._append_to_log("llm_response", {"content": content})
+    def _output_content(self, content: str, log_type: str, event_type: str) -> None:
+        """Output content and log it."""
+        if not content.strip():
+            return
+        print(json.dumps({"type": log_type, "content": content}, ensure_ascii=False))
+        self._append_to_log(event_type, {"content": content})
 
     def _execute_tool_call(self, tool_call: dict, full_response: str) -> None:
         """Execute a single tool call and update messages."""
@@ -268,11 +259,11 @@ class Agent:
     def _append_to_log(self, event_type: str, data: Any, force_write: bool = False) -> None:
         """Append event to log with real-time writing for critical events."""
         if self._enable_realtime_log and event_type in ("tool_call_start", "tool_call"):
-            self._write_log_entry_immediately({
+            self._write_log_to_file([{
                 "type": event_type,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "data": data,
-            })
+            }])
         else:
             self._log_entries.append({
                 "type": event_type,
@@ -284,24 +275,13 @@ class Agent:
             if force_write or self._log_write_counter >= self._log_batch_size:
                 self._flush_log_buffer()
 
-    def _write_log_entry_immediately(self, event: dict) -> None:
-        """Write a single log entry immediately for real-time feedback."""
-        if not self.output_file:
-            return
-
-        formatted = format_log_entry(event)
-        if formatted:
-            with open(self.output_file, "a", encoding="utf-8", newline="\n") as file:
-                file.write(formatted + "\n\n")
-                file.flush()
-
-    def _flush_log_buffer(self) -> None:
-        """Flush buffered log entries to file."""
-        if not self.output_file or not self._log_entries:
+    def _write_log_to_file(self, events: list[dict]) -> None:
+        """Write log entries to file."""
+        if not self.output_file or not events:
             return
 
         formatted_lines = []
-        for event in self._log_entries:
+        for event in events:
             formatted = format_log_entry(event)
             if formatted:
                 formatted_lines.append(formatted + "\n\n")
@@ -311,6 +291,12 @@ class Agent:
                 file.writelines(formatted_lines)
                 file.flush()
 
+    def _flush_log_buffer(self) -> None:
+        """Flush buffered log entries to file."""
+        if not self._log_entries:
+            return
+
+        self._write_log_to_file(self._log_entries)
         self._log_entries.clear()
         self._log_write_counter = 0
 
@@ -330,12 +316,16 @@ class Agent:
             self._append_to_log("error", {"content": msg})
             return
 
-        # Filter out system messages before saving (they are reloaded from prompts file)
-        saveable_messages = [m for m in self.messages if m.get("role") != "system"]
+        # Filter out system and tool messages before saving
+        saveable_messages = [m for m in self.messages if m.get("role") not in ("system", "tool")]
 
         # Create copies to avoid modifying original messages
         messages_to_save = []
         for message in saveable_messages:
+            # Skip empty assistant messages
+            if message.get("role") == "assistant" and not message.get("content", "").strip():
+                continue
+
             msg_copy = copy.copy(message)
             if "content" in msg_copy:
                 msg_copy["content"] = msg_copy["content"].replace("\n", "")
@@ -409,7 +399,7 @@ class Agent:
                         model = context_data.get("model", "unknown")
 
                         loaded_messages = [
-                            m for m in messages if m.get("role") != "system"
+                            m for m in messages if m.get("role") not in ("system", "tool")
                         ]
                         if len(loaded_messages) > self.MAX_CONTEXT_MESSAGES:
                             loaded_messages = loaded_messages[-self.MAX_CONTEXT_MESSAGES:]

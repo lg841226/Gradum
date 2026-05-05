@@ -13,8 +13,7 @@
                 "${input:userArg}",
                 "${input:contextMode}"
             ],
-            "console": "integratedTerminal",
-            "internalConsoleOptions": "neverOpen"
+            "console": "externalTerminal",
         }
     ],
     "inputs": [
