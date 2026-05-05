@@ -19,12 +19,12 @@ class Skills:
         """Auto-discover and register all Skill subclasses."""
         skills_dir = Path(__file__).parent
         for file in skills_dir.glob("*.py"):
-            if file.stem.startswith("_") or file.stem in ("base"):
+            if file.stem.startswith("_") or file.stem == "base":
                 continue
             
             module = importlib.import_module(f"skills.{file.stem}")
             for _, obj in inspect.getmembers(module):
-                if (inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill):
+                if inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill:
                     instance = obj()
                     self.register(instance)
 

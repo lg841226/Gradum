@@ -74,8 +74,7 @@ class ReadFileSkill(Skill):
         if extras:
             title += " (" + ", ".join(extras) + ")"
 
-        result_parts = [f"Success: Read {title}"]
-        result_parts.append(f"\nContent:\n{content}")
-        
+        result_parts = [f"Success: Read {title}", f"\nContent:\n{content}"]
+
         return '\n'.join(result_parts)
 

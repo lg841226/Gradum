@@ -1,6 +1,6 @@
 """Skill for saving content to a file."""
 
-import os
+from pathlib import Path
 from typing import Any
 
 from .base import Skill
@@ -42,11 +42,10 @@ class SaveFileSkill(Skill):
             return "Error: Missing 'content' parameter."
 
         try:
-            directory = os.path.dirname(path)
-            if directory and not os.path.exists(directory):
-                os.makedirs(directory, exist_ok=True)
+            file_path = Path(path)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             return f"Success: File saved to {path}"
         except (IOError, OSError) as e:

@@ -9,7 +9,7 @@ from .base import Skill
 class SearchSkill(Skill):
     """Skill for searching keyword in files."""
     name = "search"
-    alias = "Searched"
+    alias = "Explored"
     description = "Search for keywords in files (smart recursion with file filtering)"
     
     TIMEOUT = 120
@@ -92,11 +92,11 @@ class SearchSkill(Skill):
         max_depth = self.MAX_DEPTH
         exclude_dirs = self.EXCLUDE_DIRS
 
-        def process_file(filename: str) -> bool:
+        def process_file(fname: str) -> bool:
             if not file_pattern:
                 return True
             import fnmatch
-            return fnmatch.fnmatch(filename, file_pattern)
+            return fnmatch.fnmatch(fname, file_pattern)
 
         def search_file(filepath: str) -> None:
             nonlocal files_processed

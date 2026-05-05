@@ -1,18 +1,21 @@
 """Skill for executing shell commands."""
 
+import re
 import subprocess
 import sys
 from typing import Any
 from .base import Skill
+
+TIMEOUT = 45
 
 HIGH_RISK_COMMANDS = {'rm -rf', 'format', 'fdisk', 'dd', 'sudo', 'su', 'runas', 'reg'}
 
 HIGH_RISK_PATTERNS = [r'rm\s+(-[rf]+\s+)?/', r'format\s+[cdef]:', r'dd\s+.*of=', r'>\s*/dev/', r'\|\s*(bash|sh)\s']
 
 
-class RunCommandSkill(Skill):
+class RunCmdSkill(Skill):
     """Skill for executing shell commands."""
-    name = "run_command"
+    name = "run_cmd"
     alias = "Ran"
     description = "Execute shell commands safely (dangerous commands blocked)"
 
@@ -43,7 +46,7 @@ class RunCommandSkill(Skill):
         if not command:
             return "Error: Missing 'command' parameter."
 
-        security_result = self._check_command_security(command)
+        security_result = RunCmdSkill._check_command_security(command)
         
         if security_result['level'] == 'high':
             return (f"Error: Command blocked due to high security risk.\n\n"
@@ -55,10 +58,10 @@ class RunCommandSkill(Skill):
         encoding = 'utf-8' if sys.platform != 'win32' else 'gbk'
 
         try:
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30, encoding=encoding, errors='replace')
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=TIMEOUT, encoding=encoding, errors='replace')
             output = ""
 
-            if result.stdout:
+            if result.stdout:   
                 output += result.stdout
             if result.stderr:
                 output += "\n[stderr]\n" + result.stderr
@@ -68,15 +71,15 @@ class RunCommandSkill(Skill):
             return f"Success: Command executed\n{output.strip()}"
 
         except subprocess.TimeoutExpired:
-            return "Error: Command timed out after 30 seconds"
+            return f"Error: Command timed out after {TIMEOUT} seconds"
         except (IOError, OSError) as e:
             return f"Error: {str(e)}"
 
-    def _check_command_security(self, command: str) -> dict:
+    @staticmethod
+    def _check_command_security(command: str) -> dict:
         """Check command security level and return risk assessment."""
         command_lower = command.lower().strip()
         
-        import re
         for pattern in HIGH_RISK_PATTERNS:
             if re.search(pattern, command_lower):
                 return {

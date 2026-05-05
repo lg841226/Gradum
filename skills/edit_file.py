@@ -72,7 +72,7 @@ class EditFileSkill(Skill):
             return "Error: Missing 'path' parameter."
 
         if edits is not None and isinstance(edits, list) and len(edits) > 0:
-            return self._execute_batch_edits(path, edits)
+            return EditFileSkill._execute_batch_edits(path, edits)
 
         if not search:
             return "Error: Missing 'search' parameter. Provide the exact code to find."
@@ -81,9 +81,10 @@ class EditFileSkill(Skill):
         if not isinstance(replace, str):
             return "Error: 'replace' parameter must be a string."
 
-        return self._execute_single_edit(path, search, replace)
+        return EditFileSkill._execute_single_edit(path, search, replace)
 
-    def _execute_single_edit(self, path: str, search: str, replace: str) -> str:
+    @staticmethod
+    def _execute_single_edit(path: str, search: str, replace: str) -> str:
         """Execute a single search-replace edit."""
         try:
             with open(path, 'r', encoding='utf-8') as file:
@@ -136,11 +137,15 @@ class EditFileSkill(Skill):
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(content)
-            except:
-                pass
-            return f"Error: Failed to write changes: {str(e)}. Original content restored."
+            except (IOError, OSError) as restore_err:
+                return (
+                    f"Error: Failed to write changes: {e}. "
+                    f"Additionally, failed to restore original content: {restore_err}"
+                )
+            return f"Error: Failed to write changes: {e}. Original content restored."
 
-    def _execute_batch_edits(self, path: str, edits: list) -> str:
+    @staticmethod
+    def _execute_batch_edits(path: str, edits: list) -> str:
         """Execute multiple search-replace edits in batch mode.
         
         All edits are applied to the original file content in sequence.
@@ -178,16 +183,22 @@ class EditFileSkill(Skill):
                 try:
                     with open(path, 'w', encoding='utf-8') as file:
                         file.write(original_content)
-                except:
-                    pass
+                except (IOError, OSError) as restore_err:
+                    return (
+                        f"Error: Edit {i+1} failed: Code not found. "
+                        f"Additionally, failed to restore original content: {restore_err}"
+                    )
                 return f"Error: Edit {i+1} failed: Code not found. Original content restored."
             
             if occurrences > 1:
                 try:
                     with open(path, 'w', encoding='utf-8') as file:
                         file.write(original_content)
-                except:
-                    pass
+                except (IOError, OSError) as restore_err:
+                    return (
+                        f"Error: Edit {i+1} failed: Found {occurrences} matches. "
+                        f"Additionally, failed to restore original content: {restore_err}"
+                    )
                 return f"Error: Edit {i+1} failed: Found {occurrences} matches. Original content restored."
             
             content = content.replace(search, replace)
@@ -200,8 +211,11 @@ class EditFileSkill(Skill):
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(original_content)
-            except:
-                pass
+            except (IOError, OSError) as restore_err:
+                return (
+                    "Error: Edits would result in an empty file. "
+                    f"Additionally, failed to restore original content: {restore_err}"
+                )
             return "Error: Edits would result in an empty file. Operation cancelled. Original content restored."
         
         try:
@@ -218,6 +232,9 @@ class EditFileSkill(Skill):
             try:
                 with open(path, 'w', encoding='utf-8') as file:
                     file.write(original_content)
-            except:
-                pass
-            return f"Error: Failed to write changes: {str(e)}. Original content restored."
+            except (IOError, OSError) as restore_err:
+                return (
+                    f"Error: Failed to write changes: {e}. "
+                    f"Additionally, failed to restore original content: {restore_err}"
+                )
+            return f"Error: Failed to write changes: {e}. Original content restored."

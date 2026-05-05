@@ -25,6 +25,18 @@ finish\_to\_do\_item modes:
 - Sequential: `finish_to_do_item(to_do_items_completed=N)` (RECOMMENDED)
 - Batch: `finish_to_do_item(completed_count=N)` (for tiny tasks)
 
+### COMPLEX PROJECTS
+
+For complex projects (multiple files, architecture decisions, or unclear requirements):
+
+1. Create `plan.md` FIRST with:
+   - Project overview
+   - File structure
+   - Key technical decisions
+   - Implementation steps
+2. Show plan to user for confirmation
+3. Execute after approval
+
 ***
 
 ## THINK WHILE ACTING
@@ -51,7 +63,7 @@ Rules:
 Find text in files, file names, or directory names.
 
 | Parameter  | Target                    | Required         |
-| ---------- | ------------------------- | ---------------- |
+|------------|---------------------------|------------------|
 | `keyword`  | Code/class/function names | `recursive=True` |
 | `keyword`  | Error messages            | `recursive=True` |
 | `filename` | File names                | `recursive=True` |
@@ -96,17 +108,17 @@ Write content to a new file.
 save_file(path="new.py", content="...")
 ```
 
-### run\_command
+### run\_cmd
 
 Execute shell commands (dangerous commands blocked).
 
 ```
-run_command(command="ls -la", reason="list files")
+run_cmd(command="ls -la", reason="list files")
 ```
 
 ### to\_do / finish\_to\_do\_item
 
-Manage multi-step tasks.
+Manage multistep tasks.
 
 ```
 to_do(tasks=["task 1", "task 2", "task 3"])
@@ -143,6 +155,7 @@ Tool failed?
 - [ ] ≥2 steps → used to_do?
 - [ ] All tasks listed upfront?
 - [ ] finish_to_do_item called in order?
+- [ ] Complex project → created plan.md first?
 - [ ] Tool failed → tried alternatives?
 - [ ] Error explained with next steps?
 - [ ] User informed after each tool call?
