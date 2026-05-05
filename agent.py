@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import platform
 import time
@@ -17,6 +18,8 @@ from skills.plan_task import get_plan_manager
 
 class Agent:
     """AI Agent that coordinates skills and LLM communication."""
+
+    MAX_CONTEXT_MESSAGES = 30
 
     def __init__(
         self,
@@ -41,6 +44,7 @@ class Agent:
         try:
             with open(prompt_path, "r", encoding="utf-8") as prompt_file:
                 content = prompt_file.read()
+                
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"System prompt file not found: {prompt_path}"
@@ -63,11 +67,11 @@ class Agent:
         content += os_info
         self.messages.append({"role": "system", "content": content})
 
-    def run(self, user_input: str) -> None:
+    def run(self, user_input: str, load_saved_context: bool = False) -> None:
         """Process user input and generate response with support for multistep tool calling."""
         start_time = time.time()
 
-        self._init_run(user_input)
+        self._init_run(user_input, load_saved_context)
         self.messages.append({"role": "user", "content": user_input})
 
         full_response = []
@@ -87,6 +91,8 @@ class Agent:
                 if full_response:
                     final_content = "".join(full_response)
                     self._output_final(final_content)
+                    # Save assistant response to messages for context persistence
+                    self.messages.append({"role": "assistant", "content": final_content})
                 break
 
             for tool_call in tool_calls:
@@ -95,6 +101,10 @@ class Agent:
             full_response = []
 
         self._finish_run(start_time, "".join(full_response))
+        
+        # Save context and log it
+        self.save_context()
+        
         self._flush_log_buffer()
 
         if self.output_file:
@@ -106,7 +116,7 @@ class Agent:
         print(json.dumps({"type": "final_response", "content": content}, ensure_ascii=False))
         self._append_to_log("final_llm_response", {"content": content})
 
-    def _init_run(self, user_input: str) -> None:
+    def _init_run(self, user_input: str, load_saved_context: bool = False) -> None:
         """Initialize execution and output file."""
         output_dir = Path(__file__).parent / "output"
 
@@ -139,6 +149,11 @@ class Agent:
             }, ensure_ascii=False))
             raise RuntimeError(f"Could not create log file: {self.output_file}") from e
 
+        # Load context BEFORE writing metadata to ensure proper log order
+        if load_saved_context:
+            self.load_context()
+
+        # Write metadata AFTER loading context so [info] appears before [meta]
         self._append_to_log("_metadata", self._log_metadata, force_write=True)
 
     def _get_llm_response(self) -> tuple[list[str], list[str], Optional[list]]:
@@ -307,36 +322,58 @@ class Agent:
         try:
             context_file.parent.mkdir(parents=True, exist_ok=True)
         except (IOError, OSError) as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Failed to create directory {context_file.parent}: {type(e).__name__} - {e}"
-            }, ensure_ascii=False))
+            msg = f"Failed to create directory {context_file.parent}: {type(e).__name__} - {e}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
             return
 
+        # Filter out system messages before saving (they are reloaded from prompts file)
+        saveable_messages = [m for m in self.messages if m.get("role") != "system"]
+
+        # Create copies to avoid modifying original messages
+        messages_to_save = []
+        for message in saveable_messages:
+            msg_copy = copy.copy(message)
+            if "content" in msg_copy:
+                msg_copy["content"] = msg_copy["content"].replace("\n", "")
+            messages_to_save.append(msg_copy)
+
         context_data = {
-            "messages": self.messages,
-            "saved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "messages": messages_to_save,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
             "model": self.client.model,
-            "message_count": len(self.messages),
+            "message_count": len(messages_to_save),
         }
 
         try:
             with open(context_file, "w", encoding="utf-8") as f:
                 json.dump(context_data, f, ensure_ascii=False, indent=2)
-            print(json.dumps({
-                "type": "info",
-                "content": f"Context saved to {context_file.name} ({len(self.messages)} messages)"
-            }, ensure_ascii=False))
+
+            msg = f"Context saved to {context_file.name} ({len(messages_to_save)} messages)"
+            print(json.dumps(
+                {"type": "info", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("info", {"content": msg})
+
         except (IOError, OSError) as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Failed to save context to {context_file}: {type(e).__name__} - {e}"
-            }, ensure_ascii=False))
+            msg = f"Failed to save context to {context_file}: {type(e).__name__} - {e}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
+
         except TypeError as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Failed to serialize context: {type(e).__name__} - {e}"
-            }, ensure_ascii=False))
+            msg = f"Failed to serialize context: {type(e).__name__} - {e}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
 
     def load_context(self, context_file: Optional[Path] = None) -> bool:
         """Load conversation context from JSON file.
@@ -348,26 +385,32 @@ class Agent:
             context_file = Path(__file__).parent / "output" / "context.json"
 
         if not context_file.exists():
-            print(json.dumps({
-                "type": "warning",
-                "content": f"Context file not found: {context_file}"
-            }, ensure_ascii=False))
+            msg = f"Context file not found: {context_file}"
+            print(json.dumps(
+                {"type": "warning", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("warning", {"content": msg})
             return False
 
         if not context_file.is_file():
-            print(json.dumps({
-                "type": "error",
-                "content": f"Path is not a file: {context_file}"
-            }, ensure_ascii=False))
+            msg = f"Path is not a file: {context_file}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
             return False
 
         try:
             file_size = context_file.stat().st_size
             if file_size == 0:
-                print(json.dumps({
-                    "type": "warning",
-                    "content": f"Context file is empty: {context_file}"
-                }, ensure_ascii=False))
+                msg = f"Context file is empty: {context_file}"
+                print(json.dumps(
+                    {"type": "warning", "content": msg},
+                    ensure_ascii=False,
+                ))
+                self._append_to_log("warning", {"content": msg})
                 return False
 
             with open(context_file, "r", encoding="utf-8") as f:
@@ -375,46 +418,75 @@ class Agent:
 
             messages = context_data.get("messages", [])
             if not messages:
-                print(json.dumps({
-                    "type": "warning",
-                    "content": f"No messages found in context file: {context_file}"
-                }, ensure_ascii=False))
+                msg = f"No messages found in context file: {context_file}"
+                print(json.dumps(
+                    {"type": "warning", "content": msg},
+                    ensure_ascii=False,
+                ))
+                self._append_to_log("warning", {"content": msg})
                 return False
 
             if not isinstance(messages, list):
-                print(json.dumps({
-                    "type": "error",
-                    "content": f"Invalid context format: 'messages' should be a list, got {type(messages).__name__}"
-                }, ensure_ascii=False))
+                msg = f"Invalid context format: 'messages' should be a list, got {type(messages).__name__}"
+                print(json.dumps(
+                    {"type": "error", "content": msg},
+                    ensure_ascii=False,
+                ))
+                self._append_to_log("error", {"content": msg})
                 return False
 
-            saved_at = context_data.get("saved_at", "unknown")
+            timestamp = context_data.get("timestamp", "unknown")
             model = context_data.get("model", "unknown")
 
-            self.messages = messages
-            print(json.dumps({
-                "type": "info",
-                "content": f"Loaded context from {context_file.name}: {len(messages)} messages (saved: {saved_at}, model: {model})"
-            }, ensure_ascii=False))
+            loaded_messages = [
+                m for m in messages if m.get("role") != "system"
+            ]
+            if len(loaded_messages) > self.MAX_CONTEXT_MESSAGES:
+                loaded_messages = loaded_messages[-self.MAX_CONTEXT_MESSAGES:]
+
+            self.messages.extend(loaded_messages)
+
+            msg = (
+                f"Loaded context from {context_file.name}: "
+                f"{len(loaded_messages)} messages "
+                f"(saved: {timestamp}, model: {model})"
+            )
+            print(json.dumps(
+                {"type": "info", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("info", {"content": msg})
             return True
 
         except json.JSONDecodeError as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Failed to parse context file {context_file}: {type(e).__name__} - {e} (line {e.lineno}, col {e.colno})"
-            }, ensure_ascii=False))
+            msg = (
+                f"Failed to parse context file {context_file}: "
+                f"{type(e).__name__} - {e} "
+                f"(line {e.lineno}, col {e.colno})"
+            )
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
             return False
+
         except (IOError, OSError) as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Failed to read context file {context_file}: {type(e).__name__} - {e}"
-            }, ensure_ascii=False))
+            msg = f"Failed to read context file {context_file}: {type(e).__name__} - {e}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
             return False
+
         except Exception as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Unexpected error loading context: {type(e).__name__} - {e}"
-            }, ensure_ascii=False))
+            msg = f"Unexpected error loading context: {type(e).__name__} - {e}"
+            print(json.dumps(
+                {"type": "error", "content": msg},
+                ensure_ascii=False,
+            ))
+            self._append_to_log("error", {"content": msg})
             return False
 
     @staticmethod
@@ -459,7 +531,6 @@ def main():
     parser.add_argument("--model", "-m", default=DEFAULT_MODEL)
     parser.add_argument("--think", "-t", action="store_true")
     parser.add_argument("--context", "-c", action="store_true")
-    parser.add_argument("--no-context", action="store_true")
     parser.add_argument("prompt", nargs="+")
 
     args = parser.parse_args()
@@ -472,16 +543,7 @@ def main():
 
     agent = Agent(config)
 
-    if args.no_context:
-        context_path = Path(__file__).parent / "output" / "context.json"
-        if context_path.exists():
-            context_path.unlink()
-            print(json.dumps({"type": "info", "content": "Context cleared"}, ensure_ascii=False))
-    elif args.context:
-        agent.load_context()
-
-    agent.run(" ".join(args.prompt))
-    agent.save_context()
+    agent.run(" ".join(args.prompt), load_saved_context=args.context)
 
 
 if __name__ == "__main__":

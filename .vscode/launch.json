@@ -6,8 +6,14 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/agent.py",
-            "args": ["--model", "${input:model}", "${input:userArg}"],
-            "console": "internalConsole",
+            "args": [
+                "--model",
+                "${input:model}",
+                "--think",
+                "${input:userArg}",
+                "${input:contextMode}"
+            ],
+            "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         }
     ],
@@ -16,7 +22,10 @@
             "id": "model",
             "type": "pickString",
             "description": "Select a model",
-            "options": ["minimax-m2.5:cloud", "qwen3.5:397b-cloud"],
+            "options": [
+                "minimax-m2.5:cloud",
+                "qwen3.5:397b-cloud"
+            ],
             "default": "minimax-m2.5:cloud"
         },
         {
@@ -24,6 +33,16 @@
             "type": "promptString",
             "description": "Input prompt",
             "default": "Default input"
+        },
+        {
+            "id": "contextMode",
+            "type": "pickString",
+            "description": "Load conversation history?",
+            "options": [
+                "--context",
+                ""
+            ],
+            "default": ""
         }
     ]
 }

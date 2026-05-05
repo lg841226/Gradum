@@ -53,6 +53,15 @@ def format_log_entry(entry: dict) -> Optional[str]:
     if entry_type == "final_llm_response":
         return _format_entry_with_content("llm_response", timestamp, entry_data)
 
+    if entry_type == "info":
+        return _format_entry_with_content("info", timestamp, entry_data)
+
+    if entry_type == "warning":
+        return _format_entry_with_content("warning", timestamp, entry_data)
+
+    if entry_type == "error":
+        return _format_entry_with_content("error", timestamp, entry_data)
+
     return f"[{entry_type}] {timestamp}\n  (Unknown type)"
 
 
