@@ -9,10 +9,10 @@ import platform
 import time
 from pathlib import Path
 from typing import Any, Optional
+from skills import Skills
 
 from client import OllamaClient, AgentConfig, DEFAULT_MODEL, TIMEOUT
 from format import format_log_entry
-from skills import Skills
 from skills.plan_task import get_plan_manager
 
 
@@ -384,109 +384,67 @@ class Agent:
         if context_file is None:
             context_file = Path(__file__).parent / "output" / "context.json"
 
+        err_msg = ""
+
         if not context_file.exists():
-            msg = f"Context file not found: {context_file}"
+            err_msg = f"Context file not found: {context_file}"
+        elif not context_file.is_file():
+            err_msg = f"Path is not a file: {context_file}"
+        else:
+            try:
+                file_size = context_file.stat().st_size
+                if file_size == 0:
+                    err_msg = f"Context file is empty: {context_file}"
+                else:
+                    with open(context_file, "r", encoding="utf-8") as f:
+                        context_data = json.load(f)
+
+                    messages = context_data.get("messages", [])
+                    if not messages:
+                        err_msg = f"No messages found in context file: {context_file}"
+                    elif not isinstance(messages, list):
+                        err_msg = f"Invalid context format: 'messages' should be a list, got {type(messages).__name__}"
+                    else:
+                        timestamp = context_data.get("timestamp", "unknown")
+                        model = context_data.get("model", "unknown")
+
+                        loaded_messages = [
+                            m for m in messages if m.get("role") != "system"
+                        ]
+                        if len(loaded_messages) > self.MAX_CONTEXT_MESSAGES:
+                            loaded_messages = loaded_messages[-self.MAX_CONTEXT_MESSAGES:]
+
+                        self.messages.extend(loaded_messages)
+
+                        msg = (
+                            f"Loaded context from {context_file.name}: "
+                            f"{len(loaded_messages)} messages "
+                            f"(saved: {timestamp}, model: {model})"
+                        )
+                        print(json.dumps(
+                            {"type": "info", "content": msg},
+                            ensure_ascii=False,
+                        ))
+                        self._append_to_log("info", {"content": msg})
+                        return True
+
+            except json.JSONDecodeError as e:
+                err_msg = (
+                    f"Failed to parse context file {context_file}: "
+                    f"{type(e).__name__} - {e} "
+                    f"(line {e.lineno}, col {e.colno})"
+                )
+            except (IOError, OSError) as e:
+                err_msg = f"Failed to read context file {context_file}: {type(e).__name__} - {e}"
+            except Exception as e:
+                err_msg = f"Unexpected error loading context: {type(e).__name__} - {e}"
+
+        if err_msg:
             print(json.dumps(
-                {"type": "warning", "content": msg},
+                {"type": "error", "content": err_msg},
                 ensure_ascii=False,
             ))
-            self._append_to_log("warning", {"content": msg})
-            return False
-
-        if not context_file.is_file():
-            msg = f"Path is not a file: {context_file}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-            return False
-
-        try:
-            file_size = context_file.stat().st_size
-            if file_size == 0:
-                msg = f"Context file is empty: {context_file}"
-                print(json.dumps(
-                    {"type": "warning", "content": msg},
-                    ensure_ascii=False,
-                ))
-                self._append_to_log("warning", {"content": msg})
-                return False
-
-            with open(context_file, "r", encoding="utf-8") as f:
-                context_data = json.load(f)
-
-            messages = context_data.get("messages", [])
-            if not messages:
-                msg = f"No messages found in context file: {context_file}"
-                print(json.dumps(
-                    {"type": "warning", "content": msg},
-                    ensure_ascii=False,
-                ))
-                self._append_to_log("warning", {"content": msg})
-                return False
-
-            if not isinstance(messages, list):
-                msg = f"Invalid context format: 'messages' should be a list, got {type(messages).__name__}"
-                print(json.dumps(
-                    {"type": "error", "content": msg},
-                    ensure_ascii=False,
-                ))
-                self._append_to_log("error", {"content": msg})
-                return False
-
-            timestamp = context_data.get("timestamp", "unknown")
-            model = context_data.get("model", "unknown")
-
-            loaded_messages = [
-                m for m in messages if m.get("role") != "system"
-            ]
-            if len(loaded_messages) > self.MAX_CONTEXT_MESSAGES:
-                loaded_messages = loaded_messages[-self.MAX_CONTEXT_MESSAGES:]
-
-            self.messages.extend(loaded_messages)
-
-            msg = (
-                f"Loaded context from {context_file.name}: "
-                f"{len(loaded_messages)} messages "
-                f"(saved: {timestamp}, model: {model})"
-            )
-            print(json.dumps(
-                {"type": "info", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("info", {"content": msg})
-            return True
-
-        except json.JSONDecodeError as e:
-            msg = (
-                f"Failed to parse context file {context_file}: "
-                f"{type(e).__name__} - {e} "
-                f"(line {e.lineno}, col {e.colno})"
-            )
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-            return False
-
-        except (IOError, OSError) as e:
-            msg = f"Failed to read context file {context_file}: {type(e).__name__} - {e}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-            return False
-
-        except Exception as e:
-            msg = f"Unexpected error loading context: {type(e).__name__} - {e}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
+            self._append_to_log("error", {"content": err_msg})
             return False
 
     @staticmethod
