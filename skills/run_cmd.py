@@ -66,7 +66,7 @@ class RunCmdSkill(Skill):
             if result.stderr:
                 output += "\n[stderr]\n" + result.stderr
             if not output:
-                output = "(command executed with no output)"
+                output = "(no output - this is normal for many commands, operation succeeded)"
 
             return f"Success: Command executed\n{output.strip()}"
 

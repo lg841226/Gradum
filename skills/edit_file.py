@@ -118,20 +118,32 @@ class EditFileSkill(Skill):
             search_lines = search.count('\n') + 1
             replace_lines = replace.count('\n') + 1
             
-            def clean_preview(text, max_len=60):
-                if not text.strip():
-                    return "(deleted)"
-                first_line = text.strip().split('\n')[0].strip()
-                return (first_line[:max_len] + "...") if len(first_line) > max_len else first_line
+            # If diff is too long, use summary instead
+            if search_lines + replace_lines > 50:
+                added = replace_lines - search_lines
+                return (f"Success: Modified {path}\n"
+                       f"  {search_lines} lines → {replace_lines} lines ({'+' if added >= 0 else ''}{added} lines)\n"
+                       f"Edit complete! No need to repeatedly check the content - it may waste unnecessary time.")
             
-            result_lines = [
-                f"Success: Modified {path}",
-                f"Lines: {search_lines} → {replace_lines}",
-                f"Change: {clean_preview(search)} → {clean_preview(replace)}",
-                "\nEdit complete! No need to repeatedly check the content - it may waste unnecessary time."
-            ]
+            # Generate diff format output
+            search_lines_list = search.split('\n')
+            replace_lines_list = replace.split('\n')
             
-            return '\n'.join(result_lines)
+            diff_output = []
+            diff_output.append(f"Success: Modified {path}")
+            diff_output.append(f"@@ -{search_lines} +{replace_lines} @@")
+            
+            # Show removed lines with -
+            for line in search_lines_list:
+                diff_output.append(f"- {line}")
+            
+            # Show added lines with +
+            for line in replace_lines_list:
+                diff_output.append(f"+ {line}")
+            
+            diff_output.append("\nEdit complete! No need to repeatedly check the content - it may waste unnecessary time.")
+            
+            return '\n'.join(diff_output)
             
         except (IOError, OSError) as e:
             try:

@@ -80,17 +80,25 @@ class Agent:
             response_chunks, thinking_chunks, tool_calls = self._get_llm_response()
 
             if thinking_chunks:
-                self._output_content("".join(thinking_chunks), "thinking", "thinking")
+                thinking_text = "".join(thinking_chunks)
+                if thinking_text.strip():
+                    print(json.dumps({"type": "thinking", "content": thinking_text}, ensure_ascii=False))
+                    self._append_to_log("thinking", {"content": thinking_text})
 
             if response_chunks:
                 full_response.extend(response_chunks)
                 if tool_calls:
-                    self._output_content("".join(response_chunks), "llm_response", "llm_response")
+                    response_text = "".join(response_chunks)
+                    if response_text.strip():
+                        print(json.dumps({"type": "llm_response", "content": response_text}, ensure_ascii=False))
+                        self._append_to_log("llm_response", {"content": response_text})
 
             if not tool_calls:
                 if full_response:
                     final_content = "".join(full_response)
-                    self._output_content(final_content, "final_response", "final_llm_response")
+                    if final_content.strip():
+                        print(json.dumps({"type": "final_response", "content": final_content}, ensure_ascii=False))
+                        self._append_to_log("final_llm_response", {"content": final_content})
                     # Save assistant response to messages for context persistence
                     self.messages.append({"role": "assistant", "content": final_content})
                 break
@@ -180,24 +188,11 @@ class Agent:
 
         return response_chunks, thinking_chunks, tool_calls
 
-    def _output_content(self, content: str, log_type: str, event_type: str) -> None:
-        """Output content and log it."""
-        if not content.strip():
-            return
-        print(json.dumps({"type": log_type, "content": content}, ensure_ascii=False))
-        self._append_to_log(event_type, {"content": content})
-
     def _execute_tool_call(self, tool_call: dict, full_response: str) -> None:
         """Execute a single tool call and update messages."""
         func = tool_call.get("function", {})
         tool_name: str = func.get("name", "")
         arguments = func.get("arguments", {})
-
-        self._append_to_log("tool_call_start", {
-            "tool": tool_name,
-            "arguments": arguments,
-            "status": "running",
-        })
 
         skill = self.skills.get(tool_name)
 
@@ -258,7 +253,7 @@ class Agent:
 
     def _append_to_log(self, event_type: str, data: Any, force_write: bool = False) -> None:
         """Append event to log with real-time writing for critical events."""
-        if self._enable_realtime_log and event_type in ("tool_call_start", "tool_call"):
+        if self._enable_realtime_log and event_type == "tool_call":
             self._write_log_to_file([{
                 "type": event_type,
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -317,19 +312,30 @@ class Agent:
             return
 
         # Filter out system and tool messages before saving
-        saveable_messages = [m for m in self.messages if m.get("role") not in ("system", "tool")]
+        saveable_messages = [message for message in self.messages if message.get("role") not in ("system", "tool")]
 
-        # Create copies to avoid modifying original messages
+        # Only keep the final assistant response, remove intermediate thinking messages
         messages_to_save = []
+        pending_assistant = None
+
         for message in saveable_messages:
-            # Skip empty assistant messages
+            # Skip empty assistant messages to save space
             if message.get("role") == "assistant" and not message.get("content", "").strip():
                 continue
 
-            msg_copy = copy.copy(message)
-            if "content" in msg_copy:
-                msg_copy["content"] = msg_copy["content"].replace("\n", "")
-            messages_to_save.append(msg_copy)
+            if message.get("role") == "assistant":
+                # Store assistant message, but only keep the last one before next user message
+                pending_assistant = message
+            elif message.get("role") == "user":
+                # Flush pending assistant message before new user message
+                if pending_assistant:
+                    messages_to_save.append(self._process_message_content(pending_assistant))
+                    pending_assistant = None
+                messages_to_save.append(message)
+
+        # Don't forget the last assistant message
+        if pending_assistant:
+            messages_to_save.append(self._process_message_content(pending_assistant))
 
         context_data = {
             "messages": messages_to_save,
@@ -364,6 +370,30 @@ class Agent:
                 ensure_ascii=False,
             ))
             self._append_to_log("error", {"content": msg})
+
+    def _process_message_content(self, message: dict) -> dict:
+        """Process message content to reduce token usage."""
+        import re
+        import string
+
+        msg_copy = copy.copy(message)
+        if "content" in msg_copy:
+            content = msg_copy["content"]
+            content = content.replace("\n", " ")
+            content = content.replace("\r", " ")
+            content = content.replace("\t", " ")
+
+            chinese_punctuation = "，。！？；：""''""''【】《》〈〉（）—…·"
+            ambiguous_chars = "×÷·‐‑‒–—―‖′″‴‵‶‷‹›«»‚„‟†‡•‣⁃⁌⁍⁎⁏⁐⁑⁒⁓⁔⁕⁖⁗⁘⁙⁚⁛⁜⁝⁞"
+            keep_chars = "_@#$%"
+            all_punctuation = string.punctuation + chinese_punctuation + ambiguous_chars
+            all_punctuation = ''.join(c for c in all_punctuation if c not in keep_chars)
+            content = re.sub(f'[{re.escape(all_punctuation)}]', ' ', content)
+            content = re.sub(r'\s+', ' ', content).strip()
+
+            msg_copy["content"] = content
+
+        return msg_copy
 
     def load_context(self, context_file: Optional[Path] = None) -> bool:
         """Load conversation context from JSON file.

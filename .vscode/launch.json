@@ -23,7 +23,8 @@
             "description": "Select a model",
             "options": [
                 "minimax-m2.5:cloud",
-                "qwen3.5:397b-cloud"
+                "qwen3.5:397b-cloud",
+                "qwen3-coder:480b-cloud"
             ],
             "default": "minimax-m2.5:cloud"
         },

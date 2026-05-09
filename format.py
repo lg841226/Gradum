@@ -41,9 +41,6 @@ def format_log_entry(entry: dict) -> Optional[str]:
     if entry_type == "llm_response":
         return _format_entry_with_content("llm_response", timestamp, entry_data)
 
-    if entry_type == "tool_call_start":
-        return format_tool_call_start(timestamp, entry_data)
-
     if entry_type == "tool_call":
         return format_tool_call(timestamp, entry_data)
 
@@ -90,7 +87,7 @@ def format_tool_call_start(timestamp: str, entry_data: dict) -> str:
     arguments = entry_data.get("arguments", {})
     alias = _get_tool_alias(tool_name)
     
-    output_lines = [f"[{alias} → running] {timestamp}"]
+    output_lines = [f"[{alias}] {timestamp}"]
     _append_tool_arguments(output_lines, tool_name, arguments)
     return "\n".join(output_lines)
 
@@ -110,7 +107,12 @@ def format_tool_call(timestamp: str, entry_data: dict) -> str:
     output_lines.append(f"  result: {result_str}")
     
     if result and tool_name != "read_file":
-        if '\n' in result:
+        # If result is too long, show summary instead
+        if len(result) > 500:
+            lines = result.split('\n')
+            output_lines.append(f"  output: {lines[0]}")
+            output_lines.append(f"  ... ({len(lines)} lines total, truncated)")
+        elif '\n' in result:
             output_lines.append(f"  output:\n{result}")
         else:
             output_lines.append(f"  output: {result}")

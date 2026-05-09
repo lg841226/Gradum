@@ -109,7 +109,7 @@ class PlanTaskSkill(Skill):
             return "Error: To-do item list already initialized. Cannot call to_do again."
 
         result = _plan_manager.build_status_info()
-        result += "WARNING: START EXECUTING THE FIRST TASK NOW! After completing it, call finish_to_do_item(to_do_items_completed=1) IMMEDIATELY! DO NOT SKIP TO LATER TASKS!"
+        result += "WARNING: START EXECUTING THE FIRST TASK NOW! After completing it, call finish_to_do_item(to_do_items_completed=1)"
         return result
 
     def format_content(self, arguments: dict, result: str) -> str:
