@@ -1,527 +1,203 @@
 """AI Agent with Function Calling capability."""
 
-from __future__ import annotations
-
 import argparse
-import copy
 import json
 import platform
 import time
 from pathlib import Path
-from typing import Any, Optional
-from skills import Skills
+from typing import Any
 
 from client import OllamaClient, AgentConfig, DEFAULT_MODEL, TIMEOUT
-from format import format_log_entry
-from skills.plan_task import get_plan_manager
+from utils.io_utils import LogManager, ContextManager
+from skills import Skills
 
 
 class Agent:
     """AI Agent that coordinates skills and LLM communication."""
 
-    MAX_CONTEXT_MESSAGES = 30
-
-    def __init__(
-        self,
-        config: Optional[AgentConfig] = None,
-        log_batch_size: int = 5,
-        enable_realtime_log: bool = True,
-    ):
+    def __init__(self, config=None):
         self.config = config or AgentConfig()
         self.client = OllamaClient(self.config)
         self.skills = Skills()
-        self.messages: list[dict[str, Any]] = []
-        self.output_file: Optional[Path] = None
-        self._log_entries: list[dict] = []
-        self._log_batch_size = log_batch_size
-        self._log_write_counter = 0
-        self._cached_tool_schemas: Optional[list[dict]] = None
-        self._enable_realtime_log = enable_realtime_log
+        self.messages = []  # Message list for LLM conversation
+        self.full_read_files = set()  # Track fully read files (no line_range)
+        
+        output_dir = Path(__file__).parent / "output"
+        self.log_manager = LogManager(output_dir)
+        self.context_manager = ContextManager(output_dir)
+        
         self._setup_system_prompt()
 
-    def _setup_system_prompt(self) -> None:
+    def _setup_system_prompt(self):
+        """Load system prompt from file and add OS info."""
         prompt_path = Path(__file__).parent / "prompts" / "system_prompt.md"
+        
         try:
-            with open(prompt_path, "r", encoding="utf-8") as prompt_file:
-                content = prompt_file.read()
-                
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                f"System prompt file not found: {prompt_path}"
-            )
-
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except (FileNotFoundError, IOError) as e:
+            content = "You are a helpful AI assistant.\n"
+            print(f"Warning: Could not load system prompt from {prompt_path}: {e}")
+        
         system = platform.system()
         if system == "Windows":
-            os_info = (
-                f"Current System- OS: Windows ({platform.release()})"
-                f"- Use Windows commands"
-            )
+            os_info = f"Your Current System- OS: Windows ({platform.release()})"
         elif system == "Darwin":
-            os_info = (
-                f"Current System- OS: macOS ({platform.release()})"
-                f"- Use macOS/Linux commands"
-            )
+            os_info = f"Your Current System- OS: macOS ({platform.release()})"
         else:
-            os_info = f"Current System- OS: {system} ({platform.release()})"
+            os_info = f"Your Current System- OS: {system} ({platform.release()})"
+        
+        self.messages.append({"role": "system", "content": content + os_info})
 
-        content += os_info
-        self.messages.append({"role": "system", "content": content})
-
-    def run(self, user_input: str, load_saved_context: bool = False) -> None:
-        """Process user input and generate response with support for multistep tool calling."""
+    def run(self, user_input, load_context=False):
+        """Main entry point to process user input and generate response."""
         start_time = time.time()
-
-        self._init_run(user_input, load_saved_context)
+        
+        # Load previous conversation context if requested
+        if load_context:
+            loaded = self.context_manager.load()
+            self.messages.extend(loaded)
+            self.log_manager.append("context_loaded", {
+                "message_count": len(loaded),
+                "status": "success" if loaded else "no_context"
+            })
+        
+        self.log_manager.init_log(user_input)
         self.messages.append({"role": "user", "content": user_input})
-
+        
         full_response = []
-
+        cached_tool_schemas = None
+        
         while True:
-            response_chunks, thinking_chunks, tool_calls = self._get_llm_response()
-
+            # Get tool schemas once and cache them
+            if cached_tool_schemas is None:
+                cached_tool_schemas = self.skills.get_schemas()
+            
+            # Get response from LLM with streaming
+            response_chunks = []
+            thinking_chunks = []
+            tool_calls = None
+            
+            for chunk, calls, thinking in self.client.chat(
+                self.messages,
+                tools=cached_tool_schemas,
+                stream=True,
+                think=self.config.think
+            ):
+                response_chunks.append(chunk)
+                if thinking:
+                    thinking_chunks.append(thinking)
+                if calls and not tool_calls:
+                    tool_calls = calls
+            
+            # Handle thinking output
             if thinking_chunks:
                 thinking_text = "".join(thinking_chunks)
                 if thinking_text.strip():
                     print(json.dumps({"type": "thinking", "content": thinking_text}, ensure_ascii=False))
-                    self._append_to_log("thinking", {"content": thinking_text})
-
+                    self.log_manager.append("thinking", {"content": thinking_text})
+            
+            # Handle LLM response
             if response_chunks:
                 full_response.extend(response_chunks)
                 if tool_calls:
                     response_text = "".join(response_chunks)
                     if response_text.strip():
                         print(json.dumps({"type": "llm_response", "content": response_text}, ensure_ascii=False))
-                        self._append_to_log("llm_response", {"content": response_text})
-
+                        self.log_manager.append("llm_response", {"content": response_text})
+            
+            # Exit loop if no tool calls needed
             if not tool_calls:
                 if full_response:
                     final_content = "".join(full_response)
                     if final_content.strip():
                         print(json.dumps({"type": "final_response", "content": final_content}, ensure_ascii=False))
-                        self._append_to_log("final_llm_response", {"content": final_content})
-                    # Save assistant response to messages for context persistence
+                        self.log_manager.append("final_llm_response", {"content": final_content})
                     self.messages.append({"role": "assistant", "content": final_content})
                 break
-
+            
+            # Execute tool calls
             for tool_call in tool_calls:
-                self._execute_tool_call(tool_call, "".join(full_response))
-
+                self._execute_tool(tool_call, "".join(full_response))
+            
             full_response = []
-
-        self._finish_run(start_time, "".join(full_response))
         
-        # Save context and log it
-        self.save_context()
-        
-        self._flush_log_buffer()
+        # Finalize and save context
+        self._finish(start_time, "".join(full_response))
 
-        if self.output_file:
-            with open(self.output_file, "a", encoding="utf-8", newline="\n") as file:
-                file.flush()
-
-    def _init_run(self, user_input: str, load_saved_context: bool = False) -> None:
-        """Initialize execution and output file."""
-        output_dir = Path(__file__).parent / "output"
-
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-        except (IOError, OSError) as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Could not create output directory: {output_dir} - {e}"
-            }, ensure_ascii=False))
-            raise RuntimeError(f"Could not create output directory: {output_dir}") from e
-
-        self.output_file = output_dir / "log.txt"
-        self._log_entries = []
-        self._log_write_counter = 0
-        self._cached_tool_schemas = None
-        self._log_metadata = {
-            "user_input": user_input,
-            "start_time": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "running",
-        }
-
-        try:
-            with open(str(self.output_file), "w", encoding="utf-8"):
-                pass
-        except (IOError, OSError) as e:
-            print(json.dumps({
-                "type": "error",
-                "content": f"Could not create log file: {self.output_file} - {e}"
-            }, ensure_ascii=False))
-
-            raise RuntimeError(f"Could not create log file: {self.output_file}") from e
-
-        # Load context BEFORE writing metadata to ensure proper log order
-        if load_saved_context:
-            self.load_context()
-
-        # Write metadata AFTER loading context so [info] appears before [meta]
-        self._append_to_log("_metadata", self._log_metadata, force_write=True)
-
-    def _get_llm_response(self) -> tuple[list[str], list[str], Optional[list]]:
-        """Get response from LLM with streaming.
-
-        Returns:
-            Tuple of (response_chunks, thinking_chunks, tool_calls)
-        """
-        response_chunks = []
-        thinking_chunks = []
-        tool_calls = None
-
-        if self._cached_tool_schemas is None:
-            self._cached_tool_schemas = self.skills.get_schemas()
-
-        for chunk, calls, thinking in self.client.chat(
-            self.messages,
-            tools=self._cached_tool_schemas,
-            stream=True,
-        ):
-            response_chunks.append(chunk)
-
-            if thinking:
-                thinking_chunks.append(thinking)
-
-            if calls and not tool_calls:
-                tool_calls = calls
-
-        return response_chunks, thinking_chunks, tool_calls
-
-    def _execute_tool_call(self, tool_call: dict, full_response: str) -> None:
+    def _execute_tool(self, tool_call, full_response):
         """Execute a single tool call and update messages."""
         func = tool_call.get("function", {})
-        tool_name: str = func.get("name", "")
+        tool_name = func.get("name", "")
         arguments = func.get("arguments", {})
-
+        
+        # Track files read without line_range (full file read)
+        if tool_name == "read_file" and not arguments.get("line_range"):
+            self.full_read_files.add(arguments.get("path", ""))
+        
+        # Execute the skill
         skill = self.skills.get(tool_name)
-
         if not skill:
             result = f"Error: Skill '{tool_name}' not found"
-            tool_output = {
-                "tool": tool_name,
-                "arguments": arguments,
-                "success": False,
-                "result": result,
-            }
+            success = False
         else:
-            raw_result = skill.execute(**arguments)
-            success = not (
-                raw_result.startswith("Error:")
-                or raw_result.startswith("Warning:")
-                or raw_result.startswith("SECURITY ERROR:")
-            )
-            tool_output = {
-                "tool": tool_name,
-                "arguments": arguments,
-                "success": success,
-                "result": raw_result,
-            }
-            result = raw_result
-
-        print(json.dumps(tool_output, ensure_ascii=False))
-        self._append_to_log("tool_call", tool_output)
-
+            result = skill.execute(**arguments)
+            success = not (result.startswith("Error:") or 
+                          result.startswith("Warning:") or 
+                          result.startswith("SECURITY ERROR:"))
+        
+        # Output and log the result
+        output = {"tool": tool_name, "arguments": arguments, "success": success, "result": result}
+        print(json.dumps(output, ensure_ascii=False))
+        self.log_manager.append("tool_call", output)
+        
+        # Add to message history
         self.messages.append({"role": "assistant", "content": full_response})
         self.messages.append({"role": "tool", "content": result})
+        
+        # Add plan reminder if available
+        from skills.plan_task import get_plan_manager
+        reminder = get_plan_manager().get_reminder()
+        if reminder:
+            self.messages.append({"role": "tool", "content": reminder})
 
-        if skill and skill.name not in ("finish_to_do_item", "to_do"):
-            reminder = get_plan_manager().get_reminder()
-            if reminder:
-                self.messages.append({"role": "tool", "content": reminder})
-
-    def _finish_run(self, start_time: float, full_response: str) -> None:
-        """Finalize execution."""
+    def _finish(self, start_time, response):
+        """Finalize the session and save context."""
         elapsed = int(time.time() - start_time)
         token_stats = self.client.last_token_stats
-
-        self._append_to_log("final_response", {
-            "response": full_response,
+        
+        self.log_manager.append("final_response", {
+            "response": response,
             "elapsed_seconds": elapsed,
             "model": self.client.model,
             "token_usage": token_stats,
         })
-
+        
         print(json.dumps({
-            "response": full_response,
+            "response": response,
             "elapsed": elapsed,
             "model": self.client.model,
             "token_usage": token_stats,
         }, ensure_ascii=False))
-
+        
+        self.context_manager.save(self.messages, self.client.model, self.full_read_files)
+        self.log_manager.flush()
         self.client.last_token_stats = None
-
-    def _append_to_log(self, event_type: str, data: Any, force_write: bool = False) -> None:
-        """Append event to log with real-time writing for critical events."""
-        if self._enable_realtime_log and event_type == "tool_call":
-            self._write_log_to_file([{
-                "type": event_type,
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "data": data,
-            }])
-        else:
-            self._log_entries.append({
-                "type": event_type,
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "data": data,
-            })
-            self._log_write_counter += 1
-
-            if force_write or self._log_write_counter >= self._log_batch_size:
-                self._flush_log_buffer()
-
-    def _write_log_to_file(self, events: list[dict]) -> None:
-        """Write log entries to file."""
-        if not self.output_file or not events:
-            return
-
-        formatted_lines = []
-        for event in events:
-            formatted = format_log_entry(event)
-            if formatted:
-                formatted_lines.append(formatted + "\n\n")
-
-        if formatted_lines:
-            with open(self.output_file, "a", encoding="utf-8", newline="\n") as file:
-                file.writelines(formatted_lines)
-                file.flush()
-
-    def _flush_log_buffer(self) -> None:
-        """Flush buffered log entries to file."""
-        if not self._log_entries:
-            return
-
-        self._write_log_to_file(self._log_entries)
-        self._log_entries.clear()
-        self._log_write_counter = 0
-
-    def save_context(self, context_file: Optional[Path] = None) -> None:
-        """Save conversation context to JSON file."""
-        if context_file is None:
-            context_file = Path(__file__).parent / "output" / "context.json"
-
-        try:
-            context_file.parent.mkdir(parents=True, exist_ok=True)
-        except (IOError, OSError) as e:
-            msg = f"Failed to create directory {context_file.parent}: {type(e).__name__} - {e}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-            return
-
-        # Filter out system and tool messages before saving
-        saveable_messages = [message for message in self.messages if message.get("role") not in ("system", "tool")]
-
-        # Only keep the final assistant response, remove intermediate thinking messages
-        messages_to_save = []
-        pending_assistant = None
-
-        for message in saveable_messages:
-            # Skip empty assistant messages to save space
-            if message.get("role") == "assistant" and not message.get("content", "").strip():
-                continue
-
-            if message.get("role") == "assistant":
-                # Store assistant message, but only keep the last one before next user message
-                pending_assistant = message
-            elif message.get("role") == "user":
-                # Flush pending assistant message before new user message
-                if pending_assistant:
-                    messages_to_save.append(self._process_message_content(pending_assistant))
-                    pending_assistant = None
-                messages_to_save.append(message)
-
-        # Don't forget the last assistant message
-        if pending_assistant:
-            messages_to_save.append(self._process_message_content(pending_assistant))
-
-        context_data = {
-            "messages": messages_to_save,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "model": self.client.model,
-            "message_count": len(messages_to_save),
-        }
-
-        try:
-            with open(context_file, "w", encoding="utf-8") as f:
-                json.dump(context_data, f, ensure_ascii=False, indent=2)
-
-            msg = f"Context saved to {context_file.name} ({len(messages_to_save)} messages)"
-            print(json.dumps(
-                {"type": "info", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("info", {"content": msg})
-
-        except (IOError, OSError) as e:
-            msg = f"Failed to save context to {context_file}: {type(e).__name__} - {e}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-
-        except TypeError as e:
-            msg = f"Failed to serialize context: {type(e).__name__} - {e}"
-            print(json.dumps(
-                {"type": "error", "content": msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": msg})
-
-    def _process_message_content(self, message: dict) -> dict:
-        """Process message content to reduce token usage."""
-        import re
-        import string
-
-        msg_copy = copy.copy(message)
-        if "content" in msg_copy:
-            content = msg_copy["content"]
-            content = content.replace("\n", " ")
-            content = content.replace("\r", " ")
-            content = content.replace("\t", " ")
-
-            chinese_punctuation = "，。！？；：""''""''【】《》〈〉（）—…·"
-            ambiguous_chars = "×÷·‐‑‒–—―‖′″‴‵‶‷‹›«»‚„‟†‡•‣⁃⁌⁍⁎⁏⁐⁑⁒⁓⁔⁕⁖⁗⁘⁙⁚⁛⁜⁝⁞"
-            keep_chars = "_@#$%"
-            all_punctuation = string.punctuation + chinese_punctuation + ambiguous_chars
-            all_punctuation = ''.join(c for c in all_punctuation if c not in keep_chars)
-            content = re.sub(f'[{re.escape(all_punctuation)}]', ' ', content)
-            content = re.sub(r'\s+', ' ', content).strip()
-
-            msg_copy["content"] = content
-
-        return msg_copy
-
-    def load_context(self, context_file: Optional[Path] = None) -> bool:
-        """Load conversation context from JSON file.
-
-        Returns:
-            True if context was loaded successfully, False otherwise.
-        """
-        if context_file is None:
-            context_file = Path(__file__).parent / "output" / "context.json"
-
-        err_msg = ""
-
-        if not context_file.exists():
-            err_msg = f"Context file not found: {context_file}"
-        elif not context_file.is_file():
-            err_msg = f"Path is not a file: {context_file}"
-        else:
-            try:
-                file_size = context_file.stat().st_size
-                if file_size == 0:
-                    err_msg = f"Context file is empty: {context_file}"
-                else:
-                    with open(context_file, "r", encoding="utf-8") as f:
-                        context_data = json.load(f)
-
-                    messages = context_data.get("messages", [])
-                    if not messages:
-                        err_msg = f"No messages found in context file: {context_file}"
-                    elif not isinstance(messages, list):
-                        err_msg = f"Invalid context format: 'messages' should be a list, got {type(messages).__name__}"
-                    else:
-                        timestamp = context_data.get("timestamp", "unknown")
-                        model = context_data.get("model", "unknown")
-
-                        loaded_messages = [
-                            m for m in messages if m.get("role") not in ("system", "tool")
-                        ]
-                        if len(loaded_messages) > self.MAX_CONTEXT_MESSAGES:
-                            loaded_messages = loaded_messages[-self.MAX_CONTEXT_MESSAGES:]
-
-                        self.messages.extend(loaded_messages)
-
-                        msg = (
-                            f"Loaded context from {context_file.name}: "
-                            f"{len(loaded_messages)} messages "
-                            f"(saved: {timestamp}, model: {model})"
-                        )
-                        print(json.dumps(
-                            {"type": "info", "content": msg},
-                            ensure_ascii=False,
-                        ))
-                        self._append_to_log("info", {"content": msg})
-                        return True
-
-            except json.JSONDecodeError as e:
-                err_msg = (
-                    f"Failed to parse context file {context_file}: "
-                    f"{type(e).__name__} - {e} "
-                    f"(line {e.lineno}, col {e.colno})"
-                )
-            except (IOError, OSError) as e:
-                err_msg = f"Failed to read context file {context_file}: {type(e).__name__} - {e}"
-            except Exception as e:
-                err_msg = f"Unexpected error loading context: {type(e).__name__} - {e}"
-
-        if err_msg:
-            print(json.dumps(
-                {"type": "error", "content": err_msg},
-                ensure_ascii=False,
-            ))
-            self._append_to_log("error", {"content": err_msg})
-            return False
-
-    @staticmethod
-    def read_log(log_file: Path) -> dict[str, Any]:
-        """Read a JSONL log file and return structured data.
-
-        Args:
-            log_file: Path to the JSONL log file
-
-        Returns:
-            Dictionary with metadata, events, and completion info
-        """
-        if not log_file.exists():
-            return {}
-
-        metadata: dict[str, Any] = {}
-        events: list[dict[str, Any]] = []
-        completion: dict[str, Any] = {}
-
-        with open(log_file, "r", encoding="utf-8") as file:
-            for line in file:
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                data = json.loads(line)
-
-                if "_metadata" in data:
-                    metadata = data["_metadata"]
-                elif "_completion" in data:
-                    completion = data["_completion"]
-                else:
-                    events.append(data)
-
-        return {"metadata": metadata, "events": events, "completion": completion}
 
 
 def main():
+    """Command line entry point."""
     parser = argparse.ArgumentParser(add_help=False)
-
     parser.add_argument("--model", "-m", default=DEFAULT_MODEL)
     parser.add_argument("--think", "-t", action="store_true")
     parser.add_argument("--context", "-c", action="store_true")
     parser.add_argument("prompt", nargs="+")
-
+    
     args = parser.parse_args()
-
-    config = AgentConfig(
-        model=args.model,
-        timeout=TIMEOUT,
-        think=args.think,
-    )
-
+    
+    config = AgentConfig(model=args.model, timeout=TIMEOUT, think=args.think)
     agent = Agent(config)
-
-    agent.run(" ".join(args.prompt), load_saved_context=args.context)
+    agent.run(" ".join(args.prompt), load_context=args.context)
 
 
 if __name__ == "__main__":

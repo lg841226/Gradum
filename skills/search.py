@@ -1,5 +1,6 @@
 """Skill for searching keyword in files."""
 
+import fnmatch
 import os
 import time
 from typing import Any
@@ -95,7 +96,6 @@ class SearchSkill(Skill):
         def process_file(fname: str) -> bool:
             if not file_pattern:
                 return True
-            import fnmatch
             return fnmatch.fnmatch(fname, file_pattern)
 
         def search_file(filepath: str) -> None:

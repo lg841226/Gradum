@@ -2,21 +2,19 @@
 
 from typing import Optional
 
+from skills import Skills
+
 
 def _get_tool_alias(tool_name: str) -> str:
-    """Get human-readable alias for a tool name.
-    
-    Returns skill.alias if defined, otherwise returns tool_name.
-    """
+    """Get human-readable alias for a tool name."""
     try:
-        from skills import Skills
         skills_manager = Skills()
         skill = skills_manager.get(tool_name)
         if skill and skill.alias:
             return skill.alias
-    except (ImportError, AttributeError, KeyError):
+    except (AttributeError, KeyError):
         pass
-    
+
     return tool_name
 
 
@@ -59,6 +57,12 @@ def format_log_entry(entry: dict) -> Optional[str]:
     if entry_type == "error":
         return _format_entry_with_content("error", timestamp, entry_data)
 
+    if entry_type == "context_loaded":
+        message_count = entry_data.get("message_count", 0)
+        status = entry_data.get("status", "unknown")
+        status_text = "loaded" if status == "success" else "no context found"
+        return f"[Context] {timestamp}\n  status: {status_text}\n  messages: {message_count}"
+
     return f"[{entry_type}] {timestamp}\n  (Unknown type)"
 
 
@@ -77,7 +81,7 @@ def format_metadata(entry: dict, timestamp: str = "") -> str:
         user_input = entry_data.get("user_input", "")
         start_time = entry_data.get("start_time", timestamp)
         status = entry_data.get("status", "")
-    
+
     return f"[meta] {start_time}\n  user_input: {user_input}\n  status: {status}"
 
 
@@ -86,7 +90,7 @@ def format_tool_call_start(timestamp: str, entry_data: dict) -> str:
     tool_name = entry_data.get("tool", "")
     arguments = entry_data.get("arguments", {})
     alias = _get_tool_alias(tool_name)
-    
+
     output_lines = [f"[{alias}] {timestamp}"]
     _append_tool_arguments(output_lines, tool_name, arguments)
     return "\n".join(output_lines)
@@ -107,12 +111,8 @@ def format_tool_call(timestamp: str, entry_data: dict) -> str:
     output_lines.append(f"  result: {result_str}")
     
     if result and tool_name != "read_file":
-        # If result is too long, show summary instead
-        if len(result) > 500:
-            lines = result.split('\n')
-            output_lines.append(f"  output: {lines[0]}")
-            output_lines.append(f"  ... ({len(lines)} lines total, truncated)")
-        elif '\n' in result:
+        # Show full result without truncation
+        if '\n' in result:
             output_lines.append(f"  output:\n{result}")
         else:
             output_lines.append(f"  output: {result}")

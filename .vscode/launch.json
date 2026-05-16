@@ -2,47 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Gradum Agent",
+            "name": "Gradum Launcher",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/agent.py",
-            "args": [
-                "--model",
-                "${input:model}",
-                "--think",
-                "${input:userArg}",
-                "${input:contextMode}"
-            ],
-            "console": "externalTerminal",
-        }
-    ],
-    "inputs": [
-        {
-            "id": "model",
-            "type": "pickString",
-            "description": "Select a model",
-            "options": [
-                "minimax-m2.5:cloud",
-                "qwen3.5:397b-cloud",
-                "qwen3-coder:480b-cloud"
-            ],
-            "default": "minimax-m2.5:cloud"
-        },
-        {
-            "id": "userArg",
-            "type": "promptString",
-            "description": "Input prompt",
-            "default": "Default input"
-        },
-        {
-            "id": "contextMode",
-            "type": "pickString",
-            "description": "Load conversation history?",
-            "options": [
-                "--context",
-                ""
-            ],
-            "default": ""
+            "program": "${workspaceFolder}/launcher.py",
+            "console": "externalTerminal"
         }
     ]
 }

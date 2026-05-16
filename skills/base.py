@@ -5,7 +5,7 @@ from typing import Any
 
 class Skill:
     """Base class for all skills."""
-    
+
     name: str = ""
     description: str = ""
     alias: str = ""
