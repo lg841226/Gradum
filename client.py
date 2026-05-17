@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Generator, Optional
+from typing import Any, Generator, Optional, List
 
 import requests
 
@@ -48,7 +48,7 @@ class OllamaClient:
     def chat(
         self,
         messages: list[dict[str, Any]],
-        tools: list[dict] | None = None,
+        tools: Optional[List[dict]] = None,
         stream: bool = True,
         think: Optional[bool] = None  # Override default think setting
     ) -> Generator[tuple[str, Optional[list], Optional[str]], None, None]:

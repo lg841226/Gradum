@@ -113,7 +113,8 @@ def format_tool_call(timestamp: str, entry_data: dict) -> str:
     if result and tool_name != "read_file":
         # Show full result without truncation
         if '\n' in result:
-            output_lines.append(f"  output:\n{result}")
+            indented = "\n".join("    " + line for line in result.split("\n"))
+            output_lines.append(f"  output:\n{indented}")
         else:
             output_lines.append(f"  output: {result}")
 

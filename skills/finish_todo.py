@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 from .base import Skill
-from .plan_task import get_plan_manager
+from .todo import get_todo_manager
 
 
 class CompletePlanSkill(Skill):
@@ -35,7 +35,7 @@ class CompletePlanSkill(Skill):
         }
 
     def execute(self, to_do_items_completed: Optional[int] = None, completed_count: Optional[int] = None, **kwargs: Any) -> str:
-        pm = get_plan_manager()
+        pm = get_todo_manager()
 
         if not pm.initialized:
             return "Error: No to-do item list initialized. Call to_do() first."
@@ -45,22 +45,22 @@ class CompletePlanSkill(Skill):
             completed_count = int(completed_count)
             if completed_count <= 0:
                 return "Error: completed_count must be a positive integer."
-            
+
             new_total = pm.completed + completed_count
             max_items = len(pm.tasks)
-            
+
             if new_total > max_items:
                 return f"Error: Cannot complete {completed_count} items. Only {max_items - pm.completed} items remaining (total: {max_items}, completed: {pm.completed})."
-            
+
             for i in range(pm.completed, new_total):
                 pm.completed = i + 1
-            
+
             return f"Success: Batch completed {completed_count} item(s) (total: {pm.completed}/{max_items})\n{pm.build_status_info()}"
 
         # Sequential mode
         if to_do_items_completed is not None:
             to_do_items_completed = int(to_do_items_completed)
-            
+
             if to_do_items_completed == pm.completed:
                 total = len(pm.tasks)
                 current_task = pm.get_current_task()
@@ -68,9 +68,9 @@ class CompletePlanSkill(Skill):
                     return f"No new tasks completed. Current progress: {pm.completed} out of {total} tasks. Complete the next task ({current_task}) before updating your progress."
                 else:
                     return f"No new tasks completed. Current progress: {pm.completed} out of {total} tasks. Complete the next task before updating your progress."
-            
+
             pm.last_complete_call = to_do_items_completed
-            
+
             expected = pm.completed
             if to_do_items_completed > expected + 1:
                 skipped = to_do_items_completed - expected

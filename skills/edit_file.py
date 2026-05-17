@@ -56,6 +56,7 @@ class EditFileSkill(Skill):
         }
 
     def execute(self, path: str = "", search: str = "", replace: str = "", 
+                # pyrefly: ignore [bad-function-definition]
                 edits: list = None, **kwargs: Any) -> str:
         """Execute file edit operation using search and replace.
         
@@ -129,10 +130,8 @@ class EditFileSkill(Skill):
             search_lines_list = search.split('\n')
             replace_lines_list = replace.split('\n')
             
-            diff_output = []
-            diff_output.append(f"Success: Modified {path}")
-            diff_output.append(f"@@ -{search_lines} +{replace_lines} @@")
-            
+            diff_output = [f"Success: Modified {path}", f"@@ -{search_lines} +{replace_lines} @@"]
+
             # Show removed lines with -
             for line in search_lines_list:
                 diff_output.append(f"- {line}")

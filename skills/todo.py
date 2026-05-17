@@ -4,15 +4,15 @@ from typing import Any, Optional
 from .base import Skill
 
 
-class PlanManager:
-    """Manages plan state."""
+class TodoManager:
+    """Manages todo state."""
 
     def __init__(self):
         self.tasks: list[str] = []
         self.completed: int = 0
         self.initialized: bool = False
         self.tools_since_last_complete: int = 0
-        self.last_complete_call: int | None = None
+        self.last_complete_call: Optional[int] = None
 
     def parse_arguments(self, arguments: dict) -> tuple[bool, str]:
         """Parse to_do arguments."""
@@ -66,9 +66,9 @@ class PlanManager:
         return ""
 
 
-_plan_manager = PlanManager()
+_todo_manager = TodoManager()
 
-class PlanTaskSkill(Skill):
+class TodoSkill(Skill):
     """Skill for initializing to-do item list."""
     name = "to_do"
     alias = "Planned"
@@ -94,7 +94,7 @@ class PlanTaskSkill(Skill):
             }
         }
 
-    def execute(self, tasks: list = None, **kwargs: Any) -> str:
+    def execute(self, tasks: Optional[list] = None, **kwargs: Any) -> str:
         if not tasks or not isinstance(tasks, list):
             return "Error: Missing or invalid 'tasks' parameter."
 
@@ -102,13 +102,13 @@ class PlanTaskSkill(Skill):
         if not to_do_list:
             return "Error: 'to-do items' list is empty."
 
-        is_valid, error_msg = _plan_manager.parse_arguments({"tasks": to_do_list})
+        is_valid, error_msg = _todo_manager.parse_arguments({"tasks": to_do_list})
         if not is_valid:
             if error_msg:
                 return f"Error: {error_msg}"
             return "Error: To-do item list already initialized. Cannot call to_do again."
 
-        result = _plan_manager.build_status_info()
+        result = _todo_manager.build_status_info()
         result += "WARNING: START EXECUTING THE FIRST TASK NOW! After completing it, call finish_to_do_item(to_do_items_completed=1)"
         return result
 
@@ -116,6 +116,6 @@ class PlanTaskSkill(Skill):
         return ""
 
 
-def get_plan_manager() -> PlanManager:
-    """Get the global PlanManager instance."""
-    return _plan_manager
+def get_todo_manager() -> TodoManager:
+    """Get the global TodoManager instance."""
+    return _todo_manager

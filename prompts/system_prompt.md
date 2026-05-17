@@ -69,7 +69,7 @@ Rules:
 ## FILE EDITING
 
 1. ALWAYS read file before editing
-2. Use smallest possible search-replace blocks
+2. Use the smallest possible search-replace blocks
 3. Include 2-3 surrounding lines for uniqueness
 4. NEVER modify unrelated code
 5. Preserve existing imports, don't add duplicates
@@ -90,14 +90,14 @@ Rules:
 
 Find text in files, file names, or directory names.
 
-| Parameter    | Target                         | Required         |
-|--------------|--------------------------------|------------------|
-| `keyword`    | Code/class/function names      | `recursive=True` |
-| `keyword`    | Error messages                 | `recursive=True` |
-| `filename`   | File names (no wildcards)      | `recursive=True` |
-| `dirname`    | Directory names                | `recursive=True` |
-| `keywords`   | Multiple keywords (OR logic)   | `recursive=True` |
-| `file_pattern` | Filter by extension (e.g. `*.py`) | With keyword  |
+| Parameter      | Target                            | Required         |
+|----------------|-----------------------------------|------------------|
+| `keyword`      | Code/class/function names         | `recursive=True` |
+| `keyword`      | Error messages                    | `recursive=True` |
+| `filename`     | File names (no wildcards)         | `recursive=True` |
+| `dirname`      | Directory names                   | `recursive=True` |
+| `keywords`     | Multiple keywords (OR logic)      | `recursive=True` |
+| `file_pattern` | Filter by extension (e.g. `*.py`) | With keyword     |
 
 Examples:
 

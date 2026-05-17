@@ -1,7 +1,7 @@
 # Project Backup Script - Copy, compress and move project folder
 
 # Set project root directory (source)
-$sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$sourceDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $projectName = Split-Path -Leaf $sourceDir
 
 # Destination directory
@@ -42,7 +42,7 @@ try {
     New-Item -ItemType Directory -Path $tempBackupDir -Force | Out-Null
     
     Write-Host "Copying files with Robocopy..." -ForegroundColor Gray
-    & robocopy $sourceDir $tempBackupDir *.* /E /XD __pycache__ /XF *.pyc *.pyo *.pyd backup.ps1 chat.md /NFL /NDL /NJH /NJS | Out-Null
+    & robocopy $sourceDir $tempBackupDir *.* /E /XD __pycache__ /XF *.pyc *.pyo *.pyd scripts\backup.ps1 scripts\backup.sh chat.md /NFL /NDL /NJH /NJS | Out-Null
     
     # Count files copied
     $fileCount = (Get-ChildItem -Path $tempBackupDir -Recurse -File).Count
