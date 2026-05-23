@@ -1,0 +1,1094 @@
+"""PyQt6 GUI launcher for Gradum Agent."""
+
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Optional, Tuple
+
+from PyQt6.QtCore import Qt, QProcess, QDateTime, QUrl
+from PyQt6.QtGui import QKeySequence, QShortcut, QTextCharFormat, QColor, QFont, QSyntaxHighlighter
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PyQt6.QtSvgWidgets import QSvgWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTextEdit,
+    QLineEdit,
+    QScrollArea,
+    QRadioButton,
+    QButtonGroup,
+    QFrame,
+    QSizePolicy,
+    QSpinBox,
+    QDoubleSpinBox,
+)
+
+MODEL_NAME_MAPPING = {
+    "qwen": "QwenX",
+    "llama": "Llama",
+    "deepseek": "DeepSeek",
+    "glm": "GLM",
+    "mistral": "Mistral",
+    "claude": "Claude",
+    "gpt": "ChatGPT",
+    "gpt-oss": "ChatGPT OpenSource",
+    "phi": "Phi",
+    "codellama": "CodeLlama",
+    "airoboros": "Airoboros",
+    "mythomax": "MythoMax",
+    "wizardlm": "WizardLM",
+    "yi": "Yi",
+}
+
+# Window Configuration
+WINDOW_WIDTH = 1400
+WINDOW_HEIGHT = 820
+WINDOW_MIN_WIDTH = 1100
+WINDOW_MIN_HEIGHT = 700
+
+# Layout Configuration
+LEFT_PANEL_WIDTH = 400
+RIGHT_PANEL_WIDTH = 300
+CENTER_PANEL_MIN_WIDTH = 400
+
+# Margins and Spacing
+MAIN_MARGIN_LEFT = 20
+MAIN_MARGIN_TOP = 10
+MAIN_MARGIN_RIGHT = 20
+MAIN_MARGIN_BOTTOM = 20
+MAIN_SPACING = 24
+
+CARD_SPACING = 10
+CARD_INTERNAL_SPACING = 8
+OPTION_SPACING = 10
+
+# Component Sizes
+PROMPT_INPUT_HEIGHT = 100
+PREVIEW_HEIGHT = 50
+RUN_BUTTON_HEIGHT = 40
+HISTORY_WIDTH = 350
+
+# History Configuration
+MAX_HISTORY = 10
+
+# API Configuration
+OLLAMA_API_URL = "http://localhost:11434/api/tags"
+
+# Character Limits
+MAX_PROMPT_CHARS = 5000
+
+# Local Model Settings Defaults
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TOP_P = 0.9
+DEFAULT_NUM_CTX = 4096
+DEFAULT_NUM_PREDICT = 2048
+
+
+class CollapsibleCard(QWidget):
+    """A collapsible card widget with toggle arrow header."""
+
+    ICONS_DIR = Path(__file__).parent / "icons"
+
+    def __init__(
+        self,
+        title: str,
+        parent: Optional[QWidget] = None,
+        right_widget: Optional[QWidget] = None,
+    ):
+        super().__init__(parent)
+        self.setObjectName("card")
+        self._expanded = True
+        self._setup_ui(title, right_widget)
+
+    def _setup_ui(self, title: str, right_widget: Optional[QWidget]) -> None:
+        """Initialize the card UI structure."""
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        self._header = self._create_header(title, right_widget)
+        main_layout.addWidget(self._header)
+
+        self._content = QWidget()
+        self._content_layout = QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(0, 0, 0, 10)
+        self._content_layout.setSpacing(0)
+        main_layout.addWidget(self._content)
+
+    def _create_header(self, title: str, right_widget: Optional[QWidget]) -> QWidget:
+        """Create the header with arrow, title, and optional right widget."""
+        header = QWidget()
+        header.setCursor(Qt.CursorShape.PointingHandCursor)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 10, 0, 10)
+
+        self._arrow = QSvgWidget(str(self.ICONS_DIR / "arrow-down.svg"))
+        self._arrow.setFixedSize(12, 12)
+        header_layout.addWidget(self._arrow)
+        header_layout.addSpacing(6)
+
+        self._title_label = QLabel(title)
+        self._title_label.setObjectName("card-title")
+        header_layout.addWidget(self._title_label)
+        header_layout.addStretch()
+
+        if right_widget:
+            header_layout.addWidget(right_widget)
+
+        return header
+
+    def content_layout(self) -> QVBoxLayout:
+        """Return the content layout for adding child widgets."""
+        return self._content_layout
+
+    def toggle(self) -> None:
+        """Toggle the expanded/collapsed state."""
+        self._expanded = not self._expanded
+        self._content.setVisible(self._expanded)
+
+        icon_name = "arrow-down.svg" if self._expanded else "arrow-right.svg"
+        self._arrow.load(str(self.ICONS_DIR / icon_name))
+
+    def mousePressEvent(self, a0) -> None:
+        """Handle mouse click to toggle state."""
+        if a0.button() == Qt.MouseButton.LeftButton:
+            self.toggle()
+
+
+class BashSyntaxHighlighter(QSyntaxHighlighter):
+    """Syntax highlighter for bash commands."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_formats()
+
+    def _init_formats(self) -> None:
+        """Initialize text formats for different syntax elements."""
+        self._python_format = QTextCharFormat()
+        self._python_format.setForeground(QColor("#d4a017"))
+        self._python_format.setFontWeight(QFont.Weight.Bold)
+
+        self._param_format = QTextCharFormat()
+        self._param_format.setForeground(QColor("#888888"))
+
+        self._number_format = QTextCharFormat()
+        self._number_format.setForeground(QColor("#4caf50"))
+
+    def highlightBlock(self, text: Optional[str]) -> None:
+        """Apply syntax highlighting to a block of text."""
+        if not text:
+            return
+
+        for keyword in ["python3", "python"]:
+            pos = text.find(keyword)
+            while pos != -1:
+                self.setFormat(pos, len(keyword), self._python_format)
+                pos = text.find(keyword, pos + len(keyword))
+
+        import re
+        for match in re.finditer(r'--[\w-]+', text):
+            self.setFormat(match.start(), match.end() - match.start(), self._param_format)
+
+        for match in re.finditer(r'(?<!\S)(-[\w]+)', text):
+            self.setFormat(match.start(1), match.end(1) - match.start(1), self._param_format)
+
+        timeout_match = re.search(r'--timeout\s+(\d+)', text)
+        if timeout_match:
+            start = timeout_match.start(1)
+            end = timeout_match.end(1)
+            self.setFormat(start, end - start, self._number_format)
+
+
+class AgentLauncher(QMainWindow):
+    """Modern minimalist launcher with black & white theme."""
+
+    def __init__(self):
+        super().__init__()
+        self._init_state()
+        self._setup_ui()
+        self._apply_styles()
+        self._setup_shortcuts()
+        self._refresh_history_list()
+        self._update_preview()
+        self._update_run_button()
+        self._fetch_models()
+
+    def _init_state(self) -> None:
+        """Initialize application state."""
+        self.setWindowTitle("Gradum")
+        self.setFixedSize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+
+        self.prompt_history: list[dict] = []
+        self.agent_process: Optional[QProcess] = None
+        self.network_manager = QNetworkAccessManager(self)
+
+    def _setup_ui(self) -> None:
+        """Initialize UI components."""
+        central = QWidget()
+        self.setCentralWidget(central)
+
+        main_layout = QHBoxLayout(central)
+        main_layout.setContentsMargins(MAIN_MARGIN_LEFT, MAIN_MARGIN_TOP, MAIN_MARGIN_RIGHT, MAIN_MARGIN_BOTTOM)
+        main_layout.setSpacing(MAIN_SPACING)
+
+        left_widget = self._create_left_panel()
+        center_widget = self._create_center_panel()
+        right_widget = self._create_right_panel()
+
+        main_layout.addWidget(left_widget, stretch=1)
+        main_layout.addWidget(center_widget, stretch=2)
+        main_layout.addWidget(right_widget, stretch=1)
+
+    def _create_left_panel(self) -> QWidget:
+        """Create the left panel with options, models, and preview."""
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        left_layout.addWidget(self._create_options_card())
+        left_layout.addSpacing(CARD_SPACING)
+        left_layout.addWidget(self._create_separator())
+
+        left_layout.addWidget(self._create_models_card())
+        left_layout.addSpacing(CARD_SPACING)
+        left_layout.addWidget(self._create_separator())
+
+        left_layout.addWidget(self._create_preview_card())
+        left_layout.addStretch()
+
+        return left_widget
+
+    def _create_center_panel(self) -> QWidget:
+        """Create the center panel with prompt input and run button."""
+        center_widget = QWidget()
+        center_layout = QVBoxLayout(center_widget)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(CARD_SPACING)
+
+        center_layout.addStretch()
+
+        self.prompt_input = QTextEdit()
+        self.prompt_input.setObjectName("prompt-input")
+        self.prompt_input.setPlaceholderText("What would you like me to do?")
+        self.prompt_input.setFixedHeight(PROMPT_INPUT_HEIGHT)
+        self.prompt_input.setAcceptRichText(False)
+        self.prompt_input.textChanged.connect(self._update_run_button)
+        self.prompt_input.textChanged.connect(self._update_preview)
+        self.prompt_input.textChanged.connect(self._update_char_count)
+        center_layout.addWidget(self.prompt_input)
+
+        info_container = QWidget()
+        info_layout = QHBoxLayout(info_container)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(0)
+
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.setObjectName("text-btn")
+        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_btn.clicked.connect(self._clear_prompt)
+        info_layout.addWidget(self.clear_btn)
+
+        info_layout.addStretch()
+
+        self.char_count_label = QLabel("0 characters  /  ~ 0 tokens")
+        self.char_count_label.setObjectName("char-count-label")
+        info_layout.addWidget(self.char_count_label)
+
+        center_layout.addWidget(info_container)
+
+        self.run_btn = QPushButton("Run Agent")
+        self.run_btn.setObjectName("run-btn")
+        self.run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.run_btn.setFixedHeight(RUN_BUTTON_HEIGHT)
+        self.run_btn.clicked.connect(self._run_agent)
+        center_layout.addWidget(self.run_btn)
+
+        return center_widget
+
+    def _create_options_card(self) -> CollapsibleCard:
+        """Create the options card with checkboxes."""
+        self.options_card = CollapsibleCard("OPTIONS", self)
+        content = self.options_card.content_layout()
+        content.setSpacing(OPTION_SPACING)
+
+        self.context_check, context_row = self._create_option_row(
+            "Context Memory", "Remember conversation history"
+        )
+        self.context_check.toggled.connect(self._update_preview)
+        content.addWidget(context_row)
+
+        self.think_check, think_row = self._create_option_row(
+            "Think Mode", "Show step-by-step reasoning"
+        )
+        self.think_check.toggled.connect(self._update_preview)
+        content.addWidget(think_row)
+
+        self.timeout_check, self.timeout_input, timeout_row = self._create_option_row_with_input(
+            "Timeout", "Request timeout in seconds", "120"
+        )
+        self.timeout_check.toggled.connect(self._update_preview)
+        self.timeout_input.textChanged.connect(self._update_preview)
+        self.timeout_input.editingFinished.connect(self._on_timeout_editing_finished)
+        content.addWidget(timeout_row)
+
+        return self.options_card
+
+    def _create_models_card(self) -> CollapsibleCard:
+        """Create the models selection card."""
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.setObjectName("text-btn")
+        self.refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_btn.clicked.connect(self._fetch_models)
+
+        self.model_card = CollapsibleCard("MODELS", self, self.refresh_btn)
+        content = self.model_card.content_layout()
+        content.setSpacing(OPTION_SPACING)
+
+        self.model_button_group = QButtonGroup(self)
+        self.model_radio_container = QWidget()
+        self.model_radio_layout = QVBoxLayout(self.model_radio_container)
+        self.model_radio_layout.setContentsMargins(0, 0, 0, 0)
+        self.model_radio_layout.setSpacing(10)
+
+        fetching_label = QLabel("FETCHING MODELS...")
+        fetching_label.setObjectName("model-fetching")
+        self.model_radio_layout.addWidget(fetching_label)
+
+        content.addWidget(self.model_radio_container)
+
+        return self.model_card
+
+    def _create_local_settings_card(self) -> CollapsibleCard:
+        """Create the local model settings card."""
+        self.refresh_btn = QPushButton("Reset")
+        self.refresh_btn.setObjectName("text-btn")
+        self.refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_btn.clicked.connect(self._reset_local_settings)
+
+        self.local_settings_card = CollapsibleCard("LOCAL SETTINGS", self, self.refresh_btn)
+        content = self.local_settings_card.content_layout()
+        content.setSpacing(OPTION_SPACING)
+
+        # Temperature setting
+        temp_container = QWidget()
+        temp_layout = QHBoxLayout(temp_container)
+        temp_layout.setContentsMargins(0, 0, 0, 0)
+        temp_layout.setSpacing(8)
+
+        temp_text_container = QWidget()
+        temp_text_layout = QVBoxLayout(temp_text_container)
+        temp_text_layout.setContentsMargins(0, 0, 0, 0)
+        temp_text_layout.setSpacing(1)
+
+        temp_label = QLabel("Temperature")
+        temp_label.setObjectName("option-title")
+        temp_text_layout.addWidget(temp_label)
+
+        temp_desc = QLabel("Controls randomness (0.0-2.0)")
+        temp_desc.setObjectName("option-desc")
+        temp_text_layout.addWidget(temp_desc)
+
+        temp_layout.addWidget(temp_text_container, stretch=1)
+
+        self.temp_spin = QDoubleSpinBox()
+        self.temp_spin.setObjectName("option-spin")
+        self.temp_spin.setRange(0.0, 2.0)
+        self.temp_spin.setSingleStep(0.1)
+        self.temp_spin.setValue(DEFAULT_TEMPERATURE)
+        self.temp_spin.setFixedWidth(70)
+        self.temp_spin.valueChanged.connect(self._update_preview)
+        temp_layout.addWidget(self.temp_spin)
+
+        content.addWidget(temp_container)
+
+        # Top P setting
+        top_p_container = QWidget()
+        top_p_layout = QHBoxLayout(top_p_container)
+        top_p_layout.setContentsMargins(0, 0, 0, 0)
+        top_p_layout.setSpacing(8)
+
+        top_p_text_container = QWidget()
+        top_p_text_layout = QVBoxLayout(top_p_text_container)
+        top_p_text_layout.setContentsMargins(0, 0, 0, 0)
+        top_p_text_layout.setSpacing(1)
+
+        top_p_label = QLabel("Top P")
+        top_p_label.setObjectName("option-title")
+        top_p_text_layout.addWidget(top_p_label)
+
+        top_p_desc = QLabel("Nucleus sampling threshold")
+        top_p_desc.setObjectName("option-desc")
+        top_p_text_layout.addWidget(top_p_desc)
+
+        top_p_layout.addWidget(top_p_text_container, stretch=1)
+
+        self.top_p_spin = QDoubleSpinBox()
+        self.top_p_spin.setObjectName("option-spin")
+        self.top_p_spin.setRange(0.0, 1.0)
+        self.top_p_spin.setSingleStep(0.1)
+        self.top_p_spin.setValue(DEFAULT_TOP_P)
+        self.top_p_spin.setFixedWidth(70)
+        self.top_p_spin.valueChanged.connect(self._update_preview)
+        top_p_layout.addWidget(self.top_p_spin)
+
+        content.addWidget(top_p_container)
+
+        # Context Window setting
+        ctx_container = QWidget()
+        ctx_layout = QHBoxLayout(ctx_container)
+        ctx_layout.setContentsMargins(0, 0, 0, 0)
+        ctx_layout.setSpacing(8)
+
+        ctx_text_container = QWidget()
+        ctx_text_layout = QVBoxLayout(ctx_text_container)
+        ctx_text_layout.setContentsMargins(0, 0, 0, 0)
+        ctx_text_layout.setSpacing(1)
+
+        ctx_label = QLabel("Context Window")
+        ctx_label.setObjectName("option-title")
+        ctx_text_layout.addWidget(ctx_label)
+
+        ctx_desc = QLabel("Maximum context length")
+        ctx_desc.setObjectName("option-desc")
+        ctx_text_layout.addWidget(ctx_desc)
+
+        ctx_layout.addWidget(ctx_text_container, stretch=1)
+
+        self.ctx_spin = QSpinBox()
+        self.ctx_spin.setObjectName("option-spin")
+        self.ctx_spin.setRange(512, 32768)
+        self.ctx_spin.setSingleStep(512)
+        self.ctx_spin.setValue(DEFAULT_NUM_CTX)
+        self.ctx_spin.setFixedWidth(70)
+        self.ctx_spin.valueChanged.connect(self._update_preview)
+        ctx_layout.addWidget(self.ctx_spin)
+
+        content.addWidget(ctx_container)
+
+        # Max Tokens setting
+        predict_container = QWidget()
+        predict_layout = QHBoxLayout(predict_container)
+        predict_layout.setContentsMargins(0, 0, 0, 0)
+        predict_layout.setSpacing(8)
+
+        predict_text_container = QWidget()
+        predict_text_layout = QVBoxLayout(predict_text_container)
+        predict_text_layout.setContentsMargins(0, 0, 0, 0)
+        predict_text_layout.setSpacing(1)
+
+        predict_label = QLabel("Max Tokens")
+        predict_label.setObjectName("option-title")
+        predict_text_layout.addWidget(predict_label)
+
+        predict_desc = QLabel("Maximum output tokens")
+        predict_desc.setObjectName("option-desc")
+        predict_text_layout.addWidget(predict_desc)
+
+        predict_layout.addWidget(predict_text_container, stretch=1)
+
+        self.predict_spin = QSpinBox()
+        self.predict_spin.setObjectName("option-spin")
+        self.predict_spin.setRange(128, 8192)
+        self.predict_spin.setSingleStep(128)
+        self.predict_spin.setValue(DEFAULT_NUM_PREDICT)
+        self.predict_spin.setFixedWidth(70)
+        self.predict_spin.valueChanged.connect(self._update_preview)
+        predict_layout.addWidget(self.predict_spin)
+
+        content.addWidget(predict_container)
+
+        return self.local_settings_card
+
+    def _create_preview_card(self) -> CollapsibleCard:
+        """Create the command preview card."""
+        self.copy_btn = QPushButton("Copy")
+        self.copy_btn.setObjectName("text-btn")
+        self.copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.copy_btn.clicked.connect(self._copy_command)
+
+        self.preview_card = CollapsibleCard("PREVIEW", self, self.copy_btn)
+        content = self.preview_card.content_layout()
+
+        unix_label = QLabel("Unix / macOS")
+        unix_label.setObjectName("preview-label")
+        content.addWidget(unix_label)
+
+        content.addSpacing(4)
+
+        self.preview_text = QTextEdit()
+        self.preview_text.setObjectName("preview-text")
+        self.preview_text.setReadOnly(True)
+        self.preview_text.setFixedHeight(PREVIEW_HEIGHT)
+        self.preview_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.preview_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.preview_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        self.highlighter = BashSyntaxHighlighter(self.preview_text.document())
+
+        content.addWidget(self.preview_text)
+
+        content.addSpacing(12)
+
+        windows_label = QLabel("Windows")
+        windows_label.setObjectName("preview-label")
+        content.addWidget(windows_label)
+
+        content.addSpacing(4)
+
+        self.preview_text_windows = QTextEdit()
+        self.preview_text_windows.setObjectName("preview-text")
+        self.preview_text_windows.setReadOnly(True)
+        self.preview_text_windows.setFixedHeight(PREVIEW_HEIGHT)
+        self.preview_text_windows.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.preview_text_windows.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.preview_text_windows.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        self.highlighter_windows = BashSyntaxHighlighter(self.preview_text_windows.document())
+
+        content.addWidget(self.preview_text_windows)
+
+        return self.preview_card
+
+    def _create_right_panel(self) -> QWidget:
+        """Create the right panel with history and local settings."""
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        # History card
+        self.history_card = CollapsibleCard("HISTORY", self)
+        history_content = self.history_card.content_layout()
+
+        self.history_scroll = QScrollArea()
+        self.history_scroll.setObjectName("history-scroll")
+        self.history_scroll.setWidgetResizable(True)
+        self.history_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+
+        self.history_content = QWidget()
+        self.history_content.setObjectName("history-content")
+        self.history_list_layout = QVBoxLayout(self.history_content)
+        self.history_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.history_list_layout.setSpacing(10)
+        self.history_list_layout.addStretch()
+
+        self.history_scroll.setWidget(self.history_content)
+        history_content.addWidget(self.history_scroll)
+
+        right_layout.addWidget(self.history_card)
+
+        right_layout.addSpacing(CARD_SPACING)
+        right_layout.addWidget(self._create_separator())
+
+        right_layout.addWidget(self._create_local_settings_card())
+        right_layout.addStretch()
+
+        return right_widget
+
+    @staticmethod
+    def _create_option_row(title: str, description: str) -> Tuple[QPushButton, QWidget]:
+        """Create an option row with checkbox and labels."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        checkbox = QPushButton("✓")
+        checkbox.setObjectName("option-check")
+        checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+        checkbox.setCheckable(True)
+        checkbox.setFixedSize(16, 16)
+
+        text_container = QWidget()
+        text_layout = QVBoxLayout(text_container)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(1)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("option-title")
+        text_layout.addWidget(title_label)
+
+        desc_label = QLabel(description)
+        desc_label.setObjectName("option-desc")
+        text_layout.addWidget(desc_label)
+
+        layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(text_container, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        return checkbox, container
+
+    @staticmethod
+    def _create_option_row_with_input(
+        title: str, description: str, default_value: str = ""
+    ) -> Tuple[QPushButton, QLineEdit, QWidget]:
+        """Create an option row with checkbox, labels, and input field."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        checkbox = QPushButton("✓")
+        checkbox.setObjectName("option-check")
+        checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+        checkbox.setCheckable(True)
+        checkbox.setFixedSize(16, 16)
+
+        text_container = QWidget()
+        text_layout = QVBoxLayout(text_container)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(1)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("option-title")
+        text_layout.addWidget(title_label)
+
+        desc_label = QLabel(description)
+        desc_label.setObjectName("option-desc")
+        text_layout.addWidget(desc_label)
+
+        layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(text_container, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        input_field = QLineEdit()
+        input_field.setObjectName("option-input")
+        input_field.setText(default_value)
+        input_field.setFixedWidth(80)
+        input_field.setEnabled(False)
+
+        checkbox.toggled.connect(lambda checked: input_field.setEnabled(checked))
+
+        layout.addWidget(input_field, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        return checkbox, input_field, container
+
+    @staticmethod
+    def _format_model_name(model_name: str) -> str:
+        """Format model name for display with mapping."""
+        base_name = model_name.split(":")[0].lower()
+        formatted = MODEL_NAME_MAPPING.get(base_name, base_name.title())
+        return formatted.replace("-", " ")
+
+    @staticmethod
+    def _extract_model_size(model_name: str) -> str:
+        """Extract parameter size from model name (e.g., 70b, 14b)."""
+        match = re.search(r"(\d+)[bB]", model_name)
+        return f"{match.group(1)}b" if match else ""
+
+    @staticmethod
+    def _create_model_radio(model_name: str) -> Tuple[QRadioButton, QWidget]:
+        """Create radio button with model name and size badge."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        formatted_name = AgentLauncher._format_model_name(model_name)
+        radio = QRadioButton(formatted_name)
+        radio.setCursor(Qt.CursorShape.PointingHandCursor)
+        radio.setProperty("originalName", model_name)
+
+        size = AgentLauncher._extract_model_size(model_name)
+        if size:
+            badge = QLabel(size)
+            badge.setObjectName("model-badge")
+            badge.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            layout.addWidget(radio)
+            layout.addWidget(badge)
+        else:
+            layout.addWidget(radio)
+
+        return radio, container
+
+    def _apply_styles(self) -> None:
+        """Apply stylesheet from CSS file."""
+        css_path = Path(__file__).parent / "styles.txt"
+        if css_path.exists():
+            self.setStyleSheet(css_path.read_text())
+
+    def _setup_shortcuts(self) -> None:
+        """Setup keyboard shortcuts."""
+        run_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        run_shortcut.activated.connect(self._run_agent)
+
+        close_shortcut = QShortcut(QKeySequence("Esc"), self)
+        close_shortcut.activated.connect(self.close)
+
+    def _update_run_button(self) -> None:
+        """Update run button state based on prompt content and model selection."""
+        has_content = bool(self.prompt_input.toPlainText().strip())
+        has_model = self.model_button_group.checkedButton() is not None
+        char_count = len(self.prompt_input.toPlainText())
+        within_limit = char_count <= MAX_PROMPT_CHARS
+        self.run_btn.setEnabled(has_content and has_model and within_limit)
+
+    def _update_local_settings_state(self) -> None:
+        """Update local model settings card state based on model selection."""
+        checked_btn = self.model_button_group.checkedButton()
+        if not checked_btn:
+            return
+
+        model_name = checked_btn.property("originalName")
+        is_cloud = "cloud" in model_name.lower()
+
+        # Enable/disable local settings based on model type
+        self.temp_spin.setEnabled(not is_cloud)
+        self.top_p_spin.setEnabled(not is_cloud)
+        self.ctx_spin.setEnabled(not is_cloud)
+        self.predict_spin.setEnabled(not is_cloud)
+
+        # Update card appearance
+        if is_cloud:
+            self.local_settings_card.setStyleSheet("opacity: 0.5;")
+        else:
+            self.local_settings_card.setStyleSheet("")
+
+    def _reset_local_settings(self) -> None:
+        """Reset local model settings to default values."""
+        self.temp_spin.setValue(DEFAULT_TEMPERATURE)
+        self.top_p_spin.setValue(DEFAULT_TOP_P)
+        self.ctx_spin.setValue(DEFAULT_NUM_CTX)
+        self.predict_spin.setValue(DEFAULT_NUM_PREDICT)
+
+    def _update_char_count(self) -> None:
+        """Update character count and token estimation display."""
+        text = self.prompt_input.toPlainText()
+        char_count = len(text)
+        token_count = self._estimate_tokens(text)
+
+        if char_count > MAX_PROMPT_CHARS:
+            self.char_count_label.setText(f"{char_count:,} characters  /  ~ {token_count:,} tokens  Exceeds limit")
+            self.char_count_label.setStyleSheet("color: #e74c3c;")
+        else:
+            self.char_count_label.setText(f"{char_count:,} characters  /  ~ {token_count:,} tokens")
+            self.char_count_label.setStyleSheet("")
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count for given text."""
+        if not text:
+            return 0
+
+        word_count = len(text.split())
+        char_count = len(text)
+
+        estimated_tokens = int((word_count + char_count / 4) / 2)
+
+        return max(estimated_tokens, len(text.split()))
+
+    def _clear_layout(self, layout) -> None:
+        """Clear all items from a layout."""
+        while layout.count():
+            item = layout.takeAt(0)
+            if item and (widget := item.widget()):
+                widget.deleteLater()
+
+    def _fetch_models(self) -> None:
+        """Fetch available models from Ollama API."""
+        url = QUrl(OLLAMA_API_URL)
+        request = QNetworkRequest(url)
+        reply = self.network_manager.get(request)
+        if reply:
+            reply.finished.connect(lambda: self._on_models_fetched(reply))
+
+    def _on_models_fetched(self, reply) -> None:
+        """Handle models fetch response."""
+        self._clear_layout(self.model_radio_layout)
+
+        if reply.error() != reply.NetworkError.NoError:
+            self._show_model_error("Failed to fetch models")
+            reply.deleteLater()
+            return
+
+        data = reply.readAll().data()
+        reply.deleteLater()
+
+        try:
+            result = json.loads(data.decode("utf-8"))
+            models = result.get("models", [])
+
+            if not models:
+                self._show_model_error("No models found")
+                return
+
+            self._populate_models(models)
+
+        except json.JSONDecodeError:
+            self._show_model_error("Invalid response")
+
+    def _show_model_error(self, message: str) -> None:
+        """Show an error message in the models section."""
+        error_label = QLabel(message)
+        error_label.setObjectName("model-fetching")
+        self.model_radio_layout.addWidget(error_label)
+
+    def _populate_models(self, models: list) -> None:
+        """Populate the models section with fetched models."""
+        local_models = [m for m in models if "cloud" not in m.get("name", "")]
+        cloud_models = [m for m in models if "cloud" in m.get("name", "")]
+
+        models_container = QWidget()
+        models_layout = QVBoxLayout(models_container)
+        models_layout.setContentsMargins(0, 0, 0, 0)
+        models_layout.setSpacing(10)
+
+        if cloud_models:
+            self._add_model_section(models_layout, "Cloud", cloud_models, 0)
+
+        if local_models:
+            start_id = len(cloud_models) if cloud_models else 0
+            self._add_model_section(models_layout, "Local", local_models, start_id)
+
+        self.model_radio_layout.addWidget(models_container)
+
+    def _add_model_section(
+        self, layout: QVBoxLayout, title: str, models: list, start_id: int
+    ) -> None:
+        """Add a section of models to the layout."""
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(6)
+
+        header = QLabel(title)
+        header.setObjectName("model-section-header")
+        section_layout.addWidget(header)
+
+        for i, model in enumerate(models):
+            model_name = model.get("name", "unknown")
+            radio, widget = self._create_model_radio(model_name)
+            self.model_button_group.addButton(radio, start_id + i)
+            radio.toggled.connect(self._update_run_button)
+            radio.toggled.connect(self._update_preview)
+            radio.toggled.connect(self._update_local_settings_state)
+            section_layout.addWidget(widget)
+
+            if (title == "Cloud" and i == 0) or (title == "Local" and start_id == 0 and i == 0):
+                radio.setChecked(True)
+
+        section_layout.addStretch()
+        layout.addWidget(section)
+
+    @staticmethod
+    def _create_separator() -> QFrame:
+        """Create a horizontal separator line."""
+        separator = QFrame()
+        separator.setFixedHeight(1)
+        separator.setStyleSheet("background-color: #e0e0e0; margin: 0 20px;")
+        return separator
+
+    def _clear_prompt(self) -> None:
+        """Clear the prompt input."""
+        self.prompt_input.clear()
+        self._update_preview()
+
+    def _update_preview(self) -> None:
+        """Update the command preview."""
+        cmd_unix = self._build_command(is_windows=False)
+        cmd_windows = self._build_command(is_windows=True)
+        self.preview_text.setPlainText(cmd_unix)
+        self.preview_text_windows.setPlainText(cmd_windows)
+
+    def _build_command(self, is_windows: bool = False) -> str:
+        """Build the command string from current settings."""
+        if is_windows:
+            parts = ["python", "agent.py"]
+        else:
+            parts = [sys.executable, "agent.py"]
+
+        if self.context_check.isChecked():
+            parts.append("--context")
+
+        if self.think_check.isChecked():
+            parts.append("--think")
+
+        if self.timeout_check.isChecked():
+            timeout_value = self.timeout_input.text().strip()
+            if timeout_value:
+                parts.extend(["--timeout", timeout_value])
+
+        checked_btn = self.model_button_group.checkedButton()
+        if checked_btn:
+            model_name = checked_btn.property("originalName")
+            parts.extend(["--model", model_name])
+
+            # Add local model settings only for local models
+            is_cloud = "cloud" in model_name.lower()
+            if not is_cloud:
+                parts.extend(["--temperature", str(self.temp_spin.value())])
+                parts.extend(["--top-p", str(self.top_p_spin.value())])
+                parts.extend(["--num-ctx", str(self.ctx_spin.value())])
+                parts.extend(["--num-predict", str(self.predict_spin.value())])
+
+        prompt = self.prompt_input.toPlainText().strip()
+        if prompt:
+            parts.append(f'"{prompt}"')
+
+        return " ".join(parts)
+
+    def _on_timeout_editing_finished(self) -> None:
+        """Handle timeout input editing finished - restore default if empty."""
+        if not self.timeout_input.text().strip():
+            self.timeout_input.setText("120")
+
+    def _copy_command(self) -> None:
+        """Copy both commands to clipboard."""
+        cmd_unix = self._build_command(is_windows=False)
+        cmd_windows = self._build_command(is_windows=True)
+        clipboard = QApplication.clipboard()
+        if clipboard:
+            clipboard.setText(f"{cmd_unix}\n{cmd_windows}")
+
+    def _refresh_history_list(self) -> None:
+        """Refresh the history list display."""
+        while self.history_list_layout.count() > 1:
+            item = self.history_list_layout.takeAt(0)
+            if item and (widget := item.widget()):
+                widget.deleteLater()
+
+        if not self.prompt_history:
+            placeholder = QLabel("No history yet")
+            placeholder.setObjectName("history-placeholder")
+            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.history_list_layout.insertWidget(0, placeholder)
+            return
+
+        for item in self.prompt_history:
+            self._add_history_item(item)
+
+    def _add_history_item(self, item: dict) -> None:
+        """Add a history item to the list."""
+        item_widget = QWidget()
+        item_widget.setObjectName("history-item")
+
+        hlayout = QHBoxLayout(item_widget)
+        hlayout.setContentsMargins(10, 8, 10, 8)
+        hlayout.setSpacing(8)
+
+        text_container = QWidget()
+        text_container.setObjectName("history-text-container")
+        vlayout = QVBoxLayout(text_container)
+        vlayout.setContentsMargins(0, 0, 0, 0)
+        vlayout.setSpacing(4)
+
+        time_label = QLabel(item["time"])
+        time_label.setObjectName("history-time")
+        vlayout.addWidget(time_label)
+
+        text_label = QLabel(item["prompt"])
+        text_label.setObjectName("history-text")
+        text_label.setWordWrap(True)
+        vlayout.addWidget(text_label)
+
+        insert_btn = QPushButton("Insert")
+        insert_btn.setObjectName("insert-btn")
+        insert_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        insert_btn.clicked.connect(
+            lambda checked, p=item["prompt"]: self._insert_history(p)
+        )
+
+        hlayout.addWidget(text_container, stretch=1)
+        hlayout.addWidget(insert_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        self.history_list_layout.insertWidget(self.history_list_layout.count() - 1, item_widget)
+
+    def _insert_history(self, prompt: str) -> None:
+        """Insert a history item into the prompt input."""
+        self.prompt_input.clear()
+        self.prompt_input.setPlainText(prompt)
+        self.prompt_input.setFocus()
+
+    def _run_agent(self) -> None:
+        """Execute agent.py with configured parameters."""
+        if self.agent_process and self.agent_process.state() != QProcess.ProcessState.NotRunning:
+            self._stop_agent()
+            return
+
+        prompt = self.prompt_input.toPlainText().strip()
+        if not prompt:
+            return
+
+        self._add_to_history(prompt)
+        self._start_agent_process(prompt)
+
+    def _add_to_history(self, prompt: str) -> None:
+        """Add prompt to history."""
+        now = QDateTime.currentDateTime()
+        time_str = now.toString("yyyy-M-d  hh:mm")
+
+        existing = next(
+            (i for i, h in enumerate(self.prompt_history) if h["prompt"] == prompt), -1
+        )
+        if existing >= 0:
+            self.prompt_history.pop(existing)
+
+        self.prompt_history.insert(0, {"time": time_str, "prompt": prompt})
+        self.prompt_history = self.prompt_history[:MAX_HISTORY]
+        self._refresh_history_list()
+
+    def _start_agent_process(self, prompt: str) -> None:
+        """Start the agent process."""
+        cmd = ["python3", "agent.py"]
+
+        if self.context_check.isChecked():
+            cmd.append("--context")
+
+        if self.think_check.isChecked():
+            cmd.append("--think")
+
+        if self.timeout_check.isChecked():
+            timeout_value = self.timeout_input.text().strip()
+            if timeout_value:
+                cmd.extend(["--timeout", timeout_value])
+
+        checked_btn = self.model_button_group.checkedButton()
+        if checked_btn:
+            model_name = checked_btn.property("originalName")
+            cmd.extend(["--model", model_name])
+
+        cmd.append(prompt)
+
+        self.agent_process = QProcess(self)
+        self.agent_process.setStandardOutputFile("/dev/null")
+        self.agent_process.setStandardErrorFile("/dev/null")
+        self.agent_process.finished.connect(self._on_process_finished)
+        self.agent_process.start(cmd[0], cmd[1:])
+
+        self.run_btn.setText("Stop")
+
+    def _stop_agent(self) -> None:
+        """Stop the running agent process."""
+        if self.agent_process:
+            self.agent_process.kill()
+            self.agent_process.waitForFinished(3000)
+        self.run_btn.setText("Run Agent")
+
+    def _on_process_finished(self) -> None:
+        """Handle process completion."""
+        self.run_btn.setText("Run Agent")
+        self.agent_process = None
+
+
+def main() -> None:
+    """Application entry point."""
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    window = AgentLauncher()
+    window.show()
+
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

@@ -5,7 +5,7 @@
             "name": "Gradum Launcher",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/launcher.py",
+            "program": "${workspaceFolder}/launcher/launcher.py",
             "console": "externalTerminal"
         }
     ]

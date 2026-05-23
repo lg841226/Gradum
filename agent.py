@@ -190,11 +190,25 @@ def main():
     parser.add_argument("--model", "-m", default=DEFAULT_MODEL)
     parser.add_argument("--think", "-t", action="store_true")
     parser.add_argument("--context", "-c", action="store_true")
+    parser.add_argument("--timeout", type=int, default=None)
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--top-p", type=float, default=0.9)
+    parser.add_argument("--num-ctx", type=int, default=4096)
+    parser.add_argument("--num-predict", type=int, default=2048)
     parser.add_argument("prompt", nargs="+")
 
     args = parser.parse_args()
 
-    config = AgentConfig(model=args.model, timeout=TIMEOUT, think=args.think)
+    timeout = args.timeout if args.timeout else TIMEOUT
+    config = AgentConfig(
+        model=args.model,
+        timeout=timeout,
+        think=args.think,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        num_ctx=args.num_ctx,
+        num_predict=args.num_predict
+    )
     agent = Agent(config)
     agent.run(" ".join(args.prompt), load_context=args.context)
 
