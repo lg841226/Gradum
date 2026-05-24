@@ -13,7 +13,7 @@ QMainWindow {
 #card-title,
 #history-header {
     color: #000000;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 1px;
 }
@@ -21,6 +21,23 @@ QMainWindow {
 #history-header {
     text-transform: uppercase;
 }
+
+#option-title {
+    color: #000000;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+#model-section-header,
+#preview-label,
+#request-header {
+    color: #888888;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
 
 #text-btn,
 #insert-btn {
@@ -37,6 +54,7 @@ QMainWindow {
     color: #000000;
 }
 
+
 #insert-btn {
     border: 1px solid #dddddd;
     border-radius: 4px;
@@ -49,125 +67,32 @@ QMainWindow {
     color: #555555;
 }
 
-#prompt-input {
-    background-color: #fafafa;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    padding: 10px;
-    color: #000000;
-    font-size: 12px;
-    font-family: "Menlo", monospace;
-    line-height: 1.5;
-}
 
-#prompt-input:focus {
-    border-color: #cccccc;
-    background-color: #ffffff;
-}
-
-#prompt-input::placeholder {
-    color: #aaaaaa;
-}
-
-#char-count-label {
-    color: #999999;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-}
-
-#resource-progress {
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    text-align: center;
-    background-color: #f5f5f5;
-    height: 20px;
-    font-size: 10px;
-    font-weight: 600;
-}
-
-#resource-progress::chunk {
+#run-btn {
     background-color: #000000;
-    border-radius: 3px;
-}
-
-#resource-value {
-    color: #000000;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-#preview-label {
-    color: #888888;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-}
-
-#preview-text {
-    background-color: #ffffff;
-    border: 1px solid #e8e8e8;
-    border-radius: 6px;
-    padding: 10px;
-    color: #000000;
-    font-size: 11px;
-    font-family: "Menlo", monospace;
-    line-height: 1.5;
-}
-
-#option-check {
-    background-color: transparent;
-    border: 1px solid #cccccc;
-    border-radius: 3px;
-    color: transparent;
-    font-size: 10px;
-    font-weight: bold;
-    padding: 0;
-}
-
-#option-check:hover {
-    border-color: #999999;
-}
-
-#option-check:checked {
-    background-color: #000000;
-    border-color: #000000;
     color: #ffffff;
-}
-
-#option-title {
-    color: #000000;
-    font-size: 11px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.3px;
 }
 
-#option-desc {
-    color: #888888;
-    font-size: 9px;
-    letter-spacing: 0.2px;
+#run-btn:hover {
+    background-color: #333333;
 }
 
-#option-input {
-    background-color: #fafafa;
-    border: 1px solid #e8e8e8;
-    border-radius: 4px;
-    padding: 4px 8px;
-    color: #000000;
-    font-size: 11px;
-    font-family: "Menlo", monospace;
+#run-btn:pressed {
+    background-color: #555555;
 }
 
-#option-input:focus {
-    border-color: #cccccc;
-    background-color: #ffffff;
-}
-
-#option-input:disabled {
-    background-color: #f5f5f5;
+#run-btn:disabled {
+    background-color: #cccccc;
     color: #999999;
 }
 
+
+#prompt-input,
+#option-input,
 #option-spin {
     background-color: #fafafa;
     border: 1px solid #e8e8e8;
@@ -178,14 +103,37 @@ QMainWindow {
     font-family: "Menlo", monospace;
 }
 
+#prompt-input {
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+#prompt-input:focus,
+#option-input:focus,
 #option-spin:focus {
     border-color: #cccccc;
     background-color: #ffffff;
 }
 
+#option-input:disabled,
 #option-spin:disabled {
     background-color: #f5f5f5;
     color: #999999;
+}
+
+/* Error state for input fields */
+#option-input[error="true"],
+#option-spin[error="true"],
+#prompt-input[error="true"] {
+    border: 2px solid #e74c3c;
+    background-color: #fff5f5;
+}
+
+#prompt-input::placeholder {
+    color: #aaaaaa;
+    font-size: 12px;
 }
 
 #option-spin::up-button,
@@ -212,6 +160,104 @@ QMainWindow {
     height: 10px;
 }
 
+#preview-text,
+#history-text,
+#request-time,
+#request-code,
+#request-method,
+#request-duration {
+    font-family: "Menlo", monospace;
+}
+
+#preview-text {
+    background-color: #ffffff;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 10px;
+    color: #000000;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+#history-text {
+    color: #444444;
+    font-size: 13px;
+    line-height: 1.4;
+    letter-spacing: 0.3px;
+}
+
+#request-time {
+    color: #000000;
+    font-size: 12px;
+}
+
+#request-code {
+    font-size: 10px;
+    font-weight: 600;
+}
+
+#request-method {
+    color: #333333;
+    font-size: 11px;
+}
+
+#request-duration {
+    color: #666666;
+    font-size: 10px;
+}
+
+#option-desc,
+#history-time,
+#model-fetching {
+    color: #888888;
+    font-size: 9px;
+    letter-spacing: 0.2px;
+}
+
+#history-time {
+    color: #aaaaaa;
+    font-size: 11px;
+}
+
+#model-fetching {
+    font-size: 11px;
+    font-style: italic;
+}
+
+#char-count-label {
+    color: #999999;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+#history-placeholder,
+#request-placeholder {
+    color: #999999;
+    font-size: 12px;
+    padding: 20px;
+}
+
+#option-check {
+    background-color: transparent;
+    border: 1px solid #cccccc;
+    border-radius: 3px;
+    color: transparent;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 0;
+}
+
+#option-check:hover {
+    border-color: #999999;
+}
+
+#option-check:checked {
+    background-color: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
 QRadioButton {
     spacing: 8px;
     color: #333333;
@@ -236,19 +282,6 @@ QRadioButton::indicator:checked {
     background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.4, fx:0.5, fy:0.5, stop:0 #000000, stop:0.5 #000000, stop:0.6 #ffffff, stop:1 #ffffff);
 }
 
-#model-fetching {
-    color: #999999;
-    font-size: 11px;
-    font-style: italic;
-}
-
-#model-section-header {
-    color: #999999;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-}
-
 #model-badge {
     border: 1px solid #000000;
     border-radius: 8px;
@@ -258,26 +291,25 @@ QRadioButton::indicator:checked {
     padding: 2px 8px;
 }
 
-#run-btn {
-    background-color: #000000;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
+#resource-progress {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    text-align: center;
+    background-color: #f5f5f5;
+    height: 20px;
+    font-size: 10px;
     font-weight: 600;
 }
 
-#run-btn:hover {
-    background-color: #333333;
+#resource-progress::chunk {
+    background-color: #000000;
+    border-radius: 3px;
 }
 
-#run-btn:pressed {
-    background-color: #555555;
-}
-
-#run-btn:disabled {
-    background-color: #cccccc;
-    color: #999999;
+#resource-value {
+    color: #000000;
+    font-size: 16px;
+    font-weight: 600;
 }
 
 QScrollBar:vertical {
@@ -347,23 +379,11 @@ QScrollBar::sub-page:horizontal {
     background-color: #f5f5f5;
 }
 
-#history-time {
-    color: #aaaaaa;
-    font-size: 11px;
-    letter-spacing: 0.2px;
+#request-scroll {
+    border: none;
+    background-color: transparent;
 }
 
-#history-text {
-    color: #444444;
-    font-size: 13px;
-    font-family: "Menlo", monospace;
-    line-height: 1.4;
-    letter-spacing: 0.3px;
-}
-
-#history-placeholder {
-    color: #cccccc;
-    font-size: 11px;
-    font-style: italic;
-    padding: 20px;
+#request-scroll > QWidget {
+    background-color: transparent;
 }

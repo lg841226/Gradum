@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
-from PyQt6.QtCore import Qt, QProcess, QDateTime, QUrl
+from PyQt6.QtCore import Qt, QProcess, QDateTime, QUrl, QTimer, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QKeySequence, QShortcut, QTextCharFormat, QColor, QFont, QSyntaxHighlighter
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PyQt6.QtSvgWidgets import QSvgWidget
@@ -27,6 +27,8 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QDoubleSpinBox,
+    QSplitter,
+    QGraphicsOpacityEffect,
 )
 
 MODEL_NAME_MAPPING = {
@@ -55,7 +57,14 @@ WINDOW_MIN_HEIGHT = 700
 # Layout Configuration
 LEFT_PANEL_WIDTH = 400
 RIGHT_PANEL_WIDTH = 300
+
+# Panel Width Constraints
+LEFT_PANEL_MIN_WIDTH = 280
+LEFT_PANEL_MAX_WIDTH = 360
 CENTER_PANEL_MIN_WIDTH = 400
+CENTER_PANEL_MAX_WIDTH = 800
+RIGHT_PANEL_MIN_WIDTH = 280
+RIGHT_PANEL_MAX_WIDTH = 360
 
 # Margins and Spacing
 MAIN_MARGIN_LEFT = 20
@@ -64,15 +73,15 @@ MAIN_MARGIN_RIGHT = 20
 MAIN_MARGIN_BOTTOM = 20
 MAIN_SPACING = 24
 
-CARD_SPACING = 10
+CARD_SPACING = 8
 CARD_INTERNAL_SPACING = 8
-OPTION_SPACING = 10
+OPTION_SPACING = 8
 
 # Component Sizes
 PROMPT_INPUT_HEIGHT = 100
-PREVIEW_HEIGHT = 50
+PREVIEW_HEIGHT = 60
 RUN_BUTTON_HEIGHT = 40
-HISTORY_WIDTH = 350
+HISTORY_WIDTH = 400
 
 # History Configuration
 MAX_HISTORY = 10
@@ -90,6 +99,176 @@ DEFAULT_NUM_CTX = 4096
 DEFAULT_NUM_PREDICT = 2048
 
 
+class ToastNotification(QWidget):
+    """A toast notification widget that shows error messages."""
+
+    def __init__(self, parent=None, message: str = "", duration: int = 3000):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+
+        self._duration = duration
+        self._setup_ui(message)
+        self._setup_animation()
+
+    def _setup_ui(self, message: str) -> None:
+        """Initialize the toast UI."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+
+        # Create container with rounded corners
+        container = QWidget()
+        container.setObjectName("toast-container")
+        container.setStyleSheet("""
+            #toast-container {
+                background-color: #FFF2F3;
+                border: 1.4px solid #E46A76;
+                border-radius: 8px;
+            }
+        """)
+
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(12, 8, 12, 8)
+
+        # Message label
+        self.label = QLabel(message)
+        self.label.setObjectName("toast-message")
+        self.label.setStyleSheet("""
+            #toast-message {
+                color: #000000;
+                font-size: 11px;
+                font-family: "Menlo", "Courier New", monospace;
+            }
+        """)
+        self.label.setWordWrap(False)
+        container_layout.addWidget(self.label)
+
+        layout.addWidget(container)
+
+    def _setup_animation(self) -> None:
+        """Setup fade in/out animation."""
+        self.opacity_effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self.opacity_effect)
+
+        self.animation = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.animation.setDuration(200)
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+
+    def show_toast(self, message: str = None, target_widget: QWidget = None) -> None:
+        """Show the toast notification.
+
+        Args:
+            message: The message to display
+            target_widget: The widget to position the toast next to (optional)
+        """
+        if message:
+            self.label.setText(message)
+
+        # Adjust size
+        self.adjustSize()
+
+        # Position the toast
+        if target_widget:
+            # Get the global position of the target widget
+            target_pos = target_widget.mapTo(self.parent(), target_widget.rect().bottomLeft())
+
+            # Position to the right of the target widget
+            x = target_pos.x() + 12  # 12px gap
+            y = target_pos.y() + 8  # 8px below
+
+            # Make sure it stays within parent bounds
+            if self.parent():
+                parent_rect = self.parent().rect()
+                if x + self.width() > parent_rect.width():
+                    x = target_pos.x() - self.width() - 12  # Show on left if no space on right
+                if y + self.height() > parent_rect.height():
+                    y = target_pos.y() - target_widget.height() - self.height() - 8  # Show above if no space below
+
+            self.move(x, y)
+        elif self.parent():
+            # Default position: center bottom of parent
+            # pyrefly: ignore [missing-attribute]
+            parent_rect = self.parent().rect()
+            x = (parent_rect.width() - self.width()) // 2
+            y = parent_rect.height() - self.height() - 100
+            self.move(x, y)
+
+        # Fade in
+        self.animation.setStartValue(0.0)
+        self.animation.setEndValue(1.0)
+        self.show()
+        self.animation.start()
+
+        # Auto hide after duration
+        QTimer.singleShot(self._duration, self.hide_toast)
+
+    def hide_toast(self) -> None:
+        """Hide the toast with fade out animation."""
+        self.animation.setStartValue(1.0)
+        self.animation.setEndValue(0.0)
+        self.animation.start()
+
+        # Hide after animation completes
+        QTimer.singleShot(200, self.hide)
+
+
+class AutoHideScrollArea(QScrollArea):
+    """ScrollArea that automatically hides scrollbars when content fits."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def updateGeometry(self):
+        """Update scrollbar visibility based on content size."""
+        super().updateGeometry()
+
+        widget = self.widget()
+        if widget:
+            # Check if content height exceeds viewport height
+            content_height = widget.sizeHint().height()
+            viewport_height = self.viewport().height()
+
+            # Show scrollbar only if content exceeds viewport
+            if content_height > viewport_height:
+                self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            else:
+                self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+
+class AutoHideTextEdit(QTextEdit):
+    """TextEdit that automatically hides scrollbars when content fits."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+    def updateGeometry(self):
+        """Update scrollbar visibility based on content size."""
+        super().updateGeometry()
+
+        # Check vertical scrollbar
+        document_height = self.document().size().height()
+        viewport_height = self.viewport().height()
+
+        if document_height > viewport_height:
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        # Check horizontal scrollbar
+        document_width = self.document().size().width()
+        viewport_width = self.viewport().width()
+
+        if document_width > viewport_width:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+
 class CollapsibleCard(QWidget):
     """A collapsible card widget with toggle arrow header."""
 
@@ -100,10 +279,12 @@ class CollapsibleCard(QWidget):
         title: str,
         parent: Optional[QWidget] = None,
         right_widget: Optional[QWidget] = None,
+        icon_name: Optional[str] = None,
     ):
         super().__init__(parent)
         self.setObjectName("card")
         self._expanded = True
+        self._icon_name = icon_name
         self._setup_ui(title, right_widget)
 
     def _setup_ui(self, title: str, right_widget: Optional[QWidget]) -> None:
@@ -122,16 +303,18 @@ class CollapsibleCard(QWidget):
         main_layout.addWidget(self._content)
 
     def _create_header(self, title: str, right_widget: Optional[QWidget]) -> QWidget:
-        """Create the header with arrow, title, and optional right widget."""
+        """Create the header with icon, title, arrow, and optional right widget."""
         header = QWidget()
         header.setCursor(Qt.CursorShape.PointingHandCursor)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(0, 10, 0, 10)
 
-        self._arrow = QSvgWidget(str(self.ICONS_DIR / "arrow-down.svg"))
-        self._arrow.setFixedSize(12, 12)
-        header_layout.addWidget(self._arrow)
-        header_layout.addSpacing(6)
+        # Add icon if provided
+        if self._icon_name:
+            icon = QSvgWidget(str(self.ICONS_DIR / self._icon_name))
+            icon.setFixedSize(16, 16)
+            header_layout.addWidget(icon)
+            header_layout.addSpacing(8)
 
         self._title_label = QLabel(title)
         self._title_label.setObjectName("card-title")
@@ -140,6 +323,12 @@ class CollapsibleCard(QWidget):
 
         if right_widget:
             header_layout.addWidget(right_widget)
+            header_layout.addSpacing(6)
+
+        # Add arrow on the right
+        self._arrow = QSvgWidget(str(self.ICONS_DIR / "arrow-down.svg"))
+        self._arrow.setFixedSize(12, 12)
+        header_layout.addWidget(self._arrow)
 
         return header
 
@@ -227,7 +416,13 @@ class AgentLauncher(QMainWindow):
 
         self.prompt_history: list[dict] = []
         self.agent_process: Optional[QProcess] = None
+        self.ollama_process: Optional[QProcess] = None
         self.network_manager = QNetworkAccessManager(self)
+        
+        # Initialize toast notification
+        self.toast = ToastNotification(self, duration=3000)
+
+        self._start_ollama_service()
 
     def _setup_ui(self) -> None:
         """Initialize UI components."""
@@ -236,15 +431,44 @@ class AgentLauncher(QMainWindow):
 
         main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(MAIN_MARGIN_LEFT, MAIN_MARGIN_TOP, MAIN_MARGIN_RIGHT, MAIN_MARGIN_BOTTOM)
-        main_layout.setSpacing(MAIN_SPACING)
+        main_layout.setSpacing(0)
+
+        # Create splitter for resizable panels
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(3)  # Wider handle area for easier interaction
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: transparent;
+                margin: 0 10px;
+            }
+            QSplitter::handle:hover {
+                background-color: #000000;
+                margin: 0 10px;
+            }
+        """)
 
         left_widget = self._create_left_panel()
         center_widget = self._create_center_panel()
         right_widget = self._create_right_panel()
 
-        main_layout.addWidget(left_widget, stretch=1)
-        main_layout.addWidget(center_widget, stretch=2)
-        main_layout.addWidget(right_widget, stretch=1)
+        # Set width constraints for panels
+        left_widget.setMinimumWidth(LEFT_PANEL_MIN_WIDTH)
+        left_widget.setMaximumWidth(LEFT_PANEL_MAX_WIDTH)
+
+        center_widget.setMinimumWidth(CENTER_PANEL_MIN_WIDTH)
+        center_widget.setMaximumWidth(CENTER_PANEL_MAX_WIDTH)
+
+        right_widget.setMinimumWidth(RIGHT_PANEL_MIN_WIDTH)
+        right_widget.setMaximumWidth(RIGHT_PANEL_MAX_WIDTH)
+
+        splitter.addWidget(left_widget)
+        splitter.addWidget(center_widget)
+        splitter.addWidget(right_widget)
+
+        # Set initial sizes (left: 400, center: 600, right: 300)
+        splitter.setSizes([LEFT_PANEL_WIDTH, 600, RIGHT_PANEL_WIDTH])
+
+        main_layout.addWidget(splitter)
 
     def _create_left_panel(self) -> QWidget:
         """Create the left panel with options, models, and preview."""
@@ -315,7 +539,7 @@ class AgentLauncher(QMainWindow):
 
     def _create_options_card(self) -> CollapsibleCard:
         """Create the options card with checkboxes."""
-        self.options_card = CollapsibleCard("OPTIONS", self)
+        self.options_card = CollapsibleCard("OPTIONS", self, icon_name="options.svg")
         content = self.options_card.content_layout()
         content.setSpacing(OPTION_SPACING)
 
@@ -336,6 +560,7 @@ class AgentLauncher(QMainWindow):
         )
         self.timeout_check.toggled.connect(self._update_preview)
         self.timeout_input.textChanged.connect(self._update_preview)
+        self.timeout_input.textChanged.connect(self._validate_timeout_input)
         self.timeout_input.editingFinished.connect(self._on_timeout_editing_finished)
         content.addWidget(timeout_row)
 
@@ -348,7 +573,7 @@ class AgentLauncher(QMainWindow):
         self.refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.refresh_btn.clicked.connect(self._fetch_models)
 
-        self.model_card = CollapsibleCard("MODELS", self, self.refresh_btn)
+        self.model_card = CollapsibleCard("MODELS", self, self.refresh_btn, icon_name="model.svg")
         content = self.model_card.content_layout()
         content.setSpacing(OPTION_SPACING)
 
@@ -373,7 +598,7 @@ class AgentLauncher(QMainWindow):
         self.refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.refresh_btn.clicked.connect(self._reset_local_settings)
 
-        self.local_settings_card = CollapsibleCard("LOCAL SETTINGS", self, self.refresh_btn)
+        self.local_settings_card = CollapsibleCard("LOCAL SETTINGS", self, self.refresh_btn, icon_name="settings.svg")
         content = self.local_settings_card.content_layout()
         content.setSpacing(OPTION_SPACING)
 
@@ -507,6 +732,211 @@ class AgentLauncher(QMainWindow):
 
         return self.local_settings_card
 
+    def _create_request_panel(self) -> CollapsibleCard:
+        """Create the request monitoring panel."""
+        # Button container
+        button_container = QWidget()
+        button_container.setStyleSheet("background-color: transparent;")
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(8)
+
+        # Copy button
+        self.copy_requests_btn = QPushButton("Copy")
+        self.copy_requests_btn.setObjectName("text-btn")
+        self.copy_requests_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.copy_requests_btn.clicked.connect(self._copy_requests)
+        button_layout.addWidget(self.copy_requests_btn)
+
+        # Clear button
+        self.clear_requests_btn = QPushButton("Clear")
+        self.clear_requests_btn.setObjectName("text-btn")
+        self.clear_requests_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_requests_btn.clicked.connect(self._clear_requests)
+        button_layout.addWidget(self.clear_requests_btn)
+
+        self.request_card = CollapsibleCard("REQUESTS", self, button_container, icon_name="requests.svg")
+        content = self.request_card.content_layout()
+
+        # Header row
+        header_container = QWidget()
+        header_layout = QHBoxLayout(header_container)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
+        time_header = QLabel("Time")
+        time_header.setObjectName("request-header")
+        time_header.setFixedWidth(70)
+        time_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(time_header)
+
+        code_header = QLabel("Code")
+        code_header.setObjectName("request-header")
+        code_header.setFixedWidth(60)
+        code_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(code_header)
+
+        method_header = QLabel("Method")
+        method_header.setObjectName("request-header")
+        method_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(method_header, stretch=1)
+
+        duration_header = QLabel("Duration")
+        duration_header.setObjectName("request-header")
+        duration_header.setFixedWidth(60)
+        duration_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(duration_header)
+
+        content.addWidget(header_container)
+
+        # Add spacing between header and list
+        content.addSpacing(8)
+
+        # Request list scroll area
+        self.request_scroll = AutoHideScrollArea()
+        self.request_scroll.setObjectName("request-scroll")
+        self.request_scroll.setWidgetResizable(True)
+        self.request_scroll.setMaximumHeight(200)
+        self.request_scroll.viewport().setStyleSheet("background-color: transparent;")
+
+        # Request list container
+        self.request_list_container = QWidget()
+        self.request_list_container.setStyleSheet("background-color: transparent;")
+        self.request_list_layout = QVBoxLayout(self.request_list_container)
+        self.request_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.request_list_layout.setSpacing(8)
+
+        # Placeholder
+        self.request_placeholder = QLabel("No requests yet")
+        self.request_placeholder.setObjectName("request-placeholder")
+        self.request_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.request_list_layout.addWidget(self.request_placeholder)
+
+        self.request_list_layout.addStretch()
+
+        self.request_scroll.setWidget(self.request_list_container)
+        content.addWidget(self.request_scroll)
+
+        return self.request_card
+
+    def _copy_requests(self) -> None:
+        """Copy all request logs to clipboard."""
+        lines = []
+
+        for i in range(self.request_list_layout.count()):
+            item = self.request_list_layout.itemAt(i)
+            if item:
+                widget = item.widget()
+                if widget and widget.objectName() != "request-placeholder":
+                    row_parts = []
+                    for child in widget.findChildren(QLabel):
+                        text = child.text()
+                        if text:
+                            row_parts.append(text)
+                    if row_parts:
+                        lines.append("\t".join(row_parts))
+
+        if lines:
+            clipboard = QApplication.clipboard()
+            clipboard.setText("\n".join(lines))
+
+    def _clear_requests(self) -> None:
+        """Clear all request logs."""
+        while self.request_list_layout.count() > 0:
+            item = self.request_list_layout.takeAt(0)
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+
+        # Add placeholder back
+        self.request_placeholder = QLabel("No requests yet")
+        self.request_placeholder.setObjectName("request-placeholder")
+        self.request_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.request_list_layout.addWidget(self.request_placeholder)
+        self.request_list_layout.addStretch()
+
+    def _add_request_log(self, time: str, code: int, method: str, duration: str = "") -> None:
+        """Add a request log entry."""
+        # Remove placeholder if exists
+        if hasattr(self, 'request_placeholder') and self.request_placeholder:
+            self.request_placeholder.deleteLater()
+            self.request_placeholder = None
+
+        # Remove stretch
+        if self.request_list_layout.count() > 0:
+            item = self.request_list_layout.takeAt(self.request_list_layout.count() - 1)
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+
+        # Create request row
+        row_container = QWidget()
+        row_container.setStyleSheet("background-color: transparent;")
+        row_layout = QHBoxLayout(row_container)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+
+        # Time
+        time_label = QLabel(time)
+        time_label.setObjectName("request-time")
+        time_label.setFixedWidth(70)
+        time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row_layout.addWidget(time_label)
+
+        # Code badge container
+        code_container = QWidget()
+        code_container.setStyleSheet("background-color: transparent;")
+        code_container_layout = QHBoxLayout(code_container)
+        code_container_layout.setContentsMargins(0, 0, 0, 0)
+        code_container_layout.addStretch()
+
+        code_widget = QWidget()
+        code_widget.setFixedSize(36, 18)
+        if code == 200:
+            code_widget.setStyleSheet("background-color: #d1fae5; color: #065f46; border-radius: 9px;")
+        elif code >= 400:
+            code_widget.setStyleSheet("background-color: #fee2e2; color: #991b1b; border-radius: 9px;")
+        else:
+            code_widget.setStyleSheet("background-color: #dbeafe; color: #1e40af; border-radius: 9px;")
+
+        code_layout = QHBoxLayout(code_widget)
+        code_layout.setContentsMargins(0, 0, 0, 0)
+        code_label = QLabel(str(code))
+        code_label.setObjectName("request-code")
+        code_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        code_layout.addWidget(code_label)
+
+        code_container_layout.addWidget(code_widget)
+        code_container_layout.addStretch()
+        code_container.setFixedWidth(60)
+        row_layout.addWidget(code_container)
+
+        # Method
+        method_label = QLabel(method)
+        method_label.setObjectName("request-method")
+        method_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row_layout.addWidget(method_label, stretch=1)
+
+        # Duration
+        duration_label = QLabel(duration)
+        duration_label.setObjectName("request-duration")
+        duration_label.setFixedWidth(60)
+        duration_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row_layout.addWidget(duration_label)
+
+        self.request_list_layout.addWidget(row_container)
+        self.request_list_layout.addStretch()
+
+        # Limit to last 20 requests
+        if self.request_list_layout.count() > 42:  # 20 rows + 1 stretch
+            item = self.request_list_layout.takeAt(0)
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+
     def _create_preview_card(self) -> CollapsibleCard:
         """Create the command preview card."""
         self.copy_btn = QPushButton("Copy")
@@ -514,7 +944,7 @@ class AgentLauncher(QMainWindow):
         self.copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.copy_btn.clicked.connect(self._copy_command)
 
-        self.preview_card = CollapsibleCard("PREVIEW", self, self.copy_btn)
+        self.preview_card = CollapsibleCard("PREVIEW", self, self.copy_btn, icon_name="prompt.svg")
         content = self.preview_card.content_layout()
 
         unix_label = QLabel("Unix / macOS")
@@ -523,13 +953,11 @@ class AgentLauncher(QMainWindow):
 
         content.addSpacing(4)
 
-        self.preview_text = QTextEdit()
+        self.preview_text = AutoHideTextEdit()
         self.preview_text.setObjectName("preview-text")
         self.preview_text.setReadOnly(True)
         self.preview_text.setFixedHeight(PREVIEW_HEIGHT)
         self.preview_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.preview_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.preview_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.highlighter = BashSyntaxHighlighter(self.preview_text.document())
 
@@ -543,13 +971,11 @@ class AgentLauncher(QMainWindow):
 
         content.addSpacing(4)
 
-        self.preview_text_windows = QTextEdit()
+        self.preview_text_windows = AutoHideTextEdit()
         self.preview_text_windows.setObjectName("preview-text")
         self.preview_text_windows.setReadOnly(True)
         self.preview_text_windows.setFixedHeight(PREVIEW_HEIGHT)
         self.preview_text_windows.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.preview_text_windows.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.preview_text_windows.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.highlighter_windows = BashSyntaxHighlighter(self.preview_text_windows.document())
 
@@ -565,13 +991,12 @@ class AgentLauncher(QMainWindow):
         right_layout.setSpacing(0)
 
         # History card
-        self.history_card = CollapsibleCard("HISTORY", self)
+        self.history_card = CollapsibleCard("HISTORY", self, icon_name="history.svg")
         history_content = self.history_card.content_layout()
 
-        self.history_scroll = QScrollArea()
+        self.history_scroll = AutoHideScrollArea()
         self.history_scroll.setObjectName("history-scroll")
         self.history_scroll.setWidgetResizable(True)
-        self.history_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
 
         self.history_content = QWidget()
@@ -590,6 +1015,11 @@ class AgentLauncher(QMainWindow):
         right_layout.addWidget(self._create_separator())
 
         right_layout.addWidget(self._create_local_settings_card())
+        right_layout.addSpacing(CARD_SPACING)
+        right_layout.addWidget(self._create_separator())
+        right_layout.addSpacing(CARD_SPACING)
+
+        right_layout.addWidget(self._create_request_panel())
         right_layout.addStretch()
 
         return right_widget
@@ -712,7 +1142,27 @@ class AgentLauncher(QMainWindow):
         return radio, container
 
     def _apply_styles(self) -> None:
-        """Apply stylesheet from CSS file."""
+        """Apply stylesheet from CSS file and set application font."""
+        # Set application font
+        app = QApplication.instance()
+        if app:
+            # Try to use system font on macOS
+            font = QFont()
+            if sys.platform == "darwin":  # macOS
+                font.setFamily("SF Pro Display")
+                if not font.exactMatch():
+                    font.setFamily("Helvetica Neue")
+                    if not font.exactMatch():
+                        font.setFamily("Helvetica")
+            elif sys.platform == "win32":  # Windows
+                font.setFamily("Segoe UI")
+            else:  # Linux and others
+                font.setFamily("Sans Serif")
+
+            font.setPointSize(12)  # Default font size
+            app.setFont(font)
+
+        # Apply stylesheet
         css_path = Path(__file__).parent / "styles.txt"
         if css_path.exists():
             self.setStyleSheet(css_path.read_text())
@@ -767,12 +1217,26 @@ class AgentLauncher(QMainWindow):
         char_count = len(text)
         token_count = self._estimate_tokens(text)
 
+        # Handle plural/singular for character and token
+        char_text = "character" if char_count == 1 else "characters"
+        token_text = "token" if token_count == 1 else "tokens"
+
         if char_count > MAX_PROMPT_CHARS:
-            self.char_count_label.setText(f"{char_count:,} characters  /  ~ {token_count:,} tokens  Exceeds limit")
+            self.char_count_label.setText(f"{char_count:,} {char_text}  /  ~ {token_count:,} {token_text}  Exceeds limit")
             self.char_count_label.setStyleSheet("color: #e74c3c;")
+
+            # Set error state for input
+            self.prompt_input.setProperty("error", "true")
+            self.prompt_input.style().unpolish(self.prompt_input)
+            self.prompt_input.style().polish(self.prompt_input)
         else:
-            self.char_count_label.setText(f"{char_count:,} characters  /  ~ {token_count:,} tokens")
+            self.char_count_label.setText(f"{char_count:,} {char_text}  /  ~ {token_count:,} {token_text}")
             self.char_count_label.setStyleSheet("")
+
+            # Remove error state for input
+            self.prompt_input.setProperty("error", "false")
+            self.prompt_input.style().unpolish(self.prompt_input)
+            self.prompt_input.style().polish(self.prompt_input)
 
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for given text."""
@@ -792,6 +1256,79 @@ class AgentLauncher(QMainWindow):
             item = layout.takeAt(0)
             if item and (widget := item.widget()):
                 widget.deleteLater()
+
+    def _start_ollama_service(self) -> None:
+        """Start Ollama service and monitor its output."""
+        self.ollama_process = QProcess(self)
+        self.ollama_process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        self.ollama_process.readyReadStandardOutput.connect(self._read_ollama_output)
+        self.ollama_process.readyReadStandardError.connect(self._read_ollama_output)
+
+        self.ollama_process.start("ollama", ["serve"])
+
+        if not self.ollama_process.waitForStarted(3000):
+            print("Failed to start Ollama service. Port may be in use.")
+            self.ollama_process = None
+
+    def _read_ollama_output(self) -> None:
+        """Read and parse Ollama service output."""
+        if not self.ollama_process:
+            return
+
+        while self.ollama_process.canReadLine():
+            line = self.ollama_process.readLine().data().decode('utf-8').strip()
+            if line:
+                self._parse_ollama_log(line)
+
+    def _parse_ollama_log(self, line: str) -> None:
+        """Parse Ollama log line and extract request info.
+
+        Format: [GIN] 2026/05/24 - 08:04:37 | 200 | 34.169952417s | 127.0.0.1 | POST "/api/chat"
+        """
+        if not line.startswith("[GIN]"):
+            return
+
+        try:
+            parts = line.split("|")
+            if len(parts) >= 5:
+                time_part = parts[0].split("-")[1].strip()
+                time_str = time_part
+
+                code = int(parts[1].strip())
+
+                duration_str = parts[2].strip()
+                duration = self._format_duration(duration_str)
+
+                method_path = parts[4].strip()
+                method_parts = method_path.split()
+                if len(method_parts) >= 2:
+                    method = method_parts[0]
+
+                    self._add_request_log(time_str, code, method, duration)
+        except (IndexError, ValueError):
+            pass
+
+    def _format_duration(self, duration_str: str) -> str:
+        """Format duration string to one decimal place.
+
+        Examples:
+            34.169952417s -> 34.2s
+            659.25µs -> 0.7ms
+            287.808875ms -> 287.8ms
+        """
+        try:
+            if "µs" in duration_str:
+                value = float(duration_str.replace("µs", ""))
+                return f"{value / 1000:.1f}ms"
+            elif "ms" in duration_str:
+                value = float(duration_str.replace("ms", ""))
+                return f"{value:.1f}ms"
+            elif "s" in duration_str:
+                value = float(duration_str.replace("s", ""))
+                return f"{value:.1f}s"
+        except ValueError:
+            pass
+        return ""
 
     def _fetch_models(self) -> None:
         """Fetch available models from Ollama API."""
@@ -936,9 +1473,42 @@ class AgentLauncher(QMainWindow):
 
         return " ".join(parts)
 
+    def _validate_timeout_input(self) -> None:
+        """Validate timeout input in real-time."""
+        text = self.timeout_input.text().strip()
+
+        # Empty is valid (will use default)
+        if not text:
+            self.timeout_input.setProperty("error", "false")
+            self.timeout_input.style().unpolish(self.timeout_input)
+            self.timeout_input.style().polish(self.timeout_input)
+            return
+
+        # Validate: must be a positive integer
+        try:
+            value = int(text)
+            if value <= 0:
+                raise ValueError("Timeout must be positive")
+
+            # Valid input - remove error state
+            self.timeout_input.setProperty("error", "false")
+            self.timeout_input.style().unpolish(self.timeout_input)
+            self.timeout_input.style().polish(self.timeout_input)
+        except ValueError:
+            # Invalid input - set error state
+            self.timeout_input.setProperty("error", "true")
+            self.timeout_input.style().unpolish(self.timeout_input)
+            self.timeout_input.style().polish(self.timeout_input)
+
+            # Show toast notification
+            self.toast.show_toast("Timeout must be a positive integer", self.timeout_input)
+
     def _on_timeout_editing_finished(self) -> None:
         """Handle timeout input editing finished - restore default if empty."""
-        if not self.timeout_input.text().strip():
+        text = self.timeout_input.text().strip()
+
+        # If empty, restore default
+        if not text:
             self.timeout_input.setText("120")
 
     def _copy_command(self) -> None:
@@ -1077,6 +1647,13 @@ class AgentLauncher(QMainWindow):
         """Handle process completion."""
         self.run_btn.setText("Run Agent")
         self.agent_process = None
+
+    def closeEvent(self, event) -> None:
+        """Handle application close event."""
+        if self.ollama_process:
+            self.ollama_process.kill()
+            self.ollama_process.waitForFinished(3000)
+        event.accept()
 
 
 def main() -> None:
