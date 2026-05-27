@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
+import psutil
+
 from PyQt6.QtCore import Qt, QProcess, QDateTime, QUrl, QTimer, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QKeySequence, QShortcut, QTextCharFormat, QColor, QFont, QSyntaxHighlighter
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
@@ -29,6 +31,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QSplitter,
     QGraphicsOpacityEffect,
+    QGraphicsDropShadowEffect,
 )
 
 MODEL_NAME_MAPPING = {
@@ -78,7 +81,7 @@ CARD_INTERNAL_SPACING = 8
 OPTION_SPACING = 8
 
 # Component Sizes
-PROMPT_INPUT_HEIGHT = 100
+PROMPT_INPUT_HEIGHT = 60
 PREVIEW_HEIGHT = 60
 RUN_BUTTON_HEIGHT = 40
 HISTORY_WIDTH = 400
@@ -117,21 +120,25 @@ class ToastNotification(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 12, 16, 12)
 
-        # Create container with rounded corners
         container = QWidget()
         container.setObjectName("toast-container")
         container.setStyleSheet("""
             #toast-container {
                 background-color: #FFF2F3;
-                border: 1.4px solid #E46A76;
+                border: 1px solid #E46A76;
                 border-radius: 8px;
             }
         """)
 
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(8)
+        shadow.setColor(QColor(0, 0, 0, 25))
+        shadow.setOffset(0, 2)
+        container.setGraphicsEffect(shadow)
+
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(12, 8, 12, 8)
 
-        # Message label
         self.label = QLabel(message)
         self.label.setObjectName("toast-message")
         self.label.setStyleSheet("""
@@ -165,25 +172,23 @@ class ToastNotification(QWidget):
         if message:
             self.label.setText(message)
 
-        # Adjust size
         self.adjustSize()
 
-        # Position the toast
         if target_widget:
-            # Get the global position of the target widget
-            target_pos = target_widget.mapTo(self.parent(), target_widget.rect().bottomLeft())
+            target_pos = target_widget.mapTo(self.parent(), target_widget.rect().topLeft())
 
-            # Position to the right of the target widget
-            x = target_pos.x() + 12  # 12px gap
-            y = target_pos.y() + 8  # 8px below
+            center_offset = (target_widget.width() - self.width()) // 2
+            x = target_pos.x() + center_offset
+            y = target_pos.y() - self.height() - 8
 
-            # Make sure it stays within parent bounds
             if self.parent():
                 parent_rect = self.parent().rect()
+                if x < 0:
+                    x = 0
                 if x + self.width() > parent_rect.width():
-                    x = target_pos.x() - self.width() - 12  # Show on left if no space on right
-                if y + self.height() > parent_rect.height():
-                    y = target_pos.y() - target_widget.height() - self.height() - 8  # Show above if no space below
+                    x = parent_rect.width() - self.width()
+                if y < 0:
+                    y = target_pos.y() + target_widget.height() + 8
 
             self.move(x, y)
         elif self.parent():
@@ -227,11 +232,9 @@ class AutoHideScrollArea(QScrollArea):
 
         widget = self.widget()
         if widget:
-            # Check if content height exceeds viewport height
             content_height = widget.sizeHint().height()
             viewport_height = self.viewport().height()
 
-            # Show scrollbar only if content exceeds viewport
             if content_height > viewport_height:
                 self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             else:
@@ -250,7 +253,6 @@ class AutoHideTextEdit(QTextEdit):
         """Update scrollbar visibility based on content size."""
         super().updateGeometry()
 
-        # Check vertical scrollbar
         document_height = self.document().size().height()
         viewport_height = self.viewport().height()
 
@@ -259,7 +261,6 @@ class AutoHideTextEdit(QTextEdit):
         else:
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        # Check horizontal scrollbar
         document_width = self.document().size().width()
         viewport_width = self.viewport().width()
 
@@ -309,12 +310,11 @@ class CollapsibleCard(QWidget):
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(0, 10, 0, 10)
 
-        # Add icon if provided
         if self._icon_name:
             icon = QSvgWidget(str(self.ICONS_DIR / self._icon_name))
             icon.setFixedSize(16, 16)
             header_layout.addWidget(icon)
-            header_layout.addSpacing(8)
+            header_layout.addSpacing(2)
 
         self._title_label = QLabel(title)
         self._title_label.setObjectName("card-title")
@@ -325,7 +325,6 @@ class CollapsibleCard(QWidget):
             header_layout.addWidget(right_widget)
             header_layout.addSpacing(6)
 
-        # Add arrow on the right
         self._arrow = QSvgWidget(str(self.ICONS_DIR / "arrow-down.svg"))
         self._arrow.setFixedSize(12, 12)
         header_layout.addWidget(self._arrow)
@@ -361,7 +360,6 @@ class BashSyntaxHighlighter(QSyntaxHighlighter):
         """Initialize text formats for different syntax elements."""
         self._python_format = QTextCharFormat()
         self._python_format.setForeground(QColor("#d4a017"))
-        self._python_format.setFontWeight(QFont.Weight.Bold)
 
         self._param_format = QTextCharFormat()
         self._param_format.setForeground(QColor("#888888"))
@@ -380,11 +378,10 @@ class BashSyntaxHighlighter(QSyntaxHighlighter):
                 self.setFormat(pos, len(keyword), self._python_format)
                 pos = text.find(keyword, pos + len(keyword))
 
-        import re
         for match in re.finditer(r'--[\w-]+', text):
             self.setFormat(match.start(), match.end() - match.start(), self._param_format)
 
-        for match in re.finditer(r'(?<!\S)(-[\w]+)', text):
+        for match in re.finditer(r'(?<!\S)(-\w+)', text):
             self.setFormat(match.start(1), match.end(1) - match.start(1), self._param_format)
 
         timeout_match = re.search(r'--timeout\s+(\d+)', text)
@@ -418,9 +415,15 @@ class AgentLauncher(QMainWindow):
         self.agent_process: Optional[QProcess] = None
         self.ollama_process: Optional[QProcess] = None
         self.network_manager = QNetworkAccessManager(self)
-        
-        # Initialize toast notification
-        self.toast = ToastNotification(self, duration=3000)
+
+        self.toast = ToastNotification(self, duration=4000)
+
+        self.resource_timer = QTimer(self)
+        self.resource_timer.timeout.connect(self._update_resource_info)
+        self.resource_timer.start(1000)
+
+        self.request_latencies: list[float] = []
+        self.max_latency_samples = 10
 
         self._start_ollama_service()
 
@@ -433,9 +436,8 @@ class AgentLauncher(QMainWindow):
         main_layout.setContentsMargins(MAIN_MARGIN_LEFT, MAIN_MARGIN_TOP, MAIN_MARGIN_RIGHT, MAIN_MARGIN_BOTTOM)
         main_layout.setSpacing(0)
 
-        # Create splitter for resizable panels
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(3)  # Wider handle area for easier interaction
+        splitter.setHandleWidth(3)
         splitter.setStyleSheet("""
             QSplitter::handle {
                 background-color: transparent;
@@ -451,7 +453,6 @@ class AgentLauncher(QMainWindow):
         center_widget = self._create_center_panel()
         right_widget = self._create_right_panel()
 
-        # Set width constraints for panels
         left_widget.setMinimumWidth(LEFT_PANEL_MIN_WIDTH)
         left_widget.setMaximumWidth(LEFT_PANEL_MAX_WIDTH)
 
@@ -495,45 +496,104 @@ class AgentLauncher(QMainWindow):
         center_widget = QWidget()
         center_layout = QVBoxLayout(center_widget)
         center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(CARD_SPACING)
+        center_layout.setSpacing(0)
 
-        center_layout.addStretch()
+        center_layout.addStretch(1)
+
+        input_container = QWidget()
+        input_container.setObjectName("input-container")
+        input_layout = QVBoxLayout(input_container)
+        input_layout.setContentsMargins(16, 12, 16, 12)
+        input_layout.setSpacing(8)
 
         self.prompt_input = QTextEdit()
-        self.prompt_input.setObjectName("prompt-input")
+        self.prompt_input.setObjectName("prompt-input-inner")
         self.prompt_input.setPlaceholderText("What would you like me to do?")
         self.prompt_input.setFixedHeight(PROMPT_INPUT_HEIGHT)
         self.prompt_input.setAcceptRichText(False)
         self.prompt_input.textChanged.connect(self._update_run_button)
         self.prompt_input.textChanged.connect(self._update_preview)
-        self.prompt_input.textChanged.connect(self._update_char_count)
-        center_layout.addWidget(self.prompt_input)
+        input_layout.addWidget(self.prompt_input)
 
-        info_container = QWidget()
-        info_layout = QHBoxLayout(info_container)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(0)
+        toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(12)
 
-        self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setObjectName("text-btn")
-        self.clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clear_btn.clicked.connect(self._clear_prompt)
-        info_layout.addWidget(self.clear_btn)
+        cpu_container = QWidget()
+        cpu_container.setObjectName("resource-info")
+        cpu_layout = QHBoxLayout(cpu_container)
+        cpu_layout.setContentsMargins(0, 0, 0, 0)
+        cpu_layout.setSpacing(4)
 
-        info_layout.addStretch()
+        cpu_icon_path = Path(__file__).parent / "icons" / "cpu.svg"
+        if cpu_icon_path.exists():
+            cpu_svg_widget = QSvgWidget(str(cpu_icon_path))
+            cpu_svg_widget.setFixedSize(16, 16)
+            cpu_svg_widget.setStyleSheet("color: #999999;")
+            cpu_layout.addWidget(cpu_svg_widget)
 
-        self.char_count_label = QLabel("0 characters  /  ~ 0 tokens")
-        self.char_count_label.setObjectName("char-count-label")
-        info_layout.addWidget(self.char_count_label)
+        self.cpu_label = QLabel("0.0 %")
+        self.cpu_label.setObjectName("resource-label")
+        cpu_layout.addWidget(self.cpu_label)
 
-        center_layout.addWidget(info_container)
+        toolbar_layout.addWidget(cpu_container)
 
-        self.run_btn = QPushButton("Run Agent")
+        # Memory usage info (only for Ollama)
+        mem_container = QWidget()
+        mem_container.setObjectName("resource-info")
+        mem_layout = QHBoxLayout(mem_container)
+        mem_layout.setContentsMargins(0, 0, 0, 0)
+        mem_layout.setSpacing(4)
+
+        mem_icon_path = Path(__file__).parent / "icons" / "memory.svg"
+        if mem_icon_path.exists():
+            mem_svg_widget = QSvgWidget(str(mem_icon_path))
+            mem_svg_widget.setFixedSize(16, 16)
+            mem_svg_widget.setStyleSheet("color: #999999;")
+            mem_layout.addWidget(mem_svg_widget)
+
+        self.mem_label = QLabel("0.0 MB")
+        self.mem_label.setObjectName("resource-label")
+        mem_layout.addWidget(self.mem_label)
+
+        toolbar_layout.addWidget(mem_container)
+
+        # Latency info (only for Ollama)
+        latency_container = QWidget()
+        latency_container.setObjectName("resource-info")
+        latency_layout = QHBoxLayout(latency_container)
+        latency_layout.setContentsMargins(0, 0, 0, 0)
+        latency_layout.setSpacing(4)
+
+        latency_icon_path = Path(__file__).parent / "icons" / "activity.svg"
+        if latency_icon_path.exists():
+            latency_svg_widget = QSvgWidget(str(latency_icon_path))
+
+            latency_svg_widget.setFixedSize(16, 16)
+            latency_svg_widget.setStyleSheet("color: #999999;")
+            latency_layout.addWidget(latency_svg_widget)
+
+        self.latency_label = QLabel("0 ms")
+        self.latency_label.setObjectName("resource-label")
+        latency_layout.addWidget(self.latency_label)
+
+        toolbar_layout.addWidget(latency_container)
+
+        toolbar_layout.addStretch()
+
+        # Run/Stop button
+        self.run_btn = QPushButton("Run")
         self.run_btn.setObjectName("run-btn")
         self.run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.run_btn.setFixedHeight(RUN_BUTTON_HEIGHT)
+        self.run_btn.setFixedHeight(32)
         self.run_btn.clicked.connect(self._run_agent)
-        center_layout.addWidget(self.run_btn)
+        toolbar_layout.addWidget(self.run_btn)
+
+        input_layout.addWidget(toolbar)
+
+        # Add input container to center layout with stretch factor 0
+        center_layout.addWidget(input_container, 0)
 
         return center_widget
 
@@ -611,7 +671,7 @@ class AgentLauncher(QMainWindow):
         temp_text_container = QWidget()
         temp_text_layout = QVBoxLayout(temp_text_container)
         temp_text_layout.setContentsMargins(0, 0, 0, 0)
-        temp_text_layout.setSpacing(1)
+        temp_text_layout.setSpacing(2)
 
         temp_label = QLabel("Temperature")
         temp_label.setObjectName("option-title")
@@ -807,7 +867,7 @@ class AgentLauncher(QMainWindow):
         self.request_list_layout.setSpacing(8)
 
         # Placeholder
-        self.request_placeholder = QLabel("No requests yet")
+        self.request_placeholder = QLabel("No requests logged")
         self.request_placeholder.setObjectName("request-placeholder")
         self.request_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.request_list_layout.addWidget(self.request_placeholder)
@@ -850,7 +910,7 @@ class AgentLauncher(QMainWindow):
                     widget.deleteLater()
 
         # Add placeholder back
-        self.request_placeholder = QLabel("No requests yet")
+        self.request_placeholder = QLabel("No available requests")
         self.request_placeholder.setObjectName("request-placeholder")
         self.request_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.request_list_layout.addWidget(self.request_placeholder)
@@ -1177,6 +1237,12 @@ class AgentLauncher(QMainWindow):
 
     def _update_run_button(self) -> None:
         """Update run button state based on prompt content and model selection."""
+        # If agent is running, always enable the button (for stopping)
+        if self.agent_process is not None:
+            self.run_btn.setEnabled(True)
+            return
+
+        # Otherwise, check if we can start a new run
         has_content = bool(self.prompt_input.toPlainText().strip())
         has_model = self.model_button_group.checkedButton() is not None
         char_count = len(self.prompt_input.toPlainText())
@@ -1211,44 +1277,6 @@ class AgentLauncher(QMainWindow):
         self.ctx_spin.setValue(DEFAULT_NUM_CTX)
         self.predict_spin.setValue(DEFAULT_NUM_PREDICT)
 
-    def _update_char_count(self) -> None:
-        """Update character count and token estimation display."""
-        text = self.prompt_input.toPlainText()
-        char_count = len(text)
-        token_count = self._estimate_tokens(text)
-
-        # Handle plural/singular for character and token
-        char_text = "character" if char_count == 1 else "characters"
-        token_text = "token" if token_count == 1 else "tokens"
-
-        if char_count > MAX_PROMPT_CHARS:
-            self.char_count_label.setText(f"{char_count:,} {char_text}  /  ~ {token_count:,} {token_text}  Exceeds limit")
-            self.char_count_label.setStyleSheet("color: #e74c3c;")
-
-            # Set error state for input
-            self.prompt_input.setProperty("error", "true")
-            self.prompt_input.style().unpolish(self.prompt_input)
-            self.prompt_input.style().polish(self.prompt_input)
-        else:
-            self.char_count_label.setText(f"{char_count:,} {char_text}  /  ~ {token_count:,} {token_text}")
-            self.char_count_label.setStyleSheet("")
-
-            # Remove error state for input
-            self.prompt_input.setProperty("error", "false")
-            self.prompt_input.style().unpolish(self.prompt_input)
-            self.prompt_input.style().polish(self.prompt_input)
-
-    def _estimate_tokens(self, text: str) -> int:
-        """Estimate token count for given text."""
-        if not text:
-            return 0
-
-        word_count = len(text.split())
-        char_count = len(text)
-
-        estimated_tokens = int((word_count + char_count / 4) / 2)
-
-        return max(estimated_tokens, len(text.split()))
 
     def _clear_layout(self, layout) -> None:
         """Clear all items from a layout."""
@@ -1260,6 +1288,9 @@ class AgentLauncher(QMainWindow):
     def _start_ollama_service(self) -> None:
         """Start Ollama service and monitor its output."""
         self.ollama_process = QProcess(self)
+
+        assert self.ollama_process is not None
+
         self.ollama_process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.ollama_process.readyReadStandardOutput.connect(self._read_ollama_output)
         self.ollama_process.readyReadStandardError.connect(self._read_ollama_output)
@@ -1269,6 +1300,52 @@ class AgentLauncher(QMainWindow):
         if not self.ollama_process.waitForStarted(3000):
             print("Failed to start Ollama service. Port may be in use.")
             self.ollama_process = None
+
+    def _update_resource_info(self) -> None:
+        """Update CPU and memory usage info for Ollama process."""
+        if not self.ollama_process:
+            self.cpu_label.setText("0.0 %")
+            self.mem_label.setText("0.0 MB")
+            return
+
+        try:
+            # Get Ollama process PID
+            pid = self.ollama_process.processId()
+            if pid == -1:
+                self.cpu_label.setText("0.0 %")
+                self.mem_label.setText("0.0 MB")
+                return
+
+            # Get main process
+            main_process = psutil.Process(pid)
+
+            # Get all child processes
+            children = main_process.children(recursive=True)
+            all_processes = [main_process] + children
+
+            # Calculate total CPU and memory usage
+            total_cpu = 0.0
+            total_mem = 0.0
+
+            for proc in all_processes:
+                try:
+                    total_cpu += proc.cpu_percent(interval=0)
+                    total_mem += proc.memory_info().rss / 1024 / 1024
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+
+            # Update CPU label
+            self.cpu_label.setText(f"{total_cpu:.1f} %")
+
+            # Update memory label
+            if total_mem >= 1024:
+                self.mem_label.setText(f"{total_mem / 1024:.1f} GB")
+            else:
+                self.mem_label.setText(f"{total_mem:.1f} MB")
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            self.cpu_label.setText("0.0 %")
+            self.mem_label.setText("0.0 MB")
 
     def _read_ollama_output(self) -> None:
         """Read and parse Ollama service output."""
@@ -1290,51 +1367,98 @@ class AgentLauncher(QMainWindow):
 
         try:
             parts = line.split("|")
-            if len(parts) >= 5:
-                time_part = parts[0].split("-")[1].strip()
-                time_str = time_part
+            if len(parts) < 5:
+                return
 
-                code = int(parts[1].strip())
+            time_part = parts[0].split("-")[1].strip()
+            time_str = time_part
 
-                duration_str = parts[2].strip()
-                duration = self._format_duration(duration_str)
+            code = int(parts[1].strip())
 
-                method_path = parts[4].strip()
-                method_parts = method_path.split()
-                if len(method_parts) >= 2:
-                    method = method_parts[0]
+            duration_str = parts[2].strip()
+            duration = self._format_duration(duration_str)
 
-                    self._add_request_log(time_str, code, method, duration)
+            latency_ms = self._extract_latency_ms(duration_str)
+            if latency_ms > 0:
+                self.request_latencies.append(latency_ms)
+                if len(self.request_latencies) > self.max_latency_samples:
+                    self.request_latencies.pop(0)
+                self._update_latency_display()
+
+            method_path = parts[4].strip()
+            method_parts = method_path.split()
+            if len(method_parts) >= 2:
+                method = method_parts[0]
+                self._add_request_log(time_str, code, method, duration)
         except (IndexError, ValueError):
             pass
 
     def _format_duration(self, duration_str: str) -> str:
-        """Format duration string to one decimal place.
+        """Format duration string to two decimal places.
 
         Examples:
-            34.169952417s -> 34.2s
-            659.25µs -> 0.7ms
-            287.808875ms -> 287.8ms
+            34.169952417s -> 34.17s
+            659.25µs -> 0.66ms
+            287.808875ms -> 287.81ms
         """
         try:
             if "µs" in duration_str:
                 value = float(duration_str.replace("µs", ""))
-                return f"{value / 1000:.1f}ms"
+                return f"{value / 1000:.2f} ms"
             elif "ms" in duration_str:
                 value = float(duration_str.replace("ms", ""))
-                return f"{value:.1f}ms"
+                return f"{value:.2f} ms"
             elif "s" in duration_str:
                 value = float(duration_str.replace("s", ""))
-                return f"{value:.1f}s"
+                return f"{value:.2f} s"
         except ValueError:
             pass
         return ""
+
+    def _extract_latency_ms(self, duration_str: str) -> float:
+        """Extract latency in milliseconds from duration string.
+
+        Examples:
+            34.169952417s -> 34169.95 ms
+            659.25µs -> 0.66 ms
+            287.808875ms -> 287.81 ms
+        """
+        try:
+            if "µs" in duration_str:
+                value = float(duration_str.replace("µs", ""))
+                return value / 1000  # Convert to ms
+            elif "ms" in duration_str:
+                value = float(duration_str.replace("ms", ""))
+                return value
+            elif "s" in duration_str:
+                value = float(duration_str.replace("s", ""))
+                return value * 1000  # Convert to ms
+        except ValueError:
+            pass
+        return 0.0
+
+    def _update_latency_display(self) -> None:
+        """Update average latency display."""
+        if not self.request_latencies:
+            self.latency_label.setText("0 ms")
+            return
+
+        avg_latency = sum(self.request_latencies) / len(self.request_latencies)
+
+        # Format the latency display
+        if avg_latency >= 1000:
+            self.latency_label.setText(f"{avg_latency / 1000:.1f} s")
+        else:
+            self.latency_label.setText(f"{avg_latency:.0f} ms")
 
     def _fetch_models(self) -> None:
         """Fetch available models from Ollama API."""
         url = QUrl(OLLAMA_API_URL)
         request = QNetworkRequest(url)
         reply = self.network_manager.get(request)
+
+        assert reply is not None
+
         if reply:
             reply.finished.connect(lambda: self._on_models_fetched(reply))
 
@@ -1410,7 +1534,9 @@ class AgentLauncher(QMainWindow):
             radio.toggled.connect(self._update_local_settings_state)
             section_layout.addWidget(widget)
 
-            if (title == "Cloud" and i == 0) or (title == "Local" and start_id == 0 and i == 0):
+            is_first_cloud_model = (title == "Cloud" and i == 0)
+            is_first_local_model = (title == "Local" and start_id == 0 and i == 0)
+            if is_first_cloud_model or is_first_local_model:
                 radio.setChecked(True)
 
         section_layout.addStretch()
@@ -1423,11 +1549,6 @@ class AgentLauncher(QMainWindow):
         separator.setFixedHeight(1)
         separator.setStyleSheet("background-color: #e0e0e0; margin: 0 20px;")
         return separator
-
-    def _clear_prompt(self) -> None:
-        """Clear the prompt input."""
-        self.prompt_input.clear()
-        self._update_preview()
 
     def _update_preview(self) -> None:
         """Update the command preview."""
@@ -1527,7 +1648,7 @@ class AgentLauncher(QMainWindow):
                 widget.deleteLater()
 
         if not self.prompt_history:
-            placeholder = QLabel("No history yet")
+            placeholder = QLabel("No current history available")
             placeholder.setObjectName("history-placeholder")
             placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.history_list_layout.insertWidget(0, placeholder)
@@ -1636,16 +1757,18 @@ class AgentLauncher(QMainWindow):
 
         self.run_btn.setText("Stop")
 
+        self.prompt_input.clear()
+
     def _stop_agent(self) -> None:
         """Stop the running agent process."""
         if self.agent_process:
             self.agent_process.kill()
             self.agent_process.waitForFinished(3000)
-        self.run_btn.setText("Run Agent")
+        self.run_btn.setText("Run")
 
     def _on_process_finished(self) -> None:
         """Handle process completion."""
-        self.run_btn.setText("Run Agent")
+        self.run_btn.setText("Run")
         self.agent_process = None
 
     def closeEvent(self, event) -> None:
@@ -1659,8 +1782,6 @@ class AgentLauncher(QMainWindow):
 def main() -> None:
     """Application entry point."""
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-
     window = AgentLauncher()
     window.show()
 

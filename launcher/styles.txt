@@ -26,7 +26,7 @@ QMainWindow {
     color: #000000;
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
 }
 
 #model-section-header,
@@ -35,7 +35,7 @@ QMainWindow {
     color: #888888;
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
 }
 
 
@@ -47,7 +47,7 @@ QMainWindow {
     font-size: 12px;
     font-weight: 500;
     padding: 4px 8px;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.2px;
 }
 
 #text-btn:hover {
@@ -72,9 +72,11 @@ QMainWindow {
     background-color: #000000;
     color: #ffffff;
     border: none;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 16px;
+    font-size: 12px;
     font-weight: 600;
+    letter-spacing: 0.6px;
+    padding: 0 16px;
 }
 
 #run-btn:hover {
@@ -88,6 +90,101 @@ QMainWindow {
 #run-btn:disabled {
     background-color: #cccccc;
     color: #999999;
+}
+
+/* Input container with border */
+#input-container {
+    background-color: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 16px;
+}
+
+#input-container:focus-within {
+    border-color: #cccccc;
+    background-color: #ffffff;
+}
+
+/* Inner prompt input (no border) */
+#prompt-input-inner {
+    background-color: transparent;
+    border: none;
+    color: #000000;
+    font-size: 12px;
+    line-height: 1.6;
+    font-family: "Menlo", monospace;
+}
+
+#prompt-input-inner:focus {
+    border: none;
+    background-color: transparent;
+}
+
+#prompt-input-inner::placeholder {
+    color: #aaaaaa;
+    font-size: 12px;
+}
+
+/* Clear button */
+#clear-btn {
+    border: none;
+    border-radius: 16px;
+}
+
+#clear-btn:hover {
+    background-color: #e8e8e8;
+}
+
+#clear-btn:pressed {
+    background-color: #d8d8d8;
+}
+
+/* Clear button text */
+#clear-btn-text {
+    color: #666666;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+#clear-btn:hover #clear-btn-text {
+    color: #333333;
+}
+
+/* Toolbar separator */
+#toolbar-separator {
+    color: #f0f0f0;
+    background-color: transparent;
+}
+
+/* Resource info (CPU/Memory) */
+#resource-info {
+    background: transparent;
+}
+
+#resource-label {
+    color: #000000;
+    font-size: 10px;
+    font-weight: 500;
+    font-family: "Menlo", "Monaco", "Courier New", monospace;
+}
+
+/* Send button */
+#send-btn {
+    background-color: #000000;
+    border: none;
+    border-radius: 16px;
+}
+
+#send-btn:hover {
+    background-color: #333333;
+}
+
+#send-btn:pressed {
+    background-color: #555555;
+}
+
+#send-btn:disabled {
+    background-color: #cccccc;
 }
 
 
@@ -183,7 +280,7 @@ QMainWindow {
     color: #444444;
     font-size: 13px;
     line-height: 1.4;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
 }
 
 #request-time {
@@ -224,13 +321,6 @@ QMainWindow {
     font-style: italic;
 }
 
-#char-count-label {
-    color: #999999;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-}
-
 #history-placeholder,
 #request-placeholder {
     color: #999999;
@@ -262,7 +352,7 @@ QRadioButton {
     spacing: 8px;
     color: #333333;
     font-size: 12px;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
 }
 
 QRadioButton::indicator {
