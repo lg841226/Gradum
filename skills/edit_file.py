@@ -106,44 +106,44 @@ class EditFileSkill(Skill):
             return (f"Error: Found {occurrences} matches in {path}\n"
                    f"Reason: Search text appears multiple times.\n"
                    f"Fix: Include more unique context in 'search' parameter.")
-        
+
         new_content = content.replace(search, replace)
-        
+
         if not new_content.strip():
             return "Error: Replacement would result in an empty file. Operation cancelled."
-        
+
         try:
             with open(path, 'w', encoding='utf-8') as file:
                 file.write(new_content)
-            
+
             search_lines = search.count('\n') + 1
             replace_lines = replace.count('\n') + 1
-            
+
             # If diff is too long, use summary instead
             if search_lines + replace_lines > 50:
                 added = replace_lines - search_lines
                 return (f"Success: Modified {path}\n"
                        f"  {search_lines} lines → {replace_lines} lines ({'+' if added >= 0 else ''}{added} lines)\n"
                        f"Edit complete! No need to repeatedly check the content - it may waste unnecessary time.")
-            
+
             # Generate diff format output
             search_lines_list = search.split('\n')
             replace_lines_list = replace.split('\n')
-            
+
             diff_output = [f"Success: Modified {path}", f"@@ -{search_lines} +{replace_lines} @@"]
 
             # Show removed lines with -
             for line in search_lines_list:
                 diff_output.append(f"- {line}")
-            
+
             # Show added lines with +
             for line in replace_lines_list:
                 diff_output.append(f"+ {line}")
-            
+
             diff_output.append("\nEdit complete! No need to repeatedly check the content - it may waste unnecessary time.")
-            
+
             return '\n'.join(diff_output)
-            
+
         except (IOError, OSError) as e:
             try:
                 with open(path, 'w', encoding='utf-8') as file:

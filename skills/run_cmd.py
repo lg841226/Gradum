@@ -47,7 +47,7 @@ class RunCmdSkill(Skill):
             return "Error: Missing 'command' parameter."
 
         security_result = RunCmdSkill._check_command_security(command)
-        
+
         if security_result['level'] == 'high':
             return (f"Error: Command blocked due to high security risk.\n\n"
                     f"Command: {command}\n"
@@ -79,21 +79,21 @@ class RunCmdSkill(Skill):
     def _check_command_security(command: str) -> dict:
         """Check command security level and return risk assessment."""
         command_lower = command.lower().strip()
-        
+
         for pattern in HIGH_RISK_PATTERNS:
             if re.search(pattern, command_lower):
                 return {
                     'level': 'high',
                     'reason': f"Command matches dangerous pattern: {pattern}"
                 }
-        
+
         for high_risk in HIGH_RISK_COMMANDS:
             if high_risk in command_lower:
                 return {
                     'level': 'high',
                     'reason': f"Command contains high-risk operation: '{high_risk}'"
                 }
-        
+
         return {
             'level': 'low',
             'reason': "Command appears to be safe"

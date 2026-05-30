@@ -28,7 +28,7 @@ try {
         Write-Host "Creating destination directory: $destDir" -ForegroundColor Yellow
         New-Item -ItemType Directory -Path $destDir -Force | Out-Null
     }
-    
+
     # 1. Copy project files (exclude unwanted files)
     Write-Host "`n[1/4] Copying project files..." -ForegroundColor Yellow
     Write-Host "Source: $sourceDir" -ForegroundColor Gray

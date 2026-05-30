@@ -220,10 +220,21 @@ QMainWindow {
     color: #999999;
 }
 
+#group-title-edit {
+    background-color: #ffffff;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    padding: 2px 4px;
+    color: #333333;
+    font-size: 12px;
+    font-weight: 500;
+}
+
 /* Error state for input fields */
 #option-input[error="true"],
 #option-spin[error="true"],
-#prompt-input[error="true"] {
+#prompt-input[error="true"],
+#group-title-edit[error="true"] {
     border: 2px solid #e74c3c;
     background-color: #fff5f5;
 }
@@ -476,4 +487,195 @@ QScrollBar::sub-page:horizontal {
 
 #request-scroll > QWidget {
     background-color: transparent;
+}
+
+#right-panel-scroll {
+    background-color: transparent;
+    border: none;
+}
+
+#right-panel-scroll > QWidget > QWidget {
+    background-color: transparent;
+}
+
+#right-panel-content {
+    background-color: transparent;
+}
+
+#chat-tree {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    icon-size: 16px;
+}
+
+#chat-tree::item {
+    padding: 6px;
+    border-radius: 4px;
+    height: 28px;
+}
+
+#chat-tree::item:hover {
+    background-color: #F0F0F0;
+}
+
+#chat-tree::item:selected {
+    background-color: transparent;
+    color: black;
+}
+
+#chat-tree::branch {
+    background-color: transparent;
+    width: 20px;
+}
+
+#chat-tree::branch:selected {
+    background-color: transparent;
+}
+
+#new-chat-btn {
+    background-color: transparent;
+    border: none;
+    padding: 2px;
+}
+
+#new-chat-btn:hover {
+    background-color: #F0F0F0;
+    border-radius: 10px;
+}
+
+#chat-header-icon {
+    background-color: transparent;
+}
+
+/* ConversationItem */
+ConversationItem {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 0px;
+    margin: 0px;
+}
+
+ConversationItem:hover {
+    background-color: #F0F0F0;
+    border: none;
+}
+
+/* ConversationGroup */
+ConversationGroup {
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+#conversation-group-header {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 0px;
+    margin: 0px;
+}
+
+#conversation-group-header:hover {
+    background-color: #F0F0F0;
+    border: none;
+}
+
+#conversation-group-content {
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 0px;
+}
+
+/* ChatPanel */
+#chat-panel {
+    background-color: transparent;
+    border: none;
+}
+
+#chat-tree-container {
+    background-color: transparent;
+    border: none;
+}
+
+#chat-panel-header {
+    background-color: transparent;
+    border: none;
+}
+
+#new-chat-btn {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    margin: 0px;
+    color: #000000;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+}
+
+#new-chat-btn:hover {
+    background-color: #F0F0F0;
+    border: none;
+}
+
+#new-chat-btn:pressed {
+    background-color: #E0E0E0;
+    border: none;
+}
+
+#new-chat-btn:checked {
+    background-color: transparent;
+    border: none;
+}
+
+#chat-scroll {
+    background-color: transparent;
+    border: none;
+}
+
+QMenu {
+    background-color: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 20px;
+    border-radius: 2px;
+}
+
+QMenu::item:selected {
+    background-color: #F0F0F0;
+}
+
+#chat-footer {
+    background-color: transparent;
+    border: none;
+}
+
+#pill-btn {
+    background-color: transparent;
+    border: 1px solid #CCCCCC;
+    border-radius: 12px;
+    color: #666666;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    padding: 5px 12px;
+}
+
+#pill-btn:hover {
+    background-color: #f5f5f5;
+    border-color: #999999;
+    color: #333333;
+}
+
+#pill-btn:pressed {
+    background-color: #e8e8e8;
 }
