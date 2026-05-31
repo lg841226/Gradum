@@ -59,6 +59,8 @@ rsync -av --progress \
     --exclude='output' \
     --exclude='*.zip' \
     --exclude='.DS_Store' \
+    --exclude='.venv' \
+    --exclude='venv' \
     "$SCRIPT_DIR/" "$TEMP_BACKUP_DIR/"
 
 # Count files
@@ -68,7 +70,7 @@ echo "Copied $FILE_COUNT files"
 # 3. Compress backup directory
 echo ""
 echo "[3/5] Compressing project files..."
-cd /tmp
+cd /tmp 
 zip -r -q "$ZIP_FILENAME" "${PROJECT_NAME}_backup_${TIMESTAMP}"
 echo "Compression completed"
 

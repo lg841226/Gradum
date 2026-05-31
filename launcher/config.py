@@ -1,0 +1,55 @@
+MODEL_NAME_MAPPING = {
+    "qwen": "QwenX",
+    "llama": "Llama",
+    "deepseek": "DeepSeek",
+    "glm": "GLM",
+    "mistral": "Mistral",
+    "claude": "Claude",
+    "gpt": "ChatGPT",
+    "gpt-oss": "ChatGPT OpenSource",
+    "phi": "Phi",
+    "codellama": "CodeLlama",
+    "airoboros": "Airoboros",
+    "mythomax": "MythoMax",
+    "wizardlm": "WizardLM",
+    "yi": "Yi",
+}
+
+WINDOW_WIDTH = 1880
+WINDOW_HEIGHT = 1020
+WINDOW_MIN_WIDTH = 1100
+WINDOW_MIN_HEIGHT = 700
+
+LEFT_PANEL_WIDTH = 300
+RIGHT_PANEL_WIDTH = 300
+
+LEFT_PANEL_MIN_WIDTH = 280
+LEFT_PANEL_MAX_WIDTH = 360
+CENTER_PANEL_MIN_WIDTH = 400
+CENTER_PANEL_MAX_WIDTH = 1000
+RIGHT_PANEL_MIN_WIDTH = 310
+RIGHT_PANEL_MAX_WIDTH = 360
+
+MAIN_MARGIN_LEFT = 0
+MAIN_MARGIN_TOP = 0
+MAIN_MARGIN_RIGHT = 0
+MAIN_MARGIN_BOTTOM = 0
+MAIN_SPACING = 24
+
+CARD_SPACING = 8
+CARD_INTERNAL_SPACING = 8
+OPTION_SPACING = 8
+
+PROMPT_INPUT_HEIGHT = 60
+RUN_BUTTON_HEIGHT = 40
+HISTORY_WIDTH = 400
+
+MAX_HISTORY = 10
+OLLAMA_API_URL = "http://localhost:11434/api/tags"
+
+MAX_PROMPT_CHARS = 8000
+
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TOP_P = 0.9
+DEFAULT_NUM_CTX = 4096
+DEFAULT_NUM_PREDICT = 2048

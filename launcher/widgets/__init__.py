@@ -3,6 +3,7 @@ from launcher.widgets.custom_widgets import (
     AutoHideScrollArea,
     AutoHideTextEdit,
     CollapsibleCard,
+    RotatingLoaderIcon,
 )
 
 from launcher.widgets.highlighter import BashSyntaxHighlighter
@@ -19,6 +20,7 @@ __all__ = [
     "AutoHideScrollArea",
     "AutoHideTextEdit",
     "CollapsibleCard",
+    "RotatingLoaderIcon",
     "BashSyntaxHighlighter",
     "ConversationItem",
     "ConversationGroup",

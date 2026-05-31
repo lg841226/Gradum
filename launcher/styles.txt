@@ -1,5 +1,5 @@
 * {
-    font-family: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-family: "SF Pro", BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 }
 
 QMainWindow {
@@ -8,6 +8,16 @@ QMainWindow {
 
 #card {
     background-color: transparent;
+}
+
+#left-panel {
+    background-color: #fafafa;
+    border-right: 1px solid #e0e0e0;
+}
+
+#right-panel {
+    background-color: #fafafa;
+    border-left: 1px solid #e0e0e0;
 }
 
 #card-title,
@@ -97,6 +107,7 @@ QMainWindow {
     background-color: #fafafa;
     border: 1px solid #e8e8e8;
     border-radius: 16px;
+    margin-bottom: 20px;
 }
 
 #input-container:focus-within {
@@ -249,6 +260,7 @@ QMainWindow {
     background-color: #f0f0f0;
     border: none;
     width: 16px;
+    height: 12px;
 }
 
 #option-spin::up-button:hover,
@@ -257,13 +269,13 @@ QMainWindow {
 }
 
 #option-spin::up-arrow {
-    image: url(launcher/icons/arrow-up.svg);
+    image: url(launcher/icons/spin-arrow-up.svg);
     width: 10px;
     height: 10px;
 }
 
 #option-spin::down-arrow {
-    image: url(launcher/icons/arrow-down.svg);
+    image: url(launcher/icons/spin-arrow-down.svg);
     width: 10px;
     height: 10px;
 }
@@ -511,8 +523,8 @@ QScrollBar::sub-page:horizontal {
 
 #chat-tree::item {
     padding: 6px;
-    border-radius: 4px;
     height: 28px;
+    border-radius: 6px;
 }
 
 #chat-tree::item:hover {
@@ -678,4 +690,14 @@ QMenu::item:selected {
 
 #pill-btn:pressed {
     background-color: #e8e8e8;
+}
+
+#dialog-input {
+    padding: 6px;
+    border: 1px solid #CCCCCC;
+    border-radius: 4px;
+}
+
+#dialog-input:focus {
+    border-color: #000000;
 }

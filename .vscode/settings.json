@@ -30,5 +30,7 @@
         "**/.venv": true,
         "**/venv": true,
         "**/ENV": true
-    }
+    },
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.languageServerMode": "full"
 }

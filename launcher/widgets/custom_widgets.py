@@ -1,9 +1,10 @@
 from typing import Optional
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QRectF, QEvent
 from PyQt6.QtSvgWidgets import QSvgWidget
-from PyQt6.QtGui import QColor
+from PyQt6.QtSvg import QSvgRenderer
+from PyQt6.QtGui import QColor, QPainter, QTransform, QResizeEvent
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -20,7 +21,7 @@ from PyQt6.QtWidgets import (
 class ToastNotification(QWidget):
     """A toast notification widget that shows error messages."""
 
-    def __init__(self, parent=None, message: str = "", duration: int = 3000):
+    def __init__(self, parent: Optional[QWidget] = None, message: str = "", duration: int = 3000):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.ToolTip)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -150,13 +151,17 @@ class AutoHideScrollArea(QScrollArea):
             }
         """)
 
-    def event(self, event) -> bool:
+    def event(self, event: QEvent) -> bool: # pyright: ignore[reportIncompatibleMethodOverride]
         if event.type() == event.Type.Resize:
             self._update_scrollbars()
         return super().event(event)
 
-    def setWidget(self, widget: QWidget) -> None:
+    def setWidget(self, widget: QWidget) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         super().setWidget(widget)
+        self._update_scrollbars()
+
+    def updateScrollbars(self) -> None:
+        """Public method to manually update scrollbar visibility."""
         self._update_scrollbars()
 
     def _update_scrollbars(self) -> None:
@@ -164,15 +169,20 @@ class AutoHideScrollArea(QScrollArea):
         if not widget:
             return
 
-        viewport_size = self.viewport().size()
-        size_hint = widget.sizeHint()
+        viewport = self.viewport()
+        if not viewport:
+            return
 
-        if size_hint.height() <= viewport_size.height():
+        viewport_size = viewport.size()
+        widget_height = widget.height()
+        widget_width = widget.width()
+
+        if widget_height <= viewport_size.height():
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         else:
             self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        if size_hint.width() <= viewport_size.width():
+        if widget_width <= viewport_size.width():
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         else:
             self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -198,11 +208,15 @@ class AutoHideTextEdit(QTextEdit):
         self._adjust_height()
 
     def _adjust_height(self) -> None:
-        doc_height = int(self.document().size().height())
+        doc = self.document()
+        if not doc:
+            return
+
+        doc_height = int(doc.size().height())
         new_height = max(self._min_height, min(doc_height + 10, self._max_height))
         self.setFixedHeight(new_height)
 
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         super().resizeEvent(event)
         self._adjust_height()
 
@@ -252,7 +266,7 @@ class CollapsibleCard(QWidget):
         self._arrow_widget.setFixedSize(16, 16)
         header_layout.addWidget(self._arrow_widget)
 
-        self._header.mousePressEvent = self._toggle_expand
+        self._header.mousePressEvent = self._toggle_expand  # type: ignore
 
         layout.addWidget(self._header)
 
@@ -271,16 +285,17 @@ class CollapsibleCard(QWidget):
     def setContentLayout(self, layout) -> None:
         while self._content_layout.count():
             item = self._content_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
+            if item:
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
 
         self._content_layout.addLayout(layout)
 
     def addWidget(self, widget: QWidget) -> None:
         self._content_layout.addWidget(widget)
 
-    def _toggle_expand(self, event) -> None:
+    def _toggle_expand(self, _event) -> None:
         self._is_expanded = not self._is_expanded
         self._content_container.setVisible(self._is_expanded)
         arrow_icon = "arrow-down.svg" if self._is_expanded else "arrow-right.svg"
@@ -296,3 +311,67 @@ class CollapsibleCard(QWidget):
         arrow_icon = "arrow-down.svg" if expanded else "arrow-right.svg"
         arrow_icon_path = Path(__file__).resolve().parent.parent / "icons" / arrow_icon
         self._arrow_widget.load(str(arrow_icon_path))
+
+
+class RotatingLoaderIcon(QWidget):
+    """A rotating loader icon with constant speed rotation.
+
+    Features:
+    - Uniform speed rotation (0.6 seconds per full 360°)
+    - Stable and predictable animation
+    - ~60 FPS for fluid motion
+    """
+
+    def __init__(self, svg_path: str, parent: Optional[QWidget] = None, size: int = 16):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self._renderer = QSvgRenderer(svg_path)
+        self._angle = 0.0
+        self._is_spinning = False
+
+        self._degrees_per_frame = 6.0
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._animate_step)
+
+    def start(self) -> None:
+        """Start the spinning animation."""
+        if not self._is_spinning:
+            self._is_spinning = True
+            self._timer.start(16)
+
+    def stop(self) -> None:
+        """Stop the spinning animation."""
+        if self._is_spinning:
+            self._is_spinning = False
+            self._timer.stop()
+            self._angle = 0.0
+            self.update()
+
+    def is_spinning(self) -> bool:
+        return self._is_spinning
+
+    def _animate_step(self) -> None:
+        """Perform one animation step with constant speed."""
+        self._angle += self._degrees_per_frame
+        if self._angle >= 360.0:
+            self._angle -= 360.0
+        self.update()
+
+    def paintEvent(self, _event: QEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        center_x = self.width() / 2.0
+        center_y = self.height() / 2.0
+
+        transform = QTransform()
+        transform.translate(center_x, center_y)
+        transform.rotate(self._angle)
+        transform.translate(-center_x, -center_y)
+        painter.setTransform(transform)
+
+        if self._renderer.isValid():
+            self._renderer.render(painter, QRectF(0, 0, self.width(), self.height()))
+
+        painter.end()
