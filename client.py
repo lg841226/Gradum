@@ -59,7 +59,7 @@ class OllamaClient:
         tools: Optional[List[dict]] = None,
         stream: bool = True,
         think: Optional[bool] = None  # Override default think setting
-    ) -> Generator[tuple[str, Optional[list], Optional[str]], None, None]:
+    ) -> Generator[tuple[str, Optional[list], Optional[str], bool], None, None]:
         """Send a chat request to Ollama.
 
         Args:
@@ -69,10 +69,11 @@ class OllamaClient:
             think: Enable chain-of-thought reasoning (overrides default)
 
         Yields:
-            Tuple of (content, tool_calls, thinking)
-            - content: The response content
+            Tuple of (content, tool_calls, thinking, is_error)
+            - content: The response content (or error message text when is_error=True)
             - tool_calls: List of tool calls if any
             - thinking: Thinking process if enabled by think=True
+            - is_error: True if this chunk is a client-side error, False for normal content
         """
         url = f"{self.base_url}/api/chat"
         payload = {
@@ -118,9 +119,9 @@ class OllamaClient:
                             completion_tokens = data.get("eval_count", 0)
                             self._accumulate_token_stats(prompt_tokens, completion_tokens)
 
-                        yield content, tool_calls, thinking
+                        yield content, tool_calls, thinking, False
                     elif "error" in data:
-                        yield f"Error: {data['error']}", None, None
+                        yield data["error"], None, None, True
                     elif "done" in data and data["done"]:
                         if "prompt_eval_count" in data or "eval_count" in data:
                             prompt_tokens = data.get("prompt_eval_count", 0)
@@ -128,37 +129,30 @@ class OllamaClient:
                             self._accumulate_token_stats(prompt_tokens, completion_tokens)
 
         except requests.exceptions.Timeout as e:
-            error_msg = f"Error: Request timed out after {self.timeout} seconds. The server is taking too long to respond."
-            print(f"\n[CLIENT ERROR] Timeout: {e}")
-            yield error_msg, None, None
+            error_msg = f"Request timed out after {self.timeout} seconds. The server is taking too long to respond."
+            yield error_msg, None, None, True
         except requests.exceptions.ConnectionError as e:
-            error_msg = f"Error: Could not connect to Ollama server at {self.base_url}. Make sure Ollama is running (try 'ollama serve'). Details: {str(e)}"
-            print(f"\n[CLIENT ERROR] Connection: {e}")
-            yield error_msg, None, None
+            error_msg = f"Could not connect to Ollama server at {self.base_url}. Make sure Ollama is running (try 'ollama serve'). Details: {str(e)}"
+            yield error_msg, None, None, True
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 403:
-                error_msg = f"Error: Access denied (403 Forbidden). Check API permissions. Details: {str(e)}"
+                error_msg = f"Access denied (403 Forbidden). Check API permissions. Details: {str(e)}"
             elif e.response.status_code == 404:
-                error_msg = f"Error: Model '{self.model}' not found (404). Check if the model is pulled. Details: {str(e)}"
+                error_msg = f"Model '{self.model}' not found (404). Check if the model is pulled. Details: {str(e)}"
             elif e.response.status_code == 500:
-                error_msg = f"Error: Server internal error (500). The model may have crashed. Details: {str(e)}"
+                error_msg = f"Server internal error (500). The model may have crashed. Details: {str(e)}"
             else:
-                error_msg = f"Error: HTTP {e.response.status_code} - {str(e)}"
-            print(f"\n[CLIENT ERROR] HTTP {e.response.status_code}: {e}")
-            yield error_msg, None, None
+                error_msg = f"HTTP {e.response.status_code} - {str(e)}"
+            yield error_msg, None, None, True
         except requests.exceptions.TooManyRedirects as e:
-            error_msg = f"Error: Too many redirects. Check server configuration."
-            print(f"\n[CLIENT ERROR] Redirects: {e}")
-            yield error_msg, None, None
+            error_msg = "Too many redirects. Check server configuration."
+            yield error_msg, None, None, True
         except json.JSONDecodeError as e:
-            error_msg = f"Error: Invalid JSON response"
-            print(f"\n[CLIENT ERROR] JSON: {e}")
-            yield error_msg, None, None
+            error_msg = "Invalid JSON response"
+            yield error_msg, None, None, True
         except (KeyError, TypeError) as e:
-            error_msg = f"Error: Invalid response format"
-            print(f"\n[CLIENT ERROR] Format: {e}")
-            yield error_msg, None, None
+            error_msg = "Invalid response format"
+            yield error_msg, None, None, True
         except Exception as e:
-            error_msg = f"Error: Unexpected error - {str(e)}"
-            print(f"\n[CLIENT ERROR] Unexpected: {type(e).__name__}: {e}")
-            yield error_msg, None, None
+            error_msg = f"Unexpected error - {str(e)}"
+            yield error_msg, None, None, True

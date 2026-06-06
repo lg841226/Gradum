@@ -31,6 +31,7 @@ class Agent:
         self.skills = Skills()
         self.messages = []  # Message list for LLM conversation
         self.full_read_files = set()  # Track fully read files (no line_range)
+        self._tool_call_counter = 0  # Monotonic counter for tool_call_id generation
 
         output_dir = Path(__file__).parent / "output"
         self.context_manager = ContextManager(output_dir)
@@ -38,7 +39,7 @@ class Agent:
         self._setup_system_prompt()
 
     def _setup_system_prompt(self):
-        """Load system prompt from file and add OS info."""
+        """Load system prompt from file and substitute OS placeholder."""
         prompt_path = Path(__file__).parent / "prompts" / "system_prompt.md"
 
         try:
@@ -48,15 +49,8 @@ class Agent:
             content = "You are a helpful AI assistant.\n"
             print(f"Warning: Could not load system prompt from {prompt_path}: {e}")
 
-        system = platform.system()
-        if system == "Windows":
-            os_info = f"Your Current System- OS: Windows ({platform.release()})"
-        elif system == "Darwin":
-            os_info = f"Your Current System- OS: macOS ({platform.release()})"
-        else:
-            os_info = f"Your Current System- OS: {system} ({platform.release()})"
-
-        self.messages.append({"role": "system", "content": content + os_info})
+        content = content.replace("{{OS}}", f"{platform.system()} {platform.release()}")
+        self.messages.append({"role": "system", "content": content})
 
     def run(self, user_input, load_context=False):
         """Main entry point to process user input and generate response."""
@@ -86,7 +80,6 @@ class Agent:
 
         self.messages.append({"role": "user", "content": user_input})
 
-        full_response = []
         cached_tool_schemas = None
 
         while True:
@@ -98,14 +91,18 @@ class Agent:
             response_chunks = []
             thinking_chunks = []
             tool_calls = None
+            error_message = None
 
-            for chunk, calls, thinking in self.client.chat(
+            for chunk, calls, thinking, is_error in self.client.chat(
                 self.messages,
                 tools=cached_tool_schemas,
                 stream=True,
                 think=self.config.think
             ):
-                response_chunks.append(chunk)
+                if is_error:
+                    error_message = chunk
+                else:
+                    response_chunks.append(chunk)
                 if thinking:
                     thinking_chunks.append(thinking)
                 if calls and not tool_calls:
@@ -117,43 +114,85 @@ class Agent:
                 if thinking_text.strip():
                     _emit("thinking", {"content": thinking_text})
 
+            # Build turn text from streamed chunks
+            turn_text = "".join(response_chunks)
+
             # Handle LLM response
-            if response_chunks:
-                full_response.extend(response_chunks)
-                if tool_calls:
-                    response_text = "".join(response_chunks)
-                    if response_text.strip():
-                        _emit("llm_response", {"content": response_text})
-                else:
-                    # Check if response is an error message from client
-                    response_text = "".join(response_chunks)
-                    if response_text.strip().startswith("Error:"):
-                        _emit("error", {
-                            "code": "CLIENT_ERROR",
-                            "message": response_text.strip(),
-                            "source": "ollama_client"
-                        })
-                    elif response_text.strip():
-                        _emit("llm_response", {"content": response_text})
+            if error_message:
+                _emit("error", {
+                    "code": "CLIENT_ERROR",
+                    "message": error_message.strip(),
+                    "source": "ollama_client"
+                })
+            elif turn_text.strip():
+                _emit("llm_response", {"content": turn_text})
 
             # Exit loop if no tool calls needed
             if not tool_calls:
-                if full_response:
-                    final_content = "".join(full_response)
-                    self.messages.append({"role": "assistant", "content": final_content})
+                if turn_text:
+                    self._append_assistant_message(turn_text, None)
                 break
 
-            # Execute tool calls
-            for tool_call in tool_calls:
-                self._execute_tool(tool_call, "".join(full_response))
+            # Pre-process tool calls: assign unique IDs
+            processed_calls = self._prepare_tool_calls(tool_calls)
 
-            full_response = []
+            # Append assistant message with structured tool_calls field
+            self._append_assistant_message(turn_text, processed_calls)
+
+            # Execute each tool and append tool result with tool_call_id
+            for pc in processed_calls:
+                self._execute_tool(pc["call"], pc["id"])
 
         # Finalize and save context
         self._finish(start_time)
 
-    def _execute_tool(self, tool_call, full_response):
-        """Execute a single tool call and update messages."""
+    def _prepare_tool_calls(self, raw_calls):
+        """Assign unique IDs to each tool call.
+
+        Uses 'id' from Ollama's response if present, otherwise generates a
+        local monotonic ID (call_1, call_2, ...). Ensures every tool call
+        has a stable identifier for log traceability and message history.
+        """
+        processed = []
+        for call in raw_calls:
+            existing_id = call.get("id")
+            if existing_id:
+                tc_id = existing_id
+            else:
+                self._tool_call_counter += 1
+                tc_id = f"call_{self._tool_call_counter}"
+            processed.append({"id": tc_id, "call": call})
+        return processed
+
+    def _append_assistant_message(self, content, processed_calls):
+        """Append an assistant message with optional structured tool_calls field.
+
+        Ollama-compatible format:
+            {role: assistant, content: ..., tool_calls: [{function: {name, arguments}}]}
+
+        The 'function.arguments' is a dict (not a JSON string) per Ollama spec.
+        No 'id' or 'type' fields are sent (Ollama matches tool calls positionally).
+        """
+        msg = {"role": "assistant", "content": content}
+        if processed_calls:
+            msg["tool_calls"] = [
+                {
+                    "function": {
+                        "name": pc["call"].get("function", {}).get("name", ""),
+                        "arguments": pc["call"].get("function", {}).get("arguments", {}),
+                    }
+                }
+                for pc in processed_calls
+            ]
+        self.messages.append(msg)
+
+    def _execute_tool(self, tool_call, tool_call_id):
+        """Execute a single tool call and update messages.
+
+        Args:
+            tool_call: Raw tool call dict with 'function' containing name+arguments
+            tool_call_id: Unique ID linking this call to its result in history
+        """
         func = tool_call.get("function", {})
         tool_name = func.get("name", "")
         arguments = func.get("arguments", {})
@@ -178,10 +217,11 @@ class Agent:
         # Determine success from result dict
         success = result.get("success", False) if isinstance(result, dict) else False
 
-        # Emit tool_call event
+        # Emit tool_call event with tool_call_id for log traceability
         _emit("tool_call", {
             "tool": tool_name,
             "arguments": arguments,
+            "tool_call_id": tool_call_id,
             "success": success,
             "result": result
         })
@@ -192,19 +232,24 @@ class Agent:
             _emit("error", {
                 "code": error_info.get("code", "EXECUTION_ERROR"),
                 "message": error_info.get("message", "Unknown error"),
-                "tool": tool_name
+                "tool": tool_name,
+                "tool_call_id": tool_call_id
             })
 
-        # Add to message history - convert result to string for LLM
+        # Add tool result to history (Ollama format: role=tool, content as string)
         result_str = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
-        self.messages.append({"role": "assistant", "content": full_response})
-        self.messages.append({"role": "tool", "content": result_str})
 
-        # Add plan reminder if available
+        # Embed plan reminder into the tool result so it is delivered as a single
+        # well-formed tool message (avoiding a second tool message lacking tool_call_id)
         from skills.todo import get_todo_manager
         reminder = get_todo_manager().get_reminder()
         if reminder:
-            self.messages.append({"role": "tool", "content": reminder})
+            result_str += "\n\n" + reminder
+
+        self.messages.append({
+            "role": "tool",
+            "content": result_str
+        })
 
     def _finish(self, start_time):
         """Finalize the session and save context."""
@@ -233,7 +278,7 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--num-ctx", type=int, default=4096)
-    parser.add_argument("--num-predict", type=int, default=2048)
+    parser.add_argument("--num-predict", type=int, default=16384)
     parser.add_argument("prompt", nargs="+")
 
     args = parser.parse_args()

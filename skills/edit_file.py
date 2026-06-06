@@ -142,13 +142,13 @@ class EditFileSkill(Skill):
             if occurrences == 0:
                 return EditFileSkill._handle_batch_error(
                     mode, path, content, original, i, len(edits),
-                    "CODE_NOT_FOUND", diff_list
+                    "CODE_NOT_FOUND"
                 )
 
             if occurrences > 1:
                 return EditFileSkill._handle_batch_error(
                     mode, path, content, original, i, len(edits),
-                    "MULTIPLE_MATCHES", diff_list, occurrences
+                    "MULTIPLE_MATCHES", occurrences
                 )
 
             content = content.replace(search, replace, 1)
@@ -199,8 +199,7 @@ class EditFileSkill(Skill):
     @staticmethod
     def _handle_batch_error(mode: str, path: str, current_content: str,
                             original_content: str, i: int, total: int,
-                            error_code: str, diff_list: list,
-                            occurrences: int = 0) -> dict:
+                            error_code: str, occurrences: int = 0) -> dict:
         edit_num = i + 1
 
         if error_code == "CODE_NOT_FOUND":
