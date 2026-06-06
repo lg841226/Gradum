@@ -1,4 +1,4 @@
-"""Skill for searching keyword in files."""
+"""Skill for searching text in files, plus filename and dirname discovery."""
 
 import fnmatch
 import os
@@ -8,129 +8,163 @@ from .base import Skill
 
 
 class SearchSkill(Skill):
-    """Skill for searching keyword in files."""
+    """Skill for searching text in files, plus filename and dirname discovery."""
     name = "search"
     alias = "Explored"
-    description = "Search for keywords in files (smart recursion with file filtering)"
-    
+    description = "Find text in file content, file names, or directory names (recursive)."
+
     TIMEOUT = 120
     MAX_FILES = 600
     MAX_DEPTH = 6
-    
+    MAX_KEYWORDS = 5
+    HARD_MAX_RESULTS = 20
+
     EXCLUDE_DIRS = {
         '__pycache__', 'node_modules', 'venv', '.venv', 'ENV',
         'build', 'dist', 'output', 'target',
         'vendor', 'Pods', '.gradle', 'bin', 'obj'
     }
+    DOTDIR_WHITELIST = {'.vscode', '.idea', '.github', '.gitlab'}
 
     def get_schema(self) -> dict[str, Any]:
         return {
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": "Search for text in files, or find files/directories by name",
+                "description": (
+                    "Find text in file content, file names, or directory names. "
+                    "Recursive by default; skips common build/dependency directories "
+                    "(node_modules, venv, __pycache__, dist, etc.). "
+                    "Use this when you don't know which file contains what you're looking for, "
+                    "or when you want to discover files by name. "
+                    "For reading a file you already know the path of, use read_file. "
+                    "For listing directory contents, use run_cmd with 'ls'. "
+                    f"Returns up to {self.HARD_MAX_RESULTS} matches; on larger result sets the "
+                    "response sets truncated=true with a hint on how to narrow the query."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "keyword": {
-                            "type": "string",
-                            "description": "Text to search inside files (class names, function names, code snippets, error messages)"
-                        },
-                        "keywords": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Multiple keywords (OR logic, max 5)"
+                            "anyOf": [
+                                {"type": "string", "minLength": 1},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string", "minLength": 1},
+                                    "minItems": 1,
+                                    "maxItems": 5
+                                }
+                            ],
+                            "description": (
+                                "Text to search for inside file content (case-insensitive substring match). "
+                                "Pass a string for one term (e.g. 'UserService', 'def main', 'NullPointer'), "
+                                "or an array of up to 5 strings for OR-logic multi-search "
+                                "(e.g. ['error', 'exception']). "
+                                "If more than 5 are passed, only the first 5 are used and the response "
+                                "sets truncated=true with a hint."
+                            )
                         },
                         "filename": {
                             "type": "string",
-                            "description": "Find files by name (partial match, e.g. 'test' finds 'test.py')"
+                            "description": (
+                                "Find files whose name contains this substring "
+                                "(case-insensitive, partial match). "
+                                "Examples: filename='test' matches 'test.py', 'test_utils.py', 'latest_test.txt'. "
+                                "For exact extension or glob filtering, use file_pattern instead."
+                            )
                         },
                         "dirname": {
                             "type": "string",
-                            "description": "Find directories by name (partial match, e.g. 'src' finds 'src/')"
-                        },
-                        "recursive": {
-                            "type": "boolean",
-                            "description": "Search subdirectories (default: false)"
+                            "description": (
+                                "Find directories whose name contains this substring "
+                                "(case-insensitive, partial match, recursive). "
+                                "Example: dirname='src' matches 'src/' and 'src/utils/'."
+                            )
                         },
                         "file_pattern": {
                             "type": "string",
-                            "description": "Filter by extension (e.g., '*.py', '*.js')"
+                            "description": (
+                                "Restrict to files matching this glob pattern (fnmatch syntax: "
+                                "'*' wildcard, '?' single char). "
+                                "Examples: '*.py' for Python files, '*.test.js' for test files, "
+                                "'package.json' for exact name. "
+                                "Applies to both keyword and filename search. "
+                                "Recommended on large codebases to keep results focused."
+                            )
                         }
                     }
                 }
             }
         }
 
-    def execute(self, **kwargs: Any) -> str:
+    def execute(self, **kwargs: Any) -> dict:
+        """Execute search and return structured result."""
         keyword = kwargs.get("keyword", "")
-        keywords = kwargs.get("keywords", [])
         filename = kwargs.get("filename", "")
         dirname = kwargs.get("dirname", "")
-        recursive = kwargs.get("recursive", False)
         file_pattern = kwargs.get("file_pattern", "")
 
-        search_keywords = []
-        if keywords and isinstance(keywords, list):
-            search_keywords = [k.strip() for k in keywords[:5] if k.strip()]
-        elif keyword:
-            search_keywords = [keyword.strip()]
+        search_keywords, keyword_overflow = self._normalize_keywords(keyword)
 
-        has_keyword_search = bool(search_keywords)
-        has_filename_search = bool(filename.strip())
-        has_dirname_search = bool(dirname.strip())
+        has_keyword = bool(search_keywords)
+        has_filename = bool(filename and filename.strip())
+        has_dirname = bool(dirname and dirname.strip())
 
-        if not has_keyword_search and not has_filename_search and not has_dirname_search:
-            return "Error: Missing 'keyword', 'keywords', 'filename', or 'dirname' parameter."
+        if not has_keyword and not has_filename and not has_dirname:
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "Provide at least one of: keyword, filename, dirname."
+                }
+            }
 
-        results = []
-        seen = set()
         start_time = time.time()
-        files_processed = 0
+        results: list[dict] = []
+        seen: set[str] = set()
+        files_searched = 0
+        timed_out = False
+        hit_file_cap = False
 
-        timeout = self.TIMEOUT
-        max_files = self.MAX_FILES
-        max_depth = self.MAX_DEPTH
-        exclude_dirs = self.EXCLUDE_DIRS
-
-        def process_file(fname: str) -> bool:
+        def matches_file_pattern(name: str) -> bool:
             if not file_pattern:
                 return True
-            return fnmatch.fnmatch(fname, file_pattern)
+            return fnmatch.fnmatch(name, file_pattern)
 
-        def search_file(filepath: str) -> None:
-            nonlocal files_processed
+        def emit(match: dict, key: str) -> None:
+            if key not in seen:
+                seen.add(key)
+                results.append(match)
+
+        def search_content(filepath: str) -> None:
+            nonlocal files_searched, timed_out
             try:
                 with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                     for line_no, line in enumerate(f, 1):
-                        if time.time() - start_time > timeout:
-                            break
+                        if time.time() - start_time > self.TIMEOUT:
+                            timed_out = True
+                            return
                         for kw in search_keywords:
                             if kw.lower() in line.lower():
-                                result_key = f"{filepath}:{line_no}"
-                                if result_key not in seen:
-                                    seen.add(result_key)
-                                    results.append(f"{filepath}:{line_no}: {line.strip()}")
+                                emit(
+                                    {"type": "content", "path": filepath,
+                                     "line": line_no, "text": line.rstrip()},
+                                    f"content:{filepath}:{line_no}",
+                                )
                                 break
             except (IOError, OSError):
                 pass
-            files_processed += 1
-
-        def search_filename_in_path(filepath: str, entry: str) -> bool:
-            if filename.lower() in entry.lower():
-                result_key = f"file:{filepath}"
-                if result_key not in seen:
-                    seen.add(result_key)
-                    results.append(f"file: {filepath}")
-                    return True
-            return False
+            files_searched += 1
 
         def process_directory(dirpath: str, depth: int = 0) -> None:
-            nonlocal files_processed
-            if time.time() - start_time > timeout or files_processed >= max_files:
+            nonlocal files_searched, timed_out, hit_file_cap
+            if time.time() - start_time > self.TIMEOUT:
+                timed_out = True
                 return
-
-            if depth > max_depth:
+            if files_searched >= self.MAX_FILES:
+                hit_file_cap = True
+                return
+            if depth > self.MAX_DEPTH:
                 return
 
             try:
@@ -139,80 +173,87 @@ class SearchSkill(Skill):
                 return
 
             for entry in entries:
-                if time.time() - start_time > timeout or files_processed >= max_files:
+                if time.time() - start_time > self.TIMEOUT:
+                    timed_out = True
+                    break
+                filepath = os.path.join(dirpath, entry)
+                if not os.path.isfile(filepath):
+                    continue
+                if not matches_file_pattern(entry):
+                    continue
+
+                if has_filename and filename.lower() in entry.lower():
+                    emit({"type": "file", "path": filepath}, f"file:{filepath}")
+
+                if has_keyword:
+                    search_content(filepath)
+                else:
+                    files_searched += 1
+
+                if files_searched >= self.MAX_FILES:
+                    hit_file_cap = True
                     break
 
-                filepath = os.path.join(dirpath, entry)
+            for entry in entries:
+                if time.time() - start_time > self.TIMEOUT:
+                    timed_out = True
+                    break
+                subpath = os.path.join(dirpath, entry)
+                if not os.path.isdir(subpath):
+                    continue
+                if entry in self.EXCLUDE_DIRS:
+                    continue
+                if entry.startswith('.') and entry not in self.DOTDIR_WHITELIST:
+                    continue
 
-                if has_filename_search and os.path.isfile(filepath):
-                    if process_file(entry) and search_filename_in_path(filepath, entry):
-                        if not has_keyword_search:
-                            files_processed += 1
+                if has_dirname and dirname.lower() in entry.lower():
+                    emit({"type": "dir", "path": subpath}, f"dir:{subpath}")
 
-                if has_keyword_search and os.path.isfile(filepath) and process_file(entry):
-                    search_file(filepath)
-
-                if has_dirname_search and os.path.isdir(filepath):
-                    if dirname.lower() in entry.lower():
-                        result_key = f"dir:{filepath}"
-                        if result_key not in seen:
-                            seen.add(result_key)
-                            results.append(f"dir: {filepath}")
-
-            if recursive:
-                for entry in entries:
-                    if time.time() - start_time > timeout or files_processed >= max_files:
-                        break
-
-                    dirpath_entry = os.path.join(dirpath, entry)
-                    if os.path.isdir(dirpath_entry) and entry not in exclude_dirs:
-                        if entry.startswith('.') and entry not in {'.vscode', '.idea'}:
-                            continue
-                        process_directory(dirpath_entry, depth + 1)
+                process_directory(subpath, depth + 1)
 
         process_directory('.')
 
-        extra_info = []
-        if files_processed >= max_files:
-            extra_info.append(f"limited to {max_files} files")
-        if time.time() - start_time > timeout:
-            extra_info.append("timeout")
-        if recursive:
-            extra_info.append("recursive")
+        hints: list[str] = []
+        if keyword_overflow:
+            hints.append(
+                f"Only the first {self.MAX_KEYWORDS} keywords were used; "
+                f"pass fewer or split into multiple calls."
+            )
+        if timed_out:
+            hints.append(
+                f"Search exceeded the {self.TIMEOUT}s time limit; "
+                f"narrow with file_pattern or a more specific keyword."
+            )
+        if hit_file_cap:
+            hints.append(
+                f"Search hit the {self.MAX_FILES}-file cap; "
+                f"narrow with file_pattern or a more specific keyword."
+            )
+        if len(results) > self.HARD_MAX_RESULTS:
+            hints.append(
+                f"More than {self.HARD_MAX_RESULTS} matches exist; "
+                f"narrow with file_pattern or a more specific keyword."
+            )
 
-        extra_str = f" ({', '.join(extra_info)})" if extra_info else ""
+        truncated = bool(hints)
+        response: dict = {
+            "success": True,
+            "matches": results[:self.HARD_MAX_RESULTS],
+            "truncated": truncated,
+            "files_searched": files_searched,
+        }
+        if hints:
+            response["hint"] = " ".join(hints)
+        return response
 
-        if not results:
-            search_type = []
-            if has_keyword_search:
-                search_type.append('content')
-            if has_filename_search:
-                search_type.append('filename')
-            if has_dirname_search:
-                search_type.append('dirname')
-            type_str = ' or '.join(search_type)
-            return f"Error: No matches found for {type_str}: {', '.join(filter(None, [filename, dirname] + search_keywords))}{extra_str}"
-
-        return f"Success: Found {len(results)} matches{extra_str}:\n" + "\n".join(results[:20])
-
-    def format_content(self, arguments: dict, result: str) -> str:
-        lines = result.split("\n")
-        return "\n".join(lines[:5])
-
-    def format_args(self, arguments: dict) -> str:
-        parts = []
-        keywords = arguments.get("keywords", [])
-        keyword = arguments.get("keyword", "")
-        filename = arguments.get("filename", "")
-        dirname = arguments.get("dirname", "")
-
-        if keyword:
-            parts.append(f"content: {keyword}")
-        elif keywords:
-            parts.append(f"content: {' · '.join(keywords[:5])}")
-        if filename:
-            parts.append(f"file: {filename}")
-        if dirname:
-            parts.append(f"dir: {dirname}")
-
-        return ", ".join(parts) if parts else str(arguments)
+    @staticmethod
+    def _normalize_keywords(keyword: Any) -> tuple[list[str], bool]:
+        """Normalize keyword input to a list of strings. Returns (list, was_overflow)."""
+        if isinstance(keyword, str):
+            k = keyword.strip()
+            return ([k] if k else [], False)
+        if isinstance(keyword, list):
+            cleaned = [k.strip() for k in keyword if isinstance(k, str) and k.strip()]
+            overflow = len(cleaned) > SearchSkill.MAX_KEYWORDS
+            return (cleaned[:SearchSkill.MAX_KEYWORDS], overflow)
+        return ([], False)

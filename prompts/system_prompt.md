@@ -34,8 +34,11 @@ For complex projects (multiple files, architecture decisions, or unclear require
    - File structure
    - Key technical decisions
    - Implementation steps
-2. Show plan to user for confirmation
-3. Execute after approval
+2. Create task list: `to_do(tasks=[...])` based on plan
+3. **IMMEDIATELY execute ALL tasks** - DO NOT stop after creating plan or to_do
+4. Mark each task complete with `finish_to_do_item()` after execution
+
+**CRITICAL: Creating plan.md or to_do is NOT completion. You MUST execute the actual work.**
 
 ***
 
@@ -68,11 +71,13 @@ Rules:
 
 ## FILE EDITING
 
-1. ALWAYS read file before editing
+1. ALWAYS read file before editing (use `read_file` with `line_range` for large files)
 2. Use the smallest possible search-replace blocks
-3. Include 2-3 surrounding lines for uniqueness
+3. Include 2-3 surrounding lines for uniqueness — this is **required**, not optional
 4. NEVER modify unrelated code
 5. Preserve existing imports, don't add duplicates
+6. If `edit_file` returns `CODE_NOT_FOUND`, **re-read the file** and look for whitespace/indentation differences; the file may have changed since you last saw it
+7. For multiple independent edits to the same file, batch them in one `edit_file` call — saves a round-trip
 
 ***
 
@@ -88,28 +93,20 @@ Rules:
 
 ### search
 
-Find text in files, file names, or directory names.
-
-| Parameter      | Target                            | Required         |
-|----------------|-----------------------------------|------------------|
-| `keyword`      | Code/class/function names         | `recursive=True` |
-| `keyword`      | Error messages                    | `recursive=True` |
-| `filename`     | File names (no wildcards)         | `recursive=True` |
-| `dirname`      | Directory names                   | `recursive=True` |
-| `keywords`     | Multiple keywords (OR logic)      | `recursive=True` |
-| `file_pattern` | Filter by extension (e.g. `*.py`) | With keyword     |
-
-Examples:
+Find text in file content, file names, or directory names. Recursive by default.
 
 ```
-search(keyword="UserService", recursive=True)
-search(filename="config", recursive=True)
-search(dirname="src", recursive=True)
-search(keywords=["error", "exception"], recursive=True)
-search(keyword="def main", file_pattern="*.py", recursive=True)
+search(keyword="UserService")
+search(keyword="def main", file_pattern="*.py")
+search(keyword=["error", "exception"])
+search(filename="config")
+search(dirname="src")
 ```
 
-**No results → Report and STOP. Do NOT retry.**
+- `keyword` accepts a string for one term, or an array of up to 5 strings for OR-logic multi-search
+- `file_pattern` uses fnmatch syntax (e.g. `*.py`, `*.test.js`); recommended on large codebases
+- Returns up to 20 matches. If `truncated: true`, read the `hint` field — it tells you how to narrow the query (typically: add `file_pattern` or be more specific)
+- No matches returns `success: true, matches: []` — this is a valid result, not an error. Report and stop.
 
 ### read\_file
 
@@ -122,15 +119,39 @@ read_file(path="main.py", line_range="10-20")
 
 ### edit\_file
 
-Modify code using search-replace. Supports batch edits.
+Modify code using search-replace. **Always uses the `edits` array** — even for a single edit.
 
 ```
+# Single edit
 edit_file(path="main.py", edits=[
     {"search": "old code", "replace": "new code"}
 ])
+
+# Multiple edits in one call (applied in order)
+edit_file(path="main.py", edits=[
+    {"search": "old_func", "replace": "new_func"},
+    {"search": "old_var", "replace": "new_var"},
+])
 ```
 
-Safety: Auto-rollback on error.
+**Match rules:**
+- `search` must match the file content **byte-for-byte** (whitespace, indentation, newlines all matter)
+- Each edit replaces the **first occurrence** of `search`
+- Use empty string `""` in `replace` to delete the matched block
+- Include **2-3 lines of surrounding context** in `search` to ensure uniqueness
+
+**`mode` parameter** (optional, default `"sequential"`):
+- `"sequential"`: apply as many edits as possible, report which failed
+- `"atomic"`: all edits succeed or all roll back (use this when edits are interdependent)
+
+**Error recovery:**
+- `CODE_NOT_FOUND` → your `search` doesn't match. **Re-read the file** with `read_file`, then include more surrounding context
+- `MULTIPLE_MATCHES` → `search` matches in N places. Either add disambiguating context to make it unique, or split into N separate calls
+- `FILE_NOT_FOUND` → check the path (relative to project root)
+- `EMPTY_RESULT` → edits would empty the file. Add more content to `replace`
+- `INVALID_PARAMETER` → you forgot `edits` or an entry is malformed
+
+Safety: Auto-rollback on atomic failure; partial application on sequential failure (file shows `applied_count` of how many succeeded).
 
 ### save\_file
 

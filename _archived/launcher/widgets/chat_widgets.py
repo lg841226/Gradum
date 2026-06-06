@@ -20,6 +20,12 @@ from PyQt6.QtWidgets import (
 )
 
 from launcher.widgets.custom_widgets import AutoHideScrollArea, RotatingLoaderIcon
+from launcher.theme import Theme
+from launcher.theme.styles import (
+    label_style,
+    input_style,
+    LabelVariant,
+)
 
 
 class DeleteButton(QWidget):
@@ -49,7 +55,7 @@ class DeleteButton(QWidget):
         layout.addWidget(self.icon)
 
         self.label = QLabel("Delete")
-        self.label.setStyleSheet("color: #666666; font-size: 12px; font-weight: 500;")
+        self.label.setStyleSheet(label_style(variant=LabelVariant.SECONDARY))
         layout.addWidget(self.label)
 
     def mousePressEvent(self, a0) -> None:
@@ -107,11 +113,10 @@ class ConversationItem(QWidget):
 
         layout.addWidget(self._icon_container)
 
-        self._normal_style = "color: #333333; font-size: 12px;"
         display_title = title if len(title) <= 25 else title[:25] + "..."
         self._display_title = display_title
         self.title_label = QLabel(display_title)
-        self.title_label.setStyleSheet(self._normal_style)
+        self.title_label.setStyleSheet(label_style(variant=LabelVariant.SECONDARY))
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.title_label.setToolTip(title)
         self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
@@ -286,7 +291,7 @@ class ConversationGroup(QWidget):
         header_layout.addWidget(self.folder_icon)
 
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("color: #333333; font-size: 12px; font-weight: 500;")
+        self.title_label.setStyleSheet(label_style(variant=LabelVariant.GROUP_TITLE))
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header_layout.addWidget(self.title_label)
 
@@ -300,7 +305,7 @@ class ConversationGroup(QWidget):
         header_layout.addWidget(self.title_edit)
 
         self.count_label = QLabel("")
-        self.count_label.setStyleSheet("color: #999999; font-size: 11px;")
+        self.count_label.setStyleSheet(label_style(variant=LabelVariant.CAPTION))
         header_layout.addWidget(self.count_label)
 
         header_layout.addStretch()
@@ -316,7 +321,7 @@ class ConversationGroup(QWidget):
         gcb_layout.setContentsMargins(0, 0, 0, 0)
         gcb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._group_cb_icon = QSvgWidget(str(Path(__file__).parent.parent / "icons" / "plus.svg"))
+        self._group_cb_icon = QSvgWidget(str(Path(__file__).parent.parent / "icons" / "check.svg"))
         self._group_cb_icon.setFixedSize(16, 16)
         self._group_cb_icon.hide()
         gcb_layout.addWidget(self._group_cb_icon)
@@ -389,7 +394,7 @@ class ConversationGroup(QWidget):
         empty_layout.addWidget(empty_icon)
 
         empty_label = QLabel("No message in this group")
-        empty_label.setStyleSheet("color: #999999; font-size: 12px;")
+        empty_label.setStyleSheet(label_style(variant=LabelVariant.CAPTION))
         empty_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         empty_layout.addWidget(empty_label)
         empty_layout.addStretch()
@@ -454,7 +459,7 @@ class ConversationGroup(QWidget):
     def set_selected(self, selected: bool) -> None:
         self._is_selected = selected
         if selected:
-            self.header.setStyleSheet("QWidget#conversation-group-header { background-color: #E8E8E8; border-radius: 0px; }")
+            self.header.setStyleSheet(f"QWidget#conversation-group-header {{ background-color: {Theme.colors.surface_hover}; border-radius: 0px; }}")
         else:
             self.header.setStyleSheet("QWidget#conversation-group-header { background-color: transparent; }")
 
@@ -713,7 +718,7 @@ class ChatPanel(QWidget):
         layout.addWidget(self.collapse_icon)
 
         self.expand_label = QLabel("Collapse All")
-        self.expand_label.setStyleSheet("color: #666666; font-size: 12px; font-weight: 500;")
+        self.expand_label.setStyleSheet(label_style(variant=LabelVariant.SECONDARY))
         layout.addWidget(self.expand_label)
 
         btn.mousePressEvent = lambda a0: self._toggle_expand_all() if a0 and a0.button() == Qt.MouseButton.LeftButton else None  # type: ignore
@@ -833,7 +838,7 @@ class ChatPanel(QWidget):
         header_layout.addWidget(search_container)
 
         self.search_count_label = QLabel("")
-        self.search_count_label.setStyleSheet("color: #666666; font-size: 11px; padding-left: 0px;")
+        self.search_count_label.setStyleSheet(label_style(variant=LabelVariant.CAPTION))
         self.search_count_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.search_count_label.hide()
         header_layout.addWidget(self.search_count_label)

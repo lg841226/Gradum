@@ -15,237 +15,224 @@ class EditFileSkill(Skill):
             "type": "function",
             "function": {
                 "name": self.name,
-                "description": "Replace code using search-replace. Supports single or batch edits.",
+                "description": "Edit a file by applying one or more search-replace operations. "
+                               "Each edit replaces the FIRST occurrence of 'search' with 'replace' "
+                               "(match is exact, byte-for-byte). Use the 'edits' array even for a "
+                               "single edit. For multiple edits to the same file, include them all "
+                               "in one 'edits' array — they are applied in order.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "path": {
                             "type": "string",
-                            "description": "File path to edit (e.g., 'main.py')"
-                        },
-                        "search": {
-                            "type": "string",
-                            "description": "Exact code to find (include context for uniqueness)"
-                        },
-                        "replace": {
-                            "type": "string",
-                            "description": "New code to insert"
+                            "description": "File path to edit (e.g., 'main.py')."
                         },
                         "edits": {
                             "type": "array",
+                            "minItems": 1,
                             "items": {
                                 "type": "object",
                                 "properties": {
                                     "search": {
                                         "type": "string",
-                                        "description": "Exact code to find"
+                                        "description": "The EXACT text to find. Must match byte-for-byte "
+                                                       "(whitespace, indentation, newlines all matter). "
+                                                       "Include 2-3 lines of surrounding context to ensure "
+                                                       "uniqueness. If unsure, call read_file first to see "
+                                                       "the current content."
                                     },
                                     "replace": {
                                         "type": "string",
-                                        "description": "New code to insert"
+                                        "description": "The new text to insert in place of the search text. "
+                                                       "Use empty string \"\" to delete the matched block. "
+                                                       "Preserve indentation exactly as you want it to appear."
                                     }
                                 },
                                 "required": ["search", "replace"]
                             },
-                            "description": "Batch edits: array of search-replace pairs"
+                            "description": "One or more search-replace operations to apply in order. "
+                                           "Required: at least one edit. "
+                                           "Example: edits: [{\"search\": \"old code\", \"replace\": \"new code\"}]"
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["sequential", "atomic"],
+                            "description": "'sequential' (default): apply as many edits as possible, report "
+                                           "which failed. 'atomic': all edits succeed or all roll back. "
+                                           "IGNORED when 'edits' has a single element."
                         }
                     },
-                    "required": ["path"]
+                    "required": ["path", "edits"]
                 }
             }
         }
 
-    def execute(self, path: str = "", search: str = "", replace: str = "", 
-                # pyrefly: ignore [bad-function-definition]
-                edits: list = None, **kwargs: Any) -> str:
-        """Execute file edit operation using search and replace.
-        
-        Args:
-            path: File path to edit
-            search: The exact code to find and replace (for single edit mode)
-            replace: The new code to insert (for single edit mode)
-            edits: List of search-replace pairs (for batch mode)
-            
-        Returns:
-            Success message with details of what was changed, or error description
-        """
+    def execute(self, path: str = "", edits: list = None, mode: str = "sequential") -> dict:
+        """Execute file edit operation using search and replace."""
         if not path:
-            return "Error: Missing 'path' parameter."
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "Missing 'path' parameter"
+                }
+            }
 
-        if edits is not None and isinstance(edits, list) and len(edits) > 0:
-            return EditFileSkill._execute_batch_edits(path, edits)
+        if not isinstance(edits, list) or len(edits) == 0:
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "Missing 'edits' parameter. Provide at least one search-replace pair, "
+                               "e.g. edits: [{\"search\": \"old\", \"replace\": \"new\"}]."
+                },
+                "path": path
+            }
 
-        if not search:
-            return "Error: Missing 'search' parameter. Provide the exact code to find."
-        if replace is None:
-            return "Error: Missing 'replace' parameter. Use empty string to delete code."
-        if not isinstance(replace, str):
-            return "Error: 'replace' parameter must be a string."
-
-        return EditFileSkill._execute_single_edit(path, search, replace)
-
-    @staticmethod
-    def _execute_single_edit(path: str, search: str, replace: str) -> str:
-        """Execute a single search-replace edit."""
-        try:
-            with open(path, 'r', encoding='utf-8') as file:
-                content = file.read()
-        except FileNotFoundError:
-            return f"Error: File not found: {path}"
-        except (IOError, OSError) as e:
-            return f"Error: {str(e)}"
-
-        occurrences = content.count(search)
-        
-        if occurrences == 0:
-            return (f"Error: Code not found in {path}\n"
-                   f"Reason: Search text doesn't match file content exactly.\n"
-                   f"Fix: Call read_file first, then include more context (2-3 surrounding lines).")
-        
-        if occurrences > 1:
-            return (f"Error: Found {occurrences} matches in {path}\n"
-                   f"Reason: Search text appears multiple times.\n"
-                   f"Fix: Include more unique context in 'search' parameter.")
-
-        new_content = content.replace(search, replace)
-
-        if not new_content.strip():
-            return "Error: Replacement would result in an empty file. Operation cancelled."
-
-        try:
-            with open(path, 'w', encoding='utf-8') as file:
-                file.write(new_content)
-
-            search_lines = search.count('\n') + 1
-            replace_lines = replace.count('\n') + 1
-
-            # If diff is too long, use summary instead
-            if search_lines + replace_lines > 50:
-                added = replace_lines - search_lines
-                return (f"Success: Modified {path}\n"
-                       f"  {search_lines} lines → {replace_lines} lines ({'+' if added >= 0 else ''}{added} lines)\n"
-                       f"Edit complete! No need to repeatedly check the content - it may waste unnecessary time.")
-
-            # Generate diff format output
-            search_lines_list = search.split('\n')
-            replace_lines_list = replace.split('\n')
-
-            diff_output = [f"Success: Modified {path}", f"@@ -{search_lines} +{replace_lines} @@"]
-
-            # Show removed lines with -
-            for line in search_lines_list:
-                diff_output.append(f"- {line}")
-
-            # Show added lines with +
-            for line in replace_lines_list:
-                diff_output.append(f"+ {line}")
-
-            diff_output.append("\nEdit complete! No need to repeatedly check the content - it may waste unnecessary time.")
-
-            return '\n'.join(diff_output)
-
-        except (IOError, OSError) as e:
-            try:
-                with open(path, 'w', encoding='utf-8') as file:
-                    file.write(content)
-            except (IOError, OSError) as restore_err:
-                return (
-                    f"Error: Failed to write changes: {e}. "
-                    f"Additionally, failed to restore original content: {restore_err}"
-                )
-            return f"Error: Failed to write changes: {e}. Original content restored."
+        return EditFileSkill._execute_edits(path, edits, mode)
 
     @staticmethod
-    def _execute_batch_edits(path: str, edits: list) -> str:
-        """Execute multiple search-replace edits in batch mode.
-        
-        All edits are applied to the original file content in sequence.
-        """
-        if not isinstance(edits, list):
-            return "Error: 'edits' must be a list."
-        
-        if len(edits) == 0:
-            return "Error: 'edits' list is empty."
+    def _execute_edits(path: str, edits: list, mode: str) -> dict:
+        """Execute one or more search-replace edits in a unified flow."""
+        for i, edit in enumerate(edits):
+            if (not isinstance(edit, dict)
+                    or 'search' not in edit
+                    or 'replace' not in edit
+                    or not isinstance(edit['search'], str)
+                    or not isinstance(edit['replace'], str)):
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_PARAMETER",
+                        "message": f"Edit {i} must be a dict with string 'search' and 'replace' fields."
+                    },
+                    "path": path
+                }
 
         try:
             with open(path, 'r', encoding='utf-8') as file:
                 content = file.read()
         except FileNotFoundError:
-            return f"Error: File not found: {path}"
+            return {
+                "success": False,
+                "error": {
+                    "code": "FILE_NOT_FOUND",
+                    "message": f"File not found: {path}"
+                },
+                "path": path
+            }
         except (IOError, OSError) as e:
-            return f"Error: {str(e)}"
+            return {
+                "success": False,
+                "error": {
+                    "code": "IO_ERROR",
+                    "message": str(e)
+                },
+                "path": path
+            }
 
-        original_content = content
-        changes_summary = []
+        original = content
+        lines_before = content.count('\n') + 1
+        diff_list = []
 
         for i, edit in enumerate(edits):
-            if not isinstance(edit, dict):
-                return f"Error: Edit {i} must be a dictionary."
-            
-            if 'search' not in edit or 'replace' not in edit:
-                return f"Error: Edit {i} missing required fields ('search' and 'replace')."
-            
-            search = edit['search']
-            replace = edit['replace']
-            
+            search, replace = edit['search'], edit['replace']
             occurrences = content.count(search)
-            
+
             if occurrences == 0:
-                try:
-                    with open(path, 'w', encoding='utf-8') as file:
-                        file.write(original_content)
-                except (IOError, OSError) as restore_err:
-                    return (
-                        f"Error: Edit {i+1} failed: Code not found. "
-                        f"Additionally, failed to restore original content: {restore_err}"
-                    )
-                return f"Error: Edit {i+1} failed: Code not found. Original content restored."
-            
-            if occurrences > 1:
-                try:
-                    with open(path, 'w', encoding='utf-8') as file:
-                        file.write(original_content)
-                except (IOError, OSError) as restore_err:
-                    return (
-                        f"Error: Edit {i+1} failed: Found {occurrences} matches. "
-                        f"Additionally, failed to restore original content: {restore_err}"
-                    )
-                return f"Error: Edit {i+1} failed: Found {occurrences} matches. Original content restored."
-            
-            content = content.replace(search, replace)
-            
-            search_lines = search.count('\n') + 1
-            replace_lines = replace.count('\n') + 1
-            changes_summary.append(f"Edit {i+1}: {search_lines}→{replace_lines} lines")
-        
-        if not content.strip():
-            try:
-                with open(path, 'w', encoding='utf-8') as file:
-                    file.write(original_content)
-            except (IOError, OSError) as restore_err:
-                return (
-                    "Error: Edits would result in an empty file. "
-                    f"Additionally, failed to restore original content: {restore_err}"
+                return EditFileSkill._handle_batch_error(
+                    mode, path, content, original, i, len(edits),
+                    "CODE_NOT_FOUND", diff_list
                 )
-            return "Error: Edits would result in an empty file. Operation cancelled. Original content restored."
-        
+
+            if occurrences > 1:
+                return EditFileSkill._handle_batch_error(
+                    mode, path, content, original, i, len(edits),
+                    "MULTIPLE_MATCHES", diff_list, occurrences
+                )
+
+            content = content.replace(search, replace, 1)
+            diff_list.append({
+                "index": i + 1,
+                "removed_lines": search.count('\n') + 1,
+                "added_lines": replace.count('\n') + 1
+            })
+
+        if not content.strip():
+            EditFileSkill._write_file(path, original)
+            return {
+                "success": False,
+                "error": {
+                    "code": "EMPTY_RESULT",
+                    "message": "Edits would result in an empty file. Original content restored."
+                },
+                "path": path
+            }
+
+        if not EditFileSkill._write_file(path, content):
+            EditFileSkill._write_file(path, original)
+            return {
+                "success": False,
+                "error": {
+                    "code": "IO_ERROR",
+                    "message": "Failed to write changes. Original content restored."
+                },
+                "path": path
+            }
+
+        return {
+            "success": True,
+            "path": path,
+            "edits_applied": len(edits),
+            "of": len(edits)
+        }
+
+    @staticmethod
+    def _write_file(path: str, content: str) -> bool:
         try:
             with open(path, 'w', encoding='utf-8') as file:
                 file.write(content)
-            
-            result_lines = [f"Success: Batch edited {path} ({len(edits)} ops)"]
-            result_lines.extend(changes_summary)
-            result_lines.append("\nEdit complete! No need to repeatedly check the content, it may waste unnecessary time.")
-            
-            return '\n'.join(result_lines)
-            
-        except (IOError, OSError) as e:
-            try:
-                with open(path, 'w', encoding='utf-8') as file:
-                    file.write(original_content)
-            except (IOError, OSError) as restore_err:
-                return (
-                    f"Error: Failed to write changes: {e}. "
-                    f"Additionally, failed to restore original content: {restore_err}"
-                )
-            return f"Error: Failed to write changes: {e}. Original content restored."
+            return True
+        except (IOError, OSError):
+            return False
+
+    @staticmethod
+    def _handle_batch_error(mode: str, path: str, current_content: str,
+                            original_content: str, i: int, total: int,
+                            error_code: str, diff_list: list,
+                            occurrences: int = 0) -> dict:
+        edit_num = i + 1
+
+        if error_code == "CODE_NOT_FOUND":
+            base_msg = f"Edit {edit_num} failed: Code not found."
+        elif error_code == "MULTIPLE_MATCHES":
+            base_msg = f"Edit {edit_num} failed: Found {occurrences} matches."
+        else:
+            base_msg = f"Edit {edit_num} failed."
+
+        if mode == "sequential":
+            msg = base_msg
+            if i > 0:
+                msg += f" {i} edit(s) applied before failure."
+            EditFileSkill._write_file(path, current_content)
+            result = {
+                "success": True,
+                "path": path,
+                "partial": True,
+                "applied": i,
+                "of": total,
+                "failed_at": edit_num,
+                "error": {"code": error_code, "message": msg}
+            }
+            if occurrences:
+                result["occurrences"] = occurrences
+            return result
+        else:
+            msg = base_msg + " Original content restored."
+            EditFileSkill._write_file(path, original_content)
+            return {
+                "success": False,
+                "error": {"code": error_code, "message": msg},
+                "path": path,
+                "failed_at": edit_num
+            }

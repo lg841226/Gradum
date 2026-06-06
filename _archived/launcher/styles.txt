@@ -82,7 +82,7 @@ QMainWindow {
     background-color: #000000;
     color: #ffffff;
     border: none;
-    border-radius: 16px;
+    border-radius: 10px;
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.6px;
@@ -106,7 +106,7 @@ QMainWindow {
 #input-container {
     background-color: #fafafa;
     border: 1px solid #e8e8e8;
-    border-radius: 16px;
+    border-radius: 10px;
     margin-bottom: 20px;
 }
 
@@ -122,7 +122,6 @@ QMainWindow {
     color: #000000;
     font-size: 12px;
     line-height: 1.6;
-    font-family: "Menlo", monospace;
 }
 
 #prompt-input-inner:focus {
@@ -133,32 +132,6 @@ QMainWindow {
 #prompt-input-inner::placeholder {
     color: #aaaaaa;
     font-size: 12px;
-}
-
-/* Clear button */
-#clear-btn {
-    border: none;
-    border-radius: 16px;
-}
-
-#clear-btn:hover {
-    background-color: #e8e8e8;
-}
-
-#clear-btn:pressed {
-    background-color: #d8d8d8;
-}
-
-/* Clear button text */
-#clear-btn-text {
-    color: #666666;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-}
-
-#clear-btn:hover #clear-btn-text {
-    color: #333333;
 }
 
 /* Toolbar separator */
@@ -179,32 +152,12 @@ QMainWindow {
     font-family: "Menlo", "Monaco", "Courier New", monospace;
 }
 
-/* Send button */
-#send-btn {
-    background-color: #000000;
-    border: none;
-    border-radius: 16px;
-}
-
-#send-btn:hover {
-    background-color: #333333;
-}
-
-#send-btn:pressed {
-    background-color: #555555;
-}
-
-#send-btn:disabled {
-    background-color: #cccccc;
-}
-
-
 #prompt-input,
 #option-input,
 #option-spin {
     background-color: #fafafa;
     border: 1px solid #e8e8e8;
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 4px 8px;
     color: #000000;
     font-size: 11px;
@@ -212,7 +165,7 @@ QMainWindow {
 }
 
 #prompt-input {
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 10px;
     font-size: 12px;
     line-height: 1.5;

@@ -17,6 +17,9 @@ from PyQt6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
+from launcher.theme import Theme
+from launcher.theme.styles import label_style, LabelVariant
+
 
 class ToastNotification(QWidget):
     """A toast notification widget that shows error messages."""
@@ -38,12 +41,12 @@ class ToastNotification(QWidget):
 
         container = QWidget()
         container.setObjectName("toast-container")
-        container.setStyleSheet("""
-            #toast-container {
-                background-color: #FFF2F3;
-                border: 1px solid #E46A76;
+        container.setStyleSheet(f"""
+            #toast-container {{
+                background-color: {Theme.colors.danger_bg};
+                border: 1px solid {Theme.colors.danger};
                 border-radius: 8px;
-            }
+            }}
         """)
 
         shadow = QGraphicsDropShadowEffect()
@@ -57,12 +60,11 @@ class ToastNotification(QWidget):
 
         self.label = QLabel(message)
         self.label.setObjectName("toast-message")
-        self.label.setStyleSheet("""
-            #toast-message {
-                color: #000000;
+        self.label.setStyleSheet(f"""
+            #toast-message {{
+                color: {Theme.colors.text_primary};
                 font-size: 11px;
-                font-family: "Menlo", "Courier New", monospace;
-            }
+            }}
         """)
         self.label.setWordWrap(False)
         container_layout.addWidget(self.label)

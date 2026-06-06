@@ -49,6 +49,7 @@ from launcher.services import (
     ResourceMonitor,
     StyleManager,
 )
+from launcher.theme import Theme
 from launcher.widgets import (
     ChatPanel,
     ConversationItem,
@@ -210,11 +211,11 @@ class AgentLauncher(QMainWindow):
         code_widget = QWidget()
         code_widget.setFixedSize(36, 18)
         if code == 200:
-            code_widget.setStyleSheet("background-color: #d1fae5; color: #065f46; border-radius: 9px;")
+            code_widget.setStyleSheet(f"background-color: {Theme.colors.success_bg}; color: {Theme.colors.success}; border-radius: 9px;")
         elif code >= 400:
-            code_widget.setStyleSheet("background-color: #fee2e2; color: #991b1b; border-radius: 9px;")
+            code_widget.setStyleSheet(f"background-color: {Theme.colors.danger_bg}; color: {Theme.colors.danger}; border-radius: 9px;")
         else:
-            code_widget.setStyleSheet("background-color: #dbeafe; color: #1e40af; border-radius: 9px;")
+            code_widget.setStyleSheet(f"background-color: {Theme.colors.info_bg}; color: {Theme.colors.info}; border-radius: 9px;")
 
         code_layout = QHBoxLayout(code_widget)
         code_layout.setContentsMargins(0, 0, 0, 0)

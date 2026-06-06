@@ -4,11 +4,22 @@ import argparse
 import json
 import platform
 import time
+from datetime import datetime
 from pathlib import Path
 
 from client import OllamaClient, AgentConfig, DEFAULT_MODEL, TIMEOUT
-from skills import Skills
-from utils.io_utils import LogManager, ContextManager
+from skills import Skills, __version__
+from utils.io_utils import ContextManager
+
+
+def _emit(event_type: str, data: dict) -> None:
+    """Emit a JSON event in NDJSON format with unified structure."""
+    event = {
+        "type": event_type,
+        "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "data": data
+    }
+    print(json.dumps(event, ensure_ascii=False))
 
 
 class Agent:
@@ -22,7 +33,6 @@ class Agent:
         self.full_read_files = set()  # Track fully read files (no line_range)
 
         output_dir = Path(__file__).parent / "output"
-        self.log_manager = LogManager(output_dir)
         self.context_manager = ContextManager(output_dir)
 
         self._setup_system_prompt()
@@ -53,15 +63,27 @@ class Agent:
         start_time = time.time()
 
         # Load previous conversation context if requested
+        context_loaded = False
+        context_messages = 0
         if load_context:
             loaded = self.context_manager.load()
             self.messages.extend(loaded)
-            self.log_manager.append("context_loaded", {
-                "message_count": len(loaded),
-                "status": "success" if loaded else "no_context"
-            })
+            context_loaded = len(loaded) > 0
+            context_messages = len(loaded)
 
-        self.log_manager.init_log(user_input)
+        # Emit session start
+        _emit("session_start", {
+            "version": __version__,
+            "model": self.client.model,
+            "think": self.config.think,
+            "context_loaded": context_loaded,
+            "context_messages": context_messages
+        })
+
+        # Emit context loaded if applicable
+        if context_loaded:
+            _emit("context_loaded", {"message_count": context_messages})
+
         self.messages.append({"role": "user", "content": user_input})
 
         full_response = []
@@ -93,8 +115,7 @@ class Agent:
             if thinking_chunks:
                 thinking_text = "".join(thinking_chunks)
                 if thinking_text.strip():
-                    print(json.dumps({"type": "thinking", "content": thinking_text}, ensure_ascii=False))
-                    self.log_manager.append("thinking", {"content": thinking_text})
+                    _emit("thinking", {"content": thinking_text})
 
             # Handle LLM response
             if response_chunks:
@@ -102,16 +123,23 @@ class Agent:
                 if tool_calls:
                     response_text = "".join(response_chunks)
                     if response_text.strip():
-                        print(json.dumps({"type": "llm_response", "content": response_text}, ensure_ascii=False))
-                        self.log_manager.append("llm_response", {"content": response_text})
+                        _emit("llm_response", {"content": response_text})
+                else:
+                    # Check if response is an error message from client
+                    response_text = "".join(response_chunks)
+                    if response_text.strip().startswith("Error:"):
+                        _emit("error", {
+                            "code": "CLIENT_ERROR",
+                            "message": response_text.strip(),
+                            "source": "ollama_client"
+                        })
+                    elif response_text.strip():
+                        _emit("llm_response", {"content": response_text})
 
             # Exit loop if no tool calls needed
             if not tool_calls:
                 if full_response:
                     final_content = "".join(full_response)
-                    if final_content.strip():
-                        print(json.dumps({"type": "final_response", "content": final_content}, ensure_ascii=False))
-                        self.log_manager.append("final_llm_response", {"content": final_content})
                     self.messages.append({"role": "assistant", "content": final_content})
                 break
 
@@ -122,7 +150,7 @@ class Agent:
             full_response = []
 
         # Finalize and save context
-        self._finish(start_time, "".join(full_response))
+        self._finish(start_time)
 
     def _execute_tool(self, tool_call, full_response):
         """Execute a single tool call and update messages."""
@@ -137,22 +165,40 @@ class Agent:
         # Execute the skill
         skill = self.skills.get(tool_name)
         if not skill:
-            result = f"Error: Skill '{tool_name}' not found"
-            success = False
+            result = {
+                "success": False,
+                "error": {
+                    "code": "SKILL_NOT_FOUND",
+                    "message": f"Skill '{tool_name}' not found"
+                }
+            }
         else:
             result = skill.execute(**arguments)
-            success = not (result.startswith("Error:") or 
-                          result.startswith("Warning:") or 
-                          result.startswith("SECURITY ERROR:"))
 
-        # Output and log the result
-        output = {"tool": tool_name, "arguments": arguments, "success": success, "result": result}
-        print(json.dumps(output, ensure_ascii=False))
-        self.log_manager.append("tool_call", output)
+        # Determine success from result dict
+        success = result.get("success", False) if isinstance(result, dict) else False
 
-        # Add to message history
+        # Emit tool_call event
+        _emit("tool_call", {
+            "tool": tool_name,
+            "arguments": arguments,
+            "success": success,
+            "result": result
+        })
+
+        # Emit error event if failed
+        if not success and isinstance(result, dict):
+            error_info = result.get("error", {})
+            _emit("error", {
+                "code": error_info.get("code", "EXECUTION_ERROR"),
+                "message": error_info.get("message", "Unknown error"),
+                "tool": tool_name
+            })
+
+        # Add to message history - convert result to string for LLM
+        result_str = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
         self.messages.append({"role": "assistant", "content": full_response})
-        self.messages.append({"role": "tool", "content": result})
+        self.messages.append({"role": "tool", "content": result_str})
 
         # Add plan reminder if available
         from skills.todo import get_todo_manager
@@ -160,27 +206,20 @@ class Agent:
         if reminder:
             self.messages.append({"role": "tool", "content": reminder})
 
-    def _finish(self, start_time, response):
+    def _finish(self, start_time):
         """Finalize the session and save context."""
         elapsed = int(time.time() - start_time)
         token_stats = self.client.last_token_stats
 
-        self.log_manager.append("final_response", {
-            "response": response,
+        # Emit session_end event
+        _emit("session_end", {
+            "version": __version__,
             "elapsed_seconds": elapsed,
             "model": self.client.model,
-            "token_usage": token_stats,
+            "token_usage": token_stats or {}
         })
 
-        print(json.dumps({
-            "response": response,
-            "elapsed": elapsed,
-            "model": self.client.model,
-            "token_usage": token_stats,
-        }, ensure_ascii=False))
-
         self.context_manager.save(self.messages, self.client.model, self.full_read_files)
-        self.log_manager.close()
         self.client.last_token_stats = None
 
 

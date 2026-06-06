@@ -7,6 +7,8 @@ from typing import Optional
 
 from .base import Skill
 
+__version__ = "0.3.0"
+
 
 class Skills:
     """Manages all available skills with auto-discovery."""
@@ -39,17 +41,6 @@ class Skills:
     def get_schemas(self) -> list[dict]:
         """Get JSON schemas for all skills."""
         return [skill.get_schema() for skill in self._skills.values()]
-
-    def execute(self, name: str, params: dict) -> str:
-        """Execute a skill by name with given parameters."""
-        skill = self.get(name)
-        if not skill:
-            return f"Error: Unknown skill '{name}'"
-
-        try:
-            return skill.execute(**params)
-        except TypeError as e:
-            return f"Error: Invalid parameters for '{name}': {str(e)}"
 
     def list_skills(self) -> list[str]:
         """List all registered skill names."""

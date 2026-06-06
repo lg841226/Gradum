@@ -29,6 +29,7 @@ from launcher.i18n import (
     ModelText,
     RequestText,
 )
+from launcher.theme import Theme
 
 
 class ModelNameFormatter:
@@ -74,7 +75,7 @@ class ModelHelper:
     def create_separator() -> QFrame:
         separator = QFrame()
         separator.setFixedHeight(1)
-        separator.setStyleSheet("background-color: #e0e0e0; margin: 0 20px;")
+        separator.setStyleSheet(f"background-color: {Theme.colors.border_light}; margin: 0 20px;")
         return separator
 
     @staticmethod

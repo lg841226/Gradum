@@ -1,5 +1,7 @@
 """Skill for reading file content."""
 
+import hashlib
+from pathlib import Path
 from typing import Any
 from .base import Skill
 
@@ -37,44 +39,79 @@ class ReadFileSkill(Skill):
             }
         }
 
-    def execute(self, path: str = "", line_range: str = "", show: str = "", **kwargs: Any) -> str:
+    def execute(self, path: str = "", line_range: str = "", show: str = "", **kwargs: Any) -> dict:
+        """Execute file read and return structured result."""
         if not path:
-            return "Error: Missing 'path' parameter."
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "Missing 'path' parameter"
+                }
+            }
 
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            file_path = Path(path).expanduser()  # Expand ~ to home directory
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
         except FileNotFoundError:
-            return f"Error: File not found: {path}"
+            return {
+                "success": False,
+                "error": {
+                    "code": "FILE_NOT_FOUND",
+                    "message": f"File not found: {path}"
+                },
+                "path": path
+            }
         except (IOError, OSError) as e:
-            return f"Error: {str(e)}"
+            return {
+                "success": False,
+                "error": {
+                    "code": "IO_ERROR",
+                    "message": str(e)
+                },
+                "path": path
+            }
 
         total_lines = len(lines)
 
         if not line_range:
             content = ''.join(lines)
-            title = f"{path} (1-{total_lines})"
+            start_line = 1
+            end_line = total_lines
         else:
             try:
                 parts = line_range.split('-')
-                start = int(parts[0].strip())
-                end = int(parts[1].strip())
+                start_line = int(parts[0].strip())
+                end_line = int(parts[1].strip())
             except (ValueError, IndexError):
-                return f"Error: Invalid line_range format. Use 'start-end' (e.g., '12-22')"
+                return {
+                    "success": False,
+                    "error": {
+                        "code": "INVALID_PARAMETER",
+                        "message": "Invalid line_range format. Use 'start-end' (e.g., '12-22')"
+                    },
+                    "path": path,
+                    "line_range": line_range
+                }
 
-            if start < 1 or end > total_lines or start > end:
-                return f"Error: Line range {start}-{end} is out of bounds (file has {total_lines} lines)"
+            # Auto-adjust range to fit file bounds
+            if start_line < 1:
+                start_line = 1
+            if end_line > total_lines:
+                end_line = total_lines
+            if start_line > end_line:
+                start_line, end_line = end_line, start_line
 
-            content = ''.join(lines[start-1:end])
-            title = f"{path}:{start}-{end}"
+            content = ''.join(lines[start_line-1:end_line])
 
-        extras = []
-        if show:
-            extras.append(show)
-        if extras:
-            title += " (" + ", ".join(extras) + ")"
-
-        result_parts = [f"Success: Read {title}", f"\nContent:\n{content}"]
-
-        return '\n'.join(result_parts)
+        return {
+            "success": True,
+            "tool": "read_file",
+            "path": str(file_path),  # Return expanded path
+            "line_range": f"{start_line}-{end_line}",
+            "total_lines": total_lines,
+            "content_hash": hashlib.md5(content.encode("utf-8")).hexdigest(),
+            "content": content
+        }
 

@@ -54,6 +54,17 @@ from launcher.widgets import (
     BashSyntaxHighlighter,
     ChatPanel,
 )
+from launcher.components import (
+    create_button,
+    create_checkbox,
+    create_text_input,
+    create_spinbox,
+    create_double_spinbox,
+    create_label,
+    create_option_row,
+    create_option_row_with_input,
+)
+from launcher.theme import Theme
 
 
 class MainLayoutManager:
@@ -162,7 +173,7 @@ class MainLayoutManager:
         if cpu_icon_path.exists():
             cpu_svg_widget = QSvgWidget(str(cpu_icon_path))
             cpu_svg_widget.setFixedSize(16, 16)
-            cpu_svg_widget.setStyleSheet("color: #999999;")
+            cpu_svg_widget.setStyleSheet(f"color: {Theme.colors.text_disabled};")
             cpu_layout.addWidget(cpu_svg_widget)
 
         cpu_label = QLabel(RequestText.CPU_LABEL)
@@ -182,7 +193,7 @@ class MainLayoutManager:
         if mem_icon_path.exists():
             mem_svg_widget = QSvgWidget(str(mem_icon_path))
             mem_svg_widget.setFixedSize(16, 16)
-            mem_svg_widget.setStyleSheet("color: #999999;")
+            mem_svg_widget.setStyleSheet(f"color: {Theme.colors.text_disabled};")
             mem_layout.addWidget(mem_svg_widget)
 
         mem_label = QLabel(RequestText.MEM_LABEL_MB)
@@ -202,7 +213,7 @@ class MainLayoutManager:
         if latency_icon_path.exists():
             latency_svg_widget = QSvgWidget(str(latency_icon_path))
             latency_svg_widget.setFixedSize(16, 16)
-            latency_svg_widget.setStyleSheet("color: #999999;")
+            latency_svg_widget.setStyleSheet(f"color: {Theme.colors.text_disabled};")
             latency_layout.addWidget(latency_svg_widget)
 
         latency_label = QLabel(RequestText.LATENCY_LABEL)
@@ -266,19 +277,19 @@ class CardCreator:
         content = options_card.content_layout()
         content.setSpacing(OPTION_SPACING)
 
-        context_check, context_row = self._create_option_row(
+        context_check, context_row = create_option_row(
             LabelText.CONTEXT_MEMORY, LabelText.CONTEXT_MEMORY_DESC
         )
         context_check.toggled.connect(self.main_window._update_preview)
         content.addWidget(context_row)
 
-        think_check, think_row = self._create_option_row(
+        think_check, think_row = create_option_row(
             LabelText.THINK_MODE, LabelText.THINK_MODE_DESC
         )
         think_check.toggled.connect(self.main_window._update_preview)
         content.addWidget(think_row)
 
-        timeout_check, timeout_input, timeout_row = self._create_option_row_with_input(
+        timeout_check, timeout_input, timeout_row = create_option_row_with_input(
             LabelText.TIMEOUT, LabelText.TIMEOUT_DESC, "120"
         )
         timeout_check.toggled.connect(self.main_window._update_preview)
@@ -613,78 +624,3 @@ class CardCreator:
         self.main_window.highlighter_windows = highlighter_windows
 
         return preview_card
-
-    @staticmethod
-    def _create_option_row(title: str, description: str) -> Tuple[QPushButton, QWidget]:
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-        checkbox = QPushButton("✓")
-        checkbox.setObjectName("option-check")
-        checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
-        checkbox.setCheckable(True)
-        checkbox.setFixedSize(16, 16)
-
-        text_container = QWidget()
-        text_layout = QVBoxLayout(text_container)
-        text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(1)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("option-title")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setObjectName("option-desc")
-        text_layout.addWidget(desc_label)
-
-        layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(text_container, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
-
-        return checkbox, container
-
-    @staticmethod
-    def _create_option_row_with_input(
-        title: str, description: str, default_value: str = ""
-    ) -> Tuple[QPushButton, QLineEdit, QWidget]:
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-
-        checkbox = QPushButton("✓")
-        checkbox.setObjectName("option-check")
-        checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
-        checkbox.setCheckable(True)
-        checkbox.setFixedSize(16, 16)
-
-        text_container = QWidget()
-        text_layout = QVBoxLayout(text_container)
-        text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(1)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("option-title")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setObjectName("option-desc")
-        text_layout.addWidget(desc_label)
-
-        layout.addWidget(checkbox, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(text_container, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
-
-        input_field = QLineEdit()
-        input_field.setObjectName("option-input")
-        input_field.setText(default_value)
-        input_field.setFixedWidth(80)
-        input_field.setEnabled(False)
-
-        checkbox.toggled.connect(lambda checked: input_field.setEnabled(checked))
-        layout.addWidget(input_field, alignment=Qt.AlignmentFlag.AlignVCenter)
-
-        return checkbox, input_field, container

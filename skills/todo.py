@@ -11,7 +11,6 @@ class TodoManager:
         self.tasks: list[str] = []
         self.completed: int = 0
         self.initialized: bool = False
-        self.tools_since_last_complete: int = 0
         self.last_complete_call: Optional[int] = None
 
     def parse_arguments(self, arguments: dict) -> tuple[bool, str]:
@@ -35,22 +34,6 @@ class TodoManager:
         self.initialized = True
 
         return True, ""
-
-    def build_status_info(self) -> str:
-        """Build status info for to_do."""
-        total = len(self.tasks)
-
-        if self.completed == 0:
-            to_do_list_list = ", ".join(f"{i+1}. {t}" for i, t in enumerate(self.tasks))
-            return f"To-do item list initialized with {total} items: {to_do_list_list}. Current item: {self.tasks[0]} (1/{total}). If you finish this item, please call: finish_to_do_item(to_do_items_completed=1)"
-        elif self.completed < total:
-            next_to_do_item = self.tasks[self.completed]
-            return f"Current item: {next_to_do_item} ({self.completed + 1}/{total}). If you finish this item, please call: finish_to_do_item(to_do_items_completed={self.completed + 1})"
-        else:
-            self.tasks = []
-            self.completed = 0
-            self.initialized = False
-            return f"All {total} to-do items completed! To-do item list destroyed. You can now report the results to the user."
 
     def get_current_task(self) -> Optional[str]:
         """Get current to-do item name."""
@@ -94,26 +77,50 @@ class TodoSkill(Skill):
             }
         }
 
-    def execute(self, tasks: Optional[list] = None, **kwargs: Any) -> str:
+    def execute(self, tasks: Optional[list] = None, **kwargs: Any) -> dict:
         if not tasks or not isinstance(tasks, list):
-            return "Error: Missing or invalid 'tasks' parameter."
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "Missing or invalid 'tasks' parameter"
+                }
+            }
 
         to_do_list = [str(task).strip() for task in tasks if str(task).strip()]
         if not to_do_list:
-            return "Error: 'to-do items' list is empty."
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": "'tasks' list is empty"
+                }
+            }
 
         is_valid, error_msg = _todo_manager.parse_arguments({"tasks": to_do_list})
         if not is_valid:
-            if error_msg:
-                return f"Error: {error_msg}"
-            return "Error: To-do item list already initialized. Cannot call to_do again."
+            return {
+                "success": False,
+                "error": {
+                    "code": "ALREADY_INITIALIZED",
+                    "message": error_msg or "To-do item list already initialized"
+                }
+            }
 
-        result = _todo_manager.build_status_info()
-        result += "WARNING: START EXECUTING THE FIRST TASK NOW! After completing it, call finish_to_do_item(to_do_items_completed=1)"
-        return result
+        total = len(_todo_manager.tasks)
+        tasks_with_status = [
+            {"index": i + 1, "name": t, "status": "pending"}
+            for i, t in enumerate(_todo_manager.tasks)
+        ]
 
-    def format_content(self, arguments: dict, result: str) -> str:
-        return ""
+        return {
+            "success": True,
+            "tool": "to_do",
+            "total_tasks": total,
+            "current_task": 1,
+            "current_task_name": _todo_manager.tasks[0],
+            "tasks": tasks_with_status
+        }
 
 
 def get_todo_manager() -> TodoManager:

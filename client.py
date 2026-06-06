@@ -127,26 +127,38 @@ class OllamaClient:
                             completion_tokens = data.get("eval_count", 0)
                             self._accumulate_token_stats(prompt_tokens, completion_tokens)
 
-        except requests.exceptions.Timeout:
-            yield f"Error: Request timed out after {self.timeout} seconds. The server is taking too long to respond.", None, None
+        except requests.exceptions.Timeout as e:
+            error_msg = f"Error: Request timed out after {self.timeout} seconds. The server is taking too long to respond."
+            print(f"\n[CLIENT ERROR] Timeout: {e}")
+            yield error_msg, None, None
         except requests.exceptions.ConnectionError as e:
-            yield f"Error: Could not connect to Ollama server at {self.base_url}. Make sure Ollama is running (try 'ollama serve'). Details: {str(e)}", None, None
+            error_msg = f"Error: Could not connect to Ollama server at {self.base_url}. Make sure Ollama is running (try 'ollama serve'). Details: {str(e)}"
+            print(f"\n[CLIENT ERROR] Connection: {e}")
+            yield error_msg, None, None
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 403:
-                yield f"Error: Access denied (403 Forbidden). Check API permissions. Details: {str(e)}", None, None
+                error_msg = f"Error: Access denied (403 Forbidden). Check API permissions. Details: {str(e)}"
             elif e.response.status_code == 404:
-                yield f"Error: Model '{self.model}' not found (404). Check if the model is pulled. Details: {str(e)}", None, None
+                error_msg = f"Error: Model '{self.model}' not found (404). Check if the model is pulled. Details: {str(e)}"
             elif e.response.status_code == 500:
-                yield f"Error: Server internal error (500). The model may have crashed. Details: {str(e)}", None, None
+                error_msg = f"Error: Server internal error (500). The model may have crashed. Details: {str(e)}"
             else:
-                yield f"Error: HTTP {e.response.status_code} - {str(e)}", None, None
-        except requests.exceptions.TooManyRedirects:
-            yield f"Error: Too many redirects. Check server configuration.", None, None
-        except json.JSONDecodeError:
-            yield f"Error: Invalid JSON response", None, None
-        except (KeyError, TypeError):
-            yield f"Error: Invalid response format", None, None
-
-    def reset_token_stats(self) -> None:
-        """Reset token usage statistics."""
-        self.last_token_stats = None
+                error_msg = f"Error: HTTP {e.response.status_code} - {str(e)}"
+            print(f"\n[CLIENT ERROR] HTTP {e.response.status_code}: {e}")
+            yield error_msg, None, None
+        except requests.exceptions.TooManyRedirects as e:
+            error_msg = f"Error: Too many redirects. Check server configuration."
+            print(f"\n[CLIENT ERROR] Redirects: {e}")
+            yield error_msg, None, None
+        except json.JSONDecodeError as e:
+            error_msg = f"Error: Invalid JSON response"
+            print(f"\n[CLIENT ERROR] JSON: {e}")
+            yield error_msg, None, None
+        except (KeyError, TypeError) as e:
+            error_msg = f"Error: Invalid response format"
+            print(f"\n[CLIENT ERROR] Format: {e}")
+            yield error_msg, None, None
+        except Exception as e:
+            error_msg = f"Error: Unexpected error - {str(e)}"
+            print(f"\n[CLIENT ERROR] Unexpected: {type(e).__name__}: {e}")
+            yield error_msg, None, None
