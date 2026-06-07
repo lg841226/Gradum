@@ -70,7 +70,7 @@ echo "Copied $FILE_COUNT files"
 # 3. Compress backup directory
 echo ""
 echo "[3/5] Compressing project files..."
-cd /tmp 
+cd /temp
 zip -r -q "$ZIP_FILENAME" "${PROJECT_NAME}_backup_${TIMESTAMP}"
 echo "Compression completed"
 

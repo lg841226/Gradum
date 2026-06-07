@@ -7,7 +7,7 @@ from typing import Optional
 
 from .base import Skill
 
-__version__ = "0.3.0"
+__all__ = ["Skills", "Skill"]
 
 
 class Skills:
@@ -24,7 +24,7 @@ class Skills:
             if file.stem.startswith("_") or file.stem == "base":
                 continue
             
-            module = importlib.import_module(f"skills.{file.stem}")
+            module = importlib.import_module(f"gradum.skills.{file.stem}")
             for _, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill:
                     instance = obj()
