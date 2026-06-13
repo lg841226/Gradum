@@ -95,6 +95,7 @@ class EditFileSkill(Skill):
     @staticmethod
     def _execute_edits(path: str, edits: list, mode: str) -> dict:
         """Execute one or more search-replace edits in a unified flow."""
+        # Validate all edits first
         for i, edit in enumerate(edits):
             if (not isinstance(edit, dict)
                     or 'search' not in edit
@@ -110,6 +111,7 @@ class EditFileSkill(Skill):
                     "path": path
                 }
 
+        # Read file with encoding detection
         try:
             with open(path, 'r', encoding='utf-8') as file:
                 content = file.read()
@@ -133,9 +135,9 @@ class EditFileSkill(Skill):
             }
 
         original = content
-        content.count('\n') + 1
         diff_list = []
 
+        # Apply each edit
         for i, edit in enumerate(edits):
             search, replace = edit['search'], edit['replace']
             occurrences = content.count(search)
@@ -159,6 +161,7 @@ class EditFileSkill(Skill):
                 "added_lines": replace.count('\n') + 1
             })
 
+        # Check for empty result
         if not content.strip():
             EditFileSkill._write_file(path, original)
             return {
@@ -170,6 +173,7 @@ class EditFileSkill(Skill):
                 "path": path
             }
 
+        # Write changes
         if not EditFileSkill._write_file(path, content):
             EditFileSkill._write_file(path, original)
             return {
@@ -190,17 +194,21 @@ class EditFileSkill(Skill):
 
     @staticmethod
     def _write_file(path: str, content: str) -> bool:
-        try:
-            with open(path, 'w', encoding='utf-8') as file:
-                file.write(content)
-            return True
-        except (IOError, OSError):
-            return False
+        """Write content to file, trying multiple encodings."""
+        for test_enc in ['utf-8', 'gbk', 'gb2312', 'big5', 'iso-8859-1']:
+            try:
+                with open(path, 'w', encoding=test_enc) as file:
+                    file.write(content)
+                return True
+            except (IOError, OSError, UnicodeDecodeError):
+                continue
+        return False
 
     @staticmethod
     def _handle_batch_error(mode: str, path: str, current_content: str,
                             original_content: str, i: int, total: int,
                             error_code: str, occurrences: int = 0) -> dict:
+        """Handle errors during batch edits."""
         edit_num = i + 1
 
         if error_code == "CODE_NOT_FOUND":

@@ -9,6 +9,51 @@ from typing import Any
 from .base import Skill
 
 
+def _get_dir_depth(path: str, root: Path) -> int:
+    """
+    Calculate the directory depth relative to the search root.
+
+    Returns -1 if the path is outside the root.
+    """
+    try:
+        rel = Path(path).relative_to(root)
+        return len(rel.parts) - 1  # -1 to exclude the root directory itself
+    except ValueError:
+        return -1
+
+
+def _sort_key(match: dict, root_path: Path) -> tuple:
+    """
+    Sort key for search results.
+
+    Sort order (multi-level):
+    1. By directory depth (ascending) - shallower first
+    2. By parent directory path (lexicographic)
+    3. By file path (lexicographic)
+    4. By line number (for content matches)
+
+    This ensures results are grouped by directory hierarchy,
+    making it easier for the LLM to understand project structure.
+    """
+    result_path = match.get("path", "")
+    result_type = match.get("type", "")
+
+    # Calculate depth relative to root
+    depth = _get_dir_depth(result_path, root_path)
+
+    # Files in excluded dirs (depth < 0) are sorted to the end
+    if depth < 0:
+        depth = 0
+
+    # Get the directory component for grouping
+    if result_type == "file":
+        parent_dir = str(Path(result_path).parent)
+    else:
+        parent_dir = result_path
+
+    return depth, parent_dir, result_path, match.get("line", 0)
+
+
 class SearchSkill(Skill):
     """Skill for searching text in files, plus filename and dirname discovery."""
     name = "search"
@@ -257,7 +302,7 @@ class SearchSkill(Skill):
 
         process_directory(str(root_path))
 
-        results.sort(key=lambda m: m.get("path", ""))
+        results.sort(key=lambda m: _sort_key(m, root_path))
 
         hints: list[str] = []
         truncation_reasons: list[str] = []
@@ -303,9 +348,9 @@ class SearchSkill(Skill):
         """Normalize keyword input to a list of strings. Returns (list, was_overflow)."""
         if isinstance(keyword, str):
             k = keyword.strip()
-            return ([k] if k else [], False)
+            return [k] if k else [], False
         if isinstance(keyword, list):
             cleaned = [k.strip() for k in keyword if isinstance(k, str) and k.strip()]
             overflow = len(cleaned) > SearchSkill.MAX_KEYWORDS
-            return (cleaned[:SearchSkill.MAX_KEYWORDS], overflow)
-        return ([], False)
+            return cleaned[:SearchSkill.MAX_KEYWORDS], overflow
+        return [], False
