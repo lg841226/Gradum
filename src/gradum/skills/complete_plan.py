@@ -1,6 +1,7 @@
 """Skill for marking to-do item completion."""
 
 from typing import Any, Optional
+
 from .base import Skill
 from .todo import get_todo_manager
 

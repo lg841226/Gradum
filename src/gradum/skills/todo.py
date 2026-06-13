@@ -1,6 +1,7 @@
 """Skill for initializing task list."""
 
 from typing import Any, Optional
+
 from .base import Skill
 
 

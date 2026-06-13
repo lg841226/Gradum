@@ -6,7 +6,7 @@ import re
 import string
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 _logger = logging.getLogger(__name__)
 

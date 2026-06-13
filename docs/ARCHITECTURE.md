@@ -213,7 +213,7 @@ graph LR
     SkillsDir --> SK_Cmd["run_cmd.py<br/>RunCmdSkill"]
     SkillsDir --> SK_Search["search.py<br/>SearchSkill"]
     SkillsDir --> SK_Todo["todo.py<br/>TodoManager + TodoSkill"]
-    SkillsDir --> SK_Finish["finish_todo.py<br/>CompletePlanSkill"]
+    SkillsDir --> SK_Finish["complete_plan.py<br/>CompletePlanSkill"]
 
     Utils --> IO["io_utils.py<br/>ContextManager"]
     Utils --> CF["command_filter.py<br/>Command Safety Filter"]
@@ -261,7 +261,7 @@ graph TD
     CmdS["skills/run_cmd.py<br/>RunCmdSkill"]:::skill
     SearchS["skills/search.py<br/>SearchSkill"]:::skill
     TodoS["skills/todo.py<br/>TodoSkill"]:::skill
-    FinishS["skills/finish_todo.py<br/>CompletePlanSkill"]:::skill
+    FinishS["skills/complete_plan.py<br/>CompletePlanSkill"]:::skill
 
     CmdFilter["utils/command_filter.py<br/>classify(command) → Verdict"]:::util
 
@@ -536,7 +536,7 @@ graph LR
 
 Event structure:
 
-Every event is a single JSON object emitted via `json.dumps(..., ensure_ascii=False)` followed by `print()` (`agent.py:15-22`), which writes one event per line in UTF-8:
+Every event is a single JSON object emitted via `json.dumps(..., ensure_ascii=False)` followed by `print()` (`agent.py:18-25`), which writes one event per line in UTF-8:
 
 ```json
 {
@@ -563,13 +563,13 @@ it line-by-line rather than loading the full session into memory.
 
 | `type`           | `data` fields                                                                   | Emitted at             |
 |------------------|---------------------------------------------------------------------------------|------------------------|
-| `session_start`  | `version`, `model`, `think`, `context_loaded`, `context_messages`               | `agent.py:69`          |
-| `context_loaded` | `message_count`                                                                 | `agent.py:79`          |
-| `thinking`       | `content`                                                                       | `agent.py:115`         |
-| `llm_response`   | `content`                                                                       | `agent.py:128`         |
-| `tool_call`      | `tool`, `arguments`, `tool_call_id`, `success`, `result`                        | `agent.py:221`         |
-| `error`          | `code`, `message`, `source` (LLM-side) *or* `tool` + `tool_call_id` (tool-side) | `agent.py:122`, `:232` |
-| `session_end`    | `version`, `elapsed_seconds`, `model`, `token_usage: {prompt, completion}`      | `agent.py:260`         |
+| `session_start`  | `version`, `model`, `think`, `context_loaded`, `context_messages`               | `agent.py:75`          |
+| `context_loaded` | `message_count`                                                                 | `agent.py:85`          |
+| `thinking`       | `content`                                                                       | `agent.py:121`         |
+| `llm_response`   | `content`                                                                       | `agent.py:134`         |
+| `tool_call`      | `tool`, `arguments`, `tool_call_id`, `success`, `result`                        | `agent.py:227`         |
+| `error`          | `code`, `message`, `source` (LLM-side) *or* `tool` + `tool_call_id` (tool-side) | `agent.py:128`, `:238` |
+| `session_end`    | `version`, `elapsed_seconds`, `model`, `token_usage: {prompt, completion}`      | `agent.py:265`         |
 
 The `tool_call.result` shape is skill-specific; see the per-skill
 notes in §3.6 for the exact fields. `run_cmd` additionally returns
@@ -1217,16 +1217,16 @@ The following risks are **known and accepted** in v0.3.0:
 
 | Topic                             | Description                                                                                                                    | Files Involved                                       |
 |-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
-| **Function Calling Protocol**     | OpenAI-compatible `tool_calls` array + `tool_call_id` correlation                                                              | `agent.py:168-250`                                   |
+| **Function Calling Protocol**     | OpenAI-compatible `tool_calls` array + `tool_call_id` correlation                                                              | `agent.py:172-254`                                   |
 | **Skill Auto-Discovery**          | Scan `skills/*.py` at startup, reflect extract `Skill` subclasses                                                              | `skills/__init__.py:20-31`                           |
-| **NDJSON Event Stream**           | One event object per line, enabling pipeline processing                                                                        | `agent.py:15-22`                                     |
+| **NDJSON Event Stream**           | One event object per line, enabling pipeline processing                                                                        | `agent.py:18-25`                                     |
 | **Streaming Response**            | Incrementally accumulate content / thinking / tool_calls                                                                       | `client.py:106-128`                                  |
 | **Token Statistics Accumulation** | Accumulate prompt/completion tokens across multiple LLM calls                                                                  | `client.py:43-54`                                    |
 | **Context Persistence**           | Save simplified history, discard fully-read file contents                                                                      | `utils/io_utils.py:73-129`                           |
-| **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/finish_todo.py`            |
+| **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/complete_plan.py`          |
 | **Error Code System**             | `INVALID_PARAMETER` / `FILE_NOT_FOUND` / `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` / `EMPTY_RESULT` / `TIMEOUT` / `IO_ERROR` etc.  | Various skill files                                  |
 | **Cross-Platform Support**        | `run_cmd` encoding adaptation (utf-8/gbk), `backup.sh` / `backup.ps1` dual scripts                                             | `skills/run_cmd.py:51`, `scripts/`                   |
-| **CLI Configuration**             | `argparse` + `AgentConfig` dataclass                                                                                           | `agent.py:275-301`                                   |
+| **CLI Configuration**             | `argparse` + `AgentConfig` dataclass                                                                                           | `agent.py:281-307`                                   |
 | **Command Safety Filter**         | shlex-based binary classification (SAFE / BLOCKED) — no regex, no confirmation tier                                            | `utils/command_filter.py`, `skills/run_cmd.py:52-61` |
 | **Detached Process Execution**    | GUI / dev-server auto-detection; Popen + `start_new_session`; logs to `output/run_cmd/{pid}.log`; process-tree kill on timeout | `skills/run_cmd.py`                                  |
 

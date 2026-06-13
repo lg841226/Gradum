@@ -23,7 +23,7 @@ class Skills:
         for file in skills_dir.glob("*.py"):
             if file.stem.startswith("_") or file.stem == "base":
                 continue
-            
+
             module = importlib.import_module(f"gradum.skills.{file.stem}")
             for _, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill:

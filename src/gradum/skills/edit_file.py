@@ -1,6 +1,7 @@
 """Skill for editing file content using search and replace (like human select-paste)."""
 
 from typing import Any
+
 from .base import Skill
 
 
@@ -132,7 +133,7 @@ class EditFileSkill(Skill):
             }
 
         original = content
-        lines_before = content.count('\n') + 1
+        content.count('\n') + 1
         diff_list = []
 
         for i, edit in enumerate(edits):

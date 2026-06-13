@@ -8,8 +8,10 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from .base import Skill
+
 from gradum.utils.command_filter import classify
+
+from .base import Skill
 
 TIMEOUT = 45
 DETACHED_LOG_DIR = Path("output/run_cmd")

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any, Generator, Optional, List
+from typing import Any, Optional
 
 import requests
 
@@ -56,7 +57,7 @@ class OllamaClient:
     def chat(
         self,
         messages: list[dict[str, Any]],
-        tools: Optional[List[dict]] = None,
+        tools: Optional[list[dict]] = None,
         stream: bool = True,
         think: Optional[bool] = None  # Override default think setting
     ) -> Generator[tuple[str, Optional[list], Optional[str], bool], None, None]:
@@ -128,7 +129,7 @@ class OllamaClient:
                             completion_tokens = data.get("eval_count", 0)
                             self._accumulate_token_stats(prompt_tokens, completion_tokens)
 
-        except requests.exceptions.Timeout as e:
+        except requests.exceptions.Timeout:
             error_msg = f"Request timed out after {self.timeout} seconds. The server is taking too long to respond."
             yield error_msg, None, None, True
         except requests.exceptions.ConnectionError as e:
@@ -144,13 +145,13 @@ class OllamaClient:
             else:
                 error_msg = f"HTTP {e.response.status_code} - {str(e)}"
             yield error_msg, None, None, True
-        except requests.exceptions.TooManyRedirects as e:
+        except requests.exceptions.TooManyRedirects:
             error_msg = "Too many redirects. Check server configuration."
             yield error_msg, None, None, True
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             error_msg = "Invalid JSON response"
             yield error_msg, None, None, True
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError):
             error_msg = "Invalid response format"
             yield error_msg, None, None, True
         except Exception as e:

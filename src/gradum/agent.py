@@ -7,9 +7,10 @@ import time
 from datetime import datetime
 
 from gradum import __version__
-from gradum.client import OllamaClient, AgentConfig, DEFAULT_MODEL, TIMEOUT
+from gradum.client import DEFAULT_MODEL, TIMEOUT, AgentConfig, OllamaClient
 from gradum.paths import OUTPUT_DIR, PROMPTS_DIR
 from gradum.skills import Skills
+from gradum.skills.todo import get_todo_manager
 from gradum.utils.io_utils import ContextManager
 from gradum.utils.ollama_health import ensure_ollama_running
 
@@ -246,7 +247,6 @@ class Agent:
 
         # Embed plan reminder into the tool result so it is delivered as a single
         # well-formed tool message (avoiding a second tool message lacking tool_call_id)
-        from gradum.skills.todo import get_todo_manager
         reminder = get_todo_manager().get_reminder()
         if reminder:
             result_str += "\n\n" + reminder

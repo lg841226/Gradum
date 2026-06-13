@@ -32,3 +32,29 @@ include = ["gradum*"]
 
 [tool.setuptools.package-data]
 gradum = ["prompts/*.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "UP024", # IOError alias — project uses (IOError, OSError) by convention
+    "UP015", # unnecessary "r" mode — kept for readability
+    "UP045", # X | None syntax — requires from __future__ import annotations (not used everywhere)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gradum"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

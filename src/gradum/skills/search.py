@@ -3,7 +3,9 @@
 import fnmatch
 import os
 import time
+from pathlib import Path
 from typing import Any
+
 from .base import Skill
 
 
@@ -18,11 +20,14 @@ class SearchSkill(Skill):
     MAX_DEPTH = 6
     MAX_KEYWORDS = 5
     HARD_MAX_RESULTS = 20
+    CONTEXT_LINES = 2
 
     EXCLUDE_DIRS = {
         '__pycache__', 'node_modules', 'venv', '.venv', 'ENV',
         'build', 'dist', 'output', 'target',
-        'vendor', 'Pods', '.gradle', 'bin', 'obj'
+        'vendor', 'Pods', '.gradle', 'bin', 'obj',
+        '.mypy_cache', '.pytest_cache', '.tox', '.nox',
+        'coverage', '.coverage', '__snapshots__',
     }
     DOTDIR_WHITELIST = {'.vscode', '.idea', '.github', '.gitlab'}
 
@@ -91,6 +96,14 @@ class SearchSkill(Skill):
                                 "Applies to both keyword and filename search. "
                                 "Recommended on large codebases to keep results focused."
                             )
+                        },
+                        "root": {
+                            "type": "string",
+                            "description": (
+                                "Directory to start searching from (relative to project root). "
+                                "Default is the project root. "
+                                "Example: root='src/gradum' to only search within that subtree."
+                            )
                         }
                     }
                 }
@@ -103,8 +116,10 @@ class SearchSkill(Skill):
         filename = kwargs.get("filename", "")
         dirname = kwargs.get("dirname", "")
         file_pattern = kwargs.get("file_pattern", "")
+        root = kwargs.get("root", ".")
 
         search_keywords, keyword_overflow = self._normalize_keywords(keyword)
+        search_keywords_lower = [kw.lower() for kw in search_keywords]
 
         has_keyword = bool(search_keywords)
         has_filename = bool(filename and filename.strip())
@@ -116,6 +131,16 @@ class SearchSkill(Skill):
                 "error": {
                     "code": "INVALID_PARAMETER",
                     "message": "Provide at least one of: keyword, filename, dirname."
+                }
+            }
+
+        root_path = Path(root).resolve()
+        if not root_path.is_dir():
+            return {
+                "success": False,
+                "error": {
+                    "code": "INVALID_PARAMETER",
+                    "message": f"Root directory not found: {root}"
                 }
             }
 
@@ -136,6 +161,18 @@ class SearchSkill(Skill):
                 seen.add(key)
                 results.append(match)
 
+        def _read_lines_around(filepath: str, target_line: int) -> str:
+            """Read lines around target_line and return a text block."""
+            try:
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+            except (IOError, OSError):
+                return ""
+            start = max(0, target_line - 1 - self.CONTEXT_LINES)
+            end = min(len(lines), target_line + self.CONTEXT_LINES)
+            block = lines[start:end]
+            return "".join(line.rstrip() + "\n" for line in block).strip()
+
         def search_content(filepath: str) -> None:
             nonlocal files_searched, timed_out
             try:
@@ -144,11 +181,18 @@ class SearchSkill(Skill):
                         if time.time() - start_time > self.TIMEOUT:
                             timed_out = True
                             return
-                        for kw in search_keywords:
-                            if kw.lower() in line.lower():
+                        line_lower = line.lower()
+                        for sk in search_keywords_lower:
+                            if sk in line_lower:
+                                context_text = _read_lines_around(filepath, line_no)
                                 emit(
-                                    {"type": "content", "path": filepath,
-                                     "line": line_no, "text": line.rstrip()},
+                                    {
+                                        "type": "content",
+                                        "path": filepath,
+                                        "line": line_no,
+                                        "text": line.rstrip(),
+                                        "context": context_text,
+                                    },
                                     f"content:{filepath}:{line_no}",
                                 )
                                 break
@@ -211,29 +255,36 @@ class SearchSkill(Skill):
 
                 process_directory(subpath, depth + 1)
 
-        process_directory('.')
+        process_directory(str(root_path))
+
+        results.sort(key=lambda m: m.get("path", ""))
 
         hints: list[str] = []
+        truncation_reasons: list[str] = []
         if keyword_overflow:
             hints.append(
                 f"Only the first {self.MAX_KEYWORDS} keywords were used; "
                 f"pass fewer or split into multiple calls."
             )
+            truncation_reasons.append("keyword_overflow")
         if timed_out:
             hints.append(
                 f"Search exceeded the {self.TIMEOUT}s time limit; "
                 f"narrow with file_pattern or a more specific keyword."
             )
+            truncation_reasons.append("timeout")
         if hit_file_cap:
             hints.append(
                 f"Search hit the {self.MAX_FILES}-file cap; "
                 f"narrow with file_pattern or a more specific keyword."
             )
+            truncation_reasons.append("file_cap")
         if len(results) > self.HARD_MAX_RESULTS:
             hints.append(
                 f"More than {self.HARD_MAX_RESULTS} matches exist; "
                 f"narrow with file_pattern or a more specific keyword."
             )
+            truncation_reasons.append("result_cap")
 
         truncated = bool(hints)
         response: dict = {
@@ -242,7 +293,8 @@ class SearchSkill(Skill):
             "truncated": truncated,
             "files_searched": files_searched,
         }
-        if hints:
+        if truncated:
+            response["truncation_reason"] = truncation_reasons[0]
             response["hint"] = " ".join(hints)
         return response
 

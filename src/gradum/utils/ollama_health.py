@@ -12,7 +12,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Tuple
 
 import requests
 
@@ -32,7 +31,7 @@ def _server_reachable(base_url: str, timeout: float) -> bool:
         return False
 
 
-def _find_ollama() -> Tuple[bool, str]:
+def _find_ollama() -> tuple[bool, str]:
     if platform.system() == "Darwin" and Path("/Applications/Ollama.app").exists():
         return True, "app"
     if shutil.which("ollama"):
@@ -69,7 +68,7 @@ def _start_ollama(kind: str) -> bool:
 def ensure_ollama_running(
     base_url: str = "http://localhost:11434",
     ready_timeout: float = _READY_TIMEOUT,
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Make sure the Ollama HTTP API is reachable.
 
     Returns:
