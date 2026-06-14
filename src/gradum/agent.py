@@ -7,7 +7,15 @@ import time
 from datetime import datetime
 
 from gradum import __version__
-from gradum.client import DEFAULT_MODEL, TIMEOUT, AgentConfig, OllamaClient
+from gradum.client import (
+    DEFAULT_MODEL,
+    PORT,
+    TIMEOUT,
+    AgentConfig,
+    OllamaClient,
+    OpenAICompatibleClient,
+)
+from gradum.discovery import discover_models, resolve_model
 from gradum.paths import OUTPUT_DIR, PROMPTS_DIR
 from gradum.skills import Skills
 from gradum.skills.todo import get_todo_manager
@@ -20,7 +28,7 @@ def _emit(event_type: str, data: dict) -> None:
     event = {
         "type": event_type,
         "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        "data": data
+        "data": data,
     }
     print(json.dumps(event, ensure_ascii=False))
 
@@ -30,10 +38,14 @@ class Agent:
 
     def __init__(self, config=None):
         self.config = config or AgentConfig()
-        self.client = OllamaClient(self.config)
 
-        ok, msg = ensure_ollama_running(self.client.base_url)
-        _emit("ollama_status", {"reachable": ok, "message": msg})
+        if self.config.provider == "openai":
+            self.client = OpenAICompatibleClient(self.config)
+            _emit("provider_status", {"provider": "openai", "base_url": self.config.base_url})
+        else:
+            self.client = OllamaClient(self.config)
+            ok, msg = ensure_ollama_running(self.client.base_url)
+            _emit("ollama_status", {"reachable": ok, "message": msg})
 
         self.skills = Skills()
         self.messages = []  # Message list for LLM conversation
@@ -72,13 +84,16 @@ class Agent:
             context_messages = len(loaded)
 
         # Emit session start
-        _emit("session_start", {
-            "version": __version__,
-            "model": self.client.model,
-            "think": self.config.think,
-            "context_loaded": context_loaded,
-            "context_messages": context_messages
-        })
+        _emit(
+            "session_start",
+            {
+                "version": __version__,
+                "model": self.client.model,
+                "think": self.config.think,
+                "context_loaded": context_loaded,
+                "context_messages": context_messages,
+            },
+        )
 
         # Emit context loaded if applicable
         if context_loaded:
@@ -100,10 +115,7 @@ class Agent:
             error_message = None
 
             for chunk, calls, thinking, is_error in self.client.chat(
-                self.messages,
-                tools=cached_tool_schemas,
-                stream=True,
-                think=self.config.think
+                self.messages, tools=cached_tool_schemas, stream=True, think=self.config.think
             ):
                 if is_error:
                     error_message = chunk
@@ -125,11 +137,14 @@ class Agent:
 
             # Handle LLM response
             if error_message:
-                _emit("error", {
-                    "code": "CLIENT_ERROR",
-                    "message": error_message.strip(),
-                    "source": "ollama_client"
-                })
+                _emit(
+                    "error",
+                    {
+                        "code": "CLIENT_ERROR",
+                        "message": error_message.strip(),
+                        "source": f"{self.config.provider}_client",
+                    },
+                )
             elif turn_text.strip():
                 _emit("llm_response", {"content": turn_text})
 
@@ -176,20 +191,37 @@ class Agent:
         Ollama-compatible format:
             {role: assistant, content: ..., tool_calls: [{function: {name, arguments}}]}
 
-        The 'function.arguments' is a dict (not a JSON string) per Ollama spec.
-        No 'id' or 'type' fields are sent (Ollama matches tool calls positionally).
+        OpenAI-compatible format:
+            {role: assistant, content: ..., tool_calls: [{id, type: "function", function: {name, arguments: "<json>"}}]}
+
+        The 'function.arguments' is a dict for Ollama, a JSON string for OpenAI.
         """
         msg = {"role": "assistant", "content": content}
         if processed_calls:
-            msg["tool_calls"] = [
-                {
-                    "function": {
-                        "name": pc["call"].get("function", {}).get("name", ""),
-                        "arguments": pc["call"].get("function", {}).get("arguments", {}),
+            if self.config.provider == "openai":
+                msg["tool_calls"] = [
+                    {
+                        "id": pc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": pc["call"].get("function", {}).get("name", ""),
+                            "arguments": json.dumps(
+                                pc["call"].get("function", {}).get("arguments", {})
+                            ),
+                        },
                     }
-                }
-                for pc in processed_calls
-            ]
+                    for pc in processed_calls
+                ]
+            else:
+                msg["tool_calls"] = [
+                    {
+                        "function": {
+                            "name": pc["call"].get("function", {}).get("name", ""),
+                            "arguments": pc["call"].get("function", {}).get("arguments", {}),
+                        }
+                    }
+                    for pc in processed_calls
+                ]
         self.messages.append(msg)
 
     def _execute_tool(self, tool_call, tool_call_id):
@@ -212,10 +244,7 @@ class Agent:
         if not skill:
             result = {
                 "success": False,
-                "error": {
-                    "code": "SKILL_NOT_FOUND",
-                    "message": f"Skill '{tool_name}' not found"
-                }
+                "error": {"code": "SKILL_NOT_FOUND", "message": f"Skill '{tool_name}' not found"},
             }
         else:
             result = skill.execute(**arguments)
@@ -224,26 +253,34 @@ class Agent:
         success = result.get("success", False) if isinstance(result, dict) else False
 
         # Emit tool_call event with tool_call_id for log traceability
-        _emit("tool_call", {
-            "tool": tool_name,
-            "arguments": arguments,
-            "tool_call_id": tool_call_id,
-            "success": success,
-            "result": result
-        })
+        _emit(
+            "tool_call",
+            {
+                "tool": tool_name,
+                "arguments": arguments,
+                "tool_call_id": tool_call_id,
+                "success": success,
+                "result": result,
+            },
+        )
 
         # Emit error event if failed
         if not success and isinstance(result, dict):
             error_info = result.get("error", {})
-            _emit("error", {
-                "code": error_info.get("code", "EXECUTION_ERROR"),
-                "message": error_info.get("message", "Unknown error"),
-                "tool": tool_name,
-                "tool_call_id": tool_call_id
-            })
+            _emit(
+                "error",
+                {
+                    "code": error_info.get("code", "EXECUTION_ERROR"),
+                    "message": error_info.get("message", "Unknown error"),
+                    "tool": tool_name,
+                    "tool_call_id": tool_call_id,
+                },
+            )
 
-        # Add tool result to history (Ollama format: role=tool, content as string)
-        result_str = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+        # Add tool result to history
+        result_str = (
+            json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+        )
 
         # Embed plan reminder into the tool result so it is delivered as a single
         # well-formed tool message (avoiding a second tool message lacking tool_call_id)
@@ -251,10 +288,12 @@ class Agent:
         if reminder:
             result_str += "\n\n" + reminder
 
-        self.messages.append({
-            "role": "tool",
-            "content": result_str
-        })
+        if self.config.provider == "openai":
+            self.messages.append(
+                {"role": "tool", "tool_call_id": tool_call_id, "content": result_str}
+            )
+        else:
+            self.messages.append({"role": "tool", "content": result_str})
 
     def _finish(self, start_time):
         """Finalize the session and save context."""
@@ -262,12 +301,15 @@ class Agent:
         token_stats = self.client.last_token_stats
 
         # Emit session_end event
-        _emit("session_end", {
-            "version": __version__,
-            "elapsed_seconds": elapsed,
-            "model": self.client.model,
-            "token_usage": token_stats or {}
-        })
+        _emit(
+            "session_end",
+            {
+                "version": __version__,
+                "elapsed_seconds": elapsed,
+                "model": self.client.model,
+                "token_usage": token_stats or {},
+            },
+        )
 
         self.context_manager.save(self.messages, self.client.model, self.full_read_files)
         self.client.last_token_stats = None
@@ -276,7 +318,7 @@ class Agent:
 def main():
     """Command line entry point."""
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--model", "-m", default=DEFAULT_MODEL)
+    parser.add_argument("--model", "-m", default=None)
     parser.add_argument("--think", "-t", action="store_true")
     parser.add_argument("--context", "-c", action="store_true")
     parser.add_argument("--timeout", type=int, default=None)
@@ -284,20 +326,75 @@ def main():
     parser.add_argument("--top-p", type=float, default=0.9)
     parser.add_argument("--num-ctx", type=int, default=4096)
     parser.add_argument("--num-predict", type=int, default=16384)
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        help="LLM server URL (auto-detected if omitted)",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["ollama", "openai"],
+        default=None,
+        help="LLM provider (auto-detected if omitted)",
+    )
     parser.add_argument("prompt", nargs="+")
 
     args = parser.parse_args()
 
+    # Auto-discover available models from local servers
+    discovered = discover_models()
+    _emit(
+        "models_discovered",
+        {
+            "models": [
+                {"name": m.name, "server": m.server_name, "provider": m.provider}
+                for m in discovered
+            ]
+        },
+    )
+
+    # Resolve provider, base_url, and model
+    provider: str
+    base_url: str
+    model: str
+
+    if args.provider and args.base_url and args.model:
+        provider = args.provider
+        base_url = args.base_url
+        model = args.model
+    elif args.model:
+        entry = resolve_model(args.model, discovered)
+        if entry:
+            provider = entry.provider
+            base_url = entry.base_url
+            model = entry.name
+        else:
+            provider = args.provider or "ollama"
+            base_url = args.base_url or f"http://localhost:{PORT}"
+            model = args.model
+    else:
+        model = DEFAULT_MODEL
+        entry = resolve_model(model, discovered)
+        if entry:
+            provider = entry.provider
+            base_url = entry.base_url
+        else:
+            provider = args.provider or "ollama"
+            base_url = args.base_url or f"http://localhost:{PORT}"
+
     timeout = args.timeout if args.timeout else TIMEOUT
     config = AgentConfig(
-        model=args.model,
+        model=model,
+        base_url=base_url,
+        provider=provider,
         timeout=timeout,
         think=args.think,
         temperature=args.temperature,
         top_p=args.top_p,
         num_ctx=args.num_ctx,
-        num_predict=args.num_predict
+        num_predict=args.num_predict,
     )
+
     agent = Agent(config)
     agent.run(" ".join(args.prompt), load_context=args.context)
 

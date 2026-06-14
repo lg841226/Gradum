@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gradum"
 version = "0.4.0"
-description = "A local-first AI coding agent with function calling, powered by Ollama."
+description = "A local-first AI coding agent with function calling, powered by Ollama and OpenAI-compatible APIs."
 readme = "docs/ARCHITECTURE_en.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

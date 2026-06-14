@@ -4,25 +4,25 @@
 
 ### Technical White Paper
 
-| Field                | Value                       |
-|----------------------|-----------------------------|
-| **Version**          | 0.4.0                       |
-| **Status**           | Active development          |
-| **Language Runtime** | Python 3                    |
-| **LLM Backend**      | Ollama (local server, HTTP) |
-| **Diagram Format**   | Mermaid                     |
-| **Last Revised**     | 2026-06-07                  |
+| Field                | Value                                                 |
+|----------------------|-------------------------------------------------------|
+| **Version**          | 0.5.0                                                 |
+| **Status**           | Active development                                    |
+| **Language Runtime** | Python 3                                              |
+| **LLM Backend**      | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) |
+| **Diagram Format**   | Mermaid                                               |
+| **Last Revised**     | 2026-06-07                                            |
 
 ---
 
 ## Abstract
 
 Gradum is a local-first AI coding agent that exposes a curated set of
-file-system and shell tools to a large language model served by Ollama.
-It targets code engineering tasks — reading, editing, and running code
-inside a local repository — with an emphasis on **deterministic tool
-behavior**, **observable execution**, and **defense against prompt
-injection**.
+file-system and shell tools to a large language model served by Ollama
+or any OpenAI-compatible server (LM Studio, vLLM, LocalAI). It targets
+code engineering tasks — reading, editing, and running code inside a
+local repository — with an emphasis on **deterministic tool behavior**,
+**observable execution**, and **defense against prompt injection**.
 
 Unlike cloud-based agents that execute inside managed sandboxes, Gradum
 runs on the operator's own machine with full filesystem and shell
@@ -93,10 +93,10 @@ impose constraints that are inappropriate for some workflows:
 - **Local compute.** Operators with a local GPU may have ample capacity
   that is wasted if every inference must be paid for remotely.
 
-Gradum addresses these by running a local Ollama-served LLM with tools
-implemented as plain Python classes on the operator's machine. The
-operator retains the ability to read, edit, debug, and version every
-component of the agent itself.
+Gradum addresses these by running a local LLM — via Ollama or any
+OpenAI-compatible server — with tools implemented as plain Python
+classes on the operator's machine. The operator retains the ability to
+read, edit, debug, and version every component of the agent itself.
 
 ### 1.2 Audience
 
@@ -112,8 +112,9 @@ This document is written for three primary audiences:
 ### 1.3 Scope
 
 **In scope.** Agent loop design; skill auto-discovery mechanism;
-NDJSON event stream format; context persistence and simplification;
-Command Safety Filter design and block lists; CLI surface area.
+model auto-discovery and multi-provider support; NDJSON event stream
+format; context persistence and simplification; Command Safety Filter
+design and block lists; CLI surface area.
 
 **Out of scope.** Model selection guidance; prompt engineering tips;
 Ollama installation and tuning; comparison with other agents; deployment
@@ -164,7 +165,6 @@ The following principles govern the design of every subsystem:
 
 - [ ] Multi-user or multi-tenant operation
 - [ ] Sandboxed execution (assumes the operator's own machine)
-- [ ] Cloud LLM backends (Ollama only by design)
 - [ ] In-agent confirmation UI
 - [ ] Plugin marketplace (skills are versioned in-tree)
 - [ ] Multi-modal input (text only)
@@ -177,13 +177,13 @@ The following principles govern the design of every subsystem:
 
 Gradum is organized as five cooperating layers:
 
-| Layer                 | Responsibility                                              | Implementation                                 |
-|-----------------------|-------------------------------------------------------------|------------------------------------------------|
-| **User Layer**        | CLI invocation, stdout consumption                          | `argparse`, downstream NDJSON consumers        |
-| **Application Layer** | Agent loop, message bookkeeping                             | `agent.py:Agent`                               |
-| **LLM I/O Layer**     | HTTP transport, streaming, token accounting                 | `client.py:OllamaClient`                       |
-| **Skills Layer**      | Per-tool execution, auto-discovery                          | `skills/*.py`                                  |
-| **Utility Layer**     | Cross-cutting concerns: context persistence, command safety | `utils/io_utils.py`, `utils/command_filter.py` |
+| Layer                 | Responsibility                                              | Implementation                                               |
+|-----------------------|-------------------------------------------------------------|--------------------------------------------------------------|
+| **User Layer**        | CLI invocation, stdout consumption                          | `argparse`, downstream NDJSON consumers                      |
+| **Application Layer** | Agent loop, message bookkeeping                             | `agent.py:Agent`                                             |
+| **LLM I/O Layer**     | HTTP transport, streaming, token accounting, multi-provider | `client.py:OllamaClient`, `client.py:OpenAICompatibleClient` |
+| **Skills Layer**      | Per-tool execution, auto-discovery                          | `skills/*.py`                                                |
+| **Utility Layer**     | Cross-cutting concerns: context persistence, command safety | `utils/io_utils.py`, `utils/command_filter.py`               |
 
 A consolidated end-to-end view is provided in §3.11. The following
 subsections drill into each aspect individually.
@@ -195,7 +195,8 @@ graph LR
     Root["Gradum/<br/>Project Root"]
 
     Root --> Agent["agent.py<br/>Main Entry Agent Class"]
-    Root --> Client["client.py<br/>Ollama Client"]
+    Root --> Client["client.py<br/>Ollama + OpenAI Clients"]
+    Root --> Discovery["discovery.py<br/>Model Auto-Discovery"]
 
     Root --> SkillsDir["skills/"]
     Root --> Utils["utils/"]
@@ -233,7 +234,7 @@ graph LR
     classDef archive fill:#f5f5f5,stroke:#9e9e9e,color:#616161,stroke-dasharray: 5
     classDef data fill:#fff3e0,stroke:#ef6c00,color:#000
 
-    class Agent,Client,SK_Init,SK_Base,SK_Read,SK_Edit,SK_Save,SK_Cmd,SK_Search,SK_Todo,SK_Finish,IO,CF,SysPrompt,Bsh,Bps1 active
+    class Agent,Client,Discovery,SK_Init,SK_Base,SK_Read,SK_Edit,SK_Save,SK_Cmd,SK_Search,SK_Todo,SK_Finish,IO,CF,SysPrompt,Bsh,Bps1 active
     class Ctx,Log data
     class Launcher,NoUse archive
 ```
@@ -249,7 +250,8 @@ operators audit tool behavior by reading a single directory.
 graph TD
     Agent["agent.py<br/>Agent Class"]:::core
 
-    Client["client.py<br/>OllamaClient + AgentConfig"]:::core
+    Client["client.py<br/>OllamaClient + OpenAICompatibleClient + AgentConfig"]:::core
+    Discovery["discovery.py<br/>Model Auto-Discovery"]:::core
     Skills["skills/__init__.py<br/>Skills Container"]:::core
     SKBase["skills/base.py<br/>Skill Base Class"]:::core
     TodoMgr["skills/todo.py<br/>TodoManager (Singleton)"]:::core
@@ -272,12 +274,13 @@ graph TD
     FS["Local File System"]:::ext
 
     Agent --> Client
+    Agent --> Discovery
     Agent --> Skills
     Agent --> IO
     Agent --> TodoMgr
     Agent --> SysPrompt
 
-    Client -->|"HTTP /api/chat"| Ollama
+    Client -->|"HTTP /api/chat or /v1/chat/completions"| Ollama
 
     Skills --> SKBase
     Skills -->|"auto-discover"| ReadS
@@ -329,18 +332,27 @@ Two dependency invariants worth noting:
 sequenceDiagram
     autonumber
     participant U as User/CLI
+    participant D as Discovery
     participant A as Agent
     participant CM as ContextManager
-    participant C as OllamaClient
-    participant O as Ollama Server
+    participant C as LLMClient
+    participant O as LLM Server
     participant S as Skills
     participant CF as CommandFilter
     participant FS as File System
     participant T as TodoManager
     participant E as stdout (NDJSON)
 
-    U->>A: python agent.py "task" [-c] [-t]
+    U->>A: gradum [-m model] [-c] [-t] "task"
     activate A
+
+    A->>D: discover_models()
+    D->>O: GET /api/tags or /v1/models (per server)
+    O-->>D: Model list
+    D-->>A: list[ModelEntry]
+    A->>E: emit models_discovered
+
+    A->>A: Resolve provider, base_url, model
 
     A->>A: Load system_prompt.md
     Note over A: Replace {{OS}} placeholder
@@ -416,6 +428,15 @@ sequenceDiagram
 
     Note over U,E: Entire session outputs to stdout as NDJSON event stream
 ```
+
+The flow begins with model auto-discovery: the agent probes known
+local servers (Ollama on :11434, LM Studio on :1234, vLLM on :8000,
+LocalAI on :8080) and collects all available models. Each server probe
+retries up to 2 times on transient errors (timeout, connection
+refused) with exponential backoff. The user can specify a model via
+`--model` to select from the discovered list, or omit it to use the
+default. The agent then resolves the appropriate provider and base_url
+automatically.
 
 The main loop is straightforward: stream from the LLM, dispatch tool
 calls, append results, repeat until the model produces no tool calls.
@@ -511,6 +532,7 @@ graph LR
     Stdout --> P2[log.txt<br/>Session History]:::data
 
     subgraph Event Types
+        E0["models_discovered<br/>{models: [{name, server, provider}]}"]:::evt
         E1["session_start<br/>{version, model, think,<br/>context_loaded, context_messages}"]:::evt
         E2["context_loaded<br/>{message_count}"]:::evt
         E3["thinking<br/>{content}"]:::evt
@@ -520,6 +542,7 @@ graph LR
         E7["session_end<br/>{version, elapsed_seconds,<br/>model, token_usage}"]:::evt
     end
 
+    Stdout --> E0
     Stdout --> E1
     Stdout --> E2
     Stdout --> E3
@@ -561,15 +584,16 @@ it line-by-line rather than loading the full session into memory.
 
 #### Per-event-type data payloads
 
-| `type`           | `data` fields                                                                   | Emitted at             |
-|------------------|---------------------------------------------------------------------------------|------------------------|
-| `session_start`  | `version`, `model`, `think`, `context_loaded`, `context_messages`               | `agent.py:75`          |
-| `context_loaded` | `message_count`                                                                 | `agent.py:85`          |
-| `thinking`       | `content`                                                                       | `agent.py:121`         |
-| `llm_response`   | `content`                                                                       | `agent.py:134`         |
-| `tool_call`      | `tool`, `arguments`, `tool_call_id`, `success`, `result`                        | `agent.py:227`         |
-| `error`          | `code`, `message`, `source` (LLM-side) *or* `tool` + `tool_call_id` (tool-side) | `agent.py:128`, `:238` |
-| `session_end`    | `version`, `elapsed_seconds`, `model`, `token_usage: {prompt, completion}`      | `agent.py:265`         |
+| `type`              | `data` fields                                                                   | Emitted at             |
+|---------------------|---------------------------------------------------------------------------------|------------------------|
+| `models_discovered` | `models: [{name, server, provider}]`                                            | `agent.py:main()`      |
+| `session_start`     | `version`, `model`, `think`, `context_loaded`, `context_messages`               | `agent.py:75`          |
+| `context_loaded`    | `message_count`                                                                 | `agent.py:85`          |
+| `thinking`          | `content`                                                                       | `agent.py:121`         |
+| `llm_response`      | `content`                                                                       | `agent.py:134`         |
+| `tool_call`         | `tool`, `arguments`, `tool_call_id`, `success`, `result`                        | `agent.py:227`         |
+| `error`             | `code`, `message`, `source` (LLM-side) *or* `tool` + `tool_call_id` (tool-side) | `agent.py:128`, `:238` |
+| `session_end`       | `version`, `elapsed_seconds`, `model`, `token_usage: {prompt, completion}`      | `agent.py:265`         |
 
 The `tool_call.result` shape is skill-specific; see the per-skill
 notes in §3.6 for the exact fields. `run_cmd` additionally returns
@@ -580,7 +604,7 @@ blocking.
 The `error` event has two emission sites with different `data` shapes:
 
 - **LLM-side errors** (e.g. Ollama HTTP failure) emit
-  `{code, message, source: "ollama"}` with no `tool_call_id`.
+  `{code, message, source: "llm"}` with no `tool_call_id`.
 - **Tool-side errors** emit `{code, message, tool, tool_call_id}`
   where `tool` is the skill name and `code` is one of the documented
   error codes (`COMMAND_BLOCKED`, `FILE_NOT_FOUND`, `CODE_NOT_FOUND`,
@@ -589,7 +613,9 @@ The `error` event has two emission sites with different `data` shapes:
 
 #### Ordering invariants
 
-- `session_start` is always the first event of a session.
+- `models_discovered` is always the first event of a session (before
+  `session_start`).
+- `session_start` is always the second event, after model resolution.
 - `session_end` is always the last event; its presence means the
   agent finished cleanly (no `KeyboardInterrupt`, no fatal exception).
 - `tool_call` events for the same LLM turn are emitted in the order
@@ -620,16 +646,19 @@ A session that reads one file and launches a dev server in detached
 mode produces the following stream (one JSON object per line):
 
 ```json lines
-{"type": "session_start", "timestamp": "2026-06-07T10:23:45", "data": {"version": "0.4.0", "model": "minimax-m2.5:cloud", "think": false, "context_loaded": false, "context_messages": 0}}
-{"type": "thinking", "timestamp": "2026-06-07T10:23:46", "data": {"content": "The user wants a dev server. I should first read package.json to confirm the start command, then run it in detached mode."}}
-{"type": "llm_response", "timestamp": "2026-06-07T10:23:47", "data": {"content": "Reading package.json to find the dev script..."}}
-{"type": "tool_call", "timestamp": "2026-06-07T10:23:47", "data": {"tool": "read_file", "arguments": {"path": "package.json"}, "tool_call_id": "call_1", "success": true, "result": {"success": true, "path": "package.json", "line_range": [1, 42], "total_lines": 42, "content_hash": "a3f5c1", "content": "{\"scripts\":{\"dev\":\"vite\"}}"}}}
-{"type": "tool_call", "timestamp": "2026-06-07T10:23:49", "data": {"tool": "run_cmd", "arguments": {"command": "npm run dev", "detached": true}, "tool_call_id": "call_2", "success": true, "result": {"success": true, "detached": true, "pid": 42187, "log_path": "output/run_cmd/42187.log", "command": "npm run dev", "message": "Command executed successfully with no output."}}}
-{"type": "llm_response", "timestamp": "2026-06-07T10:23:49", "data": {"content": "Dev server started with PID 42187. Tail the log at output/run_cmd/42187.log."}}
-{"type": "session_end", "timestamp": "2026-06-07T10:24:30", "data": {"version": "0.4.0", "elapsed_seconds": 45.2, "model": "minimax-m2.5:cloud", "token_usage": {"prompt": 1240, "completion": 87}}}
+{"type": "models_discovered", "timestamp": "2026-06-14T10:23:44", "data": {"models": [{"name": "minimax-m2.5:cloud", "server": "http://localhost:11434", "provider": "ollama"}, {"name": "codestral-7b", "server": "http://localhost:1234", "provider": "openai"}]}}
+{"type": "session_start", "timestamp": "2026-06-14T10:23:45", "data": {"version": "0.5.0", "model": "minimax-m2.5:cloud", "think": false, "context_loaded": false, "context_messages": 0}}
+{"type": "thinking", "timestamp": "2026-06-14T10:23:46", "data": {"content": "The user wants a dev server. I should first read package.json to confirm the start command, then run it in detached mode."}}
+{"type": "llm_response", "timestamp": "2026-06-14T10:23:47", "data": {"content": "Reading package.json to find the dev script..."}}
+{"type": "tool_call", "timestamp": "2026-06-14T10:23:47", "data": {"tool": "read_file", "arguments": {"path": "package.json"}, "tool_call_id": "call_1", "success": true, "result": {"success": true, "path": "package.json", "line_range": [1, 42], "total_lines": 42, "content_hash": "a3f5c1", "content": "{\"scripts\":{\"dev\":\"vite\"}}"}}}
+{"type": "tool_call", "timestamp": "2026-06-14T10:23:49", "data": {"tool": "run_cmd", "arguments": {"command": "npm run dev", "detached": true}, "tool_call_id": "call_2", "success": true, "result": {"success": true, "detached": true, "pid": 42187, "log_path": "output/run_cmd/42187.log", "command": "npm run dev", "message": "Command executed successfully with no output."}}}
+{"type": "llm_response", "timestamp": "2026-06-14T10:23:49", "data": {"content": "Dev server started with PID 42187. Tail the log at output/run_cmd/42187.log."}}
+{"type": "session_end", "timestamp": "2026-06-14T10:24:30", "data": {"version": "0.5.0", "elapsed_seconds": 45.2, "model": "minimax-m2.5:cloud", "token_usage": {"prompt": 1240, "completion": 87}}}
 ```
 
-The detached `run_cmd` returns immediately with `detached: true`, a
+The stream begins with `models_discovered` (listing all available
+models from local servers), followed by the session lifecycle. The
+detached `run_cmd` returns immediately with `detached: true`, a
 PID, and a log path — the LLM never has to guess whether the command
 "failed" because of empty stdout (§4.3).
 
@@ -695,12 +724,12 @@ on long sessions.
 
 ```mermaid
 graph LR
-    CLI["python agent.py [options] prompt..."]:::cli
+    CLI["gradum [options] prompt..."]:::cli
     Parser["argparse.ArgumentParser"]:::cli
 
     CLI --> Parser
 
-    Parser --> M["--model / -m<br/>(default: minimax-m2.5:cloud)"]:::opt
+    Parser --> M["--model / -m<br/>(optional, auto-discovered)"]:::opt
     Parser --> T["--think / -t<br/>(store_true)"]:::opt
     Parser --> C["--context / -c<br/>(load session history)"]:::opt
     Parser --> TO["--timeout<br/>(int, default 300)"]:::opt
@@ -708,16 +737,22 @@ graph LR
     Parser --> TP["--top-p<br/>(float, default 0.9)"]:::opt
     Parser --> NC["--num-ctx<br/>(int, default 4096)"]:::opt
     Parser --> NP["--num-predict<br/>(int, default 16384)"]:::opt
+    Parser --> BU["--base-url<br/>(optional override)"]:::opt
+    Parser --> PR["--provider<br/>(optional override)"]:::opt
     Parser --> P["prompt (nargs='+')<br/>Join as single user_input"]:::opt
 
-    M --> Cfg["AgentConfig(...)"]:::core
-    T --> Cfg
+    M --> Disc["discover_models()<br/>Auto-detect servers"]
+    Disc --> Resolve["resolve_model()<br/>Match model → provider + base_url"]
+    T --> Cfg["AgentConfig(...)"]:::core
     C --> Cfg
     TO --> Cfg
     TEMP --> Cfg
     TP --> Cfg
     NC --> Cfg
     NP --> Cfg
+    BU --> Cfg
+    PR --> Cfg
+    Resolve --> Cfg
 
     Cfg --> Agent["Agent(config)"]:::core
     P -->|"join"| Run["agent.run(prompt, load_context=...)"]:::core
@@ -733,54 +768,73 @@ A REPL can be layered on top by the downstream consumer (and the
 existing `_archived/launcher/` directory contains a legacy Qt-based
 version of this idea).
 
-### 3.10 OllamaClient Streaming
+### 3.10 LLM Client Streaming
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant A as Agent
-    participant C as OllamaClient
+    participant C as LLMClient
     participant R as requests.post
-    participant O as Ollama
+    participant O as LLM Server
 
     A->>C: chat(messages, tools, stream=True, think=bool)
-    Note over C: Construct payload:<br/>model, messages, options<br/>(temperature/top_p/num_ctx/num_predict)<br/>+ tools (if exists)<br/>+ think=True (if enabled)
 
-    C->>R: POST http://localhost:11434/api/chat (stream=True)
-    R->>O: HTTP request
-    O-->>R: NDJSON stream
-
-    loop Each line
-        R-->>C: One line JSON
-        C->>C: json.loads(line)
-        alt contains message
-            C->>C: Extract content / tool_calls / thinking
-            opt has token count
-                C->>C: _accumulate_token_stats
-            end
-            C-->>A: yield (content, tool_calls, thinking)
-        else contains error
-            C-->>A: yield "Error: ...", None, None
-        else done == true
-            C->>C: Accumulate token stats
-        end
+    alt OllamaClient
+        Note over C: Payload: model, messages, options<br/>(temperature/top_p/num_ctx/num_predict)<br/>+ tools + think
+        C->>R: POST /api/chat (NDJSON stream)
+    else OpenAICompatibleClient
+        Note over C: Payload: model, messages<br/>(temperature/top_p/max_tokens)<br/>+ tools
+        C->>R: POST /v1/chat/completions (SSE stream)
     end
 
-    Note over C: Exception handling:<br/>Timeout / ConnectionError /<br/>HTTPError(403/404/500) /<br/>TooManyRedirects / JSONDecodeError<br/>→ yield friendly error message
+    R->>O: HTTP request
+    O-->>R: Stream
+
+    loop Each chunk
+        R-->>C: Content / tool_calls
+        C->>C: Parse + accumulate
+        opt has token count
+            C->>C: _accumulate_token_stats
+        end
+        C-->>A: yield (content, tool_calls, thinking, is_error)
+    end
+
+    Note over C: Exception handling:<br/>Timeout / ConnectionError /<br/>HTTPError(404/500) /<br/>TooManyRedirects / JSONDecodeError<br/>→ yield friendly error message
+
+Note over C: Retry logic:<br/>Transient errors (Timeout, ConnectionError,<br/>5xx) retry up to 2 times with<br/>exponential backoff (1s, 2s)
 ```
+
+**Two client implementations:**
+
+| Client                   | Protocol                      | Streaming            | Tool Calls Format                                |
+|--------------------------|-------------------------------|----------------------|--------------------------------------------------|
+| `OllamaClient`           | Ollama `/api/chat`            | NDJSON               | `arguments` as dict                              |
+| `OpenAICompatibleClient` | OpenAI `/v1/chat/completions` | SSE (`data:` prefix) | `arguments` as JSON string, accumulated by index |
+
+Both yield the same `(content, tool_calls, thinking, is_error)` tuple,
+so the agent loop is provider-agnostic.
 
 **Key Configuration** (`AgentConfig` dataclass):
 
-| Field         | Default                  | Description             |
-|---------------|--------------------------|-------------------------|
-| `base_url`    | `http://localhost:11434` | Ollama server address   |
-| `model`       | `minimax-m2.5:cloud`     | Default model           |
-| `timeout`     | `300` seconds            | Request timeout         |
-| `think`       | `False`                  | Enable chain-of-thought |
-| `temperature` | `0.7`                    | Sampling temperature    |
-| `top_p`       | `0.9`                    | Nucleus sampling        |
-| `num_ctx`     | `4096`                   | Context window          |
-| `num_predict` | `16384`                  | Max generation tokens   |
+| Field         | Default                  | Description                      |
+|---------------|--------------------------|----------------------------------|
+| `base_url`    | `http://localhost:11434` | Server address                   |
+| `model`       | `minimax-m2.5:cloud`     | Default model                    |
+| `provider`    | `"ollama"`               | `"ollama"` or `"openai"`         |
+| `timeout`     | `300` seconds            | Request timeout                  |
+| `think`       | `False`                  | Enable chain-of-thought (Ollama) |
+| `temperature` | `0.7`                    | Sampling temperature             |
+| `top_p`       | `0.9`                    | Nucleus sampling                 |
+| `num_ctx`     | `4096`                   | Context window (Ollama)          |
+| `num_predict` | `16384`                  | Max generation tokens            |
+
+**Retry Configuration** (module-level constants):
+
+| Constant       | Default | Description                                                 |
+|----------------|---------|-------------------------------------------------------------|
+| `MAX_RETRIES`  | `2`     | Max retry attempts for transient errors per request         |
+| `RETRY_DELAY`  | `1.0`   | Base delay in seconds; doubles each retry (1s, 2s, 4s...)   |
 
 The `num_predict` default of 16384 was raised from 2048 to accommodate
 tasks where the model produces long, structured tool-call sequences; a
@@ -801,7 +855,11 @@ graph TB
     end
 
     subgraph LLMIO["LLM Communication Layer"]
-        Client["client.py<br/>OllamaClient"]
+        Client["client.py<br/>OllamaClient + OpenAICompatibleClient"]
+    end
+
+    subgraph DiscoveryLayer["Discovery Layer"]
+        Discovery["discovery.py<br/>Model Auto-Discovery"]
     end
 
     subgraph SkillsLayer["Skills Layer (auto-discovered)"]
@@ -829,7 +887,7 @@ graph TB
     end
 
     subgraph External["External Services"]
-        Ollama[Ollama Server<br/>:11434]
+        Ollama[Ollama / OpenAI-compatible Server]
     end
 
     U -->|CLI args| Agent
@@ -837,12 +895,15 @@ graph TB
     Agent --> SysPrompt
     Agent --> IO
     Agent --> Client
+    Agent --> Discovery
     Agent --> Skills
     Agent --> TodoMgr
     Agent -.->|NDJSON| U
 
-    Client -->|HTTP/POST| Ollama
+    Client -->|HTTP /api/chat or /v1/chat/completions| Ollama
     Ollama -->|stream| Client
+
+    Discovery -->|probe /api/tags, /v1/models| Ollama
 
     Skills --> SRead
     Skills --> SEdit
@@ -875,6 +936,7 @@ graph TB
     class U user
     class Agent,Cfg app
     class Client llm
+    class Discovery app
     class Skills,SRead,SEdit,SSave,SCmd,SSearch,STodo,SFinish,TodoMgr skill
     class IO util
     class CF util
@@ -1215,20 +1277,23 @@ The following risks are **known and accepted** in v0.3.0:
 
 ## 6. Design Highlights
 
-| Topic                             | Description                                                                                                                    | Files Involved                                       |
-|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
-| **Function Calling Protocol**     | OpenAI-compatible `tool_calls` array + `tool_call_id` correlation                                                              | `agent.py:172-254`                                   |
-| **Skill Auto-Discovery**          | Scan `skills/*.py` at startup, reflect extract `Skill` subclasses                                                              | `skills/__init__.py:20-31`                           |
-| **NDJSON Event Stream**           | One event object per line, enabling pipeline processing                                                                        | `agent.py:18-25`                                     |
-| **Streaming Response**            | Incrementally accumulate content / thinking / tool_calls                                                                       | `client.py:106-128`                                  |
-| **Token Statistics Accumulation** | Accumulate prompt/completion tokens across multiple LLM calls                                                                  | `client.py:43-54`                                    |
-| **Context Persistence**           | Save simplified history, discard fully-read file contents                                                                      | `utils/io_utils.py:73-129`                           |
-| **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/complete_plan.py`          |
-| **Error Code System**             | `INVALID_PARAMETER` / `FILE_NOT_FOUND` / `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` / `EMPTY_RESULT` / `TIMEOUT` / `IO_ERROR` etc.  | Various skill files                                  |
-| **Cross-Platform Support**        | `run_cmd` encoding adaptation (utf-8/gbk), `backup.sh` / `backup.ps1` dual scripts                                             | `skills/run_cmd.py:51`, `scripts/`                   |
-| **CLI Configuration**             | `argparse` + `AgentConfig` dataclass                                                                                           | `agent.py:281-307`                                   |
-| **Command Safety Filter**         | shlex-based binary classification (SAFE / BLOCKED) — no regex, no confirmation tier                                            | `utils/command_filter.py`, `skills/run_cmd.py:52-61` |
-| **Detached Process Execution**    | GUI / dev-server auto-detection; Popen + `start_new_session`; logs to `output/run_cmd/{pid}.log`; process-tree kill on timeout | `skills/run_cmd.py`                                  |
+| Topic                             | Description                                                                                                                    | Files Involved                                               |
+|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| **Model Auto-Discovery**          | Probe known local servers at startup; resolve model → provider + base_url automatically                                        | `discovery.py`                                               |
+| **Multi-Provider Support**        | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) with unified streaming interface                                         | `client.py:OllamaClient`, `client.py:OpenAICompatibleClient` |
+| **Function Calling Protocol**     | OpenAI-compatible `tool_calls` array + `tool_call_id` correlation                                                              | `agent.py:172-254`                                           |
+| **Skill Auto-Discovery**          | Scan `skills/*.py` at startup, reflect extract `Skill` subclasses                                                              | `skills/__init__.py:20-31`                                   |
+| **NDJSON Event Stream**           | One event object per line, enabling pipeline processing                                                                        | `agent.py:18-25`                                             |
+| **Streaming Response**            | Incrementally accumulate content / thinking / tool_calls across NDJSON (Ollama) and SSE (OpenAI) streams                       | `client.py:106-128`                                  |
+| **Retry with Backoff**            | Transient errors (Timeout, ConnectionError, 5xx) retry up to 2 times with exponential backoff                                | `client.py`, `discovery.py`                          |
+| **Token Statistics Accumulation** | Accumulate prompt/completion tokens across multiple LLM calls                                                                  | `client.py:43-54`                                            |
+| **Context Persistence**           | Save simplified history, discard fully-read file contents                                                                      | `utils/io_utils.py:73-129`                                   |
+| **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/complete_plan.py`                  |
+| **Error Code System**             | `INVALID_PARAMETER` / `FILE_NOT_FOUND` / `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` / `EMPTY_RESULT` / `TIMEOUT` / `IO_ERROR` etc.  | Various skill files                                          |
+| **Cross-Platform Support**        | `run_cmd` encoding adaptation (utf-8/gbk), `backup.sh` / `backup.ps1` dual scripts                                             | `skills/run_cmd.py:51`, `scripts/`                           |
+| **CLI Configuration**             | `argparse` + `AgentConfig` dataclass with auto-discovered defaults                                                             | `agent.py:281-307`                                           |
+| **Command Safety Filter**         | shlex-based binary classification (SAFE / BLOCKED) — no regex, no confirmation tier                                            | `utils/command_filter.py`, `skills/run_cmd.py:52-61`         |
+| **Detached Process Execution**    | GUI / dev-server auto-detection; Popen + `start_new_session`; logs to `output/run_cmd/{pid}.log`; process-tree kill on timeout | `skills/run_cmd.py`                                          |
 
 ---
 
@@ -1304,9 +1369,6 @@ The following enhancements are planned or under consideration:
   emitted on the NDJSON stream.
 - **Signed context files** — HMAC the `output/context.json` so that
   tampered histories are detected on load.
-- **Multimodel routing** — route different skills to different
-  models (e.g. a small model for `search`, a large model for
-  `edit_file`).
 - **Audit log** — append-only signed NDJSON log of all events for
   after-the-fact review.
 
@@ -1314,31 +1376,37 @@ The following enhancements are planned or under consideration:
 
 ## 9. Glossary
 
-| Term                                   | Definition                                                                                      |
-|----------------------------------------|-------------------------------------------------------------------------------------------------|
-| **Skill**                              | A Python class subclassing `Skill` that exposes a tool to the LLM via JSON schema               |
-| **Tool call**                          | The LLM's structured request to invoke a skill with a specific name and arguments               |
-| **`tool_call_id`**                     | A monotonic identifier linking a tool call to its result in the conversation history            |
-| **Turn**                               | One round-trip with the LLM: prompt → response → tool execution                                 |
-| **Event**                              | A JSON object emitted to stdout in NDJSON format, with envelope `{type, timestamp, data}`       |
-| **Verdict**                            | The output of `CommandFilter.classify()`: a `Risk` value plus `reason` and `rule` strings       |
-| **SAFE / BLOCKED**                     | The two `Risk` values; SAFE commands execute, BLOCKED commands return a `COMMAND_BLOCKED` error |
-| **NDJSON**                             | Newline-Delimited JSON — one JSON object per line, suitable for streaming consumption           |
-| **`Skills` registry**                  | A dict mapping skill name to instance, built at startup via auto-discovery                      |
-| **`AgentConfig`**                      | A dataclass bundling all CLI options into a single object passed to `Agent.__init__`            |
-| **Ollama**                             | The local LLM server process that Gradum communicates with over HTTP                            |
-| **OllamaCloud / `minimax-m2.5:cloud`** | Default model identifier; can be overridden via `--model`                                       |
+| Term                         | Definition                                                                                       |
+|------------------------------|--------------------------------------------------------------------------------------------------|
+| **Skill**                    | A Python class subclassing `Skill` that exposes a tool to the LLM via JSON schema                |
+| **Tool call**                | The LLM's structured request to invoke a skill with a specific name and arguments                |
+| **`tool_call_id`**           | A monotonic identifier linking a tool call to its result in the conversation history             |
+| **Turn**                     | One round-trip with the LLM: prompt → response → tool execution                                  |
+| **Event**                    | A JSON object emitted to stdout in NDJSON format, with envelope `{type, timestamp, data}`        |
+| **Verdict**                  | The output of `CommandFilter.classify()`: a `Risk` value plus `reason` and `rule` strings        |
+| **SAFE / BLOCKED**           | The two `Risk` values; SAFE commands execute, BLOCKED commands return a `COMMAND_BLOCKED` error  |
+| **NDJSON**                   | Newline-Delimited JSON — one JSON object per line, suitable for streaming consumption            |
+| **`Skills` registry**        | A dict mapping skill name to instance, built at startup via auto-discovery                       |
+| **`AgentConfig`**            | A dataclass bundling CLI options (model, provider, base_url, timeout, etc.) into a single object |
+| **`ModelEntry`**             | A named tuple `(name, server, provider)` representing one discovered model from a local server   |
+| **Model Auto-Discovery**     | Probing known local servers at startup to collect all available models without manual config     |
+| **`OllamaClient`**           | LLM client for Ollama's native `/api/chat` endpoint with NDJSON streaming                        |
+| **`OpenAICompatibleClient`** | LLM client for `/v1/chat/completions` (LM Studio, vLLM, LocalAI) with SSE streaming              |
+| **Ollama**                   | One of the supported local LLM server backends, listening on port 11434                          |
+| **LM Studio**                | An OpenAI-compatible local LLM server, listening on port 1234                                    |
+| **Default model**            | The first model discovered (or `--model` override); provider and base_url are resolved from it   |
 
 ---
 
 ## 10. Change Log
 
-| Version | Date       | Changes                                                                                                                                                                                    |
-|---------|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0.4.0   | 2026-06-07 | Added detached process execution to `run_cmd` (auto-detect GUI/dev-server patterns, Popen with `start_new_session`, log to `output/run_cmd/{pid}.log`); fixed process-tree kill on timeout |
-| 0.3.0   | 2026-06-07 | Added Command Safety Filter (`utils/command_filter.py`); raised `num_predict` default from 2048 to 16384; restructured documentation as a technical white paper                            |
-| 0.2.x   | (prior)    | Introduced `edit_file` sequential/atomic dual mode, `full_read_files` context optimisation, NDJSON event envelope                                                                          |
-| 0.1.x   | (prior)    | Initial prototype: agent loop, seven skills, Ollama streaming, context persistence                                                                                                         |
+| Version | Date       | Changes                                                                                                                                                                                                                                                                                                                                                                                                               |
+|---------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.5.0   | 2026-06-14 | Added multi-provider support (Ollama + OpenAI-compatible: LM Studio, vLLM, LocalAI); added model auto-discovery (`discovery.py`); merged `OllamaClient` + `OpenAICompatibleClient` into `client.py`; added `models_discovered` NDJSON event; `--model` is now optional with auto-resolution of provider/base_url; fixed OpenAI streaming tool_calls accumulation bug; cleaned up unused files (`temp/`, `test.jsonl`) |
+| 0.4.0   | 2026-06-07 | Added detached process execution to `run_cmd` (auto-detect GUI/dev-server patterns, Popen with `start_new_session`, log to `output/run_cmd/{pid}.log`); fixed process-tree kill on timeout                                                                                                                                                                                                                            |
+| 0.3.0   | 2026-06-07 | Added Command Safety Filter (`utils/command_filter.py`); raised `num_predict` default from 2048 to 16384; restructured documentation as a technical white paper                                                                                                                                                                                                                                                       |
+| 0.2.x   | (prior)    | Introduced `edit_file` sequential/atomic dual mode, `full_read_files` context optimisation, NDJSON event envelope                                                                                                                                                                                                                                                                                                     |
+| 0.1.x   | (prior)    | Initial prototype: agent loop, seven skills, Ollama streaming, context persistence                                                                                                                                                                                                                                                                                                                                    |
 
 ---
 

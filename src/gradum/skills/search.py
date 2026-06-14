@@ -6,7 +6,21 @@ import time
 from pathlib import Path
 from typing import Any
 
+from gradum.paths import PROJECT_ROOT
 from .base import Skill
+
+
+_BINARY_CHECK_SIZE = 8192
+
+
+def _is_likely_binary(filepath: str) -> bool:
+    """Check if a file is likely binary by looking for null bytes."""
+    try:
+        with open(filepath, "rb") as f:
+            chunk = f.read(_BINARY_CHECK_SIZE)
+        return b"\x00" in chunk
+    except (IOError, OSError):
+        return True
 
 
 def _get_dir_depth(path: str, root: Path) -> int:
@@ -185,7 +199,18 @@ class SearchSkill(Skill):
                 "success": False,
                 "error": {
                     "code": "INVALID_PARAMETER",
-                    "message": f"Root directory not found: {root}"
+                    "message": f"Root directory not found: {root} (resolved to {root_path})"
+                }
+            }
+
+        try:
+            root_path.relative_to(PROJECT_ROOT)
+        except ValueError:
+            return {
+                "success": False,
+                "error": {
+                    "code": "PATH_OUTSIDE_PROJECT",
+                    "message": f"Root directory is outside the project: {root} (resolved to {root_path})"
                 }
             }
 
@@ -270,6 +295,14 @@ class SearchSkill(Skill):
                     continue
                 if not matches_file_pattern(entry):
                     continue
+                if _is_likely_binary(filepath):
+                    continue
+
+                real_path = os.path.realpath(filepath)
+                try:
+                    Path(real_path).relative_to(PROJECT_ROOT)
+                except ValueError:
+                    continue
 
                 if has_filename and filename.lower() in entry.lower():
                     emit({"type": "file", "path": filepath}, f"file:{filepath}")
@@ -293,6 +326,12 @@ class SearchSkill(Skill):
                 if entry in self.EXCLUDE_DIRS:
                     continue
                 if entry.startswith('.') and entry not in self.DOTDIR_WHITELIST:
+                    continue
+
+                real_subpath = os.path.realpath(subpath)
+                try:
+                    Path(real_subpath).relative_to(PROJECT_ROOT)
+                except ValueError:
                     continue
 
                 if has_dirname and dirname.lower() in entry.lower():
