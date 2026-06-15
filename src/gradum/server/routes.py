@@ -7,8 +7,10 @@ Use CLI mode (python -m gradum) for full functionality.
 
 import json
 import time
+import warnings
 from collections.abc import AsyncGenerator
-from typing import Any, Optional
+from functools import wraps
+from typing import Any, Callable, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,6 +20,24 @@ from gradum.client import AgentConfig
 from gradum.discovery import discover_models
 from gradum.server.session import SessionManager, SessionStatus
 from gradum.skills import Skills
+
+
+def experimental(func: Callable) -> Callable:
+    """Decorator to mark a function as experimental.
+
+    Prints a warning when the function is called, indicating it is
+    experimental and may not be fully implemented.
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        warnings.warn(
+            f"{func.__name__} is EXPERIMENTAL and not fully implemented. "
+            "Use CLI mode (python -m gradum) for full functionality.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return await func(*args, **kwargs)
+    return wrapper
 
 
 # Request models
@@ -51,6 +71,7 @@ def register_routes(app: FastAPI, server_config: Any) -> None:
     """Register all routes on the FastAPI app."""
 
     @app.post("/action")
+    @experimental
     async def action(request: ActionRequest):
         """
         Handle action requests.
