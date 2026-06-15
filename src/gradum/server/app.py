@@ -1,4 +1,8 @@
-"""FastAPI application for Gradum Server."""
+"""FastAPI application for Gradum Server.
+
+NOTE: HTTP server is EXPERIMENTAL. Agent execution via HTTP API
+is not fully implemented. Use CLI mode for full functionality.
+"""
 
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -19,8 +23,12 @@ def create_app(config: Optional[ServerConfig] = None) -> FastAPI:
     SessionManager.configure(max_sessions=config.max_sessions, session_timeout=config.session_timeout)
 
     @asynccontextmanager
-    async def lifespan():
-        """Application lifespan."""
+    async def lifespan(app: FastAPI):
+        """Application lifespan.
+
+        Args:
+            app: FastAPI application instance
+        """
         # Startup
         print(f"Gradum Server starting on {config.host}:{config.port}")
         yield

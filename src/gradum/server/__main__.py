@@ -1,4 +1,8 @@
-"""CLI entry point for Gradum Server."""
+"""CLI entry point for Gradum Server.
+
+NOTE: HTTP server is EXPERIMENTAL. Agent execution via HTTP API
+is not fully implemented. Use CLI mode for full functionality.
+"""
 
 import argparse
 import socket

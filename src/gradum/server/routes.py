@@ -1,4 +1,9 @@
-"""HTTP routes for Gradum Server."""
+"""HTTP routes for Gradum Server.
+
+NOTE: The HTTP server and /action endpoint are EXPERIMENTAL.
+Agent execution via HTTP API is not yet fully implemented.
+Use CLI mode (python -m gradum) for full functionality.
+"""
 
 import json
 import time
@@ -49,6 +54,9 @@ def register_routes(app: FastAPI, server_config: Any) -> None:
     async def action(request: ActionRequest):
         """
         Handle action requests.
+
+        EXPERIMENTAL: Agent execution is not fully implemented.
+        Currently returns placeholder responses.
 
         - message: Start a new conversation
         - session_id + input: Inject user input
