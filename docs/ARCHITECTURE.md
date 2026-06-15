@@ -6,12 +6,12 @@
 
 | Field                | Value                                                 |
 |----------------------|-------------------------------------------------------|
-| **Version**          | 0.5.0                                                 |
+| **Version**          | 0.6.0                                                 |
 | **Status**           | Active development                                    |
 | **Language Runtime** | Python 3                                              |
 | **LLM Backend**      | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) |
 | **Diagram Format**   | Mermaid                                               |
-| **Last Revised**     | 2026-06-07                                            |
+| **Last Revised**     | 2026-06-15                                            |
 
 ---
 
@@ -57,8 +57,9 @@ that follow from its deployment assumptions.
    - [3.7 NDJSON Event Stream](#37-ndjson-event-stream)
    - [3.8 Context Persistence](#38-context-persistence)
    - [3.9 CLI Entry Point](#39-cli-entry-point)
-   - [3.10 OllamaClient Streaming](#310-ollamaclient-streaming)
-   - [3.11 End-to-End View](#311-end-to-end-view)
+   - [3.10 LLM Client Streaming](#310-llm-client-streaming)
+   - [3.11 HTTP Server Layer](#311-http-server-layer)
+   - [3.12 End-to-End View](#312-end-to-end-view)
 4. [Key Subsystems](#4-key-subsystems)
    - [4.1 edit_file State Machine](#41-edit_file-state-machine)
    - [4.2 Command Safety Filter](#42-command-safety-filter)
@@ -175,11 +176,12 @@ The following principles govern the design of every subsystem:
 
 ### 3.1 Architecture Overview
 
-Gradum is organized as five cooperating layers:
+Gradum is organized as six cooperating layers:
 
 | Layer                 | Responsibility                                              | Implementation                                               |
 |-----------------------|-------------------------------------------------------------|--------------------------------------------------------------|
-| **User Layer**        | CLI invocation, stdout consumption                          | `argparse`, downstream NDJSON consumers                      |
+| **User Layer**        | CLI invocation, HTTP clients, stdout consumption            | `argparse`, HTTP/WebSocket clients, NDJSON consumers         |
+| **Server Layer**      | HTTP API, session management, streaming responses           | `server/app.py`, `server/routes.py`, `server/session.py`     |
 | **Application Layer** | Agent loop, message bookkeeping                             | `agent.py:Agent`                                             |
 | **LLM I/O Layer**     | HTTP transport, streaming, token accounting, multi-provider | `client.py:OllamaClient`, `client.py:OpenAICompatibleClient` |
 | **Skills Layer**      | Per-tool execution, auto-discovery                          | `skills/*.py`                                                |
@@ -197,6 +199,7 @@ graph LR
     Root --> Agent["agent.py<br/>Main Entry Agent Class"]
     Root --> Client["client.py<br/>Ollama + OpenAI Clients"]
     Root --> Discovery["discovery.py<br/>Model Auto-Discovery"]
+    Root --> ServerDir["server/"]
 
     Root --> SkillsDir["skills/"]
     Root --> Utils["utils/"]
@@ -205,6 +208,13 @@ graph LR
     Root --> Scripts["scripts/"]
     Root --> Tmp["tmp/"]
     Root --> Archived["_archived/<br/>(Historical Archive)"]
+
+    ServerDir --> SV_Init["__init__.py<br/>Server Module"]
+    ServerDir --> SV_App["app.py<br/>FastAPI Application"]
+    ServerDir --> SV_Routes["routes.py<br/>HTTP Routes"]
+    ServerDir --> SV_Session["session.py<br/>Session Manager"]
+    ServerDir --> SV_Config["config.py<br/>Server Config"]
+    ServerDir --> SV_Main["__main__.py<br/>CLI Entry Point"]
 
     SkillsDir --> SK_Init["__init__.py<br/>Skills Registry"]
     SkillsDir --> SK_Base["base.py<br/>Skill Base Class"]
@@ -233,16 +243,20 @@ graph LR
     classDef active fill:#e1f5e1,stroke:#2e7d32,color:#000
     classDef archive fill:#f5f5f5,stroke:#9e9e9e,color:#616161,stroke-dasharray: 5
     classDef data fill:#fff3e0,stroke:#ef6c00,color:#000
+    classDef server fill:#e3f2fd,stroke:#1565c0,color:#000
 
     class Agent,Client,Discovery,SK_Init,SK_Base,SK_Read,SK_Edit,SK_Save,SK_Cmd,SK_Search,SK_Todo,SK_Finish,IO,CF,SysPrompt,Bsh,Bps1 active
+    class SV_Init,SV_App,SV_Routes,SV_Session,SV_Config,SV_Main server
     class Ctx,Log data
     class Launcher,NoUse archive
 ```
 
 The layout separates **agent code** (`agent.py`, `client.py`) from
-**tools** (`skills/`) from **utilities** (`utils/`). This split lets
-contributors add a new skill without touching the agent loop, and lets
-operators audit tool behavior by reading a single directory.
+**server code** (`server/`) from **tools** (`skills/`) from
+**utilities** (`utils/`). This split lets contributors add a new skill
+without touching the agent loop, add HTTP endpoints without touching
+the agent core, and lets operators audit tool behavior by reading a
+single directory.
 
 ### 3.3 Module Dependencies
 
@@ -256,6 +270,11 @@ graph TD
     SKBase["skills/base.py<br/>Skill Base Class"]:::core
     TodoMgr["skills/todo.py<br/>TodoManager (Singleton)"]:::core
     IO["utils/io_utils.py<br/>ContextManager"]:::core
+
+    ServerApp["server/app.py<br/>FastAPI Application"]:::server
+    ServerRoutes["server/routes.py<br/>HTTP Routes"]:::server
+    ServerSession["server/session.py<br/>Session Manager"]:::server
+    ServerConfig["server/config.py<br/>Server Config"]:::server
 
     ReadS["skills/read_file.py<br/>ReadFileSkill"]:::skill
     EditS["skills/edit_file.py<br/>EditFileSkill"]:::skill
@@ -272,6 +291,7 @@ graph TD
     LogFile[("output/log.txt")]:::data
     Ollama["Ollama Server<br/>http://localhost:11434"]:::ext
     FS["Local File System"]:::ext
+    HTTPClient["HTTP Client<br/>curl / browser / IDE"]:::ext
 
     Agent --> Client
     Agent --> Discovery
@@ -279,6 +299,15 @@ graph TD
     Agent --> IO
     Agent --> TodoMgr
     Agent --> SysPrompt
+
+    ServerApp --> ServerConfig
+    ServerApp --> ServerRoutes
+    ServerApp --> ServerSession
+    ServerRoutes --> ServerSession
+    ServerRoutes --> Agent
+    ServerRoutes --> Discovery
+    ServerRoutes --> Skills
+    ServerSession --> Client
 
     Client -->|"HTTP /api/chat or /v1/chat/completions"| Ollama
 
@@ -309,19 +338,24 @@ graph TD
 
     IO --> CtxFile
     Agent -.->|"NDJSON stdout"| LogFile
+    ServerRoutes -.->|"NDJSON HTTP stream"| HTTPClient
 
     classDef core fill:#bbdefb,stroke:#1565c0,color:#000
+    classDef server fill:#e3f2fd,stroke:#1565c0,color:#000
     classDef skill fill:#c8e6c9,stroke:#2e7d32,color:#000
     classDef data fill:#fff3e0,stroke:#ef6c00,color:#000
     classDef ext fill:#f3e5f5,stroke:#6a1b9a,color:#000
     classDef util fill:#fff8e1,stroke:#ff8f00,color:#000
 ```
 
-Two dependency invariants worth noting:
+Three dependency invariants worth noting:
 
 - **The agent loop never imports a skill directly.** All skill access
   goes through the `Skills` registry, which is built once at startup
   via auto-discovery.
+- **The server layer sits above the agent, not inside it.** HTTP
+  routes call the agent, but the agent remains unaware of HTTP. This
+  keeps the agent core reusable for both CLI and HTTP contexts.
 - **The Command Safety Filter is the only safety-critical edge in the
   graph.** It sits between `RunCmdSkill` and `subprocess.run`. No
   other path reaches the shell.
@@ -841,7 +875,141 @@ tasks where the model produces long, structured tool-call sequences; a
 truncated `tool_calls` array is interpreted as a normal response and
 silently short-circuits the agent loop.
 
-### 3.11 End-to-End View
+### 3.11 HTTP Server Layer
+
+Gradum 0.6.0 introduces an HTTP server layer that exposes the agent's
+capabilities via a RESTful API. This enables integration with IDEs,
+web UIs, and other tools that prefer HTTP to CLI invocation.
+
+#### Architecture
+
+```mermaid
+graph TB
+    subgraph UserLayer["User Layer"]
+        CLI[CLI Client]
+        HTTPClient[HTTP Client<br/>curl / browser / IDE]
+        WSClient[WebSocket Client<br/>future]
+    end
+
+    subgraph ServerLayer["Server Layer"]
+        ServerApp["server/app.py<br/>FastAPI Application"]
+        ServerRoutes["server/routes.py<br/>HTTP Routes"]
+        ServerSession["server/session.py<br/>Session Manager"]
+        ServerConfig["server/config.py<br/>Server Config"]
+    end
+
+    subgraph AppLayer["Application Layer"]
+        Agent["agent.py<br/>Agent"]
+    end
+
+    CLI -->|"python -m gradum"| Agent
+    HTTPClient -->|"POST /action"| ServerRoutes
+    WSClient -.->|"future"| ServerRoutes
+
+    ServerApp --> ServerConfig
+    ServerApp --> ServerRoutes
+    ServerApp --> ServerSession
+    ServerRoutes --> ServerSession
+    ServerRoutes --> Agent
+
+    classDef server fill:#e3f2fd,stroke:#1565c0,color:#000
+    class ServerApp,ServerRoutes,ServerSession,ServerConfig server
+```
+
+#### API Endpoints
+
+| Path                    | Method    | Description                                         |
+|-------------------------|-----------|-----------------------------------------------------|
+| `/action`               | POST      | Start conversation, inject input, or cancel session |
+| `/sessions`             | GET       | List all sessions                                   |
+| `/sessions/{id}`        | GET       | Get session details                                 |
+| `/sessions/{id}/events` | GET       | Get session events (NDJSON stream)                  |
+| `/health`               | GET       | Health check                                        |
+| `/models`               | GET       | List available models                               |
+| `/skills`               | GET       | List available skills                               |
+| `/ws`                   | WebSocket | Real-time bidirectional communication (future)      |
+
+#### Request/Response Format
+
+**POST /action** (start new conversation):
+
+```json
+{
+  "message": "帮我重构 utils.py",
+  "model": "minimax-m2.5:cloud",
+  "config": {
+    "think": true,
+    "temperature": 0.7
+  }
+}
+```
+
+Response (NDJSON stream):
+
+```json lines
+{"type": "session_start", "session_id": "sess_abc123", "model": "..."}
+{"type": "thinking", "content": "..."}
+{"type": "tool_call", "tool": "read_file", "arguments": {}}
+{"type": "tool_result", "success": true, "content": "..."}
+{"type": "user_input_request", "request_id": "req_1", "question": "..."}
+{"type": "waiting_input", "request_id": "req_1"}
+```
+
+When the agent requests user input, the stream pauses. The client can
+inject input via another POST to `/action`:
+
+```json
+{
+  "session_id": "sess_abc123",
+  "input": {
+    "request_id": "req_1",
+    "answer": "yes"
+  }
+}
+```
+
+The server then resumes the agent and continues the stream.
+
+#### Session Management
+
+Sessions are managed by `SessionManager` (singleton class):
+
+- **Session states**: `PROCESSING`, `WAITING_INPUT`, `COMPLETED`,
+  `CANCELLED`, `ERROR`
+- **Session timeout**: 3600 seconds (configurable)
+- **Max sessions**: 10 (configurable)
+- **Auto cleanup**: Expired and completed sessions are removed
+
+#### CLI Entry Point
+
+The server can be started via:
+
+```bash
+# Default port 8765
+python -m gradum.server
+
+# Custom port
+python -m gradum.server --port 9000
+
+# Auto-find available port
+python -m gradum.server --auto-port
+
+# With agent config
+python -m gradum.server --model minimax-m2.5:cloud --think
+```
+
+#### Design Rationale
+
+1. **Server sits above agent, not inside it.** The agent core remains
+   unaware of HTTP, keeping it reusable for both CLI and HTTP contexts.
+2. **NDJSON streaming for all responses.** Consistent with CLI output,
+   enabling the same downstream consumers (UI, log replay).
+3. **Session-based state management.** Enables pause/resume for
+   user input requests, supporting interactive workflows.
+4. **Single `/action` endpoint.** Simplifies client implementation;
+   all operations (start, input, cancel) use the same path.
+
+### 3.12 End-to-End View
 
 ```mermaid
 graph TB
@@ -1258,7 +1426,7 @@ intentional gaps, not bugs.
 The following risks are **known and accepted** in v0.3.0:
 
 1. **System prompt integrity.** A corrupted or replaced
-   `prompts/system_prompt.md` will not be detected. A SHA-256
+   `prompts/system_prompt.md` will not be detected. AN SHA-256
    integrity check on load is a planned enhancement (§8).
 2. **Tool output sanitisation.** Results from `read_file` are appended
    to the LLM context verbatim. A malicious file that contains
@@ -1284,8 +1452,8 @@ The following risks are **known and accepted** in v0.3.0:
 | **Function Calling Protocol**     | OpenAI-compatible `tool_calls` array + `tool_call_id` correlation                                                              | `agent.py:172-254`                                           |
 | **Skill Auto-Discovery**          | Scan `skills/*.py` at startup, reflect extract `Skill` subclasses                                                              | `skills/__init__.py:20-31`                                   |
 | **NDJSON Event Stream**           | One event object per line, enabling pipeline processing                                                                        | `agent.py:18-25`                                             |
-| **Streaming Response**            | Incrementally accumulate content / thinking / tool_calls across NDJSON (Ollama) and SSE (OpenAI) streams                       | `client.py:106-128`                                  |
-| **Retry with Backoff**            | Transient errors (Timeout, ConnectionError, 5xx) retry up to 2 times with exponential backoff                                | `client.py`, `discovery.py`                          |
+| **Streaming Response**            | Incrementally accumulate content / thinking / tool_calls across NDJSON (Ollama) and SSE (OpenAI) streams                       | `client.py:106-128`                                          |
+| **Retry with Backoff**            | Transient errors (Timeout, ConnectionError, 5xx) retry up to 2 times with exponential backoff                                  | `client.py`, `discovery.py`                                  |
 | **Token Statistics Accumulation** | Accumulate prompt/completion tokens across multiple LLM calls                                                                  | `client.py:43-54`                                            |
 | **Context Persistence**           | Save simplified history, discard fully-read file contents                                                                      | `utils/io_utils.py:73-129`                                   |
 | **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/complete_plan.py`                  |
