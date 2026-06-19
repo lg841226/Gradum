@@ -1,9 +1,12 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """Skill for saving content to a file."""
 
 from pathlib import Path
 from typing import Any
 
-from .base import Skill
+from .base import Skill, make_error, make_success
 
 
 class SaveFileSkill(Skill):
@@ -38,22 +41,18 @@ class SaveFileSkill(Skill):
     def execute(self, path: str = "", content: str = "") -> dict:
         """Execute file save and return structured result."""
         if not path:
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": "Missing 'path' parameter"
-                }
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                "Missing 'path' parameter",
+            )
         if not content:
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": "Missing 'content' parameter"
-                },
-                "path": path
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                "Missing 'content' parameter",
+                path=path,
+            )
 
         try:
             file_path = Path(path).expanduser()  # Expand ~ to home directory
@@ -63,20 +62,17 @@ class SaveFileSkill(Skill):
             with open(file_path, 'w', encoding='utf-8') as f:
                 bytes_written = f.write(content)
 
-            return {
-                "success": True,
-                "tool": "save_file",
-                "path": str(file_path),  # Return expanded path
-                "bytes_written": bytes_written,
-                "created": not existed
-            }
+            return make_success(
+                self.name,
+                path=str(file_path),  # Return expanded path
+                bytes_written=bytes_written,
+                created=not existed,
+            )
         except (IOError, OSError) as e:
-            return {
-                "success": False,
-                "error": {
-                    "code": "IO_ERROR",
-                    "message": str(e)
-                },
-                "path": path
-            }
+            return make_error(
+                self.name,
+                "IO_ERROR",
+                str(e),
+                path=path,
+            )
 

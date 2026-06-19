@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """Skill for searching text in files, plus filename and dirname discovery."""
 
 import fnmatch
@@ -7,10 +10,13 @@ from pathlib import Path
 from typing import Any
 
 from gradum.paths import PROJECT_ROOT
-from .base import Skill
 
+from .base import Skill, make_error, make_success
 
 _BINARY_CHECK_SIZE = 8192
+
+# Maximum file size to search (512 KB)
+MAX_FILE_SIZE = 512 * 1024
 
 
 def _is_likely_binary(filepath: str) -> bool:
@@ -70,6 +76,7 @@ def _sort_key(match: dict, root_path: Path) -> tuple:
 
 class SearchSkill(Skill):
     """Skill for searching text in files, plus filename and dirname discovery."""
+
     name = "search"
     alias = "Explored"
     description = "Find text in file content, file names, or directory names (recursive)."
@@ -82,13 +89,29 @@ class SearchSkill(Skill):
     CONTEXT_LINES = 2
 
     EXCLUDE_DIRS = {
-        '__pycache__', 'node_modules', 'venv', '.venv', 'ENV',
-        'build', 'dist', 'output', 'target',
-        'vendor', 'Pods', '.gradle', 'bin', 'obj',
-        '.mypy_cache', '.pytest_cache', '.tox', '.nox',
-        'coverage', '.coverage', '__snapshots__',
+        "__pycache__",
+        "node_modules",
+        "venv",
+        ".venv",
+        "ENV",
+        "build",
+        "dist",
+        "output",
+        "target",
+        "vendor",
+        "Pods",
+        ".gradle",
+        "bin",
+        "obj",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".tox",
+        ".nox",
+        "coverage",
+        ".coverage",
+        "__snapshots__",
     }
-    DOTDIR_WHITELIST = {'.vscode', '.idea', '.github', '.gitlab'}
+    DOTDIR_WHITELIST = {".vscode", ".idea", ".github", ".gitlab"}
 
     def get_schema(self) -> dict[str, Any]:
         return {
@@ -116,8 +139,8 @@ class SearchSkill(Skill):
                                     "type": "array",
                                     "items": {"type": "string", "minLength": 1},
                                     "minItems": 1,
-                                    "maxItems": 5
-                                }
+                                    "maxItems": 5,
+                                },
                             ],
                             "description": (
                                 "Text to search for inside file content (case-insensitive substring match). "
@@ -126,7 +149,7 @@ class SearchSkill(Skill):
                                 "(e.g. ['error', 'exception']). "
                                 "If more than 5 are passed, only the first 5 are used and the response "
                                 "sets truncated=true with a hint."
-                            )
+                            ),
                         },
                         "filename": {
                             "type": "string",
@@ -135,7 +158,7 @@ class SearchSkill(Skill):
                                 "(case-insensitive, partial match). "
                                 "Examples: filename='test' matches 'test.py', 'test_utils.py', 'latest_test.txt'. "
                                 "For exact extension or glob filtering, use file_pattern instead."
-                            )
+                            ),
                         },
                         "dirname": {
                             "type": "string",
@@ -143,7 +166,7 @@ class SearchSkill(Skill):
                                 "Find directories whose name contains this substring "
                                 "(case-insensitive, partial match, recursive). "
                                 "Example: dirname='src' matches 'src/' and 'src/utils/'."
-                            )
+                            ),
                         },
                         "file_pattern": {
                             "type": "string",
@@ -154,7 +177,7 @@ class SearchSkill(Skill):
                                 "'package.json' for exact name. "
                                 "Applies to both keyword and filename search. "
                                 "Recommended on large codebases to keep results focused."
-                            )
+                            ),
                         },
                         "root": {
                             "type": "string",
@@ -162,11 +185,11 @@ class SearchSkill(Skill):
                                 "Directory to start searching from (relative to project root). "
                                 "Default is the project root. "
                                 "Example: root='src/gradum' to only search within that subtree."
-                            )
-                        }
-                    }
-                }
-            }
+                            ),
+                        },
+                    },
+                },
+            },
         }
 
     def execute(self, **kwargs: Any) -> dict:
@@ -185,34 +208,28 @@ class SearchSkill(Skill):
         has_dirname = bool(dirname and dirname.strip())
 
         if not has_keyword and not has_filename and not has_dirname:
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": "Provide at least one of: keyword, filename, dirname."
-                }
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                "Provide at least one of: keyword, filename, dirname.",
+            )
 
         root_path = Path(root).resolve()
         if not root_path.is_dir():
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": f"Root directory not found: {root} (resolved to {root_path})"
-                }
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                f"Root directory not found: {root} (resolved to {root_path})",
+            )
 
         try:
             root_path.relative_to(PROJECT_ROOT)
         except ValueError:
-            return {
-                "success": False,
-                "error": {
-                    "code": "PATH_OUTSIDE_PROJECT",
-                    "message": f"Root directory is outside the project: {root} (resolved to {root_path})"
-                }
-            }
+            return make_error(
+                self.name,
+                "PATH_OUTSIDE_PROJECT",
+                f"Root directory is outside the project: {root} (resolved to {root_path})",
+            )
 
         start_time = time.time()
         results: list[dict] = []
@@ -234,7 +251,7 @@ class SearchSkill(Skill):
         def _read_lines_around(filepath: str, target_line: int) -> str:
             """Read lines around target_line and return a text block."""
             try:
-                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                     lines = f.readlines()
             except (IOError, OSError):
                 return ""
@@ -245,8 +262,19 @@ class SearchSkill(Skill):
 
         def search_content(filepath: str) -> None:
             nonlocal files_searched, timed_out
+
+            # Skip files that are too large
             try:
-                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                file_size = os.path.getsize(filepath)
+                if file_size > MAX_FILE_SIZE:
+                    files_searched += 1
+                    return
+            except OSError:
+                files_searched += 1
+                return
+
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                     for line_no, line in enumerate(f, 1):
                         if time.time() - start_time > self.TIMEOUT:
                             timed_out = True
@@ -325,7 +353,7 @@ class SearchSkill(Skill):
                     continue
                 if entry in self.EXCLUDE_DIRS:
                     continue
-                if entry.startswith('.') and entry not in self.DOTDIR_WHITELIST:
+                if entry.startswith(".") and entry not in self.DOTDIR_WHITELIST:
                     continue
 
                 real_subpath = os.path.realpath(subpath)
@@ -371,12 +399,12 @@ class SearchSkill(Skill):
             truncation_reasons.append("result_cap")
 
         truncated = bool(hints)
-        response: dict = {
-            "success": True,
-            "matches": results[:self.HARD_MAX_RESULTS],
-            "truncated": truncated,
-            "files_searched": files_searched,
-        }
+        response = make_success(
+            self.name,
+            matches=results[: self.HARD_MAX_RESULTS],
+            truncated=truncated,
+            files_searched=files_searched,
+        )
         if truncated:
             response["truncation_reason"] = truncation_reasons[0]
             response["hint"] = " ".join(hints)
@@ -391,5 +419,5 @@ class SearchSkill(Skill):
         if isinstance(keyword, list):
             cleaned = [k.strip() for k in keyword if isinstance(k, str) and k.strip()]
             overflow = len(cleaned) > SearchSkill.MAX_KEYWORDS
-            return cleaned[:SearchSkill.MAX_KEYWORDS], overflow
+            return cleaned[: SearchSkill.MAX_KEYWORDS], overflow
         return [], False

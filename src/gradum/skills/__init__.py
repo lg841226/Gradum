@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """Skills module - Auto-discovery and management of all skills."""
 
 import importlib

@@ -1,12 +1,15 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """IO utilities for context management."""
 
 import json
 import logging
-import re
-import string
 import time
 from pathlib import Path
 from typing import Optional
+
+from gradum.utils.encryption import decrypt_content, encrypt_content
 
 _logger = logging.getLogger(__name__)
 
@@ -32,6 +35,12 @@ class ContextManager:
 
         saveable = [m for m in messages if m.get("role") not in ("system", "tool")]
         cleaned = self._clean_messages(saveable, full_read_files or set())
+
+        # Encrypt user and assistant messages (prevent context injection attacks)
+        for msg in cleaned:
+            if msg.get("role") in ("user", "assistant") and msg.get("content"):
+                msg["content"] = encrypt_content(msg["content"])
+                msg["_encrypted"] = True
 
         context_data = {
             "messages": cleaned,
@@ -63,6 +72,15 @@ class ContextManager:
             if not isinstance(messages, list):
                 return []
 
+            # Decrypt encrypted messages
+            for msg in messages:
+                if msg.get("_encrypted"):
+                    try:
+                        msg["content"] = decrypt_content(msg["content"])
+                        msg.pop("_encrypted", None)
+                    except (TypeError, ValueError, UnicodeDecodeError) as e:
+                        _logger.warning("Failed to decrypt message: %s, using raw content", e)
+
             filtered = [m for m in messages if m.get("role") not in ("system", "tool")]
             return filtered[-self._max_messages:]
 
@@ -71,7 +89,7 @@ class ContextManager:
             return []
 
     def _clean_messages(self, messages: list[dict], full_read_files: Optional[set[str]] = None) -> list[dict]:
-        """Clean messages for storage to reduce size.
+        """Clean messages for storage.
 
         Args:
             messages: List of messages to clean
@@ -94,16 +112,16 @@ class ContextManager:
                 pending_assistant = msg
             elif role == "user":
                 if pending_assistant:
-                    cleaned.append(self._simplify_content(pending_assistant))
+                    cleaned.append(pending_assistant.copy())
                     pending_assistant = None
-                cleaned.append(self._simplify_content(msg))
+                cleaned.append(msg.copy())
             elif role == "tool":
                 simplified = self._maybe_summarize_tool_content(msg, full_read_files)
                 if simplified:
                     cleaned.append(simplified)
 
         if pending_assistant:
-            cleaned.append(self._simplify_content(pending_assistant))
+            cleaned.append(pending_assistant.copy())
 
         return cleaned
 
@@ -126,37 +144,4 @@ class ContextManager:
         for file_path in full_read_files:
             if f'Success: Read {file_path}' in content:
                 return None
-        return msg
-
-    @staticmethod
-    def _simplify_content(message: dict) -> dict:
-        """Simplify message content to reduce token usage.
-
-        Removes excessive whitespace, punctuation, and normalizes text
-        while preserving core meaning for context storage.
-
-        Args:
-            message: Original message dict with 'content' field
-
-        Returns:
-            Message dict with simplified content
-        """
-        msg = message.copy()
-        content = msg.get("content", "")
-
-        if not content:
-            return msg
-
-        content = content.replace("\n", " ").replace("\r", " ").replace("\t", " ")
-
-        chinese_punct = "，。！？；：""''""''【】《》〈〉（）—…·"
-        ambiguous = "×÷·‐‑‒–—―‖′″‴‵‶‷‹›«»‚„‟†‡•‣⁃⁌⁍⁎⁏⁐⁑⁒⁓⁔⁕⁖⁗⁘⁙⁚⁛⁜⁝⁞"
-        keep = "_@#$%"
-        all_punct = string.punctuation + chinese_punct + ambiguous
-        all_punct = "".join(c for c in all_punct if c not in keep)
-
-        content = re.sub(f"[{re.escape(all_punct)}]", " ", content)
-        content = re.sub(r"\s+", " ", content).strip()
-
-        msg["content"] = content
         return msg

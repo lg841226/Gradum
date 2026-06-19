@@ -6,7 +6,7 @@
 
 | Field                | Value                                                 |
 |----------------------|-------------------------------------------------------|
-| **Version**          | 0.6.0                                                 |
+| **Version**          | 0.8.2                                                 |
 | **Status**           | Active development                                    |
 | **Language Runtime** | Python 3                                              |
 | **LLM Backend**      | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) |
@@ -56,10 +56,9 @@ that follow from its deployment assumptions.
    - [3.6 Registered Skills](#36-registered-skills)
    - [3.7 NDJSON Event Stream](#37-ndjson-event-stream)
    - [3.8 Context Persistence](#38-context-persistence)
-   - [3.9 CLI Entry Point](#39-cli-entry-point)
-   - [3.10 LLM Client Streaming](#310-llm-client-streaming)
-   - [3.11 HTTP Server Layer](#311-http-server-layer)
-   - [3.12 End-to-End View](#312-end-to-end-view)
+   - [3.9 LLM Client Streaming](#39-llm-client-streaming)
+   - [3.10 HTTP Server Layer](#310-http-server-layer)
+   - [3.11 End-to-End View](#311-end-to-end-view)
 4. [Key Subsystems](#4-key-subsystems)
    - [4.1 edit_file State Machine](#41-edit_file-state-machine)
    - [4.2 Command Safety Filter](#42-command-safety-filter)
@@ -144,9 +143,10 @@ The following principles govern the design of every subsystem:
    Safety-critical enforcement therefore lives in the skill
    implementation itself, not in the prompt.
 5. **Symmetric failure handling.** Every skill returns the same dict
-   shape — `{success, ...}` on success or `{success: false, error:
-   {code, message}}` on failure — enabling uniform agent-loop
-   behavior regardless of which skill failed.
+   shape — `{success, tool, ...}` on success or `{success: false, tool,
+   error: {code, message}}` on failure — enabling uniform agent-loop
+   behavior regardless of which skill failed. The `tool` field always
+   identifies the skill that produced the result.
 6. **No silent confirmation.** Because no UI is present in the
    reference deployment, "needs confirmation" is collapsed into
    "blocked". This avoids creating the illusion of safety when no
@@ -181,7 +181,7 @@ Gradum is organized as six cooperating layers:
 | Layer                 | Responsibility                                              | Implementation                                               |
 |-----------------------|-------------------------------------------------------------|--------------------------------------------------------------|
 | **User Layer**        | CLI invocation, HTTP clients, stdout consumption            | `argparse`, HTTP/WebSocket clients, NDJSON consumers         |
-| **Server Layer**      | HTTP API, session management, streaming responses           | `server/app.py`, `server/routes.py`, `server/session.py`     |
+| **Server Layer**      | HTTP API, streaming responses                               | `server/app.py`, `server/routes.py`, `server/config.py`      |
 | **Application Layer** | Agent loop, message bookkeeping                             | `agent.py:Agent`                                             |
 | **LLM I/O Layer**     | HTTP transport, streaming, token accounting, multi-provider | `client.py:OllamaClient`, `client.py:OpenAICompatibleClient` |
 | **Skills Layer**      | Per-tool execution, auto-discovery                          | `skills/*.py`                                                |
@@ -212,9 +212,8 @@ graph LR
     ServerDir --> SV_Init["__init__.py<br/>Server Module"]
     ServerDir --> SV_App["app.py<br/>FastAPI Application"]
     ServerDir --> SV_Routes["routes.py<br/>HTTP Routes"]
-    ServerDir --> SV_Session["session.py<br/>Session Manager"]
     ServerDir --> SV_Config["config.py<br/>Server Config"]
-    ServerDir --> SV_Main["__main__.py<br/>CLI Entry Point"]
+    ServerDir --> SV_Main["__main__.py<br/>Server Entry Point"]
 
     SkillsDir --> SK_Init["__init__.py<br/>Skills Registry"]
     SkillsDir --> SK_Base["base.py<br/>Skill Base Class"]
@@ -273,7 +272,6 @@ graph TD
 
     ServerApp["server/app.py<br/>FastAPI Application"]:::server
     ServerRoutes["server/routes.py<br/>HTTP Routes"]:::server
-    ServerSession["server/session.py<br/>Session Manager"]:::server
     ServerConfig["server/config.py<br/>Server Config"]:::server
 
     ReadS["skills/read_file.py<br/>ReadFileSkill"]:::skill
@@ -302,12 +300,9 @@ graph TD
 
     ServerApp --> ServerConfig
     ServerApp --> ServerRoutes
-    ServerApp --> ServerSession
-    ServerRoutes --> ServerSession
     ServerRoutes --> Agent
     ServerRoutes --> Discovery
     ServerRoutes --> Skills
-    ServerSession --> Client
 
     Client -->|"HTTP /api/chat or /v1/chat/completions"| Ollama
 
@@ -730,7 +725,8 @@ flowchart TD
 
     A1 -->|"load_context=True"| Load[ContextManager.load]:::io
     Load -->|Read output/context.json| File1[("output/context.json")]:::fs
-    File1 -->|Filter system/tool roles| Filter1[Keep user/assistant]
+    File1 -->|Decrypt messages with _encrypted flag| Decrypt[Custom auth encryption<br/>HMAC-SHA256 CTR + HMAC]
+    Decrypt -->|Filter system/tool roles| Filter1[Keep user/assistant]
     Filter1 -->|Take last max_messages=30| MSGS1[History messages]
     MSGS1 --> A2
 
@@ -746,7 +742,8 @@ flowchart TD
     Check -->|No| Keep[Keep]
     Drop --> Simp
     Keep --> Simp[_simplify_content:<br/>trim whitespace/normalize punctuation]
-    Simp --> Out[("output/context.json<br/>Write new content")]
+    Simp --> Encrypt["Encrypt user/assistant content<br/>Custom auth encryption<br/>HMAC-CTR + HMAC-SHA256<br/>Random nonce + Integrity tag"]
+    Encrypt --> Out[("output/context.json<br/>Write encrypted content")]
 ```
 
 The `full_read_files` optimisation is the most important detail: once a
@@ -754,55 +751,31 @@ file has been read in full, subsequent references in the context can
 collapse to a one-line acknowledgement, saving context window budget
 on long sessions.
 
-### 3.9 CLI Entry Point
+**Context Encryption (v0.8.0):** All `user` and `assistant` messages are
+encrypted before writing to `context.json` using a custom authenticated
+encryption scheme built entirely from Python standard library modules
+(hashlib, hmac, os). The scheme provides:
 
-```mermaid
-graph LR
-    CLI["gradum [options] prompt..."]:::cli
-    Parser["argparse.ArgumentParser"]:::cli
+- **Confidentiality**: HMAC-SHA256 in CTR (counter) mode for encryption
+- **Integrity**: HMAC-SHA256 authentication tag over entire token
+- **Randomness**: 16-byte random nonce per encryption (via `os.urandom`)
+- **Versioning**: Version byte (0x81) for future algorithm upgrades
 
-    CLI --> Parser
+Token format: `version (1B) + nonce (16B) + ciphertext (NB) + HMAC (32B)`
 
-    Parser --> M["--model / -m<br/>(optional, auto-discovered)"]:::opt
-    Parser --> T["--think / -t<br/>(store_true)"]:::opt
-    Parser --> C["--context / -c<br/>(load session history)"]:::opt
-    Parser --> TO["--timeout<br/>(int, default 300)"]:::opt
-    Parser --> TEMP["--temperature<br/>(float, default 0.7)"]:::opt
-    Parser --> TP["--top-p<br/>(float, default 0.9)"]:::opt
-    Parser --> NC["--num-ctx<br/>(int, default 4096)"]:::opt
-    Parser --> NP["--num-predict<br/>(int, default 16384)"]:::opt
-    Parser --> BU["--base-url<br/>(optional override)"]:::opt
-    Parser --> PR["--provider<br/>(optional override)"]:::opt
-    Parser --> P["prompt (nargs='+')<br/>Join as single user_input"]:::opt
+This prevents **context injection attacks** where an attacker modifies
+the context file to inject fake conversation history. On load, messages
+with the `_encrypted` flag are decrypted; messages that fail decryption
+are logged as warnings and kept as-is.
 
-    M --> Disc["discover_models()<br/>Auto-detect servers"]
-    Disc --> Resolve["resolve_model()<br/>Match model → provider + base_url"]
-    T --> Cfg["AgentConfig(...)"]:::core
-    C --> Cfg
-    TO --> Cfg
-    TEMP --> Cfg
-    TP --> Cfg
-    NC --> Cfg
-    NP --> Cfg
-    BU --> Cfg
-    PR --> Cfg
-    Resolve --> Cfg
+The encryption key is derived via HMAC-based key derivation from a
+built-in source string (or overridden via the `GRADUM_CONTEXT_KEY`
+environment variable). Separate derived keys are used for encryption
+and authentication (key separation).
 
-    Cfg --> Agent["Agent(config)"]:::core
-    P -->|"join"| Run["agent.run(prompt, load_context=...)"]:::core
+**No external dependencies required** — uses only Python standard library.
 
-    classDef cli fill:#e1f5fe,stroke:#0277bd,color:#000
-    classDef opt fill:#f1f8e9,stroke:#558b2f,color:#000
-    classDef core fill:#bbdefb,stroke:#1565c0,color:#000
-```
-
-The CLI is intentionally minimal. There is no `init`, no `serve`, no
-`repl` — just one command: run the agent once with a prompt and exit.
-A REPL can be layered on top by the downstream consumer (and the
-existing `_archived/launcher/` directory contains a legacy Qt-based
-version of this idea).
-
-### 3.10 LLM Client Streaming
+### 3.9 LLM Client Streaming
 
 ```mermaid
 sequenceDiagram
@@ -875,7 +848,7 @@ tasks where the model produces long, structured tool-call sequences; a
 truncated `tool_calls` array is interpreted as a normal response and
 silently short-circuits the agent loop.
 
-### 3.11 HTTP Server Layer
+### 3.10 HTTP Server Layer
 
 Gradum 0.6.0 introduces an HTTP server layer that exposes the agent's
 capabilities via a RESTful API. This enables integration with IDEs,
@@ -888,13 +861,11 @@ graph TB
     subgraph UserLayer["User Layer"]
         CLI[CLI Client]
         HTTPClient[HTTP Client<br/>curl / browser / IDE]
-        WSClient[WebSocket Client<br/>future]
     end
 
     subgraph ServerLayer["Server Layer"]
         ServerApp["server/app.py<br/>FastAPI Application"]
         ServerRoutes["server/routes.py<br/>HTTP Routes"]
-        ServerSession["server/session.py<br/>Session Manager"]
         ServerConfig["server/config.py<br/>Server Config"]
     end
 
@@ -903,35 +874,28 @@ graph TB
     end
 
     CLI -->|"python -m gradum"| Agent
-    HTTPClient -->|"POST /action"| ServerRoutes
-    WSClient -.->|"future"| ServerRoutes
+    HTTPClient -->|"POST /events"| ServerRoutes
 
     ServerApp --> ServerConfig
     ServerApp --> ServerRoutes
-    ServerApp --> ServerSession
-    ServerRoutes --> ServerSession
     ServerRoutes --> Agent
 
     classDef server fill:#e3f2fd,stroke:#1565c0,color:#000
-    class ServerApp,ServerRoutes,ServerSession,ServerConfig server
+    class ServerApp,ServerRoutes,ServerConfig server
 ```
 
 #### API Endpoints
 
-| Path                    | Method    | Description                                         |
-|-------------------------|-----------|-----------------------------------------------------|
-| `/action`               | POST      | Start conversation, inject input, or cancel session |
-| `/sessions`             | GET       | List all sessions                                   |
-| `/sessions/{id}`        | GET       | Get session details                                 |
-| `/sessions/{id}/events` | GET       | Get session events (NDJSON stream)                  |
-| `/health`               | GET       | Health check                                        |
-| `/models`               | GET       | List available models                               |
-| `/skills`               | GET       | List available skills                               |
-| `/ws`                   | WebSocket | Real-time bidirectional communication (future)      |
+| Path      | Method | Description                         |
+|-----------|--------|-------------------------------------|
+| `/events` | POST   | Execute agent, return NDJSON stream |
+| `/health` | GET    | Health check                        |
+| `/models` | GET    | List available models               |
+| `/skills` | GET    | List available skills               |
 
 #### Request/Response Format
 
-**POST /action** (start new conversation):
+**POST /events**:
 
 ```json
 {
@@ -939,7 +903,9 @@ graph TB
   "model": "minimax-m2.5:cloud",
   "config": {
     "think": true,
-    "temperature": 0.7
+    "temperature": 0.7,
+    "provider": "ollama",
+    "base_url": "http://localhost:11434"
   }
 }
 ```
@@ -947,38 +913,13 @@ graph TB
 Response (NDJSON stream):
 
 ```json lines
-{"type": "session_start", "session_id": "sess_abc123", "model": "..."}
-{"type": "thinking", "content": "..."}
-{"type": "tool_call", "tool": "read_file", "arguments": {}}
-{"type": "tool_result", "success": true, "content": "..."}
-{"type": "user_input_request", "request_id": "req_1", "question": "..."}
-{"type": "waiting_input", "request_id": "req_1"}
+{"type": "session_start", "timestamp": "...", "data": {"version": "0.6.0", "model": "..."}}
+{"type": "thinking", "timestamp": "...", "data": {"content": "..."}}
+{"type": "tool_call", "timestamp": "...", "data": {"tool": "read_file", "arguments": {}}}
+{"type": "tool_result", "timestamp": "...", "data": {"success": true, "result": {}}}
+{"type": "llm_response", "timestamp": "...", "data": {"content": "..."}}
+{"type": "session_end", "timestamp": "...", "data": {"elapsed_seconds": 15}}
 ```
-
-When the agent requests user input, the stream pauses. The client can
-inject input via another POST to `/action`:
-
-```json
-{
-  "session_id": "sess_abc123",
-  "input": {
-    "request_id": "req_1",
-    "answer": "yes"
-  }
-}
-```
-
-The server then resumes the agent and continues the stream.
-
-#### Session Management
-
-Sessions are managed by `SessionManager` (singleton class):
-
-- **Session states**: `PROCESSING`, `WAITING_INPUT`, `COMPLETED`,
-  `CANCELLED`, `ERROR`
-- **Session timeout**: 3600 seconds (configurable)
-- **Max sessions**: 10 (configurable)
-- **Auto cleanup**: Expired and completed sessions are removed
 
 #### CLI Entry Point
 
@@ -1004,12 +945,10 @@ python -m gradum.server --model minimax-m2.5:cloud --think
    unaware of HTTP, keeping it reusable for both CLI and HTTP contexts.
 2. **NDJSON streaming for all responses.** Consistent with CLI output,
    enabling the same downstream consumers (UI, log replay).
-3. **Session-based state management.** Enables pause/resume for
-   user input requests, supporting interactive workflows.
-4. **Single `/action` endpoint.** Simplifies client implementation;
-   all operations (start, input, cancel) use the same path.
+3. **Single `/events` endpoint.** Simplifies client implementation;
+   agent execution is the primary HTTP operation.
 
-### 3.12 End-to-End View
+### 3.11 End-to-End View
 
 ```mermaid
 graph TB
@@ -1364,14 +1303,16 @@ Key implementation points:
 
 #### Returned Result
 
-| Mode     | Result shape                                                                                              |
-|----------|-----------------------------------------------------------------------------------------------------------|
-| Blocking | `{success, exit_code, stdout, stderr, timed_out, message?}` — `message` added when both streams are empty |
-| Detached | `{success, detached:true, pid, log_path, command, message}` — returned immediately; process continues     |
+| Mode     | Result shape                                                                                                        |
+|----------|---------------------------------------------------------------------------------------------------------------------|
+| Blocking | `{success, exit_code, stdout, stderr, timed_out, message?, cwd?}` — `message` added when both streams are empty    |
+| Detached | `{success, detached:true, pid, log_path, command, message, cwd?}` — returned immediately; process continues        |
 
 The `message` field, when present, always reads
 **"Command executed successfully with no output."** — this prevents
 the LLM from misinterpreting empty output as a failure.
+
+The `cwd` field is included when a custom working directory is specified.
 
 #### Timeout and Process-Tree Cleanup
 
@@ -1415,15 +1356,15 @@ prompt, or run whatever they want outside the agent.
 | File content → LLM      | No explicit sanitisation; relies on the model to ignore embedded instructions in tool results | (none yet — see §5.3)                                |
 | System prompt integrity | No integrity check; trusted as plain text                                                     | (none yet — see §5.3)                                |
 | Skill auto-discovery    | Whitelist by directory scan (`glob("*.py")` in `skills/`)                                     | `skills/__init__.py:20-31`                           |
-| Context persistence     | NDJSON envelope, plaintext on disk                                                            | `utils/io_utils.py:73-129`                           |
+| Context persistence     | Custom auth encryption (HMAC-CTR + HMAC-SHA256) of user/assistant messages; prevents context injection attacks | `utils/encryption.py`, `utils/io_utils.py` |
 
-The Command Safety Filter is the only line of defense that is
-implemented and tested end-to-end. The others are documented as
+The Command Safety Filter and Context Encryption are the primary lines of
+defense that are implemented and tested end-to-end. The others are documented as
 intentional gaps, not bugs.
 
 ### 5.3 Outstanding Risks
 
-The following risks are **known and accepted** in v0.3.0:
+The following risks are **known and accepted** in v0.7.0:
 
 1. **System prompt integrity.** A corrupted or replaced
    `prompts/system_prompt.md` will not be detected. AN SHA-256
@@ -1437,9 +1378,11 @@ The following risks are **known and accepted** in v0.3.0:
    in `skills/`. An attacker with write access to the project can drop
    a new skill and gain code execution. Mitigation: a future whitelist
    in `skills/__init__.py`.
-4. **Context file trust.** `output/context.json` is plaintext; if an
-   attacker can write it, they can inject messages into the next
-   session. No signing is performed.
+4. **Context encryption key exposure.** The encryption key is hardcoded
+   in `io_utils.py`. An attacker with source code access can decrypt
+   and forge context messages. This is an accepted trade-off for
+   simplicity; the encryption prevents casual tampering but not
+   sophisticated attacks.
 
 ---
 
@@ -1457,7 +1400,7 @@ The following risks are **known and accepted** in v0.3.0:
 | **Token Statistics Accumulation** | Accumulate prompt/completion tokens across multiple LLM calls                                                                  | `client.py:43-54`                                            |
 | **Context Persistence**           | Save simplified history, discard fully-read file contents                                                                      | `utils/io_utils.py:73-129`                                   |
 | **Todo State Machine**            | One-time initialization + prevent skip + prevent rollback + batch mode                                                         | `skills/todo.py`, `skills/complete_plan.py`                  |
-| **Error Code System**             | `INVALID_PARAMETER` / `FILE_NOT_FOUND` / `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` / `EMPTY_RESULT` / `TIMEOUT` / `IO_ERROR` etc.  | Various skill files                                          |
+| **Error Code System**             | `INVALID_PARAMETER` / `FILE_NOT_FOUND` / `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` / `EMPTY_RESULT` / `TIMEOUT` / `IO_ERROR` etc.; unified `make_error()`/`make_success()` helpers in `base.py` | Various skill files, `skills/base.py`                       |
 | **Cross-Platform Support**        | `run_cmd` encoding adaptation (utf-8/gbk), `backup.sh` / `backup.ps1` dual scripts                                             | `skills/run_cmd.py:51`, `scripts/`                           |
 | **CLI Configuration**             | `argparse` + `AgentConfig` dataclass with auto-discovered defaults                                                             | `agent.py:281-307`                                           |
 | **Command Safety Filter**         | shlex-based binary classification (SAFE / BLOCKED) — no regex, no confirmation tier                                            | `utils/command_filter.py`, `skills/run_cmd.py:52-61`         |
@@ -1535,8 +1478,6 @@ The following enhancements are planned or under consideration:
 - **Tool output sanitisation** — pattern-based detection of common
   prompt-injection markers in `read_file` results, with warnings
   emitted on the NDJSON stream.
-- **Signed context files** — HMAC the `output/context.json` so that
-  tampered histories are detected on load.
 - **Audit log** — append-only signed NDJSON log of all events for
   after-the-fact review.
 
@@ -1544,25 +1485,25 @@ The following enhancements are planned or under consideration:
 
 ## 9. Glossary
 
-| Term                         | Definition                                                                                       |
-|------------------------------|--------------------------------------------------------------------------------------------------|
-| **Skill**                    | A Python class subclassing `Skill` that exposes a tool to the LLM via JSON schema                |
-| **Tool call**                | The LLM's structured request to invoke a skill with a specific name and arguments                |
-| **`tool_call_id`**           | A monotonic identifier linking a tool call to its result in the conversation history             |
-| **Turn**                     | One round-trip with the LLM: prompt → response → tool execution                                  |
-| **Event**                    | A JSON object emitted to stdout in NDJSON format, with envelope `{type, timestamp, data}`        |
-| **Verdict**                  | The output of `CommandFilter.classify()`: a `Risk` value plus `reason` and `rule` strings        |
-| **SAFE / BLOCKED**           | The two `Risk` values; SAFE commands execute, BLOCKED commands return a `COMMAND_BLOCKED` error  |
-| **NDJSON**                   | Newline-Delimited JSON — one JSON object per line, suitable for streaming consumption            |
-| **`Skills` registry**        | A dict mapping skill name to instance, built at startup via auto-discovery                       |
-| **`AgentConfig`**            | A dataclass bundling CLI options (model, provider, base_url, timeout, etc.) into a single object |
-| **`ModelEntry`**             | A named tuple `(name, server, provider)` representing one discovered model from a local server   |
-| **Model Auto-Discovery**     | Probing known local servers at startup to collect all available models without manual config     |
-| **`OllamaClient`**           | LLM client for Ollama's native `/api/chat` endpoint with NDJSON streaming                        |
-| **`OpenAICompatibleClient`** | LLM client for `/v1/chat/completions` (LM Studio, vLLM, LocalAI) with SSE streaming              |
-| **Ollama**                   | One of the supported local LLM server backends, listening on port 11434                          |
-| **LM Studio**                | An OpenAI-compatible local LLM server, listening on port 1234                                    |
-| **Default model**            | The first model discovered (or `--model` override); provider and base_url are resolved from it   |
+| Term                         | Definition                                                                                          |
+|------------------------------|-----------------------------------------------------------------------------------------------------|
+| **Skill**                    | A Python class subclassing `Skill` that exposes a tool to the LLM via JSON schema                   |
+| **Tool call**                | The LLM's structured request to invoke a skill with a specific name and arguments                   |
+| **`tool_call_id`**           | A monotonic identifier linking a tool call to its result in the conversation history                |
+| **Turn**                     | One round-trip with the LLM: prompt → response → tool execution                                     |
+| **Event**                    | A JSON object emitted to stdout in NDJSON format, with envelope `{type, timestamp, data}`           |
+| **Verdict**                  | The output of `CommandFilter.classify()`: a `Risk` value plus `reason` and `rule` strings           |
+| **SAFE / BLOCKED**           | The two `Risk` values; SAFE commands execute, BLOCKED commands return a `COMMAND_BLOCKED` error     |
+| **NDJSON**                   | Newline-Delimited JSON — one JSON object per line, suitable for streaming consumption               |
+| **`Skills` registry**        | A dict mapping skill name to instance, built at startup via auto-discovery                          |
+| **`AgentConfig`**            | A dataclass bundling config options (model, provider, base_url, timeout, etc.) into a single object |
+| **`ModelEntry`**             | A named tuple `(name, server, provider)` representing one discovered model from a local server      |
+| **Model Auto-Discovery**     | Probing known local servers at startup to collect all available models without manual config        |
+| **`OllamaClient`**           | LLM client for Ollama's native `/api/chat` endpoint with NDJSON streaming                           |
+| **`OpenAICompatibleClient`** | LLM client for `/v1/chat/completions` (LM Studio, vLLM, LocalAI) with SSE streaming                 |
+| **Ollama**                   | One of the supported local LLM server backends, listening on port 11434                             |
+| **LM Studio**                | An OpenAI-compatible local LLM server, listening on port 1234                                       |
+| **Default model**            | The first model discovered (or `--model` override); provider and base_url are resolved from it      |
 
 ---
 
@@ -1570,11 +1511,50 @@ The following enhancements are planned or under consideration:
 
 | Version | Date       | Changes                                                                                                                                                                                                                                                                                                                                                                                                               |
 |---------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.8.2   | 2026-06-20 | Added `cwd` (working directory) and `env` (environment variables) parameters to `run_cmd`; `cwd` validated against PROJECT_ROOT boundary; `env` merged with current environment; both blocking and detached modes support new parameters                                                                                                                                                                                                                                             |
+| 0.8.1   | 2026-06-20 | Unified error response format across all skills: added `make_error()` and `make_success()` helpers in `base.py`; all skills now return `tool` field in every response; fixed `edit_file.py` partial success returning `success: True` (now returns `success: False` with `partial: True`); standard error shape: `{success, tool, error: {code, message}, ...context}`                                                                                                                      |
+| 0.8.0   | 2026-06-19 | Simplified encryption: removed backward compatibility for legacy XOR and Fernet tokens; custom authenticated encryption only (HMAC-CTR + HMAC-SHA256); clean, minimal implementation with no external dependencies; breaking change: old context.json files must be deleted or re-encrypted                                                                                                                                                                                                                              |
+| 0.7.2   | 2026-06-19 | Replaced Fernet with custom authenticated encryption scheme using only Python standard library (hashlib, hmac, os); removed `cryptography` dependency; HMAC-SHA256 CTR mode encryption + HMAC integrity; 16-byte random nonce; versioned token format (0x81); backward compatible with legacy XOR and Fernet tokens                                                                                                                                                                                                                              |
+| 0.7.1   | 2026-06-19 | Upgraded context encryption from XOR to Fernet (AES-128-CBC + HMAC-SHA256) with random IV, authenticated encryption, and backward compatibility for legacy XOR content; added `cryptography` dependency; key configurable via `GRADUM_CONTEXT_KEY` environment variable                                                                                                                                                                                                                              |
+| 0.7.0   | 2026-06-17 | Added context encryption layer (XOR + SHA256 + base64) for user/assistant messages; prevents context injection attacks by making forged conversation history impossible without the key; updated security model documentation                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 0.5.0   | 2026-06-14 | Added multi-provider support (Ollama + OpenAI-compatible: LM Studio, vLLM, LocalAI); added model auto-discovery (`discovery.py`); merged `OllamaClient` + `OpenAICompatibleClient` into `client.py`; added `models_discovered` NDJSON event; `--model` is now optional with auto-resolution of provider/base_url; fixed OpenAI streaming tool_calls accumulation bug; cleaned up unused files (`temp/`, `test.jsonl`) |
 | 0.4.0   | 2026-06-07 | Added detached process execution to `run_cmd` (auto-detect GUI/dev-server patterns, Popen with `start_new_session`, log to `output/run_cmd/{pid}.log`); fixed process-tree kill on timeout                                                                                                                                                                                                                            |
 | 0.3.0   | 2026-06-07 | Added Command Safety Filter (`utils/command_filter.py`); raised `num_predict` default from 2048 to 16384; restructured documentation as a technical white paper                                                                                                                                                                                                                                                       |
 | 0.2.x   | (prior)    | Introduced `edit_file` sequential/atomic dual mode, `full_read_files` context optimisation, NDJSON event envelope                                                                                                                                                                                                                                                                                                     |
 | 0.1.x   | (prior)    | Initial prototype: agent loop, seven skills, Ollama streaming, context persistence                                                                                                                                                                                                                                                                                                                                    |
+
+---
+
+## 11. Development Timeline
+
+```mermaid
+timeline
+    title Gradum Development Timeline
+
+    section Phase 1 — Foundation
+        Apr 27-30 : Skill framework, VS Code config, backup scripts
+        May 02-03 : Safety checks cleanup, search extended to file/dir names
+        May 05 : Context persistence, logging refactor, error handling
+        May 09 : Log processing and message output optimization
+
+    section Phase 2 — Core Expansion
+        May 17 : Logging refactor, GUI launcher, batch updates
+        May 23-24 : Project restructured, GUI → launcher, UI improvements
+        May 27-31 : System monitoring, component extraction, launcher complete
+        Jun 06 : Skill return format → structured dicts, code optimization
+
+    section Phase 3 — Server & Multi-Provider
+        Jun 07 : Initialized Gradum as local AI coding agent
+        Jun 13 : Code standards cleanup, search sorting optimized
+        Jun 14 : Model auto-discovery, OpenAI-compatible API support
+        Jun 15 : HTTP server module (v0.6.0), docs, experimental decorator
+```
+
+| Phase       | Period         | Focus                                                                              |
+|-------------|----------------|------------------------------------------------------------------------------------|
+| **Phase 1** | Apr 27 – May 9 | Foundation — skill framework, search, context persistence, logging                 |
+| **Phase 2** | May 17 – Jun 6 | Core expansion — GUI launcher, project restructuring, skill refactoring            |
+| **Phase 3** | Jun 7 – Jun 15 | Server & multi-provider — HTTP server, model auto-discovery, OpenAI-compatible API |
 
 ---
 

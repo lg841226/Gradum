@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """Command safety filter for run_cmd skill.
 
 Binary classification using shlex tokenization (no regex) to avoid false

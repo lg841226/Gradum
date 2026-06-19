@@ -1,8 +1,14 @@
+# Copyright (c) 2026 Gradum Authors, Ge Wangyang. Licensed under MIT.
+# See LICENSE for details.
+
 """Skill for initializing task list."""
 
 from typing import Any, Optional
 
-from .base import Skill
+from .base import Skill, make_error, make_success
+
+# Maximum number of tasks allowed
+MAX_TASKS = 20
 
 
 class TodoManager:
@@ -24,11 +30,18 @@ class TodoManager:
         if not new_to_do_list:
             return False, "To-do item list cannot be empty."
 
+        # Check task limit
+        if len(new_to_do_list) > MAX_TASKS:
+            return False, f"Too many tasks: {len(new_to_do_list)} (maximum: {MAX_TASKS})"
+
         if self.initialized:
             if new_to_do_list == self.tasks:
                 return False, "To-do item list already set, cannot call again with same items."
             to_do_list_str = ", ".join(f"'{t}'" for t in self.tasks)
-            return False, f"Cannot change item list. Already initialized with {len(self.tasks)} items: [{to_do_list_str}]"
+            return (
+                False,
+                f"Cannot change item list. Already initialized with {len(self.tasks)} items: [{to_do_list_str}]",
+            )
 
         self.tasks = new_to_do_list
         self.completed = 0
@@ -52,8 +65,10 @@ class TodoManager:
 
 _todo_manager = TodoManager()
 
+
 class TodoSkill(Skill):
     """Skill for initializing to-do item list."""
+
     name = "to_do"
     alias = "Planned"
     description = "Create to-do list with all items. Call ONCE at start."
@@ -70,43 +85,37 @@ class TodoSkill(Skill):
                         "tasks": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of ALL to-do items in order. Do NOT add items later."
+                            "description": "List of ALL to-do items in order. Do NOT add items later.",
                         }
                     },
-                    "required": ["tasks"]
-                }
-            }
+                    "required": ["tasks"],
+                },
+            },
         }
 
     def execute(self, tasks: Optional[list] = None, **kwargs: Any) -> dict:
         if not tasks or not isinstance(tasks, list):
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": "Missing or invalid 'tasks' parameter"
-                }
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                "Missing or invalid 'tasks' parameter",
+            )
 
         to_do_list = [str(task).strip() for task in tasks if str(task).strip()]
         if not to_do_list:
-            return {
-                "success": False,
-                "error": {
-                    "code": "INVALID_PARAMETER",
-                    "message": "'tasks' list is empty"
-                }
-            }
+            return make_error(
+                self.name,
+                "INVALID_PARAMETER",
+                "'tasks' list is empty",
+            )
 
         is_valid, error_msg = _todo_manager.parse_arguments({"tasks": to_do_list})
         if not is_valid:
-            return {
-                "success": False,
-                "error": {
-                    "code": "ALREADY_INITIALIZED",
-                    "message": error_msg or "To-do item list already initialized"
-                }
-            }
+            return make_error(
+                self.name,
+                "ALREADY_INITIALIZED",
+                error_msg or "To-do item list already initialized",
+            )
 
         total = len(_todo_manager.tasks)
         tasks_with_status = [
@@ -114,14 +123,13 @@ class TodoSkill(Skill):
             for i, t in enumerate(_todo_manager.tasks)
         ]
 
-        return {
-            "success": True,
-            "tool": "to_do",
-            "total_tasks": total,
-            "current_task": 1,
-            "current_task_name": _todo_manager.tasks[0],
-            "tasks": tasks_with_status
-        }
+        return make_success(
+            self.name,
+            total_tasks=total,
+            current_task=1,
+            current_task_name=_todo_manager.tasks[0],
+            tasks=tasks_with_status,
+        )
 
 
 def get_todo_manager() -> TodoManager:

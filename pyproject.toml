@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gradum"
-version = "0.6.0"
+version = "0.8.2"
 description = "A local-first AI coding agent with function calling, powered by Ollama and OpenAI-compatible APIs."
-readme = "docs/ARCHITECTURE_en.md"
+readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Gradum Authors" }]
@@ -24,7 +24,6 @@ dev = [
 ]
 
 [project.scripts]
-gradum = "gradum.agent:main"
 gradum-server = "gradum.server.__main__:main"
 
 [tool.setuptools]
@@ -52,6 +51,8 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "UP024", # IOError alias — project uses (IOError, OSError) by convention
+    "UP006", # typing.Tuple — required for Python 3.9 compatibility
+    "UP035", # typing imports — required for Python 3.9 compatibility
     "UP015", # unnecessary "r" mode — kept for readability
     "UP045", # X | None syntax — requires from __future__ import annotations (not used everywhere)
 ]
