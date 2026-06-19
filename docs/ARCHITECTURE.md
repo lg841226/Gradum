@@ -697,10 +697,10 @@ A minimal consumer is a one-liner with `jq`:
 
 ```bash
 # Watch the stream and only print LLM narrative responses
-python agent.py "start the dev server" | jq -c 'select(.type == "llm_response") | .data.content'
+python -m gradum.server --message "start the dev server" | jq -c 'select(.type == "llm_response") | .data.content'
 
 # Count tool calls grouped by skill name
-python agent.py "refactor utils" | jq -s 'map(select(.type=="tool_call") | .data.tool) | group_by(.) | map({tool: .[0], count: length})'
+python -m gradum.server --message "refactor utils" | jq -s 'map(select(.type=="tool_call") | .data.tool) | group_by(.) | map({tool: .[0], count: length})'
 ```
 
 For richer UIs the envelope is small enough to be parsed
