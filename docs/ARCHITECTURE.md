@@ -844,28 +844,16 @@ flowchart TD
 
     subgraph CRITICAL["isCriticalPath(path)"]
         RESOLVE["resolveAbsolutePath(path)<br/>normalize path"]
-        RESOLVE --> TMP{prefix == '/tmp' or '/tmp/...'}
+        RESOLVE --> TMP{prefix starts with /tmp}
         TMP -->|Yes| NOT_CRIT[NOT Critical]
         TMP -->|No| PRE{prefix in PROTECTED_PREFIXES?}
         PRE -->|Yes| CRIT[Critical]
-        PRE -->|No|         HOME{prefix in PROTECTED_HOME_SUBDIRS<br/>relative to user.home?}
+        PRE -->|No| HOME{prefix in PROTECTED_HOME_SUBDIRS<br/>relative to user.home?}
         HOME -->|Yes| CRIT
         HOME -->|No| EXACT{path in EXACT_PROTECTED_PATHS?}
         EXACT -->|Yes| CRIT
         EXACT -->|No| NOT_CRIT
     end
-
-    SAFE --> END([Done])
-    BL --> END
-    DD --> END
-    SAFE_RM --> END
-    RM_BLK --> END
-    SAFE_CHMOD --> END
-    CHMOD_BLK --> END
-    SAFE_CHMOD2 --> END
-    SAFE_OTHER --> END
-    CRIT --> END
-    NOT_CRIT --> END
 
     style BLOCKED fill:#f4c1c1
     style CRIT fill:#f4c1c1
