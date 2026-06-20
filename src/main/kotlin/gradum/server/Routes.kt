@@ -1,7 +1,15 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * Routes.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.server
 
 import gradum.AgentConfiguration
 import gradum.GRADUM_VERSION
+import gradum.Provider
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
 import gradum.discovery.discoverModels
@@ -15,8 +23,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -26,7 +33,50 @@ data class EventsRequestBody(
     val message: String,
     val model: String? = null,
     val config: Map<String, String>? = null,
+    val loadContext: Boolean = false,
 )
+
+/**
+ * Typed view over the `config` map sent by the HTTP client. Each field is
+ * nullable so the route handler can supply a default via `?:` instead of
+ * scattering `?.toBoolean()` / `?.toIntOrNull()` across the call site.
+ *
+ * Construct via [fromRequestMap] to centralise every string→typed conversion
+ * in one place.
+ */
+@Serializable
+data class ConfigOverrides(
+    val baseUrl: String? = null,
+    val provider: String? = null,
+    val think: Boolean? = null,
+    val temperature: Double? = null,
+    val topP: Double? = null,
+    val numCtx: Int? = null,
+    val numPredict: Int? = null,
+    val timeout: Int? = null,
+) {
+    companion object {
+        /**
+         * Convert a request's optional `config` map (raw strings from JSON)
+         * into a typed [ConfigOverrides]. Returns an empty instance when
+         * [rawConfig] is null so callers can chain `field ?: default` without
+         * a null check.
+         */
+        fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
+            if (rawConfig == null) return ConfigOverrides()
+            return ConfigOverrides(
+                baseUrl = rawConfig["baseUrl"],
+                provider = rawConfig["provider"],
+                think = rawConfig["think"]?.toBoolean(),
+                temperature = rawConfig["temperature"]?.toDoubleOrNull(),
+                topP = rawConfig["topP"]?.toDoubleOrNull(),
+                numCtx = rawConfig["numCtx"]?.toIntOrNull(),
+                numPredict = rawConfig["numPredict"]?.toIntOrNull(),
+                timeout = rawConfig["timeout"]?.toIntOrNull(),
+            )
+        }
+    }
+}
 
 /**
  * Registers every HTTP route the Gradum server exposes:
@@ -42,18 +92,20 @@ fun Application.registerAllRoutes(): Unit {
         post("/events") {
             val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
 
-            val eventsChannel: MutableSharedFlow<String> = MutableSharedFlow(extraBufferCapacity = 128)
+            val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
 
-            val agentConfiguration: AgentConfiguration = AgentConfiguration(
+            val configOverrides: ConfigOverrides = ConfigOverrides.fromRequestMap(requestBody.config)
+
+            val agentConfiguration = AgentConfiguration(
                 modelName = requestBody.model ?: "minimax-m2.5:cloud",
-                baseUrl = requestBody.config?.get("baseUrl") ?: "http://localhost:11434",
-                providerName = requestBody.config?.get("provider") ?: "ollama",
-                enableThinking = requestBody.config?.get("think")?.toBoolean() ?: false,
-                temperatureValue = requestBody.config?.get("temperature")?.toDoubleOrNull() ?: 0.7,
-                topPValue = requestBody.config?.get("topP")?.toDoubleOrNull() ?: 0.9,
-                contextWindowSize = requestBody.config?.get("numCtx")?.toIntOrNull() ?: 4096,
-                maxTokensToGenerate = requestBody.config?.get("numPredict")?.toIntOrNull() ?: 2048,
-                timeoutSeconds = requestBody.config?.get("timeout")?.toIntOrNull() ?: 300,
+                baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
+                provider = Provider.fromStringOrDefault(configOverrides.provider),
+                enableThinking = configOverrides.think ?: false,
+                temperatureValue = configOverrides.temperature ?: 0.7,
+                topPValue = configOverrides.topP ?: 0.9,
+                contextWindowSize = configOverrides.numCtx ?: 4096,
+                maxTokensToGenerate = configOverrides.numPredict ?: 24576,
+                timeoutSeconds = configOverrides.timeout ?: 3000,
             )
 
             launch(Dispatchers.IO) {
@@ -61,19 +113,14 @@ fun Application.registerAllRoutes(): Unit {
                     val agent = Agent(
                         configuration = agentConfiguration,
                         emitEvent = { eventType: String, data: Map<String, Any> ->
-                            val eventMap = mapOf(
-                                "type" to eventType,
-                                "timestamp" to Instant.now().toString(),
-                                "data" to data,
-                            )
-                            val ndjsonLine: String = JsonUtil.encodeMap(eventMap) + "\n"
-                            eventsChannel.tryEmit(ndjsonLine)
+                            val ndjsonLine: String = JsonUtil.encodeMap(mapOf("type" to eventType, "timestamp" to Instant.now().toString(), "data" to data)) + "\n"
+                            eventsChannel.trySend(ndjsonLine)
                         },
                     )
 
-                    agent.executeTask(requestBody.message)
+                    agent.executeTask(requestBody.message, requestBody.loadContext)
                 } finally {
-                    eventsChannel.emit("\n")
+                    eventsChannel.close()
                 }
             }
 
@@ -83,12 +130,10 @@ fun Application.registerAllRoutes(): Unit {
                 override val contentType: ContentType = ContentType.Application.Json
 
                 override suspend fun writeTo(channel: ByteWriteChannel) {
-                    eventsChannel
-                        .takeWhile { line: String -> line != "\n" }
-                        .collect { ndjsonLine: String ->
-                            channel.writeStringUtf8(ndjsonLine)
-                            channel.flush()
-                        }
+                    for (ndjsonLine: String in eventsChannel) {
+                        channel.writeStringUtf8(ndjsonLine)
+                        channel.flush()
+                    }
                 }
             })
         }

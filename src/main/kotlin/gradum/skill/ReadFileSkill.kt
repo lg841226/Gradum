@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ReadFileSkill.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.skill
 
 import gradum.SkillResult
@@ -100,14 +107,14 @@ class ReadFileSkill : Skill() {
                     )
                 }
 
-                val rawStart: Int = rangeParts[0].trim().toIntOrNull()
+                val rawStart: Int = parseRangeBound(rangeParts[0])
                     ?: return makeFailure(
                         "INVALID_PARAMETER",
                         "Invalid lineRange start value: ${rangeParts[0]}",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
                     )
 
-                val rawEnd: Int = rangeParts[1].trim().toIntOrNull()
+                val rawEnd: Int = parseRangeBound(rangeParts[1])
                     ?: return makeFailure(
                         "INVALID_PARAMETER",
                         "Invalid lineRange end value: ${rangeParts[1]}",
@@ -123,10 +130,7 @@ class ReadFileSkill : Skill() {
                 Triple(actualStart, actualEnd, selectedContent)
             }
 
-            val contentHash: String = MessageDigest
-                .getInstance("MD5")
-                .digest(fileContent.toByteArray(Charsets.UTF_8))
-                .joinToString("") { byte: Byte -> "%02x".format(byte) }
+            val contentHash: String = MessageDigest.getInstance("MD5").digest(fileContent.toByteArray(Charsets.UTF_8)).joinToString("") { byte: Byte -> "%02x".format(byte) }
 
             makeSuccess(
                 mapOf(
@@ -144,3 +148,5 @@ class ReadFileSkill : Skill() {
         }
     }
 }
+
+private fun parseRangeBound(rawValue: String): Int? = rawValue.trim().toIntOrNull()
