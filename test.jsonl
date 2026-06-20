@@ -1,5 +1,0 @@
-{"type": "models_discovered", "timestamp": "2026-06-14T18:14:56", "data": {"models": [{"name": "openai/gpt-oss-20b", "server": "LM Studio", "provider": "openai"}, {"name": "google/gemma-3-4b", "server": "LM Studio", "provider": "openai"}, {"name": "text-embedding-nomic-embed-text-v1.5", "server": "LM Studio", "provider": "openai"}]}}
-{"type": "provider_status", "timestamp": "2026-06-14T18:14:56", "data": {"provider": "openai", "base_url": "http://localhost:1234"}}
-{"type": "session_start", "timestamp": "2026-06-14T18:14:56", "data": {"version": "0.4.0", "model": "openai/gpt-oss-20b", "think": false, "context_loaded": false, "context_messages": 0}}
-{"type": "llm_response", "timestamp": "2026-06-14T18:15:12", "data": {"content": "Hello! How can I help you today?"}}
-{"type": "session_end", "timestamp": "2026-06-14T18:15:12", "data": {"version": "0.4.0", "elapsed_seconds": 15, "model": "openai/gpt-oss-20b", "token_usage": {}}}
