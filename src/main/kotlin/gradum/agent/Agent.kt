@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * Agent.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.agent
 
 import java.nio.file.Path
@@ -6,8 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 
@@ -206,8 +211,8 @@ class Agent(
                         "function" to mapOf(
                             "name" to call.callData.functionTitle,
                             "arguments" to call.callData.functionArguments.entries.associate {
-                                it.key to it.value.jsonPrimitive.contentOrNull
-                            },
+                            it.key to JsonUtil.fromJsonElement(it.value)
+                        },
                         ),
                     )
                 }
@@ -227,11 +232,9 @@ class Agent(
 
         val convertedArguments: MutableMap<String, Any> = mutableMapOf()
         for ((key: String, value: JsonElement) in rawArguments) {
-            convertedArguments[key] = when {
-                value.jsonPrimitive.isString -> value.jsonPrimitive.content
-                value.jsonPrimitive.content == "true" -> true
-                value.jsonPrimitive.content == "false" -> false
-                else -> value.jsonPrimitive.content
+            val converted: Any? = JsonUtil.fromJsonElement(value)
+            if (converted != null) {
+                convertedArguments[key] = converted
             }
         }
 

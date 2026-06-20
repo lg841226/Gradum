@@ -1,0 +1,45 @@
+build:
+  maxIssues: 999
+
+complexity:
+  LongMethod:
+    threshold: 60
+  LongParameterList:
+    functionThreshold: 5
+    constructorThreshold: 5
+  CyclomaticComplexMethod:
+    threshold: 15
+  TooManyFunctions:
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+  NestedBlockDepth:
+    threshold: 4
+
+style:
+  MaxLineLength:
+    maxLineLength: 100
+    ignoreAnnotated: []
+  WildcardImport:
+    active: true
+  UnusedImports:
+    active: true
+  MagicNumber:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+
+naming:
+  FunctionNaming:
+    functionPattern: "[a-z][_A-Za-z0-9]*"
+  TopLevelPropertyNaming:
+    constantPattern: "[A-Z][_A-Z0-9]*"
+
+empty-blocks:
+  EmptyFunctionBlock:
+    ignoreOverridden: true
+  EmptyCatchBlock:
+    allowedExceptionNameRegex: "ignore"
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false

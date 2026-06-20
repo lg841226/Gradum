@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * JsonUtil.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.util
 
 import kotlinx.serialization.json.Json
@@ -62,5 +69,30 @@ object JsonUtil {
         is JsonObject -> value
         is JsonArray -> value
         else -> JsonPrimitive(value.toString())
+    }
+
+    /**
+     * Inverse of [toJsonElement]: convert a [JsonElement] tree back into plain
+     * Kotlin types so Skills can consume them without depending on the
+     * kotlinx-serialization types directly.
+     *
+     * Unlike calling `value.jsonPrimitive.content` (which throws on
+     * [JsonObject] / [JsonArray]), this handles every [JsonElement] subtype
+     * and unwraps the underlying scalar.
+     */
+    fun fromJsonElement(value: JsonElement): Any? = when (value) {
+        is JsonNull -> null
+        is JsonPrimitive -> when {
+            value.isString -> value.content
+            value.content == "true" -> true
+            value.content == "false" -> false
+            value.content.toLongOrNull() != null -> value.content.toLong()
+            value.content.toDoubleOrNull() != null -> value.content.toDouble()
+            else -> value.content
+        }
+        is JsonObject -> value.entries.associate { (key: String, element: JsonElement) ->
+            key to fromJsonElement(element)
+        }
+        is JsonArray -> value.map { fromJsonElement(it) }
     }
 }
