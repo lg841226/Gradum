@@ -643,7 +643,7 @@ flowchart TB
     PARALLEL --> P3[vLLM<br/>port 8000<br/>GET /v1/models<br/>provider: openai]
     PARALLEL --> P4[LocalAI<br/>port 8080<br/>GET /v1/models<br/>provider: openai]
 
-    P1 --> R1[GET with 1.5s timeout<br/>retry up to 2x<br/>exponential backoff: 5s, 10s]
+    P1 --> R1["GET with 1.5s timeout<br/>retry up to 2x<br/>exponential backoff: 5s, 10s"]
     P2 --> R1
     P3 --> R1
     P4 --> R1
@@ -1190,22 +1190,22 @@ flowchart LR
     ALL --> G4[Task management]
     ALL --> G5[Generic]
 
-    G1 --> F1[FILE_NOT_FOUND<br/>ReadFile, EditFile: path doesn't exist]
-    G1 --> F2[FILE_TOO_LARGE<br/>ReadFile: exceeds 1MB or 10000 lines]
+    G1 --> F1["FILE_NOT_FOUND<br/>ReadFile, EditFile: path doesn't exist"]
+    G1 --> F2["FILE_TOO_LARGE<br/>ReadFile: exceeds 1MB or 10000 lines"]
 
-    G2 --> F3[CODE_NOT_FOUND<br/>EditFile: search string matches 0 times]
-    G2 --> F4[MULTIPLE_MATCHES<br/>EditFile: search string matches >1 times]
-    G2 --> F5[EMPTY_RESULT<br/>EditFile: file would be empty after edit]
+    G2 --> F3["CODE_NOT_FOUND<br/>EditFile: search string matches 0 times"]
+    G2 --> F4["MULTIPLE_MATCHES<br/>EditFile: search string matches more than 1 times"]
+    G2 --> F5["EMPTY_RESULT<br/>EditFile: file would be empty after edit"]
 
-    G3 --> F6[COMMAND_BLOCKED<br/>RunCommand: blocked by safety filter]
-    G3 --> F7[TIMEOUT<br/>RunCommand, Search: exceeded time limit]
+    G3 --> F6["COMMAND_BLOCKED<br/>RunCommand: blocked by safety filter"]
+    G3 --> F7["TIMEOUT<br/>RunCommand, Search: exceeded time limit"]
 
-    G4 --> F8[ALREADY_INITIALIZED<br/>TodoSkill: attempt to reinitialize]
-    G4 --> F9[NOT_INITIALIZED<br/>CompletePlanSkill: called before init]
-    G4 --> F10[ALL_COMPLETED<br/>CompletePlanSkill: all tasks already done]
+    G4 --> F8["ALREADY_INITIALIZED<br/>TodoSkill: attempt to reinitialize"]
+    G4 --> F9["NOT_INITIALIZED<br/>CompletePlanSkill: called before init"]
+    G4 --> F10["ALL_COMPLETED<br/>CompletePlanSkill: all tasks already done"]
 
-    G5 --> F11[INVALID_PARAMETER<br/>All skills: missing or malformed args]
-    G5 --> F12[IO_ERROR<br/>All skills: filesystem or process exception]
+    G5 --> F11["INVALID_PARAMETER<br/>All skills: missing or malformed args"]
+    G5 --> F12["IO_ERROR<br/>All skills: filesystem or process exception"]
 
     style G1 fill:#c1daf4
     style G2 fill:#f4e1c1
