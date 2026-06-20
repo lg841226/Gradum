@@ -110,13 +110,13 @@ flowchart TB
         SK8["TodoSkill.kt"]
     end
 
-    subgraph UTIL["⚙️ Utility Layer"]
+    subgraph UTIL["Utility Layer"]
         U1["CommandFilter.kt<br/>(command safety classifier)"]
         U2["ContextManager.kt<br/>(encrypted context read/write)"]
         U3["EncryptionUtil.kt<br/>(HMAC-CTR encryption)"]
     end
 
-    subgraph CORE["📦 Core Types"]
+    subgraph CORE["Core Types"]
         C1["AgentConfiguration.kt"]
         C2["Annotations.kt"]
         C3["SkillResult.kt"]
@@ -144,8 +144,8 @@ The following invariants are core architectural constraints:
 flowchart LR
     subgraph INV1["Invariant 1: Agent never directly imports specific skills"]
         direction TB
-        A[Agent.kt] -->|skillRegistry.getSkill(name)| SR[SkillRegistry]
-        SR -->|discoverSkills() hardcoded| SK[Skills]
+        A[Agent.kt] -->|"skillRegistry.getSkill(name)"| SR[SkillRegistry]
+        SR -->|"discoverSkills() hardcoded"| SK[Skills]
         style A fill:#d4f1d4
         style SR fill:#f4e1c1
         style SK fill:#c1daf4

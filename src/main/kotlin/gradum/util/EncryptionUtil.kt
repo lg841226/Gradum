@@ -2,6 +2,7 @@ package gradum.util
 
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
+import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -13,6 +14,13 @@ private const val HMAC_SIZE_BYTES: Int = 32
 private const val BLOCK_SIZE_BYTES: Int = 32
 
 private val builtinKeySource: ByteArray = "gradum-context-v1-encryption-key-2026".toByteArray(Charsets.UTF_8)
+private val secureRandom: SecureRandom = SecureRandom()
+
+@Volatile
+private var cachedEncryptionKey: ByteArray? = null
+
+@Volatile
+private var cachedAuthenticationKey: ByteArray? = null
 
 private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
     val hmac: Mac = Mac.getInstance("HmacSHA256")
@@ -23,8 +31,26 @@ private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
     return hmac.doFinal("$purpose\u0001".toByteArray(Charsets.UTF_8))
 }
 
+private fun getEncryptionKey(): ByteArray {
+    cachedEncryptionKey?.let { return it }
+    val keySource: ByteArray = getKeySource()
+    val key: ByteArray = deriveKey(keySource, "encrypt")
+    cachedEncryptionKey = key
+    return key
+}
+
+private fun getAuthenticationKey(): ByteArray {
+    cachedAuthenticationKey?.let { return it }
+    val keySource: ByteArray = getKeySource()
+    val key: ByteArray = deriveKey(keySource, "authenticate")
+    cachedAuthenticationKey = key
+    return key
+}
+
 private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce: ByteArray): ByteArray {
     val ciphertext: ByteArray = ByteArray(plaintext.size)
+    val hmac: Mac = Mac.getInstance("HmacSHA256")
+    hmac.init(SecretKeySpec(encryptionKey, "HmacSHA256"))
 
     for (offset in plaintext.indices step BLOCK_SIZE_BYTES) {
         val counter: Int = offset / BLOCK_SIZE_BYTES
@@ -35,8 +61,6 @@ private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce
             counter.toByte(),
         )
 
-        val hmac: Mac = Mac.getInstance("HmacSHA256")
-        hmac.init(SecretKeySpec(encryptionKey, "HmacSHA256"))
         hmac.update(nonce)
         val streamBlock: ByteArray = hmac.doFinal(counterBytes)
 
@@ -61,19 +85,18 @@ private fun getKeySource(): ByteArray {
 }
 
 fun encryptMessageContent(plaintext: String): String {
-    val keySource: ByteArray = getKeySource()
-    val encryptionKey: ByteArray = deriveKey(keySource, "encrypt")
-    val authenticationKey: ByteArray = deriveKey(keySource, "authenticate")
+    val encryptionKey: ByteArray = getEncryptionKey()
+    val authenticationKey: ByteArray = getAuthenticationKey()
 
     val nonce: ByteArray = ByteArray(NONCE_SIZE_BYTES).also { array ->
-        java.security.SecureRandom().nextBytes(array)
+        secureRandom.nextBytes(array)
     }
 
     val plaintextBytes: ByteArray = plaintext.toByteArray(Charsets.UTF_8)
     val ciphertext: ByteArray = hmacCtrEncrypt(plaintextBytes, encryptionKey, nonce)
 
     val tokenBody: ByteArray = byteArrayOf(VERSION_BYTE) + nonce + ciphertext
-    var authenticationTag: ByteArray = computeHmac(authenticationKey, tokenBody)
+    val authenticationTag: ByteArray = computeHmac(authenticationKey, tokenBody)
 
     val fullToken: ByteArray = tokenBody + authenticationTag
 
@@ -99,9 +122,8 @@ fun decryptMessageContent(encodedCiphertext: String): String {
     val authenticationTag: ByteArray = rawBytes.copyOfRange(rawBytes.size - HMAC_SIZE_BYTES, rawBytes.size)
     val ciphertextBytes: ByteArray = rawBytes.copyOfRange(1 + NONCE_SIZE_BYTES, rawBytes.size - HMAC_SIZE_BYTES)
 
-    val keySource: ByteArray = getKeySource()
-    val encryptionKey: ByteArray = deriveKey(keySource, "encrypt")
-    val authenticationKey: ByteArray = deriveKey(keySource, "authenticate")
+    val encryptionKey: ByteArray = getEncryptionKey()
+    val authenticationKey: ByteArray = getAuthenticationKey()
 
     val tokenBody: ByteArray = byteArrayOf(version) + nonce + ciphertextBytes
     val expectedTag: ByteArray = computeHmac(authenticationKey, tokenBody)

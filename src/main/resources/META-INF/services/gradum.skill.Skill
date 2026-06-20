@@ -1,3 +1,10 @@
+#
+# Copyright (c) 2026 Gradum team, Some Rights Reserved.
+# For licensing terms and conditions, see the MIT LICENSE file.
+#
+# gradum.skill.Skill  2026-06-20 Created by gwy
+#
+
 gradum.skill.ReadFileSkill
 gradum.skill.EditFileSkill
 gradum.skill.SaveFileSkill
