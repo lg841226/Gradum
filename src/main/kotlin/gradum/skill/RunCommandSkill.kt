@@ -13,10 +13,17 @@ import java.io.InputStreamReader
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
-private val logger = LoggerFactory.getLogger("RunCommandSkill")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("RunCommandSkill")
 private const val COMMAND_TIMEOUT_SECONDS: Long = 45
 private const val OUTPUT_DIRECTORY_NAME: String = "output"
 
+/**
+ * Executes a shell command and captures its output.
+ *
+ * Every command is pre-classified via [classifyCommand] and rejected with
+ * `COMMAND_BLOCKED` if it touches a critical path or unsafe executable.
+ * All execution sites are annotated `@OptIn(DangerousOperation::class)`.
+ */
 class RunCommandSkill : Skill() {
 
     override val skillName: String = "run_cmd"

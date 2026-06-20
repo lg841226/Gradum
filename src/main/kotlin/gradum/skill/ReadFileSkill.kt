@@ -15,6 +15,12 @@ private fun readLinesInRange(sourceLines: List<String>, startLine: Int, endLine:
     return sourceLines.subList(startLine - 1, endLine).joinToString("\n")
 }
 
+/**
+ * Reads file content for the agent.
+ *
+ * Files exceeding [MAXIMUM_FILE_SIZE] or [MAXIMUM_LINES] return
+ * `FILE_TOO_LARGE` to keep conversation context bounded.
+ */
 class ReadFileSkill : Skill() {
 
     override val skillName: String = "read_file"

@@ -1,19 +1,40 @@
 package gradum.agent
 
-import gradum.*
-import gradum.client.*
-import gradum.skill.SkillRegistry
-import gradum.skill.getTodoManagerInstance
-import gradum.util.ContextManager
+import java.nio.file.Path
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
-import java.nio.file.Path
 
-private val logger = LoggerFactory.getLogger("Agent")
+import gradum.AgentConfiguration
+import gradum.ExperimentalApi
+import gradum.GRADUM_VERSION
+import gradum.OUTPUT_DIRECTORY
+import gradum.PROMPTS_DIRECTORY
+import gradum.SkillResult
+import gradum.client.LLMResponseChunk
+import gradum.client.OllamaClient
+import gradum.client.OpenAICompatibleClient
+import gradum.client.TokenUsageProvider
+import gradum.client.ToolCallEntry
+import gradum.skill.Skill
+import gradum.skill.SkillRegistry
+import gradum.skill.getTodoManagerInstance
+import gradum.util.ContextManager
+import gradum.util.JsonUtil
 
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("Agent")
+
+/**
+ * Drives a single user request through one or more LLM turns, dispatching
+ * tool calls to [SkillRegistry] between turns until the model stops
+ * requesting tools. Streams progress through [emitEvent] as NDJSON.
+ */
 class Agent(
     private val configuration: AgentConfiguration,
     private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
@@ -70,7 +91,11 @@ class Agent(
                 if (text.isNotBlank()) {
                     emitEvent("response", mapOf(
                         "content" to text,
-                        "tokenUsage" to activeClient.tokenUsage,
+                        "tokenUsage" to mapOf(
+                            "promptTokens" to activeClient.tokenUsage.promptTokens,
+                            "completionTokens" to activeClient.tokenUsage.completionTokens,
+                            "totalTokens" to activeClient.tokenUsage.totalTokens,
+                        ),
                     ))
                 }
             }
@@ -93,12 +118,12 @@ class Agent(
         finishSession(startTimeMillis)
     }
 
-    private fun loadSystemPrompt(): Unit {
+    private fun loadSystemPrompt() {
         val promptFilePath: Path = PROMPTS_DIRECTORY.resolve("system_prompt.md")
         val promptContent: String = try {
             promptFilePath.toFile().readText(Charsets.UTF_8)
         } catch (e: Exception) {
-            logger.warn("Could not load system prompt: ${e.message}")
+            logger.warn("Could not load system prompt, reason: ${e.message}")
             "You are a helpful AI assistant.\n"
         }
 
@@ -117,12 +142,12 @@ class Agent(
         var toolCallsResult: List<ToolCallEntry>? = null
         var errorMessage: String? = null
 
-        val responseFlow = when (configuration.providerName) {
+        val responseFlow: Flow<LLMResponseChunk> = when (configuration.providerName) {
             "openai" -> openAiClient.sendChat(conversationHistory, toolSchemas)
             else -> ollamaClient.sendChat(conversationHistory, toolSchemas, configuration.enableThinking)
         }
 
-        kotlinx.coroutines.runBlocking {
+        runBlocking {
             responseFlow.collect { chunk ->
                 when (chunk) {
                     is LLMResponseChunk.TextContent -> contentParts.add(chunk.text)
@@ -168,7 +193,7 @@ class Agent(
                         "type" to "function",
                         "function" to mapOf(
                             "name" to call.callData.functionTitle,
-                            "arguments" to kotlinx.serialization.json.Json.encodeToString(
+                            "arguments" to Json.encodeToString(
                                 serializer<Map<String, JsonElement>>(),
                                 call.callData.functionArguments,
                             ),
@@ -216,7 +241,7 @@ class Agent(
             }
         }
 
-        val skillInstance = skillRegistry.getSkill(functionName)
+        val skillInstance: Skill? = skillRegistry.getSkill(functionName)
         val executionResult: Map<String, Any> = if (skillInstance == null) {
             mapOf(
                 "success" to false,
@@ -253,17 +278,10 @@ class Agent(
             ))
         }
 
-        val resultString: String = kotlinx.serialization.json.Json.encodeToString(
-            serializer<Map<String, Any>>(),
-            executionResult,
-        )
+        val resultString: String = JsonUtil.encodeMap(executionResult)
 
         val todoReminder: String? = getTodoManagerInstance().getTaskReminder()
-        val finalResult: String = if (todoReminder != null) {
-            "$resultString\n\n$todoReminder"
-        } else {
-            resultString
-        }
+        val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
         val toolMessage: Map<String, Any> = if (configuration.providerName == "openai") {
             mapOf("role" to "tool", "tool_call_id" to processedCall.callIdentifier, "content" to finalResult)
@@ -281,7 +299,11 @@ class Agent(
             "version" to GRADUM_VERSION,
             "elapsedSeconds" to elapsedSeconds,
             "model" to configuration.modelName,
-            "tokenUsage" to activeClient.tokenUsage,
+            "tokenUsage" to mapOf(
+                "promptTokens" to activeClient.tokenUsage.promptTokens,
+                "completionTokens" to activeClient.tokenUsage.completionTokens,
+                "totalTokens" to activeClient.tokenUsage.totalTokens,
+            ),
         ))
 
         contextManager.saveContext(conversationHistory, configuration.modelName, fullyReadFiles)

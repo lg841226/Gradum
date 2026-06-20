@@ -7,6 +7,13 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 
+/**
+ * Applies a list of search-and-replace edits to a file.
+ *
+ * Supports two modes:
+ * - `sequential`: applies edits in order, each operating on the previous result.
+ * - `atomic`: applies all edits to a snapshot, and rolls back if any fails.
+ */
 class EditFileSkill : Skill() {
 
     override val skillName: String = "edit_file"
@@ -185,7 +192,11 @@ class EditFileSkill : Skill() {
 
         if (workingContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
-            return makeFailure("EMPTY_RESULT", "Edit resulted in empty content. Original content restored.", mapOf("path" to resolvedPath.toString()))
+            return makeFailure(
+                "EMPTY_RESULT",
+                "Edit resulted in empty content. Original content restored.",
+                mapOf("path" to resolvedPath.toString()),
+            )
         }
 
         targetFile.writeText(workingContent, Charsets.UTF_8)

@@ -2,7 +2,7 @@ package gradum.server
 
 import org.slf4j.LoggerFactory
 
-private val logger = LoggerFactory.getLogger("GradumMain")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("GradumMain")
 
 fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
@@ -25,7 +25,7 @@ fun main(arguments: Array<String>) {
         serverBaseUrl = parsedArguments.baseUrl,
     )
 
-    val server = createServerInstance(serverConfiguration)
+    val server: GradumServer = createServerInstance(serverConfiguration)
 
     Runtime.getRuntime().addShutdownHook(Thread {
         server.stop(gracePeriodMillis = 3000)
@@ -47,7 +47,7 @@ private data class ServerArguments(
     val baseUrl: String?,
 )
 
-private fun parseArguments(args: Array<String>): ServerArguments {
+private fun parseArguments(arguments: Array<String>): ServerArguments {
     var hostAddress: String = "localhost"
     var portNumber: Int = 8765
     var autoDetectPort: Boolean = false
@@ -58,7 +58,7 @@ private fun parseArguments(args: Array<String>): ServerArguments {
     var providerName: String = "ollama"
     var baseUrl: String? = null
 
-    val iterator: Iterator<String> = args.iterator()
+    val iterator: Iterator<String> = arguments.iterator()
     while (iterator.hasNext()) {
         when (val flag: String = iterator.next()) {
             "--host" -> hostAddress = iterator.next()

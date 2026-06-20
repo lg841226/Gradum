@@ -2,6 +2,7 @@ package gradum.client
 
 import gradum.AgentConfiguration
 import gradum.ExperimentalApi
+import gradum.util.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -11,7 +12,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.io.IOException
 import kotlin.math.pow
@@ -32,16 +33,27 @@ sealed class LLMResponseChunk {
     data class ErrorMessage(val description: String) : LLMResponseChunk()
 }
 
+@Serializable
 data class TokenUsageSnapshot(
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
     val totalTokens: Int = 0,
 )
 
+/**
+ * Anything that can expose accumulated token usage (Ollama, OpenAI-compatible, etc.).
+ *
+ * Used by the agent to surface usage metrics in the final session event
+ * without coupling to a specific provider.
+ */
 interface TokenUsageProvider {
     val tokenUsage: TokenUsageSnapshot
 }
 
+/**
+ * Talks to a local or remote Ollama server using its native /api/chat streaming
+ * protocol. Supports thinking-mode content separation and tool-call parsing.
+ */
 class OllamaClient(private val configuration: AgentConfiguration) : TokenUsageProvider {
 
     override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
@@ -53,7 +65,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
         thinkingOverride: Boolean? = null,
     ): Flow<LLMResponseChunk> = flow {
 
-        val requestUrl = "${configuration.baseUrl}/api/chat"
+        val requestUrl: String = "${configuration.baseUrl}/api/chat"
         val shouldThink: Boolean = thinkingOverride ?: configuration.enableThinking
 
         val requestPayload: MutableMap<String, Any> = mutableMapOf(
@@ -78,7 +90,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
             try {
                 val httpResponse: HttpResponse = httpClient.post(requestUrl) {
                     contentType(ContentType.Application.Json)
-                    setBody(jsonParser.encodeToString(requestPayload))
+                    setBody(JsonUtil.encodeMap(requestPayload))
                 }
 
                 val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
@@ -160,13 +172,22 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
             is kotlinx.coroutines.TimeoutCancellationException ->
                 "Request timed out after ${configuration.timeoutSeconds} seconds. The server is taking too long to respond."
             is IOException ->
-                "Could not connect to Ollama server at ${configuration.baseUrl}. Make sure Ollama is running. Details: ${exception.message}"
+                """
+                Could not connect to Ollama server at ${configuration.baseUrl}.
+                Make sure Ollama is running. Details: ${exception.message}
+                """.trimIndent()
             else ->
                 "Unexpected error - ${exception.message}"
         }
     }
 }
 
+/**
+ * Talks to any OpenAI-compatible /v1/chat/completions endpoint.
+ *
+ * Used for hosted providers (OpenAI, OpenRouter, etc.) when the local Ollama
+ * server is not the deployment target.
+ */
 class OpenAICompatibleClient(private val configuration: AgentConfiguration) : TokenUsageProvider {
 
     override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
@@ -198,7 +219,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
             try {
                 val httpResponse: HttpResponse = httpClient.post(requestUrl) {
                     contentType(ContentType.Application.Json)
-                    setBody(jsonParser.encodeToString(requestPayload))
+                    setBody(JsonUtil.encodeMap(requestPayload))
                 }
 
                 val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse)

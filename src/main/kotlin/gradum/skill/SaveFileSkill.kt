@@ -6,6 +6,12 @@ import gradum.makeSuccess
 import java.io.File
 import java.nio.file.Path
 
+/**
+ * Writes content to a file, creating parent directories as needed.
+ *
+ * Used by the agent to persist new files or fully overwrite existing ones.
+ * For partial edits, prefer [EditFileSkill].
+ */
 class SaveFileSkill : Skill() {
 
     override val skillName: String = "save_file"

@@ -5,9 +5,14 @@ import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
-private val logger = LoggerFactory.getLogger("ContextManager")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
 
+/**
+ * Persists the agent's conversation history and the set of files that have
+ * been fully read, so a later session can resume where the previous one
+ * left off without re-reading the same files.
+ */
 class ContextManager(private val outputDirectory: Path) {
 
     private val contextFilePath: Path = outputDirectory.resolve("context.json")
@@ -74,7 +79,7 @@ class ContextManager(private val outputDirectory: Path) {
                 }
             }
 
-            val contextMap = mapOf(
+            val contextMap: Map<String, Any> = mapOf(
                 "version" to "1",
                 "model" to modelName,
                 "messages" to serializedMessages,
@@ -110,17 +115,11 @@ class ContextManager(private val outputDirectory: Path) {
             cleanedMessages.add(
                 mapOf(
                     "role" to role,
-                    "content" to simplifyContent(content),
+                    "content" to content.trim().replace(Regex("\\s+"), " "),
                 ),
             )
         }
 
         return cleanedMessages.takeLast(60)
-    }
-
-    private fun simplifyContent(content: String): String {
-        return content
-            .trim()
-            .replace(Regex("\\s+"), " ")
     }
 }

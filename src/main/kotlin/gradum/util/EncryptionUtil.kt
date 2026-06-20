@@ -5,7 +5,7 @@ import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-private val logger = LoggerFactory.getLogger("ContextEncryption")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextEncryption")
 
 private val VERSION_BYTE: Byte = 0x81.toByte()
 private const val NONCE_SIZE_BYTES: Int = 16

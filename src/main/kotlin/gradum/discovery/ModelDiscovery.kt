@@ -12,7 +12,7 @@ import kotlin.math.pow
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.milliseconds
 
-private val logger = LoggerFactory.getLogger("ModelDiscovery")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ModelDiscovery")
 
 data class ModelEntry(
     val modelName: String,
@@ -51,7 +51,7 @@ fun discoverModels(): List<ModelEntry> {
 private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<ModelEntry> {
     for (attempt in 0..maxRetries) {
         try {
-            val httpClient = HttpClient()
+            val httpClient: HttpClient = HttpClient()
             val response: HttpResponse = runBlocking {
                 httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
                     timeout {

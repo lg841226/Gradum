@@ -4,6 +4,12 @@ import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
 
+/**
+ * Maintains a shared in-memory list of pending tasks across the agent loop.
+ *
+ * A single instance is exposed via [getTodoManagerInstance] so the agent,
+ * the TodoSkill, and the reminder prompts all see the same state.
+ */
 class TodoManager {
 
     private var taskList: List<String>? = null
@@ -65,9 +71,11 @@ class TodoManager {
         if (currentTaskIndex >= tasks.size) return null
 
         val remaining: Int = tasks.size - currentTaskIndex
-        return "Reminder: You still have $remaining task(s) remaining. " +
-            "Current task: ${tasks[currentTaskIndex]}. " +
-            "Complete them using finish_to_do_item, or ask the user for guidance."
+        return """
+            Reminder: You still have $remaining task(s) remaining.
+            Current task: ${tasks[currentTaskIndex]}.
+            Complete them using finish_to_do_item, or ask the user for guidance.
+        """.trimIndent()
     }
 
     fun isInitialized(): Boolean {
@@ -119,6 +127,12 @@ class TodoSkill : Skill() {
     }
 }
 
+/**
+ * Marks the next task in [TodoManager] as completed and advances the cursor.
+ *
+ * The agent calls this between steps to keep its own plan in sync with the
+ * reminder prompts injected by [TodoManager.getTaskReminder].
+ */
 class CompletePlanSkill : Skill() {
 
     override val skillName: String = "finish_to_do_item"

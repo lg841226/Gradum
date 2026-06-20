@@ -1,27 +1,25 @@
 package gradum.server
 
+import gradum.AgentConfiguration
 import gradum.GRADUM_VERSION
 import gradum.agent.Agent
-import gradum.AgentConfiguration
+import gradum.discovery.ModelEntry
 import gradum.discovery.discoverModels
 import gradum.skill.SkillRegistry
+import gradum.util.JsonUtil
 import io.ktor.http.*
+import io.ktor.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import io.ktor.http.content.OutgoingContent
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.serializer
 import java.time.Instant
-
-private val jsonFormatter: Json = Json { prettyPrint = false }
 
 @Serializable
 data class EventsRequestBody(
@@ -30,6 +28,13 @@ data class EventsRequestBody(
     val config: Map<String, String>? = null,
 )
 
+/**
+ * Registers every HTTP route the Gradum server exposes:
+ * - `POST /events` — streams an agent run as NDJSON.
+ * - `GET /health`  — liveness probe.
+ * - `GET /models`  — discovered LLM models.
+ * - `GET /skills`  — registered Skill implementations.
+ */
 fun Application.registerAllRoutes(): Unit {
     val serverStartTime: Instant = Instant.now()
 
@@ -53,7 +58,7 @@ fun Application.registerAllRoutes(): Unit {
 
             launch(Dispatchers.IO) {
                 try {
-                    val agent: Agent = Agent(
+                    val agent = Agent(
                         configuration = agentConfiguration,
                         emitEvent = { eventType: String, data: Map<String, Any> ->
                             val eventMap = mapOf(
@@ -61,7 +66,7 @@ fun Application.registerAllRoutes(): Unit {
                                 "timestamp" to Instant.now().toString(),
                                 "data" to data,
                             )
-                            val ndjsonLine: String = jsonFormatter.encodeToString(serializer<Map<String, Any>>(), eventMap) + "\n"
+                            val ndjsonLine: String = JsonUtil.encodeMap(eventMap) + "\n"
                             eventsChannel.tryEmit(ndjsonLine)
                         },
                     )
@@ -91,38 +96,47 @@ fun Application.registerAllRoutes(): Unit {
         get("/health") {
             val uptimeSeconds: Long = java.time.Duration.between(serverStartTime, Instant.now()).seconds
 
-            call.respond(mapOf(
-                "status" to "healthy",
-                "version" to GRADUM_VERSION,
-                "uptimeSeconds" to uptimeSeconds,
-                "timestamp" to Instant.now().toString(),
-            ))
+            call.respondText(
+                text = JsonUtil.encodeMap(mapOf(
+                    "status" to "healthy",
+                    "version" to GRADUM_VERSION,
+                    "uptimeSeconds" to uptimeSeconds,
+                    "timestamp" to Instant.now().toString(),
+                )),
+                contentType = ContentType.Application.Json,
+            )
         }
 
         get("/models") {
-            val discoveredModels = discoverModels()
-            call.respond(mapOf(
-                "models" to discoveredModels.map { entry ->
-                    mapOf(
-                        "name" to entry.modelName,
-                        "provider" to entry.providerType,
-                        "server" to entry.serverUrl,
-                    )
-                },
-            ))
+            val discoveredModels: List<ModelEntry> = discoverModels()
+            call.respondText(
+                text = JsonUtil.encodeMap(mapOf(
+                    "models" to discoveredModels.map { entry: ModelEntry ->
+                        mapOf(
+                            "name" to entry.modelName,
+                            "provider" to entry.providerType,
+                            "server" to entry.serverUrl,
+                        )
+                    },
+                )),
+                contentType = ContentType.Application.Json,
+            )
         }
 
         get("/skills") {
             val skillRegistry: SkillRegistry = SkillRegistry()
-            call.respond(mapOf(
-                "skills" to skillRegistry.getAllSkills().map { skill ->
-                    mapOf(
-                        "name" to skill.skillName,
-                        "description" to skill.description,
-                        "alias" to skill.alias,
-                    )
-                },
-            ))
+            call.respondText(
+                text = JsonUtil.encodeMap(mapOf(
+                    "skills" to skillRegistry.getAllSkills().map { skill ->
+                        mapOf(
+                            "name" to skill.skillName,
+                            "description" to skill.description,
+                            "alias" to skill.alias,
+                        )
+                    },
+                )),
+                contentType = ContentType.Application.Json,
+            )
         }
     }
 }

@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.UUID
 
-private val logger = LoggerFactory.getLogger("SessionManager")
+private val logger: org.slf4j.Logger = LoggerFactory.getLogger("SessionManager")
 
 enum class SessionStatus {
     Processing,
@@ -15,6 +15,10 @@ enum class SessionStatus {
     Error,
 }
 
+/**
+ * Holds the per-session state for an in-flight or completed agent run:
+ * the recorded NDJSON events, current status, and creation timestamp.
+ */
 class Session(
     val sessionIdentifier: String,
     var currentStatus: SessionStatus = SessionStatus.Processing,
@@ -41,6 +45,12 @@ class Session(
     }
 }
 
+/**
+ * Process-wide registry of active [Session]s with LRU-style expiration.
+ *
+ * Bounded by [configure]'s `maxSessions` and `sessionTimeout` parameters so
+ * long-running servers don't leak memory or accumulate stale runs.
+ */
 object SessionManager {
 
     private val activeSessions: MutableMap<String, Session> = mutableMapOf()

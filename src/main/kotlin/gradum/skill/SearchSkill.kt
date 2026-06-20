@@ -3,6 +3,7 @@ package gradum.skill
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -11,6 +12,12 @@ private const val MAXIMUM_FILES: Int = 600
 private const val MAXIMUM_DEPTH: Int = 6
 private const val HARD_MAX_RESULTS: Int = 20
 
+/**
+ * Searches file content, filenames, and directories within a project tree.
+ *
+ * Bounded by [SEARCH_TIMEOUT_SECONDS], [MAXIMUM_FILES], [MAXIMUM_DEPTH] and
+ * [HARD_MAX_RESULTS] to keep the agent's tool loop responsive on large repos.
+ */
 class SearchSkill : Skill() {
 
     override val skillName: String = "search"
@@ -82,7 +89,7 @@ class SearchSkill : Skill() {
         val deadline: Long = System.currentTimeMillis() + SEARCH_TIMEOUT_SECONDS * 1000
         var filesVisited: Int = 0
 
-        java.nio.file.Files.walk(rootDirectory, MAXIMUM_DEPTH)
+        Files.walk(rootDirectory, MAXIMUM_DEPTH)
             .filter { filePath: Path ->
                 filesVisited++
                 filesVisited <= MAXIMUM_FILES &&
@@ -121,7 +128,7 @@ class SearchSkill : Skill() {
             return matchingResults
         }
 
-        java.nio.file.Files.walk(rootDirectory, MAXIMUM_DEPTH)
+        Files.walk(rootDirectory, MAXIMUM_DEPTH)
             .filter { filePath: Path -> !isExcludedDirectory(filePath) }
             .forEach { filePath: Path ->
                 val fileName: String = filePath.fileName.toString()
@@ -147,7 +154,7 @@ class SearchSkill : Skill() {
             return matchingResults
         }
 
-        java.nio.file.Files.walk(rootDirectory, MAXIMUM_DEPTH)
+        Files.walk(rootDirectory, MAXIMUM_DEPTH)
             .filter { filePath: Path -> filePath.toFile().isDirectory && !isExcludedDirectory(filePath) }
             .forEach { directoryPath: Path ->
                 val directoryName: String = directoryPath.fileName.toString()
@@ -168,10 +175,8 @@ class SearchSkill : Skill() {
     private fun isExcludedDirectory(directoryPath: Path): Boolean {
         val directoryName: String = directoryPath.fileName.toString()
         return directoryName.startsWith(".") ||
-            directoryName == "__pycache__" ||
-            directoryName == "node_modules" ||
-            directoryName == ".venv" ||
-            directoryName == "venv"
+            directoryName == "__pycache__" || directoryName == "node_modules" ||
+            directoryName == ".venv" || directoryName == "venv"
     }
 
     private data class SearchResult(

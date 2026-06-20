@@ -83,7 +83,10 @@ private fun classifyChmodOperation(commandTokens: List<String>): CommandVerdict 
     val pathArguments: List<String> = extractPathArguments(commandTokens)
     for (targetPath in pathArguments) {
         if (isCriticalPath(targetPath)) {
-            return CommandVerdict.Blocked("chmod:criticalPathRecursive", "Recursive chmod on critical path '$targetPath' is not allowed")
+            return CommandVerdict.Blocked(
+                ruleName = "chmod:criticalPathRecursive",
+                description = "Recursive chmod on critical path '$targetPath' is not allowed",
+            )
         }
     }
 
