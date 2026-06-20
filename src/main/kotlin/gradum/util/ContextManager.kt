@@ -1,7 +1,13 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ContextManager.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.util
 
 import kotlinx.serialization.json.*
-import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
@@ -84,7 +90,7 @@ class ContextManager(private val outputDirectory: Path) {
                 "model" to modelName,
                 "messages" to serializedMessages,
             )
-            val contextJson: String = jsonFormatter.encodeToString(serializer<Map<String, Any>>(), contextMap)
+            val contextJson: String = JsonUtil.encodeMap(contextMap)
 
             contextFilePath.toFile().writeText(contextJson, Charsets.UTF_8)
             logger.info("Context saved to ${contextFilePath.toAbsolutePath()}")
