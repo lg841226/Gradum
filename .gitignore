@@ -11,6 +11,7 @@ src/gradum.egg-info
 # Kotlin / Gradle
 build/
 .gradle/
+.kotlin/
 .idea/
 *.iml
 *.iws
