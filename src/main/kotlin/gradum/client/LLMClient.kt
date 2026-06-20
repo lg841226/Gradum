@@ -1,7 +1,13 @@
+/*
+ * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * LLMClient.kt  2026-06-20 Created by gwy
+ */
+
 package gradum.client
 
 import gradum.AgentConfiguration
-import gradum.ExperimentalApi
 import gradum.util.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.plugins.*
@@ -19,6 +25,29 @@ import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
+
+/**
+ * Read [key] from this object as a string, returning "" when the key is missing
+ * or the value is not a primitive. Centralizes the pattern that is repeated
+ * across the streaming parsers below.
+ */
+private fun JsonObject.optString(key: String): String =
+    this[key]?.jsonPrimitive?.contentOrNull ?: ""
+
+/**
+ * Read [key] from this object as an int, returning 0 when the key is missing
+ * or the value is not a numeric primitive. Mirrors [optString] for integers.
+ */
+private fun JsonObject.optInt(key: String): Int =
+    this[key]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+
+/**
+ * Read [key] from this object as a nested [JsonObject], returning an empty
+ * object when the key is missing or the value is not an object. Avoids the
+ * noisy `?: JsonObject(emptyMap())` at every call site.
+ */
+private fun JsonObject.optObject(key: String): JsonObject =
+    this[key]?.jsonObject ?: JsonObject(emptyMap())
 
 data class ToolCallEntry(
     val callIdentifier: String,
@@ -51,22 +80,33 @@ interface TokenUsageProvider {
 }
 
 /**
+ * Common contract for LLM backends. The agent holds a single [LlmClient]
+ * chosen via [gradum.Provider] and calls [sendChat] uniformly, removing the
+ * need to special-case string-based dispatch at every call site.
+ */
+interface LlmClient : TokenUsageProvider {
+    fun sendChat(
+        messageHistory: List<Map<String, Any>>,
+        toolDefinitions: List<Map<String, Any>>? = null,
+    ): Flow<LLMResponseChunk>
+}
+
+/**
  * Talks to a local or remote Ollama server using its native /api/chat streaming
  * protocol. Supports thinking-mode content separation and tool-call parsing.
  */
-class OllamaClient(private val configuration: AgentConfiguration) : TokenUsageProvider {
+class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
 
     override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
         private set
 
-    fun sendChat(
+    override fun sendChat(
         messageHistory: List<Map<String, Any>>,
-        toolDefinitions: List<Map<String, Any>>? = null,
-        thinkingOverride: Boolean? = null,
+        toolDefinitions: List<Map<String, Any>>?,
     ): Flow<LLMResponseChunk> = flow {
 
         val requestUrl: String = "${configuration.baseUrl}/api/chat"
-        val shouldThink: Boolean = thinkingOverride ?: configuration.enableThinking
+        val shouldThink: Boolean = configuration.enableThinking
 
         val requestPayload: MutableMap<String, Any> = mutableMapOf(
             "model" to configuration.modelName,
@@ -102,7 +142,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
                     val eventData: JsonObject = jsonParser.parseToJsonElement(rawLine).jsonObject
 
                     eventData["message"]?.jsonObject?.let { messageObject ->
-                        val reasoningContent: String = messageObject["thinking"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val reasoningContent: String = messageObject.optString("thinking")
                         if (reasoningContent.isNotBlank()) {
                             emit(LLMResponseChunk.ReasoningContent(reasoningContent))
                         }
@@ -110,23 +150,23 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
                         messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                             val parsedCalls: List<ToolCallEntry> = toolCallsArray.map { element ->
                                 val callObject: JsonObject = element.jsonObject
-                                val functionObject: JsonObject = callObject["function"]?.jsonObject ?: JsonObject(emptyMap())
+                                val functionObject: JsonObject = callObject.optObject("function")
                                 ToolCallEntry(
-                                    callIdentifier = callObject["id"]?.jsonPrimitive?.contentOrNull ?: "",
-                                    functionTitle = functionObject["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                                    callIdentifier = callObject.optString("id"),
+                                    functionTitle = functionObject.optString("name"),
                                     functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
                                 )
                             }
                             emit(LLMResponseChunk.ToolCallBatch(parsedCalls))
                         }
 
-                        val messageContent: String = messageObject["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                        val messageContent: String = messageObject.optString("content")
                         if (messageContent.isNotBlank()) {
                             emit(LLMResponseChunk.TextContent(messageContent))
                         }
                     }
 
-                    val serverErrorMessage: String = eventData["error"]?.jsonPrimitive?.contentOrNull ?: ""
+                    val serverErrorMessage: String = eventData.optString("error")
                     if (serverErrorMessage.isNotBlank()) {
                         emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
                     }
@@ -139,11 +179,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
 
             } catch (exception: Exception) {
                 lastError = exception
-                if (isTransientError(exception) && attemptIndex < 2) {
-                    delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
-                } else {
-                    break
-                }
+
+                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds) else break
             }
         }
 
@@ -155,8 +192,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
     }
 
     private fun recordTokenUsage(eventData: JsonObject): Unit {
-        val promptTokens: Int = eventData["prompt_eval_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-        val completionTokens: Int = eventData["eval_count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val promptTokens: Int = eventData.optInt("prompt_eval_count")
+        val completionTokens: Int = eventData.optInt("eval_count")
 
         if (promptTokens > 0 || completionTokens > 0) {
             tokenUsage = tokenUsage.copy(
@@ -188,15 +225,14 @@ class OllamaClient(private val configuration: AgentConfiguration) : TokenUsagePr
  * Used for hosted providers (OpenAI, OpenRouter, etc.) when the local Ollama
  * server is not the deployment target.
  */
-class OpenAICompatibleClient(private val configuration: AgentConfiguration) : TokenUsageProvider {
+class OpenAICompatibleClient(private val configuration: AgentConfiguration) : LlmClient {
 
     override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
         private set
 
-    @ExperimentalApi
-    fun sendChat(
+    override fun sendChat(
         messageHistory: List<Map<String, Any>>,
-        toolDefinitions: List<Map<String, Any>>? = null,
+        toolDefinitions: List<Map<String, Any>>?,
     ): Flow<LLMResponseChunk> = flow {
 
         val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
@@ -230,11 +266,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
 
             } catch (exception: Exception) {
                 lastError = exception
-                if (isTransientError(exception) && attemptIndex < 2) {
-                    delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
-                } else {
-                    break
-                }
+                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds) else break
             }
         }
 
@@ -255,28 +287,21 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
             val rawLine: String = responseChannel.readUTF8Line() ?: break
             if (rawLine.isBlank()) continue
 
-            val eventBody: String = if (rawLine.startsWith("data: ")) {
-                rawLine.removePrefix("data: ")
-            } else {
-                continue
-            }
+            val eventBody: String = if (rawLine.startsWith("data: ")) rawLine.removePrefix("data: ") else continue
 
             if (eventBody.trim() == "[DONE]") break
 
             val parsedPayload: JsonObject = try {
                 jsonParser.parseToJsonElement(eventBody).jsonObject
-            } catch (parseError: Exception) {
+            } catch (_: Exception) {
                 continue
             }
 
-            val firstChoice: JsonObject = parsedPayload["choices"]
-                ?.jsonArray
-                ?.firstOrNull()
-                ?.jsonObject ?: continue
+            val firstChoice: JsonObject = parsedPayload["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: continue
 
             val deltaFields: JsonObject = firstChoice["delta"]?.jsonObject ?: continue
 
-            val contentDelta: String = deltaFields["content"]?.jsonPrimitive?.contentOrNull ?: ""
+            val contentDelta: String = deltaFields.optString("content")
             if (contentDelta.isNotBlank()) {
                 contentFragments.add(contentDelta)
             }
@@ -300,26 +325,23 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
         }
     }
 
-    private fun accumulateCallDeltas(
-        toolCallsArray: JsonArray,
-        accumulator: MutableMap<Int, MutableMap<String, Any>>,
-    ): Unit {
+    private fun accumulateCallDeltas(toolCallsArray: JsonArray, accumulator: MutableMap<Int, MutableMap<String, Any>>) {
         for (toolCallElement in toolCallsArray) {
             val toolCallObject: JsonObject = toolCallElement.jsonObject
-            val callIndex: Int = toolCallObject["index"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+            val callIndex: Int = toolCallObject.optInt("index")
 
             val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(callIndex) {
                 mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to "")
             }
 
-            val newId: String = toolCallObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+            val newId: String = toolCallObject.optString("id")
             if (newId.isNotBlank()) storedEntry["identifier"] = newId
 
             toolCallObject["function"]?.jsonObject?.let { functionDelta ->
-                val nameDelta: String = functionDelta["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                val nameDelta: String = functionDelta.optString("name")
                 if (nameDelta.isNotBlank()) storedEntry["functionName"] = nameDelta
 
-                val argumentDelta: String = functionDelta["arguments"]?.jsonPrimitive?.contentOrNull ?: ""
+                val argumentDelta: String = functionDelta.optString("arguments")
                 if (argumentDelta.isNotBlank()) {
                     val existingBuffer: String = storedEntry["argumentsBuffer"] as? String ?: ""
                     storedEntry["argumentsBuffer"] = existingBuffer + argumentDelta
@@ -329,14 +351,12 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
     }
 
     private fun buildCompletedCalls(accumulator: MutableMap<Int, MutableMap<String, Any>>): List<ToolCallEntry> {
-        return accumulator.entries
-            .sortedBy { entry -> entry.key }
-            .map { entry ->
+        return accumulator.entries.sortedBy { entry -> entry.key }.map { entry ->
                 val callData: MutableMap<String, Any> = entry.value
                 val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
                 val parsedArguments: Map<String, JsonElement> = try {
                     jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
-                } catch (parseError: Exception) {
+                } catch (_: Exception) {
                     emptyMap()
                 }
 
@@ -349,8 +369,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
     }
 
     private fun recordTokenUsage(usageStats: JsonObject): Unit {
-        val promptTokens: Int = usageStats["prompt_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
-        val completionTokens: Int = usageStats["completion_tokens"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val promptTokens: Int = usageStats.optInt("prompt_tokens")
+        val completionTokens: Int = usageStats.optInt("completion_tokens")
 
         if (promptTokens > 0 || completionTokens > 0) {
             tokenUsage = tokenUsage.copy(
@@ -373,9 +393,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : To
     }
 }
 
-private fun isTransientError(exception: Exception): Boolean {
-    return exception is IOException || exception is kotlinx.coroutines.TimeoutCancellationException
-}
+private fun isTransientError(exception: Exception): Boolean = exception is IOException || exception is kotlinx.coroutines.TimeoutCancellationException
 
 private fun buildHttpClient(): HttpClient {
     return HttpClient {

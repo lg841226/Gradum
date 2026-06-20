@@ -7,31 +7,20 @@
 
 package gradum.agent
 
-import java.nio.file.Path
-
+import gradum.*
+import gradum.client.*
+import gradum.skill.Skill
+import gradum.skill.SkillRegistry
+import gradum.skill.getTodoManagerInstance
+import gradum.util.ContextManager
+import gradum.util.JsonUtil
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
-
-import gradum.AgentConfiguration
-import gradum.ExperimentalApi
-import gradum.GRADUM_VERSION
-import gradum.OUTPUT_DIRECTORY
-import gradum.PROMPTS_DIRECTORY
-import gradum.SkillResult
-import gradum.client.LLMResponseChunk
-import gradum.client.OllamaClient
-import gradum.client.OpenAICompatibleClient
-import gradum.client.TokenUsageProvider
-import gradum.client.ToolCallEntry
-import gradum.skill.Skill
-import gradum.skill.SkillRegistry
-import gradum.skill.getTodoManagerInstance
-import gradum.util.ContextManager
-import gradum.util.JsonUtil
+import java.nio.file.Path
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("Agent")
 
@@ -54,7 +43,10 @@ class Agent(
     private val fullyReadFiles: MutableSet<String> = mutableSetOf()
     private var toolCallCounter: Int = 0
 
-    private val activeClient: TokenUsageProvider get() = if (configuration.providerName == "openai") openAiClient else ollamaClient
+    private val activeClient: LlmClient = when (configuration.provider) {
+        Provider.OPENAI -> openAiClient
+        Provider.OLLAMA -> ollamaClient
+    }
 
     fun executeTask(userInput: String, loadPreviousContext: Boolean = false): Unit {
         val startTimeMillis: Long = System.currentTimeMillis()
@@ -69,13 +61,15 @@ class Agent(
 
         loadSystemPrompt()
 
-        emitEvent("session_start", mapOf(
-            "version" to GRADUM_VERSION,
-            "model" to configuration.modelName,
-            "think" to configuration.enableThinking,
-            "contextLoaded" to contextLoaded,
-            "contextMessages" to conversationHistory.size,
-        ))
+        emitEvent(
+            "session_start", mapOf(
+                "version" to GRADUM_VERSION,
+                "model" to configuration.modelName,
+                "think" to configuration.enableThinking,
+                "contextLoaded" to contextLoaded,
+                "contextMessages" to conversationHistory.size,
+            )
+        )
 
         conversationHistory.add(mapOf("role" to "user", "content" to userInput))
 
@@ -85,23 +79,27 @@ class Agent(
             val result: AgentTurnResult = processLlmTurn(toolSchemas)
 
             result.errorMessage?.let { error ->
-                emitEvent("error", mapOf(
-                    "code" to "CLIENT_ERROR",
-                    "message" to error.trim(),
-                    "source" to "${configuration.providerName}_client",
-                ))
+                emitEvent(
+                    "error", mapOf(
+                        "code" to "CLIENT_ERROR",
+                        "message" to error.trim(),
+                        "source" to "${configuration.provider.name.lowercase()}_client",
+                    )
+                )
             }
 
             result.responseText?.let { text ->
                 if (text.isNotBlank()) {
-                    emitEvent("response", mapOf(
-                        "content" to text,
-                        "tokenUsage" to mapOf(
-                            "promptTokens" to activeClient.tokenUsage.promptTokens,
-                            "completionTokens" to activeClient.tokenUsage.completionTokens,
-                            "totalTokens" to activeClient.tokenUsage.totalTokens,
-                        ),
-                    ))
+                    emitEvent(
+                        "response", mapOf(
+                            "content" to text,
+                            "tokenUsage" to mapOf(
+                                "promptTokens" to activeClient.tokenUsage.promptTokens,
+                                "completionTokens" to activeClient.tokenUsage.completionTokens,
+                                "totalTokens" to activeClient.tokenUsage.totalTokens,
+                            ),
+                        )
+                    )
                 }
             }
 
@@ -140,17 +138,13 @@ class Agent(
         conversationHistory.add(0, mapOf("role" to "system", "content" to substitutedContent))
     }
 
-    @OptIn(ExperimentalApi::class)
     private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
         val contentParts: MutableList<String> = mutableListOf()
         val thinkingParts: MutableList<String> = mutableListOf()
         var toolCallsResult: List<ToolCallEntry>? = null
         var errorMessage: String? = null
 
-        val responseFlow: Flow<LLMResponseChunk> = when (configuration.providerName) {
-            "openai" -> openAiClient.sendChat(conversationHistory, toolSchemas)
-            else -> ollamaClient.sendChat(conversationHistory, toolSchemas, configuration.enableThinking)
-        }
+        val responseFlow: Flow<LLMResponseChunk> = activeClient.sendChat(conversationHistory, toolSchemas)
 
         runBlocking {
             responseFlow.collect { chunk ->
@@ -170,11 +164,7 @@ class Agent(
             }
         }
 
-        return AgentTurnResult(
-            responseText = contentParts.joinToString(""),
-            toolCalls = toolCallsResult,
-            errorMessage = errorMessage,
-        )
+        return AgentTurnResult(responseText = contentParts.joinToString(""), toolCalls = toolCallsResult, errorMessage = errorMessage)
     }
 
     private fun prepareToolCalls(rawCalls: List<ToolCallEntry>): List<ProcessedToolCall> {
@@ -191,7 +181,7 @@ class Agent(
 
     private fun appendAssistantMessage(content: String, processedCalls: List<ProcessedToolCall>?): Unit {
         val assistantMessage: Map<String, Any> = if (!processedCalls.isNullOrEmpty()) {
-            val toolCallsList: List<Map<String, Any>> = if (configuration.providerName == "openai") {
+            val toolCallsList: List<Map<String, Any>> = if (configuration.provider == Provider.OPENAI) {
                 processedCalls.map { call ->
                     mapOf(
                         "id" to call.callIdentifier,
@@ -210,9 +200,7 @@ class Agent(
                     mapOf(
                         "function" to mapOf(
                             "name" to call.callData.functionTitle,
-                            "arguments" to call.callData.functionArguments.entries.associate {
-                            it.key to JsonUtil.fromJsonElement(it.value)
-                        },
+                            "arguments" to call.callData.functionArguments.entries.associate { it.key to JsonUtil.fromJsonElement(it.value) },
                         ),
                     )
                 }
@@ -253,32 +241,33 @@ class Agent(
         } else {
             when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
                 is SkillResult.Success -> mapOf("success" to true) + result.data
-                is SkillResult.Failure -> mapOf(
-                    "success" to false,
-                    "error" to mapOf("code" to result.code, "message" to result.message),
-                )
+                is SkillResult.Failure -> mapOf("success" to false, "error" to mapOf("code" to result.code, "message" to result.message))
             }
         }
 
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
 
-        emitEvent("tool_call", mapOf(
-            "tool" to functionName,
-            "arguments" to convertedArguments,
-            "toolCallId" to processedCall.callIdentifier,
-            "success" to callSuccess,
-            "result" to executionResult,
-        ))
+        emitEvent(
+            "tool_call", mapOf(
+                "tool" to functionName,
+                "arguments" to convertedArguments,
+                "toolCallId" to processedCall.callIdentifier,
+                "success" to callSuccess,
+                "result" to executionResult,
+            )
+        )
 
         if (!callSuccess) {
             @Suppress("UNCHECKED_CAST")
-        val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
-            emitEvent("error", mapOf(
-                "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
-                "message" to (errorInfo["message"] ?: "Unknown error"),
-                "tool" to functionName,
-                "toolCallId" to processedCall.callIdentifier,
-            ))
+            val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
+            emitEvent(
+                "error", mapOf(
+                    "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
+                    "message" to (errorInfo["message"] ?: "Unknown error"),
+                    "tool" to functionName,
+                    "toolCallId" to processedCall.callIdentifier,
+                )
+            )
         }
 
         val resultString: String = JsonUtil.encodeMap(executionResult)
@@ -286,7 +275,7 @@ class Agent(
         val todoReminder: String? = getTodoManagerInstance().getTaskReminder()
         val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
-        val toolMessage: Map<String, Any> = if (configuration.providerName == "openai") {
+        val toolMessage: Map<String, Any> = if (configuration.provider == Provider.OPENAI) {
             mapOf("role" to "tool", "tool_call_id" to processedCall.callIdentifier, "content" to finalResult)
         } else {
             mapOf("role" to "tool", "content" to finalResult)
@@ -298,16 +287,18 @@ class Agent(
     private fun finishSession(startTimeMillis: Long): Unit {
         val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
 
-        emitEvent("session_end", mapOf(
-            "version" to GRADUM_VERSION,
-            "elapsedSeconds" to elapsedSeconds,
-            "model" to configuration.modelName,
-            "tokenUsage" to mapOf(
-                "promptTokens" to activeClient.tokenUsage.promptTokens,
-                "completionTokens" to activeClient.tokenUsage.completionTokens,
-                "totalTokens" to activeClient.tokenUsage.totalTokens,
-            ),
-        ))
+        emitEvent(
+            "session_end", mapOf(
+                "version" to GRADUM_VERSION,
+                "elapsedSeconds" to elapsedSeconds,
+                "model" to configuration.modelName,
+                "tokenUsage" to mapOf(
+                    "promptTokens" to activeClient.tokenUsage.promptTokens,
+                    "completionTokens" to activeClient.tokenUsage.completionTokens,
+                    "totalTokens" to activeClient.tokenUsage.totalTokens,
+                ),
+            )
+        )
 
         contextManager.saveContext(conversationHistory, configuration.modelName, fullyReadFiles)
     }
