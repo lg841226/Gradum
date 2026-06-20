@@ -1,0 +1,300 @@
+package gradum.agent
+
+import gradum.*
+import gradum.client.*
+import gradum.skill.SkillRegistry
+import gradum.skill.getTodoManagerInstance
+import gradum.util.ContextManager
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
+import org.slf4j.LoggerFactory
+import java.nio.file.Path
+
+private val logger = LoggerFactory.getLogger("Agent")
+
+class Agent(
+    private val configuration: AgentConfiguration,
+    private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
+) {
+
+    private val ollamaClient: OllamaClient = OllamaClient(configuration)
+    private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
+    private val skillRegistry: SkillRegistry = SkillRegistry()
+    private val contextManager: ContextManager = ContextManager(OUTPUT_DIRECTORY)
+
+    private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
+    private val fullyReadFiles: MutableSet<String> = mutableSetOf()
+    private var toolCallCounter: Int = 0
+
+    private val activeClient: TokenUsageProvider get() = if (configuration.providerName == "openai") openAiClient else ollamaClient
+
+    fun executeTask(userInput: String, loadPreviousContext: Boolean = false): Unit {
+        val startTimeMillis: Long = System.currentTimeMillis()
+
+        val contextLoaded: Boolean = if (loadPreviousContext) {
+            val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
+            conversationHistory.addAll(loadedMessages)
+            loadedMessages.isNotEmpty()
+        } else {
+            false
+        }
+
+        loadSystemPrompt()
+
+        emitEvent("session_start", mapOf(
+            "version" to GRADUM_VERSION,
+            "model" to configuration.modelName,
+            "think" to configuration.enableThinking,
+            "contextLoaded" to contextLoaded,
+            "contextMessages" to conversationHistory.size,
+        ))
+
+        conversationHistory.add(mapOf("role" to "user", "content" to userInput))
+
+        val toolSchemas: List<Map<String, Any>> = skillRegistry.getSchemas()
+
+        while (true) {
+            val result: AgentTurnResult = processLlmTurn(toolSchemas)
+
+            result.errorMessage?.let { error ->
+                emitEvent("error", mapOf(
+                    "code" to "CLIENT_ERROR",
+                    "message" to error.trim(),
+                    "source" to "${configuration.providerName}_client",
+                ))
+            }
+
+            result.responseText?.let { text ->
+                if (text.isNotBlank()) {
+                    emitEvent("response", mapOf(
+                        "content" to text,
+                        "tokenUsage" to activeClient.tokenUsage,
+                    ))
+                }
+            }
+
+            if (result.toolCalls.isNullOrEmpty()) {
+                result.responseText?.let { text ->
+                    appendAssistantMessage(text, null)
+                }
+                break
+            }
+
+            val processedCalls: List<ProcessedToolCall> = prepareToolCalls(result.toolCalls)
+            appendAssistantMessage(result.responseText ?: "", processedCalls)
+
+            for (processedCall in processedCalls) {
+                executeSingleTool(processedCall)
+            }
+        }
+
+        finishSession(startTimeMillis)
+    }
+
+    private fun loadSystemPrompt(): Unit {
+        val promptFilePath: Path = PROMPTS_DIRECTORY.resolve("system_prompt.md")
+        val promptContent: String = try {
+            promptFilePath.toFile().readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            logger.warn("Could not load system prompt: ${e.message}")
+            "You are a helpful AI assistant.\n"
+        }
+
+        val osName: String = System.getProperty("os.name")
+        val osVersion: String = System.getProperty("os.version")
+        val substitutedContent: String = promptContent
+            .replace("{{OS}}", "$osName $osVersion")
+
+        conversationHistory.add(0, mapOf("role" to "system", "content" to substitutedContent))
+    }
+
+    @OptIn(ExperimentalApi::class)
+    private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
+        val contentParts: MutableList<String> = mutableListOf()
+        val thinkingParts: MutableList<String> = mutableListOf()
+        var toolCallsResult: List<ToolCallEntry>? = null
+        var errorMessage: String? = null
+
+        val responseFlow = when (configuration.providerName) {
+            "openai" -> openAiClient.sendChat(conversationHistory, toolSchemas)
+            else -> ollamaClient.sendChat(conversationHistory, toolSchemas, configuration.enableThinking)
+        }
+
+        kotlinx.coroutines.runBlocking {
+            responseFlow.collect { chunk ->
+                when (chunk) {
+                    is LLMResponseChunk.TextContent -> contentParts.add(chunk.text)
+                    is LLMResponseChunk.ToolCallBatch -> toolCallsResult = chunk.toolCalls
+                    is LLMResponseChunk.ReasoningContent -> thinkingParts.add(chunk.text)
+                    is LLMResponseChunk.ErrorMessage -> errorMessage = chunk.description
+                }
+            }
+        }
+
+        if (thinkingParts.isNotEmpty()) {
+            val thinkingText: String = thinkingParts.joinToString("")
+            if (thinkingText.isNotBlank()) {
+                emitEvent("thinking", mapOf("content" to thinkingText))
+            }
+        }
+
+        return AgentTurnResult(
+            responseText = contentParts.joinToString(""),
+            toolCalls = toolCallsResult,
+            errorMessage = errorMessage,
+        )
+    }
+
+    private fun prepareToolCalls(rawCalls: List<ToolCallEntry>): List<ProcessedToolCall> {
+        return rawCalls.map { call: ToolCallEntry ->
+            val existingId: String = call.callIdentifier
+            if (existingId.isNotBlank()) {
+                ProcessedToolCall(callIdentifier = existingId, callData = call)
+            } else {
+                toolCallCounter++
+                ProcessedToolCall(callIdentifier = "call_$toolCallCounter", callData = call)
+            }
+        }
+    }
+
+    private fun appendAssistantMessage(content: String, processedCalls: List<ProcessedToolCall>?): Unit {
+        val assistantMessage: Map<String, Any> = if (!processedCalls.isNullOrEmpty()) {
+            val toolCallsList: List<Map<String, Any>> = if (configuration.providerName == "openai") {
+                processedCalls.map { call ->
+                    mapOf(
+                        "id" to call.callIdentifier,
+                        "type" to "function",
+                        "function" to mapOf(
+                            "name" to call.callData.functionTitle,
+                            "arguments" to kotlinx.serialization.json.Json.encodeToString(
+                                serializer<Map<String, JsonElement>>(),
+                                call.callData.functionArguments,
+                            ),
+                        ),
+                    )
+                }
+            } else {
+                processedCalls.map { call ->
+                    mapOf(
+                        "function" to mapOf(
+                            "name" to call.callData.functionTitle,
+                            "arguments" to call.callData.functionArguments.entries.associate {
+                                it.key to it.value.jsonPrimitive.contentOrNull
+                            },
+                        ),
+                    )
+                }
+            }
+
+            mapOf("role" to "assistant", "content" to content, "tool_calls" to toolCallsList)
+        } else {
+            mapOf("role" to "assistant", "content" to content)
+        }
+
+        conversationHistory.add(assistantMessage)
+    }
+
+    private fun executeSingleTool(processedCall: ProcessedToolCall): Unit {
+        val functionName: String = processedCall.callData.functionTitle
+        val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
+
+        val convertedArguments: MutableMap<String, Any> = mutableMapOf()
+        for ((key: String, value: JsonElement) in rawArguments) {
+            convertedArguments[key] = when {
+                value.jsonPrimitive.isString -> value.jsonPrimitive.content
+                value.jsonPrimitive.content == "true" -> true
+                value.jsonPrimitive.content == "false" -> false
+                else -> value.jsonPrimitive.content
+            }
+        }
+
+        if (functionName == "read_file" && convertedArguments["lineRange"] == null) {
+            convertedArguments["path"]?.let { path ->
+                fullyReadFiles.add(path.toString())
+            }
+        }
+
+        val skillInstance = skillRegistry.getSkill(functionName)
+        val executionResult: Map<String, Any> = if (skillInstance == null) {
+            mapOf(
+                "success" to false,
+                "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
+            )
+        } else {
+            when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
+                is SkillResult.Success -> mapOf("success" to true) + result.data
+                is SkillResult.Failure -> mapOf(
+                    "success" to false,
+                    "error" to mapOf("code" to result.code, "message" to result.message),
+                )
+            }
+        }
+
+        val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
+
+        emitEvent("tool_call", mapOf(
+            "tool" to functionName,
+            "arguments" to convertedArguments,
+            "toolCallId" to processedCall.callIdentifier,
+            "success" to callSuccess,
+            "result" to executionResult,
+        ))
+
+        if (!callSuccess) {
+            @Suppress("UNCHECKED_CAST")
+        val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
+            emitEvent("error", mapOf(
+                "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
+                "message" to (errorInfo["message"] ?: "Unknown error"),
+                "tool" to functionName,
+                "toolCallId" to processedCall.callIdentifier,
+            ))
+        }
+
+        val resultString: String = kotlinx.serialization.json.Json.encodeToString(
+            serializer<Map<String, Any>>(),
+            executionResult,
+        )
+
+        val todoReminder: String? = getTodoManagerInstance().getTaskReminder()
+        val finalResult: String = if (todoReminder != null) {
+            "$resultString\n\n$todoReminder"
+        } else {
+            resultString
+        }
+
+        val toolMessage: Map<String, Any> = if (configuration.providerName == "openai") {
+            mapOf("role" to "tool", "tool_call_id" to processedCall.callIdentifier, "content" to finalResult)
+        } else {
+            mapOf("role" to "tool", "content" to finalResult)
+        }
+
+        conversationHistory.add(toolMessage)
+    }
+
+    private fun finishSession(startTimeMillis: Long): Unit {
+        val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
+
+        emitEvent("session_end", mapOf(
+            "version" to GRADUM_VERSION,
+            "elapsedSeconds" to elapsedSeconds,
+            "model" to configuration.modelName,
+            "tokenUsage" to activeClient.tokenUsage,
+        ))
+
+        contextManager.saveContext(conversationHistory, configuration.modelName, fullyReadFiles)
+    }
+
+    private data class AgentTurnResult(
+        val responseText: String?,
+        val toolCalls: List<ToolCallEntry>?,
+        val errorMessage: String?,
+    )
+
+    data class ProcessedToolCall(
+        val callIdentifier: String,
+        val callData: ToolCallEntry,
+    )
+}

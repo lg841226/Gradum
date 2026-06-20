@@ -6,8 +6,10 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_NAME="$(basename "$SCRIPT_DIR")"
 
-# Destination: USB drive "葛汪洋"
-USB_DRIVE="/Volumes/葛汪洋"
+# USB drive name - override via environment variable if needed
+# Usage: USB_DRIVE_NAME="MyDrive" ./backup.sh
+USB_DRIVE_NAME="${USB_DRIVE_NAME:-Gradum}"
+USB_DRIVE="/Volumes/${USB_DRIVE_NAME}"
 DEST_DIR="${USB_DRIVE}/Code_Project/Gradum/"
 
 # Generate timestamp

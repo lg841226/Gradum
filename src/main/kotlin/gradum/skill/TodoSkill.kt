@@ -1,0 +1,148 @@
+package gradum.skill
+
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
+
+class TodoManager {
+
+    private var taskList: List<String>? = null
+    private var currentTaskIndex: Int = 0
+
+    fun initializeTasks(tasks: List<String>): SkillResult {
+        if (taskList != null) {
+            return makeFailure("ALREADY_INITIALIZED", "To-do list already initialized")
+        }
+
+        if (tasks.isEmpty()) {
+            return makeFailure("INVALID_PARAMETER", "Task list cannot be empty")
+        }
+
+        taskList = tasks
+        currentTaskIndex = 0
+
+        return makeSuccess(
+            mapOf(
+                "totalTasks" to tasks.size,
+                "currentTask" to tasks[0],
+                "currentIndex" to 0,
+            ),
+        )
+    }
+
+    fun completeCurrentTask(): SkillResult {
+        val tasks: List<String> = taskList ?: return makeFailure("NOT_INITIALIZED", "To-do list not initialized")
+
+        if (currentTaskIndex >= tasks.size) {
+            return makeFailure("ALL_COMPLETED", "All tasks already completed")
+        }
+
+        currentTaskIndex++
+        val allDone: Boolean = currentTaskIndex >= tasks.size
+
+        if (allDone) {
+            return makeSuccess(
+                mapOf(
+                    "completed" to true,
+                    "totalTasks" to tasks.size,
+                    "message" to "All tasks completed",
+                ),
+            )
+        }
+
+        return makeSuccess(
+            mapOf(
+                "completed" to false,
+                "totalTasks" to tasks.size,
+                "currentTask" to tasks[currentTaskIndex],
+                "currentIndex" to currentTaskIndex,
+            ),
+        )
+    }
+
+    fun getTaskReminder(): String? {
+        val tasks: List<String> = taskList ?: return null
+        if (currentTaskIndex >= tasks.size) return null
+
+        val remaining: Int = tasks.size - currentTaskIndex
+        return "Reminder: You still have $remaining task(s) remaining. " +
+            "Current task: ${tasks[currentTaskIndex]}. " +
+            "Complete them using finish_to_do_item, or ask the user for guidance."
+    }
+
+    fun isInitialized(): Boolean {
+        return taskList != null
+    }
+}
+
+private val sharedTodoManager: TodoManager = TodoManager()
+
+fun getTodoManagerInstance(): TodoManager {
+    return sharedTodoManager
+}
+
+class TodoSkill : Skill() {
+
+    override val skillName: String = "to_do"
+    override val alias: String = "Planned"
+    override val description: String = "Initialize a task list"
+
+    override fun getSchema(): Map<String, Any> {
+        return mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to skillName,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "tasks" to mapOf(
+                            "type" to "array",
+                            "items" to mapOf("type" to "string"),
+                            "description" to "List of tasks to complete",
+                        ),
+                    ),
+                    "required" to listOf("tasks"),
+                ),
+            ),
+        )
+    }
+
+    override fun execute(arguments: Map<String, Any>): SkillResult {
+        val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+
+        if (rawTasks.isEmpty()) {
+            return makeFailure("INVALID_PARAMETER", "Tasks list cannot be empty")
+        }
+
+        return sharedTodoManager.initializeTasks(rawTasks)
+    }
+}
+
+class CompletePlanSkill : Skill() {
+
+    override val skillName: String = "finish_to_do_item"
+    override val alias: String = "Completed"
+    override val description: String = "Mark a task as completed"
+
+    override fun getSchema(): Map<String, Any> {
+        return mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to skillName,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "task" to mapOf("type" to "string", "description" to "Task that was completed"),
+                    ),
+                    "required" to emptyList<String>(),
+                ),
+            ),
+        )
+    }
+
+    override fun execute(arguments: Map<String, Any>): SkillResult {
+        return sharedTodoManager.completeCurrentTask()
+    }
+}
