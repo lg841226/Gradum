@@ -19,7 +19,7 @@ flowchart TD
     J --> K["File I/O: `Charsets.UTF_8` explicitly<br/>Use `readText()`, `writeText()`"]
     K --> L["Shell commands: `ProcessBuilder.start()`<br/>*Always* `classifyCommand()` pre-check<br/>`@OptIn(DangerousOperation::class)`"]
     L --> M["KDoc on public classes/methods — explain **why**"]
-    M --> N["Line width: max 100 characters"]
+    M --> N["Line width: prefer long lines (Apple kernel style)"]
     N --> O["Build: `./gradlew build`"]
 
     style A fill:#2563eb
@@ -260,43 +260,55 @@ val systemPrompt: String = """
 
 ## 9. Braces
 
-For `if`, choose braces based on the length of the body:
+For `if`, choose the form that keeps the code readable:
 
 ```kotlin
-// Single short line (<= 25 chars) -> one line without braces
+// Short body on its own line -> no braces
 if (command.isBlank()) return SkillResult.Success(emptyMap())
 
-// Longer body or multiple lines -> braces on new lines
+// Long-line style: short if/else with single-statement branches on one line is OK
+if (isTransientError(exception) && attemptIndex < 2) delay(retryDelay) else break
+
+// Multi-line body or mixed length -> braces on new lines
 if (blockedExecutables.contains(executable)) {
     return makeFailure("COMMAND_BLOCKED", "Blocked by safety filter")
 }
 ```
 
-`else` on its own line:
+`else` placement — both branches must use the same form:
 
 ```kotlin
-// correct
+// correct - both single-line
+if (condition) doSomething() else doOtherwise()
+
+// correct - both multi-line
 if (condition) {
     doSomething()
 } else {
     doOtherwise()
 }
 
-// incorrect
-if (condition) { doSomething() } else { doOtherwise() }
+// incorrect - mixed (one branch single-line, the other multi-line)
+if (condition) doSomething() else {
+    doOtherwise()
+}
 ```
 
-`when` branches must each be on their own line:
+`when` branches each on their own line when more than 2 cases; a 2-branch `when`
+with very short bodies may be one-lined:
 
 ```kotlin
-// correct
+// correct - many cases, one per line
 when (executable) {
     "ls" -> CommandVerdict.Allowed
     "rm" -> classifyRmCommand(tokens)
 }
 
-// incorrect
-when (executable) { "ls" -> CommandVerdict.Allowed; "rm" -> classifyRmCommand(tokens) }
+// correct - 2 short branches on one line
+when (editMode) { "atomic" -> applyAtomic(...); else -> applySequential(...) }
+
+// incorrect - many cases crammed onto one line
+when (executable) { "ls" -> Allowed; "rm" -> classifyRm(tokens); "cp" -> ... }
 ```
 
 ---
@@ -373,12 +385,79 @@ targetFile.bufferedReader(Charsets.UTF_8).use { reader ->
 - Between methods inside a class: **1** blank line.
 - No blank line after KDoc; the code starts immediately.
 - Between import groups: **1** blank line.
+- Within a function body, add a blank line between distinct logical steps so
+  the function does not read as a single dense block. Common split points:
+  - After input parsing / parameter extraction
+  - After the main computation, before building the return value
+  - Before the final `return` statement
+
+```kotlin
+// correct - logical steps separated by blank lines
+private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String): SkillResult {
+    val content: String = path.toFile().readText(Charsets.UTF_8)
+    conn.didOpen(path, content, version = 1)
+
+    val params: JsonObject = buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
+    val raw: JsonElement = conn.sendRequest("textDocument/diagnostic", params)
+    val items: JsonArray = (raw as? JsonObject)?.get("items") as? JsonArray ?: JsonArray(emptyList())
+    val parsed: List<Map<String, Any?>> = items.map { element: JsonElement -> parseDiagnostic(element) }
+
+    val errors: Int = parsed.count { it["severity"] == "error" }
+    val warnings: Int = parsed.count { it["severity"] == "warning" }
+    val summary: Map<String, Int> = mapOf("total" to parsed.size, "errors" to errors, "warnings" to warnings)
+
+    return makeSuccess(mapOf("language" to languageId, "path" to path.toString(), "summary" to summary, "diagnostics" to parsed))
+}
+
+// incorrect - everything packed into one block, hard to scan
+private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String): SkillResult {
+    val content: String = path.toFile().readText(Charsets.UTF_8)
+    conn.didOpen(path, content, version = 1)
+    val params: JsonObject = buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
+    val raw: JsonElement = conn.sendRequest("textDocument/diagnostic", params)
+    val items: JsonArray = (raw as? JsonObject)?.get("items") as? JsonArray ?: JsonArray(emptyList())
+    val parsed: List<Map<String, Any?>> = items.map { element: JsonElement -> parseDiagnostic(element) }
+    val errors: Int = parsed.count { it["severity"] == "error" }
+    val warnings: Int = parsed.count { it["severity"] == "warning" }
+    val summary: Map<String, Int> = mapOf("total" to parsed.size, "errors" to errors, "warnings" to warnings)
+    return makeSuccess(mapOf("language" to languageId, "path" to path.toString(), "summary" to summary, "diagnostics" to parsed))
+}
+```
 
 ---
 
 ## 14. Line Width
 
-Maximum 100 characters. Break at logical points when exceeding the limit.
+Prefer long lines (Apple kernel style). Do not break chains or natural
+sequences unnecessarily. Break only when one of the following applies:
+
+- A function signature has more than 4 parameters (see section 10)
+- The line exceeds ~200 characters
+- Breaking improves readability, e.g. for deeply nested `mapOf` structures
+  with 5+ keys
+
+```kotlin
+// correct - long line for a chain
+val friendlyDiagnostics: List<Map<String, Any?>> = items.map { element: JsonElement -> parseDiagnostic(element) }
+
+// correct - one-line retry branch
+if (isTransientError(exception) && attemptIndex < 2) delay(retryDelay) else break
+
+// correct - broken because of 5+ params
+fun execute(
+    command: String,
+    workingDirectory: String? = null,
+    environmentVariables: Map<String, String>? = null,
+    timeoutSeconds: Int? = null,
+    runDetached: Boolean = false,
+): CommandResult
+
+// incorrect - breaking a chain that fits comfortably on one line
+val friendlyDiagnostics: List<Map<String, Any?>> = items
+    .map { element: JsonElement ->
+        parseDiagnostic(element)
+    }
+```
 
 ---
 

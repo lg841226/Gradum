@@ -17,7 +17,7 @@ complexity:
 
 style:
   MaxLineLength:
-    maxLineLength: 100
+    maxLineLength: 200
     ignoreAnnotated: []
   WildcardImport:
     active: true
@@ -26,6 +26,8 @@ style:
   MagicNumber:
     active: false
   LoopWithTooManyJumpStatements:
+    active: false
+  ArgumentListWrapping:
     active: false
 
 naming:

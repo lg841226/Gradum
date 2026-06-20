@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, Some Rights Reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-06-20 Created by gwy
+ * EditFileSkill.kt  2026-06-20 20:22:43 Created by gwy
  */
 
 package gradum.skill
@@ -157,6 +157,7 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to appliedEdits.size,
                 "totalEdits" to edits.size,
+                "lspDiagnostics" to fetchLspDiagnostics(targetFile, resolvedPath),
             ),
         )
     }
@@ -212,6 +213,7 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to edits.size,
                 "totalEdits" to edits.size,
+                "lspDiagnostics" to fetchLspDiagnostics(targetFile, resolvedPath),
             ),
         )
     }
@@ -219,6 +221,19 @@ class EditFileSkill : Skill() {
     private fun buildPartialFailureMessage(baseMessage: String, appliedCount: Int, failedIndex: Int): String {
         if (appliedCount == 0) return baseMessage
         return "$baseMessage $appliedCount edit(s) applied before failure."
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun fetchLspDiagnostics(targetFile: File, resolvedPath: Path): List<Map<String, Any?>> {
+        return try {
+            val lspResult: SkillResult = LspSkill().execute(mapOf("path" to resolvedPath.toString(), "action" to "diagnostics"))
+            when (lspResult) {
+                is SkillResult.Success -> (lspResult.data["diagnostics"] as? List<Map<String, Any?>>) ?: emptyList()
+                is SkillResult.Failure -> emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     private data class EditOperation(
