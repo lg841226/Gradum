@@ -28,7 +28,7 @@ fun main(arguments: Array<String>) {
     val server: GradumServer = createServerInstance(serverConfiguration)
 
     Runtime.getRuntime().addShutdownHook(Thread {
-        server.stop(gracePeriodMillis = 3000)
+        server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
         logger.info("Gradum Server shut down")
     })
 
