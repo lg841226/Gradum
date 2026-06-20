@@ -79,7 +79,7 @@ Gradum is composed of the following six collaborating layers. The diagram shows 
 
 ```mermaid
 flowchart TB
-    subgraph SERVER["🔌 Server Layer"]
+    subgraph SERVER["Server Layer"]
         direction LR
         S1["App.kt<br/>(server instance creation)"]
         S2["Main.kt<br/>(CLI argument parsing)"]
@@ -87,19 +87,19 @@ flowchart TB
         S4["SessionManager.kt<br/>(session tracking)"]
     end
 
-    subgraph APP["🤖 Application Layer"]
+    subgraph APP["Application Layer"]
         A1["Agent.kt<br/>(main loop, message book, tool dispatch)"]
     end
 
-    subgraph LLM["📡 LLM I/O Layer"]
+    subgraph LLM["LLM I/O Layer"]
         L1["LLMClient.kt<br/>(Ollama + OpenAI compatible<br/>streaming clients)"]
     end
 
-    subgraph DISCOVERY["🔍 Discovery Layer"]
+    subgraph DISCOVERY["Discovery Layer"]
         D1["ModelDiscovery.kt<br/>(local server probing)"]
     end
 
-    subgraph SKILLS["🛠️ Skills Layer"]
+    subgraph SKILLS["Skills Layer"]
         SK1["Skill.kt (abstract base)"]
         SK2["SkillRegistry.kt"]
         SK3["ReadFileSkill.kt"]
@@ -162,9 +162,9 @@ flowchart LR
 
     subgraph INV3["Invariant 3: CommandFilter is the only security-critical edge"]
         direction TB
-        RC[RunCommandSkill.execute] -->|pre-check| CF[classifyCommand()]
-        CF -->|Blocked → return error| E[SkillResult.Failure]
-        CF -->|Safe → proceed| PB[ProcessBuilder.start()]
+        RC["RunCommandSkill.execute"] -->|pre-check| CF["classifyCommand()"]
+        CF -->|Blocked → return error| E["SkillResult.Failure"]
+        CF -->|Safe → proceed| PB["ProcessBuilder.start()"]
         style RC fill:#d4f1d4
         style CF fill:#f4c1c1
         style E fill:#f4d4c1
@@ -242,14 +242,14 @@ output/                            # Generated at runtime on local storage
 
 ```mermaid
 flowchart TD
-    U[User / CLI<br/>POST /events<br/>{message, model?, config?}] --> R[Routes.kt<br/>registerAllRoutes]
+    U["User / CLI<br/>POST /events<br/>{message, model?, config?}"] --> R[Routes.kt<br/>registerAllRoutes]
 
     R -->|/events| R1[AgentConfiguration<br/>+ Agent instantiation]
     R -->|/health| R2[version + uptime]
     R -->|/models| R3[discoverModels]
     R -->|/skills| R4[SkillRegistry.getAllSkills]
 
-    R1 --> A[Agent.executeTask(userInput, loadContext)]
+    R1 --> A["Agent.executeTask(userInput, loadContext)"]
 
     subgraph AGENT_FLOW["Agent execution flow"]
         A --> C1["Step 1: Context loading<br/>contextManager.loadContext → decrypt → inject history"]
@@ -271,8 +271,8 @@ flowchart TD
     BRANCH -->|Yes| PREP["prepareToolCalls(rawCalls)<br/>assign call_N"]
 
     PREP --> FOR[FOR EACH tool_call]
-    FOR --> GS[skillRegistry.getSkill(name)]
-    GS --> EX[skill.execute(convertedArguments) → SkillResult]
+    FOR --> GS["skillRegistry.getSkill(name)"]
+    GS --> EX["skill.execute(convertedArguments) → SkillResult"]
     EX --> EMIT[emitEvent tool_call]
     EX -->|Failure| EMITERR[emitEvent error]
     EMIT --> REM[TodoManager reminder injection]
@@ -345,10 +345,10 @@ flowchart TD
     ADD_USER --> LLM_CALL["processLlmTurn(toolSchemas)"]
 
     LLM_CALL --> CHUNK_STREAM["Collect Flow of LLMResponseChunk:"]
-    CHUNK_STREAM --> TEXT[TextContent → accumulate in responseText]
-    CHUNK_STREAM --> THINK[ReasoningContent → emit thinking event]
-    CHUNK_STREAM --> TOOL[ToolCallBatch → save as toolCalls List]
-    CHUNK_STREAM --> ERR_MSG[ErrorMessage → emit error event]
+    CHUNK_STREAM --> TEXT["TextContent → accumulate in responseText"]
+    CHUNK_STREAM --> THINK["ReasoningContent → emit thinking event"]
+    CHUNK_STREAM --> TOOL["ToolCallBatch → save as toolCalls List"]
+    CHUNK_STREAM --> ERR_MSG["ErrorMessage → emit error event"]
 
     TOOL --> DECISION{"toolCalls present and non-empty?"}
 
@@ -741,7 +741,7 @@ When editing a file, two different execution paths are taken based on the `mode`
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ValidateArgs: EditFileSkill.execute(arguments)
+    [*] --> ValidateArgs: EditFileSkill.execute
 
     ValidateArgs --> PathEmpty: path is empty
     ValidateArgs --> EditsEmpty: edits is empty
@@ -750,35 +750,36 @@ stateDiagram-v2
     PathEmpty --> Failure: return INVALID_PARAMETER
     EditsEmpty --> Failure: return INVALID_PARAMETER
 
-    ReadOriginal --> FileNotFound: file doesn't exist
+    ReadOriginal --> FileNotFound: file does not exist
     FileNotFound --> Failure: return FILE_NOT_FOUND
 
     ReadOriginal --> ModeCheck: content loaded
 
-    ModeCheck --> SequentialMode: mode == "sequential" (default)
-    ModeCheck --> AtomicMode: mode == "atomic"
+    ModeCheck --> SequentialMode: mode sequential default
+    ModeCheck --> AtomicMode: mode atomic
 
     state SequentialMode {
         direction LR
-        S1[for each edit:
-           countOccurrences(search)] --> S2{matches?}
-           S2 -->|0| S3[buildPartialFailureMessage
-                   report applied count
-                   FAILURE CODE_NOT_FOUND]
-           S2 -->|>1| S4[buildPartialFailureMessage
-                   report applied count
-                   FAILURE MULTIPLE_MATCHES]
-           S2 -->|==1| S5[content.replaceFirst(search, replace)
-                    applied++]
+        S1: for each edit
+        S2: count matches
+        S3: 0 matches CODE_NOT_FOUND
+        S4: multiple matches
+        S5: exactly 1 match
+        S1 --> S2
+        S2 --> S3: zero
+        S2 --> S4: more than one
+        S2 --> S5: exactly one
     }
 
     state AtomicMode {
         direction LR
-        A1[workingCopy = original copy
-            for each edit in edits] --> A2{countOccurrences == 1?}
-            A2 -->|No| A3[RESTORE original content
-                  FAILURE: CODE_NOT_FOUND or MULTIPLE_MATCHES]
-            A2 -->|Yes| A4[apply edit to workingCopy]
+        A1: for each edit
+        A2: count matches
+        A3: rollback
+        A4: apply edit
+        A1 --> A2
+        A2 --> A3: not exactly one
+        A2 --> A4: exactly one
     }
 
     SequentialMode --> EmptyCheckSequential: after loop
@@ -789,13 +790,13 @@ stateDiagram-v2
     EmptySequential --> RestoreSequential: restore original
     RestoreSequential --> FailureEmptySeq: return EMPTY_RESULT
     WriteSequential --> SuccessSeq: write content
-    SuccessSeq --> SUCCESS[return Success<br/>{path, editsApplied, totalEdits}]
+    SuccessSeq --> SUCCESS: return Success
 
     EmptyCheckAtomic --> EmptyAtomic: result is empty
     EmptyCheckAtomic --> WriteAtomic: result has content
     EmptyAtomic --> RestoreAtomic: restore original
     RestoreAtomic --> FailureEmptyAt: return EMPTY_RESULT
-    WriteAtomic --> SUCCESS
+    WriteAtomic --> SUCCESS: return Success
 
     Failure --> [*]
     FailureEmptySeq --> [*]
@@ -847,7 +848,7 @@ flowchart TD
         TMP -->|Yes| NOT_CRIT[NOT Critical]
         TMP -->|No| PRE{prefix in PROTECTED_PREFIXES?}
         PRE -->|Yes| CRIT[Critical]
-        PRE -->|No| HOME{prefix in PROTECTED_HOME_SUBDIRS<br/>(relative to user.home)?}
+        PRE -->|No|         HOME{prefix in PROTECTED_HOME_SUBDIRS<br/>relative to user.home?}
         HOME -->|Yes| CRIT
         HOME -->|No| EXACT{path in EXACT_PROTECTED_PATHS?}
         EXACT -->|Yes| CRIT
@@ -1024,9 +1025,9 @@ stateDiagram-v2
     TaskNActive --> AllCompleted: completeCurrentTask()
     AllCompleted --> Done: getTaskReminder returns null
 
-    Task0Active --> Reminder0: getTaskReminder()<br/>"You still have N tasks unfinished..."
-    Task1Active --> Reminder1: getTaskReminder()
-    TaskNActive --> ReminderN: getTaskReminder()
+    Task0Active --> Reminder0: getTaskReminder
+    Task1Active --> Reminder1: getTaskReminder
+    TaskNActive --> ReminderN: getTaskReminder
     Reminder0 --> Injected0: Agent appends to tool result tail
     Reminder1 --> Injected1: Agent appends to tool result tail
     ReminderN --> InjectedN: Agent appends to tool result tail
