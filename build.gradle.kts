@@ -9,6 +9,10 @@ plugins {
 group = "com.gradum"
 version = "0.8.2"
 
+application {
+    mainClass.set("gradum.server.MainKt")
+}
+
 repositories {
     mavenCentral()
 }
@@ -17,6 +21,8 @@ dependencies {
     // Ktor server
     implementation("io.ktor:ktor-server-core:3.0.3")
     implementation("io.ktor:ktor-server-netty:3.0.3")
+    implementation("io.ktor:ktor-server-content-negotiation:3.0.3")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
 
     // Ktor client (for LLM API calls)
     implementation("io.ktor:ktor-client-core:3.0.3")

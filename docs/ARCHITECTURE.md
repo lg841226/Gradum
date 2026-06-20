@@ -227,7 +227,10 @@ src/main/kotlin/gradum/
     └── EncryptionUtil.kt          # encryptMessageContent() + decryptMessageContent() + HMAC-CTR
 
 src/main/resources/
-└── logback.xml                    # Logback logging configuration (Console + per-module levels)
+├── logback.xml                    # Logback logging configuration (Console + per-module levels)
+└── META-INF/
+    └── services/
+        └── gradum.skill.Skill     # ServiceLoader skill descriptor (built-in skills)
 
 prompts/                           # Read at runtime from local directory
 └── system_prompt.md               # System prompt (loaded by the Agent at runtime)
@@ -1126,18 +1129,21 @@ makeFailure(code: String, message: String, context: Map<String, Any> = emptyMap(
 
 ### 4.2 Skill Registration Flow
 
-`SkillRegistry.kt` uses hardcoded registration (not reflection):
+`SkillRegistry.kt` uses Java ServiceLoader for plugin discovery:
 
 ```mermaid
 flowchart TB
     INIT["SkillRegistry init block"] --> DISCOVER["discoverSkills()"]
-    DISCOVER --> R1["registerSkill(ReadFileSkill())"]
-    DISCOVER --> R2["registerSkill(EditFileSkill())"]
-    DISCOVER --> R3["registerSkill(SaveFileSkill())"]
-    DISCOVER --> R4["registerSkill(RunCommandSkill())"]
-    DISCOVER --> R5["registerSkill(SearchSkill())"]
-    DISCOVER --> R6["registerSkill(TodoSkill())"]
-    DISCOVER --> R7["registerSkill(CompletePlanSkill())"]
+    DISCOVER --> LOADER["ServiceLoader.load(Skill::class.java)"]
+    LOADER --> SCAN["Scan META-INF/services/gradum.skill.Skill<br/>+ external plugin JARs"]
+    SCAN --> R1["registerSkill(ReadFileSkill())"]
+    SCAN --> R2["registerSkill(EditFileSkill())"]
+    SCAN --> R3["registerSkill(SaveFileSkill())"]
+    SCAN --> R4["registerSkill(RunCommandSkill())"]
+    SCAN --> R5["registerSkill(SearchSkill())"]
+    SCAN --> R6["registerSkill(TodoSkill())"]
+    SCAN --> R7["registerSkill(CompletePlanSkill())"]
+    SCAN --> R8["registerSkill(ExternalPluginSkill())<br/>(from plugin JARs)"]
 
     R1 --> REG["registeredSkills map<br/>{skillName -> Skill instance}"]
     R2 --> REG
@@ -1146,11 +1152,29 @@ flowchart TB
     R5 --> REG
     R6 --> REG
     R7 --> REG
+    R8 --> REG
 
     REG --> LOOKUP["getSkill(name) → returns matching Skill or null"]
     REG --> ALL["getAllSkills() → all registered Skills"]
     REG --> SCH["getSchemas() → aggregated function schemas"]
 ```
+
+**Service Descriptor File**: `META-INF/services/gradum.skill.Skill`
+```
+gradum.skill.ReadFileSkill
+gradum.skill.EditFileSkill
+gradum.skill.SaveFileSkill
+gradum.skill.RunCommandSkill
+gradum.skill.SearchSkill
+gradum.skill.TodoSkill
+gradum.skill.CompletePlanSkill
+```
+
+**Adding External Plugins**:
+1. Create a class implementing `Skill` with a no-argument constructor
+2. Add the fully qualified class name to `META-INF/services/gradum.skill.Skill` in your JAR
+3. Place the JAR on the classpath
+4. Skills are automatically discovered at runtime
 
 ### 4.3 Skill Overview
 

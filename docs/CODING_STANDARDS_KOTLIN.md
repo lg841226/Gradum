@@ -455,7 +455,86 @@ override fun execute(arguments: Map<String, Any>): SkillResult {
 
 ---
 
-## 18. Build and Compile
+## 18. Adding New Skills
+
+Skills are discovered at runtime via Java ServiceLoader. To add a new skill:
+
+### 1. Create the Skill Class
+
+```kotlin
+package gradum.skill
+
+import gradum.SkillResult
+import gradum.makeSuccess
+import gradum.makeFailure
+
+/**
+ * Skill for [brief description].
+ *
+ * [Explain what this skill does and when to use it]
+ */
+class MyNewSkill : Skill() {
+    override val skillName: String = "my_new_skill"
+    override val description: String = "Description for LLM"
+    override val alias: String = "MySkill"
+
+    override fun execute(arguments: Map<String, Any>): SkillResult {
+        // Implementation
+        return makeSuccess(mapOf("result" to "value"))
+    }
+
+    override fun getSchema(): Map<String, Any> {
+        return mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to skillName,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        // Define parameters here
+                    ),
+                    "required" to listOf("param1"),
+                ),
+            ),
+        )
+    }
+}
+```
+
+### 2. Register in Service Descriptor
+
+Add the fully qualified class name to `src/main/resources/META-INF/services/gradum.skill.Skill`:
+
+```
+gradum.skill.ReadFileSkill
+gradum.skill.EditFileSkill
+gradum.skill.SaveFileSkill
+gradum.skill.RunCommandSkill
+gradum.skill.SearchSkill
+gradum.skill.TodoSkill
+gradum.skill.CompletePlanSkill
+gradum.skill.MyNewSkill          # <-- Add this line
+```
+
+### 3. Requirements
+
+- Class must have a **no-argument constructor**
+- Class must extend `Skill` abstract class
+- `skillName` must be unique across all registered skills
+- Follow all coding standards in this document
+
+### 4. External Plugin JARs
+
+For external plugins, create a JAR with:
+- Your Skill implementation class
+- `META-INF/services/gradum.skill.Skill` file listing your class
+
+Place the JAR on the classpath and skills are discovered automatically.
+
+---
+
+## 19. Build and Compile
 
 Use Gradle:
 
