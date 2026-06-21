@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LspClient.kt  2026-06-20 20:22:43 Created by gwy
+ * LspClient.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.util
@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 import java.io.BufferedInputStream
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-private val lspLogger: org.slf4j.Logger = LoggerFactory.getLogger("LspClient")
+private val lspLogger: Logger = LoggerFactory.getLogger("LspClient")
 private val lspJson: Json = Json { ignoreUnknownKeys = true; isLenient = true }
 
 /**
@@ -64,12 +65,15 @@ class LspConnection private constructor(
 ) {
     private val stdin: BufferedOutputStream = BufferedOutputStream(process.outputStream)
     private val stdout: BufferedInputStream = BufferedInputStream(process.inputStream)
-    private val stderrThread: Thread = Thread { drainStderr() }.apply { isDaemon = true; start() }
     private val nextRequestId: AtomicInteger = AtomicInteger(0)
     private val pending: ConcurrentHashMap<Int, CompletableFuture<JsonElement>> = ConcurrentHashMap()
-    private val readerThread: Thread = Thread { readLoop() }.apply { isDaemon = true; start() }
 
     @Volatile private var alive: Boolean = true
+
+    init {
+        Thread({ readLoop() }, "lsp-reader-${spec.languageId}").apply { isDaemon = true; start() }
+        Thread({ drainStderr() }, "lsp-stderr-${spec.languageId}").apply { isDaemon = true; start() }
+    }
 
     companion object {
         fun connect(spec: LspServerSpec, projectRoot: Path): LspConnection {
@@ -136,8 +140,6 @@ class LspConnection private constructor(
         })
     }
 
-    fun isAlive(): Boolean = alive && process.isAlive
-
     fun close() {
         alive = false
         runCatching { sendRequest("shutdown", buildJsonObject { }) }
@@ -167,10 +169,10 @@ class LspConnection private constructor(
                     pendingFuture?.complete(responsePayload)
                 }
             }
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
             alive = false
-            lspLogger.warn("LSP reader for ${spec.languageId} died: ${e.message}")
-            pending.values.forEach { it.completeExceptionally(e) }
+            lspLogger.warn("LSP reader for ${spec.languageId} died: ${exception.message}")
+            pending.values.forEach { it.completeExceptionally(exception) }
         }
     }
 

@@ -1,31 +1,39 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PortUtil.kt  2026-06-20 20:22:43 Created by gwy
+ * PortUtil.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.server
 
+import org.slf4j.LoggerFactory
+import org.slf4j.Logger
 import java.net.InetSocketAddress
 import java.net.Socket
+
+private const val TIME_OUT = 5000
+
+private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 fun isPortAvailable(checkPort: Int, hostAddress: String = "localhost"): Boolean {
     return try {
         Socket().use { socket ->
-            socket.connect(InetSocketAddress(hostAddress, checkPort), 500)
+            socket.connect(InetSocketAddress(hostAddress, checkPort), TIME_OUT)
             false
         }
-    } catch (e: Exception) {
+    } catch (exception: Exception) {
+        logger.warn("Could not connect to $checkPort - ${exception.message}")
         true
     }
 }
 
-fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String = "localhost"): Int {
+fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String = "localhost"): Int? {
     for (port in startPort until startPort + maxAttempts) {
         if (isPortAvailable(port, hostAddress)) {
             return port
         }
     }
-    throw RuntimeException("No available port in range $startPort-${startPort + maxAttempts}")
+    logger.error("Could not find available port in range$startPort - ${startPort+ maxAttempts}")
+    return null
 }

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-06-20 20:22:43 Created by gwy
+ * Main.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.server
@@ -15,7 +15,8 @@ fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
 
     val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
-        val detectedPort: Int = findAvailablePort(parsedArguments.portNumber)
+        val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
+        checkNotNull(detectedPort) { "No available port in range ${parsedArguments.portNumber} - ${parsedArguments.portNumber + 10}; aborting server start" }
         logger.info("Using auto-detected port: $detectedPort")
         detectedPort
     } else {
