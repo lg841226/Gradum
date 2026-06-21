@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LspServerSpec.kt  2026-06-20 20:22:43 Created by gwy
+ * LspServerSpec.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.util
@@ -22,7 +22,9 @@ data class LspServerSpec(
     val projectMarker: String? = null,
     val installHint: String
 ) {
-    fun matches(path: Path): Boolean = extensions.any { ext: String -> path.fileName.toString().endsWith(ext) }
+    fun matches(path: Path): Boolean = extensions.any {
+        ext: String -> path.fileName.toString().endsWith(ext)
+    }
 }
 
 /**

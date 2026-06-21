@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-20 20:22:43 Created by gwy
+ * Routes.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.server
@@ -26,7 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import java.time.Instant
+import java.time.Duration
+import java.time.LocalDateTime
 
 @Serializable
 data class EventsRequestBody(
@@ -41,7 +42,7 @@ data class EventsRequestBody(
  * nullable so the route handler can supply a default via `?:` instead of
  * scattering `?.toBoolean()` / `?.toIntOrNull()` across the call site.
  *
- * Construct via [fromRequestMap] to centralise every string→typed conversion
+ * Construct via [fromRequestMap] to centralize every string→typed conversion
  * in one place.
  */
 @Serializable
@@ -53,7 +54,7 @@ data class ConfigOverrides(
     val topP: Double? = null,
     val numCtx: Int? = null,
     val numPredict: Int? = null,
-    val timeout: Int? = null,
+    val timeout: Int? = null
 ) {
     companion object {
         /**
@@ -72,7 +73,7 @@ data class ConfigOverrides(
                 topP = rawConfig["topP"]?.toDoubleOrNull(),
                 numCtx = rawConfig["numCtx"]?.toIntOrNull(),
                 numPredict = rawConfig["numPredict"]?.toIntOrNull(),
-                timeout = rawConfig["timeout"]?.toIntOrNull(),
+                timeout = rawConfig["timeout"]?.toIntOrNull()
             )
         }
     }
@@ -86,7 +87,7 @@ data class ConfigOverrides(
  * - `GET /skills`  — registered Skill implementations.
  */
 fun Application.registerAllRoutes(): Unit {
-    val serverStartTime: Instant = Instant.now()
+    val serverStartTime: LocalDateTime = LocalDateTime.now()
 
     routing {
         post("/events") {
@@ -105,7 +106,7 @@ fun Application.registerAllRoutes(): Unit {
                 topPValue = configOverrides.topP ?: 0.9,
                 contextWindowSize = configOverrides.numCtx ?: 4096,
                 maxTokensToGenerate = configOverrides.numPredict ?: 24576,
-                timeoutSeconds = configOverrides.timeout ?: 3000,
+                timeoutSeconds = configOverrides.timeout ?: 3000
             )
 
             launch(Dispatchers.IO) {
@@ -113,7 +114,7 @@ fun Application.registerAllRoutes(): Unit {
                     val agent = Agent(
                         configuration = agentConfiguration,
                         emitEvent = { eventType: String, data: Map<String, Any> ->
-                            val ndjsonLine: String = JsonUtil.encodeMap(mapOf("type" to eventType, "timestamp" to Instant.now().toString(), "data" to data)) + "\n"
+                            val ndjsonLine: String = JsonUtil.encodeMap(mapOf("type" to eventType, "timestamp" to LocalDateTime.now().toString(), "data" to data)) + "\n"
                             eventsChannel.trySend(ndjsonLine)
                         },
                     )
@@ -139,16 +140,16 @@ fun Application.registerAllRoutes(): Unit {
         }
 
         get("/health") {
-            val uptimeSeconds: Long = java.time.Duration.between(serverStartTime, Instant.now()).seconds
+            val uptimeSeconds: Long = Duration.between(serverStartTime, LocalDateTime.now()).seconds
 
             call.respondText(
                 text = JsonUtil.encodeMap(mapOf(
                     "status" to "healthy",
                     "version" to GRADUM_VERSION,
                     "uptimeSeconds" to uptimeSeconds,
-                    "timestamp" to Instant.now().toString(),
+                    "timestamp" to LocalDateTime.now().toString()
                 )),
-                contentType = ContentType.Application.Json,
+                contentType = ContentType.Application.Json
             )
         }
 
@@ -160,27 +161,27 @@ fun Application.registerAllRoutes(): Unit {
                         mapOf(
                             "name" to entry.modelName,
                             "provider" to entry.providerType,
-                            "server" to entry.serverUrl,
+                            "server" to entry.serverUrl
                         )
                     },
                 )),
-                contentType = ContentType.Application.Json,
+                contentType = ContentType.Application.Json
             )
         }
 
         get("/skills") {
-            val skillRegistry: SkillRegistry = SkillRegistry()
+            val skillRegistry = SkillRegistry()
             call.respondText(
                 text = JsonUtil.encodeMap(mapOf(
                     "skills" to skillRegistry.getAllSkills().map { skill ->
                         mapOf(
                             "name" to skill.skillName,
                             "description" to skill.description,
-                            "alias" to skill.alias,
+                            "alias" to skill.alias
                         )
                     },
                 )),
-                contentType = ContentType.Application.Json,
+                contentType = ContentType.Application.Json
             )
         }
     }

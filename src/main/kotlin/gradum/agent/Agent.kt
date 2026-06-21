@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-20 20:22:43 Created by gwy
+ * Agent.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.agent
@@ -21,8 +21,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import org.slf4j.Logger
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("Agent")
+private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 /**
  * Drives a single user request through one or more LLM turns, dispatching
@@ -67,7 +68,7 @@ class Agent(
                 "model" to configuration.modelName,
                 "think" to configuration.enableThinking,
                 "contextLoaded" to contextLoaded,
-                "contextMessages" to conversationHistory.size,
+                "contextMessages" to conversationHistory.size
             )
         )
 
@@ -83,7 +84,7 @@ class Agent(
                     "error", mapOf(
                         "code" to "CLIENT_ERROR",
                         "message" to error.trim(),
-                        "source" to "${configuration.provider.name.lowercase()}_client",
+                        "source" to "${configuration.provider.name.lowercase()}_client"
                     )
                 )
             }
@@ -96,7 +97,7 @@ class Agent(
                             "tokenUsage" to mapOf(
                                 "promptTokens" to activeClient.tokenUsage.promptTokens,
                                 "completionTokens" to activeClient.tokenUsage.completionTokens,
-                                "totalTokens" to activeClient.tokenUsage.totalTokens,
+                                "totalTokens" to activeClient.tokenUsage.totalTokens
                             ),
                         )
                     )
@@ -123,17 +124,17 @@ class Agent(
 
     private fun loadSystemPrompt() {
         val promptFilePath: Path = PROMPTS_DIRECTORY.resolve("system_prompt.md")
+
         val promptContent: String = try {
             promptFilePath.toFile().readText(Charsets.UTF_8)
-        } catch (e: Exception) {
-            logger.warn("Could not load system prompt, reason: ${e.message}")
-            "You are a helpful AI assistant.\n"
+        } catch (exception: Exception) {
+            logger.warn("Could not load system prompt, reason: ${exception.message}")
+            "You are a helpful AI assistant. You can't call any tool and report it"
         }
 
         val osName: String = System.getProperty("os.name")
         val osVersion: String = System.getProperty("os.version")
-        val substitutedContent: String = promptContent
-            .replace("{{OS}}", "$osName $osVersion")
+        val substitutedContent: String = promptContent.replace("{{OS}}", "$osName $osVersion")
 
         conversationHistory.add(0, mapOf("role" to "system", "content" to substitutedContent))
     }
@@ -158,10 +159,8 @@ class Agent(
         }
 
         if (thinkingParts.isNotEmpty()) {
-            val thinkingText: String = thinkingParts.joinToString("")
-            if (thinkingText.isNotBlank()) {
-                emitEvent("thinking", mapOf("content" to thinkingText))
-            }
+            if (thinkingParts.joinToString("").isNotBlank())
+                emitEvent("thinking", mapOf("content" to thinkingParts.joinToString("")))
         }
 
         return AgentTurnResult(responseText = contentParts.joinToString(""), toolCalls = toolCallsResult, errorMessage = errorMessage)
@@ -190,7 +189,7 @@ class Agent(
                             "name" to call.callData.functionTitle,
                             "arguments" to Json.encodeToString(
                                 serializer<Map<String, JsonElement>>(),
-                                call.callData.functionArguments,
+                                call.callData.functionArguments
                             ),
                         ),
                     )
@@ -200,7 +199,7 @@ class Agent(
                     mapOf(
                         "function" to mapOf(
                             "name" to call.callData.functionTitle,
-                            "arguments" to call.callData.functionArguments.entries.associate { it.key to JsonUtil.fromJsonElement(it.value) },
+                            "arguments" to call.callData.functionArguments.entries.associate { it.key to JsonUtil.fromJsonElement(it.value) }
                         ),
                     )
                 }
@@ -240,7 +239,7 @@ class Agent(
             )
         } else {
             when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
-                is SkillResult.Success -> mapOf("success" to true) + result.data
+                is SkillResult.Success -> mapOf("success" to true).plus(result.data)
                 is SkillResult.Failure -> mapOf("success" to false, "error" to mapOf("code" to result.code, "message" to result.message))
             }
         }
@@ -253,7 +252,7 @@ class Agent(
                 "arguments" to convertedArguments,
                 "toolCallId" to processedCall.callIdentifier,
                 "success" to callSuccess,
-                "result" to executionResult,
+                "result" to executionResult
             )
         )
 
@@ -265,7 +264,7 @@ class Agent(
                     "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
                     "message" to (errorInfo["message"] ?: "Unknown error"),
                     "tool" to functionName,
-                    "toolCallId" to processedCall.callIdentifier,
+                    "toolCallId" to processedCall.callIdentifier
                 )
             )
         }
@@ -295,7 +294,7 @@ class Agent(
                 "tokenUsage" to mapOf(
                     "promptTokens" to activeClient.tokenUsage.promptTokens,
                     "completionTokens" to activeClient.tokenUsage.completionTokens,
-                    "totalTokens" to activeClient.tokenUsage.totalTokens,
+                    "totalTokens" to activeClient.tokenUsage.totalTokens
                 ),
             )
         )
@@ -306,11 +305,11 @@ class Agent(
     private data class AgentTurnResult(
         val responseText: String?,
         val toolCalls: List<ToolCallEntry>?,
-        val errorMessage: String?,
+        val errorMessage: String?
     )
 
     data class ProcessedToolCall(
         val callIdentifier: String,
-        val callData: ToolCallEntry,
+        val callData: ToolCallEntry
     )
 }

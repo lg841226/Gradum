@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * App.kt  2026-06-20 20:22:43 Created by gwy
+ * App.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.server
@@ -14,8 +14,9 @@ import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import org.slf4j.Logger
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("GradumServer")
+private val logger: Logger = LoggerFactory.getLogger("GradumServer")
 
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 

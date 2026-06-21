@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LspSkill.kt  2026-06-20 20:22:43 Created by gwy
+ * LspSkill.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.skill
@@ -202,8 +202,8 @@ class LspSkill : Skill() {
     }
 
     private fun parseSymbols(raw: JsonElement): List<Map<String, Any?>> {
-        val arr: JsonArray = raw as? JsonArray ?: return emptyList()
-        return arr.map { element: JsonElement -> parseSymbol(element) }
+        val jsonElements: JsonArray = raw as? JsonArray ?: return emptyList()
+        return jsonElements.map { element: JsonElement -> parseSymbol(element) }
     }
 
     private fun parseSymbol(element: JsonElement): Map<String, Any?> {

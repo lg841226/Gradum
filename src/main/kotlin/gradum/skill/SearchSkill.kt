@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, Some Rights Reserved.
+ * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkill.kt  2026-06-20 20:22:43 Created by gwy
+ * SearchSkill.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
 package gradum.skill
@@ -80,8 +80,8 @@ class SearchSkill : Skill() {
                     "truncated" to truncated,
                 ),
             )
-        } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Search failed", mapOf("query" to searchQuery))
+        } catch (exception: Exception) {
+            makeFailure("IO_ERROR", exception.message ?: "Search failed", mapOf("query" to searchQuery))
         }
     }
 
@@ -89,7 +89,7 @@ class SearchSkill : Skill() {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(queryPattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
             return matchingResults
         }
 
@@ -100,8 +100,7 @@ class SearchSkill : Skill() {
             .filter { filePath: Path ->
                 filesVisited++
                 filesVisited <= MAXIMUM_FILES &&
-                    System.currentTimeMillis() < deadline &&
-                    !filePath.toFile().isDirectory &&
+                    System.currentTimeMillis() < deadline && !filePath.toFile().isDirectory &&
                     !isExcludedDirectory(filePath)
             }
             .forEach { filePath: Path ->
@@ -119,7 +118,7 @@ class SearchSkill : Skill() {
                             )
                         }
                     }
-                } catch (e: Exception) {
+                } catch (exception: Exception) {
                     // Skip unreadable files
                 }
             }
@@ -131,7 +130,7 @@ class SearchSkill : Skill() {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(filenamePattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
             return matchingResults
         }
 
@@ -157,7 +156,7 @@ class SearchSkill : Skill() {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(directoryPattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
             return matchingResults
         }
 
@@ -195,7 +194,7 @@ class SearchSkill : Skill() {
             return mapOf(
                 "filePath" to filePath,
                 "lineNumber" to lineNumber,
-                "matchedText" to matchedText,
+                "matchedText" to matchedText
             )
         }
     }
