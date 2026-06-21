@@ -147,6 +147,9 @@ class Agent(
 
         val responseFlow: Flow<LLMResponseChunk> = activeClient.sendChat(conversationHistory, toolSchemas)
 
+        // TODO(tech-debt): migrate this to a `suspend fun` so the Netty event loop is not
+        // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
+        // execute() paths are suspend-clean; tracked as the "Agent.runBlocking removal" item.
         runBlocking {
             responseFlow.collect { chunk ->
                 when (chunk) {

@@ -93,6 +93,9 @@ fun Application.registerAllRoutes(): Unit {
         post("/events") {
             val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
 
+            // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
+            // emit rate is bounded by LLM response size. Reconsider if user input ever flows
+            // through this channel unfiltered.
             val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
 
             val configOverrides: ConfigOverrides = ConfigOverrides.fromRequestMap(requestBody.config)

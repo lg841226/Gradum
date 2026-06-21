@@ -106,6 +106,7 @@ class LspConnection private constructor(
             put("params", params)
         }
         writeFramed(message)
+        // 30s = generous for a static-analysis request; bump to 60s+ if the first query hits a cold LSP server.
         return future.get(30, TimeUnit.SECONDS)
     }
 
@@ -170,6 +171,9 @@ class LspConnection private constructor(
                 }
             }
         } catch (exception: Exception) {
+            // Daemon-thread death = whole connection death. Mark `alive=false` so the next
+            // sendRequest fails fast via `check(alive)`; in-flight callers get THIS exception
+            // (the actual cause) rather than a 30s timeout on an already-dead socket.
             alive = false
             lspLogger.warn("LSP reader for ${spec.languageId} died: ${exception.message}")
             pending.values.forEach { it.completeExceptionally(exception) }

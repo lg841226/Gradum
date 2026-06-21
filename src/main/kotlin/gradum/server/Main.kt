@@ -16,6 +16,7 @@ fun main(arguments: Array<String>) {
 
     val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
         val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
+        // fail-fast: Ktor would throw on bind(-1) with a less informative "port out of range" message.
         checkNotNull(detectedPort) { "No available port in range ${parsedArguments.portNumber} - ${parsedArguments.portNumber + 10}; aborting server start" }
         logger.info("Using auto-detected port: $detectedPort")
         detectedPort
