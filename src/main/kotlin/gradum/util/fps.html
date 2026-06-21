@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cube Shooter</title>
+<style>
+body{margin:0;overflow:hidden;background:#000;font-family:monospace}
+#hud{position:absolute;top:0;left:0;width:100%;padding:20px;box-sizing:border-box;color:#0f0;font-size:20px;text-shadow:0 0 5px #0f0;pointer-events:none}
+#crosshair{position:absolute;top:50%;left:50%;width:20px;height:20px;border:2px solid #0f0;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+#msg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:30px;text-align:center;display:none}
+#msg button{font-size:20px;padding:10px 30px;margin-top:20px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="hud">SCORE: <span id="score">0</span> | HP: <span id="hp">100</span> | AMMO: <span id="ammo">20</span></div>
+<div id="crosshair"></div>
+<div id="msg"><div id="msgText"></div><button onclick="restart()">RESTART</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,1000);
+const renderer=new THREE.WebGLRenderer();renderer.setSize(innerWidth,innerHeight);document.body.appendChild(renderer.domElement);
+scene.fog=new THREE.Fog(0,10,60);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshLambertMaterial({color:0x222222}));
+floor.rotation.x=-Math.PI/2;scene.add(floor);
+const light=new THREE.HemisphereLight(0xffffff,0x444444,1);scene.add(light);
+const dirLight=new THREE.DirectionalLight(0xffffff,0.5);dirLight.position.set(5,10,5);scene.add(dirLight);
+for(let i=0;i<30;i++){
+const box=new THREE.Mesh(new THREE.BoxGeometry(2,8,2),new THREE.MeshLambertMaterial({color:0x444444}));
+box.position.set((Math.random()-0.5)*80,4,(Math.random()-0.5)*80);scene.add(box);
+}
+let hp=100,score=0,ammo=20,wave=1,enemies=[],bullets=[],gameOver=false;
+const player={x:0,y:1.6,z:0,vy:0,grounded:true,dir:0,pitch:0};
+const keys={};
+let isLocked=false;
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space'&&player.grounded&&!gameOver){player.vy=8;player.grounded=false;}});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+document.addEventListener('click',()=>{
+if(!isLocked){renderer.domElement.requestPointerLock();}
+else if(ammo>0&&!gameOver)shoot();
+});
+document.addEventListener('pointerlockchange',()=>{isLocked=document.pointerLockElement===renderer.domElement;});
+document.addEventListener('mousemove',e=>{
+if(isLocked&&!gameOver){
+player.dir-=e.movementX*0.002;
+player.pitch-=e.movementY*0.002;
+player.pitch=Math.max(-1.5,Math.min(1.5,player.pitch));
+}
+});
+function shoot(){
+ammo--;updateHUD();
+const raycaster=new THREE.Raycaster();raycaster.setFromCamera({x:0,y:0},camera);
+const hit=raycaster.intersectObjects(enemies)[0];
+if(hit){hit.object.hp-=34;if(hit.object.hp<=0){score+=10;scene.remove(hit.object);enemies=enemies.filter(e=>e!==hit.object);updateHUD();spawnWave();}}
+const bullet=new THREE.Mesh(new THREE.SphereGeometry(0.1),new THREE.MeshBasicMaterial({color:0xffff00}));
+bullet.position.copy(camera.position);bullet.velocity=camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(1);scene.add(bullet);bullets.push(bullet);
+}
+function spawnWave(){
+const count=3+wave;for(let i=0;i<count;i++){
+const enemy=new THREE.Mesh(new THREE.BoxGeometry(1.5,1.5,1.5),new THREE.MeshLambertMaterial({color:0xff0000}));
+enemy.position.set((Math.random()-0.5)*30,0.75,(Math.random()-0.5)*30);enemy.hp=100;enemy.vx=0;enemy.vz=0;enemy.cooldown=0;scene.add(enemy);enemies.push(enemy);
+}
+}
+function updateHUD(){
+document.getElementById('score').textContent=score;
+document.getElementById('hp').textContent=Math.round(hp);
+document.getElementById('ammo').textContent=ammo;
+}
+function endGame(){
+gameOver=true;document.getElementById('msg').style.display='block';document.getElementById('msgText').textContent='GAME OVER - Score: '+score;document.exitPointerLock();
+}
+function restart(){
+hp=100;score=0;ammo=20;wave=1;gameOver=false;player.x=0;player.z=0;player.pitch=0;player.dir=0;player.vy=0;player.grounded=true;
+enemies.forEach(e=>scene.remove(e));enemies=[];bullets.forEach(b=>scene.remove(b));bullets=[];
+document.getElementById('msg').style.display='none';updateHUD();spawnWave();renderer.domElement.requestPointerLock();
+}
+function update(dt){
+if(gameOver)return;
+const speed=keys['ShiftLeft']?12:5;
+let dx=0,dz=0;
+if(keys['KeyW']){dx+=Math.sin(player.dir);dz-=Math.cos(player.dir);}
+if(keys['KeyS']){dx-=Math.sin(player.dir);dz+=Math.cos(player.dir);}
+if(keys['KeyA']){dx-=Math.cos(player.dir);dz-=Math.sin(player.dir);}
+if(keys['KeyD']){dx+=Math.cos(player.dir);dz+=Math.sin(player.dir);}
+if(dx||dz){player.x+=dx*speed*dt;player.z+=dz*speed*dt;}
+player.vy-=20*dt;
+player.y+=player.vy*dt;
+if(player.y<1.6){player.y=1.6;player.vy=0;player.grounded=true;}
+camera.position.set(player.x,player.y,player.z);
+camera.rotation.order='YXZ';camera.rotation.y=player.dir;camera.rotation.x=player.pitch;
+enemies.forEach(e=>{
+const dx=player.x-e.position.x,dz=player.z-e.position.z,dist=Math.hypot(dx,dz);
+e.cooldown-=dt;
+if(dist<2){hp=Math.max(0,hp-8*dt);if(hp<=0)endGame();}
+else if(dist<25){
+const angle=Math.atan2(dz,dx);
+if(dist>8){e.position.x+=Math.cos(angle)*3*dt;e.position.z+=Math.sin(angle)*3*dt;}
+else if(e.cooldown<=0){e.position.x-=Math.cos(angle)*4*dt;e.position.z-=Math.sin(angle)*4*dt;e.cooldown=1+Math.random();}
+}
+if(Math.random()<0.02){e.position.x+=(Math.random()-0.5)*2;e.position.z+=(Math.random()-0.5)*2;}
+});
+updateHUD();
+for(let i=bullets.length-1;i>=0;i--){
+bullets[i].position.add(bullets[i].velocity);
+if(bullets[i].position.length()>100){scene.remove(bullets[i]);bullets.splice(i,1);}
+}
+if(Math.random()<0.03&&ammo<20){ammo++;updateHUD();}
+}
+let last=performance.now();
+function loop(){
+requestAnimationFrame(loop);
+const now=performance.now(),dt=Math.min((now-last)/1000,0.1);last=now;
+update(dt);renderer.render(scene,camera);
+}
+spawnWave();loop();
+</script>
+</body>
+</html>

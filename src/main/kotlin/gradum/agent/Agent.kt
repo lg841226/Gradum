@@ -20,7 +20,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
-import java.nio.file.Path
 import org.slf4j.Logger
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
@@ -41,7 +40,6 @@ class Agent(
     private val contextManager: ContextManager = ContextManager(OUTPUT_DIRECTORY)
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
-    private val fullyReadFiles: MutableSet<String> = mutableSetOf()
     private var toolCallCounter: Int = 0
 
     private val activeClient: LlmClient = when (configuration.provider) {
@@ -114,19 +112,18 @@ class Agent(
             val processedCalls: List<ProcessedToolCall> = prepareToolCalls(result.toolCalls)
             appendAssistantMessage(result.responseText ?: "", processedCalls)
 
-            for (processedCall in processedCalls) {
+            for (processedCall in processedCalls)
                 executeSingleTool(processedCall)
-            }
         }
 
         finishSession(startTimeMillis)
     }
 
     private fun loadSystemPrompt() {
-        val promptFilePath: Path = PROMPTS_DIRECTORY.resolve("system_prompt.md")
-
         val promptContent: String = try {
-            promptFilePath.toFile().readText(Charsets.UTF_8)
+            Agent::class.java.getResourceAsStream("/system_prompt.md")?.use { stream ->
+                stream.reader(Charsets.UTF_8).readText()
+            } ?: throw IllegalStateException("system_prompt.md not found on classpath")
         } catch (exception: Exception) {
             logger.warn("Could not load system prompt, reason: ${exception.message}")
             "You are a helpful AI assistant. You can't call any tool and report it"
@@ -202,7 +199,9 @@ class Agent(
                     mapOf(
                         "function" to mapOf(
                             "name" to call.callData.functionTitle,
-                            "arguments" to call.callData.functionArguments.entries.associate { it.key to JsonUtil.fromJsonElement(it.value) }
+                            "arguments" to call.callData.functionArguments.entries.associate {
+                                it.key to JsonUtil.fromJsonElement(it.value)
+                            }
                         ),
                     )
                 }
@@ -228,12 +227,6 @@ class Agent(
             }
         }
 
-        if (functionName == "read_file" && convertedArguments["lineRange"] == null) {
-            convertedArguments["path"]?.let { path ->
-                fullyReadFiles.add(path.toString())
-            }
-        }
-
         val skillInstance: Skill? = skillRegistry.getSkill(functionName)
         val executionResult: Map<String, Any> = if (skillInstance == null) {
             mapOf(
@@ -246,6 +239,8 @@ class Agent(
                 is SkillResult.Failure -> mapOf("success" to false, "error" to mapOf("code" to result.code, "message" to result.message))
             }
         }
+
+        val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
 
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
 
@@ -272,7 +267,7 @@ class Agent(
             )
         }
 
-        val resultString: String = JsonUtil.encodeMap(executionResult)
+        val resultString: String = JsonUtil.encodeMap(historyResult)
 
         val todoReminder: String? = getTodoManagerInstance().getTaskReminder()
         val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
@@ -302,7 +297,7 @@ class Agent(
             )
         )
 
-        contextManager.saveContext(conversationHistory, configuration.modelName, fullyReadFiles)
+        contextManager.saveContext(conversationHistory, configuration.modelName, emptySet())
     }
 
     private data class AgentTurnResult(

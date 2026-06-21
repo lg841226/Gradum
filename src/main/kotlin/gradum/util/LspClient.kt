@@ -38,7 +38,7 @@ object LspClient {
     private val connections: ConcurrentHashMap<String, LspConnection> = ConcurrentHashMap()
 
     fun connectionFor(path: Path): LspConnection? {
-        val serverSpec: LspServerSpec = LspServerRegistry.findByPath(path) ?: return null
+        val serverSpec: LspServerDefinition = LspServerRegistry.findByPath(path) ?: return null
         if (!isLspServerInstalled(serverSpec)) {
             lspLogger.warn("LSP server for ${serverSpec.languageId} not installed — ${serverSpec.installHint}")
             return null
@@ -59,7 +59,7 @@ object LspClient {
  * correlating responses.
  */
 class LspConnection private constructor(
-    private val spec: LspServerSpec,
+    private val spec: LspServerDefinition,
     private val process: Process,
     private val projectRoot: Path,
 ) {
@@ -76,7 +76,7 @@ class LspConnection private constructor(
     }
 
     companion object {
-        fun connect(spec: LspServerSpec, projectRoot: Path): LspConnection {
+        fun connect(spec: LspServerDefinition, projectRoot: Path): LspConnection {
             val process: Process = ProcessBuilder(spec.command).directory(projectRoot.toFile()).redirectErrorStream(false).start()
             val connection: LspConnection = LspConnection(spec, process, projectRoot)
             connection.initialize()

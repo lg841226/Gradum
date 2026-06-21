@@ -190,7 +190,7 @@ flowchart LR
 src/main/kotlin/gradum/
 ├── AgentConfiguration.kt          # Agent runtime configuration (model/provider/temperature, etc.)
 ├── Annotations.kt                 # @ExperimentalApi, @DangerousOperation compile-time annotations
-├── ProjectPaths.kt                # OUTPUT_DIRECTORY, PROMPTS_DIRECTORY path constants
+├── ProjectPaths.kt                # OUTPUT_DIRECTORY path constant
 ├── SkillResult.kt                 # SkillResult sealed class + makeSuccess/makeFailure factories
 ├── Version.kt                     # GRADUM_VERSION constant
 │
@@ -365,8 +365,7 @@ flowchart TD
 
     FOR_EACH --> GET_SKILL["skillRegistry.getSkill(name)"]
     GET_SKILL --> CONVERT_ARGS["functionArguments Map<JsonElement><br/>→ Map<String, Any>"]
-    CONVERT_ARGS --> TRACK_READ["read_file without lineRange?<br/>track in fullyReadFiles"]
-    TRACK_READ --> EXECUTE["skill.execute(convertedArguments)"]
+    CONVERT_ARGS --> EXECUTE["skill.execute(convertedArguments)"]
     EXECUTE --> MAP_RESULT["SkillResult → Map<br/>{success, ...result/error}"]
     MAP_RESULT --> EMIT_TOOL["emitEvent tool_call<br/>{tool, arguments, toolCallId, success, result}"]
 
@@ -384,7 +383,7 @@ flowchart TD
     MORE -- No --> LLM_CALL
 
     EMIT_RESP --> END_SESSION["emitEvent session_end<br/>{version, elapsedSeconds, model, tokenUsage}"]
-    END_SESSION --> SAVE_CTX["contextManager.saveContext<br/>(history, model, fullyReadFiles)"]
+    END_SESSION --> SAVE_CTX["contextManager.saveContext<br/>(history, model, emptySet())"]
     SAVE_CTX --> WRITE_FILE["filter system/tool messages<br/>encrypt user/assistant content<br/>write to output/context.json<br/>keep only most recent 60 messages"]
     WRITE_FILE --> DONE([Agent finished])
 
@@ -394,7 +393,7 @@ flowchart TD
 
 1. **Initialization**:
    - If `loadPreviousContext=true`, call `contextManager.loadContext()`, decrypt, and inject into `conversationHistory`
-   - Read the system prompt from `PROMPTS_DIRECTORY/system_prompt.md`, replacing the `{{OS}}` placeholder with `System.getProperty("os.name") + " " + os.version`
+   - Read the system prompt from classpath resource `system_prompt.md`, replacing the `{{OS}}` placeholder with `System.getProperty("os.name") + " " + os.version`
    - Insert the system prompt as a `role="system"` message into the conversation history (if context was not loaded)
    - Emit a `session_start` event: `{version, model, think, contextLoaded, contextMessages}`
 
@@ -506,7 +505,7 @@ pie title NDJSON Event Types
 
 | Skill                  | Result Fields                                                                                  |
 |------------------------|------------------------------------------------------------------------------------------------|
-| **read_file**          | `{path, lineRange, totalLines, contentHash, content}`                                          |
+| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (content stripped from conversation history via `prepareHistoryResult`) |
 | **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                           |
 | **save_file**          | `{path, bytesWritten, created}`                                                                |
 | **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}`                                 |
@@ -1046,6 +1045,7 @@ classDiagram
         +alias: String
         +execute(arguments: Map<String, Any>) SkillResult
         +getSchema() Map<String, Any>
+        +prepareHistoryResult(result: Map<String, Any>) Map<String, Any>
     }
 
     class SkillResult {
@@ -1106,8 +1106,11 @@ abstract class Skill {
     abstract val alias: String              // "Read" (used for human-friendly logging)
     abstract fun execute(arguments: Map<String, Any>): SkillResult
     abstract fun getSchema(): Map<String, Any>  // Used for LLM tools definition
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
 }
 ```
+
+`prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default implementation returns the result unchanged. Override it to strip large fields (e.g., file `content`) to reduce token usage, while the full result is still emitted in the NDJSON `tool_call` event for the frontend.
 
 **SkillResult sealed class** (`SkillResult.kt`):
 ```kotlin

@@ -294,6 +294,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
 - Coding standards: [docs/CODING_STANDARDS_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md)
 - Skill development: [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md)
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `feature/@your-name-add-thing`
+3. Commit with descriptive messages
+4. Open a pull request
+
+Coding standards: see [docs/CODING_STANDARDS_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md)
+
 ## Limitations
 
 - Single user / single session (no multi-tenancy)

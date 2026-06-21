@@ -62,6 +62,9 @@ class ReadFileSkill : Skill() {
         )
     }
 
+    override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> =
+        result.filterKeys { it != "content" }
+
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
         val lineRange: String = arguments["lineRange"] as? String ?: ""

@@ -123,6 +123,14 @@ abstract class Skill {
 
     abstract fun execute(arguments: Map<String, Any>): SkillResult
     abstract fun getSchema(): Map<String, Any>
+
+    /**
+     * Hook for post-processing the execution result before it enters
+     * conversation history. Override to strip or transform fields
+     * that the LLM does not need to re-read every turn (e.g. file
+     * content). Default: pass-through (no transformation).
+     */
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
 }
 ```
 
@@ -140,6 +148,12 @@ abstract class Skill {
 |--------|--------|---------|
 | `execute(arguments: Map<String, Any>): SkillResult` | Main entry point for skill logic | Dispatched by the Agent when the LLM invokes the tool |
 | `getSchema(): Map<String, Any>` | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees |
+
+### Optional Hooks
+
+| Method | Return | Purpose |
+|--------|--------|---------|
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | Override to strip heavy fields (e.g. `content`) and save tokens |
 
 ---
 
@@ -420,6 +434,21 @@ class FileCounterSkill : Skill() {
     }
 }
 ```
+
+---
+
+### 6.4 Optimize Token Usage (Optional)
+
+If your skill returns large data (like file content), override `prepareHistoryResult` to strip non-essential fields from conversation history. The stripped data still appears in the NDJSON event stream for the frontend, but the LLM won't re-read it every turn:
+
+```kotlin
+class YourSkill : Skill() {
+    override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> =
+        result.filterKeys { it != "largeField" }
+}
+```
+
+Refer to `ReadFileSkill` for a real-world example.
 
 ---
 

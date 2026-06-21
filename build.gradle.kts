@@ -14,6 +14,12 @@ application {
     mainClass.set("gradum.server.MainKt")
 }
 
+ktor {
+    fatJar {
+        archiveFileName.set("gradum@${project.version}.jar")
+    }
+}
+
 repositories {
     mavenCentral()
 }

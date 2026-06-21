@@ -17,4 +17,6 @@ abstract class Skill {
     abstract fun execute(arguments: Map<String, Any>): SkillResult
 
     abstract fun getSchema(): Map<String, Any>
+
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
 }
