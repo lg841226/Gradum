@@ -64,17 +64,6 @@ flowchart TB
 
     Agent -->|emits events| Stream[NDJSON Event Stream]
     Stream -->|HTTP chunked| User
-
-    style Server fill:#2563eb
-    style Agent fill:#3b82f6
-    style LLM fill:#8b5cf6
-    style Providers fill:#c4b5fd
-    style SkillReg fill:#059669
-    style Skills fill:#34d399
-    style Utilities fill:#fbbf24
-    style Files fill:#f87171
-    style Shell fill:#f87171
-    style Stream fill:#0ea5e9
 ```
 
 ## Technology Stack

@@ -21,22 +21,6 @@ flowchart TD
     L --> M["KDoc on public classes/methods — explain **why**"]
     M --> N["Line width: prefer long lines (Apple kernel style)"]
     N --> O["Build: `./gradlew build`"]
-
-    style A fill:#2563eb
-    style B fill:#f59e0b
-    style C fill:#8b5cf6
-    style D fill:#3b82f6
-    style E fill:#06b6d4
-    style F fill:#0ea5e9
-    style G fill:#34d399
-    style H fill:#f87171
-    style I fill:#a78bfa
-    style J fill:#ec4899
-    style K fill:#14b8a6
-    style L fill:#dc2626
-    style M fill:#84cc16
-    style N fill:#facc15
-    style O fill:#16a34a
 ```
 
 ---
