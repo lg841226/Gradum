@@ -22,7 +22,7 @@ enum class Provider {
          * Parse a [Provider] from a free-form string (typically user input
          * from the HTTP `config` map). Returns [default] when [rawValue] is
          * null, blank, or unknown — matching the previous best-effort
-         * behaviour where unrecognised providers fell back to Ollama.
+         * behavior where unrecognized providers fell back to Ollama.
          */
         fun fromStringOrDefault(rawValue: String?, default: Provider = OLLAMA): Provider {
             if (rawValue.isNullOrBlank()) return default

@@ -1,28 +1,39 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-
-.venv/
-venv/
-ENV/
-src/gradum.egg-info
-
-# Kotlin / Gradle
+# Gradle build outputs
 build/
 .gradle/
 .kotlin/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# IDE / editor files
 .idea/
 *.iml
 *.iws
 *.ipr
 out/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Runtime output
+# Runtime / local data
 output/
 temp/
+logs/
+*.log
 
-# System
+# OS junk
 .DS_Store
 Thumbs.db
-test.jsonl
+desktop.ini
+
+# Testing / temporary
+test.txt
+*.tmp
+*.bak
+
+# Secrets / sensitive config
+*.secret
+*.key
+*.pem
+gradum.properties

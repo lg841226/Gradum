@@ -173,7 +173,7 @@ fun Application.registerAllRoutes(): Unit {
         }
 
         get("/skills") {
-            val skillRegistry = SkillRegistry()
+            val skillRegistry = SkillRegistry
             call.respondText(
                 text = JsonUtil.encodeMap(mapOf(
                     "skills" to skillRegistry.getAllSkills().map { skill ->

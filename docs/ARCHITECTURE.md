@@ -84,7 +84,7 @@ flowchart TB
         S1["App.kt<br/>(server instance creation)"]
         S2["Main.kt<br/>(CLI argument parsing)"]
         S3["Routes.kt<br/>(HTTP endpoints)"]
-        S4["SessionManager.kt<br/>(session tracking)"]
+        S4["PortUtil.kt<br/>(port availability check)"]
     end
 
     subgraph APP["Application Layer"]
@@ -209,7 +209,6 @@ src/main/kotlin/gradum/
 │   ├── Routes.kt                  # /events, /health, /models, /skills routes
 │   ├── PortUtil.kt                # isPortAvailable() + findAvailablePort()
 │   ├── ServerConfiguration.kt     # Server configuration data class
-│   └── SessionManager.kt          # Session entity + SessionManager singleton
 │
 ├── skill/
 │   ├── Skill.kt                   # Skill abstract base class
@@ -300,7 +299,7 @@ flowchart TD
         SK_RD[ReadFileSkill<br/>Path.readText]
         SK_ED[EditFileSkill<br/>sequential / atomic]
         SK_SV[SaveFileSkill<br/>Path.writeText]
-        SK_RC[RunCommandSkill<br/>classifyCommand → ProcessBuilder]
+        SK_RC[RunCommandSkill<br/>classifyCommand to ProcessBuilder]
         SK_SH[SearchSkill<br/>Files.walk + Regex]
         SK_TD[TodoSkill<br/>TodoManager singleton]
     end
@@ -503,16 +502,16 @@ pie title NDJSON Event Types
 
 #### `tool_call.result` Fields by Skill
 
-| Skill                  | Result Fields                                                                                  |
-|------------------------|------------------------------------------------------------------------------------------------|
-| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (content stripped from conversation history via `prepareHistoryResult`) |
-| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                           |
-| **save_file**          | `{path, bytesWritten, created}`                                                                |
-| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}`                                 |
-| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                             |
-| **search**             | `{query, searchType, results: [{filePath, lineNumber, matchedText}], totalMatches, truncated}` |
-| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                      |
-| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                        |
+| Skill                  | Result Fields                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`) |
+| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                            |
+| **save_file**          | `{path, bytesWritten, created}`                                                                                                                                 |
+| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}`                                                                                                  |
+| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                              |
+| **search**             | `{query, searchType, results: [{filePath, lineNumber, matchedText}], totalMatches, truncated}`                                                                  |
+| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                       |
+| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                         |
 
 ### 2.7 LLM Client Protocol Comparison
 
@@ -698,39 +697,6 @@ flowchart TD
     style GH fill:#c1daf4
     style GM fill:#f4e1c1
     style GS fill:#c1f4c1
-```
-
-### 2.11 Session Manager
-
-`SessionManager.kt` provides an optional session management capability (the Agent main loop does not directly use it currently, but it is used for session tracking in the HTTP layer):
-
-```mermaid
-flowchart TD
-    subgraph SM["SessionManager Singleton"]
-        CONFIG["Configuration<br/>maxSessions=10<br/>sessionTimeout=3600s"]
-        CREATE["createSession()<br/>UUID prefix sess_+8 chars<br/>check count limit<br/>auto-cleanup timeouts"]
-        GET["getSession(id)<br/>getSessionOrThrow(id)"]
-        CANCEL["cancelSession(id)<br/>mark Cancelled status"]
-        LIST["listAllSessions()<br/>cleanup + return"]
-        COUNT["countActiveSessions()"]
-    end
-
-    subgraph SES["Session Object"]
-        ID["sessionIdentifier"]
-        ST["status: Processing | WaitingForInput | Completed | Cancelled | Error"]
-        CT["creationTime"]
-        EV["recordedEvents: List<Map>"]
-        A_CFG["agentConfiguration (nullable)"]
-    end
-
-    CONFIG --> CREATE
-    CREATE --> GET
-    GET --> LIST
-    CREATE --> CANCEL
-    LIST --> COUNT
-
-    CREATE -.-> SES
-    GET -.-> SES
 ```
 
 ---
@@ -1106,11 +1072,32 @@ abstract class Skill {
     abstract val alias: String              // "Read" (used for human-friendly logging)
     abstract fun execute(arguments: Map<String, Any>): SkillResult
     abstract fun getSchema(): Map<String, Any>  // Used for LLM tools definition
-    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
+
+    // History context management — strip volatile keys from old results
+    open val historyKeepCount: Int = Int.MAX_VALUE   // Keep this many recent results intact
+    open val historyVolatileKeys: List<String> = emptyList()  // Keys to strip when exceeding count
+
+    private var prepareHistoryCallCount: Int = 0
+
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+        prepareHistoryCallCount++
+        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return result
+        return if (prepareHistoryCallCount <= historyKeepCount) result
+        else result.filterKeys { it !in historyVolatileKeys }
+    }
 }
 ```
 
-`prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default implementation returns the result unchanged. Override it to strip large fields (e.g., file `content`) to reduce token usage, while the full result is still emitted in the NDJSON `tool_call` event for the frontend.
+`prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default returns the result unchanged.
+
+**Property-based approach (recommended):** Override `historyKeepCount` and `historyVolatileKeys` to keep recent results intact while stripping older ones from context. For example, `ReadFileSkill` keeps the last 2 file contents and strips the `content` key from earlier reads:
+
+```kotlin
+override val historyKeepCount: Int = 2
+override val historyVolatileKeys: List<String> = listOf("content")
+```
+
+The full `content` is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed.
 
 **SkillResult sealed class** (`SkillResult.kt`):
 ```kotlin

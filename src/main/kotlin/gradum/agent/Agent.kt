@@ -5,6 +5,8 @@
  * Agent.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
+@file:Suppress("RedundantUnitReturnType")
+
 package gradum.agent
 
 import gradum.*
@@ -36,7 +38,6 @@ class Agent(
 
     private val ollamaClient: OllamaClient = OllamaClient(configuration)
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
-    private val skillRegistry: SkillRegistry = SkillRegistry()
     private val contextManager: ContextManager = ContextManager(OUTPUT_DIRECTORY)
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
@@ -72,7 +73,7 @@ class Agent(
 
         conversationHistory.add(mapOf("role" to "user", "content" to userInput))
 
-        val toolSchemas: List<Map<String, Any>> = skillRegistry.getSchemas()
+        val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas()
 
         while (true) {
             val result: AgentTurnResult = processLlmTurn(toolSchemas)
@@ -227,7 +228,7 @@ class Agent(
             }
         }
 
-        val skillInstance: Skill? = skillRegistry.getSkill(functionName)
+        val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
         val executionResult: Map<String, Any> = if (skillInstance == null) {
             mapOf(
                 "success" to false,

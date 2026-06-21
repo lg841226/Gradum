@@ -66,6 +66,9 @@ classDiagram
         +alias: String
         +execute(arguments: Map) SkillResult
         +getSchema() Map
+        +historyKeepCount: Int             // Recent N results keep volatile keys
+        +historyVolatileKeys: List~String~ // Keys stripped from older results
+        +prepareHistoryResult(result: Map) Map
     }
 
     class SkillResult {
@@ -117,43 +120,64 @@ All skills extend `skill/Skill.kt`:
 
 ```kotlin
 abstract class Skill {
-    abstract val skillName: String      // tool name, snake_case
-    abstract val description: String    // short description for the LLM
-    abstract val alias: String          // alias used in NDJSON events
+    abstract val skillName: String
+    abstract val description: String
+    abstract val alias: String
 
     abstract fun execute(arguments: Map<String, Any>): SkillResult
     abstract fun getSchema(): Map<String, Any>
 
     /**
-     * Hook for post-processing the execution result before it enters
-     * conversation history. Override to strip or transform fields
-     * that the LLM does not need to re-read every turn (e.g. file
-     * content). Default: pass-through (no transformation).
+     * How many recent results keep their [historyVolatileKeys] in conversation history.
+     * Older results beyond this count will have those keys stripped to save context.
+     * Default [Int.MAX_VALUE] keeps all results intact (no stripping).
      */
-    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
+    open val historyKeepCount: Int = Int.MAX_VALUE
+
+    /**
+     * Keys to strip from history result when exceeding [historyKeepCount].
+     * Only relevant when [historyKeepCount] is not [Int.MAX_VALUE].
+     */
+    open val historyVolatileKeys: List<String> = emptyList()
+
+    private var prepareHistoryCallCount: Int = 0
+
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+        prepareHistoryCallCount++
+        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return result
+        return if (prepareHistoryCallCount <= historyKeepCount) result
+        else result.filterKeys { it !in historyVolatileKeys }
+    }
 }
 ```
 
 ### Required Class Properties
 
-| Property | Type | Purpose | Example |
-|----------|------|---------|---------|
-| `skillName` | `String` | Unique name used for LLM function calls | `"search"` |
-| `description` | `String` | Description shown to the LLM | `"Search code content, filenames and directories"` |
-| `alias` | `String` | Verb (past-tense) used in NDJSON events | `"Explored"` |
+| Property      | Type     | Purpose                                 | Example                                            |
+|---------------|----------|-----------------------------------------|----------------------------------------------------|
+| `skillName`   | `String` | Unique name used for LLM function calls | `"search"`                                         |
+| `description` | `String` | Description shown to the LLM            | `"Search code content, filenames and directories"` |
+| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Explored"`                                       |
 
 ### Required Methods
 
-| Method | Return | Purpose |
-|--------|--------|---------|
-| `execute(arguments: Map<String, Any>): SkillResult` | Main entry point for skill logic | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(): Map<String, Any>` | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees |
+| Method                                              | Return                                       | Purpose                                               |
+|-----------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>): SkillResult` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
+| `getSchema(): Map<String, Any>`                     | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+
+### Optional Properties
+
+| Property              | Type           | Default          | Purpose                                                           |
+|-----------------------|----------------|------------------|-------------------------------------------------------------------|
+| `historyKeepCount`    | `Int`          | `Int.MAX_VALUE`  | Keep this many recent results intact; strip volatile keys beyond  |
+| `historyVolatileKeys` | `List<String>` | `emptyList()`    | Keys to remove from history result when exceeding `historyKeepCount` |
 
 ### Optional Hooks
 
-| Method | Return | Purpose |
-|--------|--------|---------|
-| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | Override to strip heavy fields (e.g. `content`) and save tokens |
+| Method                                                             | Return                                                     | Purpose                                                         |
+|--------------------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------------------|
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | By default handles `historyKeepCount`/`historyVolatileKeys`     |
 
 ---
 
@@ -212,20 +236,20 @@ flowchart LR
 
 ### Standard Error Codes
 
-| Error Code | Applicable Scenario |
-|------------|---------------------|
-| `INVALID_PARAMETER` | Missing or malformed parameter |
-| `FILE_NOT_FOUND` | Target file does not exist |
-| `FILE_TOO_LARGE` | File size or line count exceeds limits |
-| `IO_ERROR` | Filesystem or process exception |
-| `CODE_NOT_FOUND` | Edit search text does not appear in the file |
-| `MULTIPLE_MATCHES` | Edit search text appears multiple times in the file |
-| `EMPTY_RESULT` | The file becomes empty after editing, prevents accidental wiping |
-| `COMMAND_BLOCKED` | Command rejected by the safety filter |
-| `TIMEOUT` | Operation timed out |
-| `ALREADY_INITIALIZED` | Duplicate initialization (e.g. to_do) |
-| `NOT_INITIALIZED` | Operation requires initialization that has not happened |
-| `ALL_COMPLETED` | All tasks are already completed |
+| Error Code            | Applicable Scenario                                              |
+|-----------------------|------------------------------------------------------------------|
+| `INVALID_PARAMETER`   | Missing or malformed parameter                                   |
+| `FILE_NOT_FOUND`      | Target file does not exist                                       |
+| `FILE_TOO_LARGE`      | File size or line count exceeds limits                           |
+| `IO_ERROR`            | Filesystem or process exception                                  |
+| `CODE_NOT_FOUND`      | Edit search text does not appear in the file                     |
+| `MULTIPLE_MATCHES`    | Edit search text appears multiple times in the file              |
+| `EMPTY_RESULT`        | The file becomes empty after editing, prevents accidental wiping |
+| `COMMAND_BLOCKED`     | Command rejected by the safety filter                            |
+| `TIMEOUT`             | Operation timed out                                              |
+| `ALREADY_INITIALIZED` | Duplicate initialization (e.g. to_do)                            |
+| `NOT_INITIALIZED`     | Operation requires initialization that has not happened          |
+| `ALL_COMPLETED`       | All tasks are already completed                                  |
 
 ---
 
@@ -439,14 +463,16 @@ class FileCounterSkill : Skill() {
 
 ### 6.4 Optimize Token Usage (Optional)
 
-If your skill returns large data (like file content), override `prepareHistoryResult` to strip non-essential fields from conversation history. The stripped data still appears in the NDJSON event stream for the frontend, but the LLM won't re-read it every turn:
+If your skill returns large data (like file content), use `historyKeepCount` and `historyVolatileKeys` to keep recent results intact while stripping older ones from conversation history. The stripped data still appears in the NDJSON event stream for the frontend, but the LLM won't re-read older large payloads every turn:
 
 ```kotlin
 class YourSkill : Skill() {
-    override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> =
-        result.filterKeys { it != "largeField" }
+    override val historyKeepCount: Int = 2          // Keep last 2 results with full data
+    override val historyVolatileKeys: List<String> = listOf("largeField")  // Strip this key from older results
 }
 ```
+
+For more granular control, you can override `prepareHistoryResult` directly instead.
 
 Refer to `ReadFileSkill` for a real-world example.
 
@@ -544,15 +570,15 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ## 9. Existing Skills Reference
 
-| Skill Class | skillName | Purpose |
-|-------------|-----------|---------|
-| `ReadFileSkill` | `read_file` | Read a file (full content or a line range) |
-| `EditFileSkill` | `edit_file` | Search-and-replace editing (sequential / atomic) |
-| `SaveFileSkill` | `save_file` | Write to or create a file |
-| `RunCommandSkill` | `run_cmd` | Execute a shell command (blocking / detached) |
-| `SearchSkill` | `search` | Search code content / filenames / directories |
-| `TodoSkill` | `to_do` | Initialize a task list |
-| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed |
+| Skill Class         | skillName           | Purpose                                          |
+|---------------------|---------------------|--------------------------------------------------|
+| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)       |
+| `EditFileSkill`     | `edit_file`         | Search-and-replace editing (sequential / atomic) |
+| `SaveFileSkill`     | `save_file`         | Write to or create a file                        |
+| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)    |
+| `SearchSkill`       | `search`            | Search code content / filenames / directories    |
+| `TodoSkill`         | `to_do`             | Initialize a task list                           |
+| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                         |
 
 ---
 

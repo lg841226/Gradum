@@ -84,10 +84,6 @@ class TodoManager {
             Complete them using finish_to_do_item, or ask the user for guidance.
         """.trimIndent()
     }
-
-    fun isInitialized(): Boolean {
-        return taskList != null
-    }
 }
 
 private val sharedTodoManager: TodoManager = TodoManager()

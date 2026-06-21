@@ -16,10 +16,11 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.runBlocking
 import kotlin.math.pow
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.milliseconds
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ModelDiscovery")
+private val logger: Logger = LoggerFactory.getLogger("ModelDiscovery")
 
 data class ModelEntry(
     val modelName: String,
@@ -58,7 +59,7 @@ fun discoverModels(): List<ModelEntry> {
 private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<ModelEntry> {
     for (attempt in 0..maxRetries) {
         try {
-            val httpClient: HttpClient = HttpClient()
+            val httpClient = HttpClient()
             val response: HttpResponse = runBlocking {
                 httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
                     timeout {

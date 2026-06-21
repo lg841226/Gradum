@@ -23,7 +23,7 @@ private val logger: org.slf4j.Logger = LoggerFactory.getLogger("SkillRegistry")
  * @see Skill
  * @see ServiceLoader
  */
-class SkillRegistry {
+object SkillRegistry {
 
     private val registeredSkills: MutableMap<String, Skill> = mutableMapOf()
 

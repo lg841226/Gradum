@@ -8,8 +8,9 @@
 package gradum.server
 
 import org.slf4j.LoggerFactory
+import org.slf4j.Logger
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("GradumMain")
+private val logger: Logger = LoggerFactory.getLogger("GradumMain")
 
 fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
@@ -24,7 +25,7 @@ fun main(arguments: Array<String>) {
         parsedArguments.portNumber
     }
 
-    val serverConfiguration: ServerConfiguration = ServerConfiguration(
+    val serverConfiguration = ServerConfiguration(
         hostAddress = parsedArguments.hostAddress,
         portNumber = resolvedPort,
         debugMode = parsedArguments.debugMode,
@@ -57,14 +58,14 @@ private data class ServerArguments(
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
-    var hostAddress: String = "localhost"
-    var portNumber: Int = 8765
-    var autoDetectPort: Boolean = false
-    var portRange: String = "8765-8775"
-    var debugMode: Boolean = false
+    var hostAddress = "localhost"
+    var portNumber = 8765
+    var autoDetectPort = false
+    var portRange = "8765-8775"
+    var debugMode = false
     var modelName: String? = null
-    var enableThinking: Boolean = false
-    var providerName: String = "ollama"
+    var enableThinking = false
+    var providerName = "ollama"
     var baseUrl: String? = null
 
     val iterator: Iterator<String> = arguments.iterator()
@@ -101,9 +102,9 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
 private fun printUsage(): Unit {
     println("Gradum HTTP Server")
     println()
-    println("Usage: java -jar gradum.jar [options]")
+    println("Usage: java -jar gradum@<version>.jar [options]")
     println()
-    println("Options:")
+    println("Available Options:")
     println("  --host <host>           Host to bind (default: localhost)")
     println("  --port <port>           Port to bind (default: 8765)")
     println("  --auto-port             Auto-find available port")

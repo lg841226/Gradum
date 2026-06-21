@@ -10,6 +10,7 @@ package gradum.skill
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import gradum.util.SyntaxChecker
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -33,6 +34,9 @@ class ReadFileSkill : Skill() {
     override val skillName: String = "read_file"
     override val alias: String = "Read"
     override val description: String = "Read file content (entire file or specific line range)"
+
+    override val historyKeepCount: Int = 2
+    override val historyVolatileKeys: List<String> = listOf("content")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -61,9 +65,6 @@ class ReadFileSkill : Skill() {
             ),
         )
     }
-
-    override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> =
-        result.filterKeys { it != "content" }
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
@@ -142,6 +143,7 @@ class ReadFileSkill : Skill() {
                     "totalLines" to totalLines,
                     "contentHash" to contentHash,
                     "content" to fileContent,
+                    "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
                 ),
             )
         } catch (e: FileNotFoundException) {

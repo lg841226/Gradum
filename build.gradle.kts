@@ -47,6 +47,15 @@ dependencies {
 
     // Detekt
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
+
+    // Test
+    testImplementation("io.ktor:ktor-server-test-host:3.0.3")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:2.0.21")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.0.21")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 detekt {

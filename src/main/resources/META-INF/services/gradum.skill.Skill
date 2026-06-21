@@ -12,4 +12,3 @@ gradum.skill.RunCommandSkill
 gradum.skill.SearchSkill
 gradum.skill.TodoSkill
 gradum.skill.CompletePlanSkill
-gradum.skill.LspSkill

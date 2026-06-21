@@ -14,7 +14,7 @@ import java.net.Socket
 
 private const val TIME_OUT = 5000
 
-private val logger: Logger = LoggerFactory.getLogger("Agent")
+private val logger: Logger = LoggerFactory.getLogger("PortUtil")
 
 fun isPortAvailable(checkPort: Int, hostAddress: String = "localhost"): Boolean {
     return try {

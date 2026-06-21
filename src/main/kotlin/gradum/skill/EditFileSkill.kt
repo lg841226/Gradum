@@ -5,11 +5,14 @@
  * EditFileSkill.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
+@file:Suppress("RedundantExplicitType")
+
 package gradum.skill
 
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import gradum.util.SyntaxChecker
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -83,7 +86,7 @@ class EditFileSkill : Skill() {
                 EditOperation(
                     search = edit["search"] as? String ?: "",
                     replace = edit["replace"] as? String ?: "",
-                    index = index,
+                    index = index
                 )
             }
 
@@ -99,19 +102,15 @@ class EditFileSkill : Skill() {
                 "atomic" -> applyAtomicEdits(resolvedPath, targetFile, originalContent, edits)
                 else -> applySequentialEdits(resolvedPath, targetFile, originalContent, edits)
             }
-        } catch (e: FileNotFoundException) {
+        } catch (_: FileNotFoundException) {
             makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
-        } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Unknown error during edit", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            makeFailure("IO_ERROR", exception.message ?:
+            "Unknown error during edit", mapOf("path" to resolvedPath.toString()))
         }
     }
 
-    private fun applySequentialEdits(
-        resolvedPath: Path,
-        targetFile: File,
-        originalContent: String,
-        edits: List<EditOperation>,
-    ): SkillResult {
+    private fun applySequentialEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
         var currentContent: String = originalContent
         val appliedEdits: MutableList<Int> = mutableListOf()
 
@@ -124,7 +123,7 @@ class EditFileSkill : Skill() {
                     targetFile.writeText(currentContent, Charsets.UTF_8)
                     return makeFailure(
                         "CODE_NOT_FOUND",
-                        buildPartialFailureMessage(failureMessage, appliedEdits.size, edit.index),
+                        buildPartialFailureMessage(failureMessage, appliedEdits.size),
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size),
                     )
                 }
@@ -134,7 +133,7 @@ class EditFileSkill : Skill() {
                     targetFile.writeText(currentContent, Charsets.UTF_8)
                     return makeFailure(
                         "MULTIPLE_MATCHES",
-                        buildPartialFailureMessage(failureMessage, appliedEdits.size, edit.index),
+                        buildPartialFailureMessage(failureMessage, appliedEdits.size),
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size),
                     )
                 }
@@ -157,17 +156,12 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to appliedEdits.size,
                 "totalEdits" to edits.size,
-                "lspDiagnostics" to fetchLspDiagnostics(targetFile, resolvedPath),
+                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
             ),
         )
     }
 
-    private fun applyAtomicEdits(
-        resolvedPath: Path,
-        targetFile: File,
-        originalContent: String,
-        edits: List<EditOperation>,
-    ): SkillResult {
+    private fun applyAtomicEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
         var workingContent: String = originalContent
 
         for (edit in edits) {
@@ -213,45 +207,18 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to edits.size,
                 "totalEdits" to edits.size,
-                "lspDiagnostics" to fetchLspDiagnostics(targetFile, resolvedPath),
+                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
             ),
         )
     }
 
-    private fun buildPartialFailureMessage(baseMessage: String, appliedCount: Int, failedIndex: Int): String {
+    private fun buildPartialFailureMessage(baseMessage: String, appliedCount: Int): String {
         if (appliedCount == 0) return baseMessage
         return "$baseMessage $appliedCount edit(s) applied before failure."
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun fetchLspDiagnostics(targetFile: File, resolvedPath: Path): List<Map<String, Any?>> {
-        return try {
-            val lspResult: SkillResult = LspSkill().execute(mapOf("path" to resolvedPath.toString(), "action" to "diagnostics"))
-            when (lspResult) {
-                is SkillResult.Success -> (lspResult.data["diagnostics"] as? List<Map<String, Any?>>) ?: emptyList()
-                is SkillResult.Failure -> emptyList()
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private data class EditOperation(
-        val search: String,
-        val replace: String,
-        val index: Int,
-    )
+    private data class EditOperation(val search: String, val replace: String, val index: Int)
 }
 
-private fun String.countOccurrences(substring: String): Int {
-    if (substring.isEmpty()) return 0
-    var count: Int = 0
-    var startIndex: Int = 0
-    while (true) {
-        val foundIndex: Int = this.indexOf(substring, startIndex)
-        if (foundIndex < 0) break
-        count++
-        startIndex = foundIndex + substring.length
-    }
-    return count
-}
+private fun String.countOccurrences(substring: String): Int =
+    if (substring.isEmpty()) 0 else split(substring).size - 1

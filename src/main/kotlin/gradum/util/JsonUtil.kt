@@ -66,8 +66,6 @@ object JsonUtil {
                 add(toJsonElement(item))
             }
         }
-        is JsonObject -> value
-        is JsonArray -> value
         else -> JsonPrimitive(value.toString())
     }
 

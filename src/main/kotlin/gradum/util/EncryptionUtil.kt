@@ -7,15 +7,12 @@
 
 package gradum.util
 
-import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextEncryption")
-
-private val VERSION_BYTE: Byte = 0x81.toByte()
+private const val VERSION_BYTE: Byte = 0x81.toByte()
 private const val NONCE_SIZE_BYTES: Int = 16
 private const val HMAC_SIZE_BYTES: Int = 32
 private const val BLOCK_SIZE_BYTES: Int = 32
@@ -124,7 +121,6 @@ fun decryptMessageContent(encodedCiphertext: String): String {
         throw IllegalArgumentException("Invalid version byte: ${rawBytes[0]} (expected $VERSION_BYTE)")
     }
 
-    val version: Byte = rawBytes[0]
     val nonce: ByteArray = rawBytes.copyOfRange(1, 1 + NONCE_SIZE_BYTES)
     val authenticationTag: ByteArray = rawBytes.copyOfRange(rawBytes.size - HMAC_SIZE_BYTES, rawBytes.size)
     val ciphertextBytes: ByteArray = rawBytes.copyOfRange(1 + NONCE_SIZE_BYTES, rawBytes.size - HMAC_SIZE_BYTES)
@@ -132,7 +128,7 @@ fun decryptMessageContent(encodedCiphertext: String): String {
     val encryptionKey: ByteArray = getEncryptionKey()
     val authenticationKey: ByteArray = getAuthenticationKey()
 
-    val tokenBody: ByteArray = byteArrayOf(version) + nonce + ciphertextBytes
+    val tokenBody: ByteArray = byteArrayOf(VERSION_BYTE) + nonce + ciphertextBytes
     val expectedTag: ByteArray = computeHmac(authenticationKey, tokenBody)
 
     if (!MessageDigest.isEqual(authenticationTag, expectedTag)) {

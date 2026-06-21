@@ -18,5 +18,30 @@ abstract class Skill {
 
     abstract fun getSchema(): Map<String, Any>
 
-    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
+    /**
+     * How many recent results keep their [historyVolatileKeys] in conversation history.
+     * Older results beyond this count will have those keys stripped to save context.
+     * Default [Int.MAX_VALUE] keeps all results intact (no stripping).
+     */
+    open val historyKeepCount: Int = Int.MAX_VALUE
+
+    /**
+     * Keys to strip from history result when exceeding [historyKeepCount].
+     * Only relevant when [historyKeepCount] is not [Int.MAX_VALUE].
+     */
+    open val historyVolatileKeys: List<String> = emptyList()
+
+    private var prepareHistoryCallCount: Int = 0
+
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+        prepareHistoryCallCount++
+        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) {
+            return result
+        }
+        return if (prepareHistoryCallCount <= historyKeepCount) {
+            result
+        } else {
+            result.filterKeys { it !in historyVolatileKeys }
+        }
+    }
 }
