@@ -135,7 +135,7 @@ class SaveFileSkill : Skill() {
                     "totalLines" to totalLines,
                     "created" to wasCreated,
                     "mode" to writeMode,
-                    "encoding" to charset
+                    "encoding" to charset.name()
                 ),
             )
         } catch (exception: Exception) {
