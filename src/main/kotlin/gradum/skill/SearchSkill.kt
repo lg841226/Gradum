@@ -101,6 +101,15 @@ class SearchSkill : Skill() {
 
         val rootDirectory: Path = Paths.get(searchPath).toAbsolutePath().normalize()
 
+        for (keyword in keywords) {
+            try {
+                Regex(keyword)
+            } catch (exception: Exception) {
+                val message: String = "Invalid regex in keyword \"$keyword\": ${exception.message}"
+                return makeFailure(ErrorCode.INVALID_PARAMETER, message)
+            }
+        }
+
         return try {
             val results: List<SearchResult> = when (searchType) {
                 "filename" -> keywords.flatMap { kw ->
