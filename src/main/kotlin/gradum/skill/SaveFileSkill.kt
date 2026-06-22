@@ -38,7 +38,7 @@ class SaveFileSkill : Skill() {
                         "path" to mapOf("type" to "string", "description" to "File path to write"),
                         "content" to mapOf("type" to "string", "description" to "Content to write"),
                     ),
-                    "required" to listOf("path", "content"),
+                    "required" to listOf("path", "content")
                 ),
             ),
         )
@@ -48,9 +48,8 @@ class SaveFileSkill : Skill() {
         val filePath: String = arguments["path"] as? String ?: ""
         val fileContent: String = arguments["content"] as? String ?: ""
 
-        if (filePath.isBlank()) {
+        if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
-        }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
@@ -65,11 +64,11 @@ class SaveFileSkill : Skill() {
                 mapOf(
                     "path" to resolvedPath.toString(),
                     "bytesWritten" to bytesWritten,
-                    "created" to wasCreated,
+                    "created" to wasCreated
                 ),
             )
-        } catch (e: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
         }
     }
 }

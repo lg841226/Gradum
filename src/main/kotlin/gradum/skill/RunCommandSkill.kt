@@ -157,7 +157,8 @@ class RunCommandSkill : Skill() {
             BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
                 reader.readText()
             }
-        } catch (e: Exception) {
+        } catch (exception: Exception) {
+            logger.debug("Failed to read stream output: {}", exception.message)
             ""
         }
     }

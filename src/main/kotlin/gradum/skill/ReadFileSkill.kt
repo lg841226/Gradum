@@ -145,10 +145,10 @@ class ReadFileSkill : Skill() {
                     "content" to fileContent,
                 ),
             )
-        } catch (e: FileNotFoundException) {
+        } catch (_: FileNotFoundException) {
             makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
-        } catch (e: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Unknown I/O error", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Unknown I/O error", mapOf("path" to resolvedPath.toString()))
         }
     }
 }
