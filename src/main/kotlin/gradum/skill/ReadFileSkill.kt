@@ -69,7 +69,6 @@ class ReadFileSkill : Skill() {
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
         val lineRange: String = arguments["lineRange"] as? String ?: ""
-        val show: String = arguments["show"] as? String ?: ""
 
         if (filePath.isBlank()) {
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")

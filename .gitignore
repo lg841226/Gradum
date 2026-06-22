@@ -21,6 +21,7 @@ output/
 temp/
 logs/
 *.log
+*.jsonl
 
 # OS junk
 .DS_Store

@@ -37,7 +37,7 @@ object JsonUtil {
 
     /** Public entry point: encode a heterogeneous [Map] to a compact JSON string. */
     fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
-        val formatter: Json = Json { this.prettyPrint = prettyPrint }
+        val formatter = Json { this.prettyPrint = prettyPrint }
         return formatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
     }
 
