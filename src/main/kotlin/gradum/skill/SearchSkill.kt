@@ -23,6 +23,11 @@ private const val SEARCH_TIMEOUT_SECONDS: Long = 120
 private const val MAXIMUM_FILES: Int = 600
 private const val MAXIMUM_DEPTH: Int = 6
 private const val HARD_MAX_RESULTS: Int = 20
+private val BINARY_EXTENSIONS: Set<String> = setOf(
+    "class", "jar", "png", "jpg", "jpeg", "gif", "bmp", "ico",
+    "pdf", "mp3", "mp4", "exe", "dll", "so", "dylib",
+    "zip", "tar", "gz",
+)
 
 /**
  * Searches file content, filenames, and directories within a project tree.
@@ -182,10 +187,15 @@ class SearchSkill : Skill() {
                     System.currentTimeMillis() < deadline &&
                     !filePath.toFile().isDirectory &&
                     !isExcludedDirectory(filePath) &&
+                    !isBinaryFile(filePath) &&
                     (fileMatcher == null || fileMatcher.matches(filePath.fileName))
             }
             .forEach { filePath: Path ->
                 if (System.currentTimeMillis() >= deadline) return@forEach
+                // Skip binary files: a .class / .jar / .png / .pdf / etc. will read as garbage
+                // and the regex may spuriously match on embedded source-file metadata strings
+                // (e.g. .class files contain "VsixDownLoader.java" as a SourceFile attribute).
+                if (isBinaryFile(filePath)) return@forEach
                 try {
                     val fileLines: List<String> = filePath.toFile().readLines(Charsets.UTF_8)
                     for ((lineIndex: Int, lineContent: String) in fileLines.withIndex()) {
@@ -268,6 +278,11 @@ class SearchSkill : Skill() {
             directoryName == "__pycache__" || directoryName == "node_modules" ||
             directoryName == ".venv" || directoryName == "venv" ||
             directoryName == "build" || directoryName == "output"
+    }
+
+    private fun isBinaryFile(filePath: Path): Boolean {
+        val extension: String = filePath.toString().substringAfterLast('.', "").lowercase()
+        return extension in BINARY_EXTENSIONS
     }
 
     private fun truncatedHint(results: List<SearchResult>, keywords: List<String>, filePattern: String?, searchType: String): String? {
