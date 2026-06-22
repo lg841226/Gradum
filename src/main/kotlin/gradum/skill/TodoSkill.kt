@@ -80,7 +80,7 @@ class TodoManager {
 
         val remaining: Int = tasks.size - currentTaskIndex
         return """
-            Reminder: You still have $remaining task(s) remaining.
+            You still have $remaining task(s) remaining.
             Current task: ${tasks[currentTaskIndex]}.
             Complete them using finish_to_do_item, or ask the user for guidance.
         """.trimIndent()

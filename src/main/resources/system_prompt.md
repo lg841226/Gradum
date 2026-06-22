@@ -105,17 +105,21 @@ search(keyword=["error", "exception"])
 search(keyword="JSON", type="filename")
 search(keyword="config", type="directory")
 search(keyword="class", file_pattern="*.kt", path="src")
+search(keyword="import", context_lines=2, max_results=50)
 ```
 
-- `keyword` — case-insensitive regex. String (one term) or array of up to 5 strings (OR-logic)
-- `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`); highly recommended on large codebases
-- `type` — `"content"` (default), `"filename"`, or `"directory"`
+- `keyword` — case-insensitive regex. String or array of up to 5 strings (OR-logic — matches if ANY keyword matches). For AND logic, combine into one regex with lookahead: `(?=.*foo)(?=.*bar)`
+- `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`)
+- `type` — `"all"` (default, searches both content and filenames), `"content"`, `"filename"`, or `"directory"`
 - `path` — directory to search in (default `.`)
-- Binary files (.class, .jar, .png, .jpg, .pdf, .zip, etc.) are automatically skipped in content search
+- `max_results` — max results to return (1-100, default 20)
+- `context_lines` — lines of context around content matches (0-10, default 0)
 - Hidden dirs (`.git`, `.venv`, etc.), `node_modules`, `__pycache__`, `venv`, `build`, `output` are excluded
-- Returns up to 20 results in `results[]`. Each result has `filePath`, `lineNumber`, `matchedText`
-- Also returns `totalMatches` (total count before truncation) and `searchType`
-- If `truncated: true`, read the `hint` field — it tells you how to narrow
+- Returns `results[]` (each with `filePath`, `lineNumber`, `matchedText`, `matchType`), `totalMatches`, `truncated`, `summary`
+- `type="all"` additionally returns `contentResults[]`, `filenameResults[]`, `contentTotal`, `filenameTotal`
+- `summary` contains `byFile` (match count per file) and `byMatchType` (content/filename count)
+- If `truncated: true`, read the `hint` field — it's a JSON object with `suggestedFilters`, `mostCommonExtensions`, `estimatedMatches`, `scannedFiles`, `scannedDepth`, `elapsedMs`
+- Results are sorted by relevance: exact match > prefix > substring, filename > content, shorter path > longer path
 - No matches return `results: []` — this is valid, not an error. Report and stop.
 
 ### read\_file

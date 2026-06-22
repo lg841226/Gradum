@@ -90,8 +90,8 @@ public class VsixDownLoader {
 
         } catch (Exception e) {
             System.out.println("\n<验证失败>");
+            return false;
         }
-        return false;
     }
 
     private static String getExtensionVersion(Scanner scanner) {

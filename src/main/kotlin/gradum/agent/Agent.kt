@@ -61,6 +61,10 @@ class Agent(
 
         loadSystemPrompt()
 
+        for (skill: Skill in SkillRegistry.getAllSkills()) {
+            skill.resetHistoryCount()
+        }
+
         emitEvent(
             "session_start", mapOf(
                 "version" to GRADUM_VERSION,
