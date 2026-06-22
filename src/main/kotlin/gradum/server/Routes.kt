@@ -14,7 +14,7 @@ import gradum.agent.Agent
 import gradum.discovery.ModelEntry
 import gradum.discovery.discoverModels
 import gradum.skill.SkillRegistry
-import gradum.util.JsonUtil
+import gradum.utils.JsonUtil
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.*

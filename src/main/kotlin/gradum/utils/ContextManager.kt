@@ -5,7 +5,7 @@
  * ContextManager.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
-package gradum.util
+package gradum.utils
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -118,7 +118,8 @@ class ContextManager(private val outputDirectory: Path) {
     private fun convertJsonElement(element: JsonElement): Any {
         return when {
             element is JsonPrimitive && element.isString -> element.content
-            element is JsonPrimitive -> element.toString()
+            element is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
+            element is JsonArray || element is JsonObject -> JsonUtil.fromJsonElement(element).toString()
             else -> element.toString()
         }
     }

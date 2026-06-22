@@ -14,8 +14,8 @@ import gradum.client.*
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
-import gradum.util.ContextManager
-import gradum.util.JsonUtil
+import gradum.utils.ContextManager
+import gradum.utils.JsonUtil
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json

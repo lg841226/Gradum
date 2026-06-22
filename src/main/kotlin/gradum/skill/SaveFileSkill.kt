@@ -7,6 +7,7 @@
 
 package gradum.skill
 
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
@@ -48,7 +49,7 @@ class SaveFileSkill : Skill() {
         val fileContent: String = arguments["content"] as? String ?: ""
 
         if (filePath.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
         }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -68,7 +69,7 @@ class SaveFileSkill : Skill() {
                 ),
             )
         } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
+            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
         }
     }
 }

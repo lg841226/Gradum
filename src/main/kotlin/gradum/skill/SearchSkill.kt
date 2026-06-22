@@ -7,6 +7,7 @@
 
 package gradum.skill
 
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
@@ -30,6 +31,9 @@ class SearchSkill : Skill() {
     override val skillName: String = "search"
     override val alias: String = "Explored"
     override val description: String = "Search code content, filenames, and directories"
+
+    override val historyKeepCount: Int = 2
+    override val historyVolatileKeys: List<String> = listOf("query", "searchType", "truncated")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -56,7 +60,7 @@ class SearchSkill : Skill() {
         val searchType: String = arguments["type"] as? String ?: "content"
 
         if (searchQuery.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'query' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'query' parameter")
         }
 
         val rootDirectory: Path = Paths.get(searchPath).toAbsolutePath().normalize()
@@ -81,7 +85,7 @@ class SearchSkill : Skill() {
                 ),
             )
         } catch (exception: Exception) {
-            makeFailure("IO_ERROR", exception.message ?: "Search failed", mapOf("query" to searchQuery))
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Search failed", mapOf("query" to searchQuery))
         }
     }
 
@@ -182,7 +186,8 @@ class SearchSkill : Skill() {
         val directoryName: String = directoryPath.fileName.toString()
         return directoryName.startsWith(".") ||
             directoryName == "__pycache__" || directoryName == "node_modules" ||
-            directoryName == ".venv" || directoryName == "venv"
+            directoryName == ".venv" || directoryName == "venv" ||
+            directoryName == "build" || directoryName == "output"
     }
 
     private data class SearchResult(
@@ -191,11 +196,7 @@ class SearchSkill : Skill() {
         val matchedText: String,
     ) {
         fun toMap(): Map<String, Any> {
-            return mapOf(
-                "filePath" to filePath,
-                "lineNumber" to lineNumber,
-                "matchedText" to matchedText
-            )
+            return mapOf("filePath" to filePath, "lineNumber" to lineNumber, "matchedText" to matchedText)
         }
     }
 }

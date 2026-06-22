@@ -7,10 +7,10 @@
 
 package gradum.skill
 
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.util.SyntaxChecker
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -72,7 +72,7 @@ class ReadFileSkill : Skill() {
         val show: String = arguments["show"] as? String ?: ""
 
         if (filePath.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
         }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -81,22 +81,22 @@ class ReadFileSkill : Skill() {
         return try {
             val fileSize: Long = targetFile.length()
             if (fileSize > MAXIMUM_FILE_SIZE) {
-                return makeFailure(
-                    "FILE_TOO_LARGE",
-                    "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
-                    mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize),
-                )
+                    return makeFailure(
+                        ErrorCode.FILE_TOO_LARGE,
+                        "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
+                        mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize),
+                    )
             }
 
             val allLines: List<String> = targetFile.readLines(Charsets.UTF_8)
             val totalLines: Int = allLines.size
 
             if (totalLines > MAXIMUM_LINES && lineRange.isBlank()) {
-                return makeFailure(
-                    "FILE_TOO_LARGE",
-                    "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
-                    mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines),
-                )
+                    return makeFailure(
+                        ErrorCode.FILE_TOO_LARGE,
+                        "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
+                        mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines),
+                    )
             }
 
             val (startLineNumber: Int, endLineNumber: Int, fileContent: String) = if (lineRange.isBlank()) {
@@ -105,22 +105,22 @@ class ReadFileSkill : Skill() {
                 val rangeParts: List<String> = lineRange.split("-")
                 if (rangeParts.size != 2) {
                     return makeFailure(
-                        "INVALID_PARAMETER",
+                        ErrorCode.INVALID_PARAMETER,
                         "Invalid lineRange format. Use 'start-end' (e.g., '12-22')",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
                     )
                 }
 
                 val rawStart: Int = parseRangeBound(rangeParts[0])
-                    ?: return makeFailure(
-                        "INVALID_PARAMETER",
+                    ?:                     return makeFailure(
+                        ErrorCode.INVALID_PARAMETER,
                         "Invalid lineRange start value: ${rangeParts[0]}",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
                     )
 
                 val rawEnd: Int = parseRangeBound(rangeParts[1])
                     ?: return makeFailure(
-                        "INVALID_PARAMETER",
+                        ErrorCode.INVALID_PARAMETER,
                         "Invalid lineRange end value: ${rangeParts[1]}",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
                     )
@@ -143,13 +143,12 @@ class ReadFileSkill : Skill() {
                     "totalLines" to totalLines,
                     "contentHash" to contentHash,
                     "content" to fileContent,
-                    "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
                 ),
             )
         } catch (e: FileNotFoundException) {
-            makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
+            makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Unknown I/O error", mapOf("path" to resolvedPath.toString()))
+            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Unknown I/O error", mapOf("path" to resolvedPath.toString()))
         }
     }
 }

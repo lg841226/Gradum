@@ -5,7 +5,7 @@
  * JsonUtil.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
-package gradum.util
+package gradum.utils
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -82,8 +82,7 @@ object JsonUtil {
         is JsonNull -> null
         is JsonPrimitive -> when {
             value.isString -> value.content
-            value.content == "true" -> true
-            value.content == "false" -> false
+            value.content.toBooleanStrictOrNull() != null -> value.content.toBooleanStrict()
             value.content.toLongOrNull() != null -> value.content.toLong()
             value.content.toDoubleOrNull() != null -> value.content.toDouble()
             else -> value.content

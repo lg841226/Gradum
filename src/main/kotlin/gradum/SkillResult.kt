@@ -21,3 +21,7 @@ fun makeSuccess(data: Map<String, Any>): SkillResult {
 fun makeFailure(code: String, message: String, context: Map<String, Any> = emptyMap()): SkillResult {
     return SkillResult.Failure(code, message, context)
 }
+
+fun makeFailure(code: ErrorCode, message: String, context: Map<String, Any> = emptyMap()): SkillResult {
+    return SkillResult.Failure(code.code, message, context)
+}

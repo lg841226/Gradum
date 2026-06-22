@@ -5,7 +5,7 @@
  * CommandFilter.kt  2026-06-21 07:53:44 Changed by gwy
  */
 
-package gradum.util
+package gradum.utils
 
 import java.nio.file.Paths
 

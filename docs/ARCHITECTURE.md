@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.15                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-06-20                                                       |
+| **Last Updated**   | 2026-06-21                                                       |
 
 ---
 
@@ -507,9 +507,9 @@ pie title NDJSON Event Types
 | **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`) |
 | **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                            |
 | **save_file**          | `{path, bytesWritten, created}`                                                                                                                                 |
-| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}`                                                                                                  |
+| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}` (last 2 keep full output; older ones strip `standardOutput`/`standardError` via `historyKeepCount=2`) |
 | **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                              |
-| **search**             | `{query, searchType, results: [{filePath, lineNumber, matchedText}], totalMatches, truncated}`                                                                  |
+| **search**             | `{query, searchType, results: [{filePath, lineNumber, matchedText}], totalMatches, truncated}` (last 2 keep full results; older ones strip `results` via `historyKeepCount=2`) |
 | **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                       |
 | **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                         |
 
@@ -1090,14 +1090,35 @@ abstract class Skill {
 
 `prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default returns the result unchanged.
 
-**Property-based approach (recommended):** Override `historyKeepCount` and `historyVolatileKeys` to keep recent results intact while stripping older ones from context. For example, `ReadFileSkill` keeps the last 2 file contents and strips the `content` key from earlier reads:
+### 4.1a 自适应裁剪技术 (Adaptive Pruning)
+
+This is a context-preservation strategy that keeps **only the N most recent** executions of a skill fully intact in conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two properties on `Skill`:
+
+- `historyKeepCount: Int` — how many recent results retain full data (default `Int.MAX_VALUE`, meaning no pruning)
+- `historyVolatileKeys: List<String>` — which keys to remove from results that exceed the keep count
+
+When `execute()` is called, `prepareHistoryResult()` increments an internal call counter. Results whose call index ≤ `historyKeepCount` are returned as-is; older ones have every key in `historyVolatileKeys` filtered out:
 
 ```kotlin
-override val historyKeepCount: Int = 2
-override val historyVolatileKeys: List<String> = listOf("content")
+override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+    prepareHistoryCallCount++
+    if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return result
+    return if (prepareHistoryCallCount <= historyKeepCount) result
+    else result.filterKeys { it !in historyVolatileKeys }
+}
 ```
 
-The full `content` is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed.
+**Design intent:** Large payloads (file contents, command output, search results) are needed for the model to reason about the *current* step, but quickly become irrelevant as the session progresses. Stripping them from old history saves LLM context window without losing the structural metadata (path, exit code, match count, etc.).
+
+**Current application (all use `historyKeepCount = 2`):**
+
+| Skill              | Volatile keys stripped                          | Rationale                                                                     |
+|--------------------|-------------------------------------------------|-------------------------------------------------------------------------------|
+| `ReadFileSkill`    | `content`                                       | File content is large (hundreds of lines); only the last 2 reads are relevant |
+| `RunCommandSkill`  | `standardOutput`, `standardError`               | Command output may be very large; old results are rarely referenced           |
+| `SearchSkill`      | `results`                                       | Search result lists are bulky; earlier queries are superseded by later ones   |
+
+The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called automatically in `Agent.kt` after `skill.execute()` returns.
 
 **SkillResult sealed class** (`SkillResult.kt`):
 ```kotlin

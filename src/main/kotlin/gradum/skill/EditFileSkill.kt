@@ -9,10 +9,11 @@
 
 package gradum.skill
 
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.util.SyntaxChecker
+import gradum.utils.SyntaxChecker
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -70,11 +71,11 @@ class EditFileSkill : Skill() {
         val editMode: String = arguments["mode"] as? String ?: "sequential"
 
         if (filePath.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
         }
 
         if (rawEdits.isEmpty()) {
-            return makeFailure("INVALID_PARAMETER", "No edits provided")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "No edits provided")
         }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -93,7 +94,7 @@ class EditFileSkill : Skill() {
             val invalidEdit: EditOperation? = edits.firstOrNull { it.search.isBlank() }
             if (invalidEdit != null) {
                 return makeFailure(
-                    "INVALID_PARAMETER",
+                    ErrorCode.INVALID_PARAMETER,
                     "Edit ${invalidEdit.index + 1} has empty 'search' text",
                 )
             }
@@ -103,9 +104,9 @@ class EditFileSkill : Skill() {
                 else -> applySequentialEdits(resolvedPath, targetFile, originalContent, edits)
             }
         } catch (_: FileNotFoundException) {
-            makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
+            makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (exception: Exception) {
-            makeFailure("IO_ERROR", exception.message ?:
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?:
             "Unknown error during edit", mapOf("path" to resolvedPath.toString()))
         }
     }
@@ -122,7 +123,7 @@ class EditFileSkill : Skill() {
                     val failureMessage: String = "Edit ${edit.index + 1} failed: Code not found."
                     targetFile.writeText(currentContent, Charsets.UTF_8)
                     return makeFailure(
-                        "CODE_NOT_FOUND",
+                        ErrorCode.CODE_NOT_FOUND,
                         buildPartialFailureMessage(failureMessage, appliedEdits.size),
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size),
                     )
@@ -132,7 +133,7 @@ class EditFileSkill : Skill() {
                     val failureMessage: String = "Edit ${edit.index + 1} failed: Found $occurrences matches."
                     targetFile.writeText(currentContent, Charsets.UTF_8)
                     return makeFailure(
-                        "MULTIPLE_MATCHES",
+                        ErrorCode.MULTIPLE_MATCHES,
                         buildPartialFailureMessage(failureMessage, appliedEdits.size),
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size),
                     )
@@ -147,7 +148,7 @@ class EditFileSkill : Skill() {
 
         if (currentContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
-            return makeFailure("EMPTY_RESULT", "Edit resulted in empty content", mapOf("path" to resolvedPath.toString()))
+            return makeFailure(ErrorCode.EMPTY_RESULT, "Edit resulted in empty content", mapOf("path" to resolvedPath.toString()))
         }
 
         targetFile.writeText(currentContent, Charsets.UTF_8)
@@ -171,7 +172,7 @@ class EditFileSkill : Skill() {
                 occurrences == 0 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        "CODE_NOT_FOUND",
+                        ErrorCode.CODE_NOT_FOUND,
                         "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to 0),
                     )
@@ -180,9 +181,9 @@ class EditFileSkill : Skill() {
                 occurrences > 1 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        "MULTIPLE_MATCHES",
+                        ErrorCode.MULTIPLE_MATCHES,
                         "Edit ${edit.index + 1} failed: Found $occurrences matches. Original content restored.",
-                        mapOf("path" to resolvedPath.toString(), "appliedCount" to 0),
+                        mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
                     )
                 }
 
@@ -195,7 +196,7 @@ class EditFileSkill : Skill() {
         if (workingContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
             return makeFailure(
-                "EMPTY_RESULT",
+                ErrorCode.EMPTY_RESULT,
                 "Edit resulted in empty content. Original content restored.",
                 mapOf("path" to resolvedPath.toString()),
             )

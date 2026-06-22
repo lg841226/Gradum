@@ -8,11 +8,12 @@
 package gradum.skill
 
 import gradum.DangerousOperation
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.util.classifyCommand
-import gradum.util.CommandVerdict
+import gradum.utils.classifyCommand
+import gradum.utils.CommandVerdict
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
@@ -36,6 +37,9 @@ class RunCommandSkill : Skill() {
     override val skillName: String = "run_cmd"
     override val alias: String = "Ran"
     override val description: String = "Execute a shell command (blocking or detached)"
+
+    override val historyKeepCount: Int = 2
+    override val historyVolatileKeys: List<String> = listOf("standardOutput", "standardError")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -63,13 +67,13 @@ class RunCommandSkill : Skill() {
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
 
         if (commandText.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'command' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'command' parameter")
         }
 
         val classification: CommandVerdict = classifyCommand(commandText)
         if (classification is CommandVerdict.Blocked) {
             return makeFailure(
-                "COMMAND_BLOCKED",
+                ErrorCode.COMMAND_BLOCKED,
                 "Blocked by safety filter: ${classification.description}",
                 mapOf("command" to commandText, "rule" to classification.ruleName),
             )
@@ -93,7 +97,7 @@ class RunCommandSkill : Skill() {
             if (!finished) {
                 process.destroyForcibly()
                 return makeFailure(
-                    "TIMEOUT",
+                    ErrorCode.TIMEOUT,
                     "Command timed out after $COMMAND_TIMEOUT_SECONDS seconds",
                     mapOf("command" to commandText),
                 )
@@ -114,7 +118,7 @@ class RunCommandSkill : Skill() {
                 ),
             )
         } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Failed to execute command", mapOf("command" to commandText))
+            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to execute command", mapOf("command" to commandText))
         }
     }
 
@@ -144,7 +148,7 @@ class RunCommandSkill : Skill() {
                 ),
             )
         } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Failed to start detached command", mapOf("command" to commandText))
+            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to start detached command", mapOf("command" to commandText))
         }
     }
 

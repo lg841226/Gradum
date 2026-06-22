@@ -80,7 +80,7 @@ Rules:
 5. Preserve existing imports, don't add duplicates
 6. If `edit_file` returns `CODE_NOT_FOUND`, **re-read the file** and look for whitespace/indentation differences; the file may have changed since you last saw it
 7. For multiple independent edits to the same file, batch them in one `edit_file` call — saves a round-trip
-8. After editing, check the returned `lspDiagnostics` field — fix compile errors before moving to the next step
+8. After editing, check the returned `syntaxErrors` field — fix compile errors before moving to the next step
 
 ***
 
@@ -155,28 +155,6 @@ edit_file(path="main.py", edits=[
 - `INVALID_PARAMETER` → you forgot `edits` or an entry is malformed
 
 Safety: Auto-rollback on atomic failure; partial application on sequential failure (file shows `applied_count` of how many succeeded).
-
-### lsp
-
-Language-aware code intelligence via LSP (Kotlin / Java / TypeScript / JavaScript / Python / Go / Rust / C/C++ / C# / Ruby). Prefer over `search` / `read_file` when you need semantic understanding, not text patterns.
-
-```
-lsp(path="src/Agent.kt", action="diagnostics")
-lsp(path="src/Agent.kt", action="hover", line=43, col=12)
-lsp(path="src/Agent.kt", action="definition", line=43, col=12)
-lsp(path="src/Agent.kt", action="references", line=43, col=12)
-lsp(path="src/Agent.kt", action="symbols")
-lsp(path="src/Agent.kt", action="format")
-```
-
-- `line` / `col` are 1-based (human view, not 0-based LSP coords)
-- Position-based actions: `hover`, `definition`, `references`
-- `diagnostics` is auto-included in every `edit_file` response as `lspDiagnostics` — read that field after editing
-- `references` finds all usages across the project (no `search` regex needed)
-- `hover` returns type / signature / doc without reading the source
-- `symbols` lists classes / functions / variables as a tree
-- If `LSP_NOT_INSTALLED` is returned, surface the `installHint` from the error to the user
-- If `UNSUPPORTED_LANGUAGE` is returned, the file extension is not registered (no LSP server matches)
 
 ### save_file
 
