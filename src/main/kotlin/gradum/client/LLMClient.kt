@@ -8,7 +8,7 @@
 package gradum.client
 
 import gradum.AgentConfiguration
-import gradum.util.JsonUtil
+import gradum.utils.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -180,7 +180,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
             } catch (exception: Exception) {
                 lastError = exception
 
-                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds) else break
+                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
+                else break
             }
         }
 
@@ -266,7 +267,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
             } catch (exception: Exception) {
                 lastError = exception
-                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds) else break
+                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
+                else break
             }
         }
 
@@ -289,6 +291,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
             val eventBody: String = if (rawLine.startsWith("data: ")) rawLine.removePrefix("data: ") else continue
 
+            // OpenAI SSE stream-end signal: all OpenAI-compatible servers send `data: [DONE]` at stream end
             if (eventBody.trim() == "[DONE]") break
 
             val parsedPayload: JsonObject = try {

@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.15                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-06-20                                                       |
+| **Last Updated**   | 2026-06-21                                                       |
 
 ---
 
@@ -217,7 +217,7 @@ src/main/kotlin/gradum/
 │   ├── EditFileSkill.kt           # File editing (sequential/atomic modes)
 │   ├── SaveFileSkill.kt           # File writing (auto mkdir parent directories)
 │   ├── RunCommandSkill.kt         # Shell command execution (blocking/detached + CommandFilter)
-│   ├── SearchSkill.kt             # Code content search + filename matching + directory matching
+│   ├── SearchSkill.kt             # Code content search + filename matching + directory matching (unified response, relevance sorting, context lines)
 │   └── TodoSkill.kt               # TodoManager singleton + TodoSkill + CompletePlanSkill
 │
 └── util/
@@ -502,16 +502,16 @@ pie title NDJSON Event Types
 
 #### `tool_call.result` Fields by Skill
 
-| Skill                  | Result Fields                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`) |
-| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                            |
-| **save_file**          | `{path, bytesWritten, created}`                                                                                                                                 |
-| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}`                                                                                                  |
-| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                              |
-| **search**             | `{query, searchType, results: [{filePath, lineNumber, matchedText}], totalMatches, truncated}`                                                                  |
-| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                       |
-| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                         |
+| Skill                  | Result Fields                                                                                                                                                                                                                                                |
+|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`)                                                                                              |
+| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                                                                                                                         |
+| **save_file**          | `{path, bytesWritten, created}`                                                                                                                                                                                                                              |
+| **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}` (last 2 keep full output; older ones strip `standardOutput`/`standardError` via `historyKeepCount=2`)                                                                                         |
+| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                                                                                                                           |
+| **search**             | `{query, searchType, maxResults, results: [{filePath, lineNumber, matchedText, matchType}], totalMatches, truncated, summary: {byFile, byMatchType}, hint?}` (`type="all"` additionally: `contentResults[], filenameResults[], contentTotal, filenameTotal`) |
+| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                                                                                                                    |
+| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                                                                                                                      |
 
 ### 2.7 LLM Client Protocol Comparison
 
@@ -1090,14 +1090,35 @@ abstract class Skill {
 
 `prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default returns the result unchanged.
 
-**Property-based approach (recommended):** Override `historyKeepCount` and `historyVolatileKeys` to keep recent results intact while stripping older ones from context. For example, `ReadFileSkill` keeps the last 2 file contents and strips the `content` key from earlier reads:
+### 4.1a 自适应裁剪技术 (Adaptive Pruning)
+
+This is a context-preservation strategy that keeps **only the N most recent** executions of a skill fully intact in conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two properties on `Skill`:
+
+- `historyKeepCount: Int` — how many recent results retain full data (default `Int.MAX_VALUE`, meaning no pruning)
+- `historyVolatileKeys: List<String>` — which keys to remove from results that exceed the keep count
+
+When `execute()` is called, `prepareHistoryResult()` increments an internal call counter. Results whose call index ≤ `historyKeepCount` are returned as-is; older ones have every key in `historyVolatileKeys` filtered out:
 
 ```kotlin
-override val historyKeepCount: Int = 2
-override val historyVolatileKeys: List<String> = listOf("content")
+override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+    prepareHistoryCallCount++
+    if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return result
+    return if (prepareHistoryCallCount <= historyKeepCount) result
+    else result.filterKeys { it !in historyVolatileKeys }
+}
 ```
 
-The full `content` is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed.
+**Design intent:** Large payloads (file contents, command output, search results) are needed for the model to reason about the *current* step, but quickly become irrelevant as the session progresses. Stripping them from old history saves LLM context window without losing the structural metadata (path, exit code, match count, etc.).
+
+**Current application:**
+
+| Skill              | historyKeepCount | Volatile keys stripped                          | Rationale                                                                     |
+|--------------------|------------------|-------------------------------------------------|-------------------------------------------------------------------------------|
+| `ReadFileSkill`    | 2                | `content`                                       | File content is large (hundreds of lines); only the last 2 reads are relevant |
+| `RunCommandSkill`  | 2                | `standardOutput`, `standardError`               | Command output may be very large; old results are rarely referenced           |
+| `SearchSkill`      | 2                | `hint`, `summary`                              | Only useful for current search iteration; older searches keep results/metadata |
+
+The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called automatically in `Agent.kt` after `skill.execute()` returns.
 
 **SkillResult sealed class** (`SkillResult.kt`):
 ```kotlin
@@ -1168,15 +1189,15 @@ gradum.skill.CompletePlanSkill
 
 ### 4.3 Skill Overview
 
-| Skill             | Input Parameters              | Output Fields                                                                                                                 | Error Codes                                                                                   | Limits                                          |
-|-------------------|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-------------------------------------------------|
-| ReadFileSkill     | `path`, `lineRange?`          | `path, lineRange, totalLines, contentHash, content`                                                                           | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                       |
-| EditFileSkill     | `path, edits[], mode?`        | `path, editsApplied, totalEdits`                                                                                              | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                   |
-| SaveFileSkill     | `path, content`               | `path, bytesWritten, created`                                                                                                 | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                  |
-| RunCommandSkill   | `command, reason?, detached?` | blocking: `command, exitCode, standardOutput, standardError` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check            |
-| SearchSkill       | `query, path?, type?`         | `query, searchType, results[], totalMatches, truncated`                                                                       | `INVALID_PARAMETER, IO_ERROR`                                                                 | timeout 120s; maxFiles 600; depth 6; results 20 |
-| TodoSkill         | `tasks[]`                     | `totalTasks, currentTask, currentIndex`                                                                                       | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization |
-| CompletePlanSkill | none                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                                   | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                            |
+| Skill             | Input Parameters                                                     | Output Fields                                                                                                                                                                                            | Error Codes                                                                                   | Limits                                                                                                                       |
+|-------------------|----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| ReadFileSkill     | `path`, `lineRange?`                                                 | `path, lineRange, totalLines, contentHash, content`                                                                                                                                                      | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                                                                                                    |
+| EditFileSkill     | `path, edits[], mode?`                                               | `path, editsApplied, totalEdits`                                                                                                                                                                         | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                                                                                                |
+| SaveFileSkill     | `path, content`                                                      | `path, bytesWritten, created`                                                                                                                                                                            | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                                                                                               |
+| RunCommandSkill   | `command, reason?, detached?`                                        | blocking: `command, exitCode, standardOutput, standardError` <br/> detached: `command, detached, processId, logPath, message`                                                                            | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                                                                                         |
+| SearchSkill       | `keyword, path?, type?, file_pattern?, max_results?, context_lines?` | `query, searchType, maxResults, results[], totalMatches, truncated, summary{byFile, byMatchType}, hint?` (`type="all"` additionally: `contentResults[], filenameResults[], contentTotal, filenameTotal`) | `INVALID_PARAMETER, IO_ERROR`                                                                 | timeout 120s; maxFiles 600; depth 6; contentLimit 4096; filenameLimit 2048; maxResults 1-100 (default 20); contextLines 0-10 |
+| TodoSkill         | `tasks[]`                                                            | `totalTasks, currentTask, currentIndex`                                                                                                                                                                  | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization                                                                              |
+| CompletePlanSkill | none                                                                 | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                                                                                                              | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                                                                                         |
 
 ---
 

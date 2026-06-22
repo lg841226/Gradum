@@ -27,8 +27,6 @@ style:
     active: false
   LoopWithTooManyJumpStatements:
     active: false
-  ArgumentListWrapping:
-    active: false
 
 naming:
   FunctionNaming:

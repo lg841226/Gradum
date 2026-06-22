@@ -33,6 +33,15 @@ abstract class Skill {
 
     private var prepareHistoryCallCount: Int = 0
 
+    /**
+     * Resets the internal history call counter.
+     * Should be called at the start of each session to ensure
+     * [historyKeepCount] behaves correctly across sessions.
+     */
+    fun resetHistoryCount() {
+        prepareHistoryCallCount = 0
+    }
+
     open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
         if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) {

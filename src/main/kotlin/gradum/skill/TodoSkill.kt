@@ -7,6 +7,7 @@
 
 package gradum.skill
 
+import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
@@ -24,11 +25,11 @@ class TodoManager {
 
     fun initializeTasks(tasks: List<String>): SkillResult {
         if (taskList != null) {
-            return makeFailure("ALREADY_INITIALIZED", "To-do list already initialized")
+            return makeFailure(ErrorCode.ALREADY_INITIALIZED, "To-do list already initialized")
         }
 
         if (tasks.isEmpty()) {
-            return makeFailure("INVALID_PARAMETER", "Task list cannot be empty")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Task list cannot be empty")
         }
 
         taskList = tasks
@@ -44,10 +45,10 @@ class TodoManager {
     }
 
     fun completeCurrentTask(): SkillResult {
-        val tasks: List<String> = taskList ?: return makeFailure("NOT_INITIALIZED", "To-do list not initialized")
+        val tasks: List<String> = taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
 
         if (currentTaskIndex >= tasks.size) {
-            return makeFailure("ALL_COMPLETED", "All tasks already completed")
+            return makeFailure(ErrorCode.ALL_COMPLETED, "All tasks already completed")
         }
 
         currentTaskIndex++
@@ -79,7 +80,7 @@ class TodoManager {
 
         val remaining: Int = tasks.size - currentTaskIndex
         return """
-            Reminder: You still have $remaining task(s) remaining.
+            You still have $remaining task(s) remaining.
             Current task: ${tasks[currentTaskIndex]}.
             Complete them using finish_to_do_item, or ask the user for guidance.
         """.trimIndent()
@@ -123,7 +124,7 @@ class TodoSkill : Skill() {
         val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
         if (rawTasks.isEmpty()) {
-            return makeFailure("INVALID_PARAMETER", "Tasks list cannot be empty")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Tasks list cannot be empty")
         }
 
         return sharedTodoManager.initializeTasks(rawTasks)

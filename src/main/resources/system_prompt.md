@@ -80,7 +80,7 @@ Rules:
 5. Preserve existing imports, don't add duplicates
 6. If `edit_file` returns `CODE_NOT_FOUND`, **re-read the file** and look for whitespace/indentation differences; the file may have changed since you last saw it
 7. For multiple independent edits to the same file, batch them in one `edit_file` call — saves a round-trip
-8. After editing, check the returned `lspDiagnostics` field — fix compile errors before moving to the next step
+8. After editing, check the returned `syntaxErrors` field — fix compile errors before moving to the next step
 
 ***
 
@@ -102,14 +102,25 @@ Find text in file content, file names, or directory names. Recursive by default.
 search(keyword="UserService")
 search(keyword="def main", file_pattern="*.py")
 search(keyword=["error", "exception"])
-search(filename="config")
-search(dirname="src")
+search(keyword="JSON", type="filename")
+search(keyword="config", type="directory")
+search(keyword="class", file_pattern="*.kt", path="src")
+search(keyword="import", context_lines=2, max_results=50)
 ```
 
-- `keyword` accepts a string for one term, or an array of up to 5 strings for OR-logic multi-search
-- `file_pattern` uses fnmatch syntax (e.g. `*.py`, `*.test.js`); recommended on large codebases
-- Returns up to 20 matches. If `truncated: true`, read the `hint` field — it tells you how to narrow the query (typically: add `file_pattern` or be more specific)
-- No matches return `success: true, matches: []` — this is a valid result, not an error. Report and stop.
+- `keyword` — case-insensitive regex. String or array of up to 5 strings (OR-logic — matches if ANY keyword matches). For AND logic, combine into one regex with lookahead: `(?=.*foo)(?=.*bar)`
+- `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`)
+- `type` — `"all"` (default, searches both content and filenames), `"content"`, `"filename"`, or `"directory"`
+- `path` — directory to search in (default `.`)
+- `max_results` — max results to return (1-100, default 20)
+- `context_lines` — lines of context around content matches (0-10, default 0)
+- Hidden dirs (`.git`, `.venv`, etc.), `node_modules`, `__pycache__`, `venv`, `build`, `output` are excluded
+- Returns `results[]` (each with `filePath`, `lineNumber`, `matchedText`, `matchType`), `totalMatches`, `truncated`, `summary`
+- `type="all"` additionally returns `contentResults[]`, `filenameResults[]`, `contentTotal`, `filenameTotal`
+- `summary` contains `byFile` (match count per file) and `byMatchType` (content/filename count)
+- If `truncated: true`, read the `hint` field — it's a JSON object with `suggestedFilters`, `mostCommonExtensions`, `estimatedMatches`, `scannedFiles`, `scannedDepth`, `elapsedMs`
+- Results are sorted by relevance: exact match > prefix > substring, filename > content, shorter path > longer path
+- No matches return `results: []` — this is valid, not an error. Report and stop.
 
 ### read\_file
 
@@ -155,28 +166,6 @@ edit_file(path="main.py", edits=[
 - `INVALID_PARAMETER` → you forgot `edits` or an entry is malformed
 
 Safety: Auto-rollback on atomic failure; partial application on sequential failure (file shows `applied_count` of how many succeeded).
-
-### lsp
-
-Language-aware code intelligence via LSP (Kotlin / Java / TypeScript / JavaScript / Python / Go / Rust / C/C++ / C# / Ruby). Prefer over `search` / `read_file` when you need semantic understanding, not text patterns.
-
-```
-lsp(path="src/Agent.kt", action="diagnostics")
-lsp(path="src/Agent.kt", action="hover", line=43, col=12)
-lsp(path="src/Agent.kt", action="definition", line=43, col=12)
-lsp(path="src/Agent.kt", action="references", line=43, col=12)
-lsp(path="src/Agent.kt", action="symbols")
-lsp(path="src/Agent.kt", action="format")
-```
-
-- `line` / `col` are 1-based (human view, not 0-based LSP coords)
-- Position-based actions: `hover`, `definition`, `references`
-- `diagnostics` is auto-included in every `edit_file` response as `lspDiagnostics` — read that field after editing
-- `references` finds all usages across the project (no `search` regex needed)
-- `hover` returns type / signature / doc without reading the source
-- `symbols` lists classes / functions / variables as a tree
-- If `LSP_NOT_INSTALLED` is returned, surface the `installHint` from the error to the user
-- If `UNSUPPORTED_LANGUAGE` is returned, the file extension is not registered (no LSP server matches)
 
 ### save_file
 

@@ -1,4 +1,11 @@
-package gradum.util
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * SyntaxChecker.kt  2026-06-21 19:04:11 Changed by gwy
+ */
+
+package gradum.utils
 
 import java.io.BufferedReader
 import java.io.File
@@ -35,7 +42,7 @@ private data class CompileCommand(
 
 private data class LanguageSyntaxConfig(
     val commands: List<CompileCommand>,
-    val outputParser: SyntaxParser,
+    val outputParser: SyntaxParser
 )
 
 
@@ -175,6 +182,7 @@ private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: St
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
             if (trimmedLine.isBlank()) return@mapNotNull null
+
             val match: MatchResult = pattern.matchEntire(trimmedLine) ?: return@mapNotNull null
             val message: String = match.groupValues[4]
             val severity: String = when {
@@ -185,7 +193,7 @@ private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: St
             SyntaxIssue(
                 message = message, severity = severity,
                 line = match.groupValues[2].toIntOrNull(),
-                column = match.groupValues[3].toIntOrNull(),
+                column = match.groupValues[3].toIntOrNull()
             )
         }
         .let { issues: List<SyntaxIssue> -> filterIssuesForFile(issues, filePath) }
@@ -197,7 +205,6 @@ private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: St
  * 2. Flat format: "file:line:col: message" without severity keyword (pyflakes, jshint)
  * 3. Code-prefixed: "file:line:col: CODE message" where CODE is alphanumeric (flake8, eslint)
  */
-
 private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val issues: MutableList<SyntaxIssue> = mutableListOf()
     val fileLinePattern: Regex = Regex("""^\s*File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+column\s+(\d+))?""")
@@ -253,7 +260,6 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
 }
 
 /** Ruby -c and Perl -c output "file:line: message". Determines severity from message text. */
-
 private val rubyPerlParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val pattern: Regex = Regex("""^(.+?):(\d+):\s(.+)$""")
     output.lines()
@@ -276,7 +282,6 @@ private val rubyPerlParser: SyntaxParser = SyntaxParser { output: String, filePa
 }
 
 /** PHP -l prefix, then extracts location from " in /path/file on line N" suffix. */
-
 private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val locationPattern: Regex = Regex("""^.+? in (.+?) on line (\d+)$""")
     val headerPattern: Regex = Regex("""^(PHP\s+)?(Parse\s+)?(error|warning|notice):\s(.+)""")
@@ -314,7 +319,6 @@ private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: S
 }
 
 /** Bash -n uses "file: line N: error message" format. */
-
 private val bashParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val pattern: Regex = Regex("""^(.+?):\s+line\s+(\d+):\s(.+)$""")
     output.lines()
@@ -333,7 +337,6 @@ private val bashParser: SyntaxParser = SyntaxParser { output: String, filePath: 
  * Last-resort parser for tools with unknown output formats.
  * Scans lines for keywords like "error", "warning", "not found", "undefined", "unexpected".
  */
-
 private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     output.lines()
         .mapNotNull { line: String ->
@@ -358,7 +361,6 @@ private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePa
 
 
 /** Filters cross-file noise when multi-file compilation produces errors for other files. */
-
 private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): List<SyntaxIssue> {
     val absolutePath: Path = Path.of(filePath).toAbsolutePath().normalize()
     val fileName: String = absolutePath.fileName.toString()
@@ -371,35 +373,43 @@ private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): Li
     }
 }
 
+private val cCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
+    CompileCommand(listOf("gcc", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
+)
+
+private val cppCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("clang++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
+    CompileCommand(listOf("g++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
+)
+
+private val cHeaderCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic")),
+    CompileCommand(listOf("gcc", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic")),
+)
+
+private val tscCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("tsc", "--noEmit", "--strict")),
+)
+
+private val jsCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("eslint")),
+    CompileCommand(listOf("jshint")),
+    CompileCommand(listOf("node", "--check")),
+)
+
+private val pyCommands: List<CompileCommand> = listOf(
+    CompileCommand(listOf("pyflakes")),
+    CompileCommand(listOf("flake8")),
+    CompileCommand(listOf("python3", "-m", "py_compile"), env = mapOf("PYTHONDONTWRITEBYTECODE" to "1")),
+    CompileCommand(listOf("python", "-m", "py_compile"), env = mapOf("PYTHONDONTWRITEBYTECODE" to "1")),
+)
+
 private val languageConfigs: Map<String, LanguageSyntaxConfig> = mapOf(
-    ".c" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-            CompileCommand(listOf("gcc", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-        ),
-        outputParser = standardParser,
-    ),
-    ".cpp" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("clang++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-            CompileCommand(listOf("g++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-        ),
-        outputParser = standardParser,
-    ),
-    ".cc" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("clang++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-            CompileCommand(listOf("g++", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic", "-fdiagnostics-show-option")),
-        ),
-        outputParser = standardParser,
-    ),
-    ".h" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("clang", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic")),
-            CompileCommand(listOf("gcc", "-fsyntax-only", "-Wall", "-Wextra", "-Wpedantic")),
-        ),
-        outputParser = standardParser,
-    ),
+    ".c" to LanguageSyntaxConfig(commands = cCommands, outputParser = standardParser),
+    ".cpp" to LanguageSyntaxConfig(commands = cppCommands, outputParser = standardParser),
+    ".cc" to LanguageSyntaxConfig(commands = cppCommands, outputParser = standardParser),
+    ".h" to LanguageSyntaxConfig(commands = cHeaderCommands, outputParser = standardParser),
     ".rs" to LanguageSyntaxConfig(
         commands = listOf(CompileCommand(listOf("rustc", "--edition", "2021", "--deny", "warnings"))),
         outputParser = rustcParser,
@@ -411,47 +421,12 @@ private val languageConfigs: Map<String, LanguageSyntaxConfig> = mapOf(
         ),
         outputParser = goParser,
     ),
-    ".py" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("pyflakes")),
-            CompileCommand(listOf("flake8")),
-            CompileCommand(listOf("python3", "-m", "py_compile"), env = mapOf("PYTHONDONTWRITEBYTECODE" to "1")),
-            CompileCommand(listOf("python", "-m", "py_compile"), env = mapOf("PYTHONDONTWRITEBYTECODE" to "1")),
-        ),
-        outputParser = pythonLikeParser,
-    ),
-    ".ts" to LanguageSyntaxConfig(
-        commands = listOf(CompileCommand(listOf("tsc", "--noEmit", "--strict"))),
-        outputParser = tscParser,
-    ),
-    ".tsx" to LanguageSyntaxConfig(
-        commands = listOf(CompileCommand(listOf("tsc", "--noEmit", "--strict"))),
-        outputParser = tscParser,
-    ),
-    ".js" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("eslint")),
-            CompileCommand(listOf("jshint")),
-            CompileCommand(listOf("node", "--check")),
-        ),
-        outputParser = pythonLikeParser,
-    ),
-    ".jsx" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("eslint")),
-            CompileCommand(listOf("jshint")),
-            CompileCommand(listOf("node", "--check")),
-        ),
-        outputParser = pythonLikeParser,
-    ),
-    ".mjs" to LanguageSyntaxConfig(
-        commands = listOf(
-            CompileCommand(listOf("eslint")),
-            CompileCommand(listOf("jshint")),
-            CompileCommand(listOf("node", "--check")),
-        ),
-        outputParser = pythonLikeParser,
-    ),
+    ".py" to LanguageSyntaxConfig(commands = pyCommands, outputParser = pythonLikeParser),
+    ".ts" to LanguageSyntaxConfig(commands = tscCommands, outputParser = tscParser),
+    ".tsx" to LanguageSyntaxConfig(commands = tscCommands, outputParser = tscParser),
+    ".js" to LanguageSyntaxConfig(commands = jsCommands, outputParser = pythonLikeParser),
+    ".jsx" to LanguageSyntaxConfig(commands = jsCommands, outputParser = pythonLikeParser),
+    ".mjs" to LanguageSyntaxConfig(commands = jsCommands, outputParser = pythonLikeParser),
     ".java" to LanguageSyntaxConfig(
         commands = listOf(CompileCommand(listOf("javac", "-J-Duser.language=en", "-Xlint:all"))),
         outputParser = standardParser,
@@ -523,8 +498,7 @@ object SyntaxChecker {
                 }
                 val process: Process = processBuilder.start()
 
-                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                    process.destroyForcibly()
+                if (!process.waitFor(5, TimeUnit.SECONDS)) { process.destroyForcibly()
                     break
                 }
 
