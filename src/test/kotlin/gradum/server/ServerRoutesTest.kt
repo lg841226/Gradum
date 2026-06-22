@@ -7,7 +7,7 @@
 
 package gradum.server
 
-import gradum.GRADUM_VERSION
+import gradum.Version
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -29,7 +29,7 @@ class ServerRoutesTest {
         val body: String = response.bodyAsText()
 
         assertContains(body, "\"status\":\"healthy\"")
-        assertContains(body, "\"version\":\"$GRADUM_VERSION\"")
+        assertContains(body, "\"version\":\"${Version.GRADUM_VERSION}\"")
         assertContains(body, "\"uptimeSeconds\"")
         assertContains(body, "\"timestamp\"")
     }

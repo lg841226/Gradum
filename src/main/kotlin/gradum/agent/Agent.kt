@@ -40,7 +40,7 @@ class Agent(
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
     private var activeClient: LlmClient
 
-    private val contextManager: ContextManager = ContextManager(OUTPUT_DIRECTORY)
+    private val contextManager: ContextManager = ContextManager(ProjectPaths.OUTPUT_DIRECTORY)
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
     private val repeatedResponseTracker: MutableList<String> = mutableListOf()
@@ -93,7 +93,7 @@ class Agent(
 
         emitEvent(
             "session_start", mapOf(
-                "version" to GRADUM_VERSION,
+                "version" to Version.GRADUM_VERSION,
                 "model" to configuration.modelName,
                 "think" to configuration.enableThinking,
                 "contextLoaded" to contextLoaded,
@@ -416,7 +416,7 @@ class Agent(
         val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
         emitEvent(
             "session_end", mapOf(
-                "version" to GRADUM_VERSION,
+                "version" to Version.GRADUM_VERSION,
                 "elapsedSeconds" to elapsedSeconds,
                 "model" to configuration.modelName,
                 "tokenUsage" to mapOf(
@@ -453,7 +453,7 @@ class Agent(
 
         emitEvent(
             "session_end", mapOf(
-                "version" to GRADUM_VERSION,
+                "version" to Version.GRADUM_VERSION,
                 "elapsedSeconds" to elapsedSeconds,
                 "model" to configuration.modelName,
                 "tokenUsage" to mapOf(
