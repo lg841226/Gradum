@@ -60,36 +60,38 @@ private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<Mod
     for (attempt in 0..maxRetries) {
         try {
             val httpClient = HttpClient()
-            val response: HttpResponse = runBlocking {
-                httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
-                    timeout {
-                        requestTimeoutMillis = (1.5 * 1000).toLong()
+
+            httpClient.use { _ ->
+                val response: HttpResponse = runBlocking {
+                    httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
+                        timeout {
+                            requestTimeoutMillis = (1.5 * 1000).toLong()
+                        }
                     }
                 }
-            }
-            httpClient.close()
 
-            if (response.status == HttpStatusCode.OK) {
-                val responseBody: String = runBlocking { response.bodyAsText() }
-                val parsedData: JsonObject = jsonParser.parseToJsonElement(responseBody).jsonObject
+                if (response.status == HttpStatusCode.OK) {
+                    val responseBody: String = runBlocking { response.bodyAsText() }
+                    val parsedData: JsonObject = jsonParser.parseToJsonElement(responseBody).jsonObject
 
-                val modelNames: List<String> = when (server.providerType) {
-                    "ollama" -> parsedData["models"]?.jsonArray?.map {
-                        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                    }?.filter { it.isNotBlank() } ?: emptyList()
+                    val modelNames: List<String> = when (server.providerType) {
+                        "ollama" -> parsedData["models"]?.jsonArray?.map {
+                            it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                        }?.filter { it.isNotBlank() } ?: emptyList()
 
-                    else -> parsedData["data"]?.jsonArray?.map {
-                        it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-                    }?.filter { it.isNotBlank() } ?: emptyList()
-                }
+                        else -> parsedData["data"]?.jsonArray?.map {
+                            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                        }?.filter { it.isNotBlank() } ?: emptyList()
+                    }
 
-                return modelNames.map { name ->
-                    ModelEntry(
-                        modelName = name,
-                        providerType = server.providerType,
-                        serverUrl = server.baseUrl,
-                        serverName = server.serverName
-                    )
+                    return modelNames.map { name ->
+                        ModelEntry(
+                            modelName = name,
+                            providerType = server.providerType,
+                            serverUrl = server.baseUrl,
+                            serverName = server.serverName
+                        )
+                    }
                 }
             }
         } catch (exception: Exception) {
@@ -102,6 +104,5 @@ private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<Mod
             }
         }
     }
-
     return emptyList()
 }

@@ -14,6 +14,8 @@ import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.utils.classifyCommand
 import gradum.utils.CommandVerdict
+import gradum.ProjectPaths
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
@@ -21,9 +23,8 @@ import java.io.InputStreamReader
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("RunCommandSkill")
+private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 private const val COMMAND_TIMEOUT_SECONDS: Long = 45
-private const val OUTPUT_DIRECTORY_NAME: String = "output"
 
 /**
  * Executes a shell command and captures its output.
@@ -63,7 +64,6 @@ class RunCommandSkill : Skill() {
     @OptIn(DangerousOperation::class)
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val commandText: String = arguments["command"] as? String ?: ""
-        val reason: String = arguments["reason"] as? String ?: ""
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
 
         if (commandText.isBlank())
@@ -80,13 +80,12 @@ class RunCommandSkill : Skill() {
 
         if (runDetached) return executeDetached(commandText)
 
-
         return executeBlocking(commandText)
     }
 
     private fun executeBlocking(commandText: String): SkillResult {
         return try {
-            val processBuilder: ProcessBuilder = ProcessBuilder("sh", "-c", commandText)
+            val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectErrorStream(false)
 
             val process: Process = processBuilder.start()
@@ -123,11 +122,11 @@ class RunCommandSkill : Skill() {
     @DangerousOperation
     private fun executeDetached(commandText: String): SkillResult {
         return try {
-            val logDirectory: Path = Path.of(OUTPUT_DIRECTORY_NAME, "run_cmd")
+            val logDirectory: Path = ProjectPaths.OUTPUT_DIRECTORY.resolve("run_cmd")
             logDirectory.toFile().mkdirs()
-            val logFile: File = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
+            val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
 
-            val processBuilder: ProcessBuilder = ProcessBuilder("sh", "-c", commandText)
+            val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectOutput(logFile)
             processBuilder.redirectErrorStream(true)
 
@@ -142,7 +141,7 @@ class RunCommandSkill : Skill() {
                     "detached" to true,
                     "processId" to processId,
                     "logPath" to logFile.absolutePath,
-                    "message" to "Command started in background with PID $processId",
+                    "message" to "Command started in background with PID $processId"
                 ),
             )
         } catch (exception: Exception) {

@@ -126,7 +126,8 @@ private fun isCriticalPath(targetPath: String): Boolean {
             return true
     }
 
-    val homeDirectory: String = System.getProperty("user.home")
+    val homeDirectory: String = System.getProperty("user.home") ?: return false
+
     for (protectedSubdirectory in protectedHomeSubdirectories) {
         val protectedPath = "$homeDirectory/$protectedSubdirectory"
         if (resolvedTarget == protectedPath || resolvedTarget.startsWith("$protectedPath/"))

@@ -11,6 +11,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import java.util.Base64
 
 private const val VERSION_BYTE: Byte = 0x81.toByte()
 private const val NONCE_SIZE_BYTES: Int = 16
@@ -52,15 +53,13 @@ private fun getAuthenticationKey(): ByteArray {
 }
 
 private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce: ByteArray): ByteArray {
-    val ciphertext: ByteArray = ByteArray(plaintext.size)
+    val ciphertext = ByteArray(plaintext.size)
 
     for (offset in plaintext.indices step BLOCK_SIZE_BYTES) {
         val counter: Int = offset / BLOCK_SIZE_BYTES
         val counterBytes: ByteArray = byteArrayOf(
-            (counter shr 24).toByte(),
-            (counter shr 16).toByte(),
-            (counter shr 8).toByte(),
-            counter.toByte(),
+            (counter shr 24).toByte(), (counter shr 16).toByte(),
+            (counter shr 8).toByte(), counter.toByte()
         )
 
         val hmac: Mac = Mac.getInstance("HmacSHA256")
@@ -104,22 +103,20 @@ fun encryptMessageContent(plaintext: String): String {
 
     val fullToken: ByteArray = tokenBody + authenticationTag
 
-    return java.util.Base64.getEncoder().encodeToString(fullToken)
+    return Base64.getEncoder().encodeToString(fullToken)
 }
 
 fun decryptMessageContent(encodedCiphertext: String): String {
     if (encodedCiphertext.isEmpty()) return ""
 
-    val rawBytes: ByteArray = java.util.Base64.getDecoder().decode(encodedCiphertext)
+    val rawBytes: ByteArray = Base64.getDecoder().decode(encodedCiphertext)
 
     val minimumLength: Int = 1 + NONCE_SIZE_BYTES + HMAC_SIZE_BYTES
-    if (rawBytes.size < minimumLength) {
+    if (rawBytes.size < minimumLength)
         throw IllegalArgumentException("Token too short: ${rawBytes.size} bytes (minimum $minimumLength)")
-    }
 
-    if (rawBytes[0] != VERSION_BYTE) {
+    if (rawBytes[0] != VERSION_BYTE)
         throw IllegalArgumentException("Invalid version byte: ${rawBytes[0]} (expected $VERSION_BYTE)")
-    }
 
     val nonce: ByteArray = rawBytes.copyOfRange(1, 1 + NONCE_SIZE_BYTES)
     val authenticationTag: ByteArray = rawBytes.copyOfRange(rawBytes.size - HMAC_SIZE_BYTES, rawBytes.size)
@@ -131,9 +128,8 @@ fun decryptMessageContent(encodedCiphertext: String): String {
     val tokenBody: ByteArray = byteArrayOf(VERSION_BYTE) + nonce + ciphertextBytes
     val expectedTag: ByteArray = computeHmac(authenticationKey, tokenBody)
 
-    if (!MessageDigest.isEqual(authenticationTag, expectedTag)) {
+    if (!MessageDigest.isEqual(authenticationTag, expectedTag))
         throw SecurityException("HMAC verification failed - content may be tampered")
-    }
 
     val plaintextBytes: ByteArray = hmacCtrEncrypt(ciphertextBytes, encryptionKey, nonce)
 

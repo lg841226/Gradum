@@ -25,9 +25,7 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
         Netty,
         host = serverConfiguration.hostAddress,
         port = serverConfiguration.portNumber
-    ) {
-        module(serverConfiguration)
-    }
+    ) { module(serverConfiguration) }
     return server
 }
 

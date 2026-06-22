@@ -31,23 +31,19 @@ private const val FILENAME_MATCH_LIMIT: Int = 2048
  * and structured error reporting.
  */
 private data class SearchContext(
-    var scannedFileCount: Int = 0,
-    var scannedDepth: Int = 0,
-    val startTimeMillis: Long = System.currentTimeMillis(),
+    var scannedFileCount: Int = 0, var scannedDepth: Int = 0,
+    val startTimeMillis: Long = System.currentTimeMillis()
 ) {
     fun elapsedMillis(): Long = System.currentTimeMillis() - startTimeMillis
 }
-
 /**
  * Thrown when a search exceeds the allowed match count for a given category.
  * Carries traversal context for structured error reporting.
  */
 private class SearchOverflowException(
-    val keyword: String,
-    val searchType: String,
-    val matchCount: Int,
-    val limit: Int,
-    val searchContext: SearchContext,
+    val keyword: String, val searchType: String,
+    val matchCount: Int, val limit: Int,
+    val searchContext: SearchContext
 ) : Exception("Match limit exceeded")
 
 /**
@@ -197,8 +193,7 @@ class SearchSkill : Skill() {
     private fun executeAllSearch(
         keywords: List<String>, searchRoot: Path,
         compiledFileMatcher: PathMatcher?, filePatternGlob: String?,
-        maxResults: Int, contextLines: Int,
-        responsePayload: MutableMap<String, Any>,
+        maxResults: Int, contextLines: Int, responsePayload: MutableMap<String, Any>
     ) {
         val searchContext = SearchContext()
 
@@ -232,13 +227,11 @@ class SearchSkill : Skill() {
      * Runs a filename-only search and populates [responsePayload].
      */
     private fun executeFilenameSearch(
-        keywords: List<String>,
-        searchRoot: Path,
+        keywords: List<String>, searchRoot: Path,
         compiledFileMatcher: PathMatcher?,
-        filePatternGlob: String?,
-        maxResults: Int,
-        responsePayload: MutableMap<String, Any>,
-    ): Unit {
+        filePatternGlob: String?, maxResults: Int,
+        responsePayload: MutableMap<String, Any>
+    ) {
         val searchContext = SearchContext()
 
         val matchedResults: List<SearchResult> = collectSearchResults(keywords) { keyword: String ->
@@ -256,16 +249,12 @@ class SearchSkill : Skill() {
      * Runs a directory-only search and populates [responsePayload].
      */
     private fun executeDirectorySearch(
-        keywords: List<String>,
-        searchRoot: Path,
-        maxResults: Int,
-        responsePayload: MutableMap<String, Any>,
-    ): Unit {
-        val searchContext: SearchContext = SearchContext()
-
+        keywords: List<String>, searchRoot: Path,
+        maxResults: Int, responsePayload: MutableMap<String, Any>,
+    ) {
         val matchedResults: List<SearchResult> = collectSearchResults(keywords) { keyword: String ->
             searchDirectories(searchRoot, keyword)
-        }.distinctBy { it -> it.filePath to it.matchedText }
+        }.distinctBy { it.filePath to it.matchedText }
 
         populateUnifiedResponse(matchedResults, maxResults, responsePayload)
     }
@@ -281,7 +270,7 @@ class SearchSkill : Skill() {
         maxResults: Int,
         contextLines: Int,
         responsePayload: MutableMap<String, Any>,
-    ): Unit {
+    ) {
         val searchContext = SearchContext()
 
         val matchedResults: List<SearchResult> = collectSearchResults(keywords) { keyword: String ->

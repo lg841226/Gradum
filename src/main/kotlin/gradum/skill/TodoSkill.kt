@@ -11,6 +11,7 @@ import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import kotlin.to
 
 /**
  * Maintains a shared in-memory list of pending tasks across the agent loop.
@@ -52,7 +53,7 @@ class TodoManager {
                 mapOf(
                     "completed" to true,
                     "totalTasks" to tasks.size,
-                    "message" to "All tasks completed",
+                    "message" to "All tasks completed"
                 ),
             )
         }
@@ -62,8 +63,36 @@ class TodoManager {
                 "completed" to false,
                 "totalTasks" to tasks.size,
                 "currentTask" to tasks[currentTaskIndex],
-                "currentIndex" to currentTaskIndex,
+                "currentIndex" to currentTaskIndex
             ),
+        )
+    }
+
+    /**
+     * Skips the current task without marking it as completed and advances the cursor.
+     *
+     * @return [SkillResult.Success] with skipped task info and next task;
+     *         or [SkillResult.Failure] if not initialized or all tasks completed.
+     */
+    fun skipTask(): SkillResult {
+        val tasks: List<String> = taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
+
+        if (currentTaskIndex >= tasks.size)
+            return makeFailure(ErrorCode.NOT_INITIALIZED, "All tasks already completed")
+
+        val skippedTask: String = tasks[currentTaskIndex]
+        currentTaskIndex++
+        val allDone: Boolean = currentTaskIndex >= tasks.size
+
+        return makeSuccess(
+            mapOf(
+                "skipped" to true,
+                "skippedTask" to skippedTask,
+                "completed" to allDone,
+                "totalTasks" to tasks.size,
+                "currentTask" to if (allDone) "" else tasks[currentTaskIndex],
+                "currentIndex" to currentTaskIndex
+            )
         )
     }
 
@@ -84,8 +113,15 @@ private val sharedTodoManager: TodoManager = TodoManager()
 
 fun getTodoManagerInstance(): TodoManager { return sharedTodoManager }
 
-class TodoSkill : Skill() {
 
+/**
+ * Initializes a shared task list for the agent to follow during a session.
+ *
+ * Once initialized, the agent progresses through tasks using [CompletePlanSkill].
+ * Only one task list can be active per session; re-initialization fails with
+ * [ErrorCode.ALREADY_INITIALIZED].
+ */
+class TodoSkill : Skill() {
     override val skillName: String = "to_do"
     override val alias: String = "Planned"
     override val description: String = "Initialize a task list"
@@ -111,6 +147,13 @@ class TodoSkill : Skill() {
         )
     }
 
+    /**
+     * Parses the task list from arguments and initializes [TodoManager].
+     *
+     * @param arguments Map containing `tasks` — a list of task descriptions.
+     * @return [SkillResult.Success] with totalTasks, currentTask, currentIndex;
+     *         or [SkillResult.Failure] if tasks is empty or already initialized.
+     */
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
@@ -122,16 +165,18 @@ class TodoSkill : Skill() {
 }
 
 /**
- * Marks the next task in [TodoManager] as completed and advances the cursor.
+ * Advances the agent through its task list by completing or skipping tasks.
  *
- * The agent calls this between steps to keep its own plan in sync with the
+ * The agent calls this between steps to keep its plan in sync with
  * reminder prompts injected by [TodoManager.getTaskReminder].
+ * Supports two actions:
+ * - `complete` (default): marks current task done, advances cursor.
+ * - `skip`: advances cursor without marking the task as completed.
  */
 class CompletePlanSkill : Skill() {
-
     override val skillName: String = "finish_to_do_item"
     override val alias: String = "Completed"
-    override val description: String = "Mark a task as completed"
+    override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -143,6 +188,11 @@ class CompletePlanSkill : Skill() {
                     "type" to "object",
                     "properties" to mapOf(
                         "task" to mapOf("type" to "string", "description" to "Task that was completed"),
+                        "action" to mapOf(
+                            "type" to "string",
+                            "description" to "'complete' (default) marks task done; 'skip' advances without completing",
+                            "enum" to listOf("complete", "skip")
+                        ),
                     ),
                     "required" to emptyList<String>(),
                 ),
@@ -151,6 +201,11 @@ class CompletePlanSkill : Skill() {
     }
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
-        return sharedTodoManager.completeCurrentTask()
+        val action: String = arguments["action"] as? String ?: "complete"
+
+        return when (action) {
+            "skip" -> sharedTodoManager.skipTask()
+            else -> sharedTodoManager.completeCurrentTask()
+        }
     }
 }

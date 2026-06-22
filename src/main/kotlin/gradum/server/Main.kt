@@ -17,6 +17,7 @@ fun main(arguments: Array<String>) {
 
     val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
         val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
+
         // fail-fast: Ktor would throw on bind(-1) with a less informative "port out of range" message.
         checkNotNull(detectedPort) { "No available port in range ${parsedArguments.portNumber} - ${parsedArguments.portNumber + 10}; aborting server start" }
         logger.info("Using auto-detected port: $detectedPort")
@@ -59,18 +60,18 @@ private data class ServerArguments(
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
     var hostAddress = "localhost"
+    var portRange = "8765-8775"
+    var providerName = "ollama"
     var portNumber = 8765
     var autoDetectPort = false
-    var portRange = "8765-8775"
     var debugMode = false
-    var modelName: String? = null
     var enableThinking = false
-    var providerName = "ollama"
+    var modelName: String? = null
     var baseUrl: String? = null
 
     val iterator: Iterator<String> = arguments.iterator()
     while (iterator.hasNext()) {
-        when (val flag: String = iterator.next()) {
+        when (iterator.next()) {
             "--host" -> hostAddress = iterator.next()
             "--port" -> portNumber = iterator.next().toIntOrNull() ?: portNumber
             "--auto-port" -> autoDetectPort = true
@@ -95,11 +96,11 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
         modelName = modelName,
         enableThinking = enableThinking,
         providerName = providerName,
-        baseUrl = baseUrl,
+        baseUrl = baseUrl
     )
 }
 
-private fun printUsage(): Unit {
+private fun printUsage() {
     println("Gradum HTTP Server")
     println()
     println("Usage: java -jar gradum@<version>.jar [options]")

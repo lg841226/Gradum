@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-06-21 07:53:44 Changed by gwy
+ * ReadFileSkill.kt  2026-06-22 23:10:00 Changed by gwy
  */
 
 package gradum.skill
@@ -70,9 +70,8 @@ class ReadFileSkill : Skill() {
         val filePath: String = arguments["path"] as? String ?: ""
         val lineRange: String = arguments["lineRange"] as? String ?: ""
 
-        if (filePath.isBlank()) {
+        if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
-        }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
@@ -80,20 +79,22 @@ class ReadFileSkill : Skill() {
         return try {
             val fileSize: Long = targetFile.length()
             if (fileSize > MAXIMUM_FILE_SIZE) {
-                    return makeFailure(
-                        ErrorCode.FILE_TOO_LARGE, "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
-                        mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
-                    )
+                return makeFailure(
+                    ErrorCode.FILE_TOO_LARGE,
+                    "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
+                    mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
+                )
             }
 
             val allLines: List<String> = targetFile.readLines(Charsets.UTF_8)
             val totalLines: Int = allLines.size
 
             if (totalLines > MAXIMUM_LINES && lineRange.isBlank()) {
-                    return makeFailure(
-                        ErrorCode.FILE_TOO_LARGE, "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
-                        mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines)
-                    )
+                return makeFailure(
+                    ErrorCode.FILE_TOO_LARGE,
+                    "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
+                    mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines)
+                )
             }
 
             val (startLineNumber: Int, endLineNumber: Int, fileContent: String) = if (lineRange.isBlank()) {
@@ -108,7 +109,7 @@ class ReadFileSkill : Skill() {
                 }
 
                 val rawStart: Int = parseRangeBound(rangeParts[0])
-                    ?:                     return makeFailure(
+                    ?: return makeFailure(
                         ErrorCode.INVALID_PARAMETER, "Invalid lineRange start value: ${rangeParts[0]}",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
                     )
@@ -129,7 +130,8 @@ class ReadFileSkill : Skill() {
                 Triple(actualStart, actualEnd, selectedContent)
             }
 
-            val contentHash: String = MessageDigest.getInstance("MD5").digest(fileContent.toByteArray(Charsets.UTF_8)).joinToString("") { byte: Byte -> "%02x".format(byte) }
+            val contentHash: String = MessageDigest.getInstance("MD5").digest(fileContent.toByteArray(Charsets.UTF_8))
+                .joinToString("") { byte: Byte -> "%02x".format(byte) }
 
             makeSuccess(
                 mapOf(
@@ -143,7 +145,11 @@ class ReadFileSkill : Skill() {
         } catch (_: FileNotFoundException) {
             makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Unknown I/O error", mapOf("path" to resolvedPath.toString()))
+            makeFailure(
+                ErrorCode.IO_ERROR,
+                exception.message ?: "Unknown I/O error",
+                mapOf("path" to resolvedPath.toString())
+            )
         }
     }
 }

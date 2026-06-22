@@ -34,7 +34,7 @@ private val logger: Logger = LoggerFactory.getLogger("Agent")
  */
 class Agent(
     private val configuration: AgentConfiguration,
-    private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
+    private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit
 ) {
     private val ollamaClient: OllamaClient = OllamaClient(configuration)
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
@@ -67,7 +67,7 @@ class Agent(
     internal constructor(
         configuration: AgentConfiguration,
         emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit, llmClient: LlmClient,
-        redLineKeywords: List<String> = emptyList(),
+        redLineKeywords: List<String> = emptyList()
     ) : this(configuration, emitEvent) {
         activeClient = llmClient
         this.redLineKeywords = redLineKeywords
@@ -396,7 +396,7 @@ class Agent(
     }
 
     private fun checkToolRunaway(name: String, args: Map<String, Any>): Boolean {
-        val key: String = "$name|${args.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
+        val key = "$name|${args.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
         repeatedToolCallCount = if (key == lastToolCallKey) repeatedToolCallCount + 1 else 1
         lastToolCallKey = key
         return repeatedToolCallCount >= configuration.maxRepeatedToolCalls

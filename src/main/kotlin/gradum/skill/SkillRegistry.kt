@@ -31,11 +31,6 @@ object SkillRegistry {
 
     init { discoverSkills() }
 
-    /**
-     * Returns all registered skills.
-     *
-     * @return collection of all registered Skill instances
-     */
     fun getAllSkills(): Collection<Skill> {
         return registeredSkills.values
     }
@@ -80,7 +75,7 @@ object SkillRegistry {
      *
      * Each discovered skill must have a no-argument constructor.
      */
-    private fun discoverSkills(): Unit {
+    private fun discoverSkills() {
         val skillLoader: ServiceLoader<Skill> = ServiceLoader.load(Skill::class.java)
 
         for (skill: Skill in skillLoader)

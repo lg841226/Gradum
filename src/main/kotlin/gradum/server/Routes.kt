@@ -2,17 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-21 07:53:44 Changed by gwy
+ * Routes.kt  2026-06-22 23:08:56 Changed by gwy
  */
 
 package gradum.server
 
 import gradum.AgentConfiguration
-import gradum.Version
 import gradum.Provider
+import gradum.Version
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
 import gradum.discovery.discoverModels
+import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
 import gradum.utils.JsonUtil
 import io.ktor.http.*
@@ -31,10 +32,9 @@ import java.time.LocalDateTime
 
 @Serializable
 data class EventsRequestBody(
-    val message: String,
-    val model: String? = null,
+    val message: String, val model: String? = null,
     val config: Map<String, String>? = null,
-    val loadContext: Boolean = false,
+    val loadContext: Boolean = false
 )
 
 /**
@@ -117,7 +117,13 @@ fun Application.registerAllRoutes(): Unit {
                     val agent = Agent(
                         configuration = agentConfiguration,
                         emitEvent = { eventType: String, data: Map<String, Any> ->
-                            val ndjsonLine: String = JsonUtil.encodeMap(mapOf("type" to eventType, "timestamp" to LocalDateTime.now().toString(), "data" to data)) + "\n"
+                            val ndjsonLine: String = JsonUtil.encodeMap(
+                                mapOf(
+                                    "type" to eventType,
+                                    "timestamp" to LocalDateTime.now().toString(),
+                                    "data" to data
+                                )
+                            ) + "\n"
                             eventsChannel.trySend(ndjsonLine)
                         },
                     )
@@ -128,10 +134,8 @@ fun Application.registerAllRoutes(): Unit {
                 }
             }
 
-            call.response.header(HttpHeaders.ContentType, "application/x-ndjson")
-
             call.respond(object : OutgoingContent.WriteChannelContent() {
-                override val contentType: ContentType = ContentType.Application.Json
+                override val contentType: ContentType = ContentType.parse("application/x-ndjson")
 
                 override suspend fun writeTo(channel: ByteWriteChannel) {
                     for (ndjsonLine: String in eventsChannel) {
@@ -146,12 +150,14 @@ fun Application.registerAllRoutes(): Unit {
             val uptimeSeconds: Long = Duration.between(serverStartTime, LocalDateTime.now()).seconds
 
             call.respondText(
-                text = JsonUtil.encodeMap(mapOf(
-                    "status" to "healthy",
-                    "version" to Version.GRADUM_VERSION,
-                    "uptimeSeconds" to uptimeSeconds,
-                    "timestamp" to LocalDateTime.now().toString()
-                )),
+                text = JsonUtil.encodeMap(
+                    mapOf(
+                        "status" to "healthy",
+                        "version" to Version.GRADUM_VERSION,
+                        "uptimeSeconds" to uptimeSeconds,
+                        "timestamp" to LocalDateTime.now().toString()
+                    )
+                ),
                 contentType = ContentType.Application.Json
             )
         }
@@ -159,15 +165,17 @@ fun Application.registerAllRoutes(): Unit {
         get("/models") {
             val discoveredModels: List<ModelEntry> = discoverModels()
             call.respondText(
-                text = JsonUtil.encodeMap(mapOf(
-                    "models" to discoveredModels.map { entry: ModelEntry ->
-                        mapOf(
-                            "name" to entry.modelName,
-                            "provider" to entry.providerType,
-                            "server" to entry.serverUrl
-                        )
-                    },
-                )),
+                text = JsonUtil.encodeMap(
+                    mapOf(
+                        "models" to discoveredModels.map { entry: ModelEntry ->
+                            mapOf(
+                                "name" to entry.modelName,
+                                "provider" to entry.providerType,
+                                "server" to entry.serverUrl
+                            )
+                        },
+                    )
+                ),
                 contentType = ContentType.Application.Json
             )
         }
@@ -175,15 +183,17 @@ fun Application.registerAllRoutes(): Unit {
         get("/skills") {
             val skillRegistry = SkillRegistry
             call.respondText(
-                text = JsonUtil.encodeMap(mapOf(
-                    "skills" to skillRegistry.getAllSkills().map { skill ->
-                        mapOf(
-                            "name" to skill.skillName,
-                            "description" to skill.description,
-                            "alias" to skill.alias
-                        )
-                    },
-                )),
+                text = JsonUtil.encodeMap(
+                    mapOf(
+                        "skills" to skillRegistry.getAllSkills().map { skill ->
+                            mapOf(
+                                "name" to skill.skillName,
+                                "description" to skill.description,
+                                "alias" to skill.alias
+                            )
+                        },
+                    )
+                ),
                 contentType = ContentType.Application.Json
             )
         }

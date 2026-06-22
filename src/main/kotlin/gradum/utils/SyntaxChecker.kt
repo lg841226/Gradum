@@ -7,14 +7,12 @@
 
 package gradum.utils
 
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStreamReader
-import java.nio.file.Path
-import java.util.concurrent.TimeUnit
-
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.io.BufferedReader
+import java.io.File
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("SyntaxChecker")
 
@@ -502,9 +500,7 @@ object SyntaxChecker {
                     break
                 }
 
-                val compilerOutput: String = BufferedReader(
-                    InputStreamReader(process.inputStream, Charsets.UTF_8)
-                ).readText()
+                val compilerOutput: String = process.inputStream.bufferedReader(Charsets.UTF_8).use(BufferedReader::readText)
 
                 if (process.exitValue() == 0) return emptyList()
 

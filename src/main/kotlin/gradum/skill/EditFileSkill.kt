@@ -190,7 +190,8 @@ class EditFileSkill : Skill() {
         if (workingContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
             return makeFailure(
-                ErrorCode.EMPTY_RESULT, "Edit resulted in empty content. Original content restored.",
+                ErrorCode.EMPTY_RESULT,
+                "Edit resulted in empty content. Original content restored.",
                 mapOf("path" to resolvedPath.toString())
             )
         }
