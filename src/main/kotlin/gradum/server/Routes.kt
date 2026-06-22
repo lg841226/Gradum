@@ -8,7 +8,7 @@
 package gradum.server
 
 import gradum.AgentConfiguration
-import gradum.GRADUM_VERSION
+import gradum.Version
 import gradum.Provider
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
@@ -148,7 +148,7 @@ fun Application.registerAllRoutes(): Unit {
             call.respondText(
                 text = JsonUtil.encodeMap(mapOf(
                     "status" to "healthy",
-                    "version" to GRADUM_VERSION,
+                    "version" to Version.GRADUM_VERSION,
                     "uptimeSeconds" to uptimeSeconds,
                     "timestamp" to LocalDateTime.now().toString()
                 )),

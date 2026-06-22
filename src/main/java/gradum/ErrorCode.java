@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorCode.kt  2026-06-21 18:37:31 Changed by gwy
+ * ErrorCode.java  2026-06-22 20:11:15 Changed by gwy
  */
 
-package gradum
+package gradum;
 
-enum class ErrorCode(val code: String) {
+public enum ErrorCode {
     INVALID_PARAMETER("INVALID_PARAMETER"),
     IO_ERROR("IO_ERROR"),
     FILE_NOT_FOUND("FILE_NOT_FOUND"),
@@ -20,5 +20,11 @@ enum class ErrorCode(val code: String) {
     NOT_INITIALIZED("NOT_INITIALIZED"),
     ALL_COMPLETED("ALL_COMPLETED"),
     FILE_TOO_LARGE("FILE_TOO_LARGE"),
-    CLIENT_ERROR("CLIENT_ERROR")
+    CLIENT_ERROR("CLIENT_ERROR");
+
+    private final String code;
+
+    ErrorCode(String code) { this.code = code; }
+
+    public String getCode() { return code; }
 }
