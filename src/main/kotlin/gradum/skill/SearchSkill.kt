@@ -30,24 +30,22 @@ private val BINARY_EXTENSIONS: Set<String> = setOf(
 )
 
 /**
- * Searches file content, filenames, and directories within a project tree.
+ * Searches file contents, filenames, or directories within a project tree.
+ *
+ * @keyword accepts a regex pattern (case-insensitive) for content/filename matching.
+ * @file_pattern supports glob syntax (`*.java`, `*.{kt,py}`) applied to filenames.
  *
  * Bounded by [SEARCH_TIMEOUT_SECONDS], [MAXIMUM_FILES], [MAXIMUM_DEPTH] and
  * [HARD_MAX_RESULTS] to keep the agent's tool loop responsive on large repos.
  *
- * Parameters
- *
- * - `keyword` — term(s) to search for. Accepts a single string or an array of
- *   up to 5 strings (OR-logic). Backward-compatible with `query`.
- * - `file_pattern` — glob pattern to filter files (e.g. `*.java`, `*.{kt,py}`).
- * - `path` — directory to search in (default `.`).
- * - `type` — `content` (default), `filename`, or `directory`.
+ * Binary files (.class, .jar, .png, .jpg, .pdf, .zip, .gz, etc.) are automatically
+ * excluded from content searches to avoid spurious matches on embedded metadata.
  */
 class SearchSkill : Skill() {
 
     override val skillName: String = "search"
     override val alias: String = "Explored"
-    override val description: String = "Search code content, filenames, and directories"
+    override val description: String = "Search file contents, filenames, or directories. Keyword is a case-insensitive regex. Max 20 results. Binary files are skipped."
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("searchType", "truncated")
@@ -63,7 +61,7 @@ class SearchSkill : Skill() {
                     "properties" to mapOf(
                         "keyword" to mapOf(
                             "type" to "string",
-                            "description" to "Search keyword (string) or keywords (array of up to 5 strings, OR-logic). Use instead of 'query'.",
+                            "description" to "Regex keyword (case-insensitive). String or array of up to 5 strings (OR-logic). Use instead of 'query'.",
                         ),
                         "query" to mapOf(
                             "type" to "string",
@@ -201,10 +199,6 @@ class SearchSkill : Skill() {
             }
             .forEach { filePath: Path ->
                 if (System.currentTimeMillis() >= deadline) return@forEach
-                // Skip binary files: a .class / .jar / .png / .pdf / etc. will read as garbage
-                // and the regex may spuriously match on embedded source-file metadata strings
-                // (e.g. .class files contain "VsixDownLoader.java" as a SourceFile attribute).
-                if (isBinaryFile(filePath)) return@forEach
                 try {
                     val fileLines: List<String> = filePath.toFile().readLines(Charsets.UTF_8)
                     for ((lineIndex: Int, lineContent: String) in fileLines.withIndex()) {
