@@ -99,23 +99,30 @@ class SaveFileSkill : Skill() {
         val fileContent: String = arguments["content"] as? String ?: ""
         val writeMode: String = arguments["mode"] as? String ?: "overwrite"
         val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
-        val charset: Charset = io.ktor.utils.io.charsets.Charsets.forName(encodingName)
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
 
+        val charset: Charset = try {
+            io.ktor.utils.io.charsets.Charsets.forName(encodingName)
+        } catch (exception: Exception) {
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Unsupported encoding: $encodingName")
+        }
+
         if (fileContent.isBlank() && writeMode == "overwrite")
             return makeFailure(ErrorCode.EMPTY_RESULT, "Content is blank. Use append mode or provide non-empty content.")
 
-        if (fileContent.toByteArray(charset).size > MAXIMUM_CONTENT_SIZE)
+        val contentBytes: ByteArray = fileContent.toByteArray(charset)
+        if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
             return makeFailure(
                 ErrorCode.FILE_TOO_LARGE,
-                "Content too large: ${fileContent.toByteArray(charset).size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+                "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
             )
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
         val wasCreated: Boolean = !targetFile.exists()
+        val previousSize: Long = if (writeMode == "append" && !wasCreated) targetFile.length() else 0L
 
         return try {
             targetFile.parentFile?.mkdirs()
@@ -126,17 +133,24 @@ class SaveFileSkill : Skill() {
                 targetFile.writeText(fileContent, charset)
 
             val bytesWritten: Long = targetFile.length()
-            val totalLines: Int = targetFile.readLines(charset).size
+            val totalLines: Int = if (writeMode == "append") {
+                targetFile.readLines(charset).size
+            } else {
+                fileContent.lines().size
+            }
 
             makeSuccess(
-                mapOf(
-                    "path" to resolvedPath.toString(),
-                    "bytesWritten" to bytesWritten,
-                    "totalLines" to totalLines,
-                    "created" to wasCreated,
-                    "mode" to writeMode,
-                    "encoding" to charset.name()
-                ),
+                buildMap {
+                    put("path", resolvedPath.toString())
+                    put("bytesWritten", bytesWritten)
+                    put("totalLines", totalLines)
+                    put("created", wasCreated)
+                    put("mode", writeMode)
+                    put("encoding", charset.name())
+                    if (writeMode == "append" && !wasCreated) {
+                        put("previousSize", previousSize)
+                    }
+                },
             )
         } catch (exception: Exception) {
             makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
