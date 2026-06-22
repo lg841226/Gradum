@@ -1,0 +1,7 @@
+# Red Line Keywords
+# Copy this file to red_line_keywords.txt and fill in your sensitive terms.
+# One keyword per line. Matching is case-insensitive substring.
+#
+# Example:
+# forbidden-topic
+# some-sensitive-phrase

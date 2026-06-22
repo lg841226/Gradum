@@ -6,7 +6,7 @@
 
 | Field              | Value                                                            |
 |--------------------|------------------------------------------------------------------|
-| **Version**        | 0.8.2                                                            |
+| **Version**        | 0.9.0                                                            |
 | **Status**         | Active Development                                               |
 | **Language**       | Kotlin 2.0.21 (JVM 21)                                           |
 | **HTTP Framework** | Ktor 3.0.3 + Netty                                               |
@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.15                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-06-21                                                       |
+| **Last Updated**   | 2026-06-22                                                       |
 
 ---
 
@@ -195,7 +195,7 @@ src/main/kotlin/gradum/
 ├── Version.kt                     # GRADUM_VERSION constant
 │
 ├── agent/
-│   └── Agent.kt                   # Agent main class: main loop, message management, tool dispatch, emitEvent
+│   └── Agent.kt                   # Agent main class: main loop, message management, tool dispatch, guardrail checks, emitEvent
 │
 ├── client/
 │   └── LLMClient.kt               # OllamaClient + OpenAICompatibleClient + ToolCallEntry + TokenUsageSnapshot
@@ -227,6 +227,8 @@ src/main/kotlin/gradum/
 
 src/main/resources/
 ├── logback.xml                    # Logback logging configuration (Console + per-module levels)
+├── red_line_keywords.txt          # Red line keywords (user-local, gitignored)
+├── red_line_keywords.txt.example  # Red line keywords template (git-tracked)
 └── META-INF/
     └── services/
         └── gradum.skill.Skill     # ServiceLoader skill descriptor (built-in skills)
@@ -352,7 +354,20 @@ flowchart TD
     CHUNK_STREAM --> TOOL["ToolCallBatch → save as toolCalls List"]
     CHUNK_STREAM --> ERR_MSG["ErrorMessage → emit error event"]
 
-    TOOL --> DECISION{"toolCalls present and non-empty?"}
+    TOOL --> GUARDRAIL["Guardrail Checks<br/>redLineKeywords?<br/>repetitive_loop?"]
+
+    GUARDRAIL --> REDLINE{Red line keyword hit?}
+    REDLINE -- No --> REPLOOP{Repetitive response?}
+    REDLINE -- Yes --> REDLINE_COUNT["increment redLineHitCounter<br/>emit guardrail event"]
+    REDLINE_COUNT --> REDLINE_CHECK{"hits >= maxRedLineHits?"}
+    REDLINE_CHECK -- No --> REPLOOP
+    REDLINE_CHECK -- Yes --> REDLINE_REVOKE["append assistant message<br/>emitEvent mission_revoked<br/>reason: red_line_violation<br/>emitEvent session_end (aborted)<br/>BREAK loop"]
+
+    REPLOOP -- No --> DECISION{"toolCalls present and non-empty?"}
+    REPLOOP -- Yes --> REP_COUNT["add to repeatedResponseTracker<br/>emit guardrail event"]
+    REP_COUNT --> REP_CHECK{"count >= maxRepeatedResponses?"}
+    REP_CHECK -- No --> DECISION
+    REP_CHECK -- Yes --> REP_REVOKE["append assistant message<br/>emitEvent mission_revoked<br/>reason: repetitive_loop<br/>emitEvent session_end (aborted)<br/>BREAK loop"]
 
     DECISION -- No --> HAS_RESPONSE{responseText non-empty?}
     HAS_RESPONSE -- Yes --> EMIT_RESP["emitEvent llm_response<br/>append assistant message<br/>BREAK loop"]
@@ -403,10 +418,14 @@ flowchart TD
      - `ReasoningContent` → accumulate as thinking, **immediately emit a `thinking` event** (if there is content)
      - `ToolCallBatch` → save as `toolCalls: List<ToolCallEntry>`
      - `ErrorMessage` → emit an `error` event
-   - If `toolCalls == null or empty` and has responseText:
-     - Emit an `llm_response` event
-     - Append the assistant message, **BREAK the loop**
-   - Otherwise, there are tool calls:
+    - **Guardrail checks** are evaluated against `responseText` before processing tool calls:
+      - **Red line keyword check**: If the response contains any configured `redLineKeywords`, increment `redLineHitCounter`. When the counter reaches `maxRedLineHits` (default 3), append the assistant message, emit `mission_revoked` (reason: `red_line_violation`), emit `session_end` with `aborted: true`, and **BREAK**.
+      - **Repetitive response check**: If the response is an exact duplicate of the previous turn or contains repetitious sentences (same sentence ≥3 times), it is added to `repeatedResponseTracker`. When the tracker reaches `maxRepeatedResponses` (default 3), append the assistant message, emit `mission_revoked` (reason: `repetitive_loop`), emit `session_end` with `aborted: true`, and **BREAK**.
+      - Non-anomalous responses clear the repetitive tracker.
+    - If `toolCalls == null or empty` and has responseText:
+      - Emit an `llm_response` event
+      - Append the assistant message, **BREAK the loop**
+    - Otherwise, there are tool calls:
      - `prepareToolCalls(rawCalls)`: allocate `call_N` sequences for items without call_id
      - Append the assistant message (including `tool_calls[]` or function list)
      - **FOR each processedCall**:
@@ -422,8 +441,8 @@ flowchart TD
        - Append the tool message to conversationHistory
 
 3. **Session End**:
-   - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}`
-   - `contextManager.saveContext(history, model, fullyReadFiles)`
+   - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by guardrail)
+   - `contextManager.saveContext(history, model, fullyReadFiles)` — **skipped** when `aborted: true` (revoked sessions leave no trace)
      - Filter system/tool messages, simplify `user/assistant` messages
      - Encrypt the content field of each user/assistant message (set `_encrypted=true`)
      - Write to `output/context.json`
@@ -480,24 +499,30 @@ pie title NDJSON Event Types
     "thinking" : 5
     "tool_call" : 15
     "llm_response" : 1
+    "guardrail" : 1
+    "mission_revoked" : 1
     "error" : 2
     "session_end" : 1
 ```
 
-| `type`          | Description                                   | Typical `data` fields                                                                     |
-|-----------------|-----------------------------------------------|-------------------------------------------------------------------------------------------|
-| `session_start` | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                           |
-| `thinking`      | LLM thinking content (if thinking is enabled) | `content`                                                                                 |
-| `llm_response`  | LLM final text response                       | `content`                                                                                 |
-| `tool_call`     | A single tool call and its result             | `tool`, `arguments`, `toolCallId`, `success`, `result`                                    |
-| `error`         | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
-| `session_end`   | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}` |
+| `type`             | Description                                   | Typical `data` fields                                                                     |
+|--------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------|
+| `session_start`    | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                           |
+| `thinking`         | LLM thinking content (if thinking is enabled) | `content`                                                                                 |
+| `llm_response`     | LLM final text response                       | `content`                                                                                 |
+| `guardrail`        | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response / red_line_hit), `detail`, `repeatedCount` / `hitCount`, `maxAllowed` |
+| `mission_revoked`  | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                 |
+| `tool_call`        | A single tool call and its result             | `tool`, `arguments`, `toolCallId`, `success`, `result`                                    |
+| `error`            | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
+| `session_end`      | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}` |
 
 #### Event Order Invariants
 
 - `session_start` is always the first event after `conversationHistory`
 - `tool_call` events are emitted in the order of the `tool_calls[]` returned by the LLM
-- `session_end` is always the final event
+- `session_end` is always the final event (with `aborted: true` when terminated by guardrail)
+- `mission_revoked` is always immediately followed by `session_end` (aborted), then stream end
+- `guardrail` events are emitted **per violation** before the final `mission_revoked` (if multiple violations)
 - `emitEvent` is fire-and-forget: an HTTP client disconnect does not affect Agent execution
 
 #### `tool_call.result` Fields by Skill
@@ -1259,6 +1284,83 @@ flowchart TD
     style STREAM_END fill:#c1daf4
 ```
 
+### 5.3 Guardrail System
+
+The Guardrail System protects against anomalous model behavior by monitoring the LLM's text output across turns. It consists of two independent detectors that share a common termination pathway via `mission_revoked`.
+
+```mermaid
+flowchart TB
+    subgraph RED_LINE["Red Line Keyword Detector"]
+        RL1["checkRedLineKeywords(text)<br/>case-insensitive substring match"]
+        RL1 --> RL2{"Any keyword hit?"}
+        RL2 -->|No| SKIP_RL
+        RL2 -->|Yes| RL3["redLineHitCounter++<br/>emit guardrail(red_line_hit)"]
+        RL3 --> RL4{"counter >= maxRedLineHits?"}
+        RL4 -->|No| SKIP_RL
+        RL4 -->|Yes| RL5["mission_revoked(red_line_violation)"]
+    end
+
+    subgraph REPEAT["Repetitive Response Detector"]
+        RT1["Detect:<br/>1. Exact duplicate of previous turn<br/>2. Same sentence ≥3 times in one response"]
+        RT1 --> RT2{"Anomalous?"}
+        RT2 -->|No| RT3["repeatedResponseTracker.clear()"]
+        RT2 -->|Yes| RT4["add to tracker<br/>emit guardrail(red_line_hit)"]
+        RT4 --> RT5{"tracker >= maxRepeatedResponses?"}
+        RT5 -->|No| SKIP_RP
+        RT5 -->|Yes| RT6["mission_revoked(repetitive_loop)"]
+    end
+
+    RL5 --> ABORT["abortSession()<br/>emit session_end (aborted)<br/>NO context save"]
+    RT6 --> ABORT
+
+    SKIP_RL --> CONTINUE["Continue processing tool calls"]
+    SKIP_RP --> CONTINUE
+
+    style RED_LINE fill:#f4c1c1
+    style REPEAT fill:#f4e1c1
+    style ABORT fill:#f4c1c1
+```
+
+#### Red Line Keywords File
+
+Red line keywords are **not** part of `AgentConfiguration`. Instead they are loaded from `src/main/resources/red_line_keywords.txt` at runtime:
+
+```
+# One keyword per line. Lines starting with # are ignored.
+# Matching is case-insensitive substring.
+forbidden-topic
+some-sensitive-phrase
+```
+
+- File location: `src/main/resources/red_line_keywords.txt`
+- Template: `src/main/resources/red_line_keywords.txt.example` (git-tracked)
+- Actual file is **gitignored** (user-local sensitive config)
+- If the file is missing or empty, red line detection is silently disabled
+
+#### Configuration (`AgentConfiguration.kt`)
+
+| Field                  | Type  | Default | Description                                    |
+|------------------------|-------|---------|------------------------------------------------|
+| `maxRedLineHits`       | `Int` | `3`     | Number of red line hits before revocation      |
+| `maxRepeatedResponses` | `Int` | `3`     | Number of repetitive responses before revocation |
+
+#### Revocation Reasons
+
+| Reason                 | Trigger                                                   | Response                              |
+|------------------------|-----------------------------------------------------------|---------------------------------------|
+| `red_line_violation`   | Model output contains configured red line keywords ≥ N times | Mission revoked, conversation erased  |
+| `repetitive_loop`      | Model repeats the same output ≥ N times                   | Mission revoked, conversation erased  |
+| `tool_runaway`         | Reserved for future use (tool call loop detection)        | Mission revoked, conversation erased  |
+
+#### `mission_revoked` Event Contract
+
+When a session is revoked:
+
+1. The last assistant message is appended to history (for audit consistency)
+2. `emitEvent("mission_revoked", {reason, details})` is fired — the client MUST erase all trace of this conversation
+3. `emitEvent("session_end", {..., aborted: true})` terminates the session
+4. `contextManager.saveContext()` is **NOT called** — no persistence, no trace
+
 ---
 
 ## 6. Security Model
@@ -1285,6 +1387,14 @@ mindmap
       Model loses focus on original task
       Defense: TodoManager reminder injection
       Defense: Stateful task tracking
+    Model Misbehavior
+      Model outputs prohibited content
+      Defense: Red line keyword detection
+      Defense: Automated session revocation
+    Model Stuck
+      Model enters repetitive output loop
+      Defense: Repetitive response detection
+      Defense: Repetitive loop revocation
     File Destruction
       Accidental emptying of files via edit_file
       Defense: EMPTY_RESULT check
@@ -1458,4 +1568,7 @@ flowchart TB
 | **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                        |
 | **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)    |
 | **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                          |
+| **Red Line Keywords**    | Configurable list of forbidden substrings (`AgentConfiguration.redLineKeywords`); when detected in model output, triggers session revocation |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session |
+| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                      |
 | **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                    |

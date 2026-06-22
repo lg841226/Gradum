@@ -42,5 +42,8 @@ data class AgentConfiguration(
     val topPValue: Double = 0.9,
     val contextWindowSize: Int = 8192*2,
     val maxTokensToGenerate: Int = 2048*12,
-    val provider: Provider = Provider.OLLAMA
+    val provider: Provider = Provider.OLLAMA,
+    val maxRepeatedResponses: Int = 3,
+    val maxRedLineHits: Int = 3,
+    val maxRepeatedToolCalls: Int = 5,
 )

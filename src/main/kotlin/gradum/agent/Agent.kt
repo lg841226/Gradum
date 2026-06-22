@@ -11,6 +11,7 @@ package gradum.agent
 
 import gradum.*
 import gradum.client.*
+import gradum.ErrorCode
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
@@ -35,35 +36,60 @@ class Agent(
     private val configuration: AgentConfiguration,
     private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
 ) {
-
     private val ollamaClient: OllamaClient = OllamaClient(configuration)
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
+    private var activeClient: LlmClient
+
     private val contextManager: ContextManager = ContextManager(OUTPUT_DIRECTORY)
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
-    private var toolCallCounter: Int = 0
+    private val repeatedResponseTracker: MutableList<String> = mutableListOf()
+    private val redLineHitKeywords: MutableList<String> = mutableListOf()
+    private var redLineKeywords: List<String> = emptyList()
 
-    private val activeClient: LlmClient = when (configuration.provider) {
-        Provider.OPENAI -> openAiClient
-        Provider.OLLAMA -> ollamaClient
+    private var lastToolCallKey: String? = null
+
+    private var toolCallCounter: Int = 0
+    private var redLineHitCounter: Int = 0
+    private var repeatedToolCallCount: Int = 0
+    private var sessionStartTimeMillis: Long = 0L
+
+    private var sessionAborted: Boolean = false
+
+    init {
+        activeClient = when (configuration.provider) {
+            Provider.OPENAI -> openAiClient
+            Provider.OLLAMA -> ollamaClient
+        }
+        redLineKeywords = loadRedLineKeywords()
+    }
+
+    internal constructor(
+        configuration: AgentConfiguration,
+        emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit, llmClient: LlmClient,
+        redLineKeywords: List<String> = emptyList(),
+    ) : this(configuration, emitEvent) {
+        activeClient = llmClient
+        this.redLineKeywords = redLineKeywords
     }
 
     fun executeTask(userInput: String, loadPreviousContext: Boolean = false): Unit {
-        val startTimeMillis: Long = System.currentTimeMillis()
+        val startTimeMillis: Long = System.currentTimeMillis().also { sessionStartTimeMillis = it }
 
         val contextLoaded: Boolean = if (loadPreviousContext) {
             val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
             conversationHistory.addAll(loadedMessages)
             loadedMessages.isNotEmpty()
-        } else {
-            false
-        }
+        } else { false }
 
         loadSystemPrompt()
 
-        for (skill: Skill in SkillRegistry.getAllSkills()) {
+        sessionAborted = false
+        lastToolCallKey = null
+        repeatedToolCallCount = 0
+
+        for (skill: Skill in SkillRegistry.getAllSkills())
             skill.resetHistoryCount()
-        }
 
         emitEvent(
             "session_start", mapOf(
@@ -85,7 +111,7 @@ class Agent(
             result.errorMessage?.let { error ->
                 emitEvent(
                     "error", mapOf(
-                        "code" to "CLIENT_ERROR",
+                        "code" to ErrorCode.CLIENT_ERROR,
                         "message" to error.trim(),
                         "source" to "${configuration.provider.name.lowercase()}_client"
                     )
@@ -107,10 +133,56 @@ class Agent(
                 }
             }
 
-            if (result.toolCalls.isNullOrEmpty()) {
-                result.responseText?.let { text ->
-                    appendAssistantMessage(text, null)
+            val matchedRedLineKeywords: List<String> = checkRedLineKeywords(result.responseText)
+            if (matchedRedLineKeywords.isNotEmpty()) {
+                redLineHitCounter++
+                redLineHitKeywords.addAll(matchedRedLineKeywords)
+                emitEvent(
+                    "guardrail", mapOf(
+                        "type" to "red_line_hit",
+                        "keywords" to matchedRedLineKeywords,
+                        "hitCount" to redLineHitCounter,
+                        "maxAllowed" to configuration.maxRedLineHits,
+                    )
+                )
+                if (redLineHitCounter >= configuration.maxRedLineHits) {
+                    result.responseText?.let { text -> appendAssistantMessage(text, null) }
+                    emitRevoked("red_line_violation", mapOf(
+                        "hitCount" to redLineHitCounter,
+                        "keywords" to redLineHitKeywords.toList(),
+                    ))
+                    abortSession(startTimeMillis)
+                    break
                 }
+            }
+
+            val currentResponse: String = (result.responseText ?: "").trim()
+            val isDuplicate: Boolean = repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
+            if (isDuplicate || isAbnormalResponse(result.responseText)) {
+                repeatedResponseTracker.add(currentResponse)
+                emitEvent(
+                    "guardrail", mapOf(
+                        "type" to "repeated_response",
+                        "detail" to (result.responseText ?: ""),
+                        "repeatedCount" to repeatedResponseTracker.size,
+                        "maxAllowed" to configuration.maxRepeatedResponses,
+                    )
+                )
+                if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses) {
+                    result.responseText?.let { text -> appendAssistantMessage(text, null) }
+                    emitRevoked("repetitive_loop", mapOf(
+                        "repeatedCount" to repeatedResponseTracker.size,
+                        "responses" to repeatedResponseTracker.toList(),
+                    ))
+                    abortSession(startTimeMillis)
+                    break
+                }
+            } else {
+                repeatedResponseTracker.clear()
+            }
+
+            if (result.toolCalls.isNullOrEmpty()) {
+                result.responseText?.let { text -> appendAssistantMessage(text, null) }
                 break
             }
 
@@ -119,6 +191,8 @@ class Agent(
 
             for (processedCall in processedCalls)
                 executeSingleTool(processedCall)
+
+            if (sessionAborted) break
         }
 
         finishSession(startTimeMillis)
@@ -221,15 +295,26 @@ class Agent(
     }
 
     private fun executeSingleTool(processedCall: ProcessedToolCall): Unit {
+        if (sessionAborted) return
+
         val functionName: String = processedCall.callData.functionTitle
         val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
 
         val convertedArguments: MutableMap<String, Any> = mutableMapOf()
         for ((key: String, value: JsonElement) in rawArguments) {
             val converted: Any? = JsonUtil.fromJsonElement(value)
-            if (converted != null) {
+            if (converted != null)
                 convertedArguments[key] = converted
-            }
+        }
+
+        if (checkToolRunaway(functionName, convertedArguments)) {
+            emitRevoked("tool_runaway", mapOf(
+                "tool" to functionName,
+                "arguments" to convertedArguments,
+                "repeatedCount" to repeatedToolCallCount,
+            ))
+            abortSession(sessionStartTimeMillis)
+            return
         }
 
         val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
@@ -286,7 +371,84 @@ class Agent(
         conversationHistory.add(toolMessage)
     }
 
+    private fun loadRedLineKeywords(): List<String> {
+        return try {
+            Agent::class.java.getResourceAsStream("/red_line_keywords.txt")?.use { stream ->
+                stream.reader(Charsets.UTF_8).readLines().map { it.trim() }
+                    .filter { it.isNotBlank() && !it.startsWith("#") }
+            } ?: run {
+                logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
+                emptyList()
+            }
+        } catch (exception: Exception) {
+            logger.warn("Failed to load red_line_keywords.txt: ${exception.message}")
+            emptyList()
+        }
+    }
+
+    private fun checkRedLineKeywords(text: String?): List<String> {
+        if (text.isNullOrBlank()) return emptyList()
+        if (redLineKeywords.isEmpty()) return emptyList()
+        val lowerText: String = text.lowercase()
+        return redLineKeywords.filter { keyword: String ->
+            lowerText.contains(keyword.lowercase())
+        }
+    }
+
+    private fun checkToolRunaway(name: String, args: Map<String, Any>): Boolean {
+        val key: String = "$name|${args.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
+        repeatedToolCallCount = if (key == lastToolCallKey) repeatedToolCallCount + 1 else 1
+        lastToolCallKey = key
+        return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
+    }
+
+    private fun emitRevoked(reason: String, details: Map<String, Any>): Unit {
+        emitEvent(
+            "mission_revoked", mapOf(
+                "reason" to reason,
+                "details" to details,
+            )
+        )
+    }
+
+    private fun abortSession(startTimeMillis: Long): Unit {
+        sessionAborted = true
+        val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
+        emitEvent(
+            "session_end", mapOf(
+                "version" to GRADUM_VERSION,
+                "elapsedSeconds" to elapsedSeconds,
+                "model" to configuration.modelName,
+                "tokenUsage" to mapOf(
+                    "promptTokens" to activeClient.tokenUsage.promptTokens,
+                    "completionTokens" to activeClient.tokenUsage.completionTokens,
+                    "totalTokens" to activeClient.tokenUsage.totalTokens
+                ),
+                "aborted" to true,
+            )
+        )
+    }
+
+    companion object {
+        private fun isAbnormalResponse(text: String?): Boolean {
+            if (text.isNullOrBlank()) return false
+            val trimmed = text.trim()
+
+            val sentences = trimmed.split(Regex("(?<=[.!?])\\s+"))
+                .map { it.trim() }
+                .filter { it.isNotBlank() && it.length > 3 }
+            if (sentences.size >= 3) {
+                val sentenceFreq = sentences.groupingBy { it.lowercase() }.eachCount()
+                if (sentenceFreq.values.any { it >= 3 }) return true
+            }
+
+            return false
+        }
+    }
+
     private fun finishSession(startTimeMillis: Long): Unit {
+        if (sessionAborted) return
+
         val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
 
         emitEvent(

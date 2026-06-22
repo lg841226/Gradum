@@ -7,4 +7,4 @@
 
 package gradum
 
-const val GRADUM_VERSION: String = "0.8.2"
+const val GRADUM_VERSION: String = "0.9.0"

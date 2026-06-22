@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.gradum"
-version = "0.8.2"
+version = "0.9.0"
 
 application {
     mainClass.set("gradum.server.MainKt")
@@ -52,6 +52,7 @@ dependencies {
     testImplementation("io.ktor:ktor-server-test-host:3.0.3")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.0.21")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.0.21")
+    testImplementation("io.mockk:mockk:1.13.13")
 }
 
 tasks.test {
