@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * SearchSkill.kt  2026-06-22 13:09:03 Changed by gwy
+ */
+
 package gradum.skill
 
 import java.nio.file.FileSystem
@@ -23,7 +30,7 @@ private const val HARD_MAX_RESULTS: Int = 20
  * Bounded by [SEARCH_TIMEOUT_SECONDS], [MAXIMUM_FILES], [MAXIMUM_DEPTH] and
  * [HARD_MAX_RESULTS] to keep the agent's tool loop responsive on large repos.
  *
- * ## Parameters
+ * Parameters
  *
  * - `keyword` — term(s) to search for. Accepts a single string or an array of
  *   up to 5 strings (OR-logic). Backward-compatible with `query`.
@@ -123,8 +130,13 @@ class SearchSkill : Skill() {
         }
     }
 
-    // ── Keyword extraction ──────────────────────────────────────────
-
+    /**
+     * Extracts and normalizes search keywords from the argument map.
+     *
+     * Accepts `keyword` (String or List<String>) as the primary input.
+     * Falls back to the deprecated `query` parameter for backward compatibility.
+     * Returns at most 5 non-blank keywords to bound OR-search cardinality.
+     */
     private fun extractKeywords(args: Map<String, Any>): List<String> {
         val keyword: Any? = args["keyword"]
         if (keyword != null) {
@@ -142,8 +154,6 @@ class SearchSkill : Skill() {
         return if (query.isBlank()) emptyList() else listOf(query.trim())
     }
 
-    // ── Glob compilation ────────────────────────────────────────────
-
     private fun compileGlob(pattern: String): PathMatcher? {
         return try {
             val fileSystem: FileSystem = FileSystems.getDefault()
@@ -153,8 +163,6 @@ class SearchSkill : Skill() {
             null
         }
     }
-
-    // ── Content search ──────────────────────────────────────────────
 
     private fun searchContent(rootDirectory: Path, queryPattern: String, fileMatcher: PathMatcher?): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
@@ -192,14 +200,11 @@ class SearchSkill : Skill() {
                         }
                     }
                 } catch (_: Exception) {
-                    // Skip unreadable or binary files
                 }
             }
 
         return matchingResults
     }
-
-    // ── Filename search ─────────────────────────────────────────────
 
     private fun searchByFilename(rootDirectory: Path, filenamePattern: String, fileMatcher: PathMatcher?): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
@@ -231,8 +236,6 @@ class SearchSkill : Skill() {
         return matchingResults
     }
 
-    // ── Directory search ────────────────────────────────────────────
-
     private fun searchDirectories(rootDirectory: Path, directoryPattern: String): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
@@ -259,8 +262,6 @@ class SearchSkill : Skill() {
         return matchingResults
     }
 
-    // ── Exclusions ──────────────────────────────────────────────────
-
     private fun isExcludedDirectory(directoryPath: Path): Boolean {
         val directoryName: String = directoryPath.fileName.toString()
         return directoryName.startsWith(".") ||
@@ -268,8 +269,6 @@ class SearchSkill : Skill() {
             directoryName == ".venv" || directoryName == "venv" ||
             directoryName == "build" || directoryName == "output"
     }
-
-    // ── Truncation hint ─────────────────────────────────────────────
 
     private fun truncatedHint(results: List<SearchResult>, keywords: List<String>, filePattern: String?, searchType: String): String? {
         if (results.size <= HARD_MAX_RESULTS) return null
@@ -301,8 +300,6 @@ class SearchSkill : Skill() {
             }
         }
     }
-
-    // ── Search result data class ────────────────────────────────────
 
     private data class SearchResult(
         val filePath: String,
