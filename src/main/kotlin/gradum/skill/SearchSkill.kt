@@ -11,8 +11,11 @@ import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import java.nio.file.FileSystem
+import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.PathMatcher
 import java.nio.file.Paths
 
 private const val SEARCH_TIMEOUT_SECONDS: Long = 120
@@ -25,6 +28,14 @@ private const val HARD_MAX_RESULTS: Int = 20
  *
  * Bounded by [SEARCH_TIMEOUT_SECONDS], [MAXIMUM_FILES], [MAXIMUM_DEPTH] and
  * [HARD_MAX_RESULTS] to keep the agent's tool loop responsive on large repos.
+ *
+ * ## Parameters
+ *
+ * - `keyword` — term(s) to search for. Accepts a single string or an array of
+ *   up to 5 strings (OR-logic). Backward-compatible with `query`.
+ * - `file_pattern` — glob pattern to filter files (e.g. `*.java`, `*.{kt,py}`).
+ * - `path` — directory to search in (default `.`).
+ * - `type` — `content` (default), `filename`, or `directory`.
  */
 class SearchSkill : Skill() {
 
@@ -33,7 +44,7 @@ class SearchSkill : Skill() {
     override val description: String = "Search code content, filenames, and directories"
 
     override val historyKeepCount: Int = 2
-    override val historyVolatileKeys: List<String> = listOf("query", "searchType", "truncated")
+    override val historyVolatileKeys: List<String> = listOf("searchType", "truncated")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -44,56 +55,122 @@ class SearchSkill : Skill() {
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
-                        "query" to mapOf("type" to "string", "description" to "Search query (regex or filename pattern)"),
-                        "path" to mapOf("type" to "string", "description" to "Directory to search in"),
-                        "type" to mapOf("type" to "string", "description" to "Search type: 'content', 'filename', or 'directory'"),
+                        "keyword" to mapOf(
+                            "type" to "string",
+                            "description" to "Search keyword (string) or keywords (array of up to 5 strings, OR-logic). Use instead of 'query'.",
+                        ),
+                        "query" to mapOf(
+                            "type" to "string",
+                            "description" to "Deprecated — use 'keyword' instead. Single search term.",
+                        ),
+                        "file_pattern" to mapOf(
+                            "type" to "string",
+                            "description" to "Glob pattern to filter files by name (e.g. '*.java', '*.{kt,py}'). Uses fnmatch syntax.",
+                        ),
+                        "path" to mapOf(
+                            "type" to "string",
+                            "description" to "Directory to search in. Defaults to current directory.",
+                        ),
+                        "type" to mapOf(
+                            "type" to "string",
+                            "description" to "Search type: 'content' (default), 'filename', or 'directory'.",
+                        ),
                     ),
-                    "required" to listOf("query"),
+                    "required" to listOf("keyword"),
                 ),
             ),
         )
     }
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
-        val searchQuery: String = arguments["query"] as? String ?: ""
+        val keywords: List<String> = extractKeywords(arguments)
+        if (keywords.isEmpty()) {
+            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'keyword' or 'query' parameter")
+        }
+
         val searchPath: String = arguments["path"] as? String ?: "."
         val searchType: String = arguments["type"] as? String ?: "content"
-
-        if (searchQuery.isBlank()) {
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'query' parameter")
-        }
+        val rawFilePattern: String? = arguments["file_pattern"] as? String
+        val fileMatcher: PathMatcher? = rawFilePattern?.let { compileGlob(it) }
 
         val rootDirectory: Path = Paths.get(searchPath).toAbsolutePath().normalize()
 
         return try {
             val results: List<SearchResult> = when (searchType) {
-                "filename" -> searchByFilename(rootDirectory, searchQuery)
-                "directory" -> searchDirectories(rootDirectory, searchQuery)
-                else -> searchContent(rootDirectory, searchQuery)
+                "filename" -> keywords.flatMap { kw ->
+                    searchByFilename(rootDirectory, kw, fileMatcher)
+                }.distinctBy { it.filePath to it.matchedText }
+
+                "directory" -> keywords.flatMap { kw ->
+                    searchDirectories(rootDirectory, kw)
+                }.distinctBy { it.filePath to it.matchedText }
+
+                else -> keywords.flatMap { kw ->
+                    searchContent(rootDirectory, kw, fileMatcher)
+                }.distinctBy { "${it.filePath}:${it.lineNumber}:${it.matchedText}" }
             }
 
             val limitedResults: List<SearchResult> = results.take(HARD_MAX_RESULTS)
             val truncated: Boolean = results.size > HARD_MAX_RESULTS
+            val hint: String? = truncatedHint(results, keywords, rawFilePattern, searchType)
 
-            makeSuccess(
-                mapOf(
-                    "query" to searchQuery,
-                    "searchType" to searchType,
-                    "results" to limitedResults.map { result -> result.toMap() },
-                    "totalMatches" to results.size,
-                    "truncated" to truncated,
-                ),
+            val resultMap: MutableMap<String, Any> = mutableMapOf(
+                "query" to keywords.joinToString(", "),
+                "searchType" to searchType,
+                "results" to limitedResults.map { it.toMap() },
+                "totalMatches" to results.size,
+                "truncated" to truncated,
             )
+            hint?.let { resultMap["hint"] = it }
+
+            makeSuccess(resultMap)
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Search failed", mapOf("query" to searchQuery))
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Search failed", mapOf("query" to keywords.joinToString(", ")))
         }
     }
 
-    private fun searchContent(rootDirectory: Path, queryPattern: String): List<SearchResult> {
+    // ── Keyword extraction ──────────────────────────────────────────
+
+    private fun extractKeywords(args: Map<String, Any>): List<String> {
+        val keyword: Any? = args["keyword"]
+        if (keyword != null) {
+            return when (keyword) {
+                is String -> if (keyword.isBlank()) emptyList() else listOf(keyword.trim())
+                is List<*> -> keyword
+                    .filterIsInstance<String>()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .take(5)
+                else -> emptyList()
+            }
+        }
+        val query: String = args["query"] as? String ?: ""
+        return if (query.isBlank()) emptyList() else listOf(query.trim())
+    }
+
+    // ── Glob compilation ────────────────────────────────────────────
+
+    private fun compileGlob(pattern: String): PathMatcher? {
+        return try {
+            val fs: FileSystem = FileSystems.getDefault()
+            val normalised: String = if (!pattern.startsWith("glob:")) "glob:$pattern" else pattern
+            fs.getPathMatcher(normalised)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ── Content search ──────────────────────────────────────────────
+
+    private fun searchContent(
+        rootDirectory: Path,
+        queryPattern: String,
+        fileMatcher: PathMatcher?,
+    ): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(queryPattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             return matchingResults
         }
 
@@ -104,8 +181,10 @@ class SearchSkill : Skill() {
             .filter { filePath: Path ->
                 filesVisited++
                 filesVisited <= MAXIMUM_FILES &&
-                    System.currentTimeMillis() < deadline && !filePath.toFile().isDirectory &&
-                    !isExcludedDirectory(filePath)
+                    System.currentTimeMillis() < deadline &&
+                    !filePath.toFile().isDirectory &&
+                    !isExcludedDirectory(filePath) &&
+                    (fileMatcher == null || fileMatcher.matches(filePath.fileName))
             }
             .forEach { filePath: Path ->
                 if (System.currentTimeMillis() >= deadline) return@forEach
@@ -122,24 +201,34 @@ class SearchSkill : Skill() {
                             )
                         }
                     }
-                } catch (exception: Exception) {
-                    // Skip unreadable files
+                } catch (_: Exception) {
+                    // Skip unreadable or binary files
                 }
             }
 
         return matchingResults
     }
 
-    private fun searchByFilename(rootDirectory: Path, filenamePattern: String): List<SearchResult> {
+    // ── Filename search ─────────────────────────────────────────────
+
+    private fun searchByFilename(
+        rootDirectory: Path,
+        filenamePattern: String,
+        fileMatcher: PathMatcher?,
+    ): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(filenamePattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             return matchingResults
         }
 
         Files.walk(rootDirectory, MAXIMUM_DEPTH)
-            .filter { filePath: Path -> !isExcludedDirectory(filePath) }
+            .filter { filePath: Path ->
+                !filePath.toFile().isDirectory &&
+                    !isExcludedDirectory(filePath) &&
+                    (fileMatcher == null || fileMatcher.matches(filePath.fileName))
+            }
             .forEach { filePath: Path ->
                 val fileName: String = filePath.fileName.toString()
                 if (regex.containsMatchIn(fileName)) {
@@ -156,11 +245,13 @@ class SearchSkill : Skill() {
         return matchingResults
     }
 
+    // ── Directory search ────────────────────────────────────────────
+
     private fun searchDirectories(rootDirectory: Path, directoryPattern: String): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(directoryPattern, setOf(RegexOption.IGNORE_CASE))
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             return matchingResults
         }
 
@@ -182,6 +273,8 @@ class SearchSkill : Skill() {
         return matchingResults
     }
 
+    // ── Exclusions ──────────────────────────────────────────────────
+
     private fun isExcludedDirectory(directoryPath: Path): Boolean {
         val directoryName: String = directoryPath.fileName.toString()
         return directoryName.startsWith(".") ||
@@ -189,6 +282,46 @@ class SearchSkill : Skill() {
             directoryName == ".venv" || directoryName == "venv" ||
             directoryName == "build" || directoryName == "output"
     }
+
+    // ── Truncation hint ─────────────────────────────────────────────
+
+    private fun truncatedHint(
+        results: List<SearchResult>,
+        keywords: List<String>,
+        filePattern: String?,
+        searchType: String,
+    ): String? {
+        if (results.size <= HARD_MAX_RESULTS) return null
+
+        val files: List<String> = results.map { it.filePath }.distinct()
+        val extensions: Map<String, Int> = files
+            .groupBy { file -> file.substringAfterLast('.', "") }
+            .mapValues { it.value.size }
+            .entries
+            .sortedByDescending { it.value }
+            .take(3)
+            .associate { it.key to it.value }
+
+        val topExt: String? = extensions.entries.firstOrNull()?.key
+
+        return buildString {
+            append("Found ${results.size} matches (showing $HARD_MAX_RESULTS). ")
+            if (extensions.size == 1 && topExt != null && filePattern == null) {
+                append("All matches are in .$topExt files. ")
+                append("Try adding `file_pattern=\"*.$topExt\"` to narrow the search.")
+            } else if (extensions.size <= 3 && filePattern == null) {
+                val exts: String = extensions.keys.joinToString(", ") { ".$it" }
+                append("Matches span $exts files. ")
+                append("Add `file_pattern=\"*.${topExt}\"` to focus on the most common type.")
+            } else if (keywords.size == 1) {
+                append("Try adding more specific keywords or a `file_pattern`.")
+            } else {
+                append("Try narrowing with a `file_pattern` or fewer keywords.")
+            }
+        }
+    }
+
+    // ── Search result data class ────────────────────────────────────
 
     private data class SearchResult(
         val filePath: String,

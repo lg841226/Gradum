@@ -102,14 +102,16 @@ Find text in file content, file names, or directory names. Recursive by default.
 search(keyword="UserService")
 search(keyword="def main", file_pattern="*.py")
 search(keyword=["error", "exception"])
-search(filename="config")
-search(dirname="src")
+search(keyword="JSON", type="filename")
+search(keyword="config", type="directory")
 ```
 
-- `keyword` accepts a string for one term, or an array of up to 5 strings for OR-logic multi-search
-- `file_pattern` uses fnmatch syntax (e.g. `*.py`, `*.test.js`); recommended on large codebases
-- Returns up to 20 matches. If `truncated: true`, read the `hint` field — it tells you how to narrow the query (typically: add `file_pattern` or be more specific)
-- No matches return `success: true, matches: []` — this is a valid result, not an error. Report and stop.
+- `keyword` — string (one term) or array of up to 5 strings (OR-logic multi-search); use instead of `query`
+- `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`); highly recommended on large codebases
+- `type` — `"content"` (default), `"filename"`, or `"directory"`
+- Returns up to 20 results in `results[]`. Each result has `filePath`, `lineNumber`, `matchedText`
+- If `truncated: true`, read the `hint` field — it tells you how to narrow
+- No matches return `results: []` — this is valid, not an error. Report and stop.
 
 ### read\_file
 
