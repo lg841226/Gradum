@@ -107,10 +107,12 @@ search(keyword="config", type="directory")
 search(keyword="class", file_pattern="*.kt", path="src")
 ```
 
-- `keyword` — string (one term) or array of up to 5 strings (OR-logic multi-search)
+- `keyword` — case-insensitive regex. String (one term) or array of up to 5 strings (OR-logic)
 - `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`); highly recommended on large codebases
 - `type` — `"content"` (default), `"filename"`, or `"directory"`
 - `path` — directory to search in (default `.`)
+- Binary files (.class, .jar, .png, .jpg, .pdf, .zip, etc.) are automatically skipped in content search
+- Hidden dirs (`.git`, `.venv`, etc.), `node_modules`, `__pycache__`, `venv`, `build`, `output` are excluded
 - Returns up to 20 results in `results[]`. Each result has `filePath`, `lineNumber`, `matchedText`
 - Also returns `totalMatches` (total count before truncation) and `searchType`
 - If `truncated: true`, read the `hint` field — it tells you how to narrow
