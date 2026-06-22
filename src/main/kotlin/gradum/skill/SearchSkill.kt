@@ -1,22 +1,16 @@
-/*
- * Copyright (c) 2026 Gradum team, some rights reserved.
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * SearchSkill.kt  2026-06-21 07:53:44 Changed by gwy
- */
-
 package gradum.skill
 
-import gradum.ErrorCode
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.Paths
+
+import gradum.ErrorCode
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
 
 private const val SEARCH_TIMEOUT_SECONDS: Long = 120
 private const val MAXIMUM_FILES: Int = 600
@@ -152,21 +146,17 @@ class SearchSkill : Skill() {
 
     private fun compileGlob(pattern: String): PathMatcher? {
         return try {
-            val fs: FileSystem = FileSystems.getDefault()
+            val fileSystem: FileSystem = FileSystems.getDefault()
             val normalised: String = if (!pattern.startsWith("glob:")) "glob:$pattern" else pattern
-            fs.getPathMatcher(normalised)
-        } catch (_: Exception) {
+            fileSystem.getPathMatcher(normalised)
+        } catch (_: IllegalArgumentException) {
             null
         }
     }
 
     // ── Content search ──────────────────────────────────────────────
 
-    private fun searchContent(
-        rootDirectory: Path,
-        queryPattern: String,
-        fileMatcher: PathMatcher?,
-    ): List<SearchResult> {
+    private fun searchContent(rootDirectory: Path, queryPattern: String, fileMatcher: PathMatcher?): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(queryPattern, setOf(RegexOption.IGNORE_CASE))
@@ -211,11 +201,7 @@ class SearchSkill : Skill() {
 
     // ── Filename search ─────────────────────────────────────────────
 
-    private fun searchByFilename(
-        rootDirectory: Path,
-        filenamePattern: String,
-        fileMatcher: PathMatcher?,
-    ): List<SearchResult> {
+    private fun searchByFilename(rootDirectory: Path, filenamePattern: String, fileMatcher: PathMatcher?): List<SearchResult> {
         val matchingResults: MutableList<SearchResult> = mutableListOf()
         val regex: Regex = try {
             Regex(filenamePattern, setOf(RegexOption.IGNORE_CASE))
@@ -285,12 +271,7 @@ class SearchSkill : Skill() {
 
     // ── Truncation hint ─────────────────────────────────────────────
 
-    private fun truncatedHint(
-        results: List<SearchResult>,
-        keywords: List<String>,
-        filePattern: String?,
-        searchType: String,
-    ): String? {
+    private fun truncatedHint(results: List<SearchResult>, keywords: List<String>, filePattern: String?, searchType: String): String? {
         if (results.size <= HARD_MAX_RESULTS) return null
 
         val files: List<String> = results.map { it.filePath }.distinct()
@@ -302,17 +283,17 @@ class SearchSkill : Skill() {
             .take(3)
             .associate { it.key to it.value }
 
-        val topExt: String? = extensions.entries.firstOrNull()?.key
+        val topExtension: String? = extensions.entries.firstOrNull()?.key
 
         return buildString {
             append("Found ${results.size} matches (showing $HARD_MAX_RESULTS). ")
-            if (extensions.size == 1 && topExt != null && filePattern == null) {
-                append("All matches are in .$topExt files. ")
-                append("Try adding `file_pattern=\"*.$topExt\"` to narrow the search.")
+            if (extensions.size == 1 && topExtension != null && filePattern == null) {
+                append("All matches are in .$topExtension files. ")
+                append("Try adding `file_pattern=\"*.$topExtension\"` to narrow the search.")
             } else if (extensions.size <= 3 && filePattern == null) {
-                val exts: String = extensions.keys.joinToString(", ") { ".$it" }
-                append("Matches span $exts files. ")
-                append("Add `file_pattern=\"*.${topExt}\"` to focus on the most common type.")
+                val matchedExtensions: String = extensions.keys.joinToString(", ") { ".$it" }
+                append("Matches span $matchedExtensions files. ")
+                append("Add `file_pattern=\"*.${topExtension}\"` to focus on the most common type.")
             } else if (keywords.size == 1) {
                 append("Try adding more specific keywords or a `file_pattern`.")
             } else {
