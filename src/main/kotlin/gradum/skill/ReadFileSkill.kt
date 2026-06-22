@@ -82,9 +82,8 @@ class ReadFileSkill : Skill() {
             val fileSize: Long = targetFile.length()
             if (fileSize > MAXIMUM_FILE_SIZE) {
                     return makeFailure(
-                        ErrorCode.FILE_TOO_LARGE,
-                        "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
-                        mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize),
+                        ErrorCode.FILE_TOO_LARGE, "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes). Use lineRange to read specific sections.",
+                        mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
                     )
             }
 
@@ -93,9 +92,8 @@ class ReadFileSkill : Skill() {
 
             if (totalLines > MAXIMUM_LINES && lineRange.isBlank()) {
                     return makeFailure(
-                        ErrorCode.FILE_TOO_LARGE,
-                        "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
-                        mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines),
+                        ErrorCode.FILE_TOO_LARGE, "File has $totalLines lines (max: $MAXIMUM_LINES). Use lineRange to read specific sections.",
+                        mapOf("path" to resolvedPath.toString(), "totalLines" to totalLines)
                     )
             }
 
@@ -105,24 +103,22 @@ class ReadFileSkill : Skill() {
                 val rangeParts: List<String> = lineRange.split("-")
                 if (rangeParts.size != 2) {
                     return makeFailure(
-                        ErrorCode.INVALID_PARAMETER,
-                        "Invalid lineRange format. Use 'start-end' (e.g., '12-22')",
+                        ErrorCode.INVALID_PARAMETER, "Invalid lineRange format. Use 'start-end' (e.g., '12-22')",
                         mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
                     )
                 }
 
                 val rawStart: Int = parseRangeBound(rangeParts[0])
                     ?:                     return makeFailure(
-                        ErrorCode.INVALID_PARAMETER,
-                        "Invalid lineRange start value: ${rangeParts[0]}",
-                        mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
+                        ErrorCode.INVALID_PARAMETER, "Invalid lineRange start value: ${rangeParts[0]}",
+                        mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
                     )
 
                 val rawEnd: Int = parseRangeBound(rangeParts[1])
                     ?: return makeFailure(
                         ErrorCode.INVALID_PARAMETER,
                         "Invalid lineRange end value: ${rangeParts[1]}",
-                        mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange),
+                        mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
                     )
 
                 val clampedStart: Int = rawStart.coerceAtLeast(1)

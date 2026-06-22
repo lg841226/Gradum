@@ -200,7 +200,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
             tokenUsage = tokenUsage.copy(
                 promptTokens = tokenUsage.promptTokens + promptTokens,
                 completionTokens = tokenUsage.completionTokens + completionTokens,
-                totalTokens = tokenUsage.totalTokens + promptTokens + completionTokens,
+                totalTokens = tokenUsage.totalTokens + promptTokens + completionTokens
             )
         }
     }
@@ -214,8 +214,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                 Could not connect to Ollama server at ${configuration.baseUrl}.
                 Make sure Ollama is running. Details: ${exception.message}
                 """.trimIndent()
-            else ->
-                "Unexpected error - ${exception.message}"
+            else -> "Unexpected error - ${exception.message}"
         }
     }
 }
@@ -244,7 +243,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             "stream" to true,
             "temperature" to configuration.temperatureValue,
             "top_p" to configuration.topPValue,
-            "max_tokens" to configuration.maxTokensToGenerate,
+            "max_tokens" to configuration.maxTokensToGenerate
         )
 
         toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
@@ -267,8 +266,10 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
             } catch (exception: Exception) {
                 lastError = exception
-                if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
-                else break
+                if (isTransientError(exception) && attemptIndex < 2)
+                    delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
+                else
+                    break
             }
         }
 
@@ -305,9 +306,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             val deltaFields: JsonObject = firstChoice["delta"]?.jsonObject ?: continue
 
             val contentDelta: String = deltaFields.optString("content")
-            if (contentDelta.isNotBlank()) {
+
+            if (contentDelta.isNotBlank())
                 contentFragments.add(contentDelta)
-            }
 
             deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                 accumulateCallDeltas(toolCallsArray, accumulatedCalls)
@@ -396,7 +397,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     }
 }
 
-private fun isTransientError(exception: Exception): Boolean = exception is IOException || exception is kotlinx.coroutines.TimeoutCancellationException
+private fun isTransientError(exception: Exception): Boolean = exception is IOException
+        || exception is kotlinx.coroutines.TimeoutCancellationException
 
 private fun buildHttpClient(): HttpClient {
     return HttpClient {

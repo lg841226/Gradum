@@ -66,22 +66,20 @@ class RunCommandSkill : Skill() {
         val reason: String = arguments["reason"] as? String ?: ""
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
 
-        if (commandText.isBlank()) {
+        if (commandText.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'command' parameter")
-        }
 
         val classification: CommandVerdict = classifyCommand(commandText)
         if (classification is CommandVerdict.Blocked) {
             return makeFailure(
                 ErrorCode.COMMAND_BLOCKED,
                 "Blocked by safety filter: ${classification.description}",
-                mapOf("command" to commandText, "rule" to classification.ruleName),
+                mapOf("command" to commandText, "rule" to classification.ruleName)
             )
         }
 
-        if (runDetached) {
-            return executeDetached(commandText)
-        }
+        if (runDetached) return executeDetached(commandText)
+
 
         return executeBlocking(commandText)
     }
@@ -117,8 +115,8 @@ class RunCommandSkill : Skill() {
                     "timedOut" to false,
                 ),
             )
-        } catch (e: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to execute command", mapOf("command" to commandText))
+        } catch (exception: Exception) {
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to execute command", mapOf("command" to commandText))
         }
     }
 
@@ -147,8 +145,8 @@ class RunCommandSkill : Skill() {
                     "message" to "Command started in background with PID $processId",
                 ),
             )
-        } catch (e: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, e.message ?: "Failed to start detached command", mapOf("command" to commandText))
+        } catch (exception: Exception) {
+            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to start detached command", mapOf("command" to commandText))
         }
     }
 

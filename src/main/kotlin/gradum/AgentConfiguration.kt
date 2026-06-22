@@ -14,8 +14,7 @@ package gradum
  */
 enum class Provider {
     OLLAMA,
-    OPENAI,
-    ;
+    OPENAI;
 
     companion object {
         /**
@@ -25,8 +24,11 @@ enum class Provider {
          * behavior where unrecognized providers fell back to Ollama.
          */
         fun fromStringOrDefault(rawValue: String?, default: Provider = OLLAMA): Provider {
-            if (rawValue.isNullOrBlank()) return default
-            return entries.firstOrNull { it.name.equals(rawValue, ignoreCase = true) } ?: default
+            if (rawValue.isNullOrBlank())
+                return default
+            return entries.firstOrNull {
+                it.name.equals(rawValue, ignoreCase = true)
+            } ?: default
         }
     }
 }
@@ -38,7 +40,7 @@ data class AgentConfiguration(
     val enableThinking: Boolean = false,
     val temperatureValue: Double = 0.7,
     val topPValue: Double = 0.9,
-    val contextWindowSize: Int = 4096,
-    val maxTokensToGenerate: Int = 24576,
-    val provider: Provider = Provider.OLLAMA,
+    val contextWindowSize: Int = 8192*2,
+    val maxTokensToGenerate: Int = 2048*12,
+    val provider: Provider = Provider.OLLAMA
 )

@@ -26,21 +26,21 @@ data class ModelEntry(
     val modelName: String,
     val providerType: String,
     val serverUrl: String,
-    val serverName: String,
+    val serverName: String
 )
 
 private val knownServers: List<ServerDefinition> = listOf(
     ServerDefinition("Ollama", "ollama", "http://localhost:11434", "/api/tags"),
     ServerDefinition("LM Studio", "openai", "http://localhost:1234", "/v1/models"),
     ServerDefinition("vLLM", "openai", "http://localhost:8000", "/v1/models"),
-    ServerDefinition("LocalAI", "openai", "http://localhost:8080", "/v1/models"),
+    ServerDefinition("LocalAI", "openai", "http://localhost:8080", "/v1/models")
 )
 
 private data class ServerDefinition(
     val serverName: String,
     val providerType: String,
     val baseUrl: String,
-    val apiEndpoint: String,
+    val apiEndpoint: String
 )
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
@@ -77,6 +77,7 @@ private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<Mod
                     "ollama" -> parsedData["models"]?.jsonArray?.map {
                         it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
                     }?.filter { it.isNotBlank() } ?: emptyList()
+
                     else -> parsedData["data"]?.jsonArray?.map {
                         it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
                     }?.filter { it.isNotBlank() } ?: emptyList()
@@ -87,12 +88,13 @@ private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<Mod
                         modelName = name,
                         providerType = server.providerType,
                         serverUrl = server.baseUrl,
-                        serverName = server.serverName,
+                        serverName = server.serverName
                     )
                 }
             }
-        } catch (e: Exception) {
-            logger.debug("Failed to probe ${server.serverName} at ${server.baseUrl}: ${e.message}")
+        } catch (exception: Exception) {
+            logger.debug("Failed to probe ${server.serverName} at ${server.baseUrl}: ${exception.message}")
+
             if (attempt < maxRetries) {
                 runBlocking {
                     delay((5_000L * 2.0.pow(attempt.toDouble())).toLong().milliseconds)

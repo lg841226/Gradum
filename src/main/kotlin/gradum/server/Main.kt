@@ -54,7 +54,7 @@ private data class ServerArguments(
     val modelName: String?,
     val enableThinking: Boolean,
     val providerName: String,
-    val baseUrl: String?,
+    val baseUrl: String?
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {

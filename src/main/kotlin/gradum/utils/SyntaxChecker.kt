@@ -19,10 +19,8 @@ import org.slf4j.LoggerFactory
 private val logger: Logger = LoggerFactory.getLogger("SyntaxChecker")
 
 data class SyntaxIssue(val message: String,
-    val severity: String,
-    val line: Int? = null,
-    val column: Int? = null,
-    val errorCode: String? = null
+    val severity: String, val line: Int? = null,
+    val column: Int? = null, val errorCode: String? = null
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "message" to message,
@@ -95,10 +93,8 @@ private val standardParser: SyntaxParser = SyntaxParser { output: String, filePa
 
 
 private data class PendingIssue(
-    val severity: String,
-    val message: String,
-    val line: Int?,
-    val column: Int?,
+    val severity: String, val message: String,
+    val line: Int?, val column: Int?,
     val errorCode: String?,
 ) {
     fun toSyntaxIssue(notes: List<String>): SyntaxIssue {
@@ -120,10 +116,10 @@ private data class PendingIssue(
  */
 private val rustcParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val issues: MutableList<SyntaxIssue> = mutableListOf()
-    val headerPattern: Regex = Regex("""^(error|warning|note)(?:\[([A-Z]\d+)])?:\s(.+)$""")
-    val locationPattern: Regex = Regex("""^\s+-->\s+(.+?):(\d+):(\d+)$""")
+    val headerPattern = Regex("""^(error|warning|note)(?:\[([A-Z]\d+)])?:\s(.+)$""")
+    val locationPattern = Regex("""^\s+-->\s+(.+?):(\d+):(\d+)$""")
     var currentHeader: SyntaxIssue? = null
-    var locationFound: Boolean = false
+    var locationFound = false
 
     for (line: String in output.lines()) {
         val trimmedLine: String = line.trimEnd()
@@ -131,9 +127,11 @@ private val rustcParser: SyntaxParser = SyntaxParser { output: String, filePath:
         if (headerMatch != null) {
             currentHeader?.let { issues.add(it) }
             locationFound = false
+
             val severity: String = headerMatch.groupValues[1].lowercase()
             val errorCode: String? = headerMatch.groupValues[2].ifBlank { null }
             val message: String = headerMatch.groupValues[3]
+
             currentHeader = SyntaxIssue(
                 message = message, severity = severity, errorCode = errorCode,
             )
@@ -141,8 +139,10 @@ private val rustcParser: SyntaxParser = SyntaxParser { output: String, filePath:
             val locationMatch: MatchResult? = locationPattern.matchEntire(trimmedLine)
             if (locationMatch != null) {
                 locationFound = true
+
                 val matchedLine: Int? = locationMatch.groupValues[2].toIntOrNull()
                 val matchedColumn: Int? = locationMatch.groupValues[3].toIntOrNull()
+
                 currentHeader = currentHeader.copy(line = matchedLine, column = matchedColumn)
             }
         }
@@ -177,7 +177,7 @@ private val tscParser: SyntaxParser = SyntaxParser { output: String, filePath: S
  * Since go build/vet exits non-zero only on errors, defaults severity to "error".
  */
 private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
-    val pattern: Regex = Regex("""^(.+?):(\d+)(?::(\d+))?:\s(.+)$""")
+    val pattern = Regex("""^(.+?):(\d+)(?::(\d+))?:\s(.+)$""")
     output.lines()
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
@@ -207,9 +207,9 @@ private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: St
  */
 private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val issues: MutableList<SyntaxIssue> = mutableListOf()
-    val fileLinePattern: Regex = Regex("""^\s*File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+column\s+(\d+))?""")
-    val errorPattern: Regex = Regex("""^(\w+(?:Error|Warning)):\s(.+)$""")
-    val flatPattern: Regex = Regex("""^(.+?):(\d+)(?::(\d+))?:\s(.+)$""")
+    val fileLinePattern = Regex("""^\s*File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+column\s+(\d+))?""")
+    val errorPattern = Regex("""^(\w+(?:Error|Warning)):\s(.+)$""")
+    val flatPattern = Regex("""^(.+?):(\d+)(?::(\d+))?:\s(.+)$""")
     var lastFileLine: Int? = null
     var lastFileColumn: Int? = null
 
@@ -261,7 +261,7 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
 
 /** Ruby -c and Perl -c output "file:line: message". Determines severity from message text. */
 private val rubyPerlParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
-    val pattern: Regex = Regex("""^(.+?):(\d+):\s(.+)$""")
+    val pattern = Regex("""^(.+?):(\d+):\s(.+)$""")
     output.lines()
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
@@ -283,8 +283,8 @@ private val rubyPerlParser: SyntaxParser = SyntaxParser { output: String, filePa
 
 /** PHP -l prefix, then extracts location from " in /path/file on line N" suffix. */
 private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
-    val locationPattern: Regex = Regex("""^.+? in (.+?) on line (\d+)$""")
-    val headerPattern: Regex = Regex("""^(PHP\s+)?(Parse\s+)?(error|warning|notice):\s(.+)""")
+    val locationPattern = Regex("""^.+? in (.+?) on line (\d+)$""")
+    val headerPattern = Regex("""^(PHP\s+)?(Parse\s+)?(error|warning|notice):\s(.+)""")
     output.lines()
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
@@ -300,7 +300,7 @@ private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: S
                 }
                 SyntaxIssue(
                     message = message, severity = severity,
-                    line = locationMatch.groupValues[2].toIntOrNull(),
+                    line = locationMatch.groupValues[2].toIntOrNull()
                 )
             } else {
                 val headerMatch: MatchResult? = headerPattern.matchEntire(trimmedLine)
@@ -320,14 +320,14 @@ private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: S
 
 /** Bash -n uses "file: line N: error message" format. */
 private val bashParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
-    val pattern: Regex = Regex("""^(.+?):\s+line\s+(\d+):\s(.+)$""")
+    val pattern = Regex("""^(.+?):\s+line\s+(\d+):\s(.+)$""")
     output.lines()
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
             val match: MatchResult = pattern.matchEntire(trimmedLine) ?: return@mapNotNull null
             SyntaxIssue(
                 message = match.groupValues[3], severity = "error",
-                line = match.groupValues[2].toIntOrNull(),
+                line = match.groupValues[2].toIntOrNull()
             )
         }
         .let { issues: List<SyntaxIssue> -> filterIssuesForFile(issues, filePath) }
@@ -470,14 +470,14 @@ private val languageConfigs: Map<String, LanguageSyntaxConfig> = mapOf(
     ".lua" to LanguageSyntaxConfig(
         commands = listOf(CompileCommand(listOf("luac", "-p"))),
         outputParser = fallbackParser,
-    ),
+    )
 )
 
 object SyntaxChecker {
 
     fun checkSyntax(resolvedPath: Path): List<Map<String, Any?>> {
         val fileName: String = resolvedPath.fileName.toString()
-        val fileExtension: String = ".${fileName.substringAfterLast('.', "")}"
+        val fileExtension = ".${fileName.substringAfterLast('.', "")}"
         val configuration: LanguageSyntaxConfig = languageConfigs[fileExtension] ?: return emptyList()
         val resolvedFilePath: String = resolvedPath.toString()
 

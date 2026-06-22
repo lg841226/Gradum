@@ -15,11 +15,11 @@ data class ServerConfiguration(
     val sessionTimeoutSeconds: Int = 3600,
     val contextWindowSize: Int = 4096,
     val maxGenerationTokens: Int = 16384,
-    val requestTimeoutSeconds: Int = 300,
+    val requestTimeoutSeconds: Int = 3600,
     val temperatureValue: Double = 0.7,
     val topPValue: Double = 0.9,
     val debugMode: Boolean = false,
     val enableThinking: Boolean = false,
     val defaultModel: String? = null,
-    val serverBaseUrl: String? = null,
+    val serverBaseUrl: String? = null
 )

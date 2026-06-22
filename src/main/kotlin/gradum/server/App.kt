@@ -24,7 +24,7 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
     val server: GradumServer = embeddedServer(
         Netty,
         host = serverConfiguration.hostAddress,
-        port = serverConfiguration.portNumber,
+        port = serverConfiguration.portNumber
     ) {
         module(serverConfiguration)
     }

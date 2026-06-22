@@ -24,32 +24,25 @@ class TodoManager {
     private var currentTaskIndex: Int = 0
 
     fun initializeTasks(tasks: List<String>): SkillResult {
-        if (taskList != null) {
+        if (taskList != null)
             return makeFailure(ErrorCode.ALREADY_INITIALIZED, "To-do list already initialized")
-        }
 
-        if (tasks.isEmpty()) {
+        if (tasks.isEmpty())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Task list cannot be empty")
-        }
 
         taskList = tasks
         currentTaskIndex = 0
 
         return makeSuccess(
-            mapOf(
-                "totalTasks" to tasks.size,
-                "currentTask" to tasks[0],
-                "currentIndex" to 0,
-            ),
+            mapOf("totalTasks" to tasks.size, "currentTask" to tasks[0], "currentIndex" to 0)
         )
     }
 
     fun completeCurrentTask(): SkillResult {
         val tasks: List<String> = taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
 
-        if (currentTaskIndex >= tasks.size) {
+        if (currentTaskIndex >= tasks.size)
             return makeFailure(ErrorCode.ALL_COMPLETED, "All tasks already completed")
-        }
 
         currentTaskIndex++
         val allDone: Boolean = currentTaskIndex >= tasks.size
@@ -89,9 +82,7 @@ class TodoManager {
 
 private val sharedTodoManager: TodoManager = TodoManager()
 
-fun getTodoManagerInstance(): TodoManager {
-    return sharedTodoManager
-}
+fun getTodoManagerInstance(): TodoManager { return sharedTodoManager }
 
 class TodoSkill : Skill() {
 
@@ -123,9 +114,8 @@ class TodoSkill : Skill() {
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
-        if (rawTasks.isEmpty()) {
+        if (rawTasks.isEmpty())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Tasks list cannot be empty")
-        }
 
         return sharedTodoManager.initializeTasks(rawTasks)
     }

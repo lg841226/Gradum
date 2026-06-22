@@ -70,13 +70,11 @@ class EditFileSkill : Skill() {
         val rawEdits: List<Map<String, Any>> = (arguments["edits"] as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: emptyList()
         val editMode: String = arguments["mode"] as? String ?: "sequential"
 
-        if (filePath.isBlank()) {
+        if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
-        }
 
-        if (rawEdits.isEmpty()) {
+        if (rawEdits.isEmpty())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "No edits provided")
-        }
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
@@ -94,8 +92,7 @@ class EditFileSkill : Skill() {
             val invalidEdit: EditOperation? = edits.firstOrNull { it.search.isBlank() }
             if (invalidEdit != null) {
                 return makeFailure(
-                    ErrorCode.INVALID_PARAMETER,
-                    "Edit ${invalidEdit.index + 1} has empty 'search' text",
+                    ErrorCode.INVALID_PARAMETER, "Edit ${invalidEdit.index + 1} has empty 'search' text",
                 )
             }
 
@@ -132,6 +129,7 @@ class EditFileSkill : Skill() {
                 occurrences > 1 -> {
                     val failureMessage: String = "Edit ${edit.index + 1} failed: Found $occurrences matches."
                     targetFile.writeText(currentContent, Charsets.UTF_8)
+
                     return makeFailure(
                         ErrorCode.MULTIPLE_MATCHES,
                         buildPartialFailureMessage(failureMessage, appliedEdits.size),
@@ -157,7 +155,7 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to appliedEdits.size,
                 "totalEdits" to edits.size,
-                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
+                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
             ),
         )
     }
@@ -172,24 +170,20 @@ class EditFileSkill : Skill() {
                 occurrences == 0 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        ErrorCode.CODE_NOT_FOUND,
-                        "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
-                        mapOf("path" to resolvedPath.toString(), "appliedCount" to 0),
+                        ErrorCode.CODE_NOT_FOUND, "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
+                        mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
                     )
                 }
 
                 occurrences > 1 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        ErrorCode.MULTIPLE_MATCHES,
-                        "Edit ${edit.index + 1} failed: Found $occurrences matches. Original content restored.",
+                        ErrorCode.MULTIPLE_MATCHES, "Edit ${edit.index + 1} failed: Found $occurrences matches. Original content restored.",
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
                     )
                 }
 
-                else -> {
-                    workingContent = workingContent.replaceFirst(edit.search, edit.replace)
-                }
+                else -> workingContent = workingContent.replaceFirst(edit.search, edit.replace)
             }
         }
 
@@ -198,7 +192,7 @@ class EditFileSkill : Skill() {
             return makeFailure(
                 ErrorCode.EMPTY_RESULT,
                 "Edit resulted in empty content. Original content restored.",
-                mapOf("path" to resolvedPath.toString()),
+                mapOf("path" to resolvedPath.toString())
             )
         }
 
@@ -208,7 +202,7 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to edits.size,
                 "totalEdits" to edits.size,
-                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
+                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
             ),
         )
     }

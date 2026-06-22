@@ -8,9 +8,11 @@
 package gradum.skill
 
 import java.util.ServiceLoader
+
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-private val logger: org.slf4j.Logger = LoggerFactory.getLogger("SkillRegistry")
+private val logger: Logger = LoggerFactory.getLogger("SkillRegistry")
 
 /**
  * Central registry for all available skills.
@@ -27,9 +29,7 @@ object SkillRegistry {
 
     private val registeredSkills: MutableMap<String, Skill> = mutableMapOf()
 
-    init {
-        discoverSkills()
-    }
+    init { discoverSkills() }
 
     /**
      * Returns all registered skills.
@@ -83,14 +83,12 @@ object SkillRegistry {
     private fun discoverSkills(): Unit {
         val skillLoader: ServiceLoader<Skill> = ServiceLoader.load(Skill::class.java)
 
-        for (skill: Skill in skillLoader) {
+        for (skill: Skill in skillLoader)
             registerSkill(skill)
-        }
 
-        if (registeredSkills.isEmpty()) {
+        if (registeredSkills.isEmpty())
             logger.warn("No skills discovered via ServiceLoader")
-        } else {
+        else
             logger.info("Discovered ${registeredSkills.size} skills via ServiceLoader")
-        }
     }
 }
