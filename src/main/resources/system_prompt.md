@@ -104,12 +104,15 @@ search(keyword="def main", file_pattern="*.py")
 search(keyword=["error", "exception"])
 search(keyword="JSON", type="filename")
 search(keyword="config", type="directory")
+search(keyword="class", file_pattern="*.kt", path="src")
 ```
 
-- `keyword` — string (one term) or array of up to 5 strings (OR-logic multi-search); use instead of `query`
+- `keyword` — string (one term) or array of up to 5 strings (OR-logic multi-search)
 - `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`); highly recommended on large codebases
 - `type` — `"content"` (default), `"filename"`, or `"directory"`
+- `path` — directory to search in (default `.`)
 - Returns up to 20 results in `results[]`. Each result has `filePath`, `lineNumber`, `matchedText`
+- Also returns `totalMatches` (total count before truncation) and `searchType`
 - If `truncated: true`, read the `hint` field — it tells you how to narrow
 - No matches return `results: []` — this is valid, not an error. Report and stop.
 
