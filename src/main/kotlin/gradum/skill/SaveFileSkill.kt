@@ -12,6 +12,7 @@ import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
 import io.ktor.utils.io.charsets.Charset
+import io.ktor.utils.io.charsets.Charsets
 import io.ktor.utils.io.charsets.forName
 import java.io.File
 import java.nio.file.Path
@@ -104,8 +105,8 @@ class SaveFileSkill : Skill() {
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
 
         val charset: Charset = try {
-            io.ktor.utils.io.charsets.Charsets.forName(encodingName)
-        } catch (exception: Exception) {
+            Charsets.forName(encodingName)
+        } catch (_: Exception) {
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Unsupported encoding: $encodingName")
         }
 
@@ -115,8 +116,7 @@ class SaveFileSkill : Skill() {
         val contentBytes: ByteArray = fileContent.toByteArray(charset)
         if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
             return makeFailure(
-                ErrorCode.FILE_TOO_LARGE,
-                "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+                ErrorCode.FILE_TOO_LARGE, "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
             )
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -133,11 +133,11 @@ class SaveFileSkill : Skill() {
                 targetFile.writeText(fileContent, charset)
 
             val bytesWritten: Long = targetFile.length()
-            val totalLines: Int = if (writeMode == "append") {
+
+            val totalLines: Int = if (writeMode == "append")
                 targetFile.readLines(charset).size
-            } else {
+            else
                 fileContent.lines().size
-            }
 
             makeSuccess(
                 buildMap {
