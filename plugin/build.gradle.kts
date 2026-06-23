@@ -2,13 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-06-23 16:06:07 Changed by gwy
+ * build.gradle.kts  2026-06-23 22:25:31 Changed by gwy
  */
 
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.0"
-    id("org.jetbrains.intellij.platform") version "2.7.2"
+    id("org.jetbrains.intellij.platform") version "2.16.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
+    id("org.jetbrains.changelog") version "2.3.0"
     kotlin("plugin.serialization") version "2.3.0"
 }
 
@@ -17,6 +19,8 @@ version = "0.9.0"
 
 repositories {
     mavenCentral()
+    maven("https://maven.aliyun.com/repository/google")
+    maven("https://packages.jetbrains.team/maven/p/kpm/public/")
     intellijPlatform {
         defaultRepositories()
     }
@@ -25,7 +29,26 @@ repositories {
 dependencies {
     intellijPlatform {
         create("IU", "2026.1.3")
+        bundledPlugin("com.intellij.modules.platform")
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+    }
+
+    implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
+    implementation(files("libs/intellij.libraries.compose.runtime.desktop.jar"))
+    implementation(files("libs/intellij.libraries.skiko.jar"))
+    implementation(files("libs/intellij.platform.compose.jar"))
+    implementation(files("libs/intellij.platform.jewel.foundation.jar"))
+    implementation(files("libs/intellij.platform.jewel.ui.jar"))
+    implementation(files("libs/intellij.platform.jewel.ideLafBridge.jar"))
+}
+
+kotlin {
+    sourceSets {
+        all {
+            languageSettings {
+                optIn("org.jetbrains.compose.ExperimentalComposeLibrary")
+            }
+        }
     }
 }
 
@@ -33,6 +56,7 @@ intellijPlatform {
     pluginConfiguration {
         name = "Gradum"
         version = "0.9.0"
+        changeNotes = """N/A""".trimIndent()
     }
 }
 
