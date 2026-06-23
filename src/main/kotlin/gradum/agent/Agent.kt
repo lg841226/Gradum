@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-21 07:53:44 Changed by gwy
+ * Agent.kt  2026-06-23 08:09:34 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -11,7 +11,6 @@ package gradum.agent
 
 import gradum.*
 import gradum.client.*
-import gradum.ErrorCode
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
@@ -22,8 +21,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
-import org.slf4j.LoggerFactory
 import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
@@ -80,7 +79,9 @@ class Agent(
             val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
             conversationHistory.addAll(loadedMessages)
             loadedMessages.isNotEmpty()
-        } else { false }
+        } else {
+            false
+        }
 
         loadSystemPrompt()
 
@@ -90,6 +91,8 @@ class Agent(
 
         for (skill: Skill in SkillRegistry.getAllSkills())
             skill.resetHistoryCount()
+
+        getTodoManagerInstance().restTaskList()
 
         emitEvent(
             "session_start", mapOf(
@@ -147,17 +150,20 @@ class Agent(
                 )
                 if (redLineHitCounter >= configuration.maxRedLineHits) {
                     result.responseText?.let { text -> appendAssistantMessage(text, null) }
-                    emitRevoked("red_line_violation", mapOf(
-                        "hitCount" to redLineHitCounter,
-                        "keywords" to redLineHitKeywords.toList(),
-                    ))
+                    emitRevoked(
+                        "red_line_violation", mapOf(
+                            "hitCount" to redLineHitCounter,
+                            "keywords" to redLineHitKeywords.toList(),
+                        )
+                    )
                     abortSession(startTimeMillis)
                     break
                 }
             }
 
             val currentResponse: String = (result.responseText ?: "").trim()
-            val isDuplicate: Boolean = repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
+            val isDuplicate: Boolean =
+                repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
             if (isDuplicate || isAbnormalResponse(result.responseText)) {
                 repeatedResponseTracker.add(currentResponse)
                 emitEvent(
@@ -170,10 +176,12 @@ class Agent(
                 )
                 if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses) {
                     result.responseText?.let { text -> appendAssistantMessage(text, null) }
-                    emitRevoked("repetitive_loop", mapOf(
-                        "repeatedCount" to repeatedResponseTracker.size,
-                        "responses" to repeatedResponseTracker.toList(),
-                    ))
+                    emitRevoked(
+                        "repetitive_loop", mapOf(
+                            "repeatedCount" to repeatedResponseTracker.size,
+                            "responses" to repeatedResponseTracker.toList(),
+                        )
+                    )
                     abortSession(startTimeMillis)
                     break
                 }
@@ -242,7 +250,11 @@ class Agent(
                 emitEvent("thinking", mapOf("content" to thinkingParts.joinToString("")))
         }
 
-        return AgentTurnResult(responseText = contentParts.joinToString(""), toolCalls = toolCallsResult, errorMessage = errorMessage)
+        return AgentTurnResult(
+            responseText = contentParts.joinToString(""),
+            toolCalls = toolCallsResult,
+            errorMessage = errorMessage
+        )
     }
 
     private fun prepareToolCalls(rawCalls: List<ToolCallEntry>): List<ProcessedToolCall> {
@@ -308,11 +320,13 @@ class Agent(
         }
 
         if (checkToolRunaway(functionName, convertedArguments)) {
-            emitRevoked("tool_runaway", mapOf(
-                "tool" to functionName,
-                "arguments" to convertedArguments,
-                "repeatedCount" to repeatedToolCallCount,
-            ))
+            emitRevoked(
+                "tool_runaway", mapOf(
+                    "tool" to functionName,
+                    "arguments" to convertedArguments,
+                    "repeatedCount" to repeatedToolCallCount,
+                )
+            )
             abortSession(sessionStartTimeMillis)
             return
         }
@@ -326,7 +340,10 @@ class Agent(
         } else {
             when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
                 is SkillResult.Success -> mapOf("success" to true).plus(result.data)
-                is SkillResult.Failure -> mapOf("success" to false, "error" to mapOf("code" to result.code, "message" to result.message))
+                is SkillResult.Failure -> mapOf(
+                    "success" to false,
+                    "error" to mapOf("code" to result.code, "message" to result.message)
+                )
             }
         }
 
