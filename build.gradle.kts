@@ -1,8 +1,16 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * build.gradle.kts  2026-06-23 16:01:41 Changed by gwy
+ */
+
+import org.gradle.internal.impldep.org.apache.commons.compress.harmony.pack200.PackingUtils.config
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.serialization") version "2.0.21"
+    kotlin("jvm") version "2.3.0"
+    kotlin("plugin.serialization") version "2.3.0"
     id("io.ktor.plugin") version "3.0.3"
     id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
@@ -50,8 +58,8 @@ dependencies {
 
     // Test
     testImplementation("io.ktor:ktor-server-test-host:3.0.3")
-    testImplementation("org.jetbrains.kotlin:kotlin-test:2.0.21")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.0.21")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.1.0")
     testImplementation("io.mockk:mockk:1.13.13")
 }
 

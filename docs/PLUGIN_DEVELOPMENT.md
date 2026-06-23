@@ -6,9 +6,11 @@ This document explains how to develop new skills (Skill) for Gradum.
 
 ## 1. Architecture Overview
 
-Gradum uses a hard-coded skill registration system. A skill is a Kotlin class that extends the `Skill` abstract base class and lives under `src/main/kotlin/gradum/skill/`.
+Gradum uses a hard-coded skill registration system. A skill is a Kotlin class that extends the `Skill` abstract base
+class and lives under `src/main/kotlin/gradum/skill/`.
 
 **Key characteristics:**
+
 - Skills are fully decoupled from each other
 - All skills share a unified `SkillResult` output shape
 - Adding a skill = one new `.kt` file + one registration line in `SkillRegistry.discoverSkills()`
@@ -46,10 +48,8 @@ flowchart TD
     R5 --> Key5
     R6 --> Key6
     R7 --> Key7
-
     Agent[Agent.kt] -->|"skillRegistry.getSkill(name)"| SkillLook[Look up by key]
     SkillLook -->|matches| Skills[Skills in the registry]
-
     style Registry fill:#3b82f6
     style Map fill:#34d399
     style Agent fill:#f59e0b
@@ -66,7 +66,7 @@ classDiagram
         +alias: String
         +execute(arguments: Map) SkillResult
         +getSchema() Map
-        +historyKeepCount: Int             // Recent N results keep volatile keys
+        +historyKeepCount: Int // Recent N results keep volatile keys
         +historyVolatileKeys: List~String~ // Keys stripped from older results
         +prepareHistoryResult(result: Map) Map
     }
@@ -168,16 +168,16 @@ abstract class Skill {
 
 ### Optional Properties
 
-| Property              | Type           | Default          | Purpose                                                           |
-|-----------------------|----------------|------------------|-------------------------------------------------------------------|
-| `historyKeepCount`    | `Int`          | `Int.MAX_VALUE`  | Keep this many recent results intact; strip volatile keys beyond  |
-| `historyVolatileKeys` | `List<String>` | `emptyList()`    | Keys to remove from history result when exceeding `historyKeepCount` |
+| Property              | Type           | Default         | Purpose                                                              |
+|-----------------------|----------------|-----------------|----------------------------------------------------------------------|
+| `historyKeepCount`    | `Int`          | `Int.MAX_VALUE` | Keep this many recent results intact; strip volatile keys beyond     |
+| `historyVolatileKeys` | `List<String>` | `emptyList()`   | Keys to remove from history result when exceeding `historyKeepCount` |
 
 ### Optional Hooks
 
-| Method                                                             | Return                                                     | Purpose                                                         |
-|--------------------------------------------------------------------|------------------------------------------------------------|-----------------------------------------------------------------|
-| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | By default handles `historyKeepCount`/`historyVolatileKeys`     |
+| Method                                                             | Return                                                     | Purpose                                                     |
+|--------------------------------------------------------------------|------------------------------------------------------------|-------------------------------------------------------------|
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | By default handles `historyKeepCount`/`historyVolatileKeys` |
 
 ---
 
@@ -213,8 +213,8 @@ The Agent flattens `SkillResult` into the following shape before writing to the 
 ```mermaid
 flowchart LR
     Exec["skill.execute(arguments)"] --> Result{SkillResult}
-    Result -->|Success(data)| SUCC["success: true<br/>+ data fields flattened"]
-    Result -->|Failure(code, msg, ctx)| FAIL["success: false<br/>+ error: {code, message}"]
+    Result -->|"Success(data)"| SUCC["success: true<br/>+ data fields flattened"]
+    Result -->|"Failure(code, msg, ctx)"| FAIL["success: false<br/>+ error: {code, message}"]
     SUCC --> NDJSON["emitEvent(tool_call)"]
     FAIL --> NDJSON
     NDJSON --> HIST["append to conversation history"]
@@ -226,7 +226,7 @@ flowchart LR
     style HIST fill:#a78bfa
 ```
 
-```kotlin
+```
 // Success ->
 {"success": true, ...data fields flattened}
 
@@ -255,7 +255,8 @@ flowchart LR
 
 ## 5. getSchema() Format
 
-Return a Kotlin `Map<String, Any>` whose structure is fully compatible with the OpenAI function calling schema. Use Kotlin Map literals — do not embed a JSON string:
+Return a Kotlin `Map<String, Any>` whose structure is fully compatible with the OpenAI function calling schema. Use
+Kotlin Map literals — do not embed a JSON string:
 
 ```kotlin
 override fun getSchema(): Map<String, Any> {
@@ -284,6 +285,7 @@ override fun getSchema(): Map<String, Any> {
 ```
 
 The `description` field is the primary mechanism for guiding the LLM to use the tool correctly. It should include:
+
 - When to use the skill
 - Limitations and constraints
 - Usage examples
@@ -357,8 +359,8 @@ class YourSkill : Skill() {
                     "size" to fileContent.length
                 )
             )
-        } catch (e: Exception) {
-            makeFailure("IO_ERROR", e.message ?: "Unknown error", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            makeFailure("IO_ERROR", exception.message ?: "Unknown error", mapOf("path" to resolvedPath.toString()))
         }
     }
 }
@@ -437,10 +439,10 @@ class FileCounterSkill : Skill() {
 
         val fileContent: String = try {
             targetFile.readText(Charsets.UTF_8)
-        } catch (e: java.io.FileNotFoundException) {
+        } catch (exception: java.io.FileNotFoundException) {
             return makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
-        } catch (e: Exception) {
-            return makeFailure("IO_ERROR", e.message ?: "Failed to read file", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            return makeFailure("IO_ERROR", exception.message ?: "Failed to read file", mapOf("path" to resolvedPath.toString()))
         }
 
         val lines: Int = fileContent.lines().size
@@ -463,7 +465,9 @@ class FileCounterSkill : Skill() {
 
 ### 6.4 Optimize Token Usage (Optional)
 
-If your skill returns large data (like file content), use `historyKeepCount` and `historyVolatileKeys` to keep recent results intact while stripping older ones from conversation history. The stripped data still appears in the NDJSON event stream for the frontend, but the LLM won't re-read older large payloads every turn:
+If your skill returns large data (like file content), use `historyKeepCount` and `historyVolatileKeys` to keep recent
+results intact while stripping older ones from conversation history. The stripped data still appears in the NDJSON event
+stream for the frontend, but the LLM won't re-read older large payloads every turn:
 
 ```kotlin
 class YourSkill : Skill() {
@@ -502,11 +506,11 @@ if (filePath.isBlank()) {
 ```kotlin
 return try {
     targetFile.readText(Charsets.UTF_8)
-    makeSuccess(...)
-} catch (e: FileNotFoundException) {
+    makeSuccess(/*...*/)
+} catch (exception: FileNotFoundException) {
     makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
-} catch (e: Exception) {
-    makeFailure("IO_ERROR", e.message ?: "Failed to read", mapOf("path" to resolvedPath.toString()))
+} catch (exception: Exception) {
+    makeFailure("IO_ERROR", exception.message ?: "Failed to read", mapOf("path" to resolvedPath.toString()))
 }
 ```
 
@@ -520,6 +524,7 @@ return try {
 ### 8.4 LLM Guidance
 
 The `description` field in `getSchema()` is the key mechanism for guiding the LLM to use the tool correctly. Include:
+
 - When to use the skill
 - Scenarios where it should not be used
 - Example parameter formats
@@ -556,9 +561,10 @@ override fun execute(arguments: Map<String, Any>): SkillResult {
 
 ### 8.7 State Management with TodoManager
 
-Need to maintain state across multiple tool calls (e.g. the task list in TodoSkill)? Use a package-level private singleton:
+Need to maintain state across multiple tool calls (e.g. the task list in TodoSkill)? Use a package-level private
+singleton:
 
-```kotlin
+```
 private val sharedTodoManager: TodoManager = TodoManager()
 
 fun getTodoManagerInstance(): TodoManager = sharedTodoManager
@@ -594,7 +600,7 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 ### Skill execution fails
 
 - Check parameter conversion: could `arguments["foo"] as? String` produce null?
-- Verify no uncaught exceptions escape (there should always be a `catch (e: Exception)` fallback)
+- Verify no uncaught exceptions escape (there should always be a `catch (exception: Exception)` fallback)
 - Verify file paths resolve correctly to absolute paths
 
 ### NDJSON event fields are wrong
@@ -608,7 +614,7 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 
-- All public methods require full type annotations, no inferred abbreviations
+- All public methods require full type annotations, explicit type declarations required
 - Use `Map<String, Any>` rather than a bare `map`; be explicit about generic parameters
 - Prefer string templates over `+` concatenation
 - Use `sealed class` for result types (SkillResult)

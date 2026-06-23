@@ -12,7 +12,7 @@
 | **HTTP Framework** | Ktor 3.0.3 + Netty                                               |
 | **Serialization**  | kotlinx-serialization-json 1.7.3                                 |
 | **Coroutines**     | kotlinx-coroutines 1.9.0                                         |
-| **Logging**        | Logback Classic 1.5.15                                           |
+| **Logging**        | Logback Classic 1.5.25                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
 | **Last Updated**   | 2026-06-22                                                       |
@@ -21,11 +21,19 @@
 
 ## Abstract
 
-Gradum is a local-first AI code assistant that exposes carefully designed filesystem tools and shell execution interfaces to a local language model through LLM Function Calling. Its goal is to complete the full engineering task loop—"Read → Plan → Edit → Test → Run"—within the local code repository.
+Gradum is a local-first AI code assistant that exposes carefully designed filesystem tools and shell execution
+interfaces to a local language model through LLM Function Calling. Its goal is to complete the full engineering task
+loop—"Read → Plan → Edit → Test → Run"—within the local code repository.
 
-Unlike cloud-hosted AI assistants, Gradum's design is centered on **deterministic tool behavior**, **observable execution**, and **defensive prompt injection protection**. Because the agent runs on the developer's local machine with full shell privileges, the system has a structured command safety filter (`CommandFilter`) built into the skill implementation layer. This filter examines every shell command (parsing executable file names, parameters, and paths) and rejects dangerous operations before they reach `ProcessBuilder`.
+Unlike cloud-hosted AI assistants, Gradum's design is centered on **deterministic tool behavior**, **observable
+execution**, and **defensive prompt injection protection**. Because the agent runs on the developer's local machine with
+full shell privileges, the system has a structured command safety filter (`CommandFilter`) built into the skill
+implementation layer. This filter examines every shell command (parsing executable file names, parameters, and paths)
+and rejects dangerous operations before they reach `ProcessBuilder`.
 
-Gradum is implemented using Kotlin 2.0.21, provides an HTTP API based on Ktor 3.0.3, and manages streaming responses through kotlinx-coroutines. Conversation context is encrypted and persisted to `output/context.json` using a custom HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while preventing context injection.
+Gradum is implemented using Kotlin 2.0.21, provides an HTTP API based on Ktor 3.0.3, and manages streaming responses
+through kotlinx-coroutines. Conversation context is encrypted and persisted to `output/context.json` using a custom
+HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while preventing context injection.
 
 ---
 
@@ -46,12 +54,20 @@ Gradum is implemented using Kotlin 2.0.21, provides an HTTP API based on Ktor 3.
 
 ### 1.1 Principles
 
-1. **Local-first**: No external network dependencies (except the LLM server). The file system and shell are the only external surfaces the agent directly touches.
-2. **Observable by default**: Every state transition emits a structured NDJSON event, enabling log replay, debug tracing, and downstream UI rendering without internal state coupling.
-3. **Tools as code**: Each skill is a Kotlin implementation of the `Skill` abstract class, centrally registered by `SkillRegistry`. No DSLs, no plugin manifests, no remote registries—the skill surface is simply the project source directory.
-4. **Security at the skill layer**: The system prompt only provides guidance and must not be trusted as a security boundary. Security-critical enforcement behaviors are implemented inside skills (especially the `classifyCommand` pre-check in `RunCommandSkill`), not in the prompt.
-5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult` — `Success(Map)` or `Failure(code, message, context?)`. The agent main loop does not need branch-by-skill type handling.
-6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to "directly block."
+1. **Local-first**: No external network dependencies (except the LLM server). The file system and shell are the only
+   external surfaces the agent directly touches.
+2. **Observable by default**: Every state transition emits a structured NDJSON event, enabling log replay, debug
+   tracing, and downstream UI rendering without internal state coupling.
+3. **Tools as code**: Each skill is a Kotlin implementation of the `Skill` abstract class, centrally registered by
+   `SkillRegistry`. No DSLs, no plugin manifests, no remote registries—the skill surface is simply the project source
+   directory.
+4. **Security at the skill layer**: The system prompt only provides guidance and must not be trusted as a security
+   boundary. Security-critical enforcement behaviors are implemented inside skills (especially the `classifyCommand`
+   pre-check in `RunCommandSkill`), not in the prompt.
+5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult` — `Success(Map)` or
+   `Failure(code, message, context?)`. The agent main loop does not need branch-by-skill type handling.
+6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to "
+   directly block."
 
 ### 1.2 Goals
 
@@ -75,7 +91,8 @@ Gradum is implemented using Kotlin 2.0.21, provides an HTTP API based on Ktor 3.
 
 ### 2.1 Module Layer Architecture
 
-Gradum is composed of the following six collaborating layers. The diagram shows the dependency direction (top layers depend on bottom layers):
+Gradum is composed of the following six collaborating layers. The diagram shows the dependency direction (top layers
+depend on bottom layers):
 
 ```mermaid
 flowchart TB
@@ -144,31 +161,31 @@ The following invariants are core architectural constraints:
 flowchart LR
     subgraph INV1["Invariant 1: Agent never directly imports specific skills"]
         direction TB
-        A[Agent.kt] -->|"skillRegistry.getSkill(name)"| SR[SkillRegistry]
-        SR -->|"discoverSkills() hardcoded"| SK[Skills]
-        style A fill:#d4f1d4
-        style SR fill:#f4e1c1
-        style SK fill:#c1daf4
+        A[Agent.kt] -->|" skillRegistry.getSkill(name) "| SR[SkillRegistry]
+        SR -->|" discoverSkills() hardcoded "| SK[Skills]
+        style A fill: #d4f1d4
+        style SR fill: #f4e1c1
+        style SK fill: #c1daf4
     end
 
     subgraph INV2["Invariant 2: Server sits on top of Agent, not inside it"]
         direction TB
         HTTP[HTTP Routes] -->|create Agent, call executeTask| AG[Agent]
         AG -->|never imports ktor| X{no HTTP knowledge}
-        style HTTP fill:#c1daf4
-        style AG fill:#d4f1d4
-        style X fill:#f4c1c1
+        style HTTP fill: #c1daf4
+        style AG fill: #d4f1d4
+        style X fill: #f4c1c1
     end
 
     subgraph INV3["Invariant 3: CommandFilter is the only security-critical edge"]
         direction TB
-        RC["RunCommandSkill.execute"] -->|pre-check| CF["classifyCommand()"]
+        RC["RunCommandSkill.execute"] -->|pre - check| CF["classifyCommand()"]
         CF -->|Blocked → return error| E["SkillResult.Failure"]
         CF -->|Safe → proceed| PB["ProcessBuilder.start()"]
-        style RC fill:#d4f1d4
-        style CF fill:#f4c1c1
-        style E fill:#f4d4c1
-        style PB fill:#c1daf4
+        style RC fill: #d4f1d4
+        style CF fill: #f4c1c1
+        style E fill: #f4d4c1
+        style PB fill: #c1daf4
     end
 
     subgraph INV4["Invariant 4: LLM client is provider-polymorphic"]
@@ -177,10 +194,10 @@ flowchart LR
         AG2 -->|providerName| OA[OpenAICompatibleClient]
         OL -->|Flow of| CH[LLMResponseChunk]
         OA -->|Flow of| CH
-        style AG2 fill:#d4f1d4
-        style OL fill:#c1daf4
-        style OA fill:#c1f4c1
-        style CH fill:#f4e1c1
+        style AG2 fill: #d4f1d4
+        style OL fill: #c1daf4
+        style OA fill: #c1f4c1
+        style CH fill: #f4e1c1
     end
 ```
 
@@ -247,12 +264,10 @@ output/                            # Generated at runtime on local storage
 ```mermaid
 flowchart TD
     U["User / CLI<br/>POST /events<br/>{message, model?, config?}"] --> R[Routes.kt<br/>registerAllRoutes]
-
     R -->|/events| R1[AgentConfiguration<br/>+ Agent instantiation]
     R -->|/health| R2[version + uptime]
     R -->|/models| R3[discoverModels]
     R -->|/skills| R4[SkillRegistry.getAllSkills]
-
     R1 --> A["Agent.executeTask(userInput, loadContext)"]
 
     subgraph AGENT_FLOW["Agent execution flow"]
@@ -269,11 +284,9 @@ flowchart TD
     CHUNK -->|ReasoningContent| THINK[emit thinking event]
     CHUNK -->|ToolCallBatch| TCBATCH[toolCalls list]
     CHUNK -->|ErrorMessage| ERREV[emit error event]
-
     TCBATCH -->|empty?| BRANCH{"toolCalls present?"}
     BRANCH -->|No| NO_TOOL[emit llm_response<br/>BREAK loop]
     BRANCH -->|Yes| PREP["prepareToolCalls(rawCalls)<br/>assign call_N"]
-
     PREP --> FOR[FOR EACH tool_call]
     FOR --> GS["skillRegistry.getSkill(name)"]
     GS --> EX["skill.execute(convertedArguments) → SkillResult"]
@@ -282,9 +295,7 @@ flowchart TD
     EMIT --> REM[TodoManager reminder injection]
     REM --> APPENDA[append tool message to conversationHistory]
     APPENDA --> LOOP
-
     NO_TOOL --> END["Step 6: emitEvent(session_end)<br/>contextManager.saveContext"]
-
     LLM -.-> LLM_SRV["Local LLM server<br/>(Ollama on port 11434<br/>or OpenAI compatible)"]
 
     subgraph EVENT_STREAM["NDJSON Event Stream"]
@@ -324,7 +335,6 @@ flowchart TD
     SK_SV --> FS
     SK_RC --> SH
     SK_SH --> FS
-
     END --> OUT[output/context.json<br/>encrypted]
 ```
 
@@ -335,117 +345,113 @@ The precise flow of `Agent.executeTask(userInput, loadPreviousContext)`:
 ```mermaid
 flowchart TD
     START([executeTask called]) --> INIT
-
     INIT[Initialize] --> CTX{loadPreviousContext?}
     CTX -- Yes --> LOAD_CTX["contextManager.loadContext()<br/>decrypt → inject conversationHistory"]
     CTX -- No --> PROMPT
-
     LOAD_CTX --> PROMPT["Load system_prompt.md<br/>replace {{OS}} placeholder"]
-
     PROMPT --> INJECT["Insert system prompt as role=system<br/>(if context was not loaded)"]
     INJECT --> EMIT_START["emitEvent(session_start)<br/>{version, model, think, contextLoaded, contextMessages}"]
     EMIT_START --> ADD_USER["conversationHistory += user message"]
-
     ADD_USER --> LLM_CALL["processLlmTurn(toolSchemas)"]
-
     LLM_CALL --> CHUNK_STREAM["Collect Flow of LLMResponseChunk:"]
     CHUNK_STREAM --> TEXT["TextContent → accumulate in responseText"]
     CHUNK_STREAM --> THINK["ReasoningContent → emit thinking event"]
     CHUNK_STREAM --> TOOL["ToolCallBatch → save as toolCalls List"]
     CHUNK_STREAM --> ERR_MSG["ErrorMessage → emit error event"]
-
     TOOL --> GUARDRAIL["Guardrail Checks<br/>redLineKeywords?<br/>repetitive_loop?"]
-
     GUARDRAIL --> REDLINE{Red line keyword hit?}
     REDLINE -- No --> REPLOOP{Repetitive response?}
     REDLINE -- Yes --> REDLINE_COUNT["increment redLineHitCounter<br/>emit guardrail event"]
     REDLINE_COUNT --> REDLINE_CHECK{"hits >= maxRedLineHits?"}
     REDLINE_CHECK -- No --> REPLOOP
     REDLINE_CHECK -- Yes --> REDLINE_REVOKE["append assistant message<br/>emitEvent mission_revoked<br/>reason: red_line_violation<br/>emitEvent session_end (aborted)<br/>BREAK loop"]
-
     REPLOOP -- No --> DECISION{"toolCalls present and non-empty?"}
     REPLOOP -- Yes --> REP_COUNT["add to repeatedResponseTracker<br/>emit guardrail event"]
     REP_COUNT --> REP_CHECK{"count >= maxRepeatedResponses?"}
     REP_CHECK -- No --> DECISION
     REP_CHECK -- Yes --> REP_REVOKE["append assistant message<br/>emitEvent mission_revoked<br/>reason: repetitive_loop<br/>emitEvent session_end (aborted)<br/>BREAK loop"]
-
     DECISION -- No --> HAS_RESPONSE{responseText non-empty?}
     HAS_RESPONSE -- Yes --> EMIT_RESP["emitEvent llm_response<br/>append assistant message<br/>BREAK loop"]
     HAS_RESPONSE -- No --> LLM_CALL
-
     DECISION -- Yes --> PREP["prepareToolCalls(rawCalls)<br/>assign call_N sequence IDs"]
     PREP --> APPEND_ASSISTANT["append assistant message<br/>(including tool_calls[])"]
     APPEND_ASSISTANT --> FOR_EACH["FOR EACH processedCall"]
-
     FOR_EACH --> GET_SKILL["skillRegistry.getSkill(name)"]
     GET_SKILL --> CONVERT_ARGS["functionArguments Map<JsonElement><br/>→ Map<String, Any>"]
     CONVERT_ARGS --> EXECUTE["skill.execute(convertedArguments)"]
     EXECUTE --> MAP_RESULT["SkillResult → Map<br/>{success, ...result/error}"]
     MAP_RESULT --> EMIT_TOOL["emitEvent tool_call<br/>{tool, arguments, toolCallId, success, result}"]
-
     EMIT_TOOL --> ERR_CHECK{success == false?}
     ERR_CHECK -- Yes --> EMIT_ERR["emitEvent error<br/>{code, message, tool, toolCallId}"]
     ERR_CHECK -- No --> TODO_REM
-
     EMIT_ERR --> TODO_REM["TodoManager.getTaskReminder()<br/>append to tool result tail"]
     TODO_REM --> PROV_FORMAT["provider format<br/>OpenAI: tool_call_id + role=tool<br/>Ollama: role=tool + content"]
     PROV_FORMAT --> APPEND_TOOL["append tool message to conversationHistory"]
     APPEND_TOOL --> FOR_EACH
-
     FOR_EACH --> MORE{More tool calls?}
     MORE -- Yes --> FOR_EACH
     MORE -- No --> LLM_CALL
-
     EMIT_RESP --> END_SESSION["emitEvent session_end<br/>{version, elapsedSeconds, model, tokenUsage}"]
     END_SESSION --> SAVE_CTX["contextManager.saveContext<br/>(history, model, emptySet())"]
     SAVE_CTX --> WRITE_FILE["filter system/tool messages<br/>encrypt user/assistant content<br/>write to output/context.json<br/>keep only most recent 60 messages"]
     WRITE_FILE --> DONE([Agent finished])
-
-    style START fill:#d4f1d4
-    style DONE fill:#f4c1c1
+    style START fill: #d4f1d4
+    style DONE fill: #f4c1c1
 ```
 
 1. **Initialization**:
-   - If `loadPreviousContext=true`, call `contextManager.loadContext()`, decrypt, and inject into `conversationHistory`
-   - Read the system prompt from classpath resource `system_prompt.md`, replacing the `{{OS}}` placeholder with `System.getProperty("os.name") + " " + os.version`
-   - Insert the system prompt as a `role="system"` message into the conversation history (if context was not loaded)
-   - Emit a `session_start` event: `{version, model, think, contextLoaded, contextMessages}`
+    - If `loadPreviousContext=true`, call `contextManager.loadContext()`, decrypt, and inject into `conversationHistory`
+    - Read the system prompt from classpath resource `system_prompt.md`, replacing the `{{OS}}` placeholder with
+      `System.getProperty("os.name") + " " + os.version`
+    - Insert the system prompt as a `role="system"` message into the conversation history (if context was not loaded)
+    - Emit a `session_start` event: `{version, model, think, contextLoaded, contextMessages}`
 
 2. **Main Loop** (`while true`):
-   - Call `processLlmTurn(toolSchemas)`, which returns `AgentTurnResult(responseText, toolCalls, errorMessage)`
-   - Collect streaming chunks from activeClient (determined by `providerName` — Ollama or OpenAI):
-     - `TextContent` → accumulate into responseText
-     - `ReasoningContent` → accumulate as thinking, **immediately emit a `thinking` event** (if there is content)
-     - `ToolCallBatch` → save as `toolCalls: List<ToolCallEntry>`
-     - `ErrorMessage` → emit an `error` event
+    - Call `processLlmTurn(toolSchemas)`, which returns `AgentTurnResult(responseText, toolCalls, errorMessage)`
+    - Collect streaming chunks from activeClient (determined by `providerName` — Ollama or OpenAI):
+        - `TextContent` → accumulate into responseText
+        - `ReasoningContent` → accumulate as thinking, **immediately emit a `thinking` event** (if there is content)
+        - `ToolCallBatch` → save as `toolCalls: List<ToolCallEntry>`
+        - `ErrorMessage` → emit an `error` event
     - **Guardrail checks** are evaluated against `responseText` before processing tool calls:
-      - **Red line keyword check**: If the response contains any configured `redLineKeywords`, increment `redLineHitCounter`. When the counter reaches `maxRedLineHits` (default 3), append the assistant message, emit `mission_revoked` (reason: `red_line_violation`), emit `session_end` with `aborted: true`, and **BREAK**.
-      - **Repetitive response check**: If the response is an exact duplicate of the previous turn or contains repetitious sentences (same sentence ≥3 times), it is added to `repeatedResponseTracker`. When the tracker reaches `maxRepeatedResponses` (default 3), append the assistant message, emit `mission_revoked` (reason: `repetitive_loop`), emit `session_end` with `aborted: true`, and **BREAK**.
-      - Non-anomalous responses clear the repetitive tracker.
+        - **Red line keyword check**: If the response contains any configured `redLineKeywords`, increment
+          `redLineHitCounter`. When the counter reaches `maxRedLineHits` (default 3), append the assistant message, emit
+          `mission_revoked` (reason: `red_line_violation`), emit `session_end` with `aborted: true`, and **BREAK**.
+        - **Repetitive response check**: If the response is an exact duplicate of the previous turn or contains
+          repetitious sentences (same sentence ≥3 times), it is added to `repeatedResponseTracker`. When the tracker
+          reaches `maxRepeatedResponses` (default 3), append the assistant message, emit `mission_revoked` (reason:
+          `repetitive_loop`), emit `session_end` with `aborted: true`, and **BREAK**.
+        - Non-anomalous responses clear the repetitive tracker.
     - If `toolCalls == null or empty` and has responseText:
-      - Emit an `llm_response` event
-      - Append the assistant message, **BREAK the loop**
+        - Emit an `llm_response` event
+        - Append the assistant message, **BREAK the loop**
     - Otherwise, there are tool calls:
-     - `prepareToolCalls(rawCalls)`: allocate `call_N` sequences for items without call_id
-     - Append the assistant message (including `tool_calls[]` or function list)
-     - **FOR each processedCall**:
-       - Get the skill via `skillRegistry.getSkill(name)`
-       - Convert raw `functionArguments: Map<String, JsonElement>` to `MutableMap<String, Any>` (strings/booleans/numbers)
-       - For `read_file` requests without `lineRange`, add the path to `fullyReadFiles` (for subsequent context optimization)
-       - Call `skill.execute(convertedArguments)` → `SkillResult`
-       - Map to `Map { success, ...result fields or error }`
-       - Emit a `tool_call` event: `{tool, arguments, toolCallId, success, result}`
-       - If `success=false`: emit an `error` event: `{code, message, tool, toolCallId}`
-       - **Todo Reminder Injection**: Call `getTodoManagerInstance().getTaskReminder()`, and if not null, append the reminder text to the tool result tail before writing to history
-       - Determine the tool message format based on provider (OpenAI: `tool_call_id` + `role="tool"`; Ollama: direct content)
-       - Append the tool message to conversationHistory
+    - `prepareToolCalls(rawCalls)`: allocate `call_N` sequences for items without call_id
+    - Append the assistant message (including `tool_calls[]` or function list)
+    - **FOR each processedCall**:
+        - Get the skill via `skillRegistry.getSkill(name)`
+        - Convert raw `functionArguments: Map<String, JsonElement>` to `MutableMap<String, Any>` (
+          strings/booleans/numbers)
+        - For `read_file` requests without `lineRange`, add the path to `fullyReadFiles` (for subsequent context
+          optimization)
+        - Call `skill.execute(convertedArguments)` → `SkillResult`
+        - Map to `Map { success, ...result fields or error }`
+        - Emit a `tool_call` event: `{tool, arguments, toolCallId, success, result}`
+        - If `success=false`: emit an `error` event: `{code, message, tool, toolCallId}`
+        - **Todo Reminder Injection**: Call `getTodoManagerInstance().getTaskReminder()`, and if not null, append the
+          reminder text to the tool result tail before writing to history
+        - Determine the tool message format based on provider (OpenAI: `tool_call_id` + `role="tool"`; Ollama: direct
+          content)
+        - Append the tool message to conversationHistory
 
 3. **Session End**:
-   - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by guardrail)
-   - `contextManager.saveContext(history, model, fullyReadFiles)` — **skipped** when `aborted: true` (revoked sessions leave no trace)
-     - Filter system/tool messages, simplify `user/assistant` messages
-     - Encrypt the content field of each user/assistant message (set `_encrypted=true`)
-     - Write to `output/context.json`
+    - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by
+      guardrail)
+    - `contextManager.saveContext(history, model, fullyReadFiles)` — **skipped** when `aborted: true` (revoked sessions
+      leave no trace)
+        - Filter system/tool messages, simplify `user/assistant` messages
+        - Encrypt the content field of each user/assistant message (set `_encrypted=true`)
+        - Write to `output/context.json`
 
 ### 2.6 NDJSON Event Stream
 
@@ -458,63 +464,62 @@ sequenceDiagram
     participant Agent
     participant LLM
     participant Skill as Skill Executor
-
-    Client->>Server: POST /events { message, model?, config? }
-    Server->>Agent: Agent(config, emitEvent)
-    Agent->>Agent: loadContext() (if enabled)
-
-    Note over Agent,Server: NDJSON stream begins
-    Agent->>Client: {type: "session_start", data: {version, model, think, contextLoaded}}
+    Client ->> Server: POST /events { message, model?, config? }
+    Server ->> Agent: Agent(config, emitEvent)
+    Agent ->> Agent: loadContext() (if enabled)
+    Note over Agent, Server: NDJSON stream begins
+    Agent ->> Client: {type: "session_start", data: {version, model, think, contextLoaded}}
 
     loop Main Loop
-        Agent->>LLM: POST chat/completions (streaming)
-        LLM-->>Agent: chunk { text content }
-        LLM-->>Agent: chunk { reasoning content }
-        Agent->>Client: {type: "thinking", data: {content}}
+        Agent ->> LLM: POST chat/completions (streaming)
+        LLM -->> Agent: chunk { text content }
+        LLM -->> Agent: chunk { reasoning content }
+        Agent ->> Client: {type: "thinking", data: {content}}
 
         alt tool_calls present
-            LLM-->>Agent: chunk { delta.tool_calls[i].function }
-            Agent->>Skill: getSkill(name).execute(arguments)
-            Skill-->>Agent: SkillResult
-            Agent->>Client: {type: "tool_call", data: {tool, arguments, toolCallId, success, result}}
+            LLM -->> Agent: chunk { delta.tool_calls[i].function }
+            Agent ->> Skill: getSkill(name).execute(arguments)
+            Skill -->> Agent: SkillResult
+            Agent ->> Client: {type: "tool_call", data: {tool, arguments, toolCallId, success, result}}
             alt result is failure
-                Agent->>Client: {type: "error", data: {code, message, tool, toolCallId}}
+                Agent ->> Client: {type: "error", data: {code, message, tool, toolCallId}}
             end
-            Agent->>Agent: TodoManager reminder injection
+            Agent ->> Agent: TodoManager reminder injection
         else final text response
-            LLM-->>Agent: final response text
-            Agent->>Client: {type: "llm_response", data: {content}}
+            LLM -->> Agent: final response text
+            Agent ->> Client: {type: "llm_response", data: {content}}
         end
     end
 
-    Agent->>Client: {type: "session_end", data: {version, elapsedSeconds, model, tokenUsage}}
-    Agent->>Agent: saveContext() → output/context.json
+    Agent ->> Client: {type: "session_end", data: {version, elapsedSeconds, model, tokenUsage}}
+    Agent ->> Agent: saveContext() → output/context.json
 ```
 
 #### Event Type Summary
 
 ```mermaid
-pie title NDJSON Event Types
-    "session_start" : 1
-    "thinking" : 5
-    "tool_call" : 15
-    "llm_response" : 1
-    "guardrail" : 1
-    "mission_revoked" : 1
-    "error" : 2
-    "session_end" : 1
+pie
+    title NDJSON Event Types
+    "session_start": 1
+    "thinking": 5
+    "tool_call": 15
+    "llm_response": 1
+    "guardrail": 1
+    "mission_revoked": 1
+    "error": 2
+    "session_end": 1
 ```
 
-| `type`             | Description                                   | Typical `data` fields                                                                     |
-|--------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------|
-| `session_start`    | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                           |
-| `thinking`         | LLM thinking content (if thinking is enabled) | `content`                                                                                 |
-| `llm_response`     | LLM final text response                       | `content`                                                                                 |
-| `guardrail`        | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response / red_line_hit), `detail`, `repeatedCount` / `hitCount`, `maxAllowed` |
-| `mission_revoked`  | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                 |
-| `tool_call`        | A single tool call and its result             | `tool`, `arguments`, `toolCallId`, `success`, `result`                                    |
-| `error`            | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
-| `session_end`      | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}` |
+| `type`            | Description                                   | Typical `data` fields                                                                           |
+|-------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `session_start`   | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                                 |
+| `thinking`        | LLM thinking content (if thinking is enabled) | `content`                                                                                       |
+| `llm_response`    | LLM final text response                       | `content`                                                                                       |
+| `guardrail`       | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response / red_line_hit), `detail`, `repeatedCount` / `hitCount`, `maxAllowed` |
+| `mission_revoked` | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                       |
+| `tool_call`       | A single tool call and its result             | `tool`, `arguments`, `toolCallId`, `success`, `result`                                          |
+| `error`           | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                                 |
+| `session_end`     | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}`       |
 
 #### Event Order Invariants
 
@@ -561,13 +566,12 @@ flowchart TB
 
     ASSISTANT --> TOOL_MSG
     TOOL_MSG --> STREAM
-
-    style OAI1 fill:#c1daf4
-    style OAI2 fill:#c1daf4
-    style OAI3 fill:#c1daf4
-    style OLL1 fill:#c1f4c1
-    style OLL2 fill:#c1f4c1
-    style OLL3 fill:#c1f4c1
+    style OAI1 fill: #c1daf4
+    style OAI2 fill: #c1daf4
+    style OAI3 fill: #c1daf4
+    style OLL1 fill: #c1f4c1
+    style OLL2 fill: #c1f4c1
+    style OLL3 fill: #c1f4c1
 ```
 
 ### 2.8 Context Persistence and Encryption
@@ -582,16 +586,14 @@ flowchart LR
     FILTER --> OPTIMIZE["2. Optimize: discard 'Success: Read {path}' replies<br/>for already fully-read files"]
     OPTIMIZE --> ENCRYPT["3. Encrypt: for each message content<br/>encryptMessageContent(content) → Base64<br/>mark _encrypted=true"]
     ENCRYPT --> WRITE["4. Write output/context.json<br/>prettyPrint=true<br/>keep only most recent 60 messages"]
-
     LOAD["loadContext()"] --> FILE_EXISTS{file exists?}
     FILE_EXISTS -- No --> EMPTY[return empty List]
     FILE_EXISTS -- Yes --> DECRYPT["for each message<br/>if _encrypted=true<br/>decryptMessageContent(content)"]
     DECRYPT --> RETURN["return List<Map<String, Any>>"]
-
-    style SAVE fill:#d4f1d4
-    style LOAD fill:#f4e1c1
-    style ENCRYPT fill:#f4c1c1
-    style DECRYPT fill:#c1daf4
+    style SAVE fill: #d4f1d4
+    style LOAD fill: #f4e1c1
+    style ENCRYPT fill: #f4c1c1
+    style DECRYPT fill: #c1daf4
 ```
 
 #### Encryption Scheme Details
@@ -637,20 +639,23 @@ flowchart TD
 ```
 
 - **Algorithm**: Custom **HMAC-CTR** stream encryption + **HMAC-SHA256** authentication tag
-- **Key derivation**: Based on the `GRADUM_CONTEXT_KEY` environment variable or built-in key source; derive two independent keys for the two different purposes "encrypt" and "authenticate" using HMAC-SHA256
+- **Key derivation**: Based on the `GRADUM_CONTEXT_KEY` environment variable or built-in key source; derive two
+  independent keys for the two different purposes "encrypt" and "authenticate" using HMAC-SHA256
 - **Encrypted token format** (by byte):
-  - `[0]` — version byte (0x81, for future algorithm upgrade detection)
-  - `[1..16]` — random nonce (generated by `SecureRandom`)
-  - `[17..N]` — ciphertext (same length as plaintext)
-  - `[N+1..N+32]` — HMAC-SHA256 authentication tag (covers version+nonce+ciphertext)
+    - `[0]` — version byte (0x81, for future algorithm upgrade detection)
+    - `[1..16]` — random nonce (generated by `SecureRandom`)
+    - `[17..N]` — ciphertext (same length as plaintext)
+    - `[N+1..N+32]` — HMAC-SHA256 authentication tag (covers version+nonce+ciphertext)
 - **CTR mode implementation** (`hmacCtrEncrypt`):
-  - Process plaintext in 32-byte blocks
-  - For each block i, compute `HMAC(encryptionKey, nonce || counter_bytes)` → 32-byte keystream block
-  - XOR byte-by-byte to mix with plaintext
-- **Integrity check during decryption**: Recompute the tag first, compare against stored tag with `MessageDigest.isEqual()`, throw `SecurityException` on mismatch
+    - Process plaintext in 32-byte blocks
+    - For each block i, compute `HMAC(encryptionKey, nonce || counter_bytes)` → 32-byte keystream block
+    - XOR byte-by-byte to mix with plaintext
+- **Integrity check during decryption**: Recompute the tag first, compare against stored tag with
+  `MessageDigest.isEqual()`, throw `SecurityException` on mismatch
 - **Version byte check**: If `token[0] != 0x81`, reject decryption
 
 This ensures:
+
 1. Context files cannot be tampered with offline (HMAC tag verification)
 2. Context content cannot be read offline (XOR encryption stream)
 3. Algorithm can be upgraded (version byte)
@@ -663,35 +668,32 @@ This ensures:
 ```mermaid
 flowchart TB
     START["discoverModels(timeoutSeconds=1.5)"] --> PARALLEL[Parallel probing of 4 ports]
-
     PARALLEL --> P1[Ollama<br/>port 11434<br/>GET /api/tags<br/>provider: ollama]
     PARALLEL --> P2[LM Studio<br/>port 1234<br/>GET /v1/models<br/>provider: openai]
     PARALLEL --> P3[vLLM<br/>port 8000<br/>GET /v1/models<br/>provider: openai]
     PARALLEL --> P4[LocalAI<br/>port 8080<br/>GET /v1/models<br/>provider: openai]
-
     P1 --> R1["GET with 1.5s timeout<br/>retry up to 2x<br/>exponential backoff: 5s, 10s"]
     P2 --> R1
     P3 --> R1
     P4 --> R1
-
     R1 --> PARSE["Parse responses:<br/>Ollama: models[]<br/>OpenAI: data[].id"]
     PARSE --> RESULT["List<ModelEntry><br/>each: {modelName, providerType, serverUrl, serverName}"]
-
     RESULT --> RESOLVE["resolveModel(modelName, availableModels)<br/>exact name match"]
-
-    style P1 fill:#c1daf4
-    style P2 fill:#c1f4c1
-    style P3 fill:#f4e1c1
-    style P4 fill:#f4c1c1
+    style P1 fill: #c1daf4
+    style P2 fill: #c1f4c1
+    style P3 fill: #f4e1c1
+    style P4 fill: #f4c1c1
 ```
 
 ### 2.10 HTTP Server Layer
 
 #### App.kt + Main.kt
 
-- `createServerInstance(config)`: Call `embeddedServer(Netty, host, port) { module(config) }` to create a Ktor application
+- `createServerInstance(config)`: Call `embeddedServer(Netty, host, port) { module(config) }` to create a Ktor
+  application
 - `Application.module(config)`: Call `registerAllRoutes()`
-- `main(args)`: Parse CLI arguments, optionally call `findAvailablePort()` to probe available ports when `--auto-port` is specified
+- `main(args)`: Parse CLI arguments, optionally call `findAvailablePort()` to probe available ports when `--auto-port`
+  is specified
 - Add JVM shutdown hook to call `server.stop(grace = 3000)`
 
 #### Routes.kt
@@ -704,24 +706,19 @@ flowchart TD
     R --> GH[GET /health]
     R --> GM[GET /models]
     R --> GS[GET /skills]
-
     POST --> P1["Deserialize EventsRequestBody<br/>{message, model?, config?}"]
     P1 --> P2["Build AgentConfiguration from config:<br/>baseUrl, model, provider, think<br/>temperature, topP, numCtx, numPredict, timeout"]
     P2 --> P3["Create MutableSharedFlow<String><br/>(extraBufferCapacity=128)"]
     P3 --> P4["launch(Dispatchers.IO):<br/>Agent(agentConfig, emitEvent)<br/>→ executeTask(message)<br/>NDJSON formatting + emit to channel"]
     P4 --> P5["Stream response:<br/>Content-Type: application/x-ndjson<br/>respondWrite<br/>collect from channel<br/>termination sentinel: '\\n'"]
-
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
-
     GM --> M1["Call discoverModels()"]
     M1 --> M2["Return JSON<br/>{models: [{name, provider, server}]}"]
-
     GS --> S1["Return JSON<br/>{skills: [{name, description, alias}]}"]
-
-    style POST fill:#d4f1d4
-    style GH fill:#c1daf4
-    style GM fill:#f4e1c1
-    style GS fill:#c1f4c1
+    style POST fill: #d4f1d4
+    style GH fill: #c1daf4
+    style GM fill: #f4e1c1
+    style GS fill: #c1f4c1
 ```
 
 ---
@@ -735,19 +732,14 @@ When editing a file, two different execution paths are taken based on the `mode`
 ```mermaid
 stateDiagram-v2
     [*] --> ValidateArgs: EditFileSkill.execute
-
     ValidateArgs --> PathEmpty: path is empty
     ValidateArgs --> EditsEmpty: edits is empty
     ValidateArgs --> ReadOriginal: valid arguments
-
     PathEmpty --> Failure: return INVALID_PARAMETER
     EditsEmpty --> Failure: return INVALID_PARAMETER
-
     ReadOriginal --> FileNotFound: file does not exist
     FileNotFound --> Failure: return FILE_NOT_FOUND
-
     ReadOriginal --> ModeCheck: content loaded
-
     ModeCheck --> SequentialMode: mode sequential default
     ModeCheck --> AtomicMode: mode atomic
 
@@ -777,20 +769,17 @@ stateDiagram-v2
 
     SequentialMode --> EmptyCheckSequential: after loop
     AtomicMode --> EmptyCheckAtomic: after loop
-
     EmptyCheckSequential --> EmptySequential: result is empty
     EmptyCheckSequential --> WriteSequential: result has content
     EmptySequential --> RestoreSequential: restore original
     RestoreSequential --> FailureEmptySeq: return EMPTY_RESULT
     WriteSequential --> SuccessSeq: write content
     SuccessSeq --> SUCCESS: return Success
-
     EmptyCheckAtomic --> EmptyAtomic: result is empty
     EmptyCheckAtomic --> WriteAtomic: result has content
     EmptyAtomic --> RestoreAtomic: restore original
     RestoreAtomic --> FailureEmptyAt: return EMPTY_RESULT
     WriteAtomic --> SUCCESS: return Success
-
     Failure --> [*]
     FailureEmptySeq --> [*]
     FailureEmptyAt --> [*]
@@ -798,7 +787,9 @@ stateDiagram-v2
 ```
 
 **Key implementation details**:
-- `countOccurrences(substring)`: Kotlin top-level function, exact substring count match (no regex usage, avoids special character interpretation)
+
+- `countOccurrences(substring)`: Kotlin top-level function, exact substring count match (no regex usage, avoids special
+  character interpretation)
 - `buildPartialFailureMessage`: In sequential mode, reports the number of successfully applied edits on failure
 - Result fields: `{path, editsApplied, totalEdits}`
 - Error codes: `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, INVALID_PARAMETER, IO_ERROR`
@@ -812,28 +803,22 @@ flowchart TD
     START["classifyCommand(commandText)"] --> EMPTY{commandText empty?}
     EMPTY -->|Yes| SAFE["return CommandVerdict.Safe"]
     EMPTY -->|No| TOKENIZE["split by whitespace into tokens<br/>tokens[0] = executableName<br/>(strip path prefix)"]
-
     TOKENIZE --> BLOCKED{executableName in BLOCKED_EXECUTABLES?}
     BLOCKED -->|Yes| BL["return Blocked<br/>rule: executable:$executableName<br/>message: '$executableName is not allowed'"]
-
     BLOCKED -->|No| SWITCH[branch by executable]
-
-    SWITCH -->|"dd"| DD["classifyDeviceWrite(tokens)<br/>scan for 'of=/dev/...' pattern<br/>if found → Blocked('dd:deviceOutput')"]
-
-    SWITCH -->|"rm"| RM["classifyRemoveOperation(tokens)<br/>extract pathArgs (non-flag tokens)<br/>for each pathArg → isCriticalPath(path)"]
+    SWITCH -->|" dd "| DD["classifyDeviceWrite(tokens)<br/>scan for 'of=/dev/...' pattern<br/>if found → Blocked('dd:deviceOutput')"]
+    SWITCH -->|" rm "| RM["classifyRemoveOperation(tokens)<br/>extract pathArgs (non-flag tokens)<br/>for each pathArg → isCriticalPath(path)"]
     RM --> RM_CRIT{critical?}
     RM_CRIT -->|Yes| RM_BLK["Blocked('rm:criticalPath')"]
     RM_CRIT -->|No| SAFE_RM[Safe]
-
-    SWITCH -->|"chmod"| CHMOD["classifyChmodOperation(tokens)<br/>check tokens in {'-R', '--recursive'}"]
+    SWITCH -->|" chmod "| CHMOD["classifyChmodOperation(tokens)<br/>check tokens in {'-R', '--recursive'}"]
     CHMOD --> CHMOD_R{recursive?}
     CHMOD_R -->|No| SAFE_CHMOD[Safe]
     CHMOD_R -->|Yes| CHMOD_PATH["for each pathArg → isCriticalPath(path)"]
     CHMOD_PATH --> CHMOD_CRIT{critical?}
     CHMOD_CRIT -->|Yes| CHMOD_BLK["Blocked('chmod:criticalPathRecursive')"]
     CHMOD_CRIT -->|No| SAFE_CHMOD2[Safe]
-
-    SWITCH -->|"other executables"| SAFE_OTHER[Safe]
+    SWITCH -->|" other executables "| SAFE_OTHER[Safe]
 
     subgraph CRITICAL["isCriticalPath(path)"]
         RESOLVE["resolveAbsolutePath(path)<br/>normalize path"]
@@ -848,10 +833,10 @@ flowchart TD
         EXACT -->|No| NOT_CRIT
     end
 
-    style BLOCKED fill:#f4c1c1
-    style CRIT fill:#f4c1c1
-    style NOT_CRIT fill:#d4f1d4
-    style CRITICAL fill:#fff4c1
+    style BLOCKED fill: #f4c1c1
+    style CRIT fill: #f4c1c1
+    style NOT_CRIT fill: #d4f1d4
+    style CRITICAL fill: #fff4c1
 ```
 
 **BLOCKED_EXECUTABLES set**:
@@ -867,6 +852,7 @@ flowchart TD
 `/ , /dev, /proc, /sys`
 
 **Call location** (strict single-point control):
+
 ```kotlin
 // RunCommandSkill.execute():
 @OptIn(DangerousOperation::class)
@@ -885,11 +871,15 @@ override fun execute(arguments: Map<String, Any>): SkillResult {
 ```
 
 **Limitations**:
-- Only checks the command's static structure, does not simulate execution. For example `rm $(cat foo)` can only intercept `rm` itself.
-- Does not perform alias expansion (shell aliases are determined by the runtime shell and cannot be statically predicted).
+
+- Only checks the command's static structure, does not simulate execution. For example `rm $(cat foo)` can only
+  intercept `rm` itself.
+- Does not perform alias expansion (shell aliases are determined by the runtime shell and cannot be statically
+  predicted).
 - Does not perform environment variable expansion.
 - Relies on the user providing the correct shell invocation path.
-- Does not intercept dangerous operations inside high-level languages like Python/Node (but these typically don't go through `run_cmd`).
+- Does not intercept dangerous operations inside high-level languages like Python/Node (but these typically don't go
+  through `run_cmd`).
 
 ### 3.3 RunCommandSkill: Blocking vs Detached Process Execution
 
@@ -901,8 +891,7 @@ flowchart TD
     PRECHECK --> BLOCKED{Blocked?}
     BLOCKED -->|Yes| RETURN_BLOCKED["return Failure(COMMAND_BLOCKED)"]
     BLOCKED -->|No| MODE{detached?}
-
-    MODE -->|No | BLOCKING["Blocking Mode (default)"]
+    MODE -->|No| BLOCKING["Blocking Mode (default)"]
     BLOCKING --> PB1["ProcessBuilder('sh', '-c', commandText)"]
     PB1 --> WAIT["process.waitFor(45, SECONDS)"]
     WAIT --> STDOUT["readStreamOutput(inputStream) → stdout"]
@@ -910,19 +899,18 @@ flowchart TD
     STDERR --> TIMEOUT{timed out?}
     TIMEOUT -->|Yes| KILL["process.destroyForcibly()<br/>return TIMEOUT error"]
     TIMEOUT -->|No| RETURN_BLOCK["return Success<br/>{command, exitCode, standardOutput, standardError, timedOut}"]
-
     MODE -->|Yes| DETACHED["Detached Mode (background)"]
     DETACHED --> PB2["ProcessBuilder('sh', '-c', commandText)"]
     PB2 --> LOG["redirectOutput to logFile<br/>output/run_cmd/{timestamp}.log"]
     LOG --> MERGE["redirectErrorStream(true)<br/>(merge stderr into stdout log)"]
     MERGE --> START2["process.start()"]
     START2 --> RETURN_DETACH["immediately return Success<br/>{command, detached, processId, logPath, message}<br/>(process continues in background)"]
-
-    style BLOCKING fill:#c1daf4
-    style DETACHED fill:#f4e1c1
+    style BLOCKING fill: #c1daf4
+    style DETACHED fill: #f4e1c1
 ```
 
 **Scenarios for choosing Detached**:
+
 - GUI applications (e.g. launching an IDE)
 - Long-running servers (e.g. a dev server)
 - Any operation that doesn't need to wait for stdout to finish
@@ -944,12 +932,11 @@ flowchart TD
     TRANSIENT -->|Yes| BACKOFF["delay(5000 * 2^attempt ms)<br/>exponential backoff"]
     BACKOFF --> LOOP
     TRANSIENT -->|No| EMIT_ERR["emit ErrorMessage and return"]
-    EXCEPTION -->|non-transient| EMIT_ERR
-
-    style LOOP fill:#f4e1c1
-    style BACKOFF fill:#c1daf4
-    style DONE fill:#d4f1d4
-    style EMIT_ERR fill:#f4c1c1
+    EXCEPTION -->|non - transient| EMIT_ERR
+    style LOOP fill: #f4e1c1
+    style BACKOFF fill: #c1daf4
+    style DONE fill: #d4f1d4
+    style EMIT_ERR fill: #f4c1c1
 ```
 
 #### Ollama Client Protocol
@@ -960,11 +947,10 @@ flowchart LR
     REQ --> STREAM["Stream response: NDJSON lines<br/>Each line: {message: {content, tool_calls[], thinking?},<br/>prompt_eval_count?, eval_count?, error?}"]
     STREAM --> PARSE["Map to:<br/>TextContent → accumulate<br/>ReasoningContent → emit thinking event<br/>ToolCallBatch → save tool calls<br/>ErrorMessage → emit error"]
     PARSE --> TOKENS["Extract token usage from<br/>prompt_eval_count + eval_count"]
-
-    style REQ fill:#c1daf4
-    style STREAM fill:#f4e1c1
-    style PARSE fill:#d4f1d4
-    style TOKENS fill:#f4d4c1
+    style REQ fill: #c1daf4
+    style STREAM fill: #f4e1c1
+    style PARSE fill: #d4f1d4
+    style TOKENS fill: #f4d4c1
 ```
 
 #### OpenAI-Compatible Client Protocol
@@ -973,9 +959,7 @@ flowchart LR
 flowchart TD
     REQ["POST {baseUrl}/v1/chat/completions<br/>Body: {model, messages, stream=true, temperature,<br/>top_p, max_tokens, tools}"]
     REQ --> SSE["SSE stream: data: {...} lines<br/>Each chunk: {choices: [{delta:<br/>{content?, tool_calls? [...]}, finish_reason?}],<br/>usage?: {prompt_tokens, completion_tokens}}"]
-
     SSE --> ACCUM["ToolCall Accumulation Engine"]
-
     ACCUM --> SUB1["delta.tool_calls[i] contains:<br/>{index, id?, function?: {name?, arguments?}}"]
     SUB1 --> SUB2["arguments is an INCREMENTAL STRING fragment<br/>(NOT JSON - requires string concatenation)"]
     SUB2 --> SUB3["id and name may be scattered across multiple chunks"]
@@ -993,19 +977,15 @@ Defined in `TodoSkill.kt`:
 ```mermaid
 stateDiagram-v2
     [*] --> Uninitialized: sharedTodoManager instance
-
     Uninitialized --> Initialized: initializeTasks(tasks)
     Initialized --> ErrorInit: already initialized
     ErrorInit --> [*]
-
     Initialized --> Task0Active: currentTaskIndex = 0
     Task0Active --> Task1Active: completeCurrentTask()<br/>index++
     Task1Active --> Task2Active: completeCurrentTask()<br/>index++
     Task2Active --> TaskNActive: ...
-
     TaskNActive --> AllCompleted: completeCurrentTask()
     AllCompleted --> Done: getTaskReminder returns null
-
     Task0Active --> Reminder0: getTaskReminder
     Task1Active --> Reminder1: getTaskReminder
     TaskNActive --> ReminderN: getTaskReminder
@@ -1015,11 +995,15 @@ stateDiagram-v2
 ```
 
 **State operations**:
+
 - `initializeTasks(tasks)` → Success `{totalTasks, currentTask, currentIndex}`
-- `completeCurrentTask()` → index++. If index >= size → `{completed: true, totalTasks, message}`, else → `{completed: false, totalTasks, currentTask, currentIndex}`
+- `completeCurrentTask()` → index++. If index >= size → `{completed: true, totalTasks, message}`, else →
+  `{completed: false, totalTasks, currentTask, currentIndex}`
 - `getTaskReminder()` → `"Reminder: You still have N tasks unfinished...current task..."` or `null` when all done
 
-The Agent calls `getTodoManagerInstance().getTaskReminder()` after **every tool call** in `executeTask()`, and if not null, appends it to the tail of the tool result message. This ensures that the model does not "forget" the original task plan during long task flows.
+The Agent calls `getTodoManagerInstance().getTaskReminder()` after **every tool call** in `executeTask()`, and if not
+null, appends it to the tail of the tool result message. This ensures that the model does not "forget" the original task
+plan during long task flows.
 
 ---
 
@@ -1090,6 +1074,7 @@ classDiagram
 ```
 
 **Skill abstract class** (`skill/Skill.kt`):
+
 ```kotlin
 abstract class Skill {
     abstract val skillName: String          // "read_file"
@@ -1113,16 +1098,20 @@ abstract class Skill {
 }
 ```
 
-`prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into `conversationHistory`. The default returns the result unchanged.
+`prepareHistoryResult` is a hook that transforms a skill's execution result before it is saved into
+`conversationHistory`. The default returns the result unchanged.
 
-### 4.1a 自适应裁剪技术 (Adaptive Pruning)
+### 4.1a Adaptive Pruning
 
-This is a context-preservation strategy that keeps **only the N most recent** executions of a skill fully intact in conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two properties on `Skill`:
+This is a context-preservation strategy that keeps **only the N most recent** executions of a skill fully intact in
+conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two
+properties on `Skill`:
 
 - `historyKeepCount: Int` — how many recent results retain full data (default `Int.MAX_VALUE`, meaning no pruning)
 - `historyVolatileKeys: List<String>` — which keys to remove from results that exceed the keep count
 
-When `execute()` is called, `prepareHistoryResult()` increments an internal call counter. Results whose call index ≤ `historyKeepCount` are returned as-is; older ones have every key in `historyVolatileKeys` filtered out:
+When `execute()` is called, `prepareHistoryResult()` increments an internal call counter. Results whose call index ≤
+`historyKeepCount` are returned as-is; older ones have every key in `historyVolatileKeys` filtered out:
 
 ```kotlin
 override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
@@ -1133,19 +1122,24 @@ override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
 }
 ```
 
-**Design intent:** Large payloads (file contents, command output, search results) are needed for the model to reason about the *current* step, but quickly become irrelevant as the session progresses. Stripping them from old history saves LLM context window without losing the structural metadata (path, exit code, match count, etc.).
+**Design intent:** Large payloads (file contents, command output, search results) are needed for the model to reason
+about the *current* step, but quickly become irrelevant as the session progresses. Stripping them from old history saves
+LLM context window without losing the structural metadata (path, exit code, match count, etc.).
 
 **Current application:**
 
-| Skill              | historyKeepCount | Volatile keys stripped                          | Rationale                                                                     |
-|--------------------|------------------|-------------------------------------------------|-------------------------------------------------------------------------------|
-| `ReadFileSkill`    | 2                | `content`                                       | File content is large (hundreds of lines); only the last 2 reads are relevant |
-| `RunCommandSkill`  | 2                | `standardOutput`, `standardError`               | Command output may be very large; old results are rarely referenced           |
-| `SearchSkill`      | 2                | `hint`, `summary`                              | Only useful for current search iteration; older searches keep results/metadata |
+| Skill             | historyKeepCount | Volatile keys stripped            | Rationale                                                                      |
+|-------------------|------------------|-----------------------------------|--------------------------------------------------------------------------------|
+| `ReadFileSkill`   | 2                | `content`                         | File content is large (hundreds of lines); only the last 2 reads are relevant  |
+| `RunCommandSkill` | 2                | `standardOutput`, `standardError` | Command output may be very large; old results are rarely referenced            |
+| `SearchSkill`     | 2                | `hint`, `summary`                 | Only useful for current search iteration; older searches keep results/metadata |
 
-The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called automatically in `Agent.kt` after `skill.execute()` returns.
+The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is
+trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called
+automatically in `Agent.kt` after `skill.execute()` returns.
 
 **SkillResult sealed class** (`SkillResult.kt`):
+
 ```kotlin
 sealed class SkillResult {
     data class Success(val data: Map<String, Any>) : SkillResult()
@@ -1158,7 +1152,8 @@ sealed class SkillResult {
 ```
 
 Factory functions:
-```kotlin
+
+```
 makeSuccess(data: Map<String, Any>): SkillResult
 makeFailure(code: String, message: String, context: Map<String, Any> = emptyMap()): SkillResult
 ```
@@ -1180,7 +1175,6 @@ flowchart TB
     SCAN --> R6["registerSkill(TodoSkill())"]
     SCAN --> R7["registerSkill(CompletePlanSkill())"]
     SCAN --> R8["registerSkill(ExternalPluginSkill())<br/>(from plugin JARs)"]
-
     R1 --> REG["registeredSkills map<br/>{skillName -> Skill instance}"]
     R2 --> REG
     R3 --> REG
@@ -1189,13 +1183,13 @@ flowchart TB
     R6 --> REG
     R7 --> REG
     R8 --> REG
-
     REG --> LOOKUP["getSkill(name) → returns matching Skill or null"]
     REG --> ALL["getAllSkills() → all registered Skills"]
     REG --> SCH["getSchemas() → aggregated function schemas"]
 ```
 
 **Service Descriptor File**: `META-INF/services/gradum.skill.Skill`
+
 ```
 gradum.skill.ReadFileSkill
 gradum.skill.EditFileSkill
@@ -1207,6 +1201,7 @@ gradum.skill.CompletePlanSkill
 ```
 
 **Adding External Plugins**:
+
 1. Create a class implementing `Skill` with a no-argument constructor
 2. Add the fully qualified class name to `META-INF/services/gradum.skill.Skill` in your JAR
 3. Place the JAR on the classpath
@@ -1237,29 +1232,23 @@ flowchart LR
     ALL --> G3[Command execution]
     ALL --> G4[Task management]
     ALL --> G5[Generic]
-
     G1 --> F1["FILE_NOT_FOUND<br/>ReadFile, EditFile: path doesn't exist"]
     G1 --> F2["FILE_TOO_LARGE<br/>ReadFile: exceeds 1MB or 10000 lines"]
-
     G2 --> F3["CODE_NOT_FOUND<br/>EditFile: search string matches 0 times"]
     G2 --> F4["MULTIPLE_MATCHES<br/>EditFile: search string matches more than 1 times"]
     G2 --> F5["EMPTY_RESULT<br/>EditFile: file would be empty after edit"]
-
     G3 --> F6["COMMAND_BLOCKED<br/>RunCommand: blocked by safety filter"]
     G3 --> F7["TIMEOUT<br/>RunCommand, Search: exceeded time limit"]
-
     G4 --> F8["ALREADY_INITIALIZED<br/>TodoSkill: attempt to reinitialize"]
     G4 --> F9["NOT_INITIALIZED<br/>CompletePlanSkill: called before init"]
     G4 --> F10["ALL_COMPLETED<br/>CompletePlanSkill: all tasks already done"]
-
     G5 --> F11["INVALID_PARAMETER<br/>All skills: missing or malformed args"]
     G5 --> F12["IO_ERROR<br/>All skills: filesystem or process exception"]
-
-    style G1 fill:#c1daf4
-    style G2 fill:#f4e1c1
-    style G3 fill:#f4c1c1
-    style G4 fill:#c1f4c1
-    style G5 fill:#d4d4d4
+    style G1 fill: #c1daf4
+    style G2 fill: #f4e1c1
+    style G3 fill: #f4c1c1
+    style G4 fill: #c1f4c1
+    style G5 fill: #d4d4d4
 ```
 
 ### 5.2 LLM Client Error Handling
@@ -1270,23 +1259,22 @@ flowchart TD
     TIMEOUT["Request timeout"]
     NON2XX["HTTP non-2xx response"]
     PARSE["SSE parse failure (OpenAI)"]
-
     NET --> EMIT["emit ErrorMessage<br/>(with context hint)"]
     TIMEOUT --> EMIT
     NON2XX --> EMIT
     PARSE --> STREAM_END["treated as end of stream<br/>no separate error emission"]
     EMIT --> RETRY["retry up to 2 times<br/>exponential backoff"]
     RETRY --> GIVE_UP["after 2 failed retries → give up<br/>return accumulated content"]
-
-    style NET fill:#f4c1c1
-    style TIMEOUT fill:#f4c1c1
-    style NON2XX fill:#f4c1c1
-    style STREAM_END fill:#c1daf4
+    style NET fill: #f4c1c1
+    style TIMEOUT fill: #f4c1c1
+    style NON2XX fill: #f4c1c1
+    style STREAM_END fill: #c1daf4
 ```
 
 ### 5.3 Guardrail System
 
-The Guardrail System protects against anomalous model behavior by monitoring the LLM's text output across turns. It consists of two independent detectors that share a common termination pathway via `mission_revoked`.
+The Guardrail System protects against anomalous model behavior by monitoring the LLM's text output across turns. It
+consists of two independent detectors that share a common termination pathway via `mission_revoked`.
 
 ```mermaid
 flowchart TB
@@ -1312,18 +1300,17 @@ flowchart TB
 
     RL5 --> ABORT["abortSession()<br/>emit session_end (aborted)<br/>NO context save"]
     RT6 --> ABORT
-
     SKIP_RL --> CONTINUE["Continue processing tool calls"]
     SKIP_RP --> CONTINUE
-
-    style RED_LINE fill:#f4c1c1
-    style REPEAT fill:#f4e1c1
-    style ABORT fill:#f4c1c1
+    style RED_LINE fill: #f4c1c1
+    style REPEAT fill: #f4e1c1
+    style ABORT fill: #f4c1c1
 ```
 
 #### Red Line Keywords File
 
-Red line keywords are **not** part of `AgentConfiguration`. Instead they are loaded from `src/main/resources/red_line_keywords.txt` at runtime:
+Red line keywords are **not** part of `AgentConfiguration`. Instead, they are loaded from
+`src/main/resources/red_line_keywords.txt` at runtime:
 
 ```
 # One keyword per line. Lines starting with # are ignored.
@@ -1339,18 +1326,18 @@ some-sensitive-phrase
 
 #### Configuration (`AgentConfiguration.kt`)
 
-| Field                  | Type  | Default | Description                                    |
-|------------------------|-------|---------|------------------------------------------------|
-| `maxRedLineHits`       | `Int` | `3`     | Number of red line hits before revocation      |
+| Field                  | Type  | Default | Description                                      |
+|------------------------|-------|---------|--------------------------------------------------|
+| `maxRedLineHits`       | `Int` | `3`     | Number of red line hits before revocation        |
 | `maxRepeatedResponses` | `Int` | `3`     | Number of repetitive responses before revocation |
 
 #### Revocation Reasons
 
-| Reason                 | Trigger                                                   | Response                              |
-|------------------------|-----------------------------------------------------------|---------------------------------------|
-| `red_line_violation`   | Model output contains configured red line keywords ≥ N times | Mission revoked, conversation erased  |
-| `repetitive_loop`      | Model repeats the same output ≥ N times                   | Mission revoked, conversation erased  |
-| `tool_runaway`         | Reserved for future use (tool call loop detection)        | Mission revoked, conversation erased  |
+| Reason               | Trigger                                                      | Response                             |
+|----------------------|--------------------------------------------------------------|--------------------------------------|
+| `red_line_violation` | Model output contains configured red line keywords ≥ N times | Mission revoked, conversation erased |
+| `repetitive_loop`    | Model repeats the same output ≥ N times                      | Mission revoked, conversation erased |
+| `tool_runaway`       | Reserved for future use (tool call loop detection)           | Mission revoked, conversation erased |
 
 #### `mission_revoked` Event Contract
 
@@ -1452,30 +1439,33 @@ gantt
     dateFormat YYYY
     axisFormat %Y
     section Single User
-    Single user mode               :done, 2025-01-01, 1d
-    Multi-tenant isolation         :active, 2025-01-01, 1d
+        Single user mode: done, 2026-01-01, 1d
+        Multi-tenant isolation: active, 2026-01-01, 1d
     section Execution
-    No sandboxed execution         :active, 2025-01-01, 1d
+        No sandboxed execution: active, 2026-01-01, 1d
     section Input
-    Text-only input                :active, 2025-01-01, 1d
-    Image/voice/multimodal         :active, 2025-01-01, 1d
+        Text-only input: active, 2026-01-01, 1d
+        Image/voice/multimodal: active, 2026-01-01, 1d
     section Skill loading
-    Hardcoded registration         :done, 2025-01-01, 1d
-    Dynamic plugin loading         :active, 2025-01-01, 1d
+        Hardcoded registration: done, 2026-01-01, 1d
+        Dynamic plugin loading: active, 2026-01-01, 1d
     section Context
-    Encrypted user/assistant only  :done, 2025-01-01, 1d
-    Cross-device sync              :active, 2025-01-01, 1d
+        Encrypted user/assistant only: done, 2026-01-01, 1d
+        Cross-device sync: active, 2026-01-01, 1d
     section Search
-    Basic string/regex search      :done, 2025-01-01, 1d
-    Semantic search                :active, 2025-01-01, 1d
+        Basic string/regex search: done, 2026-01-01, 1d
+        Semantic search: active, 2026-01-01, 1d
 ```
 
 **Summary of current constraints**:
+
 - Single-user, single-session, no multi-tenant
 - No sandboxed execution environment
 - Text-only input (no images, audio)
-- Skill registry uses hardcoded registration, no dynamic plugin loading supported (but adding a skill only requires adding a new `FooSkill.kt` + one-line registration in `discoverSkills()`)
-- Session context persistence only encrypts user/assistant messages, tool messages are not encrypted (for audit convenience)
+- Skill registry uses hardcoded registration, no dynamic plugin loading supported (but adding a skill only requires
+  adding a new `FooSkill.kt` + one-line registration in `discoverSkills()`)
+- Session context persistence only encrypts user/assistant messages, tool messages are not encrypted (for audit
+  convenience)
 - ContextManager does not support multi-device synchronization
 - Search skill only supports basic string/regex matching, no semantic search
 
@@ -1552,23 +1542,23 @@ flowchart TB
 
 ## 8. Glossary
 
-| Term                     | Definition                                                                                                                         |
-|--------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                 |
-| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                              |
-| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                            |
-| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                   |
-| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                           |
-| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary) |
-| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                           |
-| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                 |
-| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                        |
-| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                              |
-| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                         |
-| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                        |
-| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)    |
-| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                          |
-| **Red Line Keywords**    | Configurable list of forbidden substrings (`AgentConfiguration.redLineKeywords`); when detected in model output, triggers session revocation |
-| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session |
-| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                      |
-| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                    |
+| Term                     | Definition                                                                                                                                |
+|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                        |
+| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                     |
+| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                   |
+| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                          |
+| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                  |
+| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary)        |
+| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                                  |
+| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                        |
+| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                               |
+| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                                     |
+| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                                |
+| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                               |
+| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)           |
+| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                 |
+| **Red Line Keywords**    | Configurable list of forbidden substrings loaded from `red_line_keywords.txt`; when detected in model output, triggers session revocation |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session        |
+| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                              |
+| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                           |

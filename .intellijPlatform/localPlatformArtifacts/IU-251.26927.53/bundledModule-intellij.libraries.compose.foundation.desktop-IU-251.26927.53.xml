@@ -1,0 +1,10 @@
+<ivy-module version="2.0">
+  <info organisation="bundledModule" module="intellij.libraries.compose.foundation.desktop" revision="IU-251.26927.53" />
+  <configurations>
+    <conf name="default" visibility="public" />
+  </configurations>
+  <publications>
+    <artifact name="intellij.libraries.compose.foundation.desktop" ext="jar" conf="default" url="lib/modules" />
+  </publications>
+  <dependencies />
+</ivy-module>

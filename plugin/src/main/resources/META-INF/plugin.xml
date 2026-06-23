@@ -1,0 +1,27 @@
+<!--
+  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ plugin.xml  2026-06-23 16:09:00 Changed by gwy
+  -->
+
+<idea-plugin>
+    <id>com.gradum.idea</id>
+    <name>Gradum</name>
+    <vendor>Gradum Team</vendor>
+
+    <description><![CDATA[
+        Local-first AI code assistant for IntelliJ IDEA.
+        Supports Ollama and any OpenAI-compatible inference server.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+                id="Gradum"
+                icon="AllIcons.Actions.Lightning"
+                anchor="right"
+                factoryClass="gradum.idea.GradumToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
