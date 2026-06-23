@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorCode.java  2026-06-22 20:11:15 Changed by gwy
+ * ErrorCode.java  2026-06-23 08:31:39 Changed by gwy
  */
 
 package gradum;
@@ -20,11 +20,16 @@ public enum ErrorCode {
     NOT_INITIALIZED("NOT_INITIALIZED"),
     ALL_COMPLETED("ALL_COMPLETED"),
     FILE_TOO_LARGE("FILE_TOO_LARGE"),
-    CLIENT_ERROR("CLIENT_ERROR");
+    CLIENT_ERROR("CLIENT_ERROR"),
+    PERMISSION_DENIED("PERMISSION_DENIED");
 
     private final String code;
 
-    ErrorCode(String code) { this.code = code; }
+    ErrorCode(String code) {
+        this.code = code;
+    }
 
-    public String getCode() { return code; }
+    public String getCode() {
+        return code;
+    }
 }

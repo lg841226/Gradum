@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-06-21 07:53:44 Changed by gwy
+ * SaveFileSkill.kt  2026-06-23 08:42:51 Changed by gwy
  */
 
 package gradum.skill
@@ -11,13 +11,43 @@ import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import io.ktor.utils.io.charsets.Charset
-import io.ktor.utils.io.charsets.Charsets
-import io.ktor.utils.io.charsets.forName
+import io.ktor.utils.io.charsets.*
 import java.io.File
 import java.nio.file.Path
 
 private const val MAXIMUM_CONTENT_SIZE: Int = 512 * 1024
+
+private val blockedPathPrefixes: List<String> = listOf(
+    "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
+    "/lib", "/lib64", "/opt",
+    "/System", "/Library", "/Applications", "/private"
+)
+
+private val blockedHomeSubdirectories: List<String> = listOf(
+    ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
+    ".pypirc", ".npmrc", ".docker",
+)
+
+private val exactBlockedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
+
+private fun isBlockedPaths(path: Path): Boolean {
+    val absolutePath = path.toAbsolutePath().normalize()
+    val pathString = absolutePath.toString()
+
+    if (pathString in exactBlockedPaths) return true
+
+    for (prefix in blockedPathPrefixes) {
+        if (pathString.startsWith(prefix)) return true
+    }
+
+    val homeDirectory: String = System.getProperty("user.home") ?: return false
+    for (subdir in blockedHomeSubdirectories) {
+        val protectedPath = "$homeDirectory/$subdir"
+        if (pathString.startsWith(protectedPath)) return true
+    }
+
+    return false
+}
 
 /**
  * Writes content to a file, creating parent directories as needed.
@@ -35,9 +65,9 @@ class SaveFileSkill : Skill() {
     override val skillName: String = "save_file"
     override val alias: String = "Saved"
     override val description: String = "Write content to a file. " +
-        "mode='overwrite' (default) replaces the entire file; mode='append' adds to the end. " +
-        "Creates parent directories automatically. " +
-        "Use edit_file for partial changes instead of overwriting the whole file."
+            "mode='overwrite' (default) replaces the entire file; mode='append' adds to the end. " +
+            "Creates parent directories automatically. " +
+            "Use edit_file for partial changes instead of overwriting the whole file."
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")
@@ -76,7 +106,16 @@ class SaveFileSkill : Skill() {
                         "encoding" to mapOf(
                             "type" to "string",
                             "description" to "Character encoding for the file. Defaults to 'UTF-8'.",
-                            "enum" to listOf("UTF-8", "UTF-16", "UTF-16LE", "UTF-16BE", "ISO-8859-1", "GBK", "GB2312", "US-ASCII")
+                            "enum" to listOf(
+                                "UTF-8",
+                                "UTF-16",
+                                "UTF-16LE",
+                                "UTF-16BE",
+                                "ISO-8859-1",
+                                "GBK",
+                                "GB2312",
+                                "US-ASCII"
+                            )
                         )
                     ),
                     "required" to listOf("path", "content")
@@ -111,12 +150,16 @@ class SaveFileSkill : Skill() {
         }
 
         if (fileContent.isBlank() && writeMode == "overwrite")
-            return makeFailure(ErrorCode.EMPTY_RESULT, "Content is blank. Use append mode or provide non-empty content.")
+            return makeFailure(
+                ErrorCode.EMPTY_RESULT,
+                "Content is blank. Use append mode or provide non-empty content."
+            )
 
         val contentBytes: ByteArray = fileContent.toByteArray(charset)
         if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
             return makeFailure(
-                ErrorCode.FILE_TOO_LARGE, "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+                ErrorCode.FILE_TOO_LARGE,
+                "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
             )
 
         val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -125,6 +168,13 @@ class SaveFileSkill : Skill() {
         val previousSize: Long = if (writeMode == "append" && !wasCreated) targetFile.length() else 0L
 
         return try {
+
+            if (isBlockedPaths(resolvedPath))
+                return makeFailure(
+                    ErrorCode.PERMISSION_DENIED,
+                    "Writing to '${resolvedPath}' is not allowed for security reasons."
+                )
+
             targetFile.parentFile?.mkdirs()
 
             if (writeMode == "append")
@@ -153,7 +203,11 @@ class SaveFileSkill : Skill() {
                 },
             )
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to write file", mapOf("path" to resolvedPath.toString()))
+            makeFailure(
+                ErrorCode.IO_ERROR,
+                exception.message ?: "Failed to write file",
+                mapOf("path" to resolvedPath.toString())
+            )
         }
     }
 }
