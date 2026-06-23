@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-06-21 07:53:44 Changed by gwy
+ * TodoSkill.kt  2026-06-23 08:09:34 Changed by gwy
  */
 
 package gradum.skill
@@ -11,7 +11,6 @@ import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import kotlin.to
 
 /**
  * Maintains a shared in-memory list of pending tasks across the agent loop.
@@ -23,6 +22,10 @@ class TodoManager {
 
     private var taskList: List<String>? = null
     private var currentTaskIndex: Int = 0
+
+    fun restTaskList() {
+        taskList = null; currentTaskIndex = 0
+    }
 
     fun initializeTasks(tasks: List<String>): SkillResult {
         if (taskList != null)
@@ -40,7 +43,8 @@ class TodoManager {
     }
 
     fun completeCurrentTask(): SkillResult {
-        val tasks: List<String> = taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
+        val tasks: List<String> =
+            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
 
         if (currentTaskIndex >= tasks.size)
             return makeFailure(ErrorCode.ALL_COMPLETED, "All tasks already completed")
@@ -75,7 +79,8 @@ class TodoManager {
      *         or [SkillResult.Failure] if not initialized or all tasks completed.
      */
     fun skipTask(): SkillResult {
-        val tasks: List<String> = taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
+        val tasks: List<String> =
+            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
 
         if (currentTaskIndex >= tasks.size)
             return makeFailure(ErrorCode.NOT_INITIALIZED, "All tasks already completed")
@@ -111,7 +116,9 @@ class TodoManager {
 
 private val sharedTodoManager: TodoManager = TodoManager()
 
-fun getTodoManagerInstance(): TodoManager { return sharedTodoManager }
+fun getTodoManagerInstance(): TodoManager {
+    return sharedTodoManager
+}
 
 
 /**
