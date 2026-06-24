@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-06-23 18:05:53 Changed by gwy
+  ~ plugin.xml  2026-06-24 12:53:37 Changed by gwy
   -->
 
 <idea-plugin>
@@ -24,7 +24,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
                 id="Gradum"
-                icon="AllIcons.Actions.Lightning"
+                icon="icons/logo/logo.svg"
                 anchor="right"
                 factoryClass="gradum.idea.GradumToolWindowFactory"/>
     </extensions>

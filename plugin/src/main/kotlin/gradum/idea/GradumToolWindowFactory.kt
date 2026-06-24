@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-24 07:37:21 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-24 13:32:39 Changed by gwy
  */
 
 package gradum.idea
@@ -24,6 +24,7 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import gradum.idea.GradumBundle.message
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -37,6 +38,7 @@ import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
+
 /**
  * Registers the Gradum chat panel as an IntelliJ tool window tab.
  *
@@ -47,7 +49,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
     @OptIn(ExperimentalJewelApi::class)
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        toolWindow.addComposeTab("Gradum") {
+        toolWindow.addComposeTab(message("gradum.toolwindow.name")) {
             SwingBridgeTheme {
                 GradumUI()
             }
@@ -69,7 +71,7 @@ fun GradumUI() {
     var isSending by remember { mutableStateOf(false) }
     var isMenuVisible by remember { mutableStateOf(false) }
     var isExpanded by remember { mutableStateOf(false) }
-    var selectedPermission by remember { mutableStateOf("Read-only Permissions") }
+    var selectedPermission by remember { mutableStateOf(message("gradum.readonly")) }
     val textState = rememberTextFieldState("")
     val roundedCornerShape = RoundedCornerShape(6.dp)
 
@@ -79,11 +81,11 @@ fun GradumUI() {
     ) {
         Column(
             modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Column {
                 Text(
-                    "{ Ge Wangyang }",
+                    message("gradum.brand.name"),
                     color = JewelTheme.globalColors.outlines.focused,
                     style = JewelTheme.typography.h2TextStyle.copy(
                         fontFamily = JewelTheme.typography.editorTextStyle.fontFamily
@@ -92,7 +94,7 @@ fun GradumUI() {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "What do you want to build today?",
+                    message("gradum.welcome.title"),
                     style = JewelTheme.typography.h2TextStyle
                 )
             }
@@ -126,14 +128,16 @@ fun GradumUI() {
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp).align(Alignment.BottomCenter),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp)
+                .align(Alignment.BottomCenter),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
-
         ) {
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "However, anything isn't perfect, check important info",
+                text = message("gradum.disclaimer"),
                 style = JewelTheme.typography.small,
                 fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
                 color = JewelTheme.globalColors.text.info
@@ -179,9 +183,10 @@ private fun ChatInputPanel(
 
             TextArea(
                 state = textState,
-                placeholder = { Text("Ask Gradum anything") },
+                placeholder = { Text(message("gradum.input.placeholder")) },
                 undecorated = true,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 160.dp)
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = 60.dp, max = 160.dp)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -224,9 +229,12 @@ private fun ChatToolbar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Tooltip(tooltip = { Text("Add files or context") }) {
+        Tooltip(tooltip = { Text(message("gradum.add.context")) }) {
             IconButton(onClick = { }) {
-                Icon(key = AllIconsKeys.General.Add, contentDescription = "Add")
+                Icon(
+                    key = AllIconsKeys.General.Add,
+                    contentDescription = message("gradum.add")
+                )
             }
         }
 
@@ -242,28 +250,35 @@ private fun ChatToolbar(
 
         Tooltip(tooltip = {
             Text(
-                if (isExpanded) "Hide current context" else "Show current context"
+                if (isExpanded) message("gradum.hide.context")
+                else message("gradum.show.context")
             )
         }) {
             IconButton(onClick = onToggleExpanded) {
                 Icon(
-                    key = if (isExpanded) AllIconsKeys.Run.ShowIgnored else AllIconsKeys.General.Show,
-                    contentDescription = if (isExpanded) "Hide Current Context" else "Show Current Context"
+                    key = if (isExpanded) AllIconsKeys.Actions.Unshare
+                    else AllIconsKeys.Actions.Share,
+
+                    contentDescription = if (isExpanded) message("gradum.hide.context")
+                    else message("gradum.show.context")
                 )
             }
         }
 
-        Tooltip(tooltip = { Text("Clear message") }) {
+        Tooltip(tooltip = { Text(message("gradum.clear")) }) {
             IconButton(onClick = onClearText, enabled = isTextNotEmpty) {
-                Icon(key = AllIconsKeys.General.Delete, contentDescription = "Delete message")
+                Icon(
+                    key = AllIconsKeys.General.Delete,
+                    contentDescription = message("gradum.delete")
+                )
             }
         }
 
-        Tooltip(tooltip = { Text(if (isSending) "Stop" else "Send") }) {
+        Tooltip(tooltip = { Text(if (isSending) message("gradum.stop") else message("gradum.send")) }) {
             IconButton(onClick = onSend, enabled = isTextNotEmpty || isSending) {
                 Icon(
                     key = if (isSending) AllIconsKeys.Run.Stop else GradumIcons.Send,
-                    contentDescription = "Stop Response"
+                    contentDescription = message("gradum.stop.response")
                 )
             }
         }
@@ -281,7 +296,7 @@ private fun PermissionSelector(
 ) {
     SelectorButton(
         text = selectedPermission,
-        contentDescription = "Select permissions",
+        contentDescription = message("gradum.select.permissions"),
         onClick = onToggle,
         color = JewelTheme.globalColors.text.normal
     )
@@ -291,11 +306,40 @@ private fun PermissionSelector(
             onDismissRequest = { onDismiss(); true },
             horizontalAlignment = Alignment.Start
         ) {
-            selectableItem(selected = false, onClick = { onSelect("Read-only Permissions") }) {
-                Text("Read-only Permissions")
+            selectableItem(selected = false, onClick = { onSelect(message("gradum.readonly")) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        key = AllIconsKeys.General.ReaderMode,
+                        contentDescription = message("gradum.read.mode")
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text(message("gradum.readonly"))
+                        Text(
+                            message("gradum.readonly.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
+                    }
+                }
             }
-            selectableItem(selected = false, onClick = { onSelect("Full Permissions") }) {
-                Text("Full Permissions")
+            selectableItem(
+                selected = selectedPermission == message("gradum.full"),
+                onClick = { onSelect(message("gradum.full")) }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        key = GradumIcons.Edit,
+                        contentDescription = message("gradum.full.mode")
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text(message("gradum.full"))
+                        Text(
+                            message("gradum.full.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
+                    }
+                }
             }
         }
     }
@@ -303,17 +347,18 @@ private fun PermissionSelector(
 
 @Composable
 private fun ModelSelectorBar() {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         SelectorButton(
             text = "Minimax-m2.5:cloud",
-            contentDescription = "Select model",
+            contentDescription = message("gradum.model"),
             onClick = { }
         )
-
         Spacer(modifier = Modifier.weight(1f))
-
         ExternalLink(
-            text = "Feedback",
+            text = message("gradum.feedback"),
             onClick = { BrowserUtil.browse("https://github.com/lg841226/Gradum") }
         )
     }
@@ -336,7 +381,10 @@ private fun SelectorButton(
                     text = text,
                     color = color
                 )
-                Icon(key = AllIconsKeys.General.ChevronDown, contentDescription = contentDescription)
+                Icon(
+                    key = AllIconsKeys.General.ChevronDown,
+                    contentDescription = contentDescription
+                )
             }
         }
     }
@@ -350,5 +398,5 @@ private fun SelectorButton(
  */
 object GradumIcons {
     val Send = PathIconKey("/icons/send/send.svg", GradumIcons::class.java)
+    val Edit = PathIconKey("/icons/edit/edit.svg", GradumIcons::class.java)
 }
-
