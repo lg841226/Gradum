@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBundle.kt  2026-06-24 13:15:12 Changed by gwy
+ * GradumBundle.kt  2026-06-24 15:18:15 Changed by gwy
  */
 
 package gradum.idea
@@ -16,8 +16,4 @@ object GradumBundle : DynamicBundle(BUNDLE_NAME) {
     @JvmStatic
     fun message(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any) =
         getMessage(key, *params)
-
-    @JvmStatic
-    fun messagePointer(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String) =
-        getLazyMessage(key)
 }
