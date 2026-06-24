@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InputComponents.kt  2026-06-24 22:36:50 Changed by gwy
+ * InputComponents.kt  2026-06-24 23:55:23 Changed by gwy
  */
 
 package gradum.idea
@@ -11,7 +11,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -28,6 +29,7 @@ import org.jetbrains.jewel.foundation.modifier.thenIf
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.focusOutline
+import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 
@@ -191,7 +193,8 @@ fun ChatToolbar(
         if (showAddMenu) {
             PopupMenu(
                 onDismissRequest = { onDismissAddMenu(); true },
-                horizontalAlignment = Alignment.Start
+                horizontalAlignment = Alignment.Start,
+                modifier = Modifier.heightIn(max = 300.dp)
             ) {
                 passiveItem {
                     Row(
@@ -217,6 +220,18 @@ fun ChatToolbar(
                 }
                 separator()
 
+                addMenuItem(
+                    iconKey = AllIconsKeys.Actions.ProjectDirectory,
+                    text = message("gradum.add.popup.project.directory")
+                )
+
+                addMenuItem(
+                    iconKey = GradumIcons.Image,
+                    text = message("gradum.add.popup.upload.image")
+                )
+
+                separator()
+
                 passiveItem {
                     Column(
                         modifier = Modifier
@@ -224,7 +239,7 @@ fun ChatToolbar(
                             .padding(horizontal = 6.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            message("gradum.add.popup.recent"),
+                            message("gradum.add.popup.workspace"),
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -406,6 +421,30 @@ fun SelectorButton(
 }
 
 @OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+private fun MenuScope.addMenuItem(iconKey: IconKey, text: String) {
+    selectableItem(
+        onClick = {},
+        selected = true
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                key = iconKey,
+                contentDescription = text,
+                modifier = Modifier.padding(end = 6.dp)
+            )
+            Column {
+                Text(text)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun FileItem(
     file: VirtualFile,
@@ -414,13 +453,17 @@ fun FileItem(
     val iconKey = getLanguageIconKey(file.extension)
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             key = iconKey ?: AllIconsKeys.FileTypes.Unknown,
             contentDescription = file.fileType.name,
-            modifier = Modifier.padding(end = 6.dp).size(14.dp)
+            modifier = Modifier
+                .padding(end = 6.dp)
+                .size(14.dp)
         )
         Column {
             Text(
