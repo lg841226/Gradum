@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatComponents.kt  2026-06-24 19:24:55 Changed by gwy
+ * ChatComponents.kt  2026-06-24 21:10:23 Changed by gwy
  */
 
 package gradum.idea
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import gradum.idea.GradumBundle.message
 import kotlinx.coroutines.MainScope
@@ -138,14 +142,14 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(
+                    SweepLightText(
                         text = message("gradum.generating"),
-                        color = JewelTheme.globalColors.text.info
+                        modifier = Modifier
                     )
                 }
-            } else {
+            } else
                 Text(text = message.content)
-            }
+
             Spacer(Modifier.height(8.dp))
             Row {
                 CopyButton(
@@ -155,10 +159,13 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
                     onReset = { isCopied = false }
                 )
                 Spacer(Modifier.width(4.dp))
-                IconButton(onClick = { isSelectedLike = !isSelectedLike }) {
+                IconButton(
+                    onClick = { isSelectedLike = !isSelectedLike },
+                    enabled = message.content.isNotBlank()
+                ) {
                     Icon(
                         key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like,
-                        contentDescription = "like"
+                        contentDescription = message("gradum.like")
                     )
                 }
             }
@@ -180,13 +187,16 @@ private fun CopyButton(
     onReset: () -> Unit
 ) {
     Tooltip(tooltip = { Text(message("gradum.copy.tooltip")) }) {
-        IconButton(onClick = {
-            copyToClipboard(
-                text = message.content,
-                onCopied = onCopy,
-                onReset = onReset
-            )
-        }) {
+        IconButton(
+            onClick = {
+                copyToClipboard(
+                    text = message.content,
+                    onCopied = onCopy,
+                    onReset = onReset
+                )
+            },
+            enabled = message.content.isNotBlank()
+        ) {
             Icon(
                 key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
                 contentDescription = message("gradum.copy")
@@ -216,4 +226,38 @@ fun copyToClipboard(
     MainScope().launch {
         delay(delayMillis.milliseconds); onReset()
     }
+}
+
+@Composable
+fun SweepLightText(
+    text: String,
+    modifier: Modifier = Modifier,
+    durationMillis: Int = 1200
+) {
+    val transition = rememberInfiniteTransition(label = "sweep_light")
+    val offset by transition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = durationMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "sweep_offset"
+    )
+
+    Text(
+        text = text,
+        modifier = modifier,
+        style = TextStyle(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    JewelTheme.globalColors.text.info.copy(alpha = 0.4f),
+                    JewelTheme.globalColors.text.normal.copy(alpha = 0.9f),
+                    JewelTheme.globalColors.text.info.copy(alpha = 0.4f)
+                ),
+                start = Offset(offset * 300f, 0f),
+                end = Offset(offset * 300f + 300f, 0f)
+            )
+        )
+    )
 }
