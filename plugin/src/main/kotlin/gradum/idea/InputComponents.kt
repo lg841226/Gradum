@@ -15,8 +15,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.delete
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -27,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.GradumBundle.message
+import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.Stroke
 import org.jetbrains.jewel.foundation.modifier.border
@@ -35,8 +41,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.focusOutline
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 
 
 /**
@@ -69,6 +73,41 @@ fun ChatInputPanel(
     onUploadImage: () -> Unit,
     onPasteAsContext: (String) -> Unit = {}
 ) {
+    // Long-paste-to-context: when the text state grows by more than 200 chars
+    // in a single settled snapshot, treat the appended run as a context
+    // attachment and strip it back out of the input.
+    //
+    // We do not try to intercept Cmd+V / Ctrl+V at the key level here:
+    // Compose Desktop's BasicTextField can consume the paste via its
+    // internal TextInputService before the Modifier chain sees the keystroke,
+    // and the same heuristic also catches right-click -> Paste and
+    // drag-dropped text, which Cmd+V interception would miss.
+    //
+    // The 200-char threshold mirrors `message.content.length > 200` on the
+    // assistant bubble's "copy as context" button, so the two paths
+    // behave the same. A 50ms settle window lets rapid bursts (paste +
+    // immediate typing) collapse into a single snapshot so we don't trip
+    // the heuristic on a handful of normal keystrokes. The baseline is
+    // seeded with the current text length so that a pre-existing draft
+    // (e.g. a draft restored from the project service) is not mistaken
+    // for a paste on first composition.
+    val initialLength = remember { textState.text.length }
+    var previousTextLength by remember { mutableStateOf(initialLength) }
+    LaunchedEffect(textState.text) {
+        delay(50)
+        val currentText = textState.text.toString()
+        val baseline = previousTextLength
+        val appendedLength = currentText.length - baseline
+        if (appendedLength > 200) {
+            val appended = currentText.substring(baseline)
+            if (appended.isNotBlank()) {
+                onPasteAsContext(appended)
+                textState.edit { delete(baseline, currentText.length) }
+            }
+        }
+        previousTextLength = textState.text.length
+    }
+
     Box(
         modifier = Modifier
             .onFocusChanged { onFocusChange(it.hasFocus) }
@@ -98,26 +137,18 @@ fun ChatInputPanel(
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(min = 60.dp, max = 160.dp)
                     // Cmd+Enter / Ctrl+Enter sends the message; plain Enter stays as a newline.
-                    // Cmd+V / Ctrl+V routes the clipboard text into the attachment bar instead
-                    // of inserting it into the input. onPreviewKeyEvent fires before the
-                    // TextArea consumes the keystroke, and returning `true` swallows the event
-                    // so no newline is inserted on send and no text is inserted on paste.
-                    // Only KeyDown is handled so KeyUp cannot re-trigger either action.
+                    // onPreviewKeyEvent fires before the TextArea consumes the keystroke, and
+                    // returning `true` swallows the event so no newline is inserted on send.
+                    // Only KeyDown is handled so KeyUp cannot re-trigger send.
+                    // (Long-paste conversion to a context attachment is handled out-of-band
+                    // by a state-diff LaunchedEffect further down — we do not try to
+                    // intercept Cmd+V here because Compose Desktop's BasicTextField can
+                    // consume the paste before the Modifier chain sees it.)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when {
                             keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
                                 onSend()
-                                true
-                            }
-                            keyEvent.key == Key.V && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                val text = runCatching {
-                                    Toolkit.getDefaultToolkit().systemClipboard
-                                        .getData(DataFlavor.stringFlavor) as? String
-                                }.getOrNull()
-                                if (!text.isNullOrBlank()) {
-                                    onPasteAsContext(text)
-                                }
                                 true
                             }
                             else -> false
