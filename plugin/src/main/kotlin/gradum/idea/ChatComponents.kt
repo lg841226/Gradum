@@ -2,16 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatComponents.kt  2026-06-25 21:40:06 Changed by gwy
+ * ChatComponents.kt  2026-06-26 01:09:54 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -60,12 +62,15 @@ fun MessageAttachmentList(
     modifier: Modifier = Modifier
 ) {
     if (attachments.isEmpty()) return
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        attachments.forEach { attachment ->
-            AttachmentChip(attachment = attachment)
+    Box(modifier = modifier) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
+            attachments.forEach { attachment ->
+                AttachmentChip(attachment = attachment)
+            }
         }
     }
 }
@@ -107,7 +112,8 @@ private fun AttachmentChip(attachment: AttachedFile) {
 fun ChatMessageList(
     messages: List<ChatMessage>,
     modifier: Modifier = Modifier,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    onDeleteMessage: (Int) -> Unit = {}
 ) {
     Column(
         modifier = modifier,
@@ -116,7 +122,11 @@ fun ChatMessageList(
         messages.forEachIndexed { index, message ->
             val isLastAssistant = index == messages.lastIndex && message.role != "user" && isLoading
             when (message.role) {
-                "user" -> UserChatBubble(message = message)
+                "user" -> UserChatBubble(
+                    message = message,
+                    onDeleteMessage = { onDeleteMessage(index) }
+                )
+
                 else -> AssistantChatBubble(message = message, isLoading = isLastAssistant)
             }
         }
@@ -130,8 +140,10 @@ fun ChatMessageList(
  * Renders inside a rounded rectangle with a border color background.
  */
 @Composable
-fun UserChatBubble(message: ChatMessage) {
+fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}) {
     var isCopied by remember { mutableStateOf(false) }
+    var isAttachmentsExpanded by remember { mutableStateOf(true) }
+    var showResetPopup by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -154,8 +166,31 @@ fun UserChatBubble(message: ChatMessage) {
                 Text(text = message.content)
             }
             if (message.attachments.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                MessageAttachmentList(attachments = message.attachments)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
+                        .padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
+                        else AllIconsKeys.General.ChevronRight,
+                        contentDescription = null
+                    )
+                    Text(
+                        text = message("gradum.attachments"),
+                        color = JewelTheme.globalColors.text.normal
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                AnimatedVisibility(visible = isAttachmentsExpanded) {
+                    MessageAttachmentList(
+                        attachments = message.attachments,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             Row {
@@ -167,11 +202,55 @@ fun UserChatBubble(message: ChatMessage) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Tooltip(tooltip = { Text(message("gradum.reset.tooltip")) }) {
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = { showResetPopup = true }) {
                         Icon(
                             key = AllIconsKeys.General.Reset,
                             contentDescription = message("gradum.reset")
                         )
+                    }
+                }
+                if (showResetPopup) {
+                    PopupMenu(
+                        onDismissRequest = { showResetPopup = false; true },
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        passiveItem {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    key = GradumIcons.Warning,
+                                    contentDescription = message("gradum.delete.confirm"),
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
+                                Text(message("gradum.delete.confirm"))
+                            }
+                        }
+                        separator()
+                        selectableItem(
+                            selected = false,
+                            onClick = {
+                                showResetPopup = false
+                                onDeleteMessage()
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    key = AllIconsKeys.General.Reset,
+                                    contentDescription = message("gradum.delete.action"),
+                                    modifier = Modifier.padding(end = 6.dp)
+                                )
+                                Text(message("gradum.delete.action"))
+                            }
+                        }
                     }
                 }
             }

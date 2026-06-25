@@ -159,6 +159,22 @@ fun GradumUI(
         }
     }
 
+    val onDeleteMessage: (Int) -> Unit = { userMessageIndex ->
+        if (session.isSending) {
+            session.isSending = false
+        }
+        val assistantResponseIndex = userMessageIndex + 1
+        if (assistantResponseIndex < session.messages.size &&
+            session.messages[assistantResponseIndex].role == "assistant"
+        ) {
+            session.messages.removeAt(assistantResponseIndex)
+        }
+        session.messages.removeAt(userMessageIndex)
+        if (session.messages.isEmpty()) {
+            session.hasSentMessage = false
+        }
+    }
+
     val onSend: () -> Unit = {
         val text = session.textState.text.toString()
         if (text.isNotBlank()) {
@@ -184,7 +200,8 @@ fun GradumUI(
                 ChatMessageList(
                     messages = session.messages,
                     isLoading = session.isSending,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    onDeleteMessage = onDeleteMessage
                 )
                 ChatInputSection(
                     modifier = Modifier.widthIn(max = 600.dp),

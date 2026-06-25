@@ -146,6 +146,7 @@ fun ChatInputPanel(
  */
 @Composable
 fun ChatInputSection(
+    modifier: Modifier = Modifier,
     isFocused: Boolean,
     roundedCornerShape: RoundedCornerShape,
     onFocusChange: (Boolean) -> Unit,
@@ -170,7 +171,7 @@ fun ChatInputSection(
     onRemoveFile: (AttachedFile) -> Unit,
     onUploadImage: () -> Unit
 ) {
-    Column {
+    Column(modifier = modifier) {
         ChatInputPanel(
             isFocused = isFocused,
             roundedCornerShape = roundedCornerShape,
@@ -239,8 +240,13 @@ fun ChatToolbar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Tooltip(tooltip = { Text(message("gradum.add.context")) }) {
-            IconButton(onClick = onToggleAddMenu) {
+        Tooltip(tooltip = {
+            Text(
+                if (isAttachmentLimitReached) message("gradum.add.context.disabled")
+                else message("gradum.add.context")
+            )
+        }) {
+            IconButton(onClick = onToggleAddMenu, enabled = !isAttachmentLimitReached) {
                 Icon(
                     key = AllIconsKeys.General.Add,
                     contentDescription = message("gradum.add")

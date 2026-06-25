@@ -23,4 +23,5 @@ object GradumIcons {
     val Tsx = PathIconKey("/icons/file-type/tsx/tsx.svg", GradumIcons::class.java)
     val Png = PathIconKey("/icons/file-type/image/image.svg", GradumIcons::class.java)
     val Image = PathIconKey("/icons/image/image.svg", GradumIcons::class.java)
+    val Warning = PathIconKey("/icons/warning/warning.svg", GradumIcons::class.java)
 }
