@@ -37,6 +37,14 @@ import org.jetbrains.jewel.ui.typography
 
 private val roundedCornerShape = RoundedCornerShape(6.dp)
 
+/**
+ * Maximum number of attachments a single user message may carry.
+ * The UI disables the add-menu upload controls at this threshold; the
+ * callbacks also enforce the limit defensively in case the UI state
+ * ever lags behind the underlying list.
+ */
+private const val MAX_ATTACHMENTS: Int = 10
+
 class GradumToolWindowFactory : ToolWindowFactory {
 
     @OptIn(ExperimentalJewelApi::class)
@@ -84,6 +92,7 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
     val textState = rememberTextFieldState("")
     val editorContext = toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
         ?: EditorContext.EMPTY
+    val isAttachmentLimitReached: Boolean = attachedFiles.size >= MAX_ATTACHMENTS
 
     LaunchedEffect(hasSentMessage) {
         val content = toolWindow?.contentManager?.contents?.firstOrNull()
@@ -117,28 +126,32 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
                 attachedFiles.removeAll { it.file.path == attachedFile.file.path }
             }
             val onUploadImage: () -> Unit = {
-                val project = toolWindow?.project
-                if (project != null) {
-                    val imageExtensions = setOf(
-                        "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"
-                    )
-                    val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
-                        title = "Select Images"
-                        withFileFilter { file ->
-                            file.extension?.lowercase() in imageExtensions
-                        }
-                    }
-                    FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
-                        files.filter { it.extension?.lowercase() in imageExtensions }.forEach { file ->
-                            if (attachedFiles.none { it.file.path == file.path }) {
-                                attachedFiles.add(
-                                    AttachedFile(
-                                        file = file,
-                                        iconKey = getLanguageIconKey(file.extension)
-                                            ?: AllIconsKeys.FileTypes.Unknown
-                                    )
-                                )
+                if (attachedFiles.size < MAX_ATTACHMENTS) {
+                    val project = toolWindow?.project
+                    if (project != null) {
+                        val remaining: Int = MAX_ATTACHMENTS - attachedFiles.size
+                        val imageExtensions = setOf(
+                            "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"
+                        )
+                        val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
+                            title = "Select Images"
+                            withFileFilter { file ->
+                                file.extension?.lowercase() in imageExtensions
                             }
+                        }
+                        FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
+                            files.filter { it.extension?.lowercase() in imageExtensions }
+                                .filter { attachedFiles.none { existing -> existing.file.path == it.path } }
+                                .take(remaining)
+                                .forEach { file ->
+                                    attachedFiles.add(
+                                        AttachedFile(
+                                            file = file,
+                                            iconKey = getLanguageIconKey(file.extension)
+                                                ?: AllIconsKeys.FileTypes.Unknown
+                                        )
+                                    )
+                                }
                         }
                     }
                 }
@@ -177,6 +190,7 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
                     isMenuVisible = isMenuVisible,
                     isExpanded = isExpanded,
                     showAddMenu = showAddMenu,
+                    isAttachmentLimitReached = isAttachmentLimitReached,
                     editorContext = editorContext,
                     attachedFiles = attachedFiles,
                     onToggleMenu = callbacks.onToggleMenu,
@@ -223,6 +237,7 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
                     isMenuVisible = isMenuVisible,
                     isExpanded = isExpanded,
                     showAddMenu = showAddMenu,
+                    isAttachmentLimitReached = isAttachmentLimitReached,
                     editorContext = editorContext,
                     attachedFiles = attachedFiles,
                     onToggleMenu = callbacks.onToggleMenu,

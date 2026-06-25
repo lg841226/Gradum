@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatComponents.kt  2026-06-24 21:10:23 Changed by gwy
+ * ChatComponents.kt  2026-06-25 21:40:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -38,11 +38,65 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * @property role  Identifies the sender — "user" or "assistant".
  * @property content  The message text.
+ * @property attachments  Files frozen onto the message at send time and
+ *   rendered under the user bubble by [MessageAttachmentList]. Empty for
+ *   assistant messages and for user messages sent without attachments.
  */
 data class ChatMessage(
     val role: String,
-    val content: String
+    val content: String,
+    val attachments: List<AttachedFile> = emptyList()
 )
+
+/**
+ * Renders the attachments attached to a chat message as a vertical list
+ * of chips under the bubble. Each chip shows the file-type icon and the
+ * file name. Chips are intentionally immutable — they cannot be removed
+ * after the message has been sent.
+ */
+@Composable
+fun MessageAttachmentList(
+    attachments: List<AttachedFile>,
+    modifier: Modifier = Modifier
+) {
+    if (attachments.isEmpty()) return
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        attachments.forEach { attachment ->
+            AttachmentChip(attachment = attachment)
+        }
+    }
+}
+
+/**
+ * A single chip in [MessageAttachmentList]: a small file-type icon and
+ * the file name on a subtle background pill. Visual weight is kept lower
+ * than the bubble so the message text remains the focus.
+ */
+@Composable
+private fun AttachmentChip(attachment: AttachedFile) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .background(
+                color = JewelTheme.globalColors.borders.normal,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Icon(
+            key = attachment.iconKey,
+            contentDescription = attachment.file.fileType.name,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = attachment.file.name
+        )
+    }
+}
 
 /**
  * Scrollable list of chat bubbles with a bottom spacer.
@@ -98,6 +152,10 @@ fun UserChatBubble(message: ChatMessage) {
                     .padding(10.dp)
             ) {
                 Text(text = message.content)
+            }
+            if (message.attachments.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                MessageAttachmentList(attachments = message.attachments)
             }
             Spacer(Modifier.height(8.dp))
             Row {
@@ -233,7 +291,7 @@ fun copyToClipboard(
 
 /**
  * Renders [text] with a "shimmer" overlay that sweeps a translucent linear
- * gradient horizontally across the glyphs, signalling that work is in
+ * gradient horizontally across the glyphs, signaling that work is in
  * progress (e.g. the assistant bubble while a response is streaming).
  *
  * The animation drives a single `offset` from -1f to 2f over

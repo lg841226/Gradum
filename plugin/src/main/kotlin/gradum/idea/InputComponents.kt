@@ -51,6 +51,7 @@ fun ChatInputPanel(
     isMenuVisible: Boolean,
     isExpanded: Boolean,
     showAddMenu: Boolean,
+    isAttachmentLimitReached: Boolean,
     editorContext: EditorContext,
     attachedFiles: List<AttachedFile>,
     onToggleMenu: () -> Unit,
@@ -117,6 +118,7 @@ fun ChatInputPanel(
                 isMenuVisible = isMenuVisible,
                 isExpanded = isExpanded,
                 showAddMenu = showAddMenu,
+                isAttachmentLimitReached = isAttachmentLimitReached,
                 isTextNotEmpty = textState.text.isNotEmpty(),
                 editorContext = editorContext,
                 onToggleMenu = onToggleMenu,
@@ -153,6 +155,7 @@ fun ChatInputSection(
     isMenuVisible: Boolean,
     isExpanded: Boolean,
     showAddMenu: Boolean,
+    isAttachmentLimitReached: Boolean,
     editorContext: EditorContext,
     attachedFiles: List<AttachedFile>,
     onToggleMenu: () -> Unit,
@@ -178,6 +181,7 @@ fun ChatInputSection(
             isMenuVisible = isMenuVisible,
             isExpanded = isExpanded,
             showAddMenu = showAddMenu,
+            isAttachmentLimitReached = isAttachmentLimitReached,
             editorContext = editorContext,
             attachedFiles = attachedFiles,
             onToggleMenu = onToggleMenu,
@@ -207,6 +211,7 @@ fun ChatToolbar(
     isMenuVisible: Boolean,
     isExpanded: Boolean,
     showAddMenu: Boolean,
+    isAttachmentLimitReached: Boolean,
     isTextNotEmpty: Boolean,
     editorContext: EditorContext,
     onToggleMenu: () -> Unit,
@@ -288,7 +293,12 @@ fun ChatToolbar(
                     }
                 }
 
-                selectableItem(selected = false, onClick = onUploadImage) {
+                selectableItem(
+                    selected = false,
+                    onClick = {
+                        if (!isAttachmentLimitReached) onUploadImage()
+                    }
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
