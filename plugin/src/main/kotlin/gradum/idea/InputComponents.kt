@@ -91,18 +91,18 @@ fun ChatInputPanel(
     // seeded with the current text length so that a pre-existing draft
     // (e.g. a draft restored from the project service) is not mistaken
     // for a paste on first composition.
-    val initialLength = remember { textState.text.length }
-    var previousTextLength by remember { mutableStateOf(initialLength) }
+    val initialTextLength = remember { textState.text.length }
+    var previousTextLength by remember { mutableStateOf(initialTextLength) }
     LaunchedEffect(textState.text) {
         delay(50)
-        val currentText = textState.text.toString()
-        val baseline = previousTextLength
-        val appendedLength = currentText.length - baseline
-        if (appendedLength > 200) {
-            val appended = currentText.substring(baseline)
-            if (appended.isNotBlank()) {
-                onPasteAsContext(appended)
-                textState.edit { delete(baseline, currentText.length) }
+        val currentInputText = textState.text.toString()
+        val baselineTextLength = previousTextLength
+        val appendedTextLength = currentInputText.length - baselineTextLength
+        if (appendedTextLength > 200) {
+            val appendedText = currentInputText.substring(baselineTextLength)
+            if (appendedText.isNotBlank()) {
+                onPasteAsContext(appendedText)
+                textState.edit { delete(baselineTextLength, currentInputText.length) }
             }
         }
         previousTextLength = textState.text.length
