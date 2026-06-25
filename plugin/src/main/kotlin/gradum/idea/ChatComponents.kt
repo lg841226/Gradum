@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatComponents.kt  2026-06-26 01:09:54 Changed by gwy
+ * ChatComponents.kt  2026-06-26 01:46:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -31,9 +31,15 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
+
+private val TimestampSpacing = 2.dp
 
 /**
  * Represents a single message in the chat history.
@@ -47,8 +53,11 @@ import kotlin.time.Duration.Companion.milliseconds
 data class ChatMessage(
     val role: String,
     val content: String,
-    val attachments: List<AttachedFile> = emptyList()
-)
+    val attachments: List<AttachedFile> = emptyList(),
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    val isUserMessage: Boolean get() = role == "user"
+}
 
 /**
  * Renders the attachments attached to a chat message as a vertical list
@@ -120,9 +129,16 @@ fun ChatMessageList(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         messages.forEachIndexed { index, message ->
-            val isLastAssistant = index == messages.lastIndex && message.role != "user" && isLoading
-            when (message.role) {
-                "user" -> UserChatBubble(
+            val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
+            val shouldShowTimestamp = index == 0 ||
+                    formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
+            if (shouldShowTimestamp) {
+                Spacer(Modifier.height(TimestampSpacing))
+                MessageTimestamp(timestamp = message.timestamp)
+                Spacer(Modifier.height(TimestampSpacing))
+            }
+            when {
+                message.isUserMessage -> UserChatBubble(
                     message = message,
                     onDeleteMessage = { onDeleteMessage(index) }
                 )
@@ -365,6 +381,68 @@ fun copyToClipboard(
 
     scope.launch {
         delay(delayMillis.milliseconds); onReset()
+    }
+}
+
+/**
+ * Formats a timestamp into a human-readable relative string.
+ *
+ * - Today: "14:30"
+ * - Yesterday: "Yesterday 14:30"
+ * - This year: "Jun 15"
+ * - Older: "15 days ago"
+ */
+fun formatTimestamp(timestamp: Long): String {
+    val now = Calendar.getInstance()
+    val messageTime = Calendar.getInstance().apply { timeInMillis = timestamp }
+
+    val diffMillis = now.timeInMillis - timestamp
+    val diffDays = TimeUnit.MILLISECONDS.toDays(diffMillis)
+
+    return when {
+        isSameDay(now, messageTime) -> {
+            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+        }
+
+        isYesterday(now, messageTime) -> {
+            val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+            "${message("gradum.timestamp.yesterday")} $time"
+        }
+
+        now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> {
+            SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+        }
+
+        else -> {
+            "$diffDays ${message("gradum.timestamp.days.ago")}"
+        }
+    }
+}
+
+private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun isYesterday(now: Calendar, target: Calendar): Boolean {
+    val yesterday = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+    return isSameDay(yesterday, target)
+}
+
+/**
+ * Centered timestamp separator between message groups.
+ */
+@Composable
+fun MessageTimestamp(timestamp: Long, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = formatTimestamp(timestamp),
+            style = JewelTheme.typography.medium,
+            color = JewelTheme.globalColors.text.info
+        )
     }
 }
 
