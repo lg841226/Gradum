@@ -15,6 +15,26 @@ import com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
+sealed class AttachedContext {
+    abstract val iconKey: IconKey
+    abstract val displayName: String
+}
+
+data class AttachedFile(
+    val file: VirtualFile,
+    override val iconKey: IconKey
+) : AttachedContext() {
+    override val displayName: String get() = file.name
+}
+
+data class AttachedText(
+    val content: String,
+    val preview: String,
+    override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
+) : AttachedContext() {
+    override val displayName: String get() = preview
+}
+
 data class EditorContext(
     val currentFile: VirtualFile?,
     val allOpenFiles: List<VirtualFile>,
@@ -25,20 +45,6 @@ data class EditorContext(
         val EMPTY = EditorContext(null, emptyList(), null, null)
     }
 }
-
-/**
- * A file the user has attached from the add-menu or file chooser, exposed
- * to the chat as additional LLM context.
- *
- * @property file  The IntelliJ [VirtualFile] backing this attachment.
- * @property iconKey  The Jewel icon key used to render the attachment chip
- *   in the input bar. Selected by [getLanguageIconKey] from the file's
- *   extension (or `Unknown` when the extension is not registered).
- */
-data class AttachedFile(
-    val file: VirtualFile,
-    val iconKey: IconKey
-)
 
 fun getLanguageIconKey(extension: String?): IconKey? {
     return when (extension?.lowercase()) {

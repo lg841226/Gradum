@@ -110,7 +110,7 @@ fun GradumUI(
             val onDismissAddMenu: () -> Unit = { session.showAddMenu = false }
             val onSelectFile: (VirtualFile) -> Unit = { file ->
                 if (session.attachedFiles.size < MAX_ATTACHMENTS &&
-                    session.attachedFiles.none { it.file.path == file.path }
+                    session.attachedFiles.none { it is AttachedFile && it.file.path == file.path }
                 ) {
                     val iconKey = if (file.isDirectory) {
                         AllIconsKeys.Actions.ProjectDirectory
@@ -120,8 +120,11 @@ fun GradumUI(
                     session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
                 }
             }
-            val onRemoveFile: (AttachedFile) -> Unit = { attachedFile ->
-                session.attachedFiles.removeAll { it.file.path == attachedFile.file.path }
+            val onRemoveFile: (AttachedContext) -> Unit = { attachedContext ->
+                when (attachedContext) {
+                    is AttachedFile -> session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }
+                    is AttachedText -> session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }
+                }
             }
             val onUploadImage: () -> Unit = {
                 if (session.attachedFiles.size < MAX_ATTACHMENTS) {
@@ -139,8 +142,8 @@ fun GradumUI(
                         }
                         FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
                             files.filter { it.extension?.lowercase() in imageExtensions }
-                                .filter {
-                                    session.attachedFiles.none { existing -> existing.file.path == it.path }
+                                .filter { imageFile ->
+                                    session.attachedFiles.none { existing -> existing is AttachedFile && existing.file.path == imageFile.path }
                                 }
                                 .take(remaining)
                                 .forEach { file ->
@@ -156,6 +159,13 @@ fun GradumUI(
                     }
                 }
             }
+            val onCopyAsContext: (String) -> Unit = { text ->
+                if (session.attachedFiles.size < MAX_ATTACHMENTS) {
+                    val preview = if (text.length > 30) text.take(30) + "..." else text
+                    session.attachedFiles.add(AttachedText(content = text, preview = preview))
+                }
+            }
+            val onPasteAsContext: (String) -> Unit = onCopyAsContext
         }
     }
 
@@ -201,7 +211,8 @@ fun GradumUI(
                     messages = session.messages,
                     isLoading = session.isSending,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    onDeleteMessage = onDeleteMessage
+                    onDeleteMessage = onDeleteMessage,
+                    onCopyAsContext = callbacks.onCopyAsContext
                 )
                 ChatInputSection(
                     modifier = Modifier.widthIn(max = 600.dp),
@@ -227,7 +238,8 @@ fun GradumUI(
                     onDismissAddMenu = callbacks.onDismissAddMenu,
                     onSelectFile = callbacks.onSelectFile,
                     onRemoveFile = callbacks.onRemoveFile,
-                    onUploadImage = callbacks.onUploadImage
+                    onUploadImage = callbacks.onUploadImage,
+                    onPasteAsContext = callbacks.onPasteAsContext
                 )
             }
         } else {
@@ -275,7 +287,8 @@ fun GradumUI(
                     onDismissAddMenu = callbacks.onDismissAddMenu,
                     onSelectFile = callbacks.onSelectFile,
                     onRemoveFile = callbacks.onRemoveFile,
-                    onUploadImage = callbacks.onUploadImage
+                    onUploadImage = callbacks.onUploadImage,
+                    onPasteAsContext = callbacks.onPasteAsContext
                 )
             }
             Row(

@@ -40,7 +40,7 @@ class GradumChatSession {
     val messages: SnapshotStateList<ChatMessage> = mutableStateListOf()
 
     /** Files attached to the next message (cleared on send). */
-    val attachedFiles: SnapshotStateList<AttachedFile> = mutableStateListOf()
+    val attachedFiles: SnapshotStateList<AttachedContext> = mutableStateListOf()
 
     /** Toggles the welcome page ↔ chat page. */
     var hasSentMessage: Boolean by mutableStateOf(false)

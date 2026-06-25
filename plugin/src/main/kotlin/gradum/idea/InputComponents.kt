@@ -35,6 +35,8 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.focusOutline
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 
 
 /**
@@ -53,7 +55,7 @@ fun ChatInputPanel(
     showAddMenu: Boolean,
     isAttachmentLimitReached: Boolean,
     editorContext: EditorContext,
-    attachedFiles: List<AttachedFile>,
+    attachedFiles: List<AttachedContext>,
     onToggleMenu: () -> Unit,
     onSelectPermission: (String) -> Unit,
     onDismissMenu: () -> Unit,
@@ -63,8 +65,9 @@ fun ChatInputPanel(
     onToggleAddMenu: () -> Unit,
     onDismissAddMenu: () -> Unit,
     onSelectFile: (VirtualFile) -> Unit,
-    onRemoveFile: (AttachedFile) -> Unit,
-    onUploadImage: () -> Unit
+    onRemoveFile: (AttachedContext) -> Unit,
+    onUploadImage: () -> Unit,
+    onPasteAsContext: (String) -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -95,14 +98,26 @@ fun ChatInputPanel(
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(min = 60.dp, max = 160.dp)
                     // Cmd+Enter / Ctrl+Enter sends the message; plain Enter stays as a newline.
-                    // onPreviewKeyEvent fires before the TextArea consumes the keystroke, and
-                    // returning `true` swallows the event so no newline is inserted on send.
-                    // Only KeyDown is handled so KeyUp cannot re-trigger send.
+                    // Cmd+V / Ctrl+V routes the clipboard text into the attachment bar instead
+                    // of inserting it into the input. onPreviewKeyEvent fires before the
+                    // TextArea consumes the keystroke, and returning `true` swallows the event
+                    // so no newline is inserted on send and no text is inserted on paste.
+                    // Only KeyDown is handled so KeyUp cannot re-trigger either action.
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when {
                             keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
                                 onSend()
+                                true
+                            }
+                            keyEvent.key == Key.V && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                val text = runCatching {
+                                    Toolkit.getDefaultToolkit().systemClipboard
+                                        .getData(DataFlavor.stringFlavor) as? String
+                                }.getOrNull()
+                                if (!text.isNullOrBlank()) {
+                                    onPasteAsContext(text)
+                                }
                                 true
                             }
                             else -> false
@@ -158,7 +173,7 @@ fun ChatInputSection(
     showAddMenu: Boolean,
     isAttachmentLimitReached: Boolean,
     editorContext: EditorContext,
-    attachedFiles: List<AttachedFile>,
+    attachedFiles: List<AttachedContext>,
     onToggleMenu: () -> Unit,
     onSelectPermission: (String) -> Unit,
     onDismissMenu: () -> Unit,
@@ -168,8 +183,9 @@ fun ChatInputSection(
     onToggleAddMenu: () -> Unit,
     onDismissAddMenu: () -> Unit,
     onSelectFile: (VirtualFile) -> Unit,
-    onRemoveFile: (AttachedFile) -> Unit,
-    onUploadImage: () -> Unit
+    onRemoveFile: (AttachedContext) -> Unit,
+    onUploadImage: () -> Unit,
+    onPasteAsContext: (String) -> Unit = {}
 ) {
     Column(modifier = modifier) {
         ChatInputPanel(
@@ -195,7 +211,8 @@ fun ChatInputSection(
             onDismissAddMenu = onDismissAddMenu,
             onSelectFile = onSelectFile,
             onRemoveFile = onRemoveFile,
-            onUploadImage = onUploadImage
+            onUploadImage = onUploadImage,
+            onPasteAsContext = onPasteAsContext
         )
         Spacer(modifier = Modifier.height(6.dp))
         ModelSelectorBar()
@@ -416,8 +433,8 @@ fun ChatToolbar(
  */
 @Composable
 fun AttachmentBar(
-    attachedFiles: List<AttachedFile>,
-    onRemoveFile: (AttachedFile) -> Unit
+    attachedFiles: List<AttachedContext>,
+    onRemoveFile: (AttachedContext) -> Unit
 ) {
     if (attachedFiles.isEmpty()) return
 
@@ -427,7 +444,7 @@ fun AttachmentBar(
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        attachedFiles.forEach { attachedFile ->
+        attachedFiles.forEach { attachedContext ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -435,17 +452,17 @@ fun AttachmentBar(
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 Icon(
-                    key = attachedFile.iconKey,
-                    contentDescription = attachedFile.file.fileType.name,
+                    key = attachedContext.iconKey,
+                    contentDescription = attachedContext.displayName,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = attachedFile.file.name,
+                    text = attachedContext.displayName,
                     color = JewelTheme.globalColors.text.normal
                 )
                 Tooltip(tooltip = { Text(message("gradum.remove")) }) {
                     IconButton(
-                        onClick = { onRemoveFile(attachedFile) },
+                        onClick = { onRemoveFile(attachedContext) },
                         modifier = Modifier.size(18.dp)
                     ) {
                         Icon(

@@ -53,7 +53,7 @@ private val TimestampSpacing = 2.dp
 data class ChatMessage(
     val role: String,
     val content: String,
-    val attachments: List<AttachedFile> = emptyList(),
+    val attachments: List<AttachedContext> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val isUserMessage: Boolean get() = role == "user"
@@ -67,7 +67,7 @@ data class ChatMessage(
  */
 @Composable
 fun MessageAttachmentList(
-    attachments: List<AttachedFile>,
+    attachments: List<AttachedContext>,
     modifier: Modifier = Modifier
 ) {
     if (attachments.isEmpty()) return
@@ -90,7 +90,7 @@ fun MessageAttachmentList(
  * than the bubble so the message text remains the focus.
  */
 @Composable
-private fun AttachmentChip(attachment: AttachedFile) {
+private fun AttachmentChip(attachment: AttachedContext) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -103,11 +103,11 @@ private fun AttachmentChip(attachment: AttachedFile) {
     ) {
         Icon(
             key = attachment.iconKey,
-            contentDescription = attachment.file.fileType.name,
+            contentDescription = attachment.displayName,
             modifier = Modifier.size(14.dp)
         )
         Text(
-            text = attachment.file.name
+            text = attachment.displayName
         )
     }
 }
@@ -122,7 +122,8 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    onDeleteMessage: (Int) -> Unit = {}
+    onDeleteMessage: (Int) -> Unit = {},
+    onCopyAsContext: (String) -> Unit = {}
 ) {
     Column(
         modifier = modifier,
@@ -140,10 +141,15 @@ fun ChatMessageList(
             when {
                 message.isUserMessage -> UserChatBubble(
                     message = message,
-                    onDeleteMessage = { onDeleteMessage(index) }
+                    onDeleteMessage = { onDeleteMessage(index) },
+                    onCopyAsContext = onCopyAsContext
                 )
 
-                else -> AssistantChatBubble(message = message, isLoading = isLastAssistant)
+                else -> AssistantChatBubble(
+                    message = message,
+                    isLoading = isLastAssistant,
+                    onCopyAsContext = onCopyAsContext
+                )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -156,7 +162,7 @@ fun ChatMessageList(
  * Renders inside a rounded rectangle with a border color background.
  */
 @Composable
-fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}) {
+fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}) {
     var isCopied by remember { mutableStateOf(false) }
     var isAttachmentsExpanded by remember { mutableStateOf(true) }
     var showResetPopup by remember { mutableStateOf(false) }
@@ -214,7 +220,8 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}) {
                     message = message,
                     isCopied = isCopied,
                     onCopy = { isCopied = true },
-                    onReset = { isCopied = false }
+                    onReset = { isCopied = false },
+                    onCopyAsContext = onCopyAsContext
                 )
                 Spacer(Modifier.width(4.dp))
                 Tooltip(tooltip = { Text(message("gradum.reset.tooltip")) }) {
@@ -281,7 +288,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}) {
  * when [isLoading] is true (typically for the most recent assistant message).
  */
 @Composable
-fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
+fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false, onCopyAsContext: (String) -> Unit = {}) {
     var isCopied by remember { mutableStateOf(false) }
     var isSelectedLike by remember { mutableStateOf(false) }
 
@@ -309,7 +316,8 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
                     message = message,
                     isCopied = isCopied,
                     onCopy = { isCopied = true },
-                    onReset = { isCopied = false }
+                    onReset = { isCopied = false },
+                    onCopyAsContext = onCopyAsContext
                 )
                 Spacer(Modifier.width(4.dp))
                 IconButton(
@@ -336,19 +344,24 @@ private fun CopyButton(
     message: ChatMessage,
     isCopied: Boolean,
     onCopy: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    onCopyAsContext: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
 
     Tooltip(tooltip = { Text(message("gradum.copy.tooltip")) }) {
         IconButton(
             onClick = {
-                copyToClipboard(
-                    text = message.content,
-                    onCopied = onCopy,
-                    onReset = onReset,
-                    scope = scope
-                )
+                if (message.content.length > 200) {
+                    onCopyAsContext(message.content)
+                } else {
+                    copyToClipboard(
+                        text = message.content,
+                        onCopied = onCopy,
+                        onReset = onReset,
+                        scope = scope
+                    )
+                }
             },
             enabled = message.content.isNotBlank()
         ) {
