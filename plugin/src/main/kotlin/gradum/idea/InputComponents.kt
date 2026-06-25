@@ -2,13 +2,17 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InputComponents.kt  2026-06-24 23:55:23 Changed by gwy
+ * InputComponents.kt  2026-06-25 15:35:17 Changed by gwy
  */
+
+@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
@@ -17,6 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
@@ -29,11 +38,12 @@ import org.jetbrains.jewel.foundation.modifier.thenIf
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.focusOutline
-import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 
-@OptIn(ExperimentalJewelApi::class)
+/**
+ * The main chat input panel containing a text area and a toolbar.
+ */
 @Composable
 fun ChatInputPanel(
     isFocused: Boolean,
@@ -46,6 +56,7 @@ fun ChatInputPanel(
     isExpanded: Boolean,
     showAddMenu: Boolean,
     editorContext: EditorContext,
+    attachedFiles: List<AttachedFile>,
     onToggleMenu: () -> Unit,
     onSelectPermission: (String) -> Unit,
     onDismissMenu: () -> Unit,
@@ -53,7 +64,10 @@ fun ChatInputPanel(
     onClearText: () -> Unit,
     onSend: () -> Unit,
     onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit
+    onDismissAddMenu: () -> Unit,
+    onSelectFile: (VirtualFile) -> Unit,
+    onRemoveFile: (AttachedFile) -> Unit,
+    onUploadImage: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -83,6 +97,17 @@ fun ChatInputPanel(
                 undecorated = true,
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(min = 60.dp, max = 160.dp)
+                    // Send the message on Cmd+Enter / Ctrl+Enter.
+                    // onPreviewKeyEvent runs before the TextArea consumes the keystroke, so a `true`
+                    // return value also suppresses the newline that would otherwise be inserted.
+                    .onPreviewKeyEvent { keyEvent ->
+                        if (keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
+                            onSend()
+                            true
+                        } else {
+                            false
+                        }
+                    }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -102,13 +127,22 @@ fun ChatInputPanel(
                 onClearText = onClearText,
                 onSend = onSend,
                 onToggleAddMenu = onToggleAddMenu,
-                onDismissAddMenu = onDismissAddMenu
+                onDismissAddMenu = onDismissAddMenu,
+                onSelectFile = onSelectFile,
+                onUploadImage = onUploadImage
+            )
+
+            AttachmentBar(
+                attachedFiles = attachedFiles,
+                onRemoveFile = onRemoveFile
             )
         }
-
     }
 }
 
+/**
+ * Wraps [ChatInputPanel] with a model selector bar below it.
+ */
 @Composable
 fun ChatInputSection(
     isFocused: Boolean,
@@ -121,6 +155,7 @@ fun ChatInputSection(
     isExpanded: Boolean,
     showAddMenu: Boolean,
     editorContext: EditorContext,
+    attachedFiles: List<AttachedFile>,
     onToggleMenu: () -> Unit,
     onSelectPermission: (String) -> Unit,
     onDismissMenu: () -> Unit,
@@ -128,7 +163,10 @@ fun ChatInputSection(
     onClearText: () -> Unit,
     onSend: () -> Unit,
     onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit
+    onDismissAddMenu: () -> Unit,
+    onSelectFile: (VirtualFile) -> Unit,
+    onRemoveFile: (AttachedFile) -> Unit,
+    onUploadImage: () -> Unit
 ) {
     Column {
         ChatInputPanel(
@@ -142,6 +180,7 @@ fun ChatInputSection(
             isExpanded = isExpanded,
             showAddMenu = showAddMenu,
             editorContext = editorContext,
+            attachedFiles = attachedFiles,
             onToggleMenu = onToggleMenu,
             onSelectPermission = onSelectPermission,
             onDismissMenu = onDismissMenu,
@@ -149,14 +188,19 @@ fun ChatInputSection(
             onClearText = onClearText,
             onSend = onSend,
             onToggleAddMenu = onToggleAddMenu,
-            onDismissAddMenu = onDismissAddMenu
+            onDismissAddMenu = onDismissAddMenu,
+            onSelectFile = onSelectFile,
+            onRemoveFile = onRemoveFile,
+            onUploadImage = onUploadImage
         )
         Spacer(modifier = Modifier.height(6.dp))
         ModelSelectorBar()
     }
 }
 
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+/**
+ * Toolbar row inside [ChatInputPanel] with add-menu, permission selector, and action buttons.
+ */
 @Composable
 fun ChatToolbar(
     selectedPermission: String,
@@ -173,9 +217,18 @@ fun ChatToolbar(
     onClearText: () -> Unit,
     onSend: () -> Unit,
     onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit
+    onDismissAddMenu: () -> Unit,
+    onSelectFile: (VirtualFile) -> Unit,
+    onUploadImage: () -> Unit
 ) {
     val state = remember { TextFieldState() }
+
+    val searchQuery = state.text.toString()
+    val filteredFiles = if (searchQuery.isBlank()) {
+        editorContext.allOpenFiles
+    } else {
+        editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -220,15 +273,37 @@ fun ChatToolbar(
                 }
                 separator()
 
-                addMenuItem(
-                    iconKey = AllIconsKeys.Actions.ProjectDirectory,
-                    text = message("gradum.add.popup.project.directory")
-                )
+                selectableItem(selected = false, onClick = { editorContext.projectDir?.let(onSelectFile) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            key = AllIconsKeys.Actions.ProjectDirectory,
+                            contentDescription = message("gradum.add.popup.project.directory"),
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(message("gradum.add.popup.project.directory"))
+                    }
+                }
 
-                addMenuItem(
-                    iconKey = GradumIcons.Image,
-                    text = message("gradum.add.popup.upload.image")
-                )
+                selectableItem(selected = false, onClick = onUploadImage) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            key = GradumIcons.Image,
+                            contentDescription = message("gradum.add.popup.upload.image"),
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(message("gradum.add.popup.upload.image"))
+                    }
+                }
 
                 separator()
 
@@ -250,14 +325,22 @@ fun ChatToolbar(
                         Text(
                             text = message("gradum.add.popup.empty"),
                             color = JewelTheme.globalColors.text.info,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                    }
+                } else if (filteredFiles.isEmpty()) {
+                    passiveItem {
+                        Text(
+                            text = message("gradum.add.popup.no.results"),
+                            color = JewelTheme.globalColors.text.info,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
                 } else {
-                    editorContext.allOpenFiles.forEach { file ->
+                    filteredFiles.forEach { file ->
                         selectableItem(
                             selected = file == editorContext.currentFile,
-                            onClick = { }
+                            onClick = { onSelectFile(file) },
                         ) {
                             FileItem(
                                 file = file,
@@ -313,7 +396,57 @@ fun ChatToolbar(
     }
 }
 
-@OptIn(ExperimentalJewelApi::class)
+/**
+ * Attachment bar below the toolbar, showing selected attachments.
+ */
+@Composable
+fun AttachmentBar(
+    attachedFiles: List<AttachedFile>,
+    onRemoveFile: (AttachedFile) -> Unit
+) {
+    if (attachedFiles.isEmpty()) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        attachedFiles.forEach { attachedFile ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    key = attachedFile.iconKey,
+                    contentDescription = attachedFile.file.fileType.name,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = attachedFile.file.name,
+                    color = JewelTheme.globalColors.text.normal
+                )
+                Tooltip(tooltip = { Text(message("gradum.remove")) }) {
+                    IconButton(
+                        onClick = { onRemoveFile(attachedFile) },
+                        modifier = Modifier.size(18.dp)
+                    ) {
+                        Icon(
+                            key = AllIconsKeys.Actions.Close,
+                            contentDescription = message("gradum.remove")
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dropdown that switches between readonly and full-control permissions.
+ */
 @Composable
 fun PermissionSelector(
     selectedPermission: String,
@@ -334,7 +467,10 @@ fun PermissionSelector(
             onDismissRequest = { onDismiss(); true },
             horizontalAlignment = Alignment.Start
         ) {
-            selectableItem(selected = false, onClick = { onSelect(message("gradum.readonly")) }) {
+            selectableItem(
+                selected = false,
+                onClick = { onSelect(message("gradum.readonly")) }
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         key = AllIconsKeys.General.ReaderMode,
@@ -373,6 +509,9 @@ fun PermissionSelector(
     }
 }
 
+/**
+ * Bottom bar showing the current model name and a feedback link.
+ */
 @Composable
 fun ModelSelectorBar() {
     Row(
@@ -394,7 +533,9 @@ fun ModelSelectorBar() {
     }
 }
 
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+/**
+ * A button styled as a selector with a chevron icon and optional tooltip.
+ */
 @Composable
 fun SelectorButton(
     text: String,
@@ -420,31 +561,9 @@ fun SelectorButton(
     }
 }
 
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
-private fun MenuScope.addMenuItem(iconKey: IconKey, text: String) {
-    selectableItem(
-        onClick = {},
-        selected = true
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                key = iconKey,
-                contentDescription = text,
-                modifier = Modifier.padding(end = 6.dp)
-            )
-            Column {
-                Text(text)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+/**
+ * A single file entry shown in the add-menu file list, with a language icon and bold name when selected.
+ */
 @Composable
 fun FileItem(
     file: VirtualFile,
@@ -455,7 +574,7 @@ fun FileItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(

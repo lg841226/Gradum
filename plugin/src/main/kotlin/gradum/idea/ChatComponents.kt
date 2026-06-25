@@ -5,6 +5,8 @@
  * ChatComponents.kt  2026-06-24 21:10:23 Changed by gwy
  */
 
+@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+
 package gradum.idea
 
 import androidx.compose.animation.core.*
@@ -20,7 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import gradum.idea.GradumBundle.message
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -73,7 +75,6 @@ fun ChatMessageList(
  *
  * Renders inside a rounded rectangle with a border color background.
  */
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun UserChatBubble(message: ChatMessage) {
     var isCopied by remember { mutableStateOf(false) }
@@ -126,7 +127,6 @@ fun UserChatBubble(message: ChatMessage) {
  * Shows a [CircularProgressIndicator] alongside "Generating Answer" text
  * when [isLoading] is true (typically for the most recent assistant message).
  */
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
     var isCopied by remember { mutableStateOf(false) }
@@ -178,7 +178,6 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false) {
  *
  * Shows a check icon briefly after clicking, then reverts.
  */
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun CopyButton(
     message: ChatMessage,
@@ -186,13 +185,16 @@ private fun CopyButton(
     onCopy: () -> Unit,
     onReset: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+
     Tooltip(tooltip = { Text(message("gradum.copy.tooltip")) }) {
         IconButton(
             onClick = {
                 copyToClipboard(
                     text = message.content,
                     onCopied = onCopy,
-                    onReset = onReset
+                    onReset = onReset,
+                    scope = scope
                 )
             },
             enabled = message.content.isNotBlank()
@@ -215,6 +217,7 @@ fun copyToClipboard(
     text: String,
     onCopied: () -> Unit,
     onReset: () -> Unit,
+    scope: CoroutineScope,
     delayMillis: Long = 1000
 ) {
     val clipboard = Toolkit.getDefaultToolkit().systemClipboard
@@ -223,11 +226,27 @@ fun copyToClipboard(
 
     onCopied()
 
-    MainScope().launch {
+    scope.launch {
         delay(delayMillis.milliseconds); onReset()
     }
 }
 
+/**
+ * Renders [text] with a "shimmer" overlay that sweeps a translucent linear
+ * gradient horizontally across the glyphs, signalling that work is in
+ * progress (e.g. the assistant bubble while a response is streaming).
+ *
+ * The animation drives a single `offset` from -1f to 2f over
+ * [durationMillis] with linear easing and infinite restart. The offset is
+ * mapped to the start/end x-coordinates of a 3-stop alpha gradient
+ * (low → high → low), so the highlight travels left-to-right and
+ * seamlessly re-enters from the left on the next cycle. The underlying
+ * `Text` re-lays out its `Brush` on every frame.
+ *
+ * @param text  The string to render.
+ * @param modifier  Compose modifier forwarded to the underlying `Text`.
+ * @param durationMillis  Length of one full left-to-right sweep; default 1200ms.
+ */
 @Composable
 fun SweepLightText(
     text: String,
