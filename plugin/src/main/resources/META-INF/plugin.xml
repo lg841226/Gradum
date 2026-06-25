@@ -27,5 +27,14 @@
                 icon="icons/logo/logo.svg"
                 anchor="right"
                 factoryClass="gradum.idea.GradumToolWindowFactory"/>
+
+        <!--
+            Project-scoped chat state. The IntelliJ Platform disposes tool
+            window content when the user collapses the sidebar, so any
+            in-Compose state is lost on the next expand; holding it in a
+            project service keeps the conversation alive across that
+            round-trip.
+        -->
+        <projectService serviceImplementation="gradum.idea.GradumChatSession"/>
     </extensions>
 </idea-plugin>

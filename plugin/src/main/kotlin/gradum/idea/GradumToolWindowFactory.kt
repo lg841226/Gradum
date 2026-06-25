@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-25 13:06:00 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-26 00:00:00 Changed by gwy
  */
 
 package gradum.idea
@@ -10,7 +10,6 @@ package gradum.idea
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +26,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
 import gradum.idea.GradumBundle.message
+import gradum.idea.GradumChatSession.Companion.MAX_ATTACHMENTS
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -38,20 +38,24 @@ import org.jetbrains.jewel.ui.typography
 private val roundedCornerShape = RoundedCornerShape(6.dp)
 
 /**
- * Maximum number of attachments a single user message may carry.
- * The UI disables the add-menu upload controls at this threshold; the
- * callbacks also enforce the limit defensively in case the UI state
- * ever lags behind the underlying list.
+ * Hosts the Gradum chat tool window.
+ *
+ * All session state is held by the project-scoped [GradumChatSession] so
+ * it survives the platform's "dispose on collapse" lifecycle. The tab is
+ * reused rather than recreated: the welcome page is a UI branch inside
+ * [GradumUI] gated on `session.hasSentMessage`, so the same Compose tree
+ * flips between welcome and chat as messages are sent.
  */
-private const val MAX_ATTACHMENTS: Int = 10
-
 class GradumToolWindowFactory : ToolWindowFactory {
 
     @OptIn(ExperimentalJewelApi::class)
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        val session = project.getService(GradumChatSession::class.java)
+            ?: error("GradumChatSession is not registered in plugin.xml")
+
         toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
             SwingBridgeTheme {
-                GradumUI(toolWindow = toolWindow)
+                GradumUI(toolWindow = toolWindow, session = session)
             }
         }
 
@@ -63,14 +67,10 @@ class GradumToolWindowFactory : ToolWindowFactory {
             override fun actionPerformed(e: AnActionEvent) {
                 val project = e.project ?: return
                 val tw = ToolWindowManager.getInstance(project).getToolWindow("Gradum") ?: return
-                val contentManager = tw.contentManager
-                val content = contentManager.getContent(0) ?: return
-                contentManager.removeContent(content, true)
-                tw.addComposeTab(GradumBundle.message("gradum.toolwindow.welcome")) {
-                    SwingBridgeTheme {
-                        GradumUI(toolWindow = tw)
-                    }
-                }
+                val session = project.getService(GradumChatSession::class.java) ?: return
+                session.reset()
+                val content = tw.contentManager.contents.firstOrNull() ?: return
+                content.displayName = message("gradum.toolwindow.welcome")
             }
         }
         toolWindow.setTitleActions(listOf(newChatAction))
@@ -79,57 +79,55 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-fun GradumUI(toolWindow: ToolWindow? = null) {
-    var isFocused by remember { mutableStateOf(false) }
-    var isSending by remember { mutableStateOf(false) }
-    var isMenuVisible by remember { mutableStateOf(false) }
-    var isExpanded by remember { mutableStateOf(false) }
-    var selectedPermission by remember { mutableStateOf(message("gradum.readonly")) }
-    var hasSentMessage by remember { mutableStateOf(false) }
-    var showAddMenu by remember { mutableStateOf(false) }
-    val messages = remember { mutableStateListOf<ChatMessage>() }
-    val attachedFiles = remember { mutableStateListOf<AttachedFile>() }
-    val textState = rememberTextFieldState("")
+fun GradumUI(
+    toolWindow: ToolWindow? = null,
+    session: GradumChatSession
+) {
     val editorContext = toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
         ?: EditorContext.EMPTY
-    val isAttachmentLimitReached: Boolean = attachedFiles.size >= MAX_ATTACHMENTS
 
-    LaunchedEffect(hasSentMessage) {
+    LaunchedEffect(session.hasSentMessage) {
         val content = toolWindow?.contentManager?.contents?.firstOrNull()
         if (content != null) {
             content.displayName =
-                if (hasSentMessage) message("gradum.toolwindow.newchat") else message("gradum.toolwindow.welcome")
+                if (session.hasSentMessage) message("gradum.toolwindow.newchat")
+                else message("gradum.toolwindow.welcome")
         }
     }
 
     val callbacks = remember {
         object {
-            val onFocusChange: (Boolean) -> Unit = { isFocused = it }
-            val onToggleMenu: () -> Unit = { isMenuVisible = !isMenuVisible }
-            val onSelectPermission: (String) -> Unit = { selectedPermission = it; isMenuVisible = false }
-            val onDismissMenu: () -> Unit = { isMenuVisible = false }
-            val onToggleExpanded: () -> Unit = { isExpanded = !isExpanded }
-            val onClearText: () -> Unit = { textState.edit { delete(0, length) } }
-            val onToggleAddMenu: () -> Unit = { showAddMenu = !showAddMenu }
-            val onDismissAddMenu: () -> Unit = { showAddMenu = false }
+            val onFocusChange: (Boolean) -> Unit = { session.isFocused = it }
+            val onToggleMenu: () -> Unit = { session.isMenuVisible = !session.isMenuVisible }
+            val onSelectPermission: (String) -> Unit = {
+                session.selectedPermission = it
+                session.isMenuVisible = false
+            }
+            val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
+            val onToggleExpanded: () -> Unit = { session.isExpanded = !session.isExpanded }
+            val onClearText: () -> Unit = { session.textState.edit { delete(0, length) } }
+            val onToggleAddMenu: () -> Unit = { session.showAddMenu = !session.showAddMenu }
+            val onDismissAddMenu: () -> Unit = { session.showAddMenu = false }
             val onSelectFile: (VirtualFile) -> Unit = { file ->
-                if (attachedFiles.none { it.file.path == file.path }) {
+                if (session.attachedFiles.size < MAX_ATTACHMENTS &&
+                    session.attachedFiles.none { it.file.path == file.path }
+                ) {
                     val iconKey = if (file.isDirectory) {
                         AllIconsKeys.Actions.ProjectDirectory
                     } else {
                         getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
                     }
-                    attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
+                    session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
                 }
             }
             val onRemoveFile: (AttachedFile) -> Unit = { attachedFile ->
-                attachedFiles.removeAll { it.file.path == attachedFile.file.path }
+                session.attachedFiles.removeAll { it.file.path == attachedFile.file.path }
             }
             val onUploadImage: () -> Unit = {
-                if (attachedFiles.size < MAX_ATTACHMENTS) {
+                if (session.attachedFiles.size < MAX_ATTACHMENTS) {
                     val project = toolWindow?.project
                     if (project != null) {
-                        val remaining: Int = MAX_ATTACHMENTS - attachedFiles.size
+                        val remaining: Int = MAX_ATTACHMENTS - session.attachedFiles.size
                         val imageExtensions = setOf(
                             "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"
                         )
@@ -141,10 +139,12 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
                         }
                         FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
                             files.filter { it.extension?.lowercase() in imageExtensions }
-                                .filter { attachedFiles.none { existing -> existing.file.path == it.path } }
+                                .filter {
+                                    session.attachedFiles.none { existing -> existing.file.path == it.path }
+                                }
                                 .take(remaining)
                                 .forEach { file ->
-                                    attachedFiles.add(
+                                    session.attachedFiles.add(
                                         AttachedFile(
                                             file = file,
                                             iconKey = getLanguageIconKey(file.extension)
@@ -160,39 +160,46 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
     }
 
     val onSend: () -> Unit = {
-        val text = textState.text.toString()
+        val text = session.textState.text.toString()
         if (text.isNotBlank()) {
-            messages.add(ChatMessage(role = "user", content = text))
-            messages.add(ChatMessage(role = "assistant", content = ""))
-            hasSentMessage = true
-            isSending = true
-            textState.edit { delete(0, length) }
+            session.messages.add(
+                ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList())
+            )
+            session.messages.add(ChatMessage(role = "assistant", content = ""))
+            session.hasSentMessage = true
+            session.isSending = true
+            session.textState.edit { delete(0, length) }
+            session.attachedFiles.clear()
         }
     }
 
     Box(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
     ) {
-        if (hasSentMessage) {
-            Column(modifier = Modifier.fillMaxSize()) {
+        if (session.hasSentMessage) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 ChatMessageList(
-                    messages = messages,
-                    isLoading = isSending,
+                    messages = session.messages,
+                    isLoading = session.isSending,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
                 ChatInputSection(
-                    isFocused = isFocused,
+                    modifier = Modifier.widthIn(max = 600.dp),
+                    isFocused = session.isFocused,
                     roundedCornerShape = roundedCornerShape,
                     onFocusChange = callbacks.onFocusChange,
-                    textState = textState,
-                    selectedPermission = selectedPermission,
-                    isSending = isSending,
-                    isMenuVisible = isMenuVisible,
-                    isExpanded = isExpanded,
-                    showAddMenu = showAddMenu,
-                    isAttachmentLimitReached = isAttachmentLimitReached,
+                    textState = session.textState,
+                    selectedPermission = session.selectedPermission,
+                    isSending = session.isSending,
+                    isMenuVisible = session.isMenuVisible,
+                    isExpanded = session.isExpanded,
+                    showAddMenu = session.showAddMenu,
+                    isAttachmentLimitReached = session.isAttachmentLimitReached,
                     editorContext = editorContext,
-                    attachedFiles = attachedFiles,
+                    attachedFiles = session.attachedFiles,
                     onToggleMenu = callbacks.onToggleMenu,
                     onSelectPermission = callbacks.onSelectPermission,
                     onDismissMenu = callbacks.onDismissMenu,
@@ -228,18 +235,19 @@ fun GradumUI(toolWindow: ToolWindow? = null) {
                 }
                 Spacer(Modifier.height(20.dp))
                 ChatInputSection(
-                    isFocused = isFocused,
+                    modifier = Modifier.widthIn(max = 600.dp),
+                    isFocused = session.isFocused,
                     roundedCornerShape = roundedCornerShape,
                     onFocusChange = callbacks.onFocusChange,
-                    textState = textState,
-                    selectedPermission = selectedPermission,
-                    isSending = isSending,
-                    isMenuVisible = isMenuVisible,
-                    isExpanded = isExpanded,
-                    showAddMenu = showAddMenu,
-                    isAttachmentLimitReached = isAttachmentLimitReached,
+                    textState = session.textState,
+                    selectedPermission = session.selectedPermission,
+                    isSending = session.isSending,
+                    isMenuVisible = session.isMenuVisible,
+                    isExpanded = session.isExpanded,
+                    showAddMenu = session.showAddMenu,
+                    isAttachmentLimitReached = session.isAttachmentLimitReached,
                     editorContext = editorContext,
-                    attachedFiles = attachedFiles,
+                    attachedFiles = session.attachedFiles,
                     onToggleMenu = callbacks.onToggleMenu,
                     onSelectPermission = callbacks.onSelectPermission,
                     onDismissMenu = callbacks.onDismissMenu,
