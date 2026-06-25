@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InputComponents.kt  2026-06-25 15:35:17 Changed by gwy
+ * InputComponents.kt  2026-06-25 21:09:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -21,11 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isMetaPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
@@ -97,15 +93,18 @@ fun ChatInputPanel(
                 undecorated = true,
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(min = 60.dp, max = 160.dp)
-                    // Send the message on Cmd+Enter / Ctrl+Enter.
-                    // onPreviewKeyEvent runs before the TextArea consumes the keystroke, so a `true`
-                    // return value also suppresses the newline that would otherwise be inserted.
+                    // Cmd+Enter / Ctrl+Enter sends the message; plain Enter stays as a newline.
+                    // onPreviewKeyEvent fires before the TextArea consumes the keystroke, and
+                    // returning `true` swallows the event so no newline is inserted on send.
+                    // Only KeyDown is handled so KeyUp cannot re-trigger send.
                     .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
-                            onSend()
-                            true
-                        } else {
-                            false
+                        if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when {
+                            keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                onSend()
+                                true
+                            }
+                            else -> false
                         }
                     }
             )
