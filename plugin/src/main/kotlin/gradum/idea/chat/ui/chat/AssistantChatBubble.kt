@@ -59,7 +59,7 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false, onRetr
                     onCopyAsContext = onCopyAsContext
                 )
                 Spacer(Modifier.width(4.dp))
-                Tooltip(tooltip = { Text(message("gradum.reset.tooltip")) }) {
+                Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
                     IconButton(
                         onClick = onRetry,
                         enabled = !isLoading && message.content.isNotBlank()

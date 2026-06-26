@@ -52,7 +52,7 @@ fun PermissionSelector(
                     Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
                     Spacer(Modifier.width(6.dp))
                     Column {
-                        Text(message("gradum.readonly"))
+                        Text(text = message("gradum.readonly"))
                         Text(text = message("gradum.readonly.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
@@ -65,8 +65,8 @@ fun PermissionSelector(
                     Icon(key = GradumIcons.Edit, contentDescription = message("gradum.full.mode"))
                     Spacer(Modifier.width(6.dp))
                     Column {
-                        Text(message("gradum.full"))
-                        Text(message("gradum.full.info"), color = JewelTheme.globalColors.text.info)
+                        Text(text = message("gradum.full"))
+                        Text(text = message("gradum.full.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
             }

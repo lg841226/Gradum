@@ -35,7 +35,7 @@ fun SelectorButton(
     contentDescription: String,
     onClick: () -> Unit,
     color: Color = JewelTheme.globalColors.text.info,
-    tooltip: @Composable () -> Unit = { Text(contentDescription) }
+    tooltip: @Composable () -> Unit = { Text(text = contentDescription) }
 ) {
     Tooltip(tooltip = tooltip) {
         IconButton(onClick = onClick) {

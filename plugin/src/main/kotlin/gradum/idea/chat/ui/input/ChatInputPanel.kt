@@ -115,7 +115,7 @@ fun ChatInputPanel(
 
             TextArea(
                 state = textState,
-                placeholder = { Text(message("gradum.input.placeholder")) },
+                placeholder = { Text(text = message("gradum.input.placeholder")) },
                 undecorated = true,
                 modifier = Modifier
                     .fillMaxWidth()

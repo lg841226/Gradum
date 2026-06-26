@@ -86,7 +86,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                     onCopyAsContext = onCopyAsContext
                 )
                 Spacer(Modifier.width(4.dp))
-                Tooltip(tooltip = { Text(message("gradum.reset.tooltip")) }) {
+                Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
                     IconButton(onClick = { showResetPopup = true }) {
                         Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
                     }
@@ -109,7 +109,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                                         contentDescription = message("gradum.delete.confirm"),
                                         modifier = Modifier.padding(end = 6.dp)
                                     )
-                                    Text(message("gradum.delete.confirm"))
+                                    Text(text = message("gradum.delete.confirm"))
                                 }
                                 Spacer(Modifier.height(4.dp))
                                 Row(
@@ -117,7 +117,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     Text(
-                                        message("gradum.delete.revert.warning"),
+                                        text = message("gradum.delete.revert.warning"),
                                         color = JewelTheme.globalColors.text.info
                                     )
                                 }
@@ -142,7 +142,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                                     contentDescription = message("gradum.delete.action"),
                                     modifier = Modifier.padding(end = 6.dp)
                                 )
-                                Text(message("gradum.delete.action"))
+                                Text(text = message("gradum.delete.action"))
                             }
                         }
                     }

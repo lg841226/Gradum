@@ -63,7 +63,7 @@ fun AddContextPopup(
                     modifier = Modifier
                         .defaultMinSize(minWidth = 160.dp)
                         .widthIn(max = 200.dp),
-                    placeholder = { Text(message("gradum.add.popup.search.placeholder")) }
+                    placeholder = { Text(text = message("gradum.add.popup.search.placeholder")) }
                 )
             }
         }
@@ -84,7 +84,7 @@ fun AddContextPopup(
                     contentDescription = message("gradum.add.popup.project.directory"),
                     modifier = Modifier.padding(end = 6.dp)
                 )
-                Text(message("gradum.add.popup.project.directory"))
+                Text(text = message("gradum.add.popup.project.directory"))
             }
         }
 
@@ -103,7 +103,7 @@ fun AddContextPopup(
                     contentDescription = message("gradum.add.popup.upload.image"),
                     modifier = Modifier.padding(end = 6.dp)
                 )
-                Text(message("gradum.add.popup.upload.image"))
+                Text(text = message("gradum.add.popup.upload.image"))
             }
         }
 
@@ -115,7 +115,7 @@ fun AddContextPopup(
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
-                Text(message("gradum.add.popup.workspace"), fontWeight = FontWeight.Medium)
+                Text(text = message("gradum.add.popup.workspace"), fontWeight = FontWeight.Medium)
             }
         }
 

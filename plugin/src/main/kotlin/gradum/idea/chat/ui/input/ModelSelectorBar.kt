@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-26 23:55:00 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-26 17:25:57 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -11,14 +11,9 @@ package gradum.idea.chat.ui.input
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
@@ -29,12 +24,7 @@ import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.ExternalLink
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.PopupMenu
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.separator
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -44,19 +34,12 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 fun ModelSelectorBar(
     models: List<ModelInfo> = emptyList(),
     selectedModel: ModelInfo? = null,
+    pinnedModel: ModelInfo? = null,
     onRefresh: () -> Unit = {},
-    onSelectModel: (ModelInfo) -> Unit = {}
+    onSelectModel: (ModelInfo?) -> Unit = {},
+    onTogglePin: (ModelInfo?) -> Unit = {}
 ) {
     var showModelMenu by remember { mutableStateOf(false) }
-
-    val displayModels: List<ModelInfo> = remember(models, selectedModel) {
-        if (selectedModel != null) {
-            listOf(selectedModel) + models.filter {
-                it.name != selectedModel.name || it.serverName != selectedModel.serverName
-            }
-        } else
-            models
-    }
 
     Row(
         modifier = Modifier
@@ -73,17 +56,16 @@ fun ModelSelectorBar(
             if (showModelMenu) {
                 PopupMenu(
                     onDismissRequest = { showModelMenu = false; true },
-                    horizontalAlignment = Alignment.Start
+                    horizontalAlignment = Alignment.Start,
+                    modifier = Modifier.widthIn(min = 200.dp)
                 ) {
                     passiveItem {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                                .padding(vertical = 2.dp),
                             horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(message("gradum.model"), fontWeight = FontWeight.Bold)
-                        }
+                        ) { Text(message("gradum.model"), fontWeight = FontWeight.Bold) }
                     }
                     if (models.isEmpty()) {
                         passiveItem { ModelAutoItemContent(enabled = false) }
@@ -94,8 +76,45 @@ fun ModelSelectorBar(
                             selected = selectedModel == null,
                             onClick = { showModelMenu = false }
                         ) { ModelAutoItemContent(enabled = true) }
+
                         separator()
-                        displayModels.forEach { model ->
+
+                        if (pinnedModel != null) {
+                            passiveItem {
+                                Text(
+                                    text = message("gradum.model.pinned"),
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            selectableItem(
+                                selected = selectedModel?.let {
+                                    it.name == pinnedModel.name && it.serverName == pinnedModel.serverName
+                                } == true,
+                                onClick = {
+                                    onSelectModel(pinnedModel)
+                                    showModelMenu = false
+                                }
+                            ) {
+                                ModelItemContent(
+                                    model = pinnedModel,
+                                    isPinned = true,
+                                    onTogglePin = {
+                                        onTogglePin(null)
+                                        showModelMenu = false
+                                    }
+                                )
+                            }
+                            separator()
+                        }
+
+                        models.filter { model ->
+                            pinnedModel?.let {
+                                it.name == model.name && it.serverName == model.serverName
+                            } != true
+                        }.forEach { model ->
                             val isSelected: Boolean = selectedModel?.let {
                                 it.name == model.name && it.serverName == model.serverName
                             } == true
@@ -106,31 +125,14 @@ fun ModelSelectorBar(
                                     showModelMenu = false
                                 }
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(formatModelName(model.name))
-                                    if (model.serverName.isNotBlank()) {
-                                        Text(
-                                            text = model.serverName,
-                                            color = JewelTheme.globalColors.text.info,
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        )
+                                ModelItemContent(
+                                    model = model,
+                                    isPinned = false,
+                                    onTogglePin = {
+                                        onTogglePin(model)
+                                        showModelMenu = false
                                     }
-                                    IconTooltipButton(
-                                        tooltip = message("gradum.model.pin"),
-                                        iconKey = if (isSelected) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
-                                        contentDescription = message("gradum.model.pin"),
-                                        onClick = {
-                                            onSelectModel(model)
-                                            showModelMenu = false
-                                        },
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
+                                )
                             }
                         }
                         separator()
@@ -148,6 +150,38 @@ fun ModelSelectorBar(
 }
 
 @Composable
+private fun ModelItemContent(
+    model: ModelInfo,
+    isPinned: Boolean,
+    onTogglePin: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(formatModelName(model.name))
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        if (model.serverName.isNotBlank()) {
+            Text(
+                text = model.serverName,
+                color = JewelTheme.globalColors.text.info
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+
+        IconTooltipButton(
+            tooltip = message("gradum.model.pin"),
+            iconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
+            contentDescription = message("gradum.model.pin"),
+            onClick = onTogglePin,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+@Composable
 private fun RefreshButtonItem(onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
@@ -156,8 +190,10 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        Text(message("gradum.model.refresh"), color = JewelTheme.globalColors.text.info)
+        Text(text = message("gradum.model.refresh"), color = JewelTheme.globalColors.text.info)
+
         Spacer(Modifier.width(6.dp))
+
         IconButton(onClick = onRefresh) {
             Icon(key = AllIconsKeys.General.Refresh, contentDescription = message("gradum.refresh"))
         }
@@ -168,16 +204,18 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
 private fun ModelAutoItemContent(enabled: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 6.dp)
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Icon(
             key = GradumIcons.Auto,
-            contentDescription = message("gradum.auto.model"),
-            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+            contentDescription = message("gradum.auto.model")
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            message("gradum.model.auto"),
+            text = message("gradum.model.auto"),
             color = if (enabled) JewelTheme.globalColors.text.normal
             else JewelTheme.globalColors.text.disabled
         )

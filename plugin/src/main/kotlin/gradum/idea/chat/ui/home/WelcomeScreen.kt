@@ -44,7 +44,7 @@ fun WelcomeScreen(
         ) {
             Column {
                 Text(
-                    message("gradum.brand.name"),
+                    text = message("gradum.brand.name"),
                     color = JewelTheme.globalColors.outlines.focused,
                     style = JewelTheme.typography.h2TextStyle.copy(
                         fontFamily = JewelTheme.typography.editorTextStyle.fontFamily
@@ -52,7 +52,7 @@ fun WelcomeScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(6.dp))
-                Text(message("gradum.welcome.title"), style = JewelTheme.typography.h2TextStyle)
+                Text(text = message("gradum.welcome.title"), style = JewelTheme.typography.h2TextStyle)
             }
             Spacer(Modifier.height(20.dp))
             ChatInputSection(

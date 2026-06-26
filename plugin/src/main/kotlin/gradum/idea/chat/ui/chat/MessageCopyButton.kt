@@ -45,7 +45,7 @@ fun MessageCopyButton(
 ) {
     val scope = rememberCoroutineScope()
 
-    Tooltip(tooltip = { Text(message("gradum.copy.tooltip")) }) {
+    Tooltip(tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
         IconButton(
             onClick = {
                 if (message.content.length > 200) {
