@@ -43,8 +43,12 @@ fun ChatInputSection(
         ModelSelectorBar(
             models = state.models,
             selectedModel = state.selectedModel,
+            pinnedModels = state.pinnedModels,
+            isAutoSelected = state.isAutoSelected,
             onRefresh = onRefreshModels,
-            onSelectModel = actions.onSelectModel
+            onSelectModel = actions.onSelectModel,
+            onTogglePin = actions.onTogglePin,
+            onSelectAuto = actions.onSelectAuto
         )
     }
 }

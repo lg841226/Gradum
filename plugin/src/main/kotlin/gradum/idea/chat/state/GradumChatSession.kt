@@ -45,7 +45,9 @@ class GradumChatSession {
 
     val apiClient: GradumApiClient = GradumApiClient()
     val models: SnapshotStateList<ModelInfo> = mutableStateListOf()
+    val pinnedModels: SnapshotStateList<ModelInfo> = mutableStateListOf()
     var selectedModel: ModelInfo? by mutableStateOf(null)
+    var isAutoSelected: Boolean by mutableStateOf(false)
     var modelsLoaded: Boolean by mutableStateOf(false)
 
     val isAttachmentLimitReached: Boolean
@@ -69,6 +71,12 @@ class GradumChatSession {
             models.clear()
             models.addAll(response.models)
             modelsLoaded = true
+            if (selectedModel == null && models.isNotEmpty()) {
+                selectedModel = models.first()
+            }
+            pinnedModels.removeAll { pinned ->
+                models.none { it.name == pinned.name && it.serverName == pinned.serverName }
+            }
         } catch (exception: Exception) {
             log.warn("Failed to load models from ${apiClient.baseUrl}", exception)
         }

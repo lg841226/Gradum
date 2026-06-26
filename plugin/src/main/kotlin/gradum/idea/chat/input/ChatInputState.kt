@@ -27,7 +27,9 @@ data class ChatInputState(
     val attachedFiles: List<AttachedContext>,
     val pendingMessages: List<PendingMessage>,
     val models: List<ModelInfo> = emptyList(),
-    val selectedModel: ModelInfo? = null
+    val selectedModel: ModelInfo? = null,
+    val pinnedModels: List<ModelInfo> = emptyList(),
+    val isAutoSelected: Boolean = false
 )
 
 /** Callback actions for the chat input area. */
@@ -47,5 +49,7 @@ data class ChatInputActions(
     val onUploadImage: () -> Unit,
     val onRemovePending: (PendingMessage) -> Unit = {},
     val onPasteAsContext: (String) -> Unit = {},
-    val onSelectModel: (ModelInfo) -> Unit = {}
+    val onSelectModel: (ModelInfo?) -> Unit = {},
+    val onTogglePin: (ModelInfo) -> Unit = {},
+    val onSelectAuto: () -> Unit = {}
 )

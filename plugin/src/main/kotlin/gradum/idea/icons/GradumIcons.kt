@@ -25,4 +25,5 @@ object GradumIcons {
     val Image = PathIconKey("/icons/image/image.svg", GradumIcons::class.java)
     val Warning = PathIconKey("/icons/warning/warning.svg", GradumIcons::class.java)
     val Auto = PathIconKey("/icons/auto/auto.svg", GradumIcons::class.java)
+    val Cloud = PathIconKey("/icons/cloud/cloud.svg", GradumIcons::class.java)
 }

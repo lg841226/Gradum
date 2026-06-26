@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-06-26 23:55:00 Changed by gwy
+ * GradumApiClient.kt  2026-06-26 16:21:36 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -26,9 +26,5 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
         val response: HttpResponse<String> = client.send(request, HttpResponse.BodyHandlers.ofString())
         response.body()
-    }
-
-    fun close() {
-        client.close()
     }
 }

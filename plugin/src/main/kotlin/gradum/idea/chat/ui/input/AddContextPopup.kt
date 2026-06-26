@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-06-26 23:55:00 Changed by gwy
+ * AddContextPopup.kt  2026-06-26 18:49:22 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -24,11 +24,7 @@ import gradum.idea.chat.input.ChatInputState
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.PopupMenu
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.TextField
-import org.jetbrains.jewel.ui.component.separator
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -106,7 +102,10 @@ fun AddContextPopup(
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
-                Text(text = message("gradum.add.popup.workspace"), fontWeight = FontWeight.Medium)
+                Text(
+                    text = message("gradum.add.popup.workspace"),
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
 

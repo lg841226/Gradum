@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-26 23:55:00 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-26 17:14:54 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -37,12 +37,7 @@ import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.ChatScreen
 import gradum.idea.chat.ui.home.WelcomeScreen
-import gradum.idea.editor.AttachedFile
-import gradum.idea.editor.AttachedText
-import gradum.idea.editor.EditorContext
-import gradum.idea.editor.EditorUtils
-import gradum.idea.editor.PendingMessage
-import gradum.idea.editor.getLanguageIconKey
+import gradum.idea.editor.*
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
@@ -92,6 +87,13 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             content.displayName =
                 if (session.hasSentMessage) message("gradum.toolwindow.newchat")
                 else message("gradum.toolwindow.welcome")
+        }
+    }
+
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        if (!session.modelsLoaded) {
+            scope.launch { session.loadModels() }
         }
     }
 
@@ -207,10 +209,9 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         }
     }
 
-    val scope = rememberCoroutineScope()
     val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
 
-    val inputState: ChatInputState = ChatInputState(
+    val inputState = ChatInputState(
         isFocused = session.isFocused,
         isSending = session.isSending,
         isPendingQueueFull = session.isPendingQueueFull,
@@ -223,10 +224,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         attachedFiles = session.attachedFiles,
         pendingMessages = session.pendingMessages,
         models = session.models.toList(),
-        selectedModel = session.selectedModel
+        selectedModel = session.selectedModel,
+        pinnedModels = session.pinnedModels.toList(),
+        isAutoSelected = session.isAutoSelected
     )
 
-    val inputActions: ChatInputActions = ChatInputActions(
+    val inputActions = ChatInputActions(
         onFocusChange = callbacks.onFocusChange,
         onToggleMenu = callbacks.onToggleMenu,
         onSelectPermission = callbacks.onSelectPermission,
@@ -242,7 +245,21 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         onUploadImage = callbacks.onUploadImage,
         onRemovePending = callbacks.onRemovePending,
         onPasteAsContext = callbacks.onPasteAsContext,
-        onSelectModel = { model -> session.selectedModel = model }
+        onSelectModel = { model ->
+            session.selectedModel = model
+            session.isAutoSelected = false
+        },
+        onTogglePin = { model ->
+            if (session.pinnedModels.any { it.name == model.name && it.serverName == model.serverName }) {
+                session.pinnedModels.removeAll { it.name == model.name && it.serverName == model.serverName }
+            } else {
+                session.pinnedModels.add(model)
+            }
+        },
+        onSelectAuto = {
+            session.selectedModel = null
+            session.isAutoSelected = true
+        }
     )
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {

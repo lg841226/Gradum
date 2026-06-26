@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-26 17:25:57 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-26 19:02:54 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -34,10 +34,12 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 fun ModelSelectorBar(
     models: List<ModelInfo> = emptyList(),
     selectedModel: ModelInfo? = null,
-    pinnedModel: ModelInfo? = null,
+    pinnedModels: List<ModelInfo> = emptyList(),
+    isAutoSelected: Boolean = false,
     onRefresh: () -> Unit = {},
     onSelectModel: (ModelInfo?) -> Unit = {},
-    onTogglePin: (ModelInfo?) -> Unit = {}
+    onTogglePin: (ModelInfo) -> Unit = {},
+    onSelectAuto: () -> Unit = {}
 ) {
     var showModelMenu by remember { mutableStateOf(false) }
 
@@ -49,7 +51,11 @@ fun ModelSelectorBar(
     ) {
         Box {
             SelectorButton(
-                text = selectedModel?.let { formatModelName(it.name) } ?: message("gradum.model.none"),
+                text = when {
+                    selectedModel != null -> formatModelName(selectedModel.name)
+                    isAutoSelected -> message("gradum.model.auto")
+                    else -> message("gradum.model.none")
+                },
                 contentDescription = message("gradum.model.select"),
                 onClick = { showModelMenu = true }
             )
@@ -57,7 +63,7 @@ fun ModelSelectorBar(
                 PopupMenu(
                     onDismissRequest = { showModelMenu = false; true },
                     horizontalAlignment = Alignment.Start,
-                    modifier = Modifier.widthIn(min = 200.dp)
+                    modifier = Modifier.widthIn(min = 240.dp)
                 ) {
                     passiveItem {
                         Row(
@@ -69,51 +75,66 @@ fun ModelSelectorBar(
                     }
                     if (models.isEmpty()) {
                         passiveItem { ModelAutoItemContent(enabled = false) }
+                        passiveItem {
+                            Text(
+                                text = message("gradum.model.none"),
+                                color = JewelTheme.globalColors.text.info,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                         separator()
                         passiveItem { RefreshButtonItem(onRefresh) }
                     } else {
                         selectableItem(
-                            selected = selectedModel == null,
-                            onClick = { showModelMenu = false }
+                            selected = selectedModel == null && isAutoSelected,
+                            onClick = {
+                                onSelectAuto()
+                                showModelMenu = false
+                            }
                         ) { ModelAutoItemContent(enabled = true) }
 
-                        separator()
-
-                        if (pinnedModel != null) {
+                        if (pinnedModels.isNotEmpty()) {
+                            separator()
                             passiveItem {
                                 Text(
                                     text = message("gradum.model.pinned"),
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Medium,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
-                            selectableItem(
-                                selected = selectedModel?.let {
-                                    it.name == pinnedModel.name && it.serverName == pinnedModel.serverName
-                                } == true,
-                                onClick = {
-                                    onSelectModel(pinnedModel)
-                                    showModelMenu = false
-                                }
-                            ) {
-                                ModelItemContent(
-                                    model = pinnedModel,
-                                    isPinned = true,
-                                    onTogglePin = {
-                                        onTogglePin(null)
+                            pinnedModels.forEach { pinned ->
+                                val isSelected: Boolean = selectedModel?.let {
+                                    it.name == pinned.name && it.serverName == pinned.serverName
+                                } == true
+                                selectableItem(
+                                    selected = isSelected,
+                                    onClick = {
+                                        onSelectModel(pinned)
                                         showModelMenu = false
                                     }
-                                )
+                                ) {
+                                    ModelItemContent(
+                                        model = pinned,
+                                        isPinned = true,
+                                        onTogglePin = {
+                                            onTogglePin(pinned)
+                                            showModelMenu = false
+                                        }
+                                    )
+                                }
                             }
-                            separator()
                         }
 
+                        separator()
+
                         models.filter { model ->
-                            pinnedModel?.let {
+                            pinnedModels.none {
                                 it.name == model.name && it.serverName == model.serverName
-                            } != true
+                            }
                         }.forEach { model ->
                             val isSelected: Boolean = selectedModel?.let {
                                 it.name == model.name && it.serverName == model.serverName
@@ -161,6 +182,15 @@ private fun ModelItemContent(
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (model.name.contains("cloud")) {
+            Icon(
+                key = GradumIcons.Cloud,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+
         Text(text = formatModelName(model.name))
 
         Spacer(modifier = Modifier.weight(1f))

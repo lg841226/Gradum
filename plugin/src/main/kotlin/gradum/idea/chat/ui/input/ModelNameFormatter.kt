@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-06-26 23:55:00 Changed by gwy
+ * ModelNameFormatter.kt  2026-06-26 18:39:33 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -15,7 +15,7 @@ private val modelDisplayNames: Map<String, String> = mapOf(
     "qwen3.5" to "Qwen 3.5",
     "qwen3.6" to "Qwen 3.6",
     "qwen3-coder" to "Qwen 3 Coder",
-    "qwen3-coder-next" to "Qwen 3 Coder Next",
+    "qwen3-coder-next" to "Qwen 3 C. Next",
     "qwen3-next" to "Qwen 3 Next",
     "qwen3-vl" to "Qwen 3 VL",
     "llama3" to "Llama 3",
@@ -30,7 +30,7 @@ private val modelDisplayNames: Map<String, String> = mapOf(
     "deepseek-v3.1" to "DeepSeek V3.1",
     "deepseek-v3.2" to "DeepSeek V3.2",
     "deepseek-coder" to "DeepSeek Coder",
-    "deepseek-coder-v2" to "DeepSeek Coder V2",
+    "deepseek-coder-v2" to "DeepSeek C. V2",
     "minimax-m2" to "MiniMax M2",
     "minimax-m2.1" to "MiniMax M2.1",
     "minimax-m2.5" to "MiniMax M2.5",
@@ -45,14 +45,19 @@ private val modelDisplayNames: Map<String, String> = mapOf(
     "kimi-k2.5" to "Kimi K2.5",
     "kimi-k2.6" to "Kimi K2.6",
     "gpt-oss" to "ChatGPT 4 Nano",
+    "text-embedding-nomic-embed-text-v1.5" to "Nomic Embed V1.5"
 )
 
 /**
- * Converts a raw model name (e.g. "qwen2.5-coder:cloud") to a display-friendly name.
+ * Converts a raw model name (e.g. "qwen2.5-coder:cloud", "lmstudio-community/qwen2.5-7b")
+ * to a display-friendly name.
+ * Handles LM Studio format (XXXX/XXXX) by taking only the part after "/".
  * Uses [modelDisplayNames] lookup first, then falls back to title-cased hyphen replacement.
  */
 fun formatModelName(raw: String): String {
     val modelBase: String = raw.substringBefore(":")
-    modelDisplayNames[modelBase]?.let { return it }
-    return modelBase.replace("-", " ").replaceFirstChar { it.uppercase() }
+    val baseName: String = if (modelBase.contains("/")) modelBase.substringAfter("/") else modelBase
+    val lookupKey: String = baseName.replace(Regex("-\\d+b$"), "")
+    return modelDisplayNames[lookupKey]
+        ?: baseName.replace("-", " ").replaceFirstChar { it.uppercase() }
 }
