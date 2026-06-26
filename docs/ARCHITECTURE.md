@@ -46,7 +46,8 @@ HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while pre
 5. [Error Codes and Events](#5-error-codes-and-events)
 6. [Security Model](#6-security-model)
 7. [Limitations and Future Work](#7-limitations-and-future-work)
-8. [Glossary](#8-glossary)
+8. [IntelliJ IDEA Plugin](#8-intellij-idea-plugin)
+9. [Glossary](#9-glossary)
 
 ---
 
@@ -1540,7 +1541,104 @@ flowchart TB
 
 ---
 
-## 8. Glossary
+## 8. IntelliJ IDEA Plugin
+
+### 8.1 Overview
+
+The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool window.
+It communicates with the standalone Gradum server over HTTP at runtime — there is **no compile-time dependency** between
+the plugin and the server module.
+
+### 8.2 Module Dependencies
+
+```
+plugin (IntelliJ Plugin)
+    │
+    ├─── IntelliJ Platform SDK (IU 2026.1.3)
+    │       └── com.intellij.modules.platform (bundled)
+    │
+    ├─── Compose for Desktop (local JARs)
+    │       ├── intellij.libraries.compose.foundation.desktop.jar
+    │       ├── intellij.libraries.compose.runtime.desktop.jar
+    │       └── intellij.libraries.skiko.jar
+    │
+    ├─── Jewel UI Framework (local JARs)
+    │       ├── intellij.platform.jewel.foundation.jar
+    │       ├── intellij.platform.jewel.ui.jar
+    │       └── intellij.platform.jewel.ideLafBridge.jar
+    │
+    ├─── IntelliJ Compose Bridge
+    │       └── intellij.platform.compose.jar
+    │
+    ├─── kotlinx-serialization-json 1.7.3
+    │
+    └─── Gradum Server (runtime, HTTP only)
+            └── POST /events, GET /models, GET /health
+```
+
+### 8.3 Runtime Communication
+
+```
+┌─────────────────────┐         HTTP (localhost)        ┌─────────────────────┐
+│  IntelliJ Plugin    │ ──────────────────────────────> │  Gradum Server      │
+│                     │                                 │  (Ktor + Netty)     │
+│  ChatInputSection   │   POST /events (NDJSON stream)  │                     │
+│  ModelSelectorBar   │ <══════════════════════════════>│  Agent + Skills     │
+│  MessageComponents  │   GET /models                   │  LLM Client         │
+│  GradumApiClient    │ <───────────────────────────────│  CommandFilter      │
+│                     │                                 │                     │
+└─────────────────────┘                                 └─────────────────────┘
+```
+
+- `GradumApiClient` sends user messages to the server's `/events` endpoint
+- Server returns NDJSON event stream (thinking, tool_call, llm_response, session_end)
+- Plugin renders the streaming response in real-time via Compose UI
+
+### 8.4 Plugin Internal Structure
+
+```
+gradum.idea/
+├── GradumToolWindowFactory.kt        # Entry point, registers tool window
+├── chat/
+│   ├── api/
+│   │   └── GradumApiClient.kt        # HTTP client for server communication
+│   ├── input/
+│   │   ├── ChatInputPanel.kt         # Text input + send/stop buttons
+│   │   ├── ChatInputSection.kt       # Input panel + model selector
+│   │   └── ModelSelectorBar.kt       # Model dropdown with pin/auto
+│   ├── model/
+│   │   └── ModelInfo.kt              # Model data class (name, serverName)
+│   ├── state/
+│   │   └── GradumChatSession.kt      # Project-level service, holds chat state
+│   └── ui/
+│       ├── ChatScreen.kt             # Main chat layout
+│       ├── MessageComponents.kt      # Message bubbles, code blocks
+│       └── input/
+│           ├── ModelNameFormatter.kt # Model name display formatting
+│           └── ...
+├── editor/
+│   ├── EditorContext.kt              # Editor state (attachments, pending)
+│   ├── AttachedFile.kt               # File attachment model
+│   └── PendingMessage.kt             # Queued message model
+├── bundle/
+│   └── GradumBundle.properties       # i18n (en, zh_CN)
+└── icons/
+    └── GradumIcons.kt                # Custom SVG icon registry
+```
+
+### 8.5 Key Dependencies Summary
+
+| Dependency                 | Version  | Purpose                        |
+|----------------------------|----------|--------------------------------|
+| IntelliJ Platform (IU)     | 2026.1.3 | IDE SDK                        |
+| Compose for Desktop        | bundled  | UI framework                   |
+| Jewel                      | bundled  | IntelliJ-themed UI components  |
+| kotlinx-serialization-json | 1.7.3    | JSON parsing for API responses |
+| Gradum Server (runtime)    | 0.9.0    | AI agent backend (HTTP only)   |
+
+---
+
+## 9. Glossary
 
 | Term                     | Definition                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
