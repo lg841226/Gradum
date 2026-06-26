@@ -40,7 +40,7 @@ fun SelectorButton(
     Tooltip(tooltip = tooltip) {
         IconButton(onClick = onClick) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
-                Text(modifier = Modifier.padding(horizontal = 2.dp), text = text, color = color)
+                Text(text = text, color = color)
                 Icon(key = AllIconsKeys.General.ChevronDown, contentDescription = contentDescription)
             }
         }

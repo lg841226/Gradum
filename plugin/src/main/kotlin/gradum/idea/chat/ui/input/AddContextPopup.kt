@@ -52,11 +52,8 @@ fun AddContextPopup(
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
-                Icon(
-                    key = GradumIcons.Search,
-                    contentDescription = message("gradum.add.popup.search"),
-                    modifier = Modifier.padding(end = 6.dp)
-                )
+                Icon(key = GradumIcons.Search, contentDescription = message("gradum.add.popup.search"))
+                Spacer(Modifier.width(6.dp))
                 TextField(
                     state = searchState,
                     undecorated = true,
@@ -76,14 +73,11 @@ fun AddContextPopup(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    key = AllIconsKeys.Actions.ProjectDirectory,
-                    contentDescription = message("gradum.add.popup.project.directory"),
-                    modifier = Modifier.padding(end = 6.dp)
-                )
+                Icon(key = AllIconsKeys.Actions.ProjectDirectory, contentDescription = message("gradum.add.popup.project.directory"))
+                Spacer(Modifier.width(6.dp))
                 Text(text = message("gradum.add.popup.project.directory"))
             }
         }
@@ -95,14 +89,11 @@ fun AddContextPopup(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 2.dp),
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    key = GradumIcons.Image,
-                    contentDescription = message("gradum.add.popup.upload.image"),
-                    modifier = Modifier.padding(end = 6.dp)
-                )
+                Icon(key = GradumIcons.Image, contentDescription = message("gradum.add.popup.upload.image"))
+                Spacer(Modifier.width(6.dp))
                 Text(text = message("gradum.add.popup.upload.image"))
             }
         }

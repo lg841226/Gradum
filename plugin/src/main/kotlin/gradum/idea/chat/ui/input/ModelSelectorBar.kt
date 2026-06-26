@@ -156,10 +156,12 @@ private fun ModelItemContent(
     onTogglePin: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(formatModelName(model.name))
+        Text(text = formatModelName(model.name))
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -176,7 +178,7 @@ private fun ModelItemContent(
             iconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
             contentDescription = message("gradum.model.pin"),
             onClick = onTogglePin,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(14.dp)
         )
     }
 }

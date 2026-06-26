@@ -48,7 +48,12 @@ fun PermissionSelector(
                 selected = false,
                 onClick = { onSelect(message("gradum.readonly")) }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
                     Spacer(Modifier.width(6.dp))
                     Column {
@@ -61,7 +66,12 @@ fun PermissionSelector(
                 selected = selectedPermission == message("gradum.full"),
                 onClick = { onSelect(message("gradum.full")) }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(key = GradumIcons.Edit, contentDescription = message("gradum.full.mode"))
                     Spacer(Modifier.width(6.dp))
                     Column {
