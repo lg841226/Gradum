@@ -2,18 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-06-21 07:53:44 Changed by gwy
+ * ContextManager.kt  2026-06-26 17:32:11 Changed by gwy
  */
 
 package gradum.utils
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
@@ -116,11 +110,10 @@ class ContextManager(private val outputDirectory: Path) {
     }
 
     private fun convertJsonElement(element: JsonElement): Any {
-        return when {
-            element is JsonPrimitive && element.isString -> element.content
-            element is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-            element is JsonArray || element is JsonObject -> JsonUtil.fromJsonElement(element).toString()
-            else -> element.toString()
+        return when (element) {
+            is JsonPrimitive if element.isString -> element.content
+            is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
+            is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element).toString()
         }
     }
 

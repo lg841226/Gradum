@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-22 23:08:56 Changed by gwy
+ * Routes.kt  2026-06-26 17:32:11 Changed by gwy
  */
 
 package gradum.server
@@ -86,7 +86,7 @@ data class ConfigOverrides(
  * - `GET /models`  — discovered LLM models.
  * - `GET /skills`  — registered Skill implementations.
  */
-fun Application.registerAllRoutes(): Unit {
+fun Application.registerAllRoutes() {
     val serverStartTime: LocalDateTime = LocalDateTime.now()
 
     routing {
@@ -98,7 +98,7 @@ fun Application.registerAllRoutes(): Unit {
             // through this channel unfiltered.
             val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
 
-            val configOverrides: ConfigOverrides = ConfigOverrides.fromRequestMap(requestBody.config)
+            val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
             val agentConfiguration = AgentConfiguration(
                 modelName = requestBody.model ?: "minimax-m2.5:cloud",
