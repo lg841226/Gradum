@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import kotlinx.coroutines.launch
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
@@ -35,17 +36,6 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-private val roundedCornerShape = RoundedCornerShape(6.dp)
-
-/**
- * Hosts the Gradum chat tool window.
- *
- * All session state is held by the project-scoped [GradumChatSession] so
- * it survives the platform's "dispose on collapse" lifecycle. The tab is
- * reused rather than recreated: the welcome page is a UI branch inside
- * [GradumUI] gated on `session.hasSentMessage`, so the same Compose tree
- * flips between welcome and chat as messages are sent.
- */
 class GradumToolWindowFactory : ToolWindowFactory {
 
     @OptIn(ExperimentalJewelApi::class)
@@ -173,12 +163,9 @@ fun GradumUI(
     }
 
     val onDeleteMessage: (Int) -> Unit = { userMessageIndex ->
-        if (session.isSending) {
-            session.isSending = false
-        }
         val assistantResponseIndex = userMessageIndex + 1
         if (assistantResponseIndex < session.messages.size &&
-            session.messages[assistantResponseIndex].role == "assistant"
+            !session.messages[assistantResponseIndex].isUserMessage
         ) {
             session.messages.removeAt(assistantResponseIndex)
         }
@@ -210,11 +197,12 @@ fun GradumUI(
         }
     }
 
-    val processPendingQueue: () -> Unit = {
+    val onStop: () -> Unit = {
+        session.isSending = false
         if (session.pendingMessages.isNotEmpty()) {
-            val pending = session.pendingMessages.removeFirst()
+            val next = session.pendingMessages.removeFirst()
             session.messages.add(
-                ChatMessage(role = "user", content = pending.content, attachments = pending.attachments)
+                ChatMessage(role = "user", content = next.content, attachments = next.attachments)
             )
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.hasSentMessage = true
@@ -222,9 +210,9 @@ fun GradumUI(
         }
     }
 
-    val onStop: () -> Unit = {
-        session.isSending = false
-        processPendingQueue()
+    val scope = rememberCoroutineScope()
+    val onRefreshModels: () -> Unit = {
+        scope.launch { session.loadModels() }
     }
 
     val inputState = ChatInputState(
@@ -238,7 +226,9 @@ fun GradumUI(
         selectedPermission = session.selectedPermission,
         editorContext = editorContext,
         attachedFiles = session.attachedFiles,
-        pendingMessages = session.pendingMessages
+        pendingMessages = session.pendingMessages,
+        models = session.models.toList(),
+        selectedModel = session.selectedModel
     )
 
     val inputActions = ChatInputActions(
@@ -256,7 +246,8 @@ fun GradumUI(
         onRemoveFile = callbacks.onRemoveFile,
         onUploadImage = callbacks.onUploadImage,
         onRemovePending = callbacks.onRemovePending,
-        onPasteAsContext = callbacks.onPasteAsContext
+        onPasteAsContext = callbacks.onPasteAsContext,
+        onSelectModel = { model -> session.selectedModel = model }
     )
 
     Box(
@@ -272,32 +263,14 @@ fun GradumUI(
                     isLoading = session.isSending,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     onDeleteMessage = onDeleteMessage,
-                    onRetryMessage = { index ->
-                        if (session.isSending) {
-                            session.isSending = false
-                        }
-                        val assistantResponseIndex = index + 1
-                        if (assistantResponseIndex < session.messages.size &&
-                            session.messages[assistantResponseIndex].role == "assistant"
-                        ) {
-                            session.messages.removeAt(assistantResponseIndex)
-                        }
-                        val userMessage = session.messages[index]
-                        session.messages.removeAt(index)
-                        session.messages.add(
-                            ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments)
-                        )
-                        session.messages.add(ChatMessage(role = "assistant", content = ""))
-                        session.hasSentMessage = true
-                        session.isSending = true
-                    },
                     onCopyAsContext = callbacks.onCopyAsContext
                 )
                 ChatInputSection(
                     modifier = Modifier.widthIn(max = 600.dp),
                     state = inputState,
                     actions = inputActions,
-                    textState = session.textState
+                    textState = session.textState,
+                    onRefreshModels = onRefreshModels
                 )
             }
         } else {
@@ -325,7 +298,8 @@ fun GradumUI(
                     modifier = Modifier.widthIn(max = 600.dp),
                     state = inputState,
                     actions = inputActions,
-                    textState = session.textState
+                    textState = session.textState,
+                    onRefreshModels = onRefreshModels
                 )
             }
             Row(

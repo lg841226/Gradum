@@ -12,6 +12,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import kotlinx.serialization.Serializable
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -40,6 +41,12 @@ data class PendingMessage(
     val attachments: List<AttachedContext>
 )
 
+@Serializable
+data class ModelInfo(
+    val name: String,
+    val serverName: String = ""
+)
+
 /** UI state for the chat input area. */
 data class ChatInputState(
     val isFocused: Boolean,
@@ -52,7 +59,9 @@ data class ChatInputState(
     val selectedPermission: String,
     val editorContext: EditorContext,
     val attachedFiles: List<AttachedContext>,
-    val pendingMessages: List<PendingMessage>
+    val pendingMessages: List<PendingMessage>,
+    val models: List<ModelInfo> = emptyList(),
+    val selectedModel: ModelInfo? = null
 )
 
 /** Callback actions for the chat input area. */
@@ -71,7 +80,8 @@ data class ChatInputActions(
     val onRemoveFile: (AttachedContext) -> Unit,
     val onUploadImage: () -> Unit,
     val onRemovePending: (PendingMessage) -> Unit = {},
-    val onPasteAsContext: (String) -> Unit = {}
+    val onPasteAsContext: (String) -> Unit = {},
+    val onSelectModel: (ModelInfo) -> Unit = {}
 )
 
 data class EditorContext(

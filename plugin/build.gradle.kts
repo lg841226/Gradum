@@ -8,10 +8,10 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.3.0"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
     id("org.jetbrains.intellij.platform") version "2.16.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
     id("org.jetbrains.changelog") version "2.3.0"
-    kotlin("plugin.serialization") version "2.3.0"
 }
 
 group = "com.gradum.idea"
@@ -40,6 +40,8 @@ dependencies {
     implementation(files("libs/intellij.platform.jewel.foundation.jar"))
     implementation(files("libs/intellij.platform.jewel.ui.jar"))
     implementation(files("libs/intellij.platform.jewel.ideLafBridge.jar"))
+
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }
 
 kotlin {
