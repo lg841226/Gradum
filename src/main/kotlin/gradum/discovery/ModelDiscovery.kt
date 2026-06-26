@@ -12,13 +12,10 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.runBlocking
-import kotlin.math.pow
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.milliseconds
 
 private val logger: Logger = LoggerFactory.getLogger("ModelDiscovery")
 
@@ -56,53 +53,49 @@ fun discoverModels(): List<ModelEntry> {
     return discoveredModels
 }
 
-private fun probeServer(server: ServerDefinition, maxRetries: Int = 2): List<ModelEntry> {
-    for (attempt in 0..maxRetries) {
-        try {
-            val httpClient = HttpClient()
+private fun probeServer(server: ServerDefinition): List<ModelEntry> {
+    try {
+        logger.info("Probing ${server.serverName} at ${server.baseUrl}${server.apiEndpoint}")
+        val httpClient = HttpClient()
 
-            httpClient.use { _ ->
-                val response: HttpResponse = runBlocking {
-                    httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
-                        timeout {
-                            requestTimeoutMillis = (1.5 * 1000).toLong()
-                        }
-                    }
-                }
-
-                if (response.status == HttpStatusCode.OK) {
-                    val responseBody: String = runBlocking { response.bodyAsText() }
-                    val parsedData: JsonObject = jsonParser.parseToJsonElement(responseBody).jsonObject
-
-                    val modelNames: List<String> = when (server.providerType) {
-                        "ollama" -> parsedData["models"]?.jsonArray?.map {
-                            it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                        }?.filter { it.isNotBlank() } ?: emptyList()
-
-                        else -> parsedData["data"]?.jsonArray?.map {
-                            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-                        }?.filter { it.isNotBlank() } ?: emptyList()
-                    }
-
-                    return modelNames.map { name ->
-                        ModelEntry(
-                            modelName = name,
-                            providerType = server.providerType,
-                            serverUrl = server.baseUrl,
-                            serverName = server.serverName
-                        )
+        httpClient.use { _ ->
+            val response: HttpResponse = runBlocking {
+                httpClient.get("${server.baseUrl}${server.apiEndpoint}") {
+                    timeout {
+                        requestTimeoutMillis = 2000
                     }
                 }
             }
-        } catch (exception: Exception) {
-            logger.debug("Failed to probe ${server.serverName} at ${server.baseUrl}: ${exception.message}")
 
-            if (attempt < maxRetries) {
-                runBlocking {
-                    delay((5_000L * 2.0.pow(attempt.toDouble())).toLong().milliseconds)
+            if (response.status == HttpStatusCode.OK) {
+                val responseBody: String = runBlocking { response.bodyAsText() }
+                logger.info("Got response from ${server.serverName}: ${responseBody.take(200)}")
+                val parsedData: JsonObject = jsonParser.parseToJsonElement(responseBody).jsonObject
+
+                val modelNames: List<String> = when (server.providerType) {
+                    "ollama" -> parsedData["models"]?.jsonArray?.map {
+                        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                    }?.filter { it.isNotBlank() } ?: emptyList()
+
+                    else -> parsedData["data"]?.jsonArray?.map {
+                        it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                    }?.filter { it.isNotBlank() } ?: emptyList()
+                }
+
+                return modelNames.map { name ->
+                    ModelEntry(
+                        modelName = name,
+                        providerType = server.providerType,
+                        serverUrl = server.baseUrl,
+                        serverName = server.serverName
+                    )
+                }.also { entries ->
+                    logger.info("Found ${entries.size} models from ${server.serverName}: ${entries.map { it.modelName }}")
                 }
             }
         }
+    } catch (exception: Exception) {
+        logger.debug("Failed to probe ${server.serverName} at ${server.baseUrl}: ${exception.message}")
     }
     return emptyList()
 }

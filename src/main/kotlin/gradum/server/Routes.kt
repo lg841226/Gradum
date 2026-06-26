@@ -164,6 +164,7 @@ fun Application.registerAllRoutes(): Unit {
 
         get("/models") {
             val discoveredModels: List<ModelEntry> = discoverModels()
+            application.log.info("Discovered ${discoveredModels.size} models: ${discoveredModels.map { it.modelName }}")
             call.respondText(
                 text = JsonUtil.encodeMap(
                     mapOf(
@@ -171,7 +172,8 @@ fun Application.registerAllRoutes(): Unit {
                             mapOf(
                                 "name" to entry.modelName,
                                 "provider" to entry.providerType,
-                                "server" to entry.serverUrl
+                                "server" to entry.serverUrl,
+                                "serverName" to entry.serverName
                             )
                         },
                     )
