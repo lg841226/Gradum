@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatComponents.kt  2026-06-26 01:46:47 Changed by gwy
+ * ChatComponents.kt  2026-06-26 09:05:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -15,7 +15,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,10 +125,17 @@ fun ChatMessageList(
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
     onDeleteMessage: (Int) -> Unit = {},
+    onRetryMessage: (Int) -> Unit = {},
     onCopyAsContext: (String) -> Unit = {}
 ) {
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(messages.size, messages.lastOrNull()?.content) {
+        scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
     Column(
-        modifier = modifier,
+        modifier = modifier.verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         messages.forEachIndexed { index, message ->
@@ -148,6 +157,7 @@ fun ChatMessageList(
                 else -> AssistantChatBubble(
                     message = message,
                     isLoading = isLastAssistant,
+                    onRetry = { onRetryMessage(index) },
                     onCopyAsContext = onCopyAsContext
                 )
             }
@@ -238,18 +248,32 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                         horizontalAlignment = Alignment.End
                     ) {
                         passiveItem {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.padding(horizontal = 6.dp),
                             ) {
-                                Icon(
-                                    key = GradumIcons.Warning,
-                                    contentDescription = message("gradum.delete.confirm"),
-                                    modifier = Modifier.padding(end = 6.dp)
-                                )
-                                Text(message("gradum.delete.confirm"))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        key = GradumIcons.Warning,
+                                        contentDescription = message("gradum.delete.confirm"),
+                                        modifier = Modifier.padding(end = 6.dp)
+                                    )
+                                    Text(message("gradum.delete.confirm"))
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        message("gradum.delete.revert.warning"),
+                                        color = JewelTheme.globalColors.text.info
+                                    )
+                                }
                             }
                         }
                         separator()
@@ -288,7 +312,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
  * when [isLoading] is true (typically for the most recent assistant message).
  */
 @Composable
-fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false, onCopyAsContext: (String) -> Unit = {}) {
+fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false, onRetry: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}) {
     var isCopied by remember { mutableStateOf(false) }
     var isSelectedLike by remember { mutableStateOf(false) }
 
@@ -319,6 +343,18 @@ fun AssistantChatBubble(message: ChatMessage, isLoading: Boolean = false, onCopy
                     onReset = { isCopied = false },
                     onCopyAsContext = onCopyAsContext
                 )
+                Spacer(Modifier.width(4.dp))
+                Tooltip(tooltip = { Text(message("gradum.reset.tooltip")) }) {
+                    IconButton(
+                        onClick = onRetry,
+                        enabled = !isLoading && message.content.isNotBlank()
+                    ) {
+                        Icon(
+                            key = AllIconsKeys.Actions.Refresh,
+                            contentDescription = message("gradum.reset")
+                        )
+                    }
+                }
                 Spacer(Modifier.width(4.dp))
                 IconButton(
                     onClick = { isSelectedLike = !isSelectedLike },

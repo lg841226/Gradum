@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-06-25 13:41:05 Changed by gwy
+ * GradumIcons.kt  2026-06-26 09:30:32 Changed by gwy
  */
 
 package gradum.idea
@@ -24,4 +24,5 @@ object GradumIcons {
     val Png = PathIconKey("/icons/file-type/image/image.svg", GradumIcons::class.java)
     val Image = PathIconKey("/icons/image/image.svg", GradumIcons::class.java)
     val Warning = PathIconKey("/icons/warning/warning.svg", GradumIcons::class.java)
+    val Auto = PathIconKey("/icons/auto/auto.svg", GradumIcons::class.java)
 }

@@ -42,6 +42,9 @@ class GradumChatSession {
     /** Files attached to the next message (cleared on send). */
     val attachedFiles: SnapshotStateList<AttachedContext> = mutableStateListOf()
 
+    /** Messages waiting to be sent while isSending is true. */
+    val pendingMessages: SnapshotStateList<PendingMessage> = mutableStateListOf()
+
     /** Toggles the welcome page ↔ chat page. */
     var hasSentMessage: Boolean by mutableStateOf(false)
 
@@ -67,6 +70,10 @@ class GradumChatSession {
     val isAttachmentLimitReached: Boolean
         get() = attachedFiles.size >= MAX_ATTACHMENTS
 
+    /** Whether the pending message queue is full. */
+    val isPendingQueueFull: Boolean
+        get() = pendingMessages.size >= MAX_PENDING_MESSAGES
+
     /**
      * Resets the session to the welcome page, dropping all messages,
      * attachments, and draft text. Used by the "New Chat" title action.
@@ -76,6 +83,7 @@ class GradumChatSession {
         isSending = false
         messages.clear()
         attachedFiles.clear()
+        pendingMessages.clear()
         textState.edit { delete(0, length) }
     }
 
@@ -85,5 +93,8 @@ class GradumChatSession {
          * Mirrors the cap previously inlined in [GradumToolWindowFactory].
          */
         const val MAX_ATTACHMENTS: Int = 5
+
+        /** Maximum number of messages that can be queued while waiting for a response. */
+        const val MAX_PENDING_MESSAGES: Int = 2
     }
 }

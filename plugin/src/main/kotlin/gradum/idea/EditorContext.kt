@@ -35,6 +35,45 @@ data class AttachedText(
     override val displayName: String get() = preview
 }
 
+data class PendingMessage(
+    val content: String,
+    val attachments: List<AttachedContext>
+)
+
+/** UI state for the chat input area. */
+data class ChatInputState(
+    val isFocused: Boolean,
+    val isSending: Boolean,
+    val isPendingQueueFull: Boolean,
+    val isMenuVisible: Boolean,
+    val isExpanded: Boolean,
+    val showAddMenu: Boolean,
+    val isAttachmentLimitReached: Boolean,
+    val selectedPermission: String,
+    val editorContext: EditorContext,
+    val attachedFiles: List<AttachedContext>,
+    val pendingMessages: List<PendingMessage>
+)
+
+/** Callback actions for the chat input area. */
+data class ChatInputActions(
+    val onFocusChange: (Boolean) -> Unit,
+    val onToggleMenu: () -> Unit,
+    val onSelectPermission: (String) -> Unit,
+    val onDismissMenu: () -> Unit,
+    val onToggleExpanded: () -> Unit,
+    val onClearText: () -> Unit,
+    val onSend: () -> Unit,
+    val onStop: () -> Unit,
+    val onToggleAddMenu: () -> Unit,
+    val onDismissAddMenu: () -> Unit,
+    val onSelectFile: (VirtualFile) -> Unit,
+    val onRemoveFile: (AttachedContext) -> Unit,
+    val onUploadImage: () -> Unit,
+    val onRemovePending: (PendingMessage) -> Unit = {},
+    val onPasteAsContext: (String) -> Unit = {}
+)
+
 data class EditorContext(
     val currentFile: VirtualFile?,
     val allOpenFiles: List<VirtualFile>,

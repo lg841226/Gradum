@@ -166,6 +166,9 @@ fun GradumUI(
                 }
             }
             val onPasteAsContext: (String) -> Unit = onCopyAsContext
+            val onRemovePending: (PendingMessage) -> Unit = { pending ->
+                session.pendingMessages.removeAll { it.content == pending.content && it.attachments == pending.attachments }
+            }
         }
     }
 
@@ -188,16 +191,73 @@ fun GradumUI(
     val onSend: () -> Unit = {
         val text = session.textState.text.toString()
         if (text.isNotBlank()) {
-            session.messages.add(
-                ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList())
-            )
-            session.messages.add(ChatMessage(role = "assistant", content = ""))
-            session.hasSentMessage = true
-            session.isSending = true
+            if (session.isSending) {
+                if (!session.isPendingQueueFull) {
+                    session.pendingMessages.add(
+                        PendingMessage(content = text, attachments = session.attachedFiles.toList())
+                    )
+                }
+            } else {
+                session.messages.add(
+                    ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList())
+                )
+                session.messages.add(ChatMessage(role = "assistant", content = ""))
+                session.hasSentMessage = true
+                session.isSending = true
+            }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()
         }
     }
+
+    val processPendingQueue: () -> Unit = {
+        if (session.pendingMessages.isNotEmpty()) {
+            val pending = session.pendingMessages.removeFirst()
+            session.messages.add(
+                ChatMessage(role = "user", content = pending.content, attachments = pending.attachments)
+            )
+            session.messages.add(ChatMessage(role = "assistant", content = ""))
+            session.hasSentMessage = true
+            session.isSending = true
+        }
+    }
+
+    val onStop: () -> Unit = {
+        session.isSending = false
+        processPendingQueue()
+    }
+
+    val inputState = ChatInputState(
+        isFocused = session.isFocused,
+        isSending = session.isSending,
+        isPendingQueueFull = session.isPendingQueueFull,
+        isMenuVisible = session.isMenuVisible,
+        isExpanded = session.isExpanded,
+        showAddMenu = session.showAddMenu,
+        isAttachmentLimitReached = session.isAttachmentLimitReached,
+        selectedPermission = session.selectedPermission,
+        editorContext = editorContext,
+        attachedFiles = session.attachedFiles,
+        pendingMessages = session.pendingMessages
+    )
+
+    val inputActions = ChatInputActions(
+        onFocusChange = callbacks.onFocusChange,
+        onToggleMenu = callbacks.onToggleMenu,
+        onSelectPermission = callbacks.onSelectPermission,
+        onDismissMenu = callbacks.onDismissMenu,
+        onToggleExpanded = callbacks.onToggleExpanded,
+        onClearText = callbacks.onClearText,
+        onSend = onSend,
+        onStop = onStop,
+        onToggleAddMenu = callbacks.onToggleAddMenu,
+        onDismissAddMenu = callbacks.onDismissAddMenu,
+        onSelectFile = callbacks.onSelectFile,
+        onRemoveFile = callbacks.onRemoveFile,
+        onUploadImage = callbacks.onUploadImage,
+        onRemovePending = callbacks.onRemovePending,
+        onPasteAsContext = callbacks.onPasteAsContext
+    )
 
     Box(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
@@ -212,34 +272,32 @@ fun GradumUI(
                     isLoading = session.isSending,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     onDeleteMessage = onDeleteMessage,
+                    onRetryMessage = { index ->
+                        if (session.isSending) {
+                            session.isSending = false
+                        }
+                        val assistantResponseIndex = index + 1
+                        if (assistantResponseIndex < session.messages.size &&
+                            session.messages[assistantResponseIndex].role == "assistant"
+                        ) {
+                            session.messages.removeAt(assistantResponseIndex)
+                        }
+                        val userMessage = session.messages[index]
+                        session.messages.removeAt(index)
+                        session.messages.add(
+                            ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments)
+                        )
+                        session.messages.add(ChatMessage(role = "assistant", content = ""))
+                        session.hasSentMessage = true
+                        session.isSending = true
+                    },
                     onCopyAsContext = callbacks.onCopyAsContext
                 )
                 ChatInputSection(
                     modifier = Modifier.widthIn(max = 600.dp),
-                    isFocused = session.isFocused,
-                    roundedCornerShape = roundedCornerShape,
-                    onFocusChange = callbacks.onFocusChange,
-                    textState = session.textState,
-                    selectedPermission = session.selectedPermission,
-                    isSending = session.isSending,
-                    isMenuVisible = session.isMenuVisible,
-                    isExpanded = session.isExpanded,
-                    showAddMenu = session.showAddMenu,
-                    isAttachmentLimitReached = session.isAttachmentLimitReached,
-                    editorContext = editorContext,
-                    attachedFiles = session.attachedFiles,
-                    onToggleMenu = callbacks.onToggleMenu,
-                    onSelectPermission = callbacks.onSelectPermission,
-                    onDismissMenu = callbacks.onDismissMenu,
-                    onToggleExpanded = callbacks.onToggleExpanded,
-                    onClearText = callbacks.onClearText,
-                    onSend = onSend,
-                    onToggleAddMenu = callbacks.onToggleAddMenu,
-                    onDismissAddMenu = callbacks.onDismissAddMenu,
-                    onSelectFile = callbacks.onSelectFile,
-                    onRemoveFile = callbacks.onRemoveFile,
-                    onUploadImage = callbacks.onUploadImage,
-                    onPasteAsContext = callbacks.onPasteAsContext
+                    state = inputState,
+                    actions = inputActions,
+                    textState = session.textState
                 )
             }
         } else {
@@ -265,30 +323,9 @@ fun GradumUI(
                 Spacer(Modifier.height(20.dp))
                 ChatInputSection(
                     modifier = Modifier.widthIn(max = 600.dp),
-                    isFocused = session.isFocused,
-                    roundedCornerShape = roundedCornerShape,
-                    onFocusChange = callbacks.onFocusChange,
-                    textState = session.textState,
-                    selectedPermission = session.selectedPermission,
-                    isSending = session.isSending,
-                    isMenuVisible = session.isMenuVisible,
-                    isExpanded = session.isExpanded,
-                    showAddMenu = session.showAddMenu,
-                    isAttachmentLimitReached = session.isAttachmentLimitReached,
-                    editorContext = editorContext,
-                    attachedFiles = session.attachedFiles,
-                    onToggleMenu = callbacks.onToggleMenu,
-                    onSelectPermission = callbacks.onSelectPermission,
-                    onDismissMenu = callbacks.onDismissMenu,
-                    onToggleExpanded = callbacks.onToggleExpanded,
-                    onClearText = callbacks.onClearText,
-                    onSend = onSend,
-                    onToggleAddMenu = callbacks.onToggleAddMenu,
-                    onDismissAddMenu = callbacks.onDismissAddMenu,
-                    onSelectFile = callbacks.onSelectFile,
-                    onRemoveFile = callbacks.onRemoveFile,
-                    onUploadImage = callbacks.onUploadImage,
-                    onPasteAsContext = callbacks.onPasteAsContext
+                    state = inputState,
+                    actions = inputActions,
+                    textState = session.textState
                 )
             }
             Row(

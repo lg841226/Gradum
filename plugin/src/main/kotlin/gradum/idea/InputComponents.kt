@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InputComponents.kt  2026-06-25 21:09:31 Changed by gwy
+ * InputComponents.kt  2026-06-26 11:53:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -16,14 +16,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
@@ -40,7 +36,9 @@ import org.jetbrains.jewel.foundation.modifier.thenIf
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.focusOutline
+import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import kotlin.time.Duration.Companion.milliseconds
 
 
 /**
@@ -48,60 +46,25 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun ChatInputPanel(
-    isFocused: Boolean,
+    state: ChatInputState,
+    actions: ChatInputActions,
     roundedCornerShape: RoundedCornerShape,
-    onFocusChange: (Boolean) -> Unit,
-    textState: TextFieldState,
-    selectedPermission: String,
-    isSending: Boolean,
-    isMenuVisible: Boolean,
-    isExpanded: Boolean,
-    showAddMenu: Boolean,
-    isAttachmentLimitReached: Boolean,
-    editorContext: EditorContext,
-    attachedFiles: List<AttachedContext>,
-    onToggleMenu: () -> Unit,
-    onSelectPermission: (String) -> Unit,
-    onDismissMenu: () -> Unit,
-    onToggleExpanded: () -> Unit,
-    onClearText: () -> Unit,
-    onSend: () -> Unit,
-    onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit,
-    onSelectFile: (VirtualFile) -> Unit,
-    onRemoveFile: (AttachedContext) -> Unit,
-    onUploadImage: () -> Unit,
-    onPasteAsContext: (String) -> Unit = {}
+    textState: TextFieldState
 ) {
     // Long-paste-to-context: when the text state grows by more than 200 chars
     // in a single settled snapshot, treat the appended run as a context
     // attachment and strip it back out of the input.
-    //
-    // We do not try to intercept Cmd+V / Ctrl+V at the key level here:
-    // Compose Desktop's BasicTextField can consume the paste via its
-    // internal TextInputService before the Modifier chain sees the keystroke,
-    // and the same heuristic also catches right-click -> Paste and
-    // drag-dropped text, which Cmd+V interception would miss.
-    //
-    // The 200-char threshold mirrors `message.content.length > 200` on the
-    // assistant bubble's "copy as context" button, so the two paths
-    // behave the same. A 50ms settle window lets rapid bursts (paste +
-    // immediate typing) collapse into a single snapshot so we don't trip
-    // the heuristic on a handful of normal keystrokes. The baseline is
-    // seeded with the current text length so that a pre-existing draft
-    // (e.g. a draft restored from the project service) is not mistaken
-    // for a paste on first composition.
     val initialTextLength = remember { textState.text.length }
     var previousTextLength by remember { mutableStateOf(initialTextLength) }
     LaunchedEffect(textState.text) {
-        delay(50)
+        delay(50.milliseconds)
         val currentInputText = textState.text.toString()
         val baselineTextLength = previousTextLength
         val appendedTextLength = currentInputText.length - baselineTextLength
         if (appendedTextLength > 200) {
             val appendedText = currentInputText.substring(baselineTextLength)
             if (appendedText.isNotBlank()) {
-                onPasteAsContext(appendedText)
+                actions.onPasteAsContext(appendedText)
                 textState.edit { delete(baselineTextLength, currentInputText.length) }
             }
         }
@@ -110,8 +73,8 @@ fun ChatInputPanel(
 
     Box(
         modifier = Modifier
-            .onFocusChanged { onFocusChange(it.hasFocus) }
-            .thenIf(!isFocused) {
+            .onFocusChanged { actions.onFocusChange(it.hasFocus) }
+            .thenIf(!state.isFocused) {
                 border(
                     alignment = Stroke.Alignment.Inside,
                     width = 1.dp,
@@ -120,7 +83,7 @@ fun ChatInputPanel(
                 )
             }
             .focusOutline(
-                showOutline = isFocused,
+                showOutline = state.isFocused,
                 outlineShape = roundedCornerShape
             )
     ) {
@@ -129,6 +92,35 @@ fun ChatInputPanel(
                 .fillMaxWidth()
                 .padding(horizontal = 6.dp, vertical = 6.dp)
         ) {
+            if (state.pendingMessages.isNotEmpty()) {
+                state.pendingMessages.forEach { pending ->
+                    val preview = pending.content
+                        .replace("\n", " ")
+                        .let { if (it.length > 30) it.take(30) + "…" else it }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp)
+                        )
+                        SweepLightText(
+                            text = preview,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconTooltipButton(
+                            tooltip = message("gradum.remove"),
+                            iconKey = AllIconsKeys.Actions.Close,
+                            contentDescription = message("gradum.remove"),
+                            onClick = { actions.onRemovePending(pending) },
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
 
             TextArea(
                 state = textState,
@@ -136,21 +128,14 @@ fun ChatInputPanel(
                 undecorated = true,
                 modifier = Modifier.fillMaxWidth()
                     .heightIn(min = 60.dp, max = 160.dp)
-                    // Cmd+Enter / Ctrl+Enter sends the message; plain Enter stays as a newline.
-                    // onPreviewKeyEvent fires before the TextArea consumes the keystroke, and
-                    // returning `true` swallows the event so no newline is inserted on send.
-                    // Only KeyDown is handled so KeyUp cannot re-trigger send.
-                    // (Long-paste conversion to a context attachment is handled out-of-band
-                    // by a state-diff LaunchedEffect further down — we do not try to
-                    // intercept Cmd+V here because Compose Desktop's BasicTextField can
-                    // consume the paste before the Modifier chain sees it.)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when {
                             keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                onSend()
+                                if (!state.isSending || !state.isPendingQueueFull) actions.onSend()
                                 true
                             }
+
                             else -> false
                         }
                     }
@@ -159,29 +144,14 @@ fun ChatInputPanel(
             Spacer(modifier = Modifier.height(8.dp))
 
             ChatToolbar(
-                selectedPermission = selectedPermission,
-                isSending = isSending,
-                isMenuVisible = isMenuVisible,
-                isExpanded = isExpanded,
-                showAddMenu = showAddMenu,
-                isAttachmentLimitReached = isAttachmentLimitReached,
-                isTextNotEmpty = textState.text.isNotEmpty(),
-                editorContext = editorContext,
-                onToggleMenu = onToggleMenu,
-                onSelectPermission = onSelectPermission,
-                onDismissMenu = onDismissMenu,
-                onToggleExpanded = onToggleExpanded,
-                onClearText = onClearText,
-                onSend = onSend,
-                onToggleAddMenu = onToggleAddMenu,
-                onDismissAddMenu = onDismissAddMenu,
-                onSelectFile = onSelectFile,
-                onUploadImage = onUploadImage
+                state = state,
+                actions = actions,
+                isTextNotEmpty = textState.text.isNotEmpty()
             )
 
             AttachmentBar(
-                attachedFiles = attachedFiles,
-                onRemoveFile = onRemoveFile
+                attachedFiles = state.attachedFiles,
+                onRemoveFile = actions.onRemoveFile
             )
         }
     }
@@ -193,57 +163,16 @@ fun ChatInputPanel(
 @Composable
 fun ChatInputSection(
     modifier: Modifier = Modifier,
-    isFocused: Boolean,
-    roundedCornerShape: RoundedCornerShape,
-    onFocusChange: (Boolean) -> Unit,
-    textState: TextFieldState,
-    selectedPermission: String,
-    isSending: Boolean,
-    isMenuVisible: Boolean,
-    isExpanded: Boolean,
-    showAddMenu: Boolean,
-    isAttachmentLimitReached: Boolean,
-    editorContext: EditorContext,
-    attachedFiles: List<AttachedContext>,
-    onToggleMenu: () -> Unit,
-    onSelectPermission: (String) -> Unit,
-    onDismissMenu: () -> Unit,
-    onToggleExpanded: () -> Unit,
-    onClearText: () -> Unit,
-    onSend: () -> Unit,
-    onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit,
-    onSelectFile: (VirtualFile) -> Unit,
-    onRemoveFile: (AttachedContext) -> Unit,
-    onUploadImage: () -> Unit,
-    onPasteAsContext: (String) -> Unit = {}
+    state: ChatInputState,
+    actions: ChatInputActions,
+    textState: TextFieldState
 ) {
     Column(modifier = modifier) {
         ChatInputPanel(
-            isFocused = isFocused,
-            roundedCornerShape = roundedCornerShape,
-            onFocusChange = onFocusChange,
-            textState = textState,
-            selectedPermission = selectedPermission,
-            isSending = isSending,
-            isMenuVisible = isMenuVisible,
-            isExpanded = isExpanded,
-            showAddMenu = showAddMenu,
-            isAttachmentLimitReached = isAttachmentLimitReached,
-            editorContext = editorContext,
-            attachedFiles = attachedFiles,
-            onToggleMenu = onToggleMenu,
-            onSelectPermission = onSelectPermission,
-            onDismissMenu = onDismissMenu,
-            onToggleExpanded = onToggleExpanded,
-            onClearText = onClearText,
-            onSend = onSend,
-            onToggleAddMenu = onToggleAddMenu,
-            onDismissAddMenu = onDismissAddMenu,
-            onSelectFile = onSelectFile,
-            onRemoveFile = onRemoveFile,
-            onUploadImage = onUploadImage,
-            onPasteAsContext = onPasteAsContext
+            state = state,
+            actions = actions,
+            roundedCornerShape = RoundedCornerShape(6.dp),
+            textState = textState
         )
         Spacer(modifier = Modifier.height(6.dp))
         ModelSelectorBar()
@@ -255,32 +184,17 @@ fun ChatInputSection(
  */
 @Composable
 fun ChatToolbar(
-    selectedPermission: String,
-    isSending: Boolean,
-    isMenuVisible: Boolean,
-    isExpanded: Boolean,
-    showAddMenu: Boolean,
-    isAttachmentLimitReached: Boolean,
-    isTextNotEmpty: Boolean,
-    editorContext: EditorContext,
-    onToggleMenu: () -> Unit,
-    onSelectPermission: (String) -> Unit,
-    onDismissMenu: () -> Unit,
-    onToggleExpanded: () -> Unit,
-    onClearText: () -> Unit,
-    onSend: () -> Unit,
-    onToggleAddMenu: () -> Unit,
-    onDismissAddMenu: () -> Unit,
-    onSelectFile: (VirtualFile) -> Unit,
-    onUploadImage: () -> Unit
+    state: ChatInputState,
+    actions: ChatInputActions,
+    isTextNotEmpty: Boolean
 ) {
-    val state = remember { TextFieldState() }
+    val searchState = remember { TextFieldState() }
 
-    val searchQuery = state.text.toString()
+    val searchQuery = searchState.text.toString()
     val filteredFiles = if (searchQuery.isBlank()) {
-        editorContext.allOpenFiles
+        state.editorContext.allOpenFiles
     } else {
-        editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        state.editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
     Row(
@@ -288,172 +202,184 @@ fun ChatToolbar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Tooltip(tooltip = {
-            Text(
-                if (isAttachmentLimitReached) message("gradum.add.context.disabled")
-                else message("gradum.add.context")
+        IconTooltipButton(
+            tooltip = if (state.isAttachmentLimitReached) message("gradum.add.context.disabled") else message("gradum.add.context"),
+            iconKey = AllIconsKeys.General.Add,
+            contentDescription = message("gradum.add"),
+            onClick = actions.onToggleAddMenu,
+            enabled = !state.isAttachmentLimitReached
+        )
+        if (state.showAddMenu) {
+            AddContextPopup(
+                searchState = searchState,
+                filteredFiles = filteredFiles,
+                state = state,
+                actions = actions
             )
-        }) {
-            IconButton(onClick = onToggleAddMenu, enabled = !isAttachmentLimitReached) {
-                Icon(
-                    key = AllIconsKeys.General.Add,
-                    contentDescription = message("gradum.add")
-                )
-            }
-        }
-        if (showAddMenu) {
-            PopupMenu(
-                onDismissRequest = { onDismissAddMenu(); true },
-                horizontalAlignment = Alignment.Start,
-                modifier = Modifier.heightIn(max = 300.dp)
-            ) {
-                passiveItem {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            key = GradumIcons.Search,
-                            contentDescription = message("gradum.add.popup.search"),
-                            modifier = Modifier
-                                .padding(end = 6.dp)
-                        )
-                        TextField(
-                            state = state,
-                            undecorated = true,
-                            modifier = Modifier
-                                .defaultMinSize(minWidth = 160.dp)
-                                .widthIn(max = 200.dp),
-                            placeholder = { Text(message("gradum.add.popup.search.placeholder")) }
-                        )
-                    }
-                }
-                separator()
-
-                selectableItem(selected = false, onClick = { editorContext.projectDir?.let(onSelectFile) }) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            key = AllIconsKeys.Actions.ProjectDirectory,
-                            contentDescription = message("gradum.add.popup.project.directory"),
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
-                        Text(message("gradum.add.popup.project.directory"))
-                    }
-                }
-
-                selectableItem(
-                    selected = false,
-                    onClick = {
-                        if (!isAttachmentLimitReached) onUploadImage()
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            key = GradumIcons.Image,
-                            contentDescription = message("gradum.add.popup.upload.image"),
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
-                        Text(message("gradum.add.popup.upload.image"))
-                    }
-                }
-
-                separator()
-
-                passiveItem {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            message("gradum.add.popup.workspace"),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                if (editorContext.allOpenFiles.isEmpty()) {
-                    passiveItem {
-                        Text(
-                            text = message("gradum.add.popup.empty"),
-                            color = JewelTheme.globalColors.text.info,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                    }
-                } else if (filteredFiles.isEmpty()) {
-                    passiveItem {
-                        Text(
-                            text = message("gradum.add.popup.no.results"),
-                            color = JewelTheme.globalColors.text.info,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                    }
-                } else {
-                    filteredFiles.forEach { file ->
-                        selectableItem(
-                            selected = file == editorContext.currentFile,
-                            onClick = { onSelectFile(file) },
-                        ) {
-                            FileItem(
-                                file = file,
-                                isSelected = file == editorContext.currentFile
-                            )
-                        }
-                    }
-                }
-            }
         }
 
         PermissionSelector(
-            selectedPermission = selectedPermission,
-            isMenuVisible = isMenuVisible,
-            onToggle = onToggleMenu,
-            onSelect = onSelectPermission,
-            onDismiss = onDismissMenu
+            selectedPermission = state.selectedPermission,
+            isMenuVisible = state.isMenuVisible,
+            onToggle = actions.onToggleMenu,
+            onSelect = actions.onSelectPermission,
+            onDismiss = actions.onDismissMenu
         )
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Tooltip(tooltip = {
-            Text(if (isExpanded) message("gradum.hide.context") else message("gradum.show.context"))
-        }) {
-            IconButton(onClick = onToggleExpanded) {
-                Icon(
-                    key = if (isExpanded) AllIconsKeys.Actions.Unshare else AllIconsKeys.Actions.Share,
-                    contentDescription = if (isExpanded) message("gradum.hide.context") else message("gradum.show.context")
-                )
-            }
+        IconTooltipButton(
+            tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
+            iconKey = if (state.isExpanded) AllIconsKeys.Actions.Unshare else AllIconsKeys.Actions.Share,
+            contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
+            onClick = actions.onToggleExpanded
+        )
+
+        IconTooltipButton(
+            tooltip = message("gradum.clear"),
+            iconKey = AllIconsKeys.General.Delete,
+            contentDescription = message("gradum.delete"),
+            onClick = actions.onClearText,
+            enabled = isTextNotEmpty
+        )
+
+        if (state.isSending) {
+            IconTooltipButton(
+                tooltip = message("gradum.stop"),
+                iconKey = AllIconsKeys.Run.Stop,
+                contentDescription = message("gradum.stop.response"),
+                onClick = actions.onStop
+            )
         }
 
-        Tooltip(tooltip = { Text(message("gradum.clear")) }) {
-            IconButton(
-                onClick = onClearText,
-                enabled = isTextNotEmpty
+        IconTooltipButton(
+            tooltip = if (state.isSending && state.isPendingQueueFull) message("gradum.send.queue.full") else message("gradum.send"),
+            iconKey = GradumIcons.Send,
+            contentDescription = message("gradum.send"),
+            onClick = actions.onSend,
+            enabled = isTextNotEmpty && !(state.isSending && state.isPendingQueueFull)
+        )
+    }
+}
+
+/**
+ * Popup menu for adding context files.
+ */
+@Composable
+private fun AddContextPopup(
+    searchState: TextFieldState,
+    filteredFiles: List<com.intellij.openapi.vfs.VirtualFile>,
+    state: ChatInputState,
+    actions: ChatInputActions
+) {
+    PopupMenu(
+        onDismissRequest = { actions.onDismissAddMenu(); true },
+        horizontalAlignment = Alignment.Start,
+        modifier = Modifier.heightIn(max = 300.dp)
+    ) {
+        passiveItem {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    key = AllIconsKeys.General.Delete,
-                    contentDescription = message("gradum.delete")
+                    key = GradumIcons.Search,
+                    contentDescription = message("gradum.add.popup.search"),
+                    modifier = Modifier
+                        .padding(end = 6.dp)
+                )
+                TextField(
+                    state = searchState,
+                    undecorated = true,
+                    modifier = Modifier
+                        .defaultMinSize(minWidth = 160.dp)
+                        .widthIn(max = 200.dp),
+                    placeholder = { Text(message("gradum.add.popup.search.placeholder")) }
+                )
+            }
+        }
+        separator()
+
+        selectableItem(selected = false, onClick = { state.editorContext.projectDir?.let(actions.onSelectFile) }) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    key = AllIconsKeys.Actions.ProjectDirectory,
+                    contentDescription = message("gradum.add.popup.project.directory"),
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(message("gradum.add.popup.project.directory"))
+            }
+        }
+
+        selectableItem(
+            selected = false,
+            onClick = {
+                if (!state.isAttachmentLimitReached) actions.onUploadImage()
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    key = GradumIcons.Image,
+                    contentDescription = message("gradum.add.popup.upload.image"),
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(message("gradum.add.popup.upload.image"))
+            }
+        }
+
+        separator()
+
+        passiveItem {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    message("gradum.add.popup.workspace"),
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
 
-        Tooltip(tooltip = { Text(if (isSending) message("gradum.stop") else message("gradum.send")) }) {
-            IconButton(onClick = onSend, enabled = isTextNotEmpty || isSending) {
-                Icon(
-                    key = if (isSending) AllIconsKeys.Run.Stop else GradumIcons.Send,
-                    contentDescription = message("gradum.stop.response")
+        if (state.editorContext.allOpenFiles.isEmpty()) {
+            passiveItem {
+                Text(
+                    text = message("gradum.add.popup.empty"),
+                    color = JewelTheme.globalColors.text.info,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                 )
+            }
+        } else if (filteredFiles.isEmpty()) {
+            passiveItem {
+                Text(
+                    text = message("gradum.add.popup.no.results"),
+                    color = JewelTheme.globalColors.text.info,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+        } else {
+            filteredFiles.forEach { file ->
+                selectableItem(
+                    selected = file == state.editorContext.currentFile,
+                    onClick = { actions.onSelectFile(file) },
+                ) {
+                    FileItem(
+                        file = file,
+                        isSelected = file == state.editorContext.currentFile
+                    )
+                }
             }
         }
     }
@@ -491,17 +417,13 @@ fun AttachmentBar(
                     text = attachedContext.displayName,
                     color = JewelTheme.globalColors.text.normal
                 )
-                Tooltip(tooltip = { Text(message("gradum.remove")) }) {
-                    IconButton(
-                        onClick = { onRemoveFile(attachedContext) },
-                        modifier = Modifier.size(18.dp)
-                    ) {
-                        Icon(
-                            key = AllIconsKeys.Actions.Close,
-                            contentDescription = message("gradum.remove")
-                        )
-                    }
-                }
+                IconTooltipButton(
+                    tooltip = message("gradum.remove"),
+                    iconKey = AllIconsKeys.Actions.Close,
+                    contentDescription = message("gradum.remove"),
+                    onClick = { onRemoveFile(attachedContext) },
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
@@ -577,21 +499,99 @@ fun PermissionSelector(
  */
 @Composable
 fun ModelSelectorBar() {
+    var showModelMenu by remember { mutableStateOf(false) }
+    val models: List<String> = emptyList()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 0.dp, end = 0.dp, top = 0.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SelectorButton(
-            text = "Minimax-m2.5:cloud",
-            contentDescription = message("gradum.model"),
-            onClick = { }
-        )
+        Box {
+            SelectorButton(
+                text = message("gradum.model.none"),
+                contentDescription = message("gradum.model.select"),
+                onClick = { showModelMenu = true }
+            )
+            if (showModelMenu) {
+                PopupMenu(
+                    onDismissRequest = { showModelMenu = false; true },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    passiveItem {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                message("gradum.model"),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (models.isEmpty()) {
+                        passiveItem { ModelAutoItemContent(enabled = false) }
+                    } else {
+                        selectableItem(
+                            selected = false,
+                            onClick = { /* TODO: select auto model */ }
+                        ) { ModelAutoItemContent(enabled = true) }
+                    }
+                    separator()
+                    if (models.isEmpty()) {
+                        passiveItem {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        message("gradum.model.empty"),
+                                        color = JewelTheme.globalColors.text.info
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    IconButton(onClick = { }) {
+                                        Icon(
+                                            key = AllIconsKeys.General.Refresh,
+                                            contentDescription = message("gradum.refresh")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.weight(1f))
         ExternalLink(
             text = message("gradum.feedback"),
             onClick = { BrowserUtil.browse("https://github.com/lg841226/Gradum") }
+        )
+    }
+}
+
+@Composable
+private fun ModelAutoItemContent(enabled: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+    ) {
+        Icon(
+            key = GradumIcons.Auto,
+            contentDescription = message("gradum.auto.model"),
+            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            message("gradum.model.auto"),
+            color = if (enabled) JewelTheme.globalColors.text.normal
+            else JewelTheme.globalColors.text.disabled
         )
     }
 }
@@ -620,6 +620,25 @@ fun SelectorButton(
                     contentDescription = contentDescription
                 )
             }
+        }
+    }
+}
+
+/**
+ * Reusable icon button with tooltip, reducing repeated Tooltip+IconButton+Icon patterns.
+ */
+@Composable
+fun IconTooltipButton(
+    tooltip: String,
+    iconKey: Any,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    Tooltip(tooltip = { Text(tooltip) }) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(key = iconKey as IconKey, contentDescription = contentDescription)
         }
     }
 }
