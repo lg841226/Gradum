@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InputComponents.kt  2026-06-26 11:53:06 Changed by gwy
+ * InputComponents.kt  2026-06-26 15:59:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -43,6 +43,9 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The main chat input panel containing a text area and a toolbar.
+ * Long-paste-to-context: when the text state grows by more than 200 chars
+ * in a single settled snapshot, treat the appended run as a context
+ * attachment and strip it back out of the input.
  */
 @Composable
 fun ChatInputPanel(
@@ -51,9 +54,7 @@ fun ChatInputPanel(
     roundedCornerShape: RoundedCornerShape,
     textState: TextFieldState
 ) {
-    // Long-paste-to-context: when the text state grows by more than 200 chars
-    // in a single settled snapshot, treat the appended run as a context
-    // attachment and strip it back out of the input.
+
     val initialTextLength = remember { textState.text.length }
     var previousTextLength by remember { mutableStateOf(initialTextLength) }
     LaunchedEffect(textState.text) {
@@ -61,6 +62,7 @@ fun ChatInputPanel(
         val currentInputText = textState.text.toString()
         val baselineTextLength = previousTextLength
         val appendedTextLength = currentInputText.length - baselineTextLength
+
         if (appendedTextLength > 200) {
             val appendedText = currentInputText.substring(baselineTextLength)
             if (appendedText.isNotBlank()) {
@@ -94,9 +96,8 @@ fun ChatInputPanel(
         ) {
             if (state.pendingMessages.isNotEmpty()) {
                 state.pendingMessages.forEach { pending ->
-                    val preview = pending.content
-                        .replace("\n", " ")
-                        .let { if (it.length > 30) it.take(30) + "…" else it }
+                    val singleLineContent = pending.content.replace("\n", " ")
+                    val preview = truncateToCodePoints(singleLineContent, MAX_PREVIEW_CODE_POINTS)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -165,7 +166,8 @@ fun ChatInputSection(
     modifier: Modifier = Modifier,
     state: ChatInputState,
     actions: ChatInputActions,
-    textState: TextFieldState
+    textState: TextFieldState,
+    onRefreshModels: () -> Unit = {}
 ) {
     Column(modifier = modifier) {
         ChatInputPanel(
@@ -175,7 +177,12 @@ fun ChatInputSection(
             textState = textState
         )
         Spacer(modifier = Modifier.height(6.dp))
-        ModelSelectorBar()
+        ModelSelectorBar(
+            models = state.models,
+            selectedModel = state.selectedModel,
+            onRefresh = onRefreshModels,
+            onSelectModel = actions.onSelectModel
+        )
     }
 }
 
@@ -243,22 +250,23 @@ fun ChatToolbar(
             enabled = isTextNotEmpty
         )
 
-        if (state.isSending) {
+        Row {
+            if (state.isSending || state.pendingMessages.isNotEmpty()) {
+                IconTooltipButton(
+                    tooltip = message("gradum.stop"),
+                    iconKey = AllIconsKeys.Run.Stop,
+                    contentDescription = message("gradum.stop.response"),
+                    onClick = actions.onStop
+                )
+            }
             IconTooltipButton(
-                tooltip = message("gradum.stop"),
-                iconKey = AllIconsKeys.Run.Stop,
-                contentDescription = message("gradum.stop.response"),
-                onClick = actions.onStop
+                tooltip = if (state.isSending && state.isPendingQueueFull) message("gradum.send.queue.full") else message("gradum.send"),
+                iconKey = GradumIcons.Send,
+                contentDescription = message("gradum.send"),
+                onClick = actions.onSend,
+                enabled = isTextNotEmpty && !state.isPendingQueueFull
             )
         }
-
-        IconTooltipButton(
-            tooltip = if (state.isSending && state.isPendingQueueFull) message("gradum.send.queue.full") else message("gradum.send"),
-            iconKey = GradumIcons.Send,
-            contentDescription = message("gradum.send"),
-            onClick = actions.onSend,
-            enabled = isTextNotEmpty && !(state.isSending && state.isPendingQueueFull)
-        )
     }
 }
 
@@ -268,7 +276,7 @@ fun ChatToolbar(
 @Composable
 private fun AddContextPopup(
     searchState: TextFieldState,
-    filteredFiles: List<com.intellij.openapi.vfs.VirtualFile>,
+    filteredFiles: List<VirtualFile>,
     state: ChatInputState,
     actions: ChatInputActions
 ) {
@@ -286,8 +294,7 @@ private fun AddContextPopup(
                 Icon(
                     key = GradumIcons.Search,
                     contentDescription = message("gradum.add.popup.search"),
-                    modifier = Modifier
-                        .padding(end = 6.dp)
+                    modifier = Modifier.padding(end = 6.dp)
                 )
                 TextField(
                     state = searchState,
@@ -301,7 +308,11 @@ private fun AddContextPopup(
         }
         separator()
 
-        selectableItem(selected = false, onClick = { state.editorContext.projectDir?.let(actions.onSelectFile) }) {
+        selectableItem(
+            selected = false,
+            onClick = {
+                state.editorContext.projectDir?.let(actions.onSelectFile)
+            }) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -319,9 +330,7 @@ private fun AddContextPopup(
 
         selectableItem(
             selected = false,
-            onClick = {
-                if (!state.isAttachmentLimitReached) actions.onUploadImage()
-            }
+            onClick = { if (!state.isAttachmentLimitReached) actions.onUploadImage() }
         ) {
             Row(
                 modifier = Modifier
@@ -405,8 +414,7 @@ fun AttachmentBar(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 Icon(
                     key = attachedContext.iconKey,
@@ -465,7 +473,7 @@ fun PermissionSelector(
                     Column {
                         Text(message("gradum.readonly"))
                         Text(
-                            message("gradum.readonly.info"),
+                            text = message("gradum.readonly.info"),
                             color = JewelTheme.globalColors.text.info
                         )
                     }
@@ -494,13 +502,77 @@ fun PermissionSelector(
     }
 }
 
+
+private val modelDisplayNames = mapOf(
+    "qwen2.5" to "Qwen 2.5",
+    "qwen2.5-coder" to "Qwen 2.5 Coder",
+    "qwen2.5vl" to "Qwen 2.5 VL",
+    "qwen3" to "Qwen 3",
+    "qwen3.5" to "Qwen 3.5",
+    "qwen3.6" to "Qwen 3.6",
+    "qwen3-coder" to "Qwen 3 Coder",
+    "qwen3-coder-next" to "Qwen 3 Coder Next",
+    "qwen3-next" to "Qwen 3 Next",
+    "qwen3-vl" to "Qwen 3 VL",
+    "llama3" to "Llama 3",
+    "llama3.1" to "Llama 3.1",
+    "llama3.2" to "Llama 3.2",
+    "llama3.3" to "Llama 3.3",
+    "llama4" to "Llama 4",
+    "deepseek-r1" to "DeepSeek R1",
+    "deepseek-v2" to "DeepSeek V2",
+    "deepseek-v2.5" to "DeepSeek V2.5",
+    "deepseek-v3" to "DeepSeek V3",
+    "deepseek-v3.1" to "DeepSeek V3.1",
+    "deepseek-v3.2" to "DeepSeek V3.2",
+    "deepseek-coder" to "DeepSeek Coder",
+    "deepseek-coder-v2" to "DeepSeek Coder V2",
+    "minimax-m2" to "MiniMax M2",
+    "minimax-m2.1" to "MiniMax M2.1",
+    "minimax-m2.5" to "MiniMax M2.5",
+    "minimax-m2.7" to "MiniMax M2.7",
+    "minimax-m3" to "MiniMax M3",
+    "gemma3" to "Gemma 3",
+    "gemma4" to "Gemma 4",
+    "glm-5" to "GLM 5",
+    "glm-5.1" to "GLM 5.1",
+    "glm-5.2" to "GLM 5.2",
+    "kimi-k2" to "Kimi K2",
+    "kimi-k2.5" to "Kimi K2.5",
+    "kimi-k2.6" to "Kimi K2.6",
+    "gpt-oss" to "ChatGPT 4 Nano",
+)
+
+/**
+ * Converts a raw model name (e.g. "qwen2.5-coder:cloud") to a display-friendly name.
+ * Uses [modelDisplayNames] lookup first, then falls back to title-cased hyphen replacement.
+ */
+fun formatModelName(raw: String): String {
+    val modelBase = raw.substringBefore(":")
+    modelDisplayNames[modelBase]?.let { return it }
+    return modelBase.replace("-", " ").replaceFirstChar { it.uppercase() }
+}
+
 /**
  * Bottom bar showing the current model name and a feedback link.
  */
 @Composable
-fun ModelSelectorBar() {
+fun ModelSelectorBar(
+    models: List<ModelInfo> = emptyList(),
+    selectedModel: ModelInfo? = null,
+    onRefresh: () -> Unit = {},
+    onSelectModel: (ModelInfo) -> Unit = {}
+) {
     var showModelMenu by remember { mutableStateOf(false) }
-    val models: List<String> = emptyList()
+
+    val displayModels = remember(models, selectedModel) {
+        if (selectedModel != null) {
+            listOf(selectedModel) + models.filter {
+                it.name != selectedModel.name || it.serverName != selectedModel.serverName
+            }
+        } else
+            models
+    }
 
     Row(
         modifier = Modifier
@@ -510,14 +582,14 @@ fun ModelSelectorBar() {
     ) {
         Box {
             SelectorButton(
-                text = message("gradum.model.none"),
+                text = selectedModel?.let { formatModelName(it.name) } ?: message("gradum.model.none"),
                 contentDescription = message("gradum.model.select"),
                 onClick = { showModelMenu = true }
             )
             if (showModelMenu) {
                 PopupMenu(
                     onDismissRequest = { showModelMenu = false; true },
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.Start
                 ) {
                     passiveItem {
                         Row(
@@ -534,36 +606,54 @@ fun ModelSelectorBar() {
                     }
                     if (models.isEmpty()) {
                         passiveItem { ModelAutoItemContent(enabled = false) }
+                        separator()
+                        passiveItem { RefreshButtonItem(onRefresh) }
                     } else {
                         selectableItem(
-                            selected = false,
-                            onClick = { /* TODO: select auto model */ }
+                            selected = selectedModel == null,
+                            onClick = { showModelMenu = false }
                         ) { ModelAutoItemContent(enabled = true) }
-                    }
-                    separator()
-                    if (models.isEmpty()) {
-                        passiveItem {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
+                        separator()
+                        displayModels.forEach { model ->
+                            val isSelected = selectedModel?.let {
+                                it.name == model.name && it.serverName == model.serverName
+                            } == true
+                            selectableItem(
+                                selected = isSelected,
+                                onClick = {
+                                    onSelectModel(model)
+                                    showModelMenu = false
+                                }
                             ) {
                                 Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        message("gradum.model.empty"),
-                                        color = JewelTheme.globalColors.text.info
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    IconButton(onClick = { }) {
-                                        Icon(
-                                            key = AllIconsKeys.General.Refresh,
-                                            contentDescription = message("gradum.refresh")
+                                    Text(formatModelName(model.name))
+                                    if (model.serverName.isNotBlank()) {
+                                        Text(
+                                            text = model.serverName,
+                                            color = JewelTheme.globalColors.text.info,
+                                            modifier = Modifier.padding(end = 4.dp)
                                         )
                                     }
+                                    IconTooltipButton(
+                                        tooltip = message("gradum.model.pin"),
+                                        iconKey = if (isSelected) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
+                                        contentDescription = message("gradum.model.pin"),
+                                        onClick = {
+                                            onSelectModel(model)
+                                            showModelMenu = false
+                                        },
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }
+                        separator()
+                        passiveItem { RefreshButtonItem(onRefresh) }
                     }
                 }
             }
@@ -577,10 +667,33 @@ fun ModelSelectorBar() {
 }
 
 @Composable
+private fun RefreshButtonItem(onRefresh: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(
+            message("gradum.model.refresh"),
+            color = JewelTheme.globalColors.text.info
+        )
+        Spacer(Modifier.width(6.dp))
+        IconButton(onClick = onRefresh) {
+            Icon(
+                key = AllIconsKeys.General.Refresh,
+                contentDescription = message("gradum.refresh")
+            )
+        }
+    }
+}
+
+@Composable
 private fun ModelAutoItemContent(enabled: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+        modifier = Modifier.padding(horizontal = 6.dp)
     ) {
         Icon(
             key = GradumIcons.Auto,
@@ -630,7 +743,7 @@ fun SelectorButton(
 @Composable
 fun IconTooltipButton(
     tooltip: String,
-    iconKey: Any,
+    iconKey: IconKey,
     contentDescription: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
@@ -638,9 +751,21 @@ fun IconTooltipButton(
 ) {
     Tooltip(tooltip = { Text(tooltip) }) {
         IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
-            Icon(key = iconKey as IconKey, contentDescription = contentDescription)
+            Icon(key = iconKey, contentDescription = contentDescription)
         }
     }
+}
+
+private const val MAX_PREVIEW_CODE_POINTS = 30
+
+private fun truncateToCodePoints(text: String, maxCodePoints: Int): String {
+    if (text.length <= maxCodePoints) return text
+    val buffer = StringBuilder()
+    for ((index, codePoint) in text.codePoints().toArray().withIndex()) {
+        if (index >= maxCodePoints) break
+        buffer.appendCodePoint(codePoint)
+    }
+    return buffer.append("...").toString()
 }
 
 /**
