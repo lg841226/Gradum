@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-06-26 15:51:49 Changed by gwy
+ * GradumApiClient.kt  2026-06-26 23:55:00 Changed by gwy
  */
 
-package gradum.idea
+package gradum.idea.chat.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,12 +19,12 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     suspend fun getModels(): String = withContext(Dispatchers.IO) {
-        val request = HttpRequest.newBuilder()
+        val request: HttpRequest = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl/models"))
             .GET()
             .build()
 
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        val response: HttpResponse<String> = client.send(request, HttpResponse.BodyHandlers.ofString())
         response.body()
     }
 

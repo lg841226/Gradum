@@ -1,4 +1,11 @@
-package gradum.idea
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * GradumChatSession.kt  2026-06-26 23:55:00 Changed by gwy
+ */
+
+package gradum.idea.chat.state
 
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
@@ -6,7 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.GradumBundle.message
+import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.api.GradumApiClient
+import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.ModelInfo
+import gradum.idea.editor.AttachedContext
+import gradum.idea.editor.PendingMessage
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -52,13 +64,13 @@ class GradumChatSession {
 
     suspend fun loadModels() {
         try {
-            val json = apiClient.getModels()
-            val response = jsonFormat.decodeFromString<ModelsListResponse>(json)
+            val json: String = apiClient.getModels()
+            val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
             models.clear()
             models.addAll(response.models)
             modelsLoaded = true
-        } catch (e: Exception) {
-            log.warn("Failed to load models from ${apiClient.baseUrl}", e)
+        } catch (exception: Exception) {
+            log.warn("Failed to load models from ${apiClient.baseUrl}", exception)
         }
     }
 

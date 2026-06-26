@@ -35,6 +35,6 @@
             project service keeps the conversation alive across that
             round-trip.
         -->
-        <projectService serviceImplementation="gradum.idea.GradumChatSession"/>
+        <projectService serviceImplementation="gradum.idea.chat.state.GradumChatSession"/>
     </extensions>
 </idea-plugin>

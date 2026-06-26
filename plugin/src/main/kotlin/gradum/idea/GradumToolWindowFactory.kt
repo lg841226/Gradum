@@ -2,23 +2,26 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-26 00:00:00 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-26 23:55:00 Changed by gwy
  */
+
+@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import kotlinx.coroutines.launch
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
@@ -26,21 +29,31 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
-import gradum.idea.GradumBundle.message
-import gradum.idea.GradumChatSession.Companion.MAX_ATTACHMENTS
+import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.input.ChatInputActions
+import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.state.GradumChatSession
+import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
+import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.home.WelcomeScreen
+import gradum.idea.editor.AttachedFile
+import gradum.idea.editor.AttachedText
+import gradum.idea.editor.EditorContext
+import gradum.idea.editor.EditorUtils
+import gradum.idea.editor.PendingMessage
+import gradum.idea.editor.getLanguageIconKey
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.typography
 
 class GradumToolWindowFactory : ToolWindowFactory {
 
     @OptIn(ExperimentalJewelApi::class)
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val session = project.getService(GradumChatSession::class.java)
+        val session: GradumChatSession = project.getService(GradumChatSession::class.java)
             ?: error("GradumChatSession is not registered in plugin.xml")
 
         toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
@@ -54,12 +67,12 @@ class GradumToolWindowFactory : ToolWindowFactory {
             "Start a new chat session",
             AllIcons.General.Add
         ) {
-            override fun actionPerformed(e: AnActionEvent) {
-                val project = e.project ?: return
-                val tw = ToolWindowManager.getInstance(project).getToolWindow("Gradum") ?: return
-                val session = project.getService(GradumChatSession::class.java) ?: return
+            override fun actionPerformed(event: AnActionEvent) {
+                val project: Project = event.project ?: return
+                val toolWindow: ToolWindow = ToolWindowManager.getInstance(project).getToolWindow("Gradum") ?: return
+                val session: GradumChatSession = project.getService(GradumChatSession::class.java) ?: return
                 session.reset()
-                val content = tw.contentManager.contents.firstOrNull() ?: return
+                val content = toolWindow.contentManager.contents.firstOrNull() ?: return
                 content.displayName = message("gradum.toolwindow.welcome")
             }
         }
@@ -69,11 +82,8 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-fun GradumUI(
-    toolWindow: ToolWindow? = null,
-    session: GradumChatSession
-) {
-    val editorContext = toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
+fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
+    val editorContext: EditorContext = toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
         ?: EditorContext.EMPTY
 
     LaunchedEffect(session.hasSentMessage) {
@@ -110,7 +120,7 @@ fun GradumUI(
                     session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
                 }
             }
-            val onRemoveFile: (AttachedContext) -> Unit = { attachedContext ->
+            val onRemoveFile: (gradum.idea.editor.AttachedContext) -> Unit = { attachedContext ->
                 when (attachedContext) {
                     is AttachedFile -> session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }
                     is AttachedText -> session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }
@@ -118,17 +128,15 @@ fun GradumUI(
             }
             val onUploadImage: () -> Unit = {
                 if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-                    val project = toolWindow?.project
+                    val project: Project? = toolWindow?.project
                     if (project != null) {
                         val remaining: Int = MAX_ATTACHMENTS - session.attachedFiles.size
-                        val imageExtensions = setOf(
+                        val imageExtensions: Set<String> = setOf(
                             "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"
                         )
                         val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
                             title = "Select Images"
-                            withFileFilter { file ->
-                                file.extension?.lowercase() in imageExtensions
-                            }
+                            withFileFilter { file -> file.extension?.lowercase() in imageExtensions }
                         }
                         FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
                             files.filter { it.extension?.lowercase() in imageExtensions }
@@ -140,8 +148,7 @@ fun GradumUI(
                                     session.attachedFiles.add(
                                         AttachedFile(
                                             file = file,
-                                            iconKey = getLanguageIconKey(file.extension)
-                                                ?: AllIconsKeys.FileTypes.Unknown
+                                            iconKey = getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
                                         )
                                     )
                                 }
@@ -151,43 +158,35 @@ fun GradumUI(
             }
             val onCopyAsContext: (String) -> Unit = { text ->
                 if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-                    val preview = if (text.length > 30) text.take(30) + "..." else text
+                    val preview: String = if (text.length > 30) text.take(30) + "..." else text
                     session.attachedFiles.add(AttachedText(content = text, preview = preview))
                 }
             }
             val onPasteAsContext: (String) -> Unit = onCopyAsContext
-            val onRemovePending: (PendingMessage) -> Unit = { pending ->
-                session.pendingMessages.removeAll { it.content == pending.content && it.attachments == pending.attachments }
-            }
+            val onRemovePending: (PendingMessage) -> Unit = { pending -> session.pendingMessages.remove(pending) }
         }
     }
 
     val onDeleteMessage: (Int) -> Unit = { userMessageIndex ->
-        val assistantResponseIndex = userMessageIndex + 1
+        val assistantResponseIndex: Int = userMessageIndex + 1
         if (assistantResponseIndex < session.messages.size &&
             !session.messages[assistantResponseIndex].isUserMessage
         ) {
             session.messages.removeAt(assistantResponseIndex)
         }
         session.messages.removeAt(userMessageIndex)
-        if (session.messages.isEmpty()) {
-            session.hasSentMessage = false
-        }
+        if (session.messages.isEmpty()) session.hasSentMessage = false
     }
 
     val onSend: () -> Unit = {
-        val text = session.textState.text.toString()
+        val text: String = session.textState.text.toString()
         if (text.isNotBlank()) {
             if (session.isSending) {
                 if (!session.isPendingQueueFull) {
-                    session.pendingMessages.add(
-                        PendingMessage(content = text, attachments = session.attachedFiles.toList())
-                    )
+                    session.pendingMessages.add(PendingMessage(content = text, attachments = session.attachedFiles.toList()))
                 }
             } else {
-                session.messages.add(
-                    ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList())
-                )
+                session.messages.add(ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList()))
                 session.messages.add(ChatMessage(role = "assistant", content = ""))
                 session.hasSentMessage = true
                 session.isSending = true
@@ -200,10 +199,8 @@ fun GradumUI(
     val onStop: () -> Unit = {
         session.isSending = false
         if (session.pendingMessages.isNotEmpty()) {
-            val next = session.pendingMessages.removeFirst()
-            session.messages.add(
-                ChatMessage(role = "user", content = next.content, attachments = next.attachments)
-            )
+            val next: PendingMessage = session.pendingMessages.removeFirst()
+            session.messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.hasSentMessage = true
             session.isSending = true
@@ -211,11 +208,9 @@ fun GradumUI(
     }
 
     val scope = rememberCoroutineScope()
-    val onRefreshModels: () -> Unit = {
-        scope.launch { session.loadModels() }
-    }
+    val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
 
-    val inputState = ChatInputState(
+    val inputState: ChatInputState = ChatInputState(
         isFocused = session.isFocused,
         isSending = session.isSending,
         isPendingQueueFull = session.isPendingQueueFull,
@@ -231,7 +226,7 @@ fun GradumUI(
         selectedModel = session.selectedModel
     )
 
-    val inputActions = ChatInputActions(
+    val inputActions: ChatInputActions = ChatInputActions(
         onFocusChange = callbacks.onFocusChange,
         onToggleMenu = callbacks.onToggleMenu,
         onSelectPermission = callbacks.onSelectPermission,
@@ -250,74 +245,27 @@ fun GradumUI(
         onSelectModel = { model -> session.selectedModel = model }
     )
 
-    Box(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         if (session.hasSentMessage) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                ChatMessageList(
-                    messages = session.messages,
-                    isLoading = session.isSending,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    onDeleteMessage = onDeleteMessage,
-                    onCopyAsContext = callbacks.onCopyAsContext
-                )
-                ChatInputSection(
-                    modifier = Modifier.widthIn(max = 600.dp),
-                    state = inputState,
-                    actions = inputActions,
-                    textState = session.textState,
-                    onRefreshModels = onRefreshModels
-                )
-            }
+            ChatScreen(
+                messages = session.messages,
+                isLoading = session.isSending,
+                textState = session.textState,
+                inputState = inputState,
+                inputActions = inputActions,
+                onDeleteMessage = onDeleteMessage,
+                onCopyAsContext = callbacks.onCopyAsContext,
+                onRefreshModels = onRefreshModels,
+                modifier = Modifier.fillMaxSize()
+            )
         } else {
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Column {
-                    Text(
-                        message("gradum.brand.name"),
-                        color = JewelTheme.globalColors.outlines.focused,
-                        style = JewelTheme.typography.h2TextStyle.copy(
-                            fontFamily = JewelTheme.typography.editorTextStyle.fontFamily
-                        ),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        message("gradum.welcome.title"),
-                        style = JewelTheme.typography.h2TextStyle
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                ChatInputSection(
-                    modifier = Modifier.widthIn(max = 600.dp),
-                    state = inputState,
-                    actions = inputActions,
-                    textState = session.textState,
-                    onRefreshModels = onRefreshModels
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 14.dp)
-                    .align(Alignment.BottomCenter),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = message("gradum.disclaimer"),
-                    style = JewelTheme.typography.small,
-                    fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
-                    color = JewelTheme.globalColors.text.info
-                )
-            }
+            WelcomeScreen(
+                inputState = inputState,
+                inputActions = inputActions,
+                textState = session.textState,
+                onRefreshModels = onRefreshModels,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
