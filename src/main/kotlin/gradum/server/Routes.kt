@@ -32,9 +32,10 @@ import java.time.LocalDateTime
 
 @Serializable
 data class EventsRequestBody(
-    val message: String, val model: String? = null,
+    val message: String,
+    val model: String? = null,
     val config: Map<String, String>? = null,
-    val loadContext: Boolean = false
+    val loadContext: Boolean = true
 )
 
 /**

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
@@ -38,10 +37,6 @@ fun ChatMessageList(
     onCopyAsContext: (String) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
-
-    LaunchedEffect(messages.size, messages.lastOrNull()?.content) {
-        scrollState.animateScrollTo(scrollState.maxValue)
-    }
 
     Column(
         modifier = modifier.verticalScroll(scrollState),

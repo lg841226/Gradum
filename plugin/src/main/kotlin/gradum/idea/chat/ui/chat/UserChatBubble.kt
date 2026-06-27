@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
@@ -69,7 +70,11 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                         else AllIconsKeys.General.ChevronRight,
                         contentDescription = null
                     )
-                    Text(text = message("gradum.attachments"), color = JewelTheme.globalColors.text.normal)
+                    Text(
+                        text = message("gradum.attachments"),
+                        color = JewelTheme.globalColors.text.normal,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 AnimatedVisibility(visible = isAttachmentsExpanded) {

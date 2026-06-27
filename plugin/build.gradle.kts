@@ -41,6 +41,14 @@ dependencies {
     implementation(files("libs/intellij.platform.jewel.ui.jar"))
     implementation(files("libs/intellij.platform.jewel.ideLafBridge.jar"))
 
+    implementation(files("libs/intellij.platform.jewel.markdown.core.jar"))
+    implementation(files("libs/intellij.platform.jewel.markdown.ideLafBridgeStyling.jar"))
+    implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmAlerts.jar"))
+    implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmStrikethrough.jar"))
+    implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmTables.jar"))
+    implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.jar"))
+    implementation(files("libs/intellij.platform.compose.markdown.jar"))
+
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }
 

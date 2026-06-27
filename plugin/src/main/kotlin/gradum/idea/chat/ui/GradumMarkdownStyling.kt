@@ -1,0 +1,117 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * GradumMarkdownStyling.kt  2026-06-27 17:36:52 Changed by gwy
+ */
+
+@file:Suppress("UnstableApiUsage")
+
+package gradum.idea.chat.ui
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.GlobalColors
+import org.jetbrains.jewel.foundation.LocalGlobalColors
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.markdown.rendering.InlinesStyling
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.*
+import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createCodeStyling
+import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createInlinesStyling
+import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListStyling
+import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
+import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
+
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+fun rememberGradumMarkdownStyling(): MarkdownStyling {
+    val globalColors: GlobalColors = LocalGlobalColors.current
+    val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
+    return remember(globalColors, editorTextStyle) {
+        val paragraphInlines = InlinesStyling(
+            textStyle = editorTextStyle,
+            inlineCode = editorTextStyle.toSpanStyle(),
+            link = SpanStyle(),
+            linkDisabled = SpanStyle(),
+            linkFocused = SpanStyle(),
+            linkHovered = SpanStyle(),
+            linkPressed = SpanStyle(),
+            linkVisited = SpanStyle(),
+            emphasis = SpanStyle(),
+            strongEmphasis = SpanStyle(),
+            inlineHtml = SpanStyle()
+        )
+
+        fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight): TextStyle {
+            return editorTextStyle.copy(
+                fontSize = editorTextStyle.fontSize * fontSizeMultiplier,
+                fontWeight = fontWeight
+            )
+        }
+
+        fun headingInlines(textStyle: TextStyle): InlinesStyling {
+            return InlinesStyling(
+                textStyle = textStyle,
+                inlineCode = textStyle.toSpanStyle(),
+                link = SpanStyle(),
+                linkDisabled = SpanStyle(),
+                linkFocused = SpanStyle(),
+                linkHovered = SpanStyle(),
+                linkPressed = SpanStyle(),
+                linkVisited = SpanStyle(),
+                emphasis = SpanStyle(),
+                strongEmphasis = SpanStyle(),
+                inlineHtml = SpanStyle()
+            )
+        }
+
+        val h1Style: TextStyle = headingStyle(2.0f, FontWeight.Bold)
+        val h2Style: TextStyle = headingStyle(1.6f, FontWeight.Bold)
+        val h3Style: TextStyle = headingStyle(1.3f, FontWeight.SemiBold)
+        val h4Style: TextStyle = headingStyle(1.1f, FontWeight.SemiBold)
+        val h5Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
+        val h6Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
+
+        val numberStyle: TextStyle = editorTextStyle.copy(color = globalColors.text.info)
+
+        MarkdownStyling.createCodeStyling(
+            editorTextStyle,
+            editorTextStyle,
+            paragraphInlines,
+            16.dp,
+            paragraph = MarkdownStyling.Paragraph.createInlinesStyling(
+                paragraphInlines
+            ),
+            heading = MarkdownStyling.Heading.createInlinesStyling(
+                editorTextStyle,
+                H1.createInlinesStyling(h1Style, headingInlines(h1Style)),
+                H2.createInlinesStyling(h2Style, headingInlines(h2Style)),
+                H3.createInlinesStyling(h3Style, headingInlines(h3Style)),
+                H4.createInlinesStyling(h4Style, headingInlines(h4Style)),
+                H5.createInlinesStyling(h5Style, headingInlines(h5Style)),
+                H6.createInlinesStyling(h6Style, headingInlines(h6Style))
+            ),
+            code = MarkdownStyling.Code.createCodeStyling(
+                fenced = MarkdownStyling.Code.Fenced.createCodeStyling(
+                    infoPosition = MarkdownStyling.Code.Fenced.InfoPosition.Hide
+                )
+            ),
+            list = MarkdownStyling.List.createListStyling(
+                editorTextStyle,
+                Ordered.createOrderedListStyling(
+                    numberStyle = numberStyle
+                ),
+                Unordered.createUnorderedListStyling(
+                    bullet = '\u2022'
+                )
+            )
+        )
+    }
+}

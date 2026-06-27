@@ -283,7 +283,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     private fun parseServerSentEvents(httpResponse: HttpResponse): Flow<LLMResponseChunk> = flow {
         val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
-        val contentFragments: MutableList<String> = mutableListOf()
 
         val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
 
@@ -309,7 +308,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             val contentDelta: String = deltaFields.optString("content")
 
             if (contentDelta.isNotBlank())
-                contentFragments.add(contentDelta)
+                emit(LLMResponseChunk.TextContent(contentDelta))
 
             deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                 accumulateCallDeltas(toolCallsArray, accumulatedCalls)
@@ -318,10 +317,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             parsedPayload["usage"]?.jsonObject?.let { usageStats ->
                 recordTokenUsage(usageStats)
             }
-        }
-
-        if (contentFragments.isNotEmpty()) {
-            emit(LLMResponseChunk.TextContent(contentFragments.joinToString("")))
         }
 
         if (accumulatedCalls.isNotEmpty()) {

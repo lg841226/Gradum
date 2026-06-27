@@ -26,7 +26,9 @@ data class ChatMessage(
     val role: String,
     val content: String,
     val attachments: List<AttachedContext> = emptyList(),
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val thinking: String = "",
+    val thinkingStartTime: Long = 0L
 ) {
     val isUserMessage: Boolean get() = role == "user"
 }
