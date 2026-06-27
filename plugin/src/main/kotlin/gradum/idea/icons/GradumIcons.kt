@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-06-26 23:55:00 Changed by gwy
+ * GradumIcons.kt  2026-06-26 22:33:09 Changed by gwy
  */
 
 package gradum.idea.icons
@@ -26,4 +26,9 @@ object GradumIcons {
     val Warning = PathIconKey("/icons/warning/warning.svg", GradumIcons::class.java)
     val Auto = PathIconKey("/icons/auto/auto.svg", GradumIcons::class.java)
     val Cloud = PathIconKey("/icons/cloud/cloud.svg", GradumIcons::class.java)
+    val Hands = PathIconKey("/icons/hands.png", GradumIcons::class.java)
+    val FeatChat = PathIconKey("/icons/feat/chat/chat.svg", GradumIcons::class.java)
+    val FeatCode = PathIconKey("/icons/feat/code/code.svg", GradumIcons::class.java)
+    val FeatQuestion = PathIconKey("/icons/feat/question/question.svg", GradumIcons::class.java)
+    val FeatText = PathIconKey("/icons/feat/text/text.svg", GradumIcons::class.java)
 }

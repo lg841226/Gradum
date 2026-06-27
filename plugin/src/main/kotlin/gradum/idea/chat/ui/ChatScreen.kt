@@ -34,6 +34,7 @@ fun ChatScreen(
     inputState: ChatInputState,
     inputActions: ChatInputActions,
     onDeleteMessage: (Int) -> Unit,
+    onRetryMessage: (Int) -> Unit,
     onCopyAsContext: (String) -> Unit,
     onRefreshModels: () -> Unit,
     modifier: Modifier = Modifier
@@ -47,8 +48,9 @@ fun ChatScreen(
             isLoading = isLoading,
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .width(680.dp),
             onDeleteMessage = onDeleteMessage,
+            onRetryMessage = onRetryMessage,
             onCopyAsContext = onCopyAsContext
         )
         ChatInputSection(

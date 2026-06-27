@@ -93,13 +93,20 @@ fun ChatToolbar(state: ChatInputState, actions: ChatInputActions, isTextNotEmpty
                     onClick = actions.onStop
                 )
             }
-            IconTooltipButton(
-                tooltip = if (state.isSending && state.isPendingQueueFull) message("gradum.send.queue.full") else message("gradum.send"),
-                iconKey = GradumIcons.Send,
-                contentDescription = message("gradum.send"),
-                onClick = actions.onSend,
-                enabled = isTextNotEmpty && !state.isPendingQueueFull
-            )
+        val hasModel = state.selectedModel != null || state.isAutoSelected
+        val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
+        val sendTooltip = when {
+            state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
+            !hasModel -> message("gradum.send.no.model")
+            else -> message("gradum.send")
+        }
+        IconTooltipButton(
+            tooltip = sendTooltip,
+            iconKey = GradumIcons.Send,
+            contentDescription = message("gradum.send"),
+            onClick = actions.onSend,
+            enabled = canSend
+        )
         }
     }
 }

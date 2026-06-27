@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-26 17:14:54 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-27 16:22:57 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -13,10 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.icons.AllIcons
@@ -36,13 +33,20 @@ import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.GradumCodeBlockRenderer
 import gradum.idea.chat.ui.home.WelcomeScreen
+import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.addComposeTab
+import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
+import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import kotlin.random.Random
 
 class GradumToolWindowFactory : ToolWindowFactory {
 
@@ -53,7 +57,23 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
         toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
             SwingBridgeTheme {
-                GradumUI(toolWindow = toolWindow, session = session)
+                val scope: CoroutineScope = rememberCoroutineScope()
+                val codeHighlighter = remember(project, scope) {
+                    CodeHighlighterFactory(project, scope).createHighlighter()
+                }
+                val markdownStyling = rememberGradumMarkdownStyling()
+                val blockRenderer = remember(markdownStyling) {
+                    GradumCodeBlockRenderer(markdownStyling)
+                }
+                ProvideMarkdownStyling(
+                    markdownStyling = markdownStyling,
+                    markdownBlockRenderer = blockRenderer,
+                    codeHighlighter = codeHighlighter
+                ) {
+                    CompositionLocalProvider(LocalCodeHighlighter provides codeHighlighter) {
+                        GradumUI(toolWindow = toolWindow, session = session)
+                    }
+                }
             }
         }
 
@@ -122,7 +142,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                     session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
                 }
             }
-            val onRemoveFile: (gradum.idea.editor.AttachedContext) -> Unit = { attachedContext ->
+            val onRemoveFile: (AttachedContext) -> Unit = { attachedContext ->
                 when (attachedContext) {
                     is AttachedFile -> session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }
                     is AttachedText -> session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }
@@ -177,21 +197,45 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages.removeAt(assistantResponseIndex)
         }
         session.messages.removeAt(userMessageIndex)
-        if (session.messages.isEmpty()) session.hasSentMessage = false
+        if (session.messages.isEmpty()) {
+            session.hasSentMessage = false
+            session.isSending = false
+            session.pendingMessages.clear()
+            session.attachedFiles.clear()
+            session.textState.edit { delete(0, length) }
+        }
+    }
+
+    val onRetryMessage: (Int) -> Unit = { assistantMessageIndex: Int ->
+        val userMessageIndex: Int = assistantMessageIndex - 1
+        if (userMessageIndex >= 0 && userMessageIndex < session.messages.size &&
+            session.messages[userMessageIndex].isUserMessage
+        ) {
+            val userMessage: ChatMessage = session.messages[userMessageIndex]
+            session.messages.removeAt(assistantMessageIndex)
+            session.messages.removeAt(userMessageIndex)
+            session.messages.add(ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments))
+            session.messages.add(ChatMessage(role = "assistant", content = ""))
+            session.isSending = true
+            scope.launch { session.sendMessage(userMessage.content) }
+        }
     }
 
     val onSend: () -> Unit = {
         val text: String = session.textState.text.toString()
-        if (text.isNotBlank()) {
+        val hasModel = session.selectedModel != null || session.isAutoSelected
+        if (text.isNotBlank() && hasModel) {
             if (session.isSending) {
                 if (!session.isPendingQueueFull) {
                     session.pendingMessages.add(PendingMessage(content = text, attachments = session.attachedFiles.toList()))
                 }
             } else {
-                session.messages.add(ChatMessage(role = "user", content = text, attachments = session.attachedFiles.toList()))
+                val attachments = session.attachedFiles.toList()
+                session.messages.add(ChatMessage(role = "user", content = text, attachments = attachments))
                 session.messages.add(ChatMessage(role = "assistant", content = ""))
                 session.hasSentMessage = true
                 session.isSending = true
+                scope.launch { session.sendMessage(text) }
             }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()
@@ -226,7 +270,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         models = session.models.toList(),
         selectedModel = session.selectedModel,
         pinnedModels = session.pinnedModels.toList(),
-        isAutoSelected = session.isAutoSelected
+        isAutoSelected = session.isAutoSelected,
+        modelsLoaded = session.modelsLoaded
     )
 
     val inputActions = ChatInputActions(
@@ -271,6 +316,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 inputState = inputState,
                 inputActions = inputActions,
                 onDeleteMessage = onDeleteMessage,
+                onRetryMessage = onRetryMessage,
                 onCopyAsContext = callbacks.onCopyAsContext,
                 onRefreshModels = onRefreshModels,
                 modifier = Modifier.fillMaxSize()
@@ -281,6 +327,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 inputActions = inputActions,
                 textState = session.textState,
                 onRefreshModels = onRefreshModels,
+                suggestionVariants = session.suggestionVariants,
+                onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
                 modifier = Modifier.fillMaxSize()
             )
         }

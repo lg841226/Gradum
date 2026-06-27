@@ -124,7 +124,8 @@ fun ChatInputPanel(
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when {
                             keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                if (!state.isSending || !state.isPendingQueueFull) actions.onSend()
+                                val hasModel = state.selectedModel != null || state.isAutoSelected
+                                if (hasModel && (!state.isSending || !state.isPendingQueueFull)) actions.onSend()
                                 true
                             }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-26 19:02:54 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-27 11:42:24 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -62,8 +62,7 @@ fun ModelSelectorBar(
             if (showModelMenu) {
                 PopupMenu(
                     onDismissRequest = { showModelMenu = false; true },
-                    horizontalAlignment = Alignment.Start,
-                    modifier = Modifier.widthIn(min = 240.dp)
+                    horizontalAlignment = Alignment.Start
                 ) {
                     passiveItem {
                         Row(
@@ -74,21 +73,24 @@ fun ModelSelectorBar(
                         ) { Text(message("gradum.model"), fontWeight = FontWeight.Bold) }
                     }
                     if (models.isEmpty()) {
-                        passiveItem { ModelAutoItemContent(enabled = false) }
                         passiveItem {
-                            Text(
-                                text = message("gradum.model.none"),
-                                color = JewelTheme.globalColors.text.info,
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = message("gradum.model.none"),
+                                    color = JewelTheme.globalColors.text.info
+                                )
+                            }
                         }
                         separator()
                         passiveItem { RefreshButtonItem(onRefresh) }
                     } else {
                         selectableItem(
-                            selected = selectedModel == null && isAutoSelected,
+                            selected = false,
                             onClick = {
                                 onSelectAuto()
                                 showModelMenu = false
@@ -107,11 +109,8 @@ fun ModelSelectorBar(
                                 )
                             }
                             pinnedModels.forEach { pinned ->
-                                val isSelected: Boolean = selectedModel?.let {
-                                    it.name == pinned.name && it.serverName == pinned.serverName
-                                } == true
                                 selectableItem(
-                                    selected = isSelected,
+                                    selected = false,
                                     onClick = {
                                         onSelectModel(pinned)
                                         showModelMenu = false
@@ -136,11 +135,8 @@ fun ModelSelectorBar(
                                 it.name == model.name && it.serverName == model.serverName
                             }
                         }.forEach { model ->
-                            val isSelected: Boolean = selectedModel?.let {
-                                it.name == model.name && it.serverName == model.serverName
-                            } == true
                             selectableItem(
-                                selected = isSelected,
+                                selected = false,
                                 onClick = {
                                     onSelectModel(model)
                                     showModelMenu = false
@@ -204,9 +200,9 @@ private fun ModelItemContent(
         }
 
         IconTooltipButton(
-            tooltip = message("gradum.model.pin"),
+            tooltip = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin"),
             iconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
-            contentDescription = message("gradum.model.pin"),
+            contentDescription = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin"),
             onClick = onTogglePin,
             modifier = Modifier.size(14.dp)
         )
@@ -218,16 +214,22 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        Text(text = message("gradum.model.refresh"), color = JewelTheme.globalColors.text.info)
+        Text(
+            text = message("gradum.model.refresh"),
+            color = JewelTheme.globalColors.text.info
+        )
 
         Spacer(Modifier.width(6.dp))
 
         IconButton(onClick = onRefresh) {
-            Icon(key = AllIconsKeys.General.Refresh, contentDescription = message("gradum.refresh"))
+            Icon(
+                key = AllIconsKeys.General.Refresh,
+                contentDescription = message("gradum.refresh")
+            )
         }
     }
 }

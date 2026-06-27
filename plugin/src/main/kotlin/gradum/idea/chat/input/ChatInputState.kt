@@ -29,7 +29,8 @@ data class ChatInputState(
     val models: List<ModelInfo> = emptyList(),
     val selectedModel: ModelInfo? = null,
     val pinnedModels: List<ModelInfo> = emptyList(),
-    val isAutoSelected: Boolean = false
+    val isAutoSelected: Boolean = false,
+    val modelsLoaded: Boolean = false
 )
 
 /** Callback actions for the chat input area. */

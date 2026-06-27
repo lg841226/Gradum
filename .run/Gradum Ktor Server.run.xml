@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Gradum Ktor Server" type="KtorApplicationConfigurationType" factoryName="Ktor">
+  <configuration default="false" name="Gradum Ktor Server" type="KtorApplicationConfigurationType" factoryName="Ktor" activateToolWindowBeforeRun="false">
     <option name="ALTERNATIVE_JRE_PATH" value="openjdk-24" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
-    <output_file path="$PROJECT_DIR$/logs/" is_save="true" />
+    <output_file path="$PROJECT_DIR$/logs/log1.log" is_save="true" />
     <option name="MAIN_CLASS_NAME" value="gradum.server.MainKt" />
     <module name="gradum.main" />
     <option name="VM_PARAMETERS" value="-Xmx2048m -Xms512m" />
