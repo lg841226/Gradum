@@ -21,7 +21,9 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -46,6 +48,7 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import java.io.File
 import kotlin.random.Random
 
 class GradumToolWindowFactory : ToolWindowFactory {
@@ -217,6 +220,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages.add(ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments))
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.isSending = true
+            session.isWaitingForResponse = true
             scope.launch { session.sendMessage(userMessage.content) }
         }
     }
@@ -235,7 +239,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.messages.add(ChatMessage(role = "assistant", content = ""))
                 session.hasSentMessage = true
                 session.isSending = true
-                scope.launch { session.sendMessage(text) }
+                session.isWaitingForResponse = true
+                session.currentJob = scope.launch { session.sendMessage(text) }
             }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()
@@ -243,17 +248,27 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     }
 
     val onStop: () -> Unit = {
-        session.isSending = false
-        if (session.pendingMessages.isNotEmpty()) {
-            val next: PendingMessage = session.pendingMessages.removeFirst()
-            session.messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
-            session.messages.add(ChatMessage(role = "assistant", content = ""))
-            session.hasSentMessage = true
-            session.isSending = true
-        }
+        scope.launch { session.stopSession() }
     }
 
     val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
+
+    val onOpenInEditor: (String) -> Unit = { command ->
+        val project: Project? = toolWindow?.project
+        if (project != null && command.isNotBlank()) {
+            try {
+                val tempFile = File.createTempFile("gradum_cmd_", ".sh")
+                tempFile.writeText(command)
+                tempFile.deleteOnExit()
+                val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+                if (virtualFile != null) {
+                    FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                }
+            } catch (exception: Exception) {
+                // Silently fail if temp file creation fails
+            }
+        }
+    }
 
     val inputState = ChatInputState(
         isFocused = session.isFocused,
@@ -312,6 +327,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             ChatScreen(
                 messages = session.messages,
                 isLoading = session.isSending,
+                isWaitingForResponse = session.isWaitingForResponse,
                 textState = session.textState,
                 inputState = inputState,
                 inputActions = inputActions,
@@ -319,6 +335,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 onRetryMessage = onRetryMessage,
                 onCopyAsContext = callbacks.onCopyAsContext,
                 onRefreshModels = onRefreshModels,
+                onOpenInEditor = onOpenInEditor,
                 modifier = Modifier.fillMaxSize()
             )
         } else {

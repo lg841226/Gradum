@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-27 11:42:24 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-27 23:49:09 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -189,7 +189,7 @@ private fun ModelItemContent(
 
         Text(text = formatModelName(model.name))
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(5.dp))
 
         if (model.serverName.isNotBlank()) {
             Text(
@@ -198,6 +198,8 @@ private fun ModelItemContent(
             )
             Spacer(modifier = Modifier.width(6.dp))
         }
+
+        Spacer(modifier = Modifier.weight(1f))
 
         IconTooltipButton(
             tooltip = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin"),

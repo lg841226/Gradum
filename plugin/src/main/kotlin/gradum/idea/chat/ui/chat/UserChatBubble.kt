@@ -14,6 +14,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,7 +55,9 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                     )
                     .padding(10.dp)
             ) {
-                Text(text = message.content)
+                SelectionContainer {
+                    Text(text = message.content)
+                }
             }
             if (message.attachments.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))

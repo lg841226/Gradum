@@ -44,22 +44,19 @@ fun MessageCopyButton(
     onCopyAsContext: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
+    val textToCopy = if (message.isUserMessage) message.content else message.responseContent
 
     Tooltip(tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
         IconButton(
             onClick = {
-                if (message.content.length > 200) {
-                    onCopyAsContext(message.content)
-                } else {
-                    copyToClipboard(
-                        text = message.content,
-                        onCopied = onCopy,
-                        onReset = onReset,
-                        scope = scope
-                    )
-                }
+                copyToClipboard(
+                    text = textToCopy,
+                    onCopied = onCopy,
+                    onReset = onReset,
+                    scope = scope
+                )
             },
-            enabled = message.content.isNotBlank()
+            enabled = textToCopy.isNotBlank()
         ) {
             Icon(
                 key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,

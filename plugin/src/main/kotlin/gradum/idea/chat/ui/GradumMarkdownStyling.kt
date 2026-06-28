@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-06-27 17:36:52 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-06-27 23:25:57 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -13,7 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
@@ -22,7 +24,10 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.rendering.InlinesStyling
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.*
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
+import org.jetbrains.jewel.ui.component.styling.LinkStyle
+import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createCodeStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createInlinesStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListStyling
@@ -34,24 +39,27 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorder
 fun rememberGradumMarkdownStyling(): MarkdownStyling {
     val globalColors: GlobalColors = LocalGlobalColors.current
     val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
-    return remember(globalColors, editorTextStyle) {
+    val linkStyle: LinkStyle = JewelTheme.linkStyle
+    return remember(globalColors, editorTextStyle, linkStyle) {
+        val linkSpan = SpanStyle(color = linkStyle.colors.content)
+        val paragraphTextStyle = editorTextStyle.copy(lineHeight = editorTextStyle.fontSize * 1.5f)
         val paragraphInlines = InlinesStyling(
-            textStyle = editorTextStyle,
-            inlineCode = editorTextStyle.toSpanStyle(),
-            link = SpanStyle(),
-            linkDisabled = SpanStyle(),
-            linkFocused = SpanStyle(),
-            linkHovered = SpanStyle(),
-            linkPressed = SpanStyle(),
-            linkVisited = SpanStyle(),
-            emphasis = SpanStyle(),
-            strongEmphasis = SpanStyle(),
+            textStyle = paragraphTextStyle,
+            inlineCode = paragraphTextStyle.toSpanStyle(),
+            link = linkSpan,
+            linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
+            linkFocused = SpanStyle(color = linkStyle.colors.contentFocused, textDecoration = TextDecoration.Underline),
+            linkHovered = SpanStyle(color = linkStyle.colors.contentHovered, textDecoration = TextDecoration.Underline),
+            linkPressed = SpanStyle(color = linkStyle.colors.contentPressed, textDecoration = TextDecoration.Underline),
+            linkVisited = SpanStyle(color = linkStyle.colors.contentVisited),
+            emphasis = SpanStyle(fontStyle = FontStyle.Italic),
+            strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
             inlineHtml = SpanStyle()
         )
 
         fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight): TextStyle {
-            return editorTextStyle.copy(
-                fontSize = editorTextStyle.fontSize * fontSizeMultiplier,
+            return paragraphTextStyle.copy(
+                fontSize = paragraphTextStyle.fontSize * fontSizeMultiplier,
                 fontWeight = fontWeight
             )
         }
@@ -60,14 +68,14 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
             return InlinesStyling(
                 textStyle = textStyle,
                 inlineCode = textStyle.toSpanStyle(),
-                link = SpanStyle(),
-                linkDisabled = SpanStyle(),
-                linkFocused = SpanStyle(),
-                linkHovered = SpanStyle(),
-                linkPressed = SpanStyle(),
-                linkVisited = SpanStyle(),
-                emphasis = SpanStyle(),
-                strongEmphasis = SpanStyle(),
+                link = linkSpan,
+                linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
+                linkFocused = SpanStyle(color = linkStyle.colors.contentFocused, textDecoration = TextDecoration.Underline),
+                linkHovered = SpanStyle(color = linkStyle.colors.contentHovered, textDecoration = TextDecoration.Underline),
+                linkPressed = SpanStyle(color = linkStyle.colors.contentPressed, textDecoration = TextDecoration.Underline),
+                linkVisited = SpanStyle(color = linkStyle.colors.contentVisited),
+                emphasis = SpanStyle(fontStyle = FontStyle.Italic),
+                strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
                 inlineHtml = SpanStyle()
             )
         }
@@ -79,18 +87,18 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
         val h5Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
         val h6Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
 
-        val numberStyle: TextStyle = editorTextStyle.copy(color = globalColors.text.info)
+        val numberStyle: TextStyle = paragraphTextStyle.copy(color = globalColors.text.info)
 
         MarkdownStyling.createCodeStyling(
-            editorTextStyle,
-            editorTextStyle,
+            paragraphTextStyle,
+            paragraphTextStyle,
             paragraphInlines,
             16.dp,
             paragraph = MarkdownStyling.Paragraph.createInlinesStyling(
                 paragraphInlines
             ),
             heading = MarkdownStyling.Heading.createInlinesStyling(
-                editorTextStyle,
+                paragraphTextStyle,
                 H1.createInlinesStyling(h1Style, headingInlines(h1Style)),
                 H2.createInlinesStyling(h2Style, headingInlines(h2Style)),
                 H3.createInlinesStyling(h3Style, headingInlines(h3Style)),
@@ -104,7 +112,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
                 )
             ),
             list = MarkdownStyling.List.createListStyling(
-                editorTextStyle,
+                paragraphTextStyle,
                 Ordered.createOrderedListStyling(
                     numberStyle = numberStyle
                 ),

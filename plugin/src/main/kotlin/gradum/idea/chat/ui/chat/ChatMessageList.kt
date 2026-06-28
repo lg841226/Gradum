@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-06-26 23:55:00 Changed by gwy
+ * ChatMessageList.kt  2026-06-28 11:13:44 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -10,7 +10,10 @@
 package gradum.idea.chat.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -45,7 +48,7 @@ fun ChatMessageList(
         messages.forEachIndexed { index, message ->
             val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
             val shouldShowTimestamp: Boolean = index == 0 ||
-                formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
+                    formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
             if (shouldShowTimestamp) {
                 Spacer(Modifier.height(TimestampSpacing))
                 MessageTimestamp(timestamp = message.timestamp)
@@ -61,8 +64,7 @@ fun ChatMessageList(
                 else -> AssistantChatBubble(
                     message = message,
                     isLoading = isLastAssistant,
-                    onRetry = { onRetryMessage(index) },
-                    onCopyAsContext = onCopyAsContext
+                    onRetry = { onRetryMessage(index) }
                 )
             }
         }
