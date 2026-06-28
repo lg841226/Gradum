@@ -196,6 +196,12 @@ private fun ToolCallBlock(
             modifier = animModifier,
             onOpenInEditor = onOpenInEditor
         )
+        is ToolCallContent.Read -> ReadToolCallIndicator(
+            path = block.content.path,
+            success = block.success,
+            modifier = animModifier,
+            onOpenInEditor = onOpenInEditor
+        )
         else -> ToolCallIndicator(
             alias = block.alias,
             success = block.success,

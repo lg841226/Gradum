@@ -98,7 +98,7 @@ fun ToolCallIndicator(
 
 /**
  * Capsule-shaped indicator for the "Ran" (run_cmd) tool.
- * Shows the command reason and an export button with tooltip.
+ * Shows the command reason and an open-in-editor button with tooltip.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -131,6 +131,47 @@ fun RanToolCallIndicator(
                         modifier = Modifier
                             .size(14.dp)
                             .clickable { onOpenInEditor(command) }
+                    )
+                }
+            }
+        }
+    )
+}
+
+/**
+ * Capsule-shaped indicator for the "Read" (read_file) tool.
+ * Shows the file path and an open-in-editor button with tooltip.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ReadToolCallIndicator(
+    path: String,
+    success: Boolean = true,
+    modifier: Modifier = Modifier,
+    onOpenInEditor: (String) -> Unit = {}
+) {
+    ToolCallCapsule(
+        iconKey = AllIconsKeys.General.Show,
+        alias = "Read",
+        success = success,
+        modifier = modifier,
+        trailing = {
+            if (path.isNotBlank()) {
+                Text(
+                    text = path.substringAfterLast('/'),
+                    color = JewelTheme.globalColors.text.info,
+                    maxLines = 1
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (path.isNotBlank()) {
+                Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
+                    Icon(
+                        key = AllIconsKeys.Actions.EditFile,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .clickable { onOpenInEditor(path) }
                     )
                 }
             }
