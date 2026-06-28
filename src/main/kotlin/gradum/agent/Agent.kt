@@ -112,6 +112,8 @@ class Agent(
         val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas()
 
         while (true) {
+            if (sessionAborted) break
+
             val result: AgentTurnResult = processLlmTurn(toolSchemas)
 
             result.errorMessage?.let { error ->
@@ -337,10 +339,12 @@ class Agent(
         val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
 
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
+        val toolAlias: String = skillInstance?.alias ?: functionName
 
         emitEvent(
             "tool_call", mapOf(
                 "tool" to functionName,
+                "alias" to toolAlias,
                 "arguments" to convertedArguments,
                 "toolCallId" to processedCall.callIdentifier,
                 "success" to callSuccess,
@@ -431,6 +435,14 @@ class Agent(
                 "aborted" to true,
             )
         )
+    }
+
+    /**
+     * Public method to abort the session from outside (e.g., via POST /stop endpoint).
+     * Sets the sessionAborted flag which is checked in the main loop.
+     */
+    fun abort() {
+        sessionAborted = true
     }
 
     companion object {

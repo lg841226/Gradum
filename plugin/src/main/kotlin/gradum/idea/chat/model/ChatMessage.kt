@@ -14,23 +14,63 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 /**
+ * Represents a single tool invocation within a message.
+ *
+ * @property toolName The name of the tool/skill being called.
+ * @property alias The formatted display name (e.g., "Ran" for "run_cmd").
+ * @property toolCallId Unique identifier for this tool call.
+ * @property success Whether the tool call completed successfully.
+ * @property result The result returned by the tool, if any.
+ */
+data class ToolCallInfo(
+    val toolName: String,
+    val alias: String = toolName,
+    val toolCallId: String = "",
+    val success: Boolean = true,
+    val result: String = "",
+    val arguments: Map<String, Any> = emptyMap()
+)
+
+/**
+ * Represents a single event in an assistant message's timeline.
+ * Events are rendered in order to preserve the conversation flow.
+ */
+sealed class ChatEvent {
+    data class Thinking(val content: String) : ChatEvent()
+    data class ToolCall(val info: ToolCallInfo) : ChatEvent()
+    data class Response(val content: String) : ChatEvent()
+    data class Error(val message: String) : ChatEvent()
+}
+
+/**
  * Represents a single message in the chat history.
  *
  * @property role  Identifies the sender — "user" or "assistant".
- * @property content  The message text.
- * @property attachments  Files frozen onto the message at send time and
- *   rendered under the user bubble by MessageAttachmentList. Empty for
- *   assistant messages and for user messages sent without attachments.
+ * @property content  The message text (used for user messages).
+ * @property attachments  Files frozen onto the message at send time.
+ * @property events  Ordered list of events for assistant messages
+ *   (thinking, tool calls, responses, errors).
  */
 data class ChatMessage(
     val role: String,
-    val content: String,
+    val content: String = "",
     val attachments: List<AttachedContext> = emptyList(),
     val timestamp: Long = System.currentTimeMillis(),
-    val thinking: String = "",
-    val thinkingStartTime: Long = 0L
+    val events: List<ChatEvent> = emptyList()
 ) {
     val isUserMessage: Boolean get() = role == "user"
+
+    /** Aggregated thinking content from all Thinking events. */
+    val thinking: String
+        get() = events.filterIsInstance<ChatEvent.Thinking>().joinToString("") { it.content }
+
+    /** Aggregated response content from all Response events. */
+    val responseContent: String
+        get() = events.filterIsInstance<ChatEvent.Response>().joinToString("") { it.content }
+
+    /** All tool call events. */
+    val toolCalls: List<ToolCallInfo>
+        get() = events.filterIsInstance<ChatEvent.ToolCall>().map { it.info }
 }
 
 /**

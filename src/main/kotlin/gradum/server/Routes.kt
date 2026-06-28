@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class EventsRequestBody(
@@ -36,6 +38,11 @@ data class EventsRequestBody(
     val model: String? = null,
     val config: Map<String, String>? = null,
     val loadContext: Boolean = true
+)
+
+@Serializable
+data class StopRequestBody(
+    val sessionId: String
 )
 
 /**
@@ -89,10 +96,12 @@ data class ConfigOverrides(
  */
 fun Application.registerAllRoutes() {
     val serverStartTime: LocalDateTime = LocalDateTime.now()
+    val activeSessions: ConcurrentHashMap<String, Agent> = ConcurrentHashMap()
 
     routing {
         post("/events") {
             val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
+            val sessionId: String = UUID.randomUUID().toString()
 
             // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
             // emit rate is bounded by LLM response size. Reconsider if user input ever flows
@@ -122,6 +131,7 @@ fun Application.registerAllRoutes() {
                                 mapOf(
                                     "type" to eventType,
                                     "timestamp" to LocalDateTime.now().toString(),
+                                    "sessionId" to sessionId,
                                     "data" to data
                                 )
                             ) + "\n"
@@ -129,8 +139,10 @@ fun Application.registerAllRoutes() {
                         },
                     )
 
+                    activeSessions[sessionId] = agent
                     agent.executeTask(requestBody.message, requestBody.loadContext)
                 } finally {
+                    activeSessions.remove(sessionId)
                     eventsChannel.close()
                 }
             }
@@ -145,6 +157,26 @@ fun Application.registerAllRoutes() {
                     }
                 }
             })
+        }
+
+        post("/stop") {
+            val requestBody: StopRequestBody = call.receive<StopRequestBody>()
+            val agent: Agent? = activeSessions[requestBody.sessionId]
+
+            if (agent != null) {
+                agent.abort()
+                activeSessions.remove(requestBody.sessionId)
+                call.respondText(
+                    text = JsonUtil.encodeMap(mapOf("status" to "stopped", "sessionId" to requestBody.sessionId)),
+                    contentType = ContentType.Application.Json
+                )
+            } else {
+                call.respondText(
+                    text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to requestBody.sessionId)),
+                    status = HttpStatusCode.NotFound,
+                    contentType = ContentType.Application.Json
+                )
+            }
         }
 
         get("/health") {

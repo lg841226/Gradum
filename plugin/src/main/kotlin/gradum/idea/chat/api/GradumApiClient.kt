@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-06-27 16:38:31 Changed by gwy
+ * GradumApiClient.kt  2026-06-28 11:09:27 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -47,6 +47,25 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         val request: HttpRequest = HttpRequest.newBuilder()
             .uri(URI.create("$baseUrl/models"))
             .GET()
+            .build()
+
+        val response: HttpResponse<String> = client.send(request, HttpResponse.BodyHandlers.ofString())
+        response.body()
+    }
+
+    /**
+     * Stops an active session on the server.
+     *
+     * @param sessionId The ID of the session to stop.
+     * @return A JSON string with the stop status.
+     */
+    suspend fun stopSession(sessionId: String): String = withContext(Dispatchers.IO) {
+        val requestBody: JsonObject = buildJsonObject { put("sessionId", sessionId) }
+
+        val request: HttpRequest = HttpRequest.newBuilder()
+            .uri(URI.create("$baseUrl/stop"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
             .build()
 
         val response: HttpResponse<String> = client.send(request, HttpResponse.BodyHandlers.ofString())
