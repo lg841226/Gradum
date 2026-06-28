@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-28 14:51:24 Changed by gwy
+ * ToolCallIndicator.kt  2026-06-28 15:59:20 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -79,6 +79,25 @@ private fun aliasIconKey(alias: String): IconKey = when (alias) {
     else -> AllIconsKeys.Nodes.Plugin
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun OpenInEditorButton(
+    target: String,
+    onOpenInEditor: (String) -> Unit
+) {
+    if (target.isNotBlank()) {
+        Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
+            Icon(
+                key = AllIconsKeys.Actions.EditFile,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(14.dp)
+                    .clickable { onOpenInEditor(target) }
+            )
+        }
+    }
+}
+
 /**
  * Generic capsule-shaped indicator for tool calls (non-Ran).
  */
@@ -123,17 +142,7 @@ fun RanToolCallIndicator(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            if (command.isNotBlank()) {
-                Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
-                    Icon(
-                        key = AllIconsKeys.General.Export,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clickable { onOpenInEditor(command) }
-                    )
-                }
-            }
+            OpenInEditorButton(target = command, onOpenInEditor = onOpenInEditor)
         }
     )
 }
@@ -164,17 +173,7 @@ fun ReadToolCallIndicator(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            if (path.isNotBlank()) {
-                Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
-                    Icon(
-                        key = AllIconsKeys.Actions.EditFile,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clickable { onOpenInEditor(path) }
-                    )
-                }
-            }
+            OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
         }
     )
 }
