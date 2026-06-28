@@ -46,5 +46,4 @@ data class AgentConfiguration(
     val maxRepeatedResponses: Int = 3,
     val maxRedLineHits: Int = 3,
     val maxRepeatedToolCalls: Int = 5,
-    val projectDir: String? = null,
 )

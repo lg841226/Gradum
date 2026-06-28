@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-06-28 11:34:43 Changed by gwy
+ * AssistantChatBubble.kt  2026-06-28 18:41:54 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -31,7 +31,7 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private const val FADE_IN_MS: Int = 600
-private const val AUTO_COLLAPSE_DELAY_MS: Long = 1200L
+private const val AUTO_COLLAPSE_DELAY_MS: Long = 1000L
 private const val BLOCK_GAP_DP: Int = 12
 
 /** Pre-aggregated render blocks for stable animation keys. */
@@ -39,7 +39,6 @@ private sealed class RenderBlock {
     data class Thinking(val content: String) : RenderBlock()
     data class ToolCall(val alias: String, val success: Boolean, val content: ToolCallContent) : RenderBlock()
     data class Response(val content: String) : RenderBlock()
-    data class Error(val message: String) : RenderBlock()
 }
 
 /** Coalesces consecutive events of the same type into stable render blocks. */
@@ -58,8 +57,12 @@ private fun aggregateRenderBlocks(events: List<ChatEvent>): List<RenderBlock> = 
             }
 
             is ChatEvent.ToolCall -> {
-                val content = ToolCallContent.fromArguments(event.info.alias, event.info.arguments)
+                val content = ToolCallContent.fromArguments(event.info.alias, event.info.arguments, event.info.result)
                 add(RenderBlock.ToolCall(event.info.alias, event.info.success, content))
+                index++
+            }
+
+            is ChatEvent.Error -> {
                 index++
             }
 
@@ -71,11 +74,6 @@ private fun aggregateRenderBlocks(events: List<ChatEvent>): List<RenderBlock> = 
                     index++
                 }
                 add(RenderBlock.Response(content.toString()))
-            }
-
-            is ChatEvent.Error -> {
-                add(RenderBlock.Error(event.message))
-                index++
             }
         }
     }
@@ -108,7 +106,6 @@ fun AssistantChatBubble(
                         is RenderBlock.Thinking -> ThinkingBlock(block)
                         is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor)
                         is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
-                        is RenderBlock.Error -> ErrorBlock(block)
                     }
                     Spacer(Modifier.height(BLOCK_GAP_DP.dp))
                 }
@@ -132,7 +129,6 @@ private fun RenderBlock.key(index: Int): String = when (this) {
     is RenderBlock.Thinking -> "thinking_$index"
     is RenderBlock.ToolCall -> "tool_${index}_$alias"
     is RenderBlock.Response -> "response_$index"
-    is RenderBlock.Error -> "error_$index"
 }
 
 @Composable
@@ -190,41 +186,36 @@ private fun ToolCallBlock(
     val animModifier = Modifier.graphicsLayer { this.alpha = alpha.value }
     when (block.content) {
         is ToolCallContent.Ran -> RanToolCallIndicator(
+            alias = block.alias,
             reason = block.content.reason,
             command = block.content.command,
             success = block.success,
             modifier = animModifier,
             onOpenInEditor = onOpenInEditor
         )
-        is ToolCallContent.Read -> ReadToolCallIndicator(
+
+        is ToolCallContent.Edited -> FileToolCallIndicator(
+            alias = block.alias,
+            path = block.content.path,
+            linesAdded = block.content.linesAdded,
+            linesRemoved = block.content.linesRemoved,
+            success = block.success,
+            modifier = animModifier,
+            onOpenInEditor = onOpenInEditor
+        )
+
+        is ToolCallContent.Read -> FileToolCallIndicator(
+            alias = block.alias,
             path = block.content.path,
             success = block.success,
             modifier = animModifier,
             onOpenInEditor = onOpenInEditor
         )
+
         else -> ToolCallIndicator(
             alias = block.alias,
             success = block.success,
             modifier = animModifier
-        )
-    }
-}
-
-@Composable
-private fun ErrorBlock(@Suppress("UNUSED_PARAMETER") block: RenderBlock.Error) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            key = AllIconsKeys.General.Error,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp)
-        )
-        Text(
-            text = message("gradum.tool.failed"),
-            color = JewelTheme.globalColors.text.error
         )
     }
 }

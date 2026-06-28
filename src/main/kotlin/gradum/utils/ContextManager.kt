@@ -57,7 +57,7 @@ class ContextManager(private val outputDirectory: Path) {
         }
     }
 
-    fun saveContext(messages: List<Map<String, Any>>, modelName: String, fullyReadFiles: Set<String>) {
+    fun saveContext(messages: List<Map<String, Any>>, modelName: String, fullyReadFiles: Set<String>): Boolean {
         outputDirectory.toFile().mkdirs()
 
         logger.info("Saving context: ${messages.size} messages, model=$modelName")
@@ -73,12 +73,14 @@ class ContextManager(private val outputDirectory: Path) {
         val contextMap: Map<String, Any> = mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
         val contextJson: String = JsonUtil.encodeMap(contextMap)
 
-        try {
+        return try {
             contextFilePath.toFile().writeText(contextJson, Charsets.UTF_8)
             val writtenSize: Long = contextFilePath.toFile().length()
             logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted")
+            true
         } catch (exception: Exception) {
             logger.error("Failed to save context: ${exception.message}", exception)
+            false
         }
     }
 

@@ -24,11 +24,14 @@ import gradum.idea.chat.model.ModelInfo
 import gradum.idea.chat.model.ToolCallInfo
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.PendingMessage
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
@@ -68,6 +71,9 @@ class GradumChatSession {
 
     private val log: Logger = Logger.getInstance(GradumChatSession::class.java)
     private val eventJson: Json = Json { ignoreUnknownKeys = true }
+
+    /** Coroutine scope used by [processPendingQueue] to launch the next send. */
+    var scope: CoroutineScope? = null
 
     /** The text field state for the chat input area. */
     val textState: TextFieldState = TextFieldState()
@@ -232,7 +238,7 @@ class GradumChatSession {
      *
      * @param userMessage The text content of the user's message.
      */
-    suspend fun sendMessage(userMessage: String, projectDir: String? = null) {
+    suspend fun sendMessage(userMessage: String) {
         val modelConfig: Map<String, String> = buildModelConfig()
         val messageWithHint = "$userMessage Do not use Markdown tables."
 
@@ -278,8 +284,7 @@ class GradumChatSession {
             message = messageWithHint,
             model = selectedModel?.name,
             config = modelConfig,
-            loadContext = true,
-            projectDir = projectDir
+            loadContext = true
         ).catch { exception ->
             log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex
@@ -434,6 +439,7 @@ class GradumChatSession {
             hasSentMessage = true
             isSending = true
             isWaitingForResponse = true
+            currentJob = scope?.launch { sendMessage(next.content) }
         }
     }
 
@@ -457,14 +463,20 @@ class GradumChatSession {
     private fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
         if (jsonObject == null) return emptyMap()
         return jsonObject.mapValues { (_, value) ->
-            val primitive = value.jsonPrimitive
-            when {
-                primitive.isString -> primitive.content
-                primitive.booleanOrNull != null -> primitive.boolean
-                primitive.intOrNull != null -> primitive.int
-                primitive.longOrNull != null -> primitive.long
-                primitive.doubleOrNull != null -> primitive.double
-                else -> primitive.content
+            when (value) {
+                is JsonObject -> value.toString()
+                is JsonArray -> value.toString()
+                else -> {
+                    val primitive = value.jsonPrimitive
+                    when {
+                        primitive.isString -> primitive.content
+                        primitive.booleanOrNull != null -> primitive.boolean
+                        primitive.intOrNull != null -> primitive.int
+                        primitive.longOrNull != null -> primitive.long
+                        primitive.doubleOrNull != null -> primitive.double
+                        else -> primitive.content
+                    }
+                }
             }
         }
     }

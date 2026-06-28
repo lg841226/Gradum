@@ -61,6 +61,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
         toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
             SwingBridgeTheme {
                 val scope: CoroutineScope = rememberCoroutineScope()
+                session.scope = scope
                 val codeHighlighter = remember(project, scope) {
                     CodeHighlighterFactory(project, scope).createHighlighter()
                 }
@@ -257,19 +258,21 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         val project: Project? = toolWindow?.project
         if (project != null && target.isNotBlank()) {
             try {
-                val ioFile = File(target)
-                if (ioFile.isFile) {
-                    val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioFile)
-                    if (virtualFile != null) {
-                        FileEditorManager.getInstance(project).openFile(virtualFile, true)
-                    }
+                val absolutePath = if (File(target).isAbsolute) {
+                    target
+                } else {
+                    project.basePath?.let { "$it/$target" } ?: target
+                }
+                val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
+                if (virtualFile != null && virtualFile.exists()) {
+                    FileEditorManager.getInstance(project).openFile(virtualFile, true)
                 } else {
                     val tempFile = File.createTempFile("gradum_cmd_", ".sh")
                     tempFile.writeText(target)
                     tempFile.deleteOnExit()
-                    val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
-                    if (virtualFile != null) {
-                        FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                    val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+                    if (tempVirtual != null) {
+                        FileEditorManager.getInstance(project).openFile(tempVirtual, true)
                     }
                 }
             } catch (exception: Exception) {
@@ -352,6 +355,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 inputState = inputState,
                 inputActions = inputActions,
                 textState = session.textState,
+                onRefreshModels = onRefreshModels,
                 suggestionVariants = session.suggestionVariants,
                 onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
                 modifier = Modifier.fillMaxSize()

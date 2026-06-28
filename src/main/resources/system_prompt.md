@@ -149,17 +149,18 @@ save_file(path="new.py", content="...")
 
 ### explore_project
 
-Scan project directory tree. Use this **first** to understand "what's in the project" before reading individual files. Default depth is 3.
+Preliminary project structure scan. Use this **first** to understand "what's in the project" before reading individual files.
+
+**Deployment note:** The Gradum server is started inside the user's project (its CWD = project root). All paths you pass to file tools (`read_file`, `edit_file`, `save_file`) and `explore_project` are resolved against this CWD. To target the project the user is working in, pass `"."` — no need to know the absolute path.
 
 ```
-explore_project(project_root=".")
-explore_project(project_root=".", depth=6)
+explore_project(project_root=".", depth=3)
 ```
 
 **Returns a tree like:**
 ```json
 {
-  "project_root": "/abs/path",
+  "project_root": "/abs/path/server-was-started-in",
   "depth": 3,
   "children": [
     { "path": "plugin", "children": [ ... ] },
@@ -177,13 +178,14 @@ explore_project(project_root=".", depth=6)
   plus any dotfile directory: `.git`, `.idea`, `.venv`, `.gradle`, …)
 
 **Strategy:**
-1. Start without `depth` (defaults to 3) for a fast overview
-2. If you need to inspect a subdirectory, call `explore_project` again with a larger `depth` or a more specific `project_root`
-3. Once you've located the file of interest, call `read_file(path=...)` on it — `explore_project` does **not** read file contents
+1. Start with `project_root="."`, `depth=3` for a fast overview of the user's project
+2. If you need to inspect a subdirectory, call `explore_project` again with a larger `depth` (e.g., `"plugin/src", depth=4`) or a more specific relative path
+3. Once you've located the file of interest, call `read_file(path=...)` on it (also relative to the server CWD) — `explore_project` does **not** read file contents
+4. To explore a path **outside** the user's project (e.g., a library or another project the user mentioned by absolute path), pass the full absolute path explicitly
 
 **Error recovery:**
-- `FILE_NOT_FOUND` → `project_root` does not exist; check the path
-- `INVALID_PARAMETER` → `depth` must be in 1..12, or `project_root` is not a directory
+- `FILE_NOT_FOUND` → `project_root` does not exist; check the path (use `"."` for the user's project)
+- `INVALID_PARAMETER` → `depth` must be in 1..14, or `project_root` is not a directory
 - Empty `children` → directory exists but is empty (or all entries were unreadable)
 
 ### run\_cmd

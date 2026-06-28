@@ -32,4 +32,5 @@ object GradumIcons {
     val FeatQuestion = PathIconKey("/icons/feat/question/question.svg", GradumIcons::class.java)
     val FeatText = PathIconKey("/icons/feat/text/text.svg", GradumIcons::class.java)
     val Ran = PathIconKey("/icons/cmd/cmd.svg", GradumIcons::class.java)
+    val Explore = PathIconKey("/icons/explore/explore.svg", GradumIcons::class.java)
 }

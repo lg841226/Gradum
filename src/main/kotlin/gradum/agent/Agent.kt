@@ -308,10 +308,6 @@ class Agent(
                 convertedArguments[key] = converted
         }
 
-        if (configuration.projectDir != null) {
-            convertedArguments["projectRoot"] = configuration.projectDir
-        }
-
         if (checkToolRunaway(functionName, convertedArguments)) {
             emitRevoked(
                 "tool_runaway", mapOf(
@@ -467,22 +463,22 @@ class Agent(
     }
 
     private fun finishSession(startTimeMillis: Long): Unit {
-        if (sessionAborted) return
+        if (!sessionAborted) {
+            val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
 
-        val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
-
-        emitEvent(
-            "session_end", mapOf(
-                "version" to Version.GRADUM_VERSION,
-                "elapsedSeconds" to elapsedSeconds,
-                "model" to configuration.modelName,
-                "tokenUsage" to mapOf(
-                    "promptTokens" to activeClient.tokenUsage.promptTokens,
-                    "completionTokens" to activeClient.tokenUsage.completionTokens,
-                    "totalTokens" to activeClient.tokenUsage.totalTokens
-                ),
+            emitEvent(
+                "session_end", mapOf(
+                    "version" to Version.GRADUM_VERSION,
+                    "elapsedSeconds" to elapsedSeconds,
+                    "model" to configuration.modelName,
+                    "tokenUsage" to mapOf(
+                        "promptTokens" to activeClient.tokenUsage.promptTokens,
+                        "completionTokens" to activeClient.tokenUsage.completionTokens,
+                        "totalTokens" to activeClient.tokenUsage.totalTokens
+                    ),
+                )
             )
-        )
+        }
 
         contextManager.saveContext(conversationHistory, configuration.modelName, emptySet())
     }

@@ -19,6 +19,44 @@ import java.io.FileNotFoundException
 import java.nio.file.Path
 
 /**
+ * Computes the length of the longest common subsequence of two line lists.
+ * Standard O(n*m) DP. Used by [computeLineDiff] to figure out how many
+ * search lines were preserved (and therefore do not count as removed) and
+ * how many replace lines were already present (and therefore do not count
+ * as added).
+ */
+private fun longestCommonSubsequenceLength(oldLines: List<String>, newLines: List<String>): Int {
+    val oldLineCount: Int = oldLines.size
+    val newLineCount: Int = newLines.size
+    if (oldLineCount == 0 || newLineCount == 0) return 0
+    val dp: Array<IntArray> = Array(oldLineCount + 1) { IntArray(newLineCount + 1) }
+    for (i in 1..oldLineCount) {
+        for (j in 1..newLineCount) {
+            dp[i][j] = if (oldLines[i - 1] == newLines[j - 1]) {
+                dp[i - 1][j - 1] + 1
+            } else {
+                maxOf(dp[i - 1][j], dp[i][j - 1])
+            }
+        }
+    }
+    return dp[oldLineCount][newLineCount]
+}
+
+/**
+ * Returns (linesAdded, linesRemoved) for replacing [oldText] with [newText],
+ * treating them as ordered lists of lines. Lines shared by both sides (in
+ * order) are counted neither as added nor as removed.
+ */
+private fun computeLineDiff(oldText: String, newText: String): Pair<Int, Int> {
+    val oldLines: List<String> = oldText.lines()
+    val newLines: List<String> = newText.lines()
+    val sharedLineCount: Int = longestCommonSubsequenceLength(oldLines, newLines)
+    val linesAdded: Int = newLines.size - sharedLineCount
+    val linesRemoved: Int = oldLines.size - sharedLineCount
+    return linesAdded to linesRemoved
+}
+
+/**
  * Applies a list of search-and-replace edits to a file.
  *
  * Supports two modes:
@@ -116,6 +154,8 @@ class EditFileSkill : Skill() {
     private fun applySequentialEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
         var currentContent: String = originalContent
         val appliedEdits: MutableList<Int> = mutableListOf()
+        var linesAdded = 0
+        var linesRemoved = 0
 
         for (edit in edits) {
             val occurrences: Int = currentContent.countOccurrences(edit.search)
@@ -143,6 +183,8 @@ class EditFileSkill : Skill() {
                 }
 
                 else -> {
+                    linesRemoved += edit.search.lines().size
+                    linesAdded += edit.replace.lines().size
                     currentContent = currentContent.replaceFirst(edit.search, edit.replace)
                     appliedEdits.add(edit.index)
                 }
@@ -160,6 +202,8 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to appliedEdits.size,
                 "totalEdits" to edits.size,
+                "linesAdded" to linesAdded,
+                "linesRemoved" to linesRemoved,
                 "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
             ),
         )
@@ -167,6 +211,8 @@ class EditFileSkill : Skill() {
 
     private fun applyAtomicEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
         var workingContent: String = originalContent
+        var linesAdded = 0
+        var linesRemoved = 0
 
         for (edit in edits) {
             val occurrences: Int = workingContent.countOccurrences(edit.search)
@@ -188,7 +234,12 @@ class EditFileSkill : Skill() {
                     )
                 }
 
-                else -> workingContent = workingContent.replaceFirst(edit.search, edit.replace)
+                else -> {
+                    val (editAdded: Int, editRemoved: Int) = computeLineDiff(edit.search, edit.replace)
+                    linesRemoved += editRemoved
+                    linesAdded += editAdded
+                    workingContent = workingContent.replaceFirst(edit.search, edit.replace)
+                }
             }
         }
 
@@ -207,6 +258,8 @@ class EditFileSkill : Skill() {
                 "path" to resolvedPath.toString(),
                 "editsApplied" to edits.size,
                 "totalEdits" to edits.size,
+                "linesAdded" to linesAdded,
+                "linesRemoved" to linesRemoved,
                 "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
             ),
         )

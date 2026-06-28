@@ -44,7 +44,7 @@ fun MessageCopyButton(
     onCopyAsContext: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
-    val textToCopy = if (message.isUserMessage) message.content else message.responseContent
+    val textToCopy = if (message.isUserMessage) message.content else message.fullContent
 
     Tooltip(tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
         IconButton(

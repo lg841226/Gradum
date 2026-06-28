@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-06-28 14:33:27 Changed by gwy
+ * ExploreProjectSkill.kt  2026-06-28 22:15:18 Changed by gwy
  */
 
 package gradum.skill
@@ -17,7 +17,7 @@ import java.nio.file.Paths
 
 private const val MINIMUM_DEPTH: Int = 1
 private const val MAXIMUM_DEPTH: Int = 12
-private const val DEFAULT_DEPTH: Int = 3
+private const val DEFAULT_DEPTH: Int = 5
 private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2000
 
 private val truncatedDirectoryNames: Set<String> = setOf(
@@ -68,46 +68,56 @@ private fun shouldTruncate(name: String): Boolean {
  * Permission errors on individual directories are caught and the rest of the
  * listing is returned.
  */
-private fun buildChildren(
-    directory: Path,
-    remainingDepth: Int,
-    visited: Set<Path>
-): List<Map<String, Any>> {
+private fun buildChildren(directory: Path, remainingDepth: Int, visited: Set<Path>): List<Map<String, Any>> {
     if (remainingDepth <= 0) return emptyList()
+
     val children: MutableList<Map<String, Any>> = mutableListOf()
+
     val entries: List<File> = try {
         directory.toFile().listFiles()?.toList() ?: emptyList()
     } catch (_: SecurityException) {
         return children
     }
+
     val sortedEntries: List<File> = entries
         .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+
     val limitedEntries: List<File> = if (sortedEntries.size > MAXIMUM_CHILDREN_PER_DIRECTORY) {
         sortedEntries.take(MAXIMUM_CHILDREN_PER_DIRECTORY)
-    } else sortedEntries
+    } else {
+        sortedEntries
+    }
 
     for (entry in limitedEntries) {
-        if (entry.isDirectory) {
-            if (shouldTruncate(entry.name)) {
-                children.add(linkedMapOf("path" to entry.name, "truncated" to true))
-                continue
-            }
-            val childPath: Path = entry.toPath()
-            val normalizedChild: Path = childPath.toAbsolutePath().normalize()
-            if (normalizedChild in visited) continue
-            val newVisited: Set<Path> = visited.plusElement(normalizedChild)
-            val grandChildren: List<Map<String, Any>> =
-                buildChildren(childPath, remainingDepth - 1, newVisited)
-            val directoryNode: MutableMap<String, Any> = linkedMapOf("path" to entry.name)
-            if (grandChildren.isNotEmpty()) {
-                directoryNode["children"] = grandChildren
-            }
-            children.add(directoryNode)
-        } else {
+        if (entry.isDirectory)
+            children.add(buildDirectoryNode(entry, remainingDepth, visited))
+        else
             children.add(linkedMapOf("path" to entry.name))
-        }
     }
+
     return children
+}
+
+private fun buildDirectoryNode(entry: File, remainingDepth: Int, visited: Set<Path>): Map<String, Any> {
+    if (shouldTruncate(entry.name))
+        return linkedMapOf("path" to entry.name, "truncated" to true)
+
+    val childPath: Path = entry.toPath()
+    val normalizedChild: Path = childPath.toAbsolutePath().normalize()
+
+    if (normalizedChild in visited)
+        return linkedMapOf("path" to entry.name, "truncated" to true)
+
+    val newVisited: Set<Path> = visited.plusElement(normalizedChild)
+    val grandChildren: List<Map<String, Any>> =
+        buildChildren(childPath, remainingDepth - 1, newVisited)
+
+    val directoryNode: MutableMap<String, Any> = linkedMapOf("path" to entry.name)
+
+    if (grandChildren.isNotEmpty())
+        directoryNode["children"] = grandChildren
+
+    return directoryNode
 }
 
 /**

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-06-26 16:21:36 Changed by gwy
+ * ChatMessage.kt  2026-06-28 23:07:38 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -68,9 +68,29 @@ data class ChatMessage(
     val responseContent: String
         get() = events.filterIsInstance<ChatEvent.Response>().joinToString("") { it.content }
 
-    /** All tool call events. */
-    val toolCalls: List<ToolCallInfo>
-        get() = events.filterIsInstance<ChatEvent.ToolCall>().map { it.info }
+    /** Full content for clipboard: merged by type, no per-chunk fragmentation. */
+    val fullContent: String
+        get() = buildString {
+            val thinkingText = thinking
+            if (thinkingText.isNotBlank()) append(thinkingText)
+
+            val toolCallAliases = events
+                .filterIsInstance<ChatEvent.ToolCall>().map { it.info.alias }
+
+            if (toolCallAliases.isNotEmpty())
+                if (isNotEmpty()) append("\n\n"); append(toolCallAliases.joinToString("\n"))
+
+            val responseText = responseContent
+            if (responseText.isNotBlank())
+                if (isNotEmpty()) append("\n\n"); append(responseText)
+
+
+            val errorMessages = events.filterIsInstance<ChatEvent.Error>().map { it.message }
+
+            if (errorMessages.isNotEmpty())
+                if (isNotEmpty()) append("\n\n"); append(errorMessages.joinToString("\n"))
+
+        }
 }
 
 /**

@@ -159,7 +159,7 @@ class RunCommandSkill : Skill() {
                 reader.readText()
             }
         } catch (exception: Exception) {
-            logger.debug("Failed to read stream output: {}", exception.message)
+            logger.warn("Failed to read stream output: {}", exception.message)
             ""
         }
     }
