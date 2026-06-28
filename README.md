@@ -40,7 +40,7 @@ flowchart TB
         S2[EditFileSkill]
         S3[SaveFileSkill]
         S4[RunCommandSkill]
-        S5[SearchSkill]
+        S5[ExploreProjectSkill]
         S6[TodoSkill]
         S7[CompletePlanSkill]
     end
@@ -196,7 +196,6 @@ Each line is one JSON event:
 | `edit_file`         | Edited    | Search-replace editing (sequential or atomic mode) |
 | `save_file`         | Saved     | Write a new file                                   |
 | `run_cmd`           | Ran       | Execute shell commands (blocking or detached)      |
-| `search`            | Explored  | Search code content / file names / directories     |
 | `to_do`             | Planned   | Initialize a task list                             |
 | `finish_to_do_item` | Completed | Mark tasks complete                                |
 
@@ -230,13 +229,6 @@ Each line is one JSON event:
 - `command` (required): shell command
 - `detached` (optional): background execution, returns PID and log path immediately
 - **Safety filter**: All commands pass through `CommandFilter`; dangerous commands are rejected with error code `COMMAND_BLOCKED`
-
-#### search
-```json
-{"query": "fun execute", "path": "src", "type": "content"}
-```
-- `type`: `"content"` (code content search, regex), `"filename"` (filename match), `"directory"` (directory name match)
-- Timeout 120s, max 600 files, max depth 6, up to 20 results
 
 #### to_do / finish_to_do_item
 ```json

@@ -24,8 +24,8 @@ sealed class ToolCallContent {
     /** Content for the "Read" (read_file) tool. */
     data class Read(val path: String) : ToolCallContent()
 
-    /** Content for the "Explored" (search) tool. */
-    data class Explored(val keyword: String) : ToolCallContent()
+    /** Content for the "Explored" (explore_project) tool. */
+    data class Explored(val projectRoot: String, val depth: Int) : ToolCallContent()
 
     /** Content for the "Planned" (todo_add) tool. */
     data class Planned(val tasks: List<String>) : ToolCallContent()
@@ -57,9 +57,14 @@ sealed class ToolCallContent {
                     if (!path.isNullOrBlank()) Read(path) else None
                 }
                 "Explored" -> {
-                    val keyword = arguments["keyword"] as? String
-                        ?: arguments["query"] as? String
-                    if (!keyword.isNullOrBlank()) Explored(keyword) else None
+                    val projectRoot = arguments["project_root"] as? String
+                    val depthValue: Any? = arguments["depth"]
+                    val depth: Int = when (depthValue) {
+                        is Number -> depthValue.toInt()
+                        is String -> depthValue.toIntOrNull() ?: 0
+                        else -> 0
+                    }
+                    if (!projectRoot.isNullOrBlank() && depth > 0) Explored(projectRoot, depth) else None
                 }
                 "Planned" -> {
                     @Suppress("UNCHECKED_CAST")

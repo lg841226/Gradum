@@ -606,7 +606,6 @@ gradum.skill.ReadFileSkill
 gradum.skill.EditFileSkill
 gradum.skill.SaveFileSkill
 gradum.skill.RunCommandSkill
-gradum.skill.SearchSkill
 gradum.skill.TodoSkill
 gradum.skill.CompletePlanSkill
 gradum.skill.MyNewSkill          # <-- Add this line

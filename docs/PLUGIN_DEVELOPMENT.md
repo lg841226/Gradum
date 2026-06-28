@@ -26,8 +26,7 @@ flowchart TD
         Init --> R2["registerSkill(EditFileSkill())"]
         Init --> R3["registerSkill(SaveFileSkill())"]
         Init --> R4["registerSkill(RunCommandSkill())"]
-        Init --> R5["registerSkill(SearchSkill())"]
-        Init --> R6["registerSkill(TodoSkill())"]
+        Init --> R5["registerSkill(TodoSkill())"]
         Init --> R7["registerSkill(CompletePlanSkill())"]
     end
 
@@ -36,9 +35,8 @@ flowchart TD
         Key2["'edit_file' -> EditFileSkill"]
         Key3["'save_file' -> SaveFileSkill"]
         Key4["'run_cmd' -> RunCommandSkill"]
-        Key5["'search' -> SearchSkill"]
-        Key6["'to_do' -> TodoSkill"]
-        Key7["'finish_to_do_item' -> CompletePlanSkill"]
+        Key5["'to_do' -> TodoSkill"]
+        Key6["'finish_to_do_item' -> CompletePlanSkill"]
     end
 
     R1 --> Key1
@@ -46,8 +44,7 @@ flowchart TD
     R3 --> Key3
     R4 --> Key4
     R5 --> Key5
-    R6 --> Key6
-    R7 --> Key7
+    R7 --> Key6
     Agent[Agent.kt] -->|"skillRegistry.getSkill(name)"| SkillLook[Look up by key]
     SkillLook -->|matches| Skills[Skills in the registry]
     style Registry fill:#3b82f6
@@ -96,7 +93,6 @@ classDiagram
     class EditFileSkill
     class SaveFileSkill
     class RunCommandSkill
-    class SearchSkill
     class TodoSkill
     class CompletePlanSkill
 
@@ -106,7 +102,6 @@ classDiagram
     Skill <|-- EditFileSkill
     Skill <|-- SaveFileSkill
     Skill <|-- RunCommandSkill
-    Skill <|-- SearchSkill
     Skill <|-- TodoSkill
     Skill <|-- CompletePlanSkill
     SkillRegistry o-- Skill
@@ -155,9 +150,9 @@ abstract class Skill {
 
 | Property      | Type     | Purpose                                 | Example                                            |
 |---------------|----------|-----------------------------------------|----------------------------------------------------|
-| `skillName`   | `String` | Unique name used for LLM function calls | `"search"`                                         |
-| `description` | `String` | Description shown to the LLM            | `"Search code content, filenames and directories"` |
-| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Explored"`                                       |
+| `skillName`   | `String` | Unique name used for LLM function calls | `"edit_file"`                                       |
+| `description` | `String` | Description shown to the LLM            | `"Atomic find-and-replace in a file"`              |
+| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Ran"`, `"Planned"`                                  |
 
 ### Required Methods
 
@@ -582,7 +577,6 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 | `EditFileSkill`     | `edit_file`         | Search-and-replace editing (sequential / atomic) |
 | `SaveFileSkill`     | `save_file`         | Write to or create a file                        |
 | `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)    |
-| `SearchSkill`       | `search`            | Search code content / filenames / directories    |
 | `TodoSkill`         | `to_do`             | Initialize a task list                           |
 | `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                         |
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-28 12:20:54 Changed by gwy
+ * ToolCallIndicator.kt  2026-06-28 14:51:24 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat

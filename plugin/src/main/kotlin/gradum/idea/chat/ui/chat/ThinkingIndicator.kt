@@ -82,9 +82,8 @@ fun ThinkingIndicator(
             )
         }
 
-        if (isExpanded) {
+        if (isExpanded)
             Spacer(Modifier.height(10.dp))
-        }
 
         AnimatedVisibility(visible = isExpanded) {
 

@@ -124,8 +124,7 @@ flowchart TB
         SK4["EditFileSkill.kt"]
         SK5["SaveFileSkill.kt"]
         SK6["RunCommandSkill.kt"]
-        SK7["SearchSkill.kt"]
-        SK8["TodoSkill.kt"]
+        SK7["TodoSkill.kt"]
     end
 
     subgraph UTIL["Utility Layer"]
@@ -235,8 +234,8 @@ src/main/kotlin/gradum/
 │   ├── EditFileSkill.kt           # File editing (sequential/atomic modes)
 │   ├── SaveFileSkill.kt           # File writing (auto mkdir parent directories)
 │   ├── RunCommandSkill.kt         # Shell command execution (blocking/detached + CommandFilter)
-│   ├── SearchSkill.kt             # Code content search + filename matching + directory matching (unified response, relevance sorting, context lines)
-│   └── TodoSkill.kt               # TodoManager singleton + TodoSkill + CompletePlanSkill
+│   ├── ExploreProjectSkill.kt     # Project tree scan (depth 1..14, truncated build/dependency dirs)
+│   ├── TodoSkill.kt               # TodoManager singleton + TodoSkill + CompletePlanSkill
 │
 └── util/
     ├── CommandFilter.kt           # classifyCommand() + path protection rules
@@ -314,7 +313,6 @@ flowchart TD
         SK_ED[EditFileSkill<br/>sequential / atomic]
         SK_SV[SaveFileSkill<br/>Path.writeText]
         SK_RC[RunCommandSkill<br/>classifyCommand to ProcessBuilder]
-        SK_SH[SearchSkill<br/>Files.walk + Regex]
         SK_TD[TodoSkill<br/>TodoManager singleton]
     end
 
@@ -322,7 +320,7 @@ flowchart TD
     GS --> SK_ED
     GS --> SK_SV
     GS --> SK_RC
-    GS --> SK_SH
+    GS --> SK_EX
     GS --> SK_TD
 
     subgraph OUTSIDE["Outside world"]
@@ -335,7 +333,8 @@ flowchart TD
     SK_ED --> FS
     SK_SV --> FS
     SK_RC --> SH
-    SK_SH --> FS
+    SK_EX --> FS
+    SK_TD --> FS
     END --> OUT[output/context.json<br/>encrypted]
 ```
 
@@ -540,7 +539,6 @@ pie
 | **save_file**          | `{path, bytesWritten, created}`                                                                                                                                                                                                                              |
 | **run_cmd** (blocking) | `{command, exitCode, standardOutput, standardError, timedOut}` (last 2 keep full output; older ones strip `standardOutput`/`standardError` via `historyKeepCount=2`)                                                                                         |
 | **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                                                                                                                           |
-| **search**             | `{query, searchType, maxResults, results: [{filePath, lineNumber, matchedText, matchType}], totalMatches, truncated, summary: {byFile, byMatchType}, hint?}` (`type="all"` additionally: `contentResults[], filenameResults[], contentTotal, filenameTotal`) |
 | **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                                                                                                                    |
 | **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                                                                                                                      |
 
@@ -1050,7 +1048,7 @@ classDiagram
     class EditFileSkill
     class SaveFileSkill
     class RunCommandSkill
-    class SearchSkill
+    class ExploreProjectSkill
     class TodoSkill
     class CompletePlanSkill
 
@@ -1060,7 +1058,7 @@ classDiagram
     Skill <|-- EditFileSkill
     Skill <|-- SaveFileSkill
     Skill <|-- RunCommandSkill
-    Skill <|-- SearchSkill
+    Skill <|-- ExploreProjectSkill
     Skill <|-- TodoSkill
     Skill <|-- CompletePlanSkill
     SkillRegistry o-- Skill
@@ -1133,7 +1131,6 @@ LLM context window without losing the structural metadata (path, exit code, matc
 |-------------------|------------------|-----------------------------------|--------------------------------------------------------------------------------|
 | `ReadFileSkill`   | 2                | `content`                         | File content is large (hundreds of lines); only the last 2 reads are relevant  |
 | `RunCommandSkill` | 2                | `standardOutput`, `standardError` | Command output may be very large; old results are rarely referenced            |
-| `SearchSkill`     | 2                | `hint`, `summary`                 | Only useful for current search iteration; older searches keep results/metadata |
 
 The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is
 trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called
@@ -1172,10 +1169,9 @@ flowchart TB
     SCAN --> R2["registerSkill(EditFileSkill())"]
     SCAN --> R3["registerSkill(SaveFileSkill())"]
     SCAN --> R4["registerSkill(RunCommandSkill())"]
-    SCAN --> R5["registerSkill(SearchSkill())"]
-    SCAN --> R6["registerSkill(TodoSkill())"]
-    SCAN --> R7["registerSkill(CompletePlanSkill())"]
-    SCAN --> R8["registerSkill(ExternalPluginSkill())<br/>(from plugin JARs)"]
+    SCAN --> R5["registerSkill(TodoSkill())"]
+    SCAN --> R6["registerSkill(CompletePlanSkill())"]
+    SCAN --> R7["registerSkill(ExternalPluginSkill())<br/>(from plugin JARs)"]
     R1 --> REG["registeredSkills map<br/>{skillName -> Skill instance}"]
     R2 --> REG
     R3 --> REG
@@ -1183,7 +1179,6 @@ flowchart TB
     R5 --> REG
     R6 --> REG
     R7 --> REG
-    R8 --> REG
     REG --> LOOKUP["getSkill(name) → returns matching Skill or null"]
     REG --> ALL["getAllSkills() → all registered Skills"]
     REG --> SCH["getSchemas() → aggregated function schemas"]
@@ -1196,7 +1191,7 @@ gradum.skill.ReadFileSkill
 gradum.skill.EditFileSkill
 gradum.skill.SaveFileSkill
 gradum.skill.RunCommandSkill
-gradum.skill.SearchSkill
+gradum.skill.ExploreProjectSkill
 gradum.skill.TodoSkill
 gradum.skill.CompletePlanSkill
 ```
@@ -1216,7 +1211,6 @@ gradum.skill.CompletePlanSkill
 | EditFileSkill     | `path, edits[], mode?`                                               | `path, editsApplied, totalEdits`                                                                                                                                                                         | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                                                                                                |
 | SaveFileSkill     | `path, content`                                                      | `path, bytesWritten, created`                                                                                                                                                                            | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                                                                                               |
 | RunCommandSkill   | `command, reason?, detached?`                                        | blocking: `command, exitCode, standardOutput, standardError` <br/> detached: `command, detached, processId, logPath, message`                                                                            | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                                                                                         |
-| SearchSkill       | `keyword, path?, type?, file_pattern?, max_results?, context_lines?` | `query, searchType, maxResults, results[], totalMatches, truncated, summary{byFile, byMatchType}, hint?` (`type="all"` additionally: `contentResults[], filenameResults[], contentTotal, filenameTotal`) | `INVALID_PARAMETER, IO_ERROR`                                                                 | timeout 120s; maxFiles 600; depth 6; contentLimit 4096; filenameLimit 2048; maxResults 1-100 (default 20); contextLines 0-10 |
 | TodoSkill         | `tasks[]`                                                            | `totalTasks, currentTask, currentIndex`                                                                                                                                                                  | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization                                                                              |
 | CompletePlanSkill | none                                                                 | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                                                                                                              | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                                                                                         |
 

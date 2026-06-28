@@ -9,6 +9,6 @@ gradum.skill.ReadFileSkill
 gradum.skill.EditFileSkill
 gradum.skill.SaveFileSkill
 gradum.skill.RunCommandSkill
-gradum.skill.SearchSkill
+gradum.skill.ExploreProjectSkill
 gradum.skill.TodoSkill
 gradum.skill.CompletePlanSkill
