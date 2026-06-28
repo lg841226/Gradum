@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-28 16:05:18 Changed by gwy
+ * ToolCallIndicator.kt  2026-06-28 17:05:48 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.icons.GradumIcons
@@ -138,7 +139,9 @@ fun RanToolCallIndicator(
                 Text(
                     text = reason,
                     color = JewelTheme.globalColors.text.info,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -169,7 +172,9 @@ fun ReadToolCallIndicator(
                 Text(
                     text = path.substringAfterLast('/'),
                     color = JewelTheme.globalColors.text.info,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
