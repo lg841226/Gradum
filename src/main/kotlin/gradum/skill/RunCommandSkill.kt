@@ -40,7 +40,7 @@ class RunCommandSkill : Skill() {
     override val description: String = "Execute a shell command (blocking or detached)"
 
     override val historyKeepCount: Int = 2
-    override val historyVolatileKeys: List<String> = listOf("standardOutput", "standardError")
+    override val historyVolatileKeys: List<String> = listOf("output")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -109,8 +109,7 @@ class RunCommandSkill : Skill() {
                 mapOf(
                     "command" to commandText,
                     "exitCode" to exitCode,
-                    "standardOutput" to stdoutText,
-                    "standardError" to stderrText,
+                    "output" to stdoutText.ifBlank { stderrText },
                     "timedOut" to false,
                 ),
             )
