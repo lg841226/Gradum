@@ -72,7 +72,10 @@ class Agent(
         this.redLineKeywords = redLineKeywords
     }
 
-    fun executeTask(userInput: String, loadPreviousContext: Boolean = false): Unit {
+    fun executeTask(
+        userInput: String,
+        loadPreviousContext: Boolean = false
+    ): Unit {
         val startTimeMillis: Long = System.currentTimeMillis().also { sessionStartTimeMillis = it }
 
         val contextLoaded: Boolean = if (loadPreviousContext) {
@@ -109,6 +112,8 @@ class Agent(
         val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas()
 
         while (true) {
+            if (sessionAborted) break
+
             val result: AgentTurnResult = processLlmTurn(toolSchemas)
 
             result.errorMessage?.let { error ->
@@ -119,21 +124,6 @@ class Agent(
                         "source" to "${configuration.provider.name.lowercase()}_client"
                     )
                 )
-            }
-
-            result.responseText?.let { text ->
-                if (text.isNotBlank()) {
-                    emitEvent(
-                        "response", mapOf(
-                            "content" to text,
-                            "tokenUsage" to mapOf(
-                                "promptTokens" to activeClient.tokenUsage.promptTokens,
-                                "completionTokens" to activeClient.tokenUsage.completionTokens,
-                                "totalTokens" to activeClient.tokenUsage.totalTokens
-                            ),
-                        )
-                    )
-                }
             }
 
             val matchedRedLineKeywords: List<String> = checkRedLineKeywords(result.responseText)
@@ -225,7 +215,6 @@ class Agent(
 
     private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
         val contentParts: MutableList<String> = mutableListOf()
-        val thinkingParts: MutableList<String> = mutableListOf()
         var toolCallsResult: List<ToolCallEntry>? = null
         var errorMessage: String? = null
 
@@ -237,17 +226,17 @@ class Agent(
         runBlocking {
             responseFlow.collect { chunk ->
                 when (chunk) {
-                    is LLMResponseChunk.TextContent -> contentParts.add(chunk.text)
+                    is LLMResponseChunk.TextContent -> {
+                        contentParts.add(chunk.text)
+                        emitEvent("response", mapOf("content" to chunk.text))
+                    }
                     is LLMResponseChunk.ToolCallBatch -> toolCallsResult = chunk.toolCalls
-                    is LLMResponseChunk.ReasoningContent -> thinkingParts.add(chunk.text)
+                    is LLMResponseChunk.ReasoningContent -> {
+                        emitEvent("thinking", mapOf("content" to chunk.text))
+                    }
                     is LLMResponseChunk.ErrorMessage -> errorMessage = chunk.description
                 }
             }
-        }
-
-        if (thinkingParts.isNotEmpty()) {
-            if (thinkingParts.joinToString("").isNotBlank())
-                emitEvent("thinking", mapOf("content" to thinkingParts.joinToString("")))
         }
 
         return AgentTurnResult(
@@ -350,10 +339,12 @@ class Agent(
         val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
 
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
+        val toolAlias: String = skillInstance?.alias ?: functionName
 
         emitEvent(
             "tool_call", mapOf(
                 "tool" to functionName,
+                "alias" to toolAlias,
                 "arguments" to convertedArguments,
                 "toolCallId" to processedCall.callIdentifier,
                 "success" to callSuccess,
@@ -444,6 +435,14 @@ class Agent(
                 "aborted" to true,
             )
         )
+    }
+
+    /**
+     * Public method to abort the session from outside (e.g., via POST /stop endpoint).
+     * Sets the sessionAborted flag which is checked in the main loop.
+     */
+    fun abort() {
+        sessionAborted = true
     }
 
     companion object {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-22 23:08:56 Changed by gwy
+ * Routes.kt  2026-06-26 17:32:11 Changed by gwy
  */
 
 package gradum.server
@@ -29,12 +29,20 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
 data class EventsRequestBody(
-    val message: String, val model: String? = null,
+    val message: String,
+    val model: String? = null,
     val config: Map<String, String>? = null,
-    val loadContext: Boolean = false
+    val loadContext: Boolean = true
+)
+
+@Serializable
+data class StopRequestBody(
+    val sessionId: String
 )
 
 /**
@@ -86,19 +94,21 @@ data class ConfigOverrides(
  * - `GET /models`  — discovered LLM models.
  * - `GET /skills`  — registered Skill implementations.
  */
-fun Application.registerAllRoutes(): Unit {
+fun Application.registerAllRoutes() {
     val serverStartTime: LocalDateTime = LocalDateTime.now()
+    val activeSessions: ConcurrentHashMap<String, Agent> = ConcurrentHashMap()
 
     routing {
         post("/events") {
             val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
+            val sessionId: String = UUID.randomUUID().toString()
 
             // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
             // emit rate is bounded by LLM response size. Reconsider if user input ever flows
             // through this channel unfiltered.
             val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
 
-            val configOverrides: ConfigOverrides = ConfigOverrides.fromRequestMap(requestBody.config)
+            val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
             val agentConfiguration = AgentConfiguration(
                 modelName = requestBody.model ?: "minimax-m2.5:cloud",
@@ -121,6 +131,7 @@ fun Application.registerAllRoutes(): Unit {
                                 mapOf(
                                     "type" to eventType,
                                     "timestamp" to LocalDateTime.now().toString(),
+                                    "sessionId" to sessionId,
                                     "data" to data
                                 )
                             ) + "\n"
@@ -128,8 +139,10 @@ fun Application.registerAllRoutes(): Unit {
                         },
                     )
 
+                    activeSessions[sessionId] = agent
                     agent.executeTask(requestBody.message, requestBody.loadContext)
                 } finally {
+                    activeSessions.remove(sessionId)
                     eventsChannel.close()
                 }
             }
@@ -144,6 +157,26 @@ fun Application.registerAllRoutes(): Unit {
                     }
                 }
             })
+        }
+
+        post("/stop") {
+            val requestBody: StopRequestBody = call.receive<StopRequestBody>()
+            val agent: Agent? = activeSessions[requestBody.sessionId]
+
+            if (agent != null) {
+                agent.abort()
+                activeSessions.remove(requestBody.sessionId)
+                call.respondText(
+                    text = JsonUtil.encodeMap(mapOf("status" to "stopped", "sessionId" to requestBody.sessionId)),
+                    contentType = ContentType.Application.Json
+                )
+            } else {
+                call.respondText(
+                    text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to requestBody.sessionId)),
+                    status = HttpStatusCode.NotFound,
+                    contentType = ContentType.Application.Json
+                )
+            }
         }
 
         get("/health") {
@@ -164,6 +197,7 @@ fun Application.registerAllRoutes(): Unit {
 
         get("/models") {
             val discoveredModels: List<ModelEntry> = discoverModels()
+            application.log.info("Discovered ${discoveredModels.size} models: ${discoveredModels.map { it.modelName }}")
             call.respondText(
                 text = JsonUtil.encodeMap(
                     mapOf(
@@ -171,7 +205,8 @@ fun Application.registerAllRoutes(): Unit {
                             mapOf(
                                 "name" to entry.modelName,
                                 "provider" to entry.providerType,
-                                "server" to entry.serverUrl
+                                "server" to entry.serverUrl,
+                                "serverName" to entry.serverName
                             )
                         },
                     )

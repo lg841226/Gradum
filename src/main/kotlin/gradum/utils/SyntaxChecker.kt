@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-06-21 19:04:11 Changed by gwy
+ * SyntaxChecker.kt  2026-06-26 17:32:11 Changed by gwy
  */
 
 package gradum.utils
@@ -16,7 +16,8 @@ import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("SyntaxChecker")
 
-data class SyntaxIssue(val message: String,
+data class SyntaxIssue(
+    val message: String,
     val severity: String, val line: Int? = null,
     val column: Int? = null, val errorCode: String? = null
 ) {
@@ -52,7 +53,7 @@ private fun interface SyntaxParser {
  */
 private val standardParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
     val issues: MutableList<SyntaxIssue> = mutableListOf()
-    val pattern: Regex = Regex("""^(.+?):(\d+)(?::(\d+))?:\s+(error|warning|note):\s(.+)$""")
+    val pattern = Regex("""^(.+?):(\d+)(?::(\d+))?:\s+(error|warning|note):\s(.+)$""")
     var currentIssue: PendingIssue? = null
     var currentNotes: MutableList<String> = mutableListOf()
 
@@ -73,6 +74,7 @@ private val standardParser: SyntaxParser = SyntaxParser { output: String, filePa
                 severity == "error" || severity == "warning" -> {
                     Regex("""\[(.+?)]""").find(message)?.groupValues?.get(1)
                 }
+
                 else -> null
             }
             currentIssue = PendingIssue(severity, message, matchedLine, matchedColumn, errorCode)
@@ -154,7 +156,7 @@ private val rustcParser: SyntaxParser = SyntaxParser { output: String, filePath:
  * Error code is optional (TS1234 part may be absent).
  */
 private val tscParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
-    val pattern: Regex = Regex("""^(.+?)\((\d+)(?:,(\d+))?\):\s+(error|warning):\s(?:TS(\d+):\s)?(.+)$""")
+    val pattern = Regex("""^(.+?)\((\d+)(?:,(\d+))?\):\s+(error|warning):\s(?:TS(\d+):\s)?(.+)$""")
     output.lines()
         .mapNotNull { line: String ->
             val trimmedLine: String = line.trimEnd()
@@ -221,11 +223,13 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
         }
         val errorMatch: MatchResult? = errorPattern.matchEntire(trimmedLine.trimStart())
         if (errorMatch != null) {
-            issues.add(SyntaxIssue(
-                message = "${errorMatch.groupValues[1]}: ${errorMatch.groupValues[2]}",
-                severity = if (errorMatch.groupValues[1].contains("Warning")) "warning" else "error",
-                line = lastFileLine, column = lastFileColumn,
-            ))
+            issues.add(
+                SyntaxIssue(
+                    message = "${errorMatch.groupValues[1]}: ${errorMatch.groupValues[2]}",
+                    severity = if (errorMatch.groupValues[1].contains("Warning")) "warning" else "error",
+                    line = lastFileLine, column = lastFileColumn,
+                )
+            )
             lastFileLine = null
             lastFileColumn = null
             continue
@@ -235,13 +239,15 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
             val rawMessage: String = flatMatch.groupValues[4]
             val codePrefix: MatchResult? = Regex("""^[A-Z]\d+\s""").find(rawMessage)
             val cleanMessage: String = codePrefix?.let { rawMessage.removePrefix(it.value) } ?: rawMessage
-            issues.add(SyntaxIssue(
-                message = cleanMessage.trimStart(),
-                severity = if ("warning" in rawMessage.lowercase()) "warning" else "error",
-                line = flatMatch.groupValues[2].toIntOrNull(),
-                column = flatMatch.groupValues[3].toIntOrNull(),
-                errorCode = codePrefix?.value?.trim(),
-            ))
+            issues.add(
+                SyntaxIssue(
+                    message = cleanMessage.trimStart(),
+                    severity = if ("warning" in rawMessage.lowercase()) "warning" else "error",
+                    line = flatMatch.groupValues[2].toIntOrNull(),
+                    column = flatMatch.groupValues[3].toIntOrNull(),
+                    errorCode = codePrefix?.value?.trim(),
+                )
+            )
         }
     }
     // Grab any line containing "Error" when no structured format matched at all.
@@ -366,8 +372,8 @@ private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): Li
         if (issue.line != null) return@filter true
         val message: String = issue.message
         message.contains(absolutePath.toString()) || message.contains(fileName) || (
-            !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
-        )
+                !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
+                )
     }
 }
 
@@ -496,7 +502,8 @@ object SyntaxChecker {
                 }
                 val process: Process = processBuilder.start()
 
-                if (!process.waitFor(5, TimeUnit.SECONDS)) { process.destroyForcibly()
+                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                    process.destroyForcibly()
                     break
                 }
 

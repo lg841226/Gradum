@@ -53,14 +53,16 @@ package gradum.skill
 ### 2.1 No Abbreviations
 
 **Correct:**
-```kotlin
+
+```
 val message: String = "File not found"
 val configuration: AgentConfiguration = buildConfiguration()
 val command: String = "ls -la"
 ```
 
 **Incorrect:**
-```kotlin
+
+```
 val msg: String = "File not found"
 val cfg: AgentConfiguration = buildConfiguration()
 val cmd: String = "ls -la"
@@ -71,6 +73,7 @@ val cmd: String = "ls -la"
 Variable names should describe *what* something is, not *what type* it is.
 
 **Correct:**
+
 ```kotlin
 val targetFile: File = Path.of(path).toFile()
 val pendingChanges: List<String> = collectEdits()
@@ -78,6 +81,7 @@ val skillName: String = arguments["name"] as? String ?: ""
 ```
 
 **Incorrect:**
+
 ```kotlin
 val file: File = Path.of(path).toFile()
 val list: List<String> = collectEdits()
@@ -182,7 +186,7 @@ failures must return `SkillResult.Failure`.
 Use `kotlinx.serialization` for JSON parsing in the LLM client and for
 request/response models in HTTP routes:
 
-```kotlin
+```
 @Serializable
 data class EventsRequest(
     val message: String,
@@ -226,7 +230,7 @@ override fun execute(arguments: Map<String, Any>): SkillResult {
 
 Use string templates. **Do not** use `+` concatenation:
 
-```kotlin
+```
 val message: String = "Skill '${toolName}' not found"      // correct
 val message: String = "Skill '" + toolName + "' not found"  // incorrect
 ```
@@ -244,16 +248,23 @@ val systemPrompt: String = """
 
 ## 9. Braces
 
-For `if`, choose the form that keeps the code readable:
+For `if` / `for` statements, **do not** add braces when the body is a single statement:
 
 ```kotlin
-// Short body on its own line -> no braces
+// correct - single statement, no braces
 if (command.isBlank()) return SkillResult.Success(emptyMap())
+for (item in items) processItem(item)
 
-// Long-line style: short if/else with single-statement branches on one line is OK
-if (isTransientError(exception) && attemptIndex < 2) delay(retryDelay) else break
+// incorrect - unnecessary braces for single statement
+if (command.isBlank()) {
+    return SkillResult.Success(emptyMap())
+}
+```
 
-// Multi-line body or mixed length -> braces on new lines
+For multi-line bodies, use braces:
+
+```kotlin
+// correct - multi-line body requires braces
 if (blockedExecutables.contains(executable)) {
     return makeFailure("COMMAND_BLOCKED", "Blocked by safety filter")
 }
@@ -281,7 +292,7 @@ if (condition) doSomething() else {
 `when` branches each on their own line when more than 2 cases; a 2-branch `when`
 with very short bodies may be one-lined:
 
-```kotlin
+```
 // correct - many cases, one per line
 when (executable) {
     "ls" -> CommandVerdict.Allowed
@@ -304,7 +315,10 @@ Four parameters or fewer on one line. Five or more parameters, one per line:
 ```kotlin
 // 4 or fewer: one line
 fun readLinesInRange(lines: List<String>, startLine: Int, endLine: Int): String
-fun chat(messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>? = null): Flow<LLMResponseChunk>
+fun chat(
+    messageHistory: List<Map<String, Any>>,
+    toolDefinitions: List<Map<String, Any>>? = null
+): Flow<LLMResponseChunk>
 
 // 5+ parameters: one per line
 fun execute(
@@ -371,9 +385,9 @@ targetFile.bufferedReader(Charsets.UTF_8).use { reader ->
 - Between import groups: **1** blank line.
 - Within a function body, add a blank line between distinct logical steps so
   the function does not read as a single dense block. Common split points:
-  - After input parsing / parameter extraction
-  - After the main computation, before building the return value
-  - Before the final `return` statement
+    - After input parsing / parameter extraction
+    - After the main computation, before building the return value
+    - Before the final `return` statement
 
 ```kotlin
 // correct - logical steps separated by blank lines
@@ -381,7 +395,8 @@ private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String):
     val content: String = path.toFile().readText(Charsets.UTF_8)
     conn.didOpen(path, content, version = 1)
 
-    val params: JsonObject = buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
+    val params: JsonObject =
+        buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
     val raw: JsonElement = conn.sendRequest("textDocument/diagnostic", params)
     val items: JsonArray = (raw as? JsonObject)?.get("items") as? JsonArray ?: JsonArray(emptyList())
     val parsed: List<Map<String, Any?>> = items.map { element: JsonElement -> parseDiagnostic(element) }
@@ -390,21 +405,36 @@ private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String):
     val warnings: Int = parsed.count { it["severity"] == "warning" }
     val summary: Map<String, Int> = mapOf("total" to parsed.size, "errors" to errors, "warnings" to warnings)
 
-    return makeSuccess(mapOf("language" to languageId, "path" to path.toString(), "summary" to summary, "diagnostics" to parsed))
+    return makeSuccess(
+        mapOf(
+            "language" to languageId,
+            "path" to path.toString(),
+            "summary" to summary,
+            "diagnostics" to parsed
+        )
+    )
 }
 
 // incorrect - everything packed into one block, hard to scan
 private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String): SkillResult {
     val content: String = path.toFile().readText(Charsets.UTF_8)
     conn.didOpen(path, content, version = 1)
-    val params: JsonObject = buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
+    val params: JsonObject =
+        buildJsonObject { put("textDocument", buildJsonObject { put("uri", path.toUri().toString()) }) }
     val raw: JsonElement = conn.sendRequest("textDocument/diagnostic", params)
     val items: JsonArray = (raw as? JsonObject)?.get("items") as? JsonArray ?: JsonArray(emptyList())
     val parsed: List<Map<String, Any?>> = items.map { element: JsonElement -> parseDiagnostic(element) }
     val errors: Int = parsed.count { it["severity"] == "error" }
     val warnings: Int = parsed.count { it["severity"] == "warning" }
     val summary: Map<String, Int> = mapOf("total" to parsed.size, "errors" to errors, "warnings" to warnings)
-    return makeSuccess(mapOf("language" to languageId, "path" to path.toString(), "summary" to summary, "diagnostics" to parsed))
+    return makeSuccess(
+        mapOf(
+            "language" to languageId,
+            "path" to path.toString(),
+            "summary" to summary,
+            "diagnostics" to parsed
+        )
+    )
 }
 ```
 
@@ -476,8 +506,10 @@ the high-level flow first, then the details:
 // 1. Main entry point (public API)
 class ReadFileSkill : Skill() {
     override val skillName: String = "read_file"
-    override fun execute(arguments: Map<String, Any>): SkillResult { /*...*/ }
-    override fun getSchema(): Map<String, Any> { /*...*/ }
+    override fun execute(arguments: Map<String, Any>): SkillResult { /*...*/
+    }
+    override fun getSchema(): Map<String, Any> { /*...*/
+    }
 }
 
 // 2. Private helpers called by the public API
@@ -539,7 +571,7 @@ import gradum.makeFailure
 class MyNewSkill : Skill() {
     override val skillName: String = "my_new_skill"
     override val description: String = "Description for LLM"
-    override val alias: String = "MySkill"
+    override val alias: String = "Created"
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
         // Implementation
@@ -590,6 +622,7 @@ gradum.skill.MyNewSkill          # <-- Add this line
 ### 4. External Plugin JARs
 
 For external plugins, create a JAR with:
+
 - Your Skill implementation class
 - `META-INF/services/gradum.skill.Skill` file listing your class
 
@@ -605,4 +638,66 @@ Use Gradle:
 ./gradlew build     # compile
 ./gradlew run       # start locally
 ./gradlew clean     # clean build artifacts
+```
+
+---
+
+## 20. Try-Catch
+
+In important error handling locations, **always** add logging in `catch` blocks.
+The exception variable **must** be named `exception`, not `e`:
+
+```kotlin
+// correct
+try {
+    val result: String = riskyOperation()
+} catch (exception: Exception) {
+    logger.error("Operation failed", exception)
+    return makeFailure("OPERATION_FAILED", exception.message ?: "Unknown error")
+}
+
+// incorrect - using 'e' instead of 'exception'
+try {
+    val result: String = riskyOperation()
+} catch (e: Exception) {
+    logger.error("Operation failed", e)
+    return makeFailure("OPERATION_FAILED", e.message ?: "Unknown error")
+}
+
+// incorrect - missing logger in important catch block
+try {
+    val result: String = riskyOperation()
+} catch (exception: Exception) {
+    return makeFailure("OPERATION_FAILED", exception.message ?: "Unknown error")
+}
+```
+
+---
+
+## 21. Single-Line Function Bodies
+
+When a function body consists of a single statement, place the body on the
+same line as the function declaration:
+
+```kotlin
+// correct - single statement on same line
+fun add(a: Int, b: Int): Int = a + b
+fun getVersion(): String = Version.GRADUM_VERSION
+fun isEmpty(text: String): Boolean = text.isBlank()
+
+// incorrect - unnecessary multi-line for single statement
+fun add(a: Int, b: Int): Int {
+    return a + b
+}
+```
+
+For functions with multiple statements, use the standard multi-line format:
+
+```kotlin
+// correct - multiple statements require multi-line format
+fun processItem(item: Item): Result {
+    val validated: Item = validate(item)
+    val transformed: Item = transform(validated)
+    return Result.Success(transformed)
+}
 ```

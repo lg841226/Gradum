@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-06-21 07:53:44 Changed by gwy
+ * LLMClient.kt  2026-06-26 17:35:35 Changed by gwy
  */
 
 package gradum.client
@@ -104,8 +104,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         messageHistory: List<Map<String, Any>>,
         toolDefinitions: List<Map<String, Any>>?,
     ): Flow<LLMResponseChunk> = flow {
-
-        val requestUrl: String = "${configuration.baseUrl}/api/chat"
+        val requestUrl = "${configuration.baseUrl}/api/chat"
         val shouldThink: Boolean = configuration.enableThinking
 
         val requestPayload: MutableMap<String, Any> = mutableMapOf(
@@ -192,7 +191,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         }
     }
 
-    private fun recordTokenUsage(eventData: JsonObject): Unit {
+    private fun recordTokenUsage(eventData: JsonObject) {
         val promptTokens: Int = eventData.optInt("prompt_eval_count")
         val completionTokens: Int = eventData.optInt("eval_count")
 
@@ -209,11 +208,13 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         return when (exception) {
             is kotlinx.coroutines.TimeoutCancellationException ->
                 "Request timed out after ${configuration.timeoutSeconds} seconds. The server is taking too long to respond."
+
             is IOException ->
                 """
                 Could not connect to Ollama server at ${configuration.baseUrl}.
                 Make sure Ollama is running. Details: ${exception.message}
                 """.trimIndent()
+
             else -> "Unexpected error - ${exception.message}"
         }
     }
@@ -282,7 +283,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     private fun parseServerSentEvents(httpResponse: HttpResponse): Flow<LLMResponseChunk> = flow {
         val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
-        val contentFragments: MutableList<String> = mutableListOf()
 
         val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
 
@@ -308,7 +308,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             val contentDelta: String = deltaFields.optString("content")
 
             if (contentDelta.isNotBlank())
-                contentFragments.add(contentDelta)
+                emit(LLMResponseChunk.TextContent(contentDelta))
 
             deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                 accumulateCallDeltas(toolCallsArray, accumulatedCalls)
@@ -317,10 +317,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             parsedPayload["usage"]?.jsonObject?.let { usageStats ->
                 recordTokenUsage(usageStats)
             }
-        }
-
-        if (contentFragments.isNotEmpty()) {
-            emit(LLMResponseChunk.TextContent(contentFragments.joinToString("")))
         }
 
         if (accumulatedCalls.isNotEmpty()) {
@@ -356,20 +352,20 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     private fun buildCompletedCalls(accumulator: MutableMap<Int, MutableMap<String, Any>>): List<ToolCallEntry> {
         return accumulator.entries.sortedBy { entry -> entry.key }.map { entry ->
-                val callData: MutableMap<String, Any> = entry.value
-                val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
-                val parsedArguments: Map<String, JsonElement> = try {
-                    jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
-                } catch (_: Exception) {
-                    emptyMap()
-                }
-
-                ToolCallEntry(
-                    callIdentifier = callData["identifier"] as? String ?: "",
-                    functionTitle = callData["functionName"] as? String ?: "",
-                    functionArguments = parsedArguments,
-                )
+            val callData: MutableMap<String, Any> = entry.value
+            val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
+            val parsedArguments: Map<String, JsonElement> = try {
+                jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
+            } catch (_: Exception) {
+                emptyMap()
             }
+
+            ToolCallEntry(
+                callIdentifier = callData["identifier"] as? String ?: "",
+                functionTitle = callData["functionName"] as? String ?: "",
+                functionArguments = parsedArguments,
+            )
+        }
     }
 
     private fun recordTokenUsage(usageStats: JsonObject): Unit {
@@ -389,8 +385,10 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
         return when (exception) {
             is kotlinx.coroutines.TimeoutCancellationException ->
                 "Request timed out after ${configuration.timeoutSeconds} seconds. The server is taking too long to respond."
+
             is IOException ->
                 "Could not connect to server at ${configuration.baseUrl}. Make sure the server is running. Details: ${exception.message}"
+
             else ->
                 "Unexpected error - ${exception.message}"
         }

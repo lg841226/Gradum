@@ -5,6 +5,12 @@ build/
 gradle-app.setting
 !gradle-wrapper.jar
 
+# IntelliJ Platform gradle plugin local cache (layoutIndex, localPlatformArtifacts, sandbox, coroutines javaagent)
+.intellijPlatform/
+
+# Manually vendored Jewel / Compose / Skiko jars under plugin/libs/ (resolved via files("libs/...") in build.gradle.kts)
+plugin/libs/
+
 # IDE / editor files
 .idea/
 *.iml
@@ -20,6 +26,7 @@ out/
 output/
 temp/
 logs/
+docs/idea-develop
 *.log
 *.jsonl
 
@@ -32,6 +39,9 @@ desktop.ini
 test.txt
 *.tmp
 *.bak
+
+# Local scratch (e.g. the Jewel README used as reference while working on the plugin)
+main.txt
 
 # Secrets / sensitive config
 *.secret
