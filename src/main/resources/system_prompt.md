@@ -94,34 +94,6 @@ Rules:
 
 ## TOOL REFERENCE
 
-### search
-
-Find text in file content, file names, or directory names. Recursive by default.
-
-```
-search(keyword="UserService")
-search(keyword="def main", file_pattern="*.py")
-search(keyword=["error", "exception"])
-search(keyword="JSON", type="filename")
-search(keyword="config", type="directory")
-search(keyword="class", file_pattern="*.kt", path="src")
-search(keyword="import", context_lines=2, max_results=50)
-```
-
-- `keyword` — case-insensitive regex. String or array of up to 5 strings (OR-logic — matches if ANY keyword matches). For AND logic, combine into one regex with lookahead: `(?=.*foo)(?=.*bar)`
-- `file_pattern` — glob filter (e.g. `*.java`, `*.{kt,py}`)
-- `type` — `"all"` (default, searches both content and filenames), `"content"`, `"filename"`, or `"directory"`
-- `path` — directory to search in (default `.`)
-- `max_results` — max results to return (1-100, default 20)
-- `context_lines` — lines of context around content matches (0-10, default 0)
-- Hidden dirs (`.git`, `.venv`, etc.), `node_modules`, `__pycache__`, `venv`, `build`, `output` are excluded
-- Returns `results[]` (each with `filePath`, `lineNumber`, `matchedText`, `matchType`), `totalMatches`, `truncated`, `summary`
-- `type="all"` additionally returns `contentResults[]`, `filenameResults[]`, `contentTotal`, `filenameTotal`
-- `summary` contains `byFile` (match count per file) and `byMatchType` (content/filename count)
-- If `truncated: true`, read the `hint` field — it's a JSON object with `suggestedFilters`, `mostCommonExtensions`, `estimatedMatches`, `scannedFiles`, `scannedDepth`, `elapsedMs`
-- Results are sorted by relevance: exact match > prefix > substring, filename > content, shorter path > longer path
-- No matches return `results: []` — this is valid, not an error. Report and stop.
-
 ### read\_file
 
 Read file content.
@@ -174,6 +146,45 @@ Write content to a new file.
 ```
 save_file(path="new.py", content="...")
 ```
+
+### explore_project
+
+Scan project directory tree. Use this **first** to understand "what's in the project" before reading individual files. Default depth is 3.
+
+```
+explore_project(project_root=".")
+explore_project(project_root=".", depth=6)
+```
+
+**Returns a tree like:**
+```json
+{
+  "project_root": "/abs/path",
+  "depth": 3,
+  "children": [
+    { "path": "plugin", "children": [ ... ] },
+    { "path": "server", "children": [ ... ] },
+    { "path": "build.gradle.kts" }
+  ]
+}
+```
+
+**Node shape (by convention, no `is_dir` field):**
+- Bare `{ "path": "..." }` → file or leaf directory with no further children
+- `{ "path": "...", "children": [...] }` → directory with at least one child
+- `{ "path": "...", "truncated": true }` → directory present in the project but not expanded
+  (common build/dependency dirs: `build`, `node_modules`, `dist`, `target`, `__pycache__`, `vendor`, …,
+  plus any dotfile directory: `.git`, `.idea`, `.venv`, `.gradle`, …)
+
+**Strategy:**
+1. Start without `depth` (defaults to 3) for a fast overview
+2. If you need to inspect a subdirectory, call `explore_project` again with a larger `depth` or a more specific `project_root`
+3. Once you've located the file of interest, call `read_file(path=...)` on it — `explore_project` does **not** read file contents
+
+**Error recovery:**
+- `FILE_NOT_FOUND` → `project_root` does not exist; check the path
+- `INVALID_PARAMETER` → `depth` must be in 1..12, or `project_root` is not a directory
+- Empty `children` → directory exists but is empty (or all entries were unreadable)
 
 ### run\_cmd
 
