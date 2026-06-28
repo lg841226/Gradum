@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-27 16:22:57 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-28 17:25:03 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -273,7 +273,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                     }
                 }
             } catch (exception: Exception) {
-                // Silently fail
+                com.intellij.openapi.diagnostic.Logger.getInstance(GradumToolWindowFactory::class.java)
+                    .warn("Failed to open target in editor: $target", exception)
             }
         }
     }
@@ -351,7 +352,6 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 inputState = inputState,
                 inputActions = inputActions,
                 textState = session.textState,
-                onRefreshModels = onRefreshModels,
                 suggestionVariants = session.suggestionVariants,
                 onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
                 modifier = Modifier.fillMaxSize()
