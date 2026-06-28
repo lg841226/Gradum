@@ -124,7 +124,7 @@ fun RanToolCallIndicator(
             }
             Spacer(modifier = Modifier.weight(1f))
             if (command.isNotBlank()) {
-                Tooltip(tooltip = { Text(text = command) }) {
+                Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
                     Icon(
                         key = AllIconsKeys.General.Export,
                         contentDescription = null,
