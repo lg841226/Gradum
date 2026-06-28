@@ -65,6 +65,7 @@ class RunCommandSkill : Skill() {
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val commandText: String = arguments["command"] as? String ?: ""
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
+        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
         if (commandText.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'command' parameter")
@@ -80,13 +81,17 @@ class RunCommandSkill : Skill() {
 
         if (runDetached) return executeDetached(commandText)
 
-        return executeBlocking(commandText)
+        return executeBlocking(commandText, projectRoot)
     }
 
-    private fun executeBlocking(commandText: String): SkillResult {
+    private fun executeBlocking(commandText: String, projectRoot: String = ""): SkillResult {
         return try {
             val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectErrorStream(false)
+            if (projectRoot.isNotBlank()) {
+                val dir = java.io.File(projectRoot)
+                if (dir.isDirectory) processBuilder.directory(dir)
+            }
 
             val process: Process = processBuilder.start()
             val finished: Boolean = process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)

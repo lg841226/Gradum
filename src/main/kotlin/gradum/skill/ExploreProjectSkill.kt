@@ -157,7 +157,8 @@ class ExploreProjectSkill : Skill() {
     )
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
-        val projectRoot: String = arguments["project_root"] as? String ?: ""
+        val injectedRoot: String = arguments["projectRoot"] as? String ?: ""
+        val projectRoot: String = arguments["project_root"] as? String ?: injectedRoot
         val depth: Int = when (val depthValue: Any? = arguments["depth"]) {
             is Number -> depthValue.toInt()
             is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH

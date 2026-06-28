@@ -69,6 +69,7 @@ class EditFileSkill : Skill() {
         val filePath: String = arguments["path"] as? String ?: ""
         val rawEdits: List<Map<String, Any>> = (arguments["edits"] as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: emptyList()
         val editMode: String = arguments["mode"] as? String ?: "sequential"
+        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
@@ -76,7 +77,11 @@ class EditFileSkill : Skill() {
         if (rawEdits.isEmpty())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "No edits provided")
 
-        val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
+        val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
+            Path.of(projectRoot, filePath).toAbsolutePath().normalize()
+        } else {
+            Path.of(filePath).toAbsolutePath().normalize()
+        }
         val targetFile: File = resolvedPath.toFile()
 
         return try {

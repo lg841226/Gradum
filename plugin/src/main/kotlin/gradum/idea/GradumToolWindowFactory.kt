@@ -221,7 +221,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.isSending = true
             session.isWaitingForResponse = true
-            scope.launch { session.sendMessage(userMessage.content) }
+            scope.launch { session.sendMessage(userMessage.content, editorContext.projectDir?.path) }
         }
     }
 
@@ -240,7 +240,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.hasSentMessage = true
                 session.isSending = true
                 session.isWaitingForResponse = true
-                session.currentJob = scope.launch { session.sendMessage(text) }
+                session.currentJob = scope.launch { session.sendMessage(text, editorContext.projectDir?.path) }
             }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()

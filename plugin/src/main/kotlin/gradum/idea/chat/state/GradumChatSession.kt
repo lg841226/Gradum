@@ -232,7 +232,7 @@ class GradumChatSession {
      *
      * @param userMessage The text content of the user's message.
      */
-    suspend fun sendMessage(userMessage: String) {
+    suspend fun sendMessage(userMessage: String, projectDir: String? = null) {
         val modelConfig: Map<String, String> = buildModelConfig()
         val messageWithHint = "$userMessage Do not use Markdown tables."
 
@@ -278,7 +278,8 @@ class GradumChatSession {
             message = messageWithHint,
             model = selectedModel?.name,
             config = modelConfig,
-            loadContext = true
+            loadContext = true,
+            projectDir = projectDir
         ).catch { exception ->
             log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex

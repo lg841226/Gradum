@@ -139,6 +139,7 @@ class SaveFileSkill : Skill() {
         val fileContent: String = arguments["content"] as? String ?: ""
         val writeMode: String = arguments["mode"] as? String ?: "overwrite"
         val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
+        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
@@ -162,7 +163,11 @@ class SaveFileSkill : Skill() {
                 "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
             )
 
-        val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
+        val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
+            Path.of(projectRoot, filePath).toAbsolutePath().normalize()
+        } else {
+            Path.of(filePath).toAbsolutePath().normalize()
+        }
         val targetFile: File = resolvedPath.toFile()
         val wasCreated: Boolean = !targetFile.exists()
         val previousSize: Long = if (writeMode == "append" && !wasCreated) targetFile.length() else 0L

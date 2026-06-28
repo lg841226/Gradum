@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-28 15:59:20 Changed by gwy
+ * ToolCallIndicator.kt  2026-06-28 16:05:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -88,7 +88,7 @@ private fun OpenInEditorButton(
     if (target.isNotBlank()) {
         Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
             Icon(
-                key = AllIconsKeys.Actions.EditFile,
+                key = AllIconsKeys.General.Export,
                 contentDescription = null,
                 modifier = Modifier
                     .size(14.dp)

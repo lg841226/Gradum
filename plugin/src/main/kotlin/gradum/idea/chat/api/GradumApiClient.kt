@@ -98,7 +98,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         message: String,
         model: String? = null,
         config: Map<String, String>? = null,
-        loadContext: Boolean = true
+        loadContext: Boolean = true,
+        projectDir: String? = null
     ): Flow<String> = flow {
         val requestBody: JsonObject = buildJsonObject {
             put("message", message)
@@ -108,6 +109,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
                 put("config", configObject)
             }
             put("loadContext", loadContext)
+            if (projectDir != null) put("projectDir", projectDir)
         }
 
         val request: HttpRequest = HttpRequest.newBuilder()

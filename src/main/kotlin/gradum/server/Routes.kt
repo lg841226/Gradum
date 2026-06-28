@@ -37,7 +37,8 @@ data class EventsRequestBody(
     val message: String,
     val model: String? = null,
     val config: Map<String, String>? = null,
-    val loadContext: Boolean = true
+    val loadContext: Boolean = true,
+    val projectDir: String? = null
 )
 
 @Serializable
@@ -119,7 +120,8 @@ fun Application.registerAllRoutes() {
                 topPValue = configOverrides.topP ?: 0.9,
                 contextWindowSize = configOverrides.numCtx ?: 4096,
                 maxTokensToGenerate = configOverrides.numPredict ?: 24576,
-                timeoutSeconds = configOverrides.timeout ?: 3000
+                timeoutSeconds = configOverrides.timeout ?: 3000,
+                projectDir = requestBody.projectDir
             )
 
             launch(Dispatchers.IO) {

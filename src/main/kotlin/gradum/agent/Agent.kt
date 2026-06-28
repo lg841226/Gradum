@@ -308,6 +308,10 @@ class Agent(
                 convertedArguments[key] = converted
         }
 
+        if (configuration.projectDir != null) {
+            convertedArguments["projectRoot"] = configuration.projectDir
+        }
+
         if (checkToolRunaway(functionName, convertedArguments)) {
             emitRevoked(
                 "tool_runaway", mapOf(
