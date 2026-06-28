@@ -221,7 +221,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.isSending = true
             session.isWaitingForResponse = true
-            scope.launch { session.sendMessage(userMessage.content, editorContext.projectDir?.path) }
+            scope.launch { session.sendMessage(userMessage.content) }
         }
     }
 
@@ -240,7 +240,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.hasSentMessage = true
                 session.isSending = true
                 session.isWaitingForResponse = true
-                session.currentJob = scope.launch { session.sendMessage(text, editorContext.projectDir?.path) }
+                session.currentJob = scope.launch { session.sendMessage(text) }
             }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()
@@ -253,19 +253,27 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
     val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
 
-    val onOpenInEditor: (String) -> Unit = { command ->
+    val onOpenInEditor: (String) -> Unit = { target ->
         val project: Project? = toolWindow?.project
-        if (project != null && command.isNotBlank()) {
+        if (project != null && target.isNotBlank()) {
             try {
-                val tempFile = File.createTempFile("gradum_cmd_", ".sh")
-                tempFile.writeText(command)
-                tempFile.deleteOnExit()
-                val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
-                if (virtualFile != null) {
-                    FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                val ioFile = File(target)
+                if (ioFile.isFile) {
+                    val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(ioFile)
+                    if (virtualFile != null) {
+                        FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                    }
+                } else {
+                    val tempFile = File.createTempFile("gradum_cmd_", ".sh")
+                    tempFile.writeText(target)
+                    tempFile.deleteOnExit()
+                    val virtualFile: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+                    if (virtualFile != null) {
+                        FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                    }
                 }
             } catch (exception: Exception) {
-                // Silently fail if temp file creation fails
+                // Silently fail
             }
         }
     }
