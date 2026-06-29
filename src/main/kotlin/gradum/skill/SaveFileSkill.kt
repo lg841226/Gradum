@@ -64,10 +64,8 @@ private fun isBlockedPaths(path: Path): Boolean {
 class SaveFileSkill : Skill() {
     override val skillName: String = "save_file"
     override val alias: String = "Saved"
-    override val description: String = "Write content to a file. " +
-            "mode='overwrite' (default) replaces the entire file; mode='append' adds to the end. " +
-            "Creates parent directories automatically. " +
-            "Use edit_file for partial changes instead of overwriting the whole file."
+    override val description: String =
+        "Create or overwrite a file. mode='overwrite' (default) or 'append'. Creates parent directories."
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")

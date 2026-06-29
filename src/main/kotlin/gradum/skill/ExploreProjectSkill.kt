@@ -136,9 +136,25 @@ class ExploreProjectSkill : Skill() {
     override val skillName: String = "explore_project"
     override val alias: String = "Explored"
     override val description: String =
-        "Scan project directory tree (depth 1-$MAXIMUM_DEPTH, default $DEFAULT_DEPTH). " +
-                "Build/dependency dirs are truncated. " +
-                "Use read_file on specific paths for file contents."
+        "Scan directory tree. depth 1-$MAXIMUM_DEPTH (default $DEFAULT_DEPTH). Build/dependency dirs truncated."
+
+    /**
+     * Keep the full nested tree for the most recent 1 result. Older results are
+     * collapsed to a flat list of top-level entry names so a session that
+     * explores the project once at the start does not pay for the full tree
+     * on every subsequent LLM call.
+     */
+    override val historyKeepCount: Int = 1
+
+    override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
+        prepareHistoryCallCount++
+        if (prepareHistoryCallCount <= historyKeepCount) return result
+
+        val originalChildren: List<Map<String, Any>> = result["children"] as? List<Map<String, Any>> ?: return result
+        val topLevelNames: List<String> = originalChildren.mapNotNull { child -> child["path"] as? String }
+        val compactChildren: List<Map<String, Any>> = topLevelNames.map { name -> linkedMapOf("path" to name) }
+        return result.toMutableMap().apply { this["children"] = compactChildren }
+    }
 
     override fun getSchema(): Map<String, Any> = mapOf(
         "type" to "function",

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-06-29 15:35:32 Changed by gwy
+ * GradumChatSession.kt  2026-06-29 19:53:42 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.*
@@ -97,6 +98,31 @@ class GradumChatSession {
 
     /** The currently selected permission level (read-only or full). */
     var selectedPermission: String = message("gradum.readonly")
+
+    /**
+     * Tool surface for the current session. Local models perform better with
+     * a smaller tool list, and read-only sessions cannot accidentally mutate
+     * the project.
+     *
+     * Allowed values (sent verbatim to the server):
+     * - `"write"` (default) — every Skill is exposed.
+     * - `"read_only"` — only `read_file`, `explore_project`, `run_cmd`.
+     *
+     * Any other value is treated as `"write"` by the server.
+     */
+    var toolMode: String by mutableStateOf("write")
+
+    /**
+     * Which system prompt the server should load. `"auto"` (default) lets
+     * the server pick based on the model/provider: cloud-style prompt for
+     * hosted frontier models, terse rule-only prompt for small local ones.
+     *
+     * Allowed values (sent verbatim to the server):
+     * - `"auto"` (default) — server picks based on provider
+     * - `"cloud"` — verbose, philosophy-rich prompt for strong models
+     * - `"local"` — terse, rule-only prompt for small models
+     */
+    var promptVariant: String by mutableStateOf("auto")
 
     /** HTTP client for communicating with the Gradum backend server. */
     val apiClient: GradumApiClient = GradumApiClient()
@@ -290,8 +316,8 @@ class GradumChatSession {
         val modelConfig: Map<String, String> = buildModelConfig()
         val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
         val prefix: String = buildString {
-            if (contextPath.isNotEmpty()) append("<Context $contextPath/>")
-            if (attachmentPaths.isNotEmpty()) append("</Attachments: ${attachmentPaths.joinToString(", ")}/>")
+            if (contextPath.isNotEmpty()) append("<Context path=\"$contextPath\"/>")
+            if (attachmentPaths.isNotEmpty()) append("<Attachments paths=\"${attachmentPaths.joinToString(", ")}\"/>")
         }
         val messageWithHint = "${prefix}${userMessage} Don't use Markdown tables."
 
@@ -304,9 +330,11 @@ class GradumChatSession {
             if (currentModel != null && response.models.none { it.name == currentModel.name }) {
                 val assistantIndex: Int = messages.lastIndex
                 if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
-                        "Model ${currentModel.name} is no longer available", code = ErrorCode.CLIENT_ERROR.code
-                    ))
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                        ChatEvent.Error(
+                            "Model ${currentModel.name} is no longer available", code = ErrorCode.CLIENT_ERROR.code
+                        )
+                    )
                 }
                 isSending = false; isWaitingForResponse = false; processPendingQueue()
 
@@ -316,9 +344,11 @@ class GradumChatSession {
             log.warn("Model validation failed for ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
-                    "Cannot reach server at ${apiClient.baseUrl}", code = ErrorCode.CLIENT_ERROR.code
-                ))
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                    ChatEvent.Error(
+                        "Cannot reach server at ${apiClient.baseUrl}", code = ErrorCode.CLIENT_ERROR.code
+                    )
+                )
             }
             isSending = false; isWaitingForResponse = false; processPendingQueue()
 
@@ -335,14 +365,17 @@ class GradumChatSession {
                 message = messageWithHint,
                 model = selectedModel?.name,
                 config = modelConfig,
-                loadContext = shouldLoadContext
+                loadContext = shouldLoadContext,
+                toolMode = toolMode
             ).catch { exception ->
                 log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
                 val assistantIndex: Int = messages.lastIndex
                 if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
-                        exception.message ?: "Connection failed", code = ErrorCode.CLIENT_ERROR.code
-                    ))
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                        ChatEvent.Error(
+                            exception.message ?: "Connection failed", code = ErrorCode.CLIENT_ERROR.code
+                        )
+                    )
                 }
                 isSending = false; processPendingQueue()
             }.collect { ndjsonLine ->
@@ -352,10 +385,10 @@ class GradumChatSession {
                     val data: JsonObject? = event["data"]?.jsonObject
 
                     when (type) {
-                    "session_start" -> {
-                        sessionId = event["sessionId"]?.jsonPrimitive?.content
-                        contextLoaded = true
-                    }
+                        "session_start" -> {
+                            sessionId = event["sessionId"]?.jsonPrimitive?.content
+                            contextLoaded = true
+                        }
 
                         "response" -> {
                             isWaitingForResponse = false; handleResponseEvent(data)
@@ -384,9 +417,11 @@ class GradumChatSession {
             log.warn("Streaming interrupted for ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
-                    exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
-                ))
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                    ChatEvent.Error(
+                        exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
+                    )
+                )
             }
             isSending = false; isWaitingForResponse = false; processPendingQueue()
         }
@@ -496,8 +531,11 @@ class GradumChatSession {
     private fun processPendingQueue() {
         if (pendingMessages.isNotEmpty()) {
             val next: PendingMessage = pendingMessages.removeFirst()
+            val displayName: String = selectedModel?.name ?: "Auto"
+            val providerName: String = selectedModel?.provider ?: ""
+            val serverLabel: String = selectedModel?.serverName ?: ""
             messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
-            messages.add(ChatMessage(role = "assistant", content = ""))
+            messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
 
             hasSentMessage = true; isSending = true; isWaitingForResponse = true
             currentJob = scope?.launch { sendMessage(next.content, next.attachments, "") }
@@ -558,5 +596,52 @@ class GradumChatSession {
 
         /** Interval between model polling requests in milliseconds. */
         const val POLL_INTERVAL_MS: Long = 5_000
+
+        private val FOCUS_FILE_PATTERN: Regex = Regex("@focus")
+        private val FILE_REF_PATTERN: Regex = Regex("""@file:(\S+)""")
+
+        /**
+         * Scans [text] for `@focusfile` and `@file:xxx` tags, replacing them with
+         * XML-style `<Context>` and `<Attachments>` tags respectively.
+         *
+         * @param text The raw user message text.
+         * @param focusedFilePath The absolute path of the currently focused editor file.
+         * @param openFiles All files currently open in the editor.
+         * @return A pair of (resolved text, whether any replacements were made).
+         */
+        fun resolveInlineTags(
+            text: String,
+            focusedFilePath: String,
+            openFiles: List<VirtualFile>
+        ): Pair<String, Boolean> {
+            val hasFocusTag = focusedFilePath.isNotEmpty() && FOCUS_FILE_PATTERN.containsMatchIn(text)
+            val hasFileRef = FILE_REF_PATTERN.containsMatchIn(text)
+            if (!hasFocusTag && !hasFileRef) return text to false
+
+            val result = StringBuilder(text);
+            var replaced = false
+
+            if (hasFocusTag) {
+                val resolved = result.replace(FOCUS_FILE_PATTERN, "<Context path=\"$focusedFilePath\"/>")
+                result.clear(); result.append(resolved); replaced = true
+            }
+
+            if (hasFileRef) {
+                FILE_REF_PATTERN.findAll(result).toList().reversed().forEach { match ->
+                    val fileName: String = match.groupValues[1]
+                    val matchedFile: VirtualFile? = openFiles.find { it.name == fileName }
+                    if (matchedFile != null) {
+                        result.replace(
+                            match.range.first,
+                            match.range.last + 1,
+                            "<Attachments paths=\"${matchedFile.path}\"/>"
+                        )
+                        replaced = true
+                    }
+                }
+            }
+
+            return result.toString() to replaced
+        }
     }
 }

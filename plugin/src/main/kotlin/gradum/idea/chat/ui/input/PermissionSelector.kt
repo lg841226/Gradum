@@ -52,7 +52,7 @@ fun PermissionSelector(
     if (isMenuVisible) {
         PopupMenu(onDismissRequest = { onDismiss(); true }, horizontalAlignment = Alignment.Start) {
             selectableItem(
-                selected = false,
+                selected = selectedPermission == message("gradum.readonly"),
                 onClick = { onSelect(message("gradum.readonly")) }
             ) {
                 Row(
@@ -66,6 +66,24 @@ fun PermissionSelector(
                     Column {
                         Text(text = message("gradum.readonly"))
                         Text(text = message("gradum.readonly.info"), color = JewelTheme.globalColors.text.info)
+                    }
+                }
+            }
+            selectableItem(
+                selected = selectedPermission == message("gradum.single_step"),
+                onClick = { onSelect(message("gradum.single_step")) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(key = GradumIcons.Edit, contentDescription = message("gradum.read.mode"))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Column {
+                        Text(text = message("gradum.single_step"))
+                        Text(text = message("gradum.single_step.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
             }

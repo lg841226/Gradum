@@ -9,6 +9,8 @@ package gradum.server
 
 import gradum.AgentConfiguration
 import gradum.Provider
+import gradum.PromptVariant
+import gradum.ToolMode
 import gradum.Version
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
@@ -37,7 +39,9 @@ data class EventsRequestBody(
     val message: String,
     val model: String? = null,
     val config: Map<String, String>? = null,
-    val loadContext: Boolean = true
+    val loadContext: Boolean = true,
+    val toolMode: String? = null,
+    val promptVariant: String? = null,
 )
 
 @Serializable
@@ -110,16 +114,23 @@ fun Application.registerAllRoutes() {
 
             val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
+            val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
             val agentConfiguration = AgentConfiguration(
                 modelName = requestBody.model ?: "minimax-m2.5:cloud",
                 baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
-                provider = Provider.fromStringOrDefault(configOverrides.provider),
+                provider = resolvedProvider,
                 enableThinking = configOverrides.think ?: false,
                 temperatureValue = configOverrides.temperature ?: 0.7,
                 topPValue = configOverrides.topP ?: 0.9,
-                contextWindowSize = configOverrides.numCtx ?: 4096,
+                contextWindowSize = configOverrides.numCtx ?: 8192,
                 maxTokensToGenerate = configOverrides.numPredict ?: 24576,
-                timeoutSeconds = configOverrides.timeout ?: 3000
+                timeoutSeconds = configOverrides.timeout ?: 3000,
+                // Tool surface is purely a client choice — Ollama runs both
+                // 7B laptops and 70B cloud models, so we never infer it from
+                // the provider. The default is WRITE (every tool exposed)
+                // when the client does not override.
+                toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.WRITE,
+                promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant)
             )
 
             launch(Dispatchers.IO) {

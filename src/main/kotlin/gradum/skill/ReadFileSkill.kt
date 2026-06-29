@@ -33,7 +33,7 @@ class ReadFileSkill : Skill() {
 
     override val skillName: String = "read_file"
     override val alias: String = "Read"
-    override val description: String = "Read file content (entire file or specific line range)"
+    override val description: String = "Read file content. Use line_range to read a section."
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")

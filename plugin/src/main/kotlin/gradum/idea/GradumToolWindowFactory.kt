@@ -107,12 +107,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     val editorContext: EditorContext = toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
         ?: EditorContext.EMPTY
 
-    LaunchedEffect(session.hasSentMessage) {
+    LaunchedEffect(session.hasSentMessage, session.isSending) {
         val content = toolWindow?.contentManager?.contents?.firstOrNull()
         if (content != null) {
-            content.displayName =
-                if (session.hasSentMessage) message("gradum.toolwindow.newchat")
-                else message("gradum.toolwindow.welcome")
+            val base = if (session.hasSentMessage) message("gradum.toolwindow.newchat")
+                       else message("gradum.toolwindow.welcome")
+            content.displayName = if (session.isSending) "$base - ${message("gradum.toolwindow.running")}" else base
         }
     }
 
@@ -131,8 +131,13 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         object {
             val onFocusChange: (Boolean) -> Unit = { session.isFocused = it }
             val onToggleMenu: () -> Unit = { session.isMenuVisible = !session.isMenuVisible }
-            val onSelectPermission: (String) -> Unit = {
-                session.selectedPermission = it
+            val onSelectPermission: (String) -> Unit = { permission ->
+                session.selectedPermission = permission
+                session.toolMode = when (permission) {
+                    message("gradum.readonly") -> "read_only"
+                    message("gradum.single_step") -> "single_step"
+                    else -> "write"
+                }
                 session.isMenuVisible = false
             }
             val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
@@ -222,41 +227,57 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages[userMessageIndex].isUserMessage
         ) {
             val userMessage: ChatMessage = session.messages[userMessageIndex]
+            val project = toolWindow?.project
+            val editorContext = project?.let { EditorUtils.getEditorContext(it) }
+            val focusedPath = editorContext?.currentFile?.path ?: ""
+            val openFiles = editorContext?.allOpenFiles ?: emptyList()
+            val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(userMessage.content, focusedPath, openFiles)
+            val displayName = session.selectedModel?.name ?: "Auto"
+            val providerName = session.selectedModel?.provider ?: ""
+            val serverLabel = session.selectedModel?.serverName ?: ""
             session.messages.removeAt(assistantMessageIndex)
             session.messages.removeAt(userMessageIndex)
             session.messages.add(ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments))
-            session.messages.add(ChatMessage(role = "assistant", content = ""))
+            session.messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
             session.isSending = true
             session.isWaitingForResponse = true
             scope.launch {
-                val contextPath = if (session.isExpanded) {
-                    toolWindow?.project?.let { EditorUtils.getEditorContext(it).currentFile?.path } ?: ""
+                val contextPath = if (session.isExpanded && !anyReplaced) {
+                    focusedPath
                 } else ""
-                session.sendMessage(userMessage.content, userMessage.attachments, contextPath)
+                session.sendMessage(resolvedText, userMessage.attachments, contextPath)
             }
         }
     }
 
     val onSend: () -> Unit = {
-        val text: String = session.textState.text.toString()
+        val rawText: String = session.textState.text.toString()
         val hasModel = session.selectedModel != null || session.isAutoSelected
-        if (text.isNotBlank() && hasModel) {
+        if (rawText.isNotBlank() && hasModel) {
+            val project = toolWindow?.project
+            val editorContext = project?.let { EditorUtils.getEditorContext(it) }
+            val focusedPath = editorContext?.currentFile?.path ?: ""
+            val openFiles = editorContext?.allOpenFiles ?: emptyList()
+            val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(rawText, focusedPath, openFiles)
             if (session.isSending) {
                 if (!session.isPendingQueueFull) {
-                    session.pendingMessages.add(PendingMessage(content = text, attachments = session.attachedFiles.toList()))
+                    session.pendingMessages.add(PendingMessage(content = rawText, attachments = session.attachedFiles.toList()))
                 }
             } else {
                 val attachments = session.attachedFiles.toList()
-                session.messages.add(ChatMessage(role = "user", content = text, attachments = attachments))
-                session.messages.add(ChatMessage(role = "assistant", content = ""))
+                val displayName = session.selectedModel?.name ?: "Auto"
+                val providerName = session.selectedModel?.provider ?: ""
+                val serverLabel = session.selectedModel?.serverName ?: ""
+                session.messages.add(ChatMessage(role = "user", content = rawText, attachments = attachments))
+                session.messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
                 session.hasSentMessage = true
                 session.isSending = true
                 session.isWaitingForResponse = true
                 session.currentJob = scope.launch {
-                    val contextPath = if (session.isExpanded) {
-                        toolWindow?.project?.let { EditorUtils.getEditorContext(it).currentFile?.path } ?: ""
+                    val contextPath = if (session.isExpanded && !anyReplaced) {
+                        focusedPath
                     } else ""
-                    session.sendMessage(text, attachments, contextPath)
+                    session.sendMessage(resolvedText, attachments, contextPath)
                 }
             }
             session.textState.edit { delete(0, length) }

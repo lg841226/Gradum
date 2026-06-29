@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-06-26 17:32:11 Changed by gwy
+ * ContextManager.kt  2026-06-29 23:35:00 Changed by gwy
  */
 
 package gradum.utils
@@ -15,7 +15,7 @@ private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
 
 /** Maximum number of messages to keep in context history. */
-private const val MAX_CONTEXT_MESSAGES: Int = 20
+private const val MAX_CONTEXT_MESSAGES: Int = 30
 
 /**
  * Persists the agent's conversation history and the set of files that have
@@ -80,7 +80,8 @@ class ContextManager(private val outputDirectory: Path) {
             encryptMessageIfNeeded(message)
         }
 
-        val contextMap: Map<String, Any> = mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
+        val contextMap: Map<String, Any> =
+            mapOf("version" to "1", "model" to modelName, "messages" to serializedMessages)
         val contextJson: String = JsonUtil.encodeMap(contextMap)
 
         return try {
@@ -94,7 +95,10 @@ class ContextManager(private val outputDirectory: Path) {
         }
     }
 
-    private fun cleanMessageHistory(messages: List<Map<String, Any>>, fullyReadFiles: Set<String>): List<Map<String, Any>> {
+    private fun cleanMessageHistory(
+        messages: List<Map<String, Any>>,
+        fullyReadFiles: Set<String>
+    ): List<Map<String, Any>> {
         val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
 
         for (message in messages) {

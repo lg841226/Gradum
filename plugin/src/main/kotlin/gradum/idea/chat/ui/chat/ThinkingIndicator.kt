@@ -23,13 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
-import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Collapsible thinking indicator for assistant messages.
@@ -39,22 +37,21 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * @param thinking The accumulated thinking content from the LLM.
  * @param enterTransition Custom enter transition for the outer wrapper.
- * @param autoCollapseDelay If positive, auto-collapse after this delay (ms) once thinking is non-blank.
+ * @param isTaskComplete When true, collapses the thinking content.
  */
 @Composable
 fun ThinkingIndicator(
     thinking: String,
     modifier: Modifier = Modifier,
     enterTransition: EnterTransition = fadeIn(tween(800)),
-    autoCollapseDelay: Long = -1L
+    isTaskComplete: Boolean = false
 ) {
     if (thinking.isBlank()) return
 
     var isExpanded by remember { mutableStateOf(true) }
 
-    LaunchedEffect(autoCollapseDelay) {
-        if (autoCollapseDelay > 0) {
-            delay(autoCollapseDelay.milliseconds)
+    LaunchedEffect(isTaskComplete) {
+        if (isTaskComplete) {
             isExpanded = false
         }
     }

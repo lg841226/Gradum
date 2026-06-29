@@ -7,6 +7,7 @@
 
 package gradum.skill
 
+import gradum.ToolMode
 import java.util.ServiceLoader
 
 import org.slf4j.Logger
@@ -46,15 +47,30 @@ object SkillRegistry {
     }
 
     /**
-     * Returns function schemas for all registered skills.
+     * Returns function schemas for all registered skills, optionally filtered
+     * by a [ToolMode]. Used to build the tools definition sent to the LLM.
      *
-     * Used to build the tools definition sent to the LLM.
-     *
+     * @param toolMode When [ToolMode.WRITE] (default) every registered skill
+     *   is returned. When [ToolMode.READ_ONLY] only inspection skills
+     *   (`read_file`, `explore_project`, `run_cmd`) are returned so the LLM
+     *   cannot mutate the project. When [ToolMode.SINGLE_STEP] every skill
+     *   is returned except the task-tracking pair (`to_do` /
+     *   `finish_to_do_item`) — for small local models that cannot plan
+     *   reliably.
      * @return list of schema maps from each registered skill
      */
-    fun getSchemas(): List<Map<String, Any>> {
-        return registeredSkills.values.map { skill: Skill -> skill.getSchema() }
+    fun getSchemas(toolMode: ToolMode = ToolMode.WRITE): List<Map<String, Any>> {
+        val allSkills: Collection<Skill> = registeredSkills.values
+        val filtered: Collection<Skill> = when (toolMode) {
+            ToolMode.WRITE -> allSkills
+            ToolMode.READ_ONLY -> allSkills.filter { skill: Skill -> skill.skillName in READ_ONLY_ALLOWED_SKILLS }
+            ToolMode.SINGLE_STEP -> allSkills.filter { skill: Skill -> skill.skillName !in SINGLE_STEP_EXCLUDED_SKILLS }
+        }
+        return filtered.map { skill: Skill -> skill.getSchema() }
     }
+
+    private val READ_ONLY_ALLOWED_SKILLS: Set<String> = setOf("read_file", "explore_project", "run_cmd")
+    private val SINGLE_STEP_EXCLUDED_SKILLS: Set<String> = setOf("to_do", "finish_to_do_item")
 
     /**
      * Registers a single skill in the registry.

@@ -65,6 +65,7 @@ sealed class RenderBlock {
         val errorDetail: String = ""
     ) : RenderBlock()
     data class Response(val content: String) : RenderBlock()
+    data class Error(val message: String) : RenderBlock()
 }
 
 /**
@@ -85,7 +86,10 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val events: List<ChatEvent> = emptyList(),
     val renderBlocks: List<RenderBlock> = emptyList(),
-    val hasResponse: Boolean = false
+    val hasResponse: Boolean = false,
+    val modelName: String = "",
+    val provider: String = "",
+    val serverName: String = ""
 ) {
     val isUserMessage: Boolean get() = role == "user"
 
@@ -156,7 +160,7 @@ data class ChatMessage(
                     errorDetail = event.info.errorDetail
                 )
             }
-            is ChatEvent.Error -> renderBlocks
+            is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message)
         }
         return copy(
             events = newEvents,

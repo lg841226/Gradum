@@ -69,6 +69,14 @@ class EditFileSkill : Skill() {
     override val alias: String = "Edited"
     override val description: String = "Search and replace edits with sequential or atomic mode"
 
+    /**
+     * Keep the full diff metrics (linesAdded / linesRemoved / syntaxErrors / totalEdits)
+     * for the most recent 2 results. Older results only carry the path and edit count
+     * so the LLM can still tell what happened, but the conversation context stays small.
+     */
+    override val historyKeepCount: Int = 2
+    override val historyVolatileKeys: List<String> = listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")
+
     override fun getSchema(): Map<String, Any> {
         return mapOf(
             "type" to "function",

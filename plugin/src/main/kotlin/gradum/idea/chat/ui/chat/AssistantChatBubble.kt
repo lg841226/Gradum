@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-06-29 18:05:51 Changed by gwy
+ * AssistantChatBubble.kt  2026-06-29 21:37:12 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -18,20 +18,22 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private const val FADE_IN_MS: Int = 600
-private const val AUTO_COLLAPSE_DELAY_MS: Long = 1000L
 
 /**
  * Left-aligned assistant message bubble.
@@ -54,20 +56,53 @@ fun AssistantChatBubble(
 
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Column(horizontalAlignment = Alignment.Start) {
+            if (message.modelName.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+                ) {
+                    val isCloud = message.modelName.contains("cloud")
+                    Icon(
+                        contentDescription = null,
+                        key = if (!isCloud) GradumIcons.Local else GradumIcons.Web
+                    )
+                    if (message.serverName.isNotBlank()) {
+                        Text(
+                            maxLines = 1,
+                            text = message.serverName
+                        )
+                        Icon(
+                            key = AllIconsKeys.General.ChevronRight,
+                            contentDescription = null
+                        )
+                    }
+                    Text(
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        text = formatModelName(message.modelName)
+                    )
+
+                }
+            }
+            Spacer(Modifier.height(GradumSpacing.lg))
             renderBlocks.forEachIndexed { index, block ->
                 key(block.key(index)) {
                     when (block) {
-                        is RenderBlock.Thinking -> ThinkingBlock(block)
+                        is RenderBlock.Thinking -> ThinkingBlock(block, isLoading)
                         is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor)
                         is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
+                        is RenderBlock.Error -> ErrorBlock(block)
                     }
                     Spacer(modifier = Modifier.height(GradumSpacing.lg))
                 }
             }
 
-            if (isLoading) LoadingIndicatorRow()
+            if (isLoading) {
+                Spacer(Modifier.height(GradumSpacing.md))
+                LoadingIndicatorRow()
+            }
 
-            Spacer(modifier = Modifier.height(GradumSpacing.lg))
+            Spacer(modifier = Modifier.height(GradumSpacing.md))
             MessageActionsRow(
                 message = message,
                 isLoading = isLoading,
@@ -83,10 +118,11 @@ private fun RenderBlock.key(index: Int): String = when (this) {
     is RenderBlock.Thinking -> "thinking_$index"
     is RenderBlock.ToolCall -> "tool_${index}_$alias"
     is RenderBlock.Response -> "response_$index"
+    is RenderBlock.Error -> "error_$index"
 }
 
 @Composable
-private fun ThinkingBlock(block: RenderBlock.Thinking) {
+private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         alpha.animateTo(
@@ -96,7 +132,7 @@ private fun ThinkingBlock(block: RenderBlock.Thinking) {
     }
     ThinkingIndicator(
         thinking = block.content,
-        autoCollapseDelay = AUTO_COLLAPSE_DELAY_MS,
+        isTaskComplete = !isLoading,
         modifier = Modifier.graphicsLayer { this.alpha = alpha.value }
     )
 }
@@ -121,6 +157,23 @@ private fun ResponseBlock(
             markdownStyling = rememberGradumMarkdownStyling(),
             onUrlClick = onUrlClick,
             modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun ErrorBlock(block: RenderBlock.Error) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+    ) {
+        Icon(
+            contentDescription = null,
+            key = AllIconsKeys.Status.FailedInProgress
+        )
+        Text(
+            text = block.message,
+            color = JewelTheme.globalColors.text.error
         )
     }
 }

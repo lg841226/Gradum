@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-06-27 23:25:57 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-06-29 19:22:38 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -16,7 +16,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.dp
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
@@ -28,7 +27,6 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
-import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createCodeStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createInlinesStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListStyling
@@ -49,7 +47,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
         val paragraphTextStyle = editorTextStyle.copy(lineHeight = editorTextStyle.fontSize * 1.5f)
         val paragraphInlines = InlinesStyling(
             textStyle = paragraphTextStyle,
-            inlineCode = paragraphTextStyle.toSpanStyle(),
+            inlineCode = paragraphTextStyle.toSpanStyle().copy(color = globalColors.text.info),
             link = linkSpan,
             linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
             linkFocused = SpanStyle(color = linkStyle.colors.contentFocused, textDecoration = TextDecoration.Underline),
@@ -71,12 +69,21 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
         fun headingInlines(textStyle: TextStyle): InlinesStyling {
             return InlinesStyling(
                 textStyle = textStyle,
-                inlineCode = textStyle.toSpanStyle(),
+                inlineCode = textStyle.toSpanStyle().copy(color = globalColors.text.info),
                 link = linkSpan,
                 linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
-                linkFocused = SpanStyle(color = linkStyle.colors.contentFocused, textDecoration = TextDecoration.Underline),
-                linkHovered = SpanStyle(color = linkStyle.colors.contentHovered, textDecoration = TextDecoration.Underline),
-                linkPressed = SpanStyle(color = linkStyle.colors.contentPressed, textDecoration = TextDecoration.Underline),
+                linkFocused = SpanStyle(
+                    color = linkStyle.colors.contentFocused,
+                    textDecoration = TextDecoration.Underline
+                ),
+                linkHovered = SpanStyle(
+                    color = linkStyle.colors.contentHovered,
+                    textDecoration = TextDecoration.Underline
+                ),
+                linkPressed = SpanStyle(
+                    color = linkStyle.colors.contentPressed,
+                    textDecoration = TextDecoration.Underline
+                ),
                 linkVisited = SpanStyle(color = linkStyle.colors.contentVisited),
                 emphasis = SpanStyle(fontStyle = FontStyle.Italic),
                 strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),

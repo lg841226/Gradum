@@ -37,7 +37,7 @@ class RunCommandSkill : Skill() {
 
     override val skillName: String = "run_cmd"
     override val alias: String = "Ran"
-    override val description: String = "Execute a shell command (blocking or detached)"
+    override val description: String = "Execute a shell command. Use detached=true to run in the background."
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("output")

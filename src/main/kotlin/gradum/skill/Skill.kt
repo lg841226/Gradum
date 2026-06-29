@@ -31,7 +31,7 @@ abstract class Skill {
      */
     open val historyVolatileKeys: List<String> = emptyList()
 
-    private var prepareHistoryCallCount: Int = 0
+    protected var prepareHistoryCallCount: Int = 0
 
     /**
      * Resets the internal history call counter.
