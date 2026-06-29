@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FileItem.kt  2026-06-26 23:55:00 Changed by gwy
+ * FileItem.kt  2026-06-29 11:42:39 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.getLanguageIconKey
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.ui.component.Icon
@@ -26,20 +27,24 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * A single file entry shown in the add-menu file list, with a language icon and bold name when selected.
  */
 @Composable
-fun FileItem(file: VirtualFile, isSelected: Boolean) {
+fun FileItem(
+    file: VirtualFile,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
+) {
     val iconKey = getLanguageIconKey(file.extension)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = GradumSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             key = iconKey ?: AllIconsKeys.FileTypes.Unknown,
             contentDescription = file.fileType.name,
             modifier = Modifier
-                .padding(end = 6.dp)
+                .padding(end = GradumSpacing.md)
                 .size(14.dp)
         )
         Column {

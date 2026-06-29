@@ -10,13 +10,18 @@
 package gradum.idea.chat.ui.input
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.editor.AttachedContext
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -29,11 +34,15 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * Attachment bar below the toolbar, showing selected attachments.
  */
 @Composable
-fun AttachmentBar(attachedFiles: List<AttachedContext>, onRemoveFile: (AttachedContext) -> Unit) {
+fun AttachmentBar(
+    attachedFiles: List<AttachedContext>,
+    onRemoveFile: (AttachedContext) -> Unit,
+    modifier: Modifier = Modifier
+) {
     if (attachedFiles.isEmpty()) return
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically
@@ -41,8 +50,8 @@ fun AttachmentBar(attachedFiles: List<AttachedContext>, onRemoveFile: (AttachedC
         attachedFiles.forEach { attachedContext ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+                modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
             ) {
                 Icon(
                     key = attachedContext.iconKey,

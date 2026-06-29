@@ -12,6 +12,7 @@ package gradum.idea.chat.ui.chat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Modifier
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import kotlinx.coroutines.CoroutineScope
@@ -41,12 +42,13 @@ fun MessageCopyButton(
     isCopied: Boolean,
     onCopy: () -> Unit,
     onReset: () -> Unit,
-    onCopyAsContext: (String) -> Unit = {}
+    onCopyAsContext: (String) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     val textToCopy = if (message.isUserMessage) message.content else message.fullContent
 
-    Tooltip(tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
+    Tooltip(modifier = modifier, tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
         IconButton(
             onClick = {
                 copyToClipboard(

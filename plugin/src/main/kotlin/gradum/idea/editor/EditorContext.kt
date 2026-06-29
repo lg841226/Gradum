@@ -8,9 +8,10 @@
 package gradum.idea.editor
 
 import com.intellij.lang.LanguageUtil
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -52,11 +53,13 @@ fun getLanguageIconKey(extension: String?): IconKey? {
 object EditorUtils {
 
     fun getEditorContext(project: Project): EditorContext {
-        return ReadAction.compute<EditorContext, Throwable> {
+        return runReadActionBlocking {
             val fileEditorManager = FileEditorManager.getInstance(project)
             val allFiles = fileEditorManager.openFiles.toList()
             val currentFile = fileEditorManager.selectedFiles.firstOrNull()
-            val projectDir = project.baseDir
+            val projectDir = project.basePath?.let {
+                LocalFileSystem.getInstance().findFileByPath(it)
+            }
 
             if (currentFile != null) {
                 val language = LanguageUtil.getLanguageForPsi(project, currentFile)

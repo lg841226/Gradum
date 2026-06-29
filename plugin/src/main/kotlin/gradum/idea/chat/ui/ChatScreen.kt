@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-06-28 11:13:44 Changed by gwy
+ * ChatScreen.kt  2026-06-29 10:01:57 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -66,7 +66,9 @@ fun ChatScreen(
         ) {
             messages.forEachIndexed { index, message ->
                 val shouldShowTimestamp = index == 0 ||
-                        formatTimestamp(message.timestamp) != formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
+                    formatTimestamp(message.timestamp) != formatTimestamp(
+                    messages.getOrNull(index - 1)?.timestamp ?: 0L
+                )
                 val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
 
                 if (shouldShowTimestamp) {
@@ -99,7 +101,7 @@ fun ChatScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(500.dp))
+            Spacer(modifier = Modifier.height(500.dp))
         }
 
         ChatInputSection(

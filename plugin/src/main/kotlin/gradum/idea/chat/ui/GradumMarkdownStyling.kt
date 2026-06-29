@@ -28,12 +28,16 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createCodeStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createInlinesStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
+/**
+ * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
+ */
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberGradumMarkdownStyling(): MarkdownStyling {
@@ -93,7 +97,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
             paragraphTextStyle,
             paragraphTextStyle,
             paragraphInlines,
-            16.dp,
+            GradumSpacing.xl,
             paragraph = MarkdownStyling.Paragraph.createInlinesStyling(
                 paragraphInlines
             ),

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-06-26 18:49:22 Changed by gwy
+ * AddContextPopup.kt  2026-06-29 10:04:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -21,6 +21,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -35,21 +36,22 @@ fun AddContextPopup(
     searchState: TextFieldState,
     filteredFiles: List<VirtualFile>,
     state: ChatInputState,
-    actions: ChatInputActions
+    actions: ChatInputActions,
+    modifier: Modifier = Modifier
 ) {
     PopupMenu(
         onDismissRequest = { actions.onDismissAddMenu(); true },
         horizontalAlignment = Alignment.Start,
-        modifier = Modifier.heightIn(max = 300.dp)
+        modifier = modifier.heightIn(max = 300.dp)
     ) {
         passiveItem {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
             ) {
                 Icon(key = GradumIcons.Search, contentDescription = message("gradum.add.popup.search"))
-                Spacer(Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(GradumSpacing.md))
                 TextField(
                     state = searchState,
                     undecorated = true,
@@ -69,11 +71,14 @@ fun AddContextPopup(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(key = AllIconsKeys.Actions.ProjectDirectory, contentDescription = message("gradum.add.popup.project.directory"))
-                Spacer(Modifier.width(6.dp))
+                Icon(
+                    key = AllIconsKeys.Actions.ProjectDirectory,
+                    contentDescription = message("gradum.add.popup.project.directory")
+                )
+                Spacer(modifier = Modifier.width(GradumSpacing.md))
                 Text(text = message("gradum.add.popup.project.directory"))
             }
         }
@@ -85,11 +90,11 @@ fun AddContextPopup(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(key = GradumIcons.Image, contentDescription = message("gradum.add.popup.upload.image"))
-                Spacer(Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(GradumSpacing.md))
                 Text(text = message("gradum.add.popup.upload.image"))
             }
         }
@@ -100,7 +105,7 @@ fun AddContextPopup(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
             ) {
                 Text(
                     text = message("gradum.add.popup.workspace"),
@@ -114,7 +119,7 @@ fun AddContextPopup(
                 Text(
                     text = message("gradum.add.popup.empty"),
                     color = JewelTheme.globalColors.text.info,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
                 )
             }
         } else if (filteredFiles.isEmpty()) {
@@ -122,7 +127,7 @@ fun AddContextPopup(
                 Text(
                     text = message("gradum.add.popup.no.results"),
                     color = JewelTheme.globalColors.text.info,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
                 )
             }
         } else {

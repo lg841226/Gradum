@@ -35,10 +35,11 @@ fun SelectorButton(
     contentDescription: String,
     onClick: () -> Unit,
     color: Color = JewelTheme.globalColors.text.info,
-    tooltip: @Composable () -> Unit = { Text(text = contentDescription) }
+    tooltip: @Composable () -> Unit = { Text(text = contentDescription) },
+    modifier: Modifier = Modifier
 ) {
     Tooltip(tooltip = tooltip) {
-        IconButton(onClick = onClick) {
+        IconButton(onClick = onClick, modifier = modifier) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Start) {
                 Text(text = text, color = color)
                 Icon(key = AllIconsKeys.General.ChevronDown, contentDescription = contentDescription)

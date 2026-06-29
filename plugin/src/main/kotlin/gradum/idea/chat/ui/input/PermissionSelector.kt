@@ -9,12 +9,17 @@
 
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -33,13 +38,15 @@ fun PermissionSelector(
     isMenuVisible: Boolean,
     onToggle: () -> Unit,
     onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     SelectorButton(
         text = selectedPermission,
         contentDescription = message("gradum.select.permissions"),
         onClick = onToggle,
-        color = JewelTheme.globalColors.text.normal
+        color = JewelTheme.globalColors.text.normal,
+        modifier = modifier
     )
 
     if (isMenuVisible) {
@@ -51,11 +58,11 @@ fun PermissionSelector(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
                         Text(text = message("gradum.readonly"))
                         Text(text = message("gradum.readonly.info"), color = JewelTheme.globalColors.text.info)
@@ -69,11 +76,11 @@ fun PermissionSelector(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(key = GradumIcons.Edit, contentDescription = message("gradum.full.mode"))
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
                         Text(text = message("gradum.full"))
                         Text(text = message("gradum.full.info"), color = JewelTheme.globalColors.text.info)

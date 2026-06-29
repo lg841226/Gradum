@@ -180,12 +180,12 @@ curl http://localhost:8765/skills
 Each line is one JSON event:
 
 ```jsonl
-{"type": "session_start", "timestamp": "...", "data": {"version": "0.8.2", "model": "qwen2.5-coder:7b", "think": false, "contextLoaded": false}}
+{"type": "session_start", "timestamp": "...", "data": {"version": "0.9.0", "model": "qwen2.5-coder:7b", "think": false, "contextLoaded": false}}
 {"type": "thinking", "timestamp": "...", "data": {"content": "Analyzing file structure..."}}
 {"type": "tool_call", "timestamp": "...", "data": {"tool": "read_file", "arguments": {"path": "utils.kt"}, "toolCallId": "call_1", "success": true, "result": {"path": "...", "totalLines": 42, "content": "..."}}}
 {"type": "tool_call", "timestamp": "...", "data": {"tool": "run_cmd", "arguments": {"command": "gradle build"}, "toolCallId": "call_2", "success": false, "result": {"error": {"code": "COMMAND_BLOCKED", "message": "..."}}}}
 {"type": "llm_response", "timestamp": "...", "data": {"content": "Refactoring complete. Changed N items..."}}
-{"type": "session_end", "timestamp": "...", "data": {"version": "0.8.2", "elapsedSeconds": 15, "model": "qwen2.5-coder:7b", "tokenUsage": {"promptTokens": 2800, "completionTokens": 900}}}
+{"type": "session_end", "timestamp": "...", "data": {"version": "0.9.0", "elapsedSeconds": 15, "model": "qwen2.5-coder:7b", "tokenUsage": {"promptTokens": 2800, "completionTokens": 900}}}
 ```
 
 ## Skills Reference
@@ -196,6 +196,7 @@ Each line is one JSON event:
 | `edit_file`         | Edited    | Search-replace editing (sequential or atomic mode) |
 | `save_file`         | Saved     | Write a new file                                   |
 | `run_cmd`           | Ran       | Execute shell commands (blocking or detached)      |
+| `explore_project`   | Explored  | Scan project directory tree                        |
 | `to_do`             | Planned   | Initialize a task list                             |
 | `finish_to_do_item` | Completed | Mark tasks complete                                |
 
@@ -229,6 +230,13 @@ Each line is one JSON event:
 - `command` (required): shell command
 - `detached` (optional): background execution, returns PID and log path immediately
 - **Safety filter**: All commands pass through `CommandFilter`; dangerous commands are rejected with error code `COMMAND_BLOCKED`
+
+#### explore_project
+```json
+{"path": ".", "depth": 2}
+```
+- `path` (optional): root directory to scan, defaults to project root
+- `depth` (optional): directory depth (1–14), defaults to 2
 
 #### to_do / finish_to_do_item
 ```json
@@ -281,10 +289,64 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
 - HTTP API layer design
 - End-to-end data flow
 
+## IntelliJ IDEA Plugin
+
+Gradum ships with an IntelliJ IDEA plugin (`plugin/` directory) that provides a chat interface directly inside the IDE.
+
+### Features
+
+- **Chat panel**: Send messages, view streaming responses, and manage conversations
+- **Model selector**: Auto-discover and switch between local LLM providers (Ollama, LM Studio, vLLM, LocalAI)
+- **Tool call indicators**: Visual status for each tool invocation (running, success, error)
+- **Error popups**: Click a failed tool call capsule to view a friendly error message; copy full details via the blue `Link`
+- **Context toggle** (eye icon): When enabled, the current editor file path is sent as `Context: <path>` with each message
+- **File attachments**: Attach files from the workspace via the `+` menu; file paths are sent as `Attachments: path1, path2`
+- **Image upload**: Attach images for multimodal models
+- **Task management**: Todo list tracking with automatic reminders
+- **Streaming**: Real-time NDJSON event rendering with thinking, tool calls, and response blocks
+
+### Building the Plugin
+
+```bash
+./gradlew :plugin:buildPlugin
+```
+
+The built plugin ZIP is located at `plugin/build/distributions/`.
+
+## Context and Attachments
+
+When the **eye icon** is toggled on, the plugin prepends the current editor file path to each message:
+
+```
+Context: /path/to/current/file.kt
+
+Your message here
+```
+
+**File attachments** (added via the `+` menu) are prepended as:
+
+```
+Attachments: /path/to/file1.kt, /path/to/file2.kt
+
+Your message here
+```
+
+Both features send only file paths — the server-side Agent reads the file content via `read_file` when needed.
+
+## Error Handling
+
+Failed tool calls display a clickable error capsule in the chat. Clicking it opens a popup with:
+
+- A **friendly error message** mapped from the error code (e.g. `FILE_NOT_FOUND` → "File not found")
+- A blue **copy details** link that copies the full error code, message, and tool name to the clipboard
+
+Supported error codes: `INVALID_PARAMETER`, `FILE_NOT_FOUND`, `FILE_TOO_LARGE`, `IO_ERROR`, `CODE_NOT_FOUND`, `MULTIPLE_MATCHES`, `EMPTY_RESULT`, `COMMAND_BLOCKED`, `TIMEOUT`, `ALREADY_INITIALIZED`, `NOT_INITIALIZED`, `ALL_COMPLETED`, `CLIENT_ERROR`.
+
 ## Developer Documentation
 
 - Coding standards: [docs/CODING_STANDARDS_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md)
 - Skill development: [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md)
+- UI conventions: [docs/CONVENTIONS.md](docs/CONVENTIONS.md)
 
 ## Contributing
 
@@ -308,4 +370,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Version
 
-0.8.2
+0.9.0

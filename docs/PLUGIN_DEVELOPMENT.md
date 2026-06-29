@@ -245,6 +245,7 @@ flowchart LR
 | `ALREADY_INITIALIZED` | Duplicate initialization (e.g. to_do)                            |
 | `NOT_INITIALIZED`     | Operation requires initialization that has not happened          |
 | `ALL_COMPLETED`       | All tasks are already completed                                  |
+| `CLIENT_ERROR`        | Plugin-side error (e.g. model validation failed)                 |
 
 ---
 

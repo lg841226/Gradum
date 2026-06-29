@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-06-28 10:39:36 Changed by gwy
+ * ThinkingIndicator.kt  2026-06-29 10:03:35 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
@@ -63,13 +64,13 @@ fun ThinkingIndicator(
             modifier = Modifier
                 .clickable { isExpanded = !isExpanded },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
         ) {
             Icon(
                 key = AllIconsKeys.Nodes.Related,
                 contentDescription = null
             )
-            Spacer(Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(GradumSpacing.xs))
             Text(
                 text = message("gradum.thinking"),
                 color = JewelTheme.globalColors.text.info,
@@ -83,7 +84,7 @@ fun ThinkingIndicator(
         }
 
         if (isExpanded)
-            Spacer(Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
         AnimatedVisibility(visible = isExpanded) {
 

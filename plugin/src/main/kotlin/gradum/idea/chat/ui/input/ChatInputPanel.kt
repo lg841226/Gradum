@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-06-26 23:55:00 Changed by gwy
+ * ChatInputPanel.kt  2026-06-29 10:03:35 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.SweepLightText
 import gradum.idea.chat.ui.common.IconTooltipButton
 import kotlinx.coroutines.delay
@@ -50,7 +51,8 @@ fun ChatInputPanel(
     state: ChatInputState,
     actions: ChatInputActions,
     roundedCornerShape: RoundedCornerShape,
-    textState: TextFieldState
+    textState: TextFieldState,
+    modifier: Modifier = Modifier
 ) {
 
     val initialTextLength: Int = remember { textState.text.length }
@@ -72,7 +74,7 @@ fun ChatInputPanel(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .onFocusChanged { actions.onFocusChange(it.hasFocus) }
             .thenIf(!state.isFocused) {
                 border(
@@ -87,7 +89,7 @@ fun ChatInputPanel(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 6.dp)
+                .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
         ) {
             if (state.pendingMessages.isNotEmpty()) {
                 state.pendingMessages.forEach { pending ->
@@ -96,9 +98,9 @@ fun ChatInputPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                            .padding(horizontal = GradumSpacing.sm, vertical = GradumSpacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
                         SweepLightText(text = preview, modifier = Modifier.weight(1f))
@@ -134,7 +136,7 @@ fun ChatInputPanel(
                     }
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(GradumSpacing.md))
 
             ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty())
 

@@ -28,7 +28,9 @@ data class ToolCallInfo(
     val toolCallId: String = "",
     val success: Boolean = true,
     val result: String = "",
-    val arguments: Map<String, Any> = emptyMap()
+    val arguments: Map<String, Any> = emptyMap(),
+    val errorMessage: String = "",
+    val errorDetail: String = ""
 )
 
 /**
@@ -39,7 +41,30 @@ sealed class ChatEvent {
     data class Thinking(val content: String) : ChatEvent()
     data class ToolCall(val info: ToolCallInfo) : ChatEvent()
     data class Response(val content: String) : ChatEvent()
-    data class Error(val message: String) : ChatEvent()
+    data class Error(
+        val message: String,
+        val code: String = "",
+        val tool: String = ""
+    ) : ChatEvent()
+}
+
+/**
+ * Pre-aggregated render block for stable Compose keys.
+ *
+ * Consecutive events of the same type are coalesced into a single block
+ * so that Compose can reuse composables without rebuilding the entire list.
+ */
+sealed class RenderBlock {
+    data class Thinking(val content: String) : RenderBlock()
+    data class ToolCall(
+        val alias: String,
+        val success: Boolean,
+        val arguments: Map<String, Any> = emptyMap(),
+        val result: String = "",
+        val errorMessage: String = "",
+        val errorDetail: String = ""
+    ) : RenderBlock()
+    data class Response(val content: String) : RenderBlock()
 }
 
 /**
@@ -50,13 +75,17 @@ sealed class ChatEvent {
  * @property attachments  Files frozen onto the message at send time.
  * @property events  Ordered list of events for assistant messages
  *   (thinking, tool calls, responses, errors).
+ * @property renderBlocks  Pre-aggregated render blocks, maintained incrementally.
+ * @property hasResponse  Whether this message contains at least one Response event.
  */
 data class ChatMessage(
     val role: String,
     val content: String = "",
     val attachments: List<AttachedContext> = emptyList(),
     val timestamp: Long = System.currentTimeMillis(),
-    val events: List<ChatEvent> = emptyList()
+    val events: List<ChatEvent> = emptyList(),
+    val renderBlocks: List<RenderBlock> = emptyList(),
+    val hasResponse: Boolean = false
 ) {
     val isUserMessage: Boolean get() = role == "user"
 
@@ -91,6 +120,81 @@ data class ChatMessage(
                 if (isNotEmpty()) append("\n\n"); append(errorMessages.joinToString("\n"))
 
         }
+
+    /**
+     * Appends a [ChatEvent] and incrementally updates [renderBlocks] in O(1).
+     *
+     * Consecutive events of the same type are merged into the last block
+     * (string concatenation only), avoiding full-list re-iteration on every token.
+     */
+    fun appendEvent(event: ChatEvent): ChatMessage {
+        val newEvents = events + event
+        val newRenderBlocks = when (event) {
+            is ChatEvent.Response -> {
+                val last = renderBlocks.lastOrNull()
+                if (last is RenderBlock.Response) {
+                    renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)
+                } else {
+                    renderBlocks + RenderBlock.Response(event.content)
+                }
+            }
+            is ChatEvent.Thinking -> {
+                val last = renderBlocks.lastOrNull()
+                if (last is RenderBlock.Thinking) {
+                    renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)
+                } else {
+                    renderBlocks + RenderBlock.Thinking(event.content)
+                }
+            }
+            is ChatEvent.ToolCall -> {
+                renderBlocks + RenderBlock.ToolCall(
+                    alias = event.info.alias,
+                    success = event.info.success,
+                    arguments = event.info.arguments,
+                    result = event.info.result,
+                    errorMessage = event.info.errorMessage,
+                    errorDetail = event.info.errorDetail
+                )
+            }
+            is ChatEvent.Error -> renderBlocks
+        }
+        return copy(
+            events = newEvents,
+            renderBlocks = newRenderBlocks,
+            hasResponse = hasResponse || event is ChatEvent.Response
+        )
+    }
+
+    /**
+     * Finds the last failed ToolCall and updates its error info in both
+     * [events] and [renderBlocks] in O(1) (no full list re-iteration).
+     *
+     * @return The updated message, or `this` if no failed ToolCall was found.
+     */
+    fun updateLastError(friendlyMessage: String, errorDetail: String): ChatMessage {
+        val lastFailedIdx = events.indexOfLast {
+            it is ChatEvent.ToolCall && !it.info.success
+        }
+        if (lastFailedIdx < 0) return this
+
+        val oldInfo = (events[lastFailedIdx] as ChatEvent.ToolCall).info
+        val updatedEvent = ChatEvent.ToolCall(
+            oldInfo.copy(errorMessage = friendlyMessage, errorDetail = errorDetail)
+        )
+        val newEvents = events.toMutableList().apply { set(lastFailedIdx, updatedEvent) }
+
+        val lastFailedBlockIdx = renderBlocks.indexOfLast { it is RenderBlock.ToolCall && !it.success }
+        val newRenderBlocks = if (lastFailedBlockIdx >= 0) {
+            val old = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
+            renderBlocks.toMutableList().apply {
+                set(lastFailedBlockIdx, old.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
+            }
+        } else {
+            renderBlocks
+        }
+
+        return copy(events = newEvents, renderBlocks = newRenderBlocks)
+    }
 }
 
 /**

@@ -14,6 +14,9 @@ import java.nio.file.Path
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
 
+/** Maximum number of messages to keep in context history. */
+private const val MAX_CONTEXT_MESSAGES: Int = 20
+
 /**
  * Persists the agent's conversation history and the set of files that have
  * been fully read, so a later session can resume where the previous one
@@ -23,7 +26,12 @@ class ContextManager(private val outputDirectory: Path) {
 
     private val contextFilePath: Path = outputDirectory.resolve("context.json")
 
+    /** Cached decrypted messages to avoid re-reading and decrypting from disk on every call. */
+    private var cachedMessages: List<Map<String, Any>>? = null
+
     fun loadContext(): List<Map<String, Any>> {
+        cachedMessages?.let { return it }
+
         val contextFile: java.io.File = contextFilePath.toFile()
 
         if (!contextFile.exists()) {
@@ -50,6 +58,7 @@ class ContextManager(private val outputDirectory: Path) {
             }
 
             logMessageStats(decryptedMessages)
+            cachedMessages = decryptedMessages
             decryptedMessages
         } catch (exception: Exception) {
             logger.error("Failed to load context: ${exception.message}", exception)
@@ -59,6 +68,7 @@ class ContextManager(private val outputDirectory: Path) {
 
     fun saveContext(messages: List<Map<String, Any>>, modelName: String, fullyReadFiles: Set<String>): Boolean {
         outputDirectory.toFile().mkdirs()
+        cachedMessages = null
 
         logger.info("Saving context: ${messages.size} messages, model=$modelName")
 
@@ -102,7 +112,7 @@ class ContextManager(private val outputDirectory: Path) {
             cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
         }
 
-        return cleanedMessages.takeLast(60)
+        return cleanedMessages.takeLast(MAX_CONTEXT_MESSAGES)
     }
 
     private fun parseJsonObject(jsonObject: JsonObject): MutableMap<String, Any> {

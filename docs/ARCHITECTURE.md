@@ -712,7 +712,7 @@ flowchart TD
     P4 --> P5["Stream response:<br/>Content-Type: application/x-ndjson<br/>respondWrite<br/>collect from channel<br/>termination sentinel: '\\n'"]
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
     GM --> M1["Call discoverModels()"]
-    M1 --> M2["Return JSON<br/>{models: [{name, provider, server}]}"]
+    M1 --> M2["Return JSON<br/>{models: [{name, provider, server, serverName}]}"]
     GS --> S1["Return JSON<br/>{skills: [{name, description, alias}]}"]
     style POST fill: #d4f1d4
     style GH fill: #c1daf4
@@ -1211,6 +1211,7 @@ gradum.skill.CompletePlanSkill
 | EditFileSkill     | `path, edits[], mode?`                                               | `path, editsApplied, totalEdits`                                                                                                                                                                         | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                                                                                                |
 | SaveFileSkill     | `path, content`                                                      | `path, bytesWritten, created`                                                                                                                                                                            | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                                                                                               |
 | RunCommandSkill   | `command, reason?, detached?`                                        | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message`                                                                                                   | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                                                                                         |
+| ExploreProjectSkill | `path?, depth?`                                                    | `path, entries: [{name, type, children?}]`                                                                                                                                                               | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories                                                                           |
 | TodoSkill         | `tasks[]`                                                            | `totalTasks, currentTask, currentIndex`                                                                                                                                                                  | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization                                                                              |
 | CompletePlanSkill | none                                                                 | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                                                                                                              | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                                                                                         |
 
@@ -1227,6 +1228,7 @@ flowchart LR
     ALL --> G3[Command execution]
     ALL --> G4[Task management]
     ALL --> G5[Generic]
+    ALL --> G6[Plugin-side]
     G1 --> F1["FILE_NOT_FOUND<br/>ReadFile, EditFile: path doesn't exist"]
     G1 --> F2["FILE_TOO_LARGE<br/>ReadFile: exceeds 1MB or 10000 lines"]
     G2 --> F3["CODE_NOT_FOUND<br/>EditFile: search string matches 0 times"]
@@ -1239,11 +1241,13 @@ flowchart LR
     G4 --> F10["ALL_COMPLETED<br/>CompletePlanSkill: all tasks already done"]
     G5 --> F11["INVALID_PARAMETER<br/>All skills: missing or malformed args"]
     G5 --> F12["IO_ERROR<br/>All skills: filesystem or process exception"]
+    G6 --> F13["CLIENT_ERROR<br/>Plugin: model validation failed"]
     style G1 fill: #c1daf4
     style G2 fill: #f4e1c1
     style G3 fill: #f4c1c1
     style G4 fill: #c1f4c1
     style G5 fill: #d4d4d4
+    style G6 fill: #e8d4f4
 ```
 
 ### 5.2 LLM Client Error Handling

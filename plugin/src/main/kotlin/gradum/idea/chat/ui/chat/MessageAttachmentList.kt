@@ -10,13 +10,20 @@
 package gradum.idea.chat.ui.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import gradum.idea.editor.AttachedContext
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
@@ -49,10 +56,11 @@ fun MessageAttachmentList(
 private fun AttachmentChip(attachment: AttachedContext) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
         modifier = Modifier
-            .background(color = JewelTheme.globalColors.borders.normal, shape = RoundedCornerShape(4.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color = JewelTheme.globalColors.borders.normal)
+            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
     ) {
         Icon(key = attachment.iconKey, contentDescription = attachment.displayName, modifier = Modifier.size(14.dp))
         Text(text = attachment.displayName)

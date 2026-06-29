@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-06-27 19:38:28 Changed by gwy
+ * GradumChatSession.kt  2026-06-29 15:35:32 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -18,32 +18,19 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.api.GradumApiClient
-import gradum.idea.chat.model.ChatEvent
-import gradum.idea.chat.model.ChatMessage
-import gradum.idea.chat.model.ModelInfo
-import gradum.idea.chat.model.ToolCallInfo
+import gradum.idea.chat.model.*
+import gradum.idea.chat.state.GradumChatSession.Companion.POLL_INTERVAL_MS
+import gradum.idea.chat.ui.chat.errorDetailText
+import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.editor.AttachedContext
+import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.PendingMessage
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.*
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Raw response from the `/models` endpoint, containing the list of discovered LLM models.
@@ -146,6 +133,13 @@ class GradumChatSession {
     /** The session ID returned by the server, used for stop requests. */
     var sessionId: String? by mutableStateOf(null)
 
+    /** Background job for periodic model polling. */
+    private var pollingJob: Job? = null
+
+    /** Whether context has already been loaded for this session. */
+    var contextLoaded: Boolean = false
+        private set
+
     /**
      * Resets the entire session to its initial state.
      *
@@ -159,6 +153,7 @@ class GradumChatSession {
         currentJob?.cancel()
         currentJob = null
         sessionId = null
+        contextLoaded = false
         messages.clear()
         attachedFiles.clear()
         pendingMessages.clear()
@@ -177,20 +172,73 @@ class GradumChatSession {
         try {
             val json: String = apiClient.getModels()
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
-            models.clear()
-            models.addAll(response.models)
-            modelsLoaded = true
-            if (selectedModel == null && models.isNotEmpty()) {
-                selectedModel = models.first()
-            }
-            pinnedModels.removeAll { pinned ->
-                models.none { it.name == pinned.name && it.serverName == pinned.serverName }
-            }
+            applyModelList(response.models)
         } catch (exception: Exception) {
             log.warn("Failed to load models from ${apiClient.baseUrl}", exception)
-            models.clear()
-            modelsLoaded = false
+            models.clear(); modelsLoaded = false
         }
+    }
+
+    private fun applyModelList(newModels: List<ModelInfo>) {
+        models.clear(); models.addAll(newModels); modelsLoaded = true
+
+        val current = selectedModel
+        if (current != null) {
+            if (models.none { it.name == current.name && it.serverName == current.serverName }) {
+                selectedModel = null; isAutoSelected = true
+            }
+        } else if (models.isNotEmpty()) {
+            selectedModel = models.first()
+        }
+
+        pinnedModels.removeAll { pinned ->
+            models.none { it.name == pinned.name && it.serverName == pinned.serverName }
+        }
+    }
+
+    /**
+     * Starts background polling for model availability.
+     *
+     * Periodically queries the server for available models and updates the
+     * model list if changes are detected. This allows the plugin to discover
+     * new LLM servers (e.g., Ollama) that start after the plugin is loaded.
+     *
+     * Polling runs on [Dispatchers.IO] to avoid blocking the UI thread.
+     * The polling interval is [POLL_INTERVAL_MS] milliseconds.
+     *
+     * @param scope The coroutine scope to launch the polling job in.
+     */
+    fun startModelPolling(scope: CoroutineScope) {
+        stopModelPolling()
+
+        pollingJob = scope.launch {
+            while (true) {
+                delay(POLL_INTERVAL_MS.milliseconds)
+                try {
+                    val json: String = withContext(Dispatchers.IO) { apiClient.getModels() }
+                    val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
+                    val newModels: List<ModelInfo> = response.models
+
+                    // Only update if the model list actually changed.
+                    if (newModels.size != models.size ||
+                        newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
+                    ) {
+                        applyModelList(newModels)
+                        log.info("Model list updated: ${newModels.size} models discovered")
+                    }
+                } catch (_: Exception) {
+                    // Silently ignore polling failures — the server may be temporarily
+                    // unreachable. The next poll cycle will retry.
+                }
+            }
+        }
+    }
+
+    /**
+     * Stops the background model polling job if it is running.
+     */
+    fun stopModelPolling() {
+        pollingJob?.cancel(); pollingJob = null
     }
 
     /**
@@ -200,8 +248,7 @@ class GradumChatSession {
      * to abort the agent's execution.
      */
     suspend fun stopSession() {
-        currentJob?.cancel()
-        currentJob = null
+        currentJob?.cancel(); currentJob = null
 
         val currentSessionId = sessionId
         if (currentSessionId != null) {
@@ -213,10 +260,7 @@ class GradumChatSession {
             sessionId = null
         }
 
-        isSending = false
-        isWaitingForResponse = false
-        resetThinkingState()
-        processPendingQueue()
+        isSending = false; isWaitingForResponse = false; resetThinkingState(); processPendingQueue()
     }
 
     /**
@@ -238,9 +282,18 @@ class GradumChatSession {
      *
      * @param userMessage The text content of the user's message.
      */
-    suspend fun sendMessage(userMessage: String) {
+    suspend fun sendMessage(
+        userMessage: String,
+        attachments: List<AttachedContext> = emptyList(),
+        contextPath: String = ""
+    ) {
         val modelConfig: Map<String, String> = buildModelConfig()
-        val messageWithHint = "$userMessage Do not use Markdown tables."
+        val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
+        val prefix: String = buildString {
+            if (contextPath.isNotEmpty()) append("<Context $contextPath/>")
+            if (attachmentPaths.isNotEmpty()) append("</Attachments: ${attachmentPaths.joinToString(", ")}/>")
+        }
+        val messageWithHint = "${prefix}${userMessage} Don't use Markdown tables."
 
         // Validate server connectivity and model availability before sending.
         val validationStart: Long = System.currentTimeMillis()
@@ -251,85 +304,91 @@ class GradumChatSession {
             if (currentModel != null && response.models.none { it.name == currentModel.name }) {
                 val assistantIndex: Int = messages.lastIndex
                 if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                    messages[assistantIndex] = messages[assistantIndex].copy(
-                        events = messages[assistantIndex].events + ChatEvent.Error("Model ${currentModel.name} is no longer available")
-                    )
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
+                        "Model ${currentModel.name} is no longer available", code = ErrorCode.CLIENT_ERROR.code
+                    ))
                 }
-                isSending = false
-                isWaitingForResponse = false
-                processPendingQueue()
+                isSending = false; isWaitingForResponse = false; processPendingQueue()
+
                 return
             }
         } catch (exception: Exception) {
             log.warn("Model validation failed for ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                messages[assistantIndex] = messages[assistantIndex].copy(
-                    events = messages[assistantIndex].events + ChatEvent.Error("Cannot reach server at ${apiClient.baseUrl}")
-                )
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
+                    "Cannot reach server at ${apiClient.baseUrl}", code = ErrorCode.CLIENT_ERROR.code
+                ))
             }
-            isSending = false
-            isWaitingForResponse = false
-            processPendingQueue()
+            isSending = false; isWaitingForResponse = false; processPendingQueue()
+
             return
         }
 
         // Ensure the "Sending" animation is visible for at least MIN_SENDING_MS.
         val elapsed: Long = System.currentTimeMillis() - validationStart
-        if (elapsed < MIN_SENDING_MS) {
-            delay(MIN_SENDING_MS - elapsed)
-        }
+        if (elapsed < MIN_SENDING_MS) delay((MIN_SENDING_MS - elapsed).milliseconds)
 
-        apiClient.sendMessage(
-            message = messageWithHint,
-            model = selectedModel?.name,
-            config = modelConfig,
-            loadContext = true
-        ).catch { exception ->
-            log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
-            val assistantIndex: Int = messages.lastIndex
-            if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                messages[assistantIndex] = messages[assistantIndex].copy(
-                    events = messages[assistantIndex].events + ChatEvent.Error(exception.message ?: "Connection failed")
-                )
-            }
-            isSending = false
-            processPendingQueue()
-        }.collect { ndjsonLine ->
-            try {
-                val event: JsonObject = eventJson.parseToJsonElement(ndjsonLine) as JsonObject
-                val type: String = event["type"]?.jsonPrimitive?.content ?: return@collect
-                val data: JsonObject? = event["data"]?.jsonObject
+        try {
+            val shouldLoadContext: Boolean = !contextLoaded
+            apiClient.sendMessage(
+                message = messageWithHint,
+                model = selectedModel?.name,
+                config = modelConfig,
+                loadContext = shouldLoadContext
+            ).catch { exception ->
+                log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
+                val assistantIndex: Int = messages.lastIndex
+                if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
+                        exception.message ?: "Connection failed", code = ErrorCode.CLIENT_ERROR.code
+                    ))
+                }
+                isSending = false; processPendingQueue()
+            }.collect { ndjsonLine ->
+                try {
+                    val event: JsonObject = eventJson.parseToJsonElement(ndjsonLine) as JsonObject
+                    val type: String = event["type"]?.jsonPrimitive?.content ?: return@collect
+                    val data: JsonObject? = event["data"]?.jsonObject
 
-                when (type) {
+                    when (type) {
                     "session_start" -> {
                         sessionId = event["sessionId"]?.jsonPrimitive?.content
+                        contextLoaded = true
                     }
 
-                    "response" -> {
-                        isWaitingForResponse = false
-                        handleResponseEvent(data)
-                    }
+                        "response" -> {
+                            isWaitingForResponse = false; handleResponseEvent(data)
+                        }
 
-                    "thinking" -> {
-                        isWaitingForResponse = false
-                        handleThinkingEvent(data)
-                    }
+                        "thinking" -> {
+                            isWaitingForResponse = false; handleThinkingEvent(data)
+                        }
 
-                    "tool_call" -> handleToolCallEvent(data)
-                    "error" -> handleErrorEvent(data)
-                    "session_end" -> {
-                        isSending = false
-                        isWaitingForResponse = false
-                        currentJob = null
-                        sessionId = null
-                        resetThinkingState()
-                        processPendingQueue()
+                        "tool_call" -> handleToolCallEvent(data)
+                        "error" -> handleErrorEvent(data)
+                        "session_end" -> {
+                            isSending = false
+                            isWaitingForResponse = false
+                            currentJob = null
+                            sessionId = null
+                            resetThinkingState()
+                            processPendingQueue()
+                        }
                     }
+                } catch (exception: Exception) {
+                    log.warn("Failed to parse NDJSON event: $ndjsonLine", exception)
                 }
-            } catch (exception: Exception) {
-                log.warn("Failed to parse NDJSON event: $ndjsonLine", exception)
             }
+        } catch (exception: Exception) {
+            log.warn("Streaming interrupted for ${apiClient.baseUrl}", exception)
+            val assistantIndex: Int = messages.lastIndex
+            if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Error(
+                    exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
+                ))
+            }
+            isSending = false; isWaitingForResponse = false; processPendingQueue()
         }
     }
 
@@ -345,9 +404,7 @@ class GradumChatSession {
 
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].copy(
-                events = messages[assistantIndex].events + ChatEvent.Response(content)
-            )
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Response(content))
         }
     }
 
@@ -361,15 +418,11 @@ class GradumChatSession {
 
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].copy(
-                events = messages[assistantIndex].events + ChatEvent.Thinking(content)
-            )
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
         }
     }
 
-    /**
-     * Resets thinking state when a new response starts.
-     */
+    // Resets thinking state when a new response starts.
     private fun resetThinkingState() {
         // No longer needed - thinking state is managed via events list
     }
@@ -400,9 +453,7 @@ class GradumChatSession {
 
             val assistantIndex: Int = messages.lastIndex
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-                messages[assistantIndex] = messages[assistantIndex].copy(
-                    events = messages[assistantIndex].events + ChatEvent.ToolCall(toolCall)
-                )
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
             }
         } catch (exception: Exception) {
             log.warn("Failed to parse tool_call event", exception)
@@ -416,12 +467,23 @@ class GradumChatSession {
      * @param data The event data object containing a `message` field with the error description.
      */
     private fun handleErrorEvent(data: JsonObject?) {
-        val errorMessage: String = data?.get("message")?.jsonPrimitive?.content ?: "Unknown error"
+        val rawMessage: String = data?.get("message")?.jsonPrimitive?.content ?: "Unknown error"
+        val code: String = data?.get("code")?.jsonPrimitive?.content ?: ""
+        val tool: String = data?.get("tool")?.jsonPrimitive?.content ?: ""
         val assistantIndex: Int = messages.lastIndex
+
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].copy(
-                events = messages[assistantIndex].events + ChatEvent.Error(errorMessage)
+            val updated = messages[assistantIndex].updateLastError(
+                friendlyErrorMessage(code),
+                errorDetailText(code, rawMessage, tool)
             )
+            if (updated !== messages[assistantIndex]) {
+                messages[assistantIndex] = updated
+            } else {
+                messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                    ChatEvent.Error(rawMessage, code, tool)
+                )
+            }
         }
     }
 
@@ -436,10 +498,9 @@ class GradumChatSession {
             val next: PendingMessage = pendingMessages.removeFirst()
             messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
             messages.add(ChatMessage(role = "assistant", content = ""))
-            hasSentMessage = true
-            isSending = true
-            isWaitingForResponse = true
-            currentJob = scope?.launch { sendMessage(next.content) }
+
+            hasSentMessage = true; isSending = true; isWaitingForResponse = true
+            currentJob = scope?.launch { sendMessage(next.content, next.attachments, "") }
         }
     }
 
@@ -456,6 +517,12 @@ class GradumChatSession {
         val config: MutableMap<String, String> = mutableMapOf()
         if (isAutoSelected) {
             config["provider"] = "ollama"
+        } else {
+            val model = selectedModel
+            if (model != null) {
+                if (model.provider.isNotBlank()) config["provider"] = model.provider
+                if (model.server.isNotBlank()) config["baseUrl"] = model.server
+            }
         }
         return config
     }
@@ -485,7 +552,11 @@ class GradumChatSession {
         private val jsonFormat: Json = Json { ignoreUnknownKeys = true }
         const val MAX_ATTACHMENTS: Int = 5
         const val MAX_PENDING_MESSAGES: Int = 2
+
         /** Minimum milliseconds to display the "Sending" animation before the request fires. */
         const val MIN_SENDING_MS: Long = 400
+
+        /** Interval between model polling requests in milliseconds. */
+        const val POLL_INTERVAL_MS: Long = 5_000
     }
 }

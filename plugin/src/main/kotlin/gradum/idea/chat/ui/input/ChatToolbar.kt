@@ -2,23 +2,26 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatToolbar.kt  2026-06-26 23:55:00 Changed by gwy
+ * ChatToolbar.kt  2026-06-29 15:23:19 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -28,7 +31,12 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * Toolbar row inside [ChatInputPanel] with add-menu, permission selector, and action buttons.
  */
 @Composable
-fun ChatToolbar(state: ChatInputState, actions: ChatInputActions, isTextNotEmpty: Boolean) {
+fun ChatToolbar(
+    state: ChatInputState,
+    actions: ChatInputActions,
+    isTextNotEmpty: Boolean,
+    modifier: Modifier = Modifier
+) {
     val searchState = remember { TextFieldState() }
 
     val searchQuery: String = searchState.text.toString()
@@ -39,8 +47,8 @@ fun ChatToolbar(state: ChatInputState, actions: ChatInputActions, isTextNotEmpty
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconTooltipButton(
@@ -67,11 +75,11 @@ fun ChatToolbar(state: ChatInputState, actions: ChatInputActions, isTextNotEmpty
             onDismiss = actions.onDismissMenu
         )
 
-        Spacer(Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
 
         IconTooltipButton(
             tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
-            iconKey = if (state.isExpanded) AllIconsKeys.Actions.Unshare else AllIconsKeys.Actions.Share,
+            iconKey = if (state.isExpanded) AllIconsKeys.Actions.Share else AllIconsKeys.Actions.Unshare,
             contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
             onClick = actions.onToggleExpanded
         )
@@ -93,20 +101,20 @@ fun ChatToolbar(state: ChatInputState, actions: ChatInputActions, isTextNotEmpty
                     onClick = actions.onStop
                 )
             }
-        val hasModel = state.selectedModel != null || state.isAutoSelected
-        val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
-        val sendTooltip = when {
-            state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
-            !hasModel -> message("gradum.send.no.model")
-            else -> message("gradum.send")
-        }
-        IconTooltipButton(
-            tooltip = sendTooltip,
-            iconKey = GradumIcons.Send,
-            contentDescription = message("gradum.send"),
-            onClick = actions.onSend,
-            enabled = canSend
-        )
+            val hasModel = state.selectedModel != null || state.isAutoSelected
+            val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
+            val sendTooltip = when {
+                state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
+                !hasModel -> message("gradum.send.no.model")
+                else -> message("gradum.send")
+            }
+            IconTooltipButton(
+                tooltip = sendTooltip,
+                iconKey = GradumIcons.Send,
+                contentDescription = message("gradum.send"),
+                onClick = actions.onSend,
+                enabled = canSend
+            )
         }
     }
 }

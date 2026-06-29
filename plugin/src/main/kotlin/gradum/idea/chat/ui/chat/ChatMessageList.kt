@@ -18,12 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
-private val TimestampSpacing = 2.dp
+private val TimestampSpacing = GradumSpacing.xs
 
 /**
  * Scrollable list of chat bubbles with a bottom spacer.
@@ -43,16 +43,16 @@ fun ChatMessageList(
 
     Column(
         modifier = modifier.verticalScroll(scrollState),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
     ) {
         messages.forEachIndexed { index, message ->
             val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
             val shouldShowTimestamp: Boolean = index == 0 ||
                     formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
             if (shouldShowTimestamp) {
-                Spacer(Modifier.height(TimestampSpacing))
+                Spacer(modifier = Modifier.height(TimestampSpacing))
                 MessageTimestamp(timestamp = message.timestamp)
-                Spacer(Modifier.height(TimestampSpacing))
+                Spacer(modifier = Modifier.height(TimestampSpacing))
             }
             when {
                 message.isUserMessage -> UserChatBubble(
@@ -68,6 +68,6 @@ fun ChatMessageList(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(GradumSpacing.lg))
     }
 }

@@ -55,6 +55,9 @@ class Agent(
 
     private var sessionAborted: Boolean = false
 
+    /** Maximum messages to keep in conversation history sent to LLM. */
+    private val maxHistoryMessages: Int = 20
+
     init {
         activeClient = when (configuration.provider) {
             Provider.OPENAI -> openAiClient
@@ -113,6 +116,8 @@ class Agent(
 
         while (true) {
             if (sessionAborted) break
+
+            truncateHistory()
 
             val result: AgentTurnResult = processLlmTurn(toolSchemas)
 
@@ -377,6 +382,20 @@ class Agent(
         }
 
         conversationHistory.add(toolMessage)
+    }
+
+    /**
+     * Truncates conversation history to [maxHistoryMessages] messages,
+     * keeping the system prompt (index 0) and the most recent messages.
+     * This prevents local LLMs from being overwhelmed by long histories.
+     */
+    private fun truncateHistory() {
+        if (conversationHistory.size <= maxHistoryMessages + 1) return
+        val systemPrompt = conversationHistory.first()
+        val recentMessages = conversationHistory.takeLast(maxHistoryMessages)
+        conversationHistory.clear()
+        conversationHistory.add(systemPrompt)
+        conversationHistory.addAll(recentMessages)
     }
 
     private fun loadRedLineKeywords(): List<String> {

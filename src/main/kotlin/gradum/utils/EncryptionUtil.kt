@@ -54,6 +54,8 @@ private fun getAuthenticationKey(): ByteArray {
 
 private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce: ByteArray): ByteArray {
     val ciphertext = ByteArray(plaintext.size)
+    val hmac: Mac = Mac.getInstance("HmacSHA256")
+    val keySpec = SecretKeySpec(encryptionKey, "HmacSHA256")
 
     for (offset in plaintext.indices step BLOCK_SIZE_BYTES) {
         val counter: Int = offset / BLOCK_SIZE_BYTES
@@ -62,8 +64,7 @@ private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce
             (counter shr 8).toByte(), counter.toByte()
         )
 
-        val hmac: Mac = Mac.getInstance("HmacSHA256")
-        hmac.init(SecretKeySpec(encryptionKey, "HmacSHA256"))
+        hmac.init(keySpec)
         hmac.update(nonce)
         val streamBlock: ByteArray = hmac.doFinal(counterBytes)
 

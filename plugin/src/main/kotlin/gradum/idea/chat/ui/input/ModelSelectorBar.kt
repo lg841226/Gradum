@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-27 23:49:09 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-29 10:05:01 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.icons.GradumIcons
@@ -30,6 +31,8 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 /**
  * Bottom bar showing the current model name and a feedback link.
  */
+// TODO: Consider bundling the 8 parameters (models, selectedModel, pinnedModels, isAutoSelected,
+//       onRefresh, onSelectModel, onTogglePin, onSelectAuto) into a dedicated data class.
 @Composable
 fun ModelSelectorBar(
     models: List<ModelInfo> = emptyList(),
@@ -39,14 +42,15 @@ fun ModelSelectorBar(
     onRefresh: () -> Unit = {},
     onSelectModel: (ModelInfo?) -> Unit = {},
     onTogglePin: (ModelInfo) -> Unit = {},
-    onSelectAuto: () -> Unit = {}
+    onSelectAuto: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     var showModelMenu by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp),
+            .padding(bottom = GradumSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
@@ -68,16 +72,16 @@ fun ModelSelectorBar(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 2.dp),
+                                .padding(vertical = GradumSpacing.xs),
                             horizontalArrangement = Arrangement.Center
-                        ) { Text(message("gradum.model"), fontWeight = FontWeight.Bold) }
+                        ) { Text(text = message("gradum.model"), fontWeight = FontWeight.Bold) }
                     }
                     if (models.isEmpty()) {
                         passiveItem {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 2.dp),
+                                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Text(
@@ -105,7 +109,7 @@ fun ModelSelectorBar(
                                     fontWeight = FontWeight.Medium,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
                                 )
                             }
                             pinnedModels.forEach { pinned ->
@@ -175,7 +179,7 @@ private fun ModelItemContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (model.name.contains("cloud")) {
@@ -184,19 +188,19 @@ private fun ModelItemContent(
                 contentDescription = null,
                 modifier = Modifier.size(14.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
 
         Text(text = formatModelName(model.name))
 
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(GradumSpacing.sm))
 
         if (model.serverName.isNotBlank()) {
             Text(
                 text = model.serverName,
                 color = JewelTheme.globalColors.text.info
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -216,7 +220,7 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = GradumSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -225,7 +229,7 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
             color = JewelTheme.globalColors.text.info
         )
 
-        Spacer(Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(GradumSpacing.md))
 
         IconButton(onClick = onRefresh) {
             Icon(
@@ -243,13 +247,13 @@ private fun ModelAutoItemContent(enabled: Boolean) {
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
     ) {
         Icon(
             key = GradumIcons.Auto,
             contentDescription = message("gradum.auto.model")
         )
-        Spacer(Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(GradumSpacing.md))
         Text(
             text = message("gradum.model.auto"),
             color = if (enabled) JewelTheme.globalColors.text.normal

@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
@@ -26,11 +27,11 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
  */
 @Composable
 fun ChatInputSection(
-    modifier: Modifier = Modifier,
     state: ChatInputState,
     actions: ChatInputActions,
     textState: TextFieldState,
-    onRefreshModels: () -> Unit = {}
+    onRefreshModels: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         ChatInputPanel(
@@ -39,7 +40,7 @@ fun ChatInputSection(
             roundedCornerShape = RoundedCornerShape(6.dp),
             textState = textState
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
         ModelSelectorBar(
             models = state.models,
             selectedModel = state.selectedModel,

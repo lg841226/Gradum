@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-06-26 23:55:00 Changed by gwy
+ * UserChatBubble.kt  2026-06-29 10:04:26 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -14,24 +14,21 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.PopupMenu
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
-import org.jetbrains.jewel.ui.component.separator
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -40,19 +37,22 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * Renders inside a rounded rectangle with a border color background.
  */
 @Composable
-fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}) {
+fun UserChatBubble(
+    message: ChatMessage,
+    onDeleteMessage: () -> Unit = {},
+    onCopyAsContext: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     var isCopied by remember { mutableStateOf(false) }
     var isAttachmentsExpanded by remember { mutableStateOf(true) }
     var showResetPopup by remember { mutableStateOf(false) }
 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(horizontalAlignment = Alignment.End) {
             Box(
                 modifier = Modifier
-                    .background(
-                        color = JewelTheme.globalColors.borders.normal,
-                        RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 0.dp)
-                    )
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 0.dp))
+                    .background(color = JewelTheme.globalColors.borders.normal)
                     .padding(10.dp)
             ) {
                 SelectionContainer {
@@ -60,13 +60,13 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                 }
             }
             if (message.attachments.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier
                         .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = GradumSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
                 ) {
                     Icon(
                         key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
@@ -79,12 +79,12 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                         fontWeight = FontWeight.Medium
                     )
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(GradumSpacing.sm))
                 AnimatedVisibility(visible = isAttachmentsExpanded) {
                     MessageAttachmentList(attachments = message.attachments, modifier = Modifier.fillMaxWidth())
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(GradumSpacing.md))
             Row {
                 MessageCopyButton(
                     message = message,
@@ -93,7 +93,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                     onReset = { isCopied = false },
                     onCopyAsContext = onCopyAsContext
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(GradumSpacing.sm))
                 Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
                     IconButton(onClick = { showResetPopup = true }) {
                         Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
@@ -109,7 +109,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 2.dp),
+                                        .padding(vertical = GradumSpacing.xs),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
@@ -119,7 +119,7 @@ fun UserChatBubble(message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCop
                                     )
                                     Text(text = message("gradum.delete.confirm"))
                                 }
-                                Spacer(Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(GradumSpacing.sm))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Center

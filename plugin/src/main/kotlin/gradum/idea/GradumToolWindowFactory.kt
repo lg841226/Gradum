@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-28 17:25:03 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-29 09:35:28 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -40,7 +40,9 @@ import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
@@ -119,6 +121,10 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         if (!session.modelsLoaded) {
             scope.launch { session.loadModels() }
         }
+        session.startModelPolling(scope)
+    }
+    DisposableEffect(Unit) {
+        onDispose { session.stopModelPolling() }
     }
 
     val callbacks = remember {
@@ -164,7 +170,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                             title = "Select Images"
                             withFileFilter { file -> file.extension?.lowercase() in imageExtensions }
                         }
-                        FileChooser.chooseFiles(descriptor, project, project.baseDir) { files ->
+                        FileChooser.chooseFiles(descriptor, project, project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }) { files ->
                             files.filter { it.extension?.lowercase() in imageExtensions }
                                 .filter { imageFile ->
                                     session.attachedFiles.none { existing -> existing is AttachedFile && existing.file.path == imageFile.path }
@@ -222,7 +228,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.messages.add(ChatMessage(role = "assistant", content = ""))
             session.isSending = true
             session.isWaitingForResponse = true
-            scope.launch { session.sendMessage(userMessage.content) }
+            scope.launch {
+                val contextPath = if (session.isExpanded) {
+                    toolWindow?.project?.let { EditorUtils.getEditorContext(it).currentFile?.path } ?: ""
+                } else ""
+                session.sendMessage(userMessage.content, userMessage.attachments, contextPath)
+            }
         }
     }
 
@@ -241,7 +252,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.hasSentMessage = true
                 session.isSending = true
                 session.isWaitingForResponse = true
-                session.currentJob = scope.launch { session.sendMessage(text) }
+                session.currentJob = scope.launch {
+                    val contextPath = if (session.isExpanded) {
+                        toolWindow?.project?.let { EditorUtils.getEditorContext(it).currentFile?.path } ?: ""
+                    } else ""
+                    session.sendMessage(text, attachments, contextPath)
+                }
             }
             session.textState.edit { delete(0, length) }
             session.attachedFiles.clear()
@@ -253,31 +269,36 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     }
 
     val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
-
     val onOpenInEditor: (String) -> Unit = { target ->
         val project: Project? = toolWindow?.project
         if (project != null && target.isNotBlank()) {
-            try {
-                val absolutePath = if (File(target).isAbsolute) {
-                    target
-                } else {
-                    project.basePath?.let { "$it/$target" } ?: target
-                }
-                val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
-                if (virtualFile != null && virtualFile.exists()) {
-                    FileEditorManager.getInstance(project).openFile(virtualFile, true)
-                } else {
-                    val tempFile = File.createTempFile("gradum_cmd_", ".sh")
-                    tempFile.writeText(target)
-                    tempFile.deleteOnExit()
-                    val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
-                    if (tempVirtual != null) {
-                        FileEditorManager.getInstance(project).openFile(tempVirtual, true)
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val absolutePath = if (File(target).isAbsolute) {
+                        target
+                    } else {
+                        project.basePath?.let { "$it/$target" } ?: target
                     }
+                    val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
+                    if (virtualFile != null && virtualFile.exists()) {
+                        withContext(Dispatchers.Main) {
+                            FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                        }
+                    } else {
+                        val tempFile = File.createTempFile("gradum_cmd_", ".sh")
+                        tempFile.writeText(target)
+                        tempFile.deleteOnExit()
+                        val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+                        if (tempVirtual != null) {
+                            withContext(Dispatchers.Main) {
+                                FileEditorManager.getInstance(project).openFile(tempVirtual, true)
+                            }
+                        }
+                    }
+                } catch (exception: Exception) {
+                    com.intellij.openapi.diagnostic.Logger.getInstance(GradumToolWindowFactory::class.java)
+                        .warn("Failed to open target in editor: $target", exception)
                 }
-            } catch (exception: Exception) {
-                com.intellij.openapi.diagnostic.Logger.getInstance(GradumToolWindowFactory::class.java)
-                    .warn("Failed to open target in editor: $target", exception)
             }
         }
     }

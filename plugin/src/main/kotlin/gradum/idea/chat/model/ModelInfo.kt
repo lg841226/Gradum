@@ -12,5 +12,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ModelInfo(
     val name: String,
-    val serverName: String = ""
+    val serverName: String = "",
+    val provider: String = "",
+    val server: String = ""
 )

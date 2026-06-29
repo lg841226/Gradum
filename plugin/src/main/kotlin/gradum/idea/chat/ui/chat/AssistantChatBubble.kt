@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-06-28 18:41:54 Changed by gwy
+ * AssistantChatBubble.kt  2026-06-29 18:05:51 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -20,64 +20,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.model.ChatEvent
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.RenderBlock
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private const val FADE_IN_MS: Int = 600
 private const val AUTO_COLLAPSE_DELAY_MS: Long = 1000L
-private const val BLOCK_GAP_DP: Int = 12
-
-/** Pre-aggregated render blocks for stable animation keys. */
-private sealed class RenderBlock {
-    data class Thinking(val content: String) : RenderBlock()
-    data class ToolCall(val alias: String, val success: Boolean, val content: ToolCallContent) : RenderBlock()
-    data class Response(val content: String) : RenderBlock()
-}
-
-/** Coalesces consecutive events of the same type into stable render blocks. */
-private fun aggregateRenderBlocks(events: List<ChatEvent>): List<RenderBlock> = buildList {
-    var index = 0
-    while (index < events.size) {
-        when (val event = events[index]) {
-            is ChatEvent.Thinking -> {
-                val content = StringBuilder(event.content)
-                index++
-                while (index < events.size && events[index] is ChatEvent.Thinking) {
-                    content.append((events[index] as ChatEvent.Thinking).content)
-                    index++
-                }
-                add(RenderBlock.Thinking(content.toString()))
-            }
-
-            is ChatEvent.ToolCall -> {
-                val content = ToolCallContent.fromArguments(event.info.alias, event.info.arguments, event.info.result)
-                add(RenderBlock.ToolCall(event.info.alias, event.info.success, content))
-                index++
-            }
-
-            is ChatEvent.Error -> {
-                index++
-            }
-
-            is ChatEvent.Response -> {
-                val content = StringBuilder(event.content)
-                index++
-                while (index < events.size && events[index] is ChatEvent.Response) {
-                    content.append((events[index] as ChatEvent.Response).content)
-                    index++
-                }
-                add(RenderBlock.Response(content.toString()))
-            }
-        }
-    }
-}
 
 /**
  * Left-aligned assistant message bubble.
@@ -92,13 +46,13 @@ fun AssistantChatBubble(
     actionsEnabled: Boolean = true,
     onRetry: () -> Unit = {},
     onUrlClick: (String) -> Unit = {},
-    onOpenInEditor: (String) -> Unit = {}
+    onOpenInEditor: (String) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
-    val events = message.events
-    val hasContent = events.any { it is ChatEvent.Response }
-    val renderBlocks = remember(events) { aggregateRenderBlocks(events) }
+    val renderBlocks = message.renderBlocks
+    val hasContent = message.hasResponse
 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Column(horizontalAlignment = Alignment.Start) {
             renderBlocks.forEachIndexed { index, block ->
                 key(block.key(index)) {
@@ -107,13 +61,13 @@ fun AssistantChatBubble(
                         is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor)
                         is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
                     }
-                    Spacer(Modifier.height(BLOCK_GAP_DP.dp))
+                    Spacer(modifier = Modifier.height(GradumSpacing.lg))
                 }
             }
 
             if (isLoading) LoadingIndicatorRow()
 
-            Spacer(Modifier.height(BLOCK_GAP_DP.dp))
+            Spacer(modifier = Modifier.height(GradumSpacing.lg))
             MessageActionsRow(
                 message = message,
                 isLoading = isLoading,
@@ -184,38 +138,46 @@ private fun ToolCallBlock(
         )
     }
     val animModifier = Modifier.graphicsLayer { this.alpha = alpha.value }
-    when (block.content) {
+    when (val content = ToolCallContent.fromArguments(block.alias, block.arguments, block.result)) {
         is ToolCallContent.Ran -> RanToolCallIndicator(
             alias = block.alias,
-            reason = block.content.reason,
-            command = block.content.command,
+            reason = content.reason,
+            command = content.command,
             success = block.success,
             modifier = animModifier,
+            errorMessage = block.errorMessage,
+            errorDetail = block.errorDetail,
             onOpenInEditor = onOpenInEditor
         )
 
         is ToolCallContent.Edited -> FileToolCallIndicator(
             alias = block.alias,
-            path = block.content.path,
-            linesAdded = block.content.linesAdded,
-            linesRemoved = block.content.linesRemoved,
+            path = content.path,
+            linesAdded = content.linesAdded,
+            linesRemoved = content.linesRemoved,
             success = block.success,
             modifier = animModifier,
+            errorMessage = block.errorMessage,
+            errorDetail = block.errorDetail,
             onOpenInEditor = onOpenInEditor
         )
 
         is ToolCallContent.Read -> FileToolCallIndicator(
             alias = block.alias,
-            path = block.content.path,
+            path = content.path,
             success = block.success,
             modifier = animModifier,
+            errorMessage = block.errorMessage,
+            errorDetail = block.errorDetail,
             onOpenInEditor = onOpenInEditor
         )
 
         else -> ToolCallIndicator(
             alias = block.alias,
             success = block.success,
-            modifier = animModifier
+            modifier = animModifier,
+            errorMessage = block.errorMessage,
+            errorDetail = block.errorDetail
         )
     }
 }
@@ -224,7 +186,7 @@ private fun ToolCallBlock(
 private fun LoadingIndicatorRow() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         SweepLightText(
             text = message("gradum.generating"),
             modifier = Modifier
@@ -250,7 +212,7 @@ private fun MessageActionsRow(
             onCopy = { isCopied = true },
             onReset = { isCopied = false }
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(GradumSpacing.sm))
         Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
             IconButton(
                 onClick = onRetry,
@@ -259,7 +221,7 @@ private fun MessageActionsRow(
                 Icon(key = AllIconsKeys.Actions.Refresh, contentDescription = message("gradum.reset"))
             }
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(GradumSpacing.sm))
         IconButton(
             onClick = { isSelectedLike = !isSelectedLike },
             enabled = hasContent

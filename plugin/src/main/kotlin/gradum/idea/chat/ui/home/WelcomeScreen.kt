@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-06-27 11:58:11 Changed by gwy
+ * WelcomeScreen.kt  2026-06-29 10:06:22 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.input.ChatInputSection
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.delay
@@ -73,14 +74,14 @@ fun WelcomeScreen(
                         contentDescription = null,
                         modifier = Modifier.size(36.dp)
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(GradumSpacing.lg))
                     Text(
                         text = message("gradum.user.name"),
                         style = JewelTheme.typography.h2TextStyle,
                         fontWeight = FontWeight.Medium
                     )
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(GradumSpacing.xl))
                 TypewriterText(
                     text = welcomeText,
                     style = welcomeStyle,
@@ -88,7 +89,7 @@ fun WelcomeScreen(
                     cursorColor = JewelTheme.globalColors.outlines.focused
                 )
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             ChatInputSection(
                 modifier = Modifier.widthIn(max = 600.dp),
                 state = inputState,
@@ -96,7 +97,7 @@ fun WelcomeScreen(
                 textState = textState,
                 onRefreshModels = onRefreshModels
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             QuickStartSection(
                 textState = textState,
                 suggestionVariants = suggestionVariants,
@@ -111,7 +112,7 @@ fun WelcomeScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
             Text(
                 text = message("gradum.disclaimer"),
                 style = JewelTheme.typography.small,
@@ -133,7 +134,7 @@ private fun TypewriterText(
     cursorBlinkDurationMs: Long = 300,
     cursorColor: Color = Color.Unspecified
 ) {
-    var visibleCharacterCount by remember { mutableIntStateOf(0) }
+    var visibleCharacterCount by remember { mutableStateOf(0) }
     var isCursorVisible by remember { mutableStateOf(true) }
 
     LaunchedEffect(text, play) {
@@ -172,17 +173,14 @@ private fun TypewriterText(
 
         play && visibleCharacterCount < text.length -> {
             buildAnnotatedString {
-                if (visibleCharacterCount > 0) {
+                if (visibleCharacterCount > 0)
                     append(text.take(visibleCharacterCount))
-                }
-                if (isCursorVisible) {
+                if (isCursorVisible)
                     withStyle(SpanStyle(color = cursorColor)) { append("_") }
-                }
             }
         }
 
         else -> AnnotatedString(text.take(visibleCharacterCount))
     }
-
     Text(text = displayText, style = style, modifier = modifier)
 }
