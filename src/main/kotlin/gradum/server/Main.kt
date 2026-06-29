@@ -7,13 +7,25 @@
 
 package gradum.server
 
+import gradum.ProjectPaths
 import org.slf4j.LoggerFactory
 import org.slf4j.Logger
+import java.nio.file.Path
+import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("GradumMain")
 
 fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
+
+    // Resolve --project-root before any skill touches ProjectPaths so that
+    // log directories, context storage, and run_cmd cwd all follow the
+    // override. When omitted we leave the default (process CWD) in place.
+    parsedArguments.projectRootPath?.let { rawPath: String ->
+        val resolvedRoot: Path = Paths.get(rawPath).toAbsolutePath().normalize()
+        ProjectPaths.setProjectRoot(resolvedRoot)
+        logger.info("Project root overridden to: $resolvedRoot")
+    }
 
     val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
         val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
@@ -29,11 +41,8 @@ fun main(arguments: Array<String>) {
     val serverConfiguration = ServerConfiguration(
         hostAddress = parsedArguments.hostAddress,
         portNumber = resolvedPort,
-        debugMode = parsedArguments.debugMode,
-        defaultModel = parsedArguments.modelName,
-        enableThinking = parsedArguments.enableThinking,
         providerName = parsedArguments.providerName,
-        serverBaseUrl = parsedArguments.baseUrl,
+        projectRootPath = parsedArguments.projectRootPath,
     )
 
     val server: GradumServer = createServerInstance(serverConfiguration)
@@ -51,11 +60,8 @@ private data class ServerArguments(
     val portNumber: Int,
     val autoDetectPort: Boolean,
     val portRange: String,
-    val debugMode: Boolean,
-    val modelName: String?,
-    val enableThinking: Boolean,
     val providerName: String,
-    val baseUrl: String?
+    val projectRootPath: String?,
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
@@ -64,10 +70,7 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
     var providerName = "ollama"
     var portNumber = 8765
     var autoDetectPort = false
-    var debugMode = false
-    var enableThinking = false
-    var modelName: String? = null
-    var baseUrl: String? = null
+    var projectRootPath: String? = null
 
     val iterator: Iterator<String> = arguments.iterator()
     while (iterator.hasNext()) {
@@ -76,11 +79,8 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
             "--port" -> portNumber = iterator.next().toIntOrNull() ?: portNumber
             "--auto-port" -> autoDetectPort = true
             "--port-range" -> portRange = iterator.next()
-            "--debug" -> debugMode = true
-            "--model" -> modelName = iterator.next()
-            "--think" -> enableThinking = true
             "--provider" -> providerName = iterator.next()
-            "--base-url" -> baseUrl = iterator.next()
+            "--project-root" -> projectRootPath = iterator.next()
             "--help" -> {
                 printUsage()
             }
@@ -92,11 +92,8 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
         portNumber = portNumber,
         autoDetectPort = autoDetectPort,
         portRange = portRange,
-        debugMode = debugMode,
-        modelName = modelName,
-        enableThinking = enableThinking,
         providerName = providerName,
-        baseUrl = baseUrl
+        projectRootPath = projectRootPath,
     )
 }
 
@@ -110,10 +107,9 @@ private fun printUsage() {
     println("  --port <port>           Port to bind (default: 8765)")
     println("  --auto-port             Auto-find available port")
     println("  --port-range <range>    Port range for auto-port (default: 8765-8775)")
-    println("  --debug                 Enable debug mode")
-    println("  --model <model>         Default model name")
-    println("  --think                 Enable thinking mode")
     println("  --provider <provider>   LLM provider (ollama/openai)")
-    println("  --base-url <url>        LLM server URL")
+    println("  --project-root <path>   Override the project root (defaults to CWD).")
+    println("                          Use this to run the server from a Gradle Run Config")
+    println("                          while operating on a different target project.")
     println("  --help                  Show this help message")
 }

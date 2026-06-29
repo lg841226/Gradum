@@ -126,7 +126,7 @@ class RunCommandSkill : Skill() {
     @DangerousOperation
     private fun executeDetached(commandText: String): SkillResult {
         return try {
-            val logDirectory: Path = ProjectPaths.OUTPUT_DIRECTORY.resolve("run_cmd")
+            val logDirectory: Path = ProjectPaths.outputDirectory().resolve("run_cmd")
             logDirectory.toFile().mkdirs()
             val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
 

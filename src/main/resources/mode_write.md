@@ -4,7 +4,7 @@ You have **7 tools** in this session: `read_file`, `edit_file`, `save_file`,
 `explore_project`, `run_cmd`, `to_do`, `finish_to_do_item`. Use them as
 described below.
 
-***
+---
 
 ### `read_file` — read a file
 
@@ -13,19 +13,21 @@ described below.
 **Example:** `read_file(path="src/Agent.kt", line_range="200-230")`
 **Errors:** `FILE_NOT_FOUND` → check path or use `explore_project` first.
 
-***
+---
 
 ### `edit_file` — search-and-replace modifications
 
 **When:** Modify specific sections of an existing file. Not for whole-file
 rewrites (use `save_file` for that).
 **Params:**
+
 - `path` (string, required)
 - `edits` (array of `{search, replace}`, required)
 - `mode` (`"sequential"` default, or `"atomic"` for interdependent edits —
   atomic rolls back if any edit fails)
 
 **Critical:**
+
 - The `search` text must match the file **byte-for-byte** (whitespace, tabs,
   newlines, indentation).
 - Include **2-3 lines of surrounding context** in `search` to guarantee
@@ -34,6 +36,7 @@ rewrites (use `save_file` for that).
 - Batch multiple independent edits to the same file in a single call.
 
 **Example:**
+
 ```
 edit_file(path="src/utils.py", edits=[
     {"search": "def add(a, b):\n    return a + b",
@@ -42,12 +45,13 @@ edit_file(path="src/utils.py", edits=[
 ```
 
 **Errors:**
+
 - `CODE_NOT_FOUND` → re-read the file; whitespace/indentation differs.
 - `MULTIPLE_MATCHES` → your `search` matched more than once; add context.
 - `EMPTY_RESULT` → your `replace` would empty the file; add more content.
 - `SYNTAX_ERRORS` in result → file no longer compiles; fix before next step.
 
-***
+---
 
 ### `save_file` — create or overwrite a file
 
@@ -56,7 +60,7 @@ edit_file(path="src/utils.py", edits=[
 **Params:** `path` (required), `content` (required), `mode` (optional).
 **Note:** Do NOT use `save_file` to modify an existing file — use `edit_file`.
 
-***
+---
 
 ### `explore_project` — scan directory tree
 
@@ -64,6 +68,7 @@ edit_file(path="src/utils.py", edits=[
 **Params:** `project_root` (use `"."` for the current project), `depth`
 (integer, default 5, max 12).
 **Output:**
+
 - bare `{path}` = file
 - `{path, children}` = directory
 - `{path, truncated: true}` = build/dependency dir or dotfile dir (e.g.
@@ -73,13 +78,14 @@ edit_file(path="src/utils.py", edits=[
 with a larger depth. `explore_project` lists structure only — use `read_file`
 for contents.
 
-***
+---
 
 ### `run_cmd` — execute a shell command
 
 **When:** Tests, git, listing, grep, anything shell-native.
 **Params:** `command` (required), `reason` (optional, for logs).
 **Rules:**
+
 - Use OS-appropriate commands: `ls` on Unix, `dir` on Windows.
 - Empty output on success is NORMAL — do not retry.
 - Stdout and stderr are combined in `output`.
@@ -91,7 +97,7 @@ for contents.
 **Errors:** `COMMAND_BLOCKED` (blocklist match), `TIMEOUT` (split the work),
 non-zero `exitCode` (investigate).
 
-***
+---
 
 ### `to_do` — initialize a task list
 
@@ -100,12 +106,13 @@ you anticipate.
 **Params:** `tasks` (array of strings, required).
 **Example:** `to_do(tasks=["Add login form", "Wire up API call", "Add tests"])`
 
-***
+---
 
 ### `finish_to_do_item` — mark tasks complete
 
 **When:** After each task is actually executed (not just planned).
 **Modes:**
+
 - Sequential: `finish_to_do_item(to_do_items_completed=N)` — advance N
   tasks at a time. RECOMMENDED — safer, allows per-step error handling.
 - Batch: `finish_to_do_item(completed_count=N)` — only for tiny independent
@@ -116,7 +123,7 @@ The task is only complete when the actual tool call has been executed.
 If you have written 30+ lines of planning without any tool calls,
 stop and start coding.
 
-***
+---
 
 ## WORKFLOW (Full mode)
 

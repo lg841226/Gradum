@@ -39,7 +39,7 @@ class Agent(
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
     private var activeClient: LlmClient
 
-    private val contextManager: ContextManager = ContextManager(ProjectPaths.OUTPUT_DIRECTORY)
+    private val contextManager: ContextManager = ContextManager(ProjectPaths.outputDirectory())
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
     private val repeatedResponseTracker: MutableList<String> = mutableListOf()
@@ -215,12 +215,7 @@ class Agent(
         val promptContent: String = try {
             Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
                 stream.reader(Charsets.UTF_8).readText()
-            } ?: Agent::class.java.getResourceAsStream("/system_prompt.md")?.use { stream ->
-                // Fallback to the universal prompt if the variant-specific file
-                // is missing on the classpath. Lets us ship a new variant
-                // without breaking older builds.
-                stream.reader(Charsets.UTF_8).readText()
-            } ?: throw IllegalStateException("No system prompt found on classpath")
+            } ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
         } catch (exception: Exception) {
             logger.warn("Could not load system prompt, reason: ${exception.message}")
             "You are a helpful AI assistant. You can't call any tool and report it"
@@ -349,6 +344,16 @@ class Agent(
                 convertedArguments[key] = converted
         }
 
+        // Inject the server-side project root into every tool call so the
+        // file/process skills don't have to rely on the IDE sending it
+        // over HTTP. The root is whatever Main.main() resolved from
+        // --project-root (or CWD as fallback). Plugin overrides are
+        // intentionally NOT supported: the server picks the target
+        // project at startup, full stop.
+        if (!convertedArguments.containsKey("projectRoot")) {
+            convertedArguments["projectRoot"] = ProjectPaths.getProjectRoot().toString()
+        }
+
         if (checkToolRunaway(functionName, convertedArguments)) {
             emitRevoked(
                 "tool_runaway", mapOf(
@@ -359,6 +364,35 @@ class Agent(
             )
             abortSession(sessionStartTimeMillis)
             return
+        }
+
+        // Read-only mode guard: the schema whitelist in SkillRegistry hides
+        // write tools, but run_cmd is still in the tool list and the model
+        // could route a write through it ("touch foo", "rm bar", "git
+        // commit"). Re-classify the command against the active toolMode
+        // before it reaches RunCommandSkill so the agent loop sees a real
+        // COMMAND_BLOCKED instead of a successful mutation.
+        if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
+            val commandText: String = convertedArguments["command"] as? String ?: ""
+            val verdict: gradum.utils.CommandVerdict =
+                gradum.utils.classifyCommand(commandText, configuration.toolMode)
+            if (verdict is gradum.utils.CommandVerdict.Blocked) {
+                emitToolResult(
+                    processedCall,
+                    functionName,
+                    convertedArguments,
+                    skillInstance = null,
+                    executionResult = mapOf(
+                        "success" to false,
+                        "error" to mapOf(
+                            "code" to ErrorCode.COMMAND_BLOCKED.name,
+                            "message" to verdict.description,
+                            "rule" to verdict.ruleName,
+                        ),
+                    ),
+                )
+                return
+            }
         }
 
         val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
@@ -377,8 +411,23 @@ class Agent(
             }
         }
 
-        val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
+        emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+    }
 
+    /**
+     * Emit the post-execution events for a tool call (`tool_call`, optional
+     * `error`) and append the result to [conversationHistory] so the LLM
+     * sees it on the next turn. Shared by the normal skill path and the
+     * Read-only guard so both produce an identical agent-loop trace.
+     */
+    private fun emitToolResult(
+        processedCall: ProcessedToolCall,
+        functionName: String,
+        convertedArguments: Map<String, Any>,
+        skillInstance: Skill?,
+        executionResult: Map<String, Any>,
+    ) {
+        val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
         val toolAlias: String = skillInstance?.alias ?: functionName
 

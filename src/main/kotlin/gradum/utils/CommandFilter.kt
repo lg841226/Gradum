@@ -7,6 +7,7 @@
 
 package gradum.utils
 
+import gradum.ToolMode
 import java.nio.file.Paths
 
 sealed class CommandVerdict {
@@ -39,7 +40,52 @@ private val safePathPrefixes: List<String> = listOf("/tmp")
 
 private val exactProtectedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
 
-fun classifyCommand(commandText: String): CommandVerdict {
+/**
+ * Executables that are safe to invoke when the active [ToolMode] is
+ * [ToolMode.READ_ONLY]. Any command whose head token resolves to a name
+ * outside this whitelist is rejected before it reaches the shell.
+ *
+ * Anything that can mutate the filesystem, network, or process state
+ * is deliberately absent. `git` is excluded too — its write subcommands
+ * (commit, push, checkout, reset, clean, stash) are easy to reach and
+ * hard to enumerate exhaustively, so a Read-only session skips it
+ * entirely rather than trying to filter subcommands.
+ */
+private val readOnlyAllowedExecutables: Set<String> = setOf(
+    // directory listing
+    "ls", "tree", "pwd", "dir",
+    // file content
+    "cat", "head", "tail", "less", "more", "bat",
+    // search / text
+    "grep", "rg", "ag", "ack", "find", "wc",
+    "sort", "uniq", "cut", "tr", "awk", "diff", "cmp", "xargs",
+    // file metadata
+    "file", "stat", "du", "df", "readlink", "realpath",
+    // system info
+    "uname", "whoami", "date", "which", "whereis", "type",
+    "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
+    // pure output (no file write)
+    "echo", "printf", "true", "false", "test", "yes",
+)
+
+/**
+ * Classify a shell command. Returns [CommandVerdict.Safe] when the
+ * command may run, or [CommandVerdict.Blocked] with the reason.
+ *
+ * Two layers of filtering run, in order:
+ * 1. **Always-on danger filter** — blocklists dangerous executables
+ *    (`sudo`, `mkfs`, etc.) and operations against protected paths.
+ *    Independent of [toolMode] so it always applies.
+ * 2. **Read-only whitelist** — when [toolMode] is [ToolMode.READ_ONLY],
+ *    the head executable must appear in [readOnlyAllowedExecutables].
+ *    Any other executable is blocked so the model cannot reach
+ *    `rm`, `mv`, `touch`, `mkdir`, `git commit`, `>`, etc. through
+ *    `run_cmd` even though `run_cmd` is in the tool list.
+ *
+ * Defaults to [ToolMode.WRITE] for callers that don't have a toolMode
+ * in scope (the existing dangerous-only path inside RunCommandSkill).
+ */
+fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.WRITE): CommandVerdict {
     if (commandText.isBlank()) return CommandVerdict.Safe
 
     val tokens: List<String> = commandText.trim().split("\\s+".toRegex())
@@ -51,12 +97,61 @@ fun classifyCommand(commandText: String): CommandVerdict {
         return CommandVerdict.Blocked("executable:$executableName", "'$executableName' is not allowed")
     }
 
-    return when (executableName) {
+    val baseVerdict: CommandVerdict = when (executableName) {
         "dd" -> classifyDeviceWrite(tokens)
         "rm" -> classifyRemoveOperation(tokens)
         "chmod" -> classifyChmodOperation(tokens)
         else -> CommandVerdict.Safe
     }
+    if (baseVerdict is CommandVerdict.Blocked) return baseVerdict
+
+    if (toolMode == ToolMode.READ_ONLY) {
+        // Walk every subcommand separated by `|`, `||`, `&&`, `;` so a
+        // chained pipeline can't sneak a write past the head-only check
+        // above (e.g. `cat file | tee out`, `ls && touch foo`).
+        for (subcommand: String in commandText.split(SHELL_OPERATOR_PATTERN)) {
+            val trimmed: String = subcommand.trim()
+            if (trimmed.isEmpty()) continue
+            val subTokens: List<String> = trimmed.split("\\s+".toRegex())
+            val subExe: String = Paths.get(subTokens[0]).fileName.toString()
+            if (subExe !in readOnlyAllowedExecutables) {
+                return CommandVerdict.Blocked(
+                    "readonly:executable:$subExe",
+                    "Read-only mode: '$subExe' is not in the read-only command set"
+                )
+            }
+        }
+        // Catch shell-side write attempts that would slip past the
+        // executable whitelist: `echo hi > out.txt`, `cat in | tee out`,
+        // `ls > listing`. Only flag fd-to-file redirects; fd-to-fd
+        // redirections like `2>&1` are still allowed since they don't
+        // touch the filesystem.
+        if (hasShellFileRedirect(commandText)) {
+            return CommandVerdict.Blocked(
+                "readonly:shell-redirect",
+                "Read-only mode: output redirection is not allowed"
+            )
+        }
+    }
+
+    return CommandVerdict.Safe
+}
+
+/** Pipeline / chain operators that split a shell command into subcommands. */
+private val SHELL_OPERATOR_PATTERN: Regex = Regex("""[|;&]""")
+
+/**
+ * True when [commandText] contains an output redirect to a file
+ * (`> file`, `>> file`, `<> file`, `>| file`). Does NOT match fd-only
+ * redirections (`>&`, `&>`, `2>&1`) so common read-only idioms like
+ * `cmd 2>&1` still pass.
+ */
+private fun hasShellFileRedirect(commandText: String): Boolean {
+    // We look for ">" or ">>" that is NOT preceded by a digit (so `2>`
+    // for stderr is not flagged) and NOT followed by `&` or a digit
+    // (so `>&` and `>2` are not flagged). Trailing `>` with no
+    // following token also matches (e.g. `echo hi >`).
+    return Regex("""(?<![0-9&])>>?(?![0-9&])""").containsMatchIn(commandText)
 }
 
 private fun classifyDeviceWrite(commandTokens: List<String>): CommandVerdict {

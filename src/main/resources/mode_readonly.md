@@ -23,6 +23,7 @@ about its contents.
 **Params:** `project_root` (use `"."` for the current project), `depth`
 (integer, default 5, max 12).
 **Output:**
+
 - bare `{path}` = file
 - `{path, children}` = directory
 - `{path, truncated: true}` = build/dependency dir or dotfile dir (e.g.
@@ -40,6 +41,7 @@ for contents.
 without writing.
 **Params:** `command` (required), `reason` (optional, for logs).
 **Rules:**
+
 - Use OS-appropriate commands: `ls` on Unix, `dir` on Windows.
 - Empty output on success is NORMAL — do not retry.
 - Runs in CWD = project root. Use relative paths.
@@ -55,7 +57,7 @@ non-zero `exitCode` (investigate).
 
 ## WORKFLOW (Read-only mode)
 
-- Single question, single answer. No multi-step task list.
+- Single question, single answer. No multistep task list.
 - For simple inspection, run the relevant tool then report.
 - For a complex investigation, reason briefly in your reply, then call the
   tools one at a time as you go.
