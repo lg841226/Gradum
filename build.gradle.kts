@@ -27,6 +27,17 @@ ktor {
     }
 }
 
+/**
+ * Keep the `run` task usable in `--continuous` mode: hand the JVM our
+ * stdin so SIGTERM (from Gradle's file-watch restart) propagates to the
+ * Ktor server's shutdown hook, and swallow the resulting non-zero exit
+ * so Gradle doesn't treat a clean stop as a failure.
+ */
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
+    setIgnoreExitValue(true)
+}
+
 repositories {
     mavenCentral()
 }
