@@ -94,7 +94,7 @@ fun ModelSelectorBar(
                         passiveItem { RefreshButtonItem(onRefresh) }
                     } else {
                         selectableItem(
-                            selected = false,
+                            selected = isAutoSelected,
                             onClick = {
                                 onSelectAuto()
                                 showModelMenu = false
@@ -140,7 +140,8 @@ fun ModelSelectorBar(
                             }
                         }.forEach { model ->
                             selectableItem(
-                                selected = false,
+                                selected = selectedModel?.name == model.name
+                                        && selectedModel?.serverName == model.serverName,
                                 onClick = {
                                     onSelectModel(model)
                                     showModelMenu = false

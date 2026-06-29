@@ -23,7 +23,7 @@ class TodoManager {
     private var taskList: List<String>? = null
     private var currentTaskIndex: Int = 0
 
-    fun restTaskList() {
+    fun resetTaskList() {
         taskList = null; currentTaskIndex = 0
     }
 
