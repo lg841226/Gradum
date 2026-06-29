@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-29 09:35:28 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-30 01:00:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -83,11 +83,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
             }
         }
 
-        val newChatAction = object : AnAction(
-            "New Chat",
-            "Start a new chat session",
-            AllIcons.General.Add
-        ) {
+        val newChatAction = object : AnAction("New Chat", "Start a new chat session", AllIcons.General.Add) {
             override fun actionPerformed(event: AnActionEvent) {
                 val project: Project = event.project ?: return
                 val toolWindow: ToolWindow = ToolWindowManager.getInstance(project).getToolWindow("Gradum") ?: return
@@ -111,16 +107,15 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         val content = toolWindow?.contentManager?.contents?.firstOrNull()
         if (content != null) {
             val base = if (session.hasSentMessage) message("gradum.toolwindow.newchat")
-                       else message("gradum.toolwindow.welcome")
+            else message("gradum.toolwindow.welcome")
             content.displayName = if (session.isSending) "$base - ${message("gradum.toolwindow.running")}" else base
         }
     }
 
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
-        if (!session.modelsLoaded) {
+        if (!session.modelsLoaded)
             scope.launch { session.loadModels() }
-        }
         session.startModelPolling(scope)
     }
     DisposableEffect(Unit) {
@@ -130,76 +125,79 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     val callbacks = remember {
         object {
             val onFocusChange: (Boolean) -> Unit = { session.isFocused = it }
+            val onToggleExpanded: () -> Unit = { session.isExpanded = !session.isExpanded }
+
             val onToggleMenu: () -> Unit = { session.isMenuVisible = !session.isMenuVisible }
+            val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
             val onSelectPermission: (String) -> Unit = { permission ->
                 session.selectedPermission = permission
                 session.toolMode = when (permission) {
-                    message("gradum.readonly") -> "read_only"
-                    message("gradum.single_step") -> "single_step"
+                    message("gradum.read") -> "read_only"
+                    message("gradum.edit") -> "single_step"
                     else -> "write"
                 }
                 session.isMenuVisible = false
             }
-            val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
-            val onToggleExpanded: () -> Unit = { session.isExpanded = !session.isExpanded }
-            val onClearText: () -> Unit = { session.textState.edit { delete(0, length) } }
+
             val onToggleAddMenu: () -> Unit = { session.showAddMenu = !session.showAddMenu }
             val onDismissAddMenu: () -> Unit = { session.showAddMenu = false }
+
             val onSelectFile: (VirtualFile) -> Unit = { file ->
                 if (session.attachedFiles.size < MAX_ATTACHMENTS &&
                     session.attachedFiles.none { it is AttachedFile && it.file.path == file.path }
                 ) {
-                    val iconKey = if (file.isDirectory) {
+                    val iconKey = if (file.isDirectory)
                         AllIconsKeys.Actions.ProjectDirectory
-                    } else {
+                    else
                         getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
-                    }
                     session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
                 }
             }
+
             val onRemoveFile: (AttachedContext) -> Unit = { attachedContext ->
                 when (attachedContext) {
                     is AttachedFile -> session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }
                     is AttachedText -> session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }
                 }
             }
-            val onUploadImage: () -> Unit = {
-                if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-                    val project: Project? = toolWindow?.project
-                    if (project != null) {
-                        val remaining: Int = MAX_ATTACHMENTS - session.attachedFiles.size
-                        val imageExtensions: Set<String> = setOf(
-                            "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff"
-                        )
-                        val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
-                            title = "Select Images"
-                            withFileFilter { file -> file.extension?.lowercase() in imageExtensions }
+
+            val onUploadImage: () -> Unit = Unit@{
+                if (session.attachedFiles.size >= MAX_ATTACHMENTS) return@Unit
+                val project = toolWindow?.project ?: return@Unit
+                val remaining = MAX_ATTACHMENTS - session.attachedFiles.size
+                val imageExtensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff")
+
+                val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
+                    withFileFilter { file -> file.extension?.lowercase() in imageExtensions }
+                    title = "Select Images"
+                }
+                val baseDir = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+                FileChooser.chooseFiles(descriptor, project, baseDir) { files ->
+                    files.filter { it.extension?.lowercase() in imageExtensions }
+                        .filter { imageFile ->
+                            session.attachedFiles.none { existing -> existing is AttachedFile && existing.file.path == imageFile.path }
                         }
-                        FileChooser.chooseFiles(descriptor, project, project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }) { files ->
-                            files.filter { it.extension?.lowercase() in imageExtensions }
-                                .filter { imageFile ->
-                                    session.attachedFiles.none { existing -> existing is AttachedFile && existing.file.path == imageFile.path }
-                                }
-                                .take(remaining)
-                                .forEach { file ->
-                                    session.attachedFiles.add(
-                                        AttachedFile(
-                                            file = file,
-                                            iconKey = getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
-                                        )
-                                    )
-                                }
+                        .take(remaining)
+                        .forEach { file ->
+                            session.attachedFiles.add(
+                                AttachedFile(
+                                    file = file,
+                                    iconKey = getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
+                                )
+                            )
                         }
-                    }
                 }
             }
+
             val onCopyAsContext: (String) -> Unit = { text ->
                 if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-                    val preview: String = if (text.length > 30) text.take(30) + "..." else text
+                    val preview = if (text.length > 30) text.take(30) + "..." else text
                     session.attachedFiles.add(AttachedText(content = text, preview = preview))
                 }
             }
             val onPasteAsContext: (String) -> Unit = onCopyAsContext
+
+            val onClearText: () -> Unit = { session.textState.edit { delete(0, length) } }
             val onRemovePending: (PendingMessage) -> Unit = { pending -> session.pendingMessages.remove(pending) }
         }
     }
@@ -231,14 +229,31 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             val editorContext = project?.let { EditorUtils.getEditorContext(it) }
             val focusedPath = editorContext?.currentFile?.path ?: ""
             val openFiles = editorContext?.allOpenFiles ?: emptyList()
-            val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(userMessage.content, focusedPath, openFiles)
+            val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(
+                userMessage.content,
+                focusedPath, openFiles
+            )
             val displayName = session.selectedModel?.name ?: "Auto"
             val providerName = session.selectedModel?.provider ?: ""
             val serverLabel = session.selectedModel?.serverName ?: ""
             session.messages.removeAt(assistantMessageIndex)
             session.messages.removeAt(userMessageIndex)
-            session.messages.add(ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments))
-            session.messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
+            session.messages.add(
+                ChatMessage(
+                    role = "user",
+                    content = userMessage.content,
+                    attachments = userMessage.attachments
+                )
+            )
+            session.messages.add(
+                ChatMessage(
+                    role = "assistant",
+                    content = "",
+                    modelName = displayName,
+                    provider = providerName,
+                    serverName = serverLabel
+                )
+            )
             session.isSending = true
             session.isWaitingForResponse = true
             scope.launch {
@@ -261,7 +276,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(rawText, focusedPath, openFiles)
             if (session.isSending) {
                 if (!session.isPendingQueueFull) {
-                    session.pendingMessages.add(PendingMessage(content = rawText, attachments = session.attachedFiles.toList()))
+                    session.pendingMessages.add(
+                        PendingMessage(
+                            content = rawText,
+                            attachments = session.attachedFiles.toList()
+                        )
+                    )
                 }
             } else {
                 val attachments = session.attachedFiles.toList()
@@ -269,7 +289,15 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 val providerName = session.selectedModel?.provider ?: ""
                 val serverLabel = session.selectedModel?.serverName ?: ""
                 session.messages.add(ChatMessage(role = "user", content = rawText, attachments = attachments))
-                session.messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
+                session.messages.add(
+                    ChatMessage(
+                        role = "assistant",
+                        content = "",
+                        modelName = displayName,
+                        provider = providerName,
+                        serverName = serverLabel
+                    )
+                )
                 session.hasSentMessage = true
                 session.isSending = true
                 session.isWaitingForResponse = true
@@ -285,9 +313,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         }
     }
 
-    val onStop: () -> Unit = {
-        scope.launch { session.stopSession() }
-    }
+    val onStop: () -> Unit = { scope.launch { session.stopSession() } }
 
     val onRefreshModels: () -> Unit = { scope.launch { session.loadModels() } }
     val onOpenInEditor: (String) -> Unit = { target ->
@@ -309,7 +335,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                         val tempFile = File.createTempFile("gradum_cmd_", ".sh")
                         tempFile.writeText(target)
                         tempFile.deleteOnExit()
-                        val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+                        val tempVirtual: VirtualFile? =
+                            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
                         if (tempVirtual != null) {
                             withContext(Dispatchers.Main) {
                                 FileEditorManager.getInstance(project).openFile(tempVirtual, true)
@@ -364,15 +391,13 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             session.isAutoSelected = false
         },
         onTogglePin = { model ->
-            if (session.pinnedModels.any { it.name == model.name && it.serverName == model.serverName }) {
+            if (session.pinnedModels.any { it.name == model.name && it.serverName == model.serverName })
                 session.pinnedModels.removeAll { it.name == model.name && it.serverName == model.serverName }
-            } else {
+            else
                 session.pinnedModels.add(model)
-            }
         },
         onSelectAuto = {
-            session.selectedModel = null
-            session.isAutoSelected = true
+            session.selectedModel = null; session.isAutoSelected = true
         }
     )
 

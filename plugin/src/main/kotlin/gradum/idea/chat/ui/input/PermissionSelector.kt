@@ -2,19 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-06-26 23:55:00 Changed by gwy
+ * PermissionSelector.kt  2026-06-30 01:05:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,8 +47,8 @@ fun PermissionSelector(
     if (isMenuVisible) {
         PopupMenu(onDismissRequest = { onDismiss(); true }, horizontalAlignment = Alignment.Start) {
             selectableItem(
-                selected = selectedPermission == message("gradum.readonly"),
-                onClick = { onSelect(message("gradum.readonly")) }
+                selected = selectedPermission == message("gradum.read"),
+                onClick = { onSelect(message("gradum.read")) }
             ) {
                 Row(
                     modifier = Modifier
@@ -64,14 +59,14 @@ fun PermissionSelector(
                     Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
-                        Text(text = message("gradum.readonly"))
-                        Text(text = message("gradum.readonly.info"), color = JewelTheme.globalColors.text.info)
+                        Text(text = message("gradum.read"))
+                        Text(text = message("gradum.read.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
             }
             selectableItem(
-                selected = selectedPermission == message("gradum.single_step"),
-                onClick = { onSelect(message("gradum.single_step")) }
+                selected = selectedPermission == message("gradum.edit"),
+                onClick = { onSelect(message("gradum.edit")) }
             ) {
                 Row(
                     modifier = Modifier
@@ -79,17 +74,17 @@ fun PermissionSelector(
                         .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(key = GradumIcons.Edit, contentDescription = message("gradum.read.mode"))
+                    Icon(key = GradumIcons.Edit, contentDescription = message("gradum.edit.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
-                        Text(text = message("gradum.single_step"))
-                        Text(text = message("gradum.single_step.info"), color = JewelTheme.globalColors.text.info)
+                        Text(text = message("gradum.edit"))
+                        Text(text = message("gradum.edit.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
             }
             selectableItem(
-                selected = selectedPermission == message("gradum.full"),
-                onClick = { onSelect(message("gradum.full")) }
+                selected = selectedPermission == message("gradum.agent"),
+                onClick = { onSelect(message("gradum.agent")) }
             ) {
                 Row(
                     modifier = Modifier
@@ -97,11 +92,11 @@ fun PermissionSelector(
                         .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(key = GradumIcons.Edit, contentDescription = message("gradum.full.mode"))
+                    Icon(key = GradumIcons.Build, contentDescription = message("gradum.agent.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
-                        Text(text = message("gradum.full"))
-                        Text(text = message("gradum.full.info"), color = JewelTheme.globalColors.text.info)
+                        Text(text = message("gradum.agent"))
+                        Text(text = message("gradum.agent.info"), color = JewelTheme.globalColors.text.info)
                     }
                 }
             }

@@ -97,7 +97,7 @@ class GradumChatSession {
     var showAddMenu: Boolean by mutableStateOf(false)
 
     /** The currently selected permission level (read-only or full). */
-    var selectedPermission: String = message("gradum.readonly")
+    var selectedPermission: String = message("gradum.read")
 
     /**
      * Tool surface for the current session. Local models perform better with
