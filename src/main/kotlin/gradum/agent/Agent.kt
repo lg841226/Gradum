@@ -226,9 +226,30 @@ class Agent(
             "You are a helpful AI assistant. You can't call any tool and report it"
         }
 
+        // Tool surface and workflow guidance must match the active ToolMode —
+        // the schema whitelist in SkillRegistry.getSchemas() hides to_do /
+        // edit_file / save_file under the smaller modes, so the prompt has to
+        // agree or the model will try to call tools that are no longer in
+        // its tool list.
+        val modeSectionPath: String = when (configuration.toolMode) {
+            ToolMode.READ_ONLY -> "/mode_readonly.md"
+            ToolMode.SINGLE_STEP -> "/mode_single_step.md"
+            ToolMode.WRITE -> "/mode_write.md"
+        }
+        val modeSection: String = try {
+            Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
+                stream.reader(Charsets.UTF_8).readText()
+            } ?: "You have no tools available in this session."
+        } catch (exception: Exception) {
+            logger.warn("Could not load mode section $modeSectionPath: ${exception.message}")
+            "You have no tools available in this session."
+        }
+
         val osName: String = System.getProperty("os.name")
         val osVersion: String = System.getProperty("os.version")
-        val substitutedContent: String = promptContent.replace("{{OS}}", "$osName $osVersion")
+        val substitutedContent: String = promptContent
+            .replace("{{OS}}", "$osName $osVersion")
+            .replace("{{MODE}}", modeSection)
 
         conversationHistory.add(0, mapOf("role" to "system", "content" to substitutedContent))
     }
