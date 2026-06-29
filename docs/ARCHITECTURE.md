@@ -965,7 +965,7 @@ flowchart TD
 
     subgraph ACC["MutableMap<Int, MutableMap<String, Any>>"]
         A["For each chunk index i:<br/>accumulate identifier<br/>accumulate functionName<br/>accumulate argumentsBuffer (as string)"]
-        A --> B["At stream end: buildCompletedCalls()<br/>JSON.parse argumentsBuffer<br/>→ ToolCallEntry(callIdentifier, functionTitle, functionArguments: Map)"]
+        A --> B["At stream end: buildCompletedCalls()<br/>JSON.parse argumentsBuffer<br/>→ ToolCallEntry(callIdentifier, functionName, functionArguments: Map)"]
     end
 ```
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-06-26 17:35:35 Changed by gwy
+ * LLMClient.kt  2026-06-29 23:35:00 Changed by gwy
  */
 
 package gradum.client
@@ -51,7 +51,7 @@ private fun JsonObject.optObject(key: String): JsonObject =
 
 data class ToolCallEntry(
     val callIdentifier: String,
-    val functionTitle: String,
+    val functionName: String,
     val functionArguments: Map<String, JsonElement>,
 )
 
@@ -142,9 +142,9 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
 
                     eventData["message"]?.jsonObject?.let { messageObject ->
                         val reasoningContent: String = messageObject.optString("thinking")
-                        if (reasoningContent.isNotBlank()) {
+
+                        if (reasoningContent.isNotBlank())
                             emit(LLMResponseChunk.ReasoningContent(reasoningContent))
-                        }
 
                         messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                             val parsedCalls: List<ToolCallEntry> = toolCallsArray.map { element ->
@@ -152,7 +152,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                                 val functionObject: JsonObject = callObject.optObject("function")
                                 ToolCallEntry(
                                     callIdentifier = callObject.optString("id"),
-                                    functionTitle = functionObject.optString("name"),
+                                    functionName = functionObject.optString("name"),
                                     functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
                                 )
                             }
@@ -160,25 +160,21 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                         }
 
                         val messageContent: String = messageObject.optString("content")
-                        if (messageContent.isNotBlank()) {
+                        if (messageContent.isNotBlank())
                             emit(LLMResponseChunk.TextContent(messageContent))
-                        }
                     }
 
                     val serverErrorMessage: String = eventData.optString("error")
-                    if (serverErrorMessage.isNotBlank()) {
+                    if (serverErrorMessage.isNotBlank())
                         emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
-                    }
 
-                    recordTokenUsage(eventData)
+                    recordTokenUsage(eventData, "prompt_eval_count", "eval_count", tokenUsage)
                 }
 
-                lastError = null
-                break
+                lastError = null; break
 
             } catch (exception: Exception) {
                 lastError = exception
-
                 if (isTransientError(exception) && attemptIndex < 2) delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
                 else break
             }
@@ -187,35 +183,17 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         httpClient.close()
 
         lastError?.let { error ->
-            emit(LLMResponseChunk.ErrorMessage(formatOllamaError(error)))
-        }
-    }
-
-    private fun recordTokenUsage(eventData: JsonObject) {
-        val promptTokens: Int = eventData.optInt("prompt_eval_count")
-        val completionTokens: Int = eventData.optInt("eval_count")
-
-        if (promptTokens > 0 || completionTokens > 0) {
-            tokenUsage = tokenUsage.copy(
-                promptTokens = tokenUsage.promptTokens + promptTokens,
-                completionTokens = tokenUsage.completionTokens + completionTokens,
-                totalTokens = tokenUsage.totalTokens + promptTokens + completionTokens
+            emit(
+                LLMResponseChunk.ErrorMessage(
+                    formatLlmError(
+                        error,
+                        configuration.baseUrl,
+                        "Ollama server",
+                        "Make sure Ollama is running.",
+                        configuration.timeoutSeconds,
+                    )
+                )
             )
-        }
-    }
-
-    private fun formatOllamaError(exception: Exception): String {
-        return when (exception) {
-            is kotlinx.coroutines.TimeoutCancellationException ->
-                "Request timed out after ${configuration.timeoutSeconds} seconds. The server is taking too long to respond."
-
-            is IOException ->
-                """
-                Could not connect to Ollama server at ${configuration.baseUrl}.
-                Make sure Ollama is running. Details: ${exception.message}
-                """.trimIndent()
-
-            else -> "Unexpected error - ${exception.message}"
         }
     }
 }
@@ -262,8 +240,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
                 val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse)
                 streamedChunks.collect { chunk -> emit(chunk) }
 
-                lastError = null
-                break
+                lastError = null; break
 
             } catch (exception: Exception) {
                 lastError = exception
@@ -277,12 +254,23 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
         httpClient.close()
 
         lastError?.let { error ->
-            emit(LLMResponseChunk.ErrorMessage(formatOpenAIError(error)))
+            emit(
+                LLMResponseChunk.ErrorMessage(
+                    formatLlmError(
+                        error,
+                        configuration.baseUrl,
+                        "server",
+                        "Make sure the server is running.",
+                        configuration.timeoutSeconds,
+                    )
+                )
+            )
         }
     }
 
     private fun parseServerSentEvents(httpResponse: HttpResponse): Flow<LLMResponseChunk> = flow {
         val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
+        var streamCompleted = false
 
         val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
 
@@ -293,7 +281,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             val eventBody: String = if (rawLine.startsWith("data: ")) rawLine.removePrefix("data: ") else continue
 
             // OpenAI SSE stream-end signal: all OpenAI-compatible servers send `data: [DONE]` at stream end
-            if (eventBody.trim() == "[DONE]") break
+            if (eventBody.trim() == "[DONE]") {
+                streamCompleted = true; break
+            }
 
             val parsedPayload: JsonObject = try {
                 jsonParser.parseToJsonElement(eventBody).jsonObject
@@ -315,13 +305,17 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             }
 
             parsedPayload["usage"]?.jsonObject?.let { usageStats ->
-                recordTokenUsage(usageStats)
+                recordTokenUsage(usageStats, "prompt_tokens", "completion_tokens", tokenUsage)
             }
         }
 
         if (accumulatedCalls.isNotEmpty()) {
             val finalCalls: List<ToolCallEntry> = buildCompletedCalls(accumulatedCalls)
             emit(LLMResponseChunk.ToolCallBatch(finalCalls))
+        }
+
+        if (!streamCompleted) {
+            emit(LLMResponseChunk.ErrorMessage("Response interrupted — the model may have run out of memory. Try reducing the context length in your model settings."))
         }
     }
 
@@ -362,46 +356,73 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
             ToolCallEntry(
                 callIdentifier = callData["identifier"] as? String ?: "",
-                functionTitle = callData["functionName"] as? String ?: "",
+                functionName = callData["functionName"] as? String ?: "",
                 functionArguments = parsedArguments,
             )
-        }
-    }
-
-    private fun recordTokenUsage(usageStats: JsonObject): Unit {
-        val promptTokens: Int = usageStats.optInt("prompt_tokens")
-        val completionTokens: Int = usageStats.optInt("completion_tokens")
-
-        if (promptTokens > 0 || completionTokens > 0) {
-            tokenUsage = tokenUsage.copy(
-                promptTokens = tokenUsage.promptTokens + promptTokens,
-                completionTokens = tokenUsage.completionTokens + completionTokens,
-                totalTokens = tokenUsage.totalTokens + promptTokens + completionTokens,
-            )
-        }
-    }
-
-    private fun formatOpenAIError(exception: Exception): String {
-        return when (exception) {
-            is kotlinx.coroutines.TimeoutCancellationException ->
-                "Request timed out after ${configuration.timeoutSeconds} seconds. The server is taking too long to respond."
-
-            is IOException ->
-                "Could not connect to server at ${configuration.baseUrl}. Make sure the server is running. Details: ${exception.message}"
-
-            else ->
-                "Unexpected error - ${exception.message}"
         }
     }
 }
 
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
-        || exception is kotlinx.coroutines.TimeoutCancellationException
+    || exception is kotlinx.coroutines.TimeoutCancellationException
 
 private fun buildHttpClient(): HttpClient {
     return HttpClient {
         install(HttpTimeout) {
-            requestTimeoutMillis = 300_000L
+            requestTimeoutMillis = 600_000L
         }
     }
+}
+
+/**
+ * Common error formatter shared by every [LlmClient] implementation.
+ *
+ * The previous design inlined a near-identical `formatXxxError` method in
+ * both `OllamaClient` and `OpenAICompatibleClient`; the only difference was
+ * the human-readable server label and the "is it running?" hint. Pass those
+ * in as parameters and the rest of the logic is shared.
+ */
+private fun formatLlmError(
+    exception: Exception,
+    baseUrl: String,
+    serverName: String,
+    runningHint: String,
+    timeoutSeconds: Int,
+): String = when (exception) {
+    is kotlinx.coroutines.TimeoutCancellationException ->
+        "Request timed out after $timeoutSeconds seconds. The server is taking too long to respond."
+
+    is IOException ->
+        "Could not connect to $serverName at $baseUrl. $runningHint Details: ${exception.message}"
+
+    else -> "Unexpected error - ${exception.message}"
+}
+
+/**
+ * Common token-usage accumulator shared by every [LlmClient] implementation.
+ *
+ * Each provider reports token usage under different field names (Ollama uses
+ * `prompt_eval_count` / `eval_count`, OpenAI-compatible uses `prompt_tokens`
+ * / `completion_tokens`). Pass the field names in; the accumulation logic is
+ * identical.
+ *
+ * @return the next [TokenUsageSnapshot] to assign back, or [currentUsage]
+ *   unchanged when neither field is positive.
+ */
+private fun recordTokenUsage(
+    usageStats: JsonObject,
+    promptField: String,
+    completionField: String,
+    currentUsage: TokenUsageSnapshot,
+): TokenUsageSnapshot {
+    val promptTokens: Int = usageStats.optInt(promptField)
+    val completionTokens: Int = usageStats.optInt(completionField)
+
+    if (promptTokens <= 0 && completionTokens <= 0) return currentUsage
+
+    return currentUsage.copy(
+        promptTokens = currentUsage.promptTokens + promptTokens,
+        completionTokens = currentUsage.completionTokens + completionTokens,
+        totalTokens = currentUsage.totalTokens + promptTokens + completionTokens,
+    )
 }

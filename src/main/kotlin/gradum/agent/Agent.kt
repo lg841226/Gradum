@@ -98,7 +98,7 @@ class Agent(
         for (skill: Skill in SkillRegistry.getAllSkills())
             skill.resetHistoryCount()
 
-        getTodoManagerInstance().restTaskList()
+        getTodoManagerInstance().resetTaskList()
 
         emitEvent(
             "session_start", mapOf(
@@ -112,7 +112,7 @@ class Agent(
 
         conversationHistory.add(mapOf("role" to "user", "content" to userInput))
 
-        val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas()
+        val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(toolMode = configuration.toolMode)
 
         while (true) {
             if (sessionAborted) break
@@ -202,10 +202,25 @@ class Agent(
     }
 
     private fun loadSystemPrompt() {
+        val resolvedVariant: PromptVariant = when (configuration.promptVariant) {
+            PromptVariant.AUTO -> PromptVariant.resolveAuto(configuration.provider)
+            PromptVariant.CLOUD, PromptVariant.LOCAL -> configuration.promptVariant
+        }
+        val primaryPath: String = when (resolvedVariant) {
+            PromptVariant.CLOUD -> "/system_prompt_cloud.md"
+            PromptVariant.LOCAL -> "/system_prompt_local.md"
+            PromptVariant.AUTO -> "/system_prompt.md"
+        }
+
         val promptContent: String = try {
-            Agent::class.java.getResourceAsStream("/system_prompt.md")?.use { stream ->
+            Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
                 stream.reader(Charsets.UTF_8).readText()
-            } ?: throw IllegalStateException("system_prompt.md not found on classpath")
+            } ?: Agent::class.java.getResourceAsStream("/system_prompt.md")?.use { stream ->
+                // Fallback to the universal prompt if the variant-specific file
+                // is missing on the classpath. Lets us ship a new variant
+                // without breaking older builds.
+                stream.reader(Charsets.UTF_8).readText()
+            } ?: throw IllegalStateException("No system prompt found on classpath")
         } catch (exception: Exception) {
             logger.warn("Could not load system prompt, reason: ${exception.message}")
             "You are a helpful AI assistant. You can't call any tool and report it"
@@ -271,7 +286,7 @@ class Agent(
                         "id" to call.callIdentifier,
                         "type" to "function",
                         "function" to mapOf(
-                            "name" to call.callData.functionTitle,
+                            "name" to call.callData.functionName,
                             "arguments" to Json.encodeToString(
                                 serializer<Map<String, JsonElement>>(),
                                 call.callData.functionArguments
@@ -283,7 +298,7 @@ class Agent(
                 processedCalls.map { call ->
                     mapOf(
                         "function" to mapOf(
-                            "name" to call.callData.functionTitle,
+                            "name" to call.callData.functionName,
                             "arguments" to call.callData.functionArguments.entries.associate {
                                 it.key to JsonUtil.fromJsonElement(it.value)
                             }
@@ -303,7 +318,7 @@ class Agent(
     private fun executeSingleTool(processedCall: ProcessedToolCall): Unit {
         if (sessionAborted) return
 
-        val functionName: String = processedCall.callData.functionTitle
+        val functionName: String = processedCall.callData.functionName
         val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
 
         val convertedArguments: MutableMap<String, Any> = mutableMapOf()

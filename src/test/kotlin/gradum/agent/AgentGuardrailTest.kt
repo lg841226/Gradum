@@ -146,7 +146,7 @@ class AgentGuardrailTest {
         val events = mutableListOf<Pair<String, Map<String, Any>>>()
         val toolCall: ToolCallEntry = ToolCallEntry(
             callIdentifier = "",
-            functionTitle = "read_file",
+            functionName = "read_file",
             functionArguments = mapOf("path" to JsonPrimitive("Agent.kt")),
         )
         var sendChatCallCount = 0
