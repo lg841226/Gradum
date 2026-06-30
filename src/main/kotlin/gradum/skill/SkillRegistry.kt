@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-06-21 07:53:44 Changed by gwy
+ * SkillRegistry.kt  2026-06-30 21:30:00 Changed by gwy
  */
 
 package gradum.skill
@@ -47,30 +47,35 @@ object SkillRegistry {
     }
 
     /**
-     * Returns function schemas for all registered skills, optionally filtered
-     * by a [ToolMode]. Used to build the tools definition sent to the LLM.
+     * Returns function schemas for every skill that allows the given
+     * [toolMode]. Used to build the tools definition sent to the LLM.
      *
-     * @param toolMode When [ToolMode.WRITE] (default) every registered skill
-     *   is returned. When [ToolMode.READ_ONLY] only inspection skills
-     *   (`read_file`, `explore_project`, `run_cmd`) are returned so the LLM
-     *   cannot mutate the project. When [ToolMode.SINGLE_STEP] every skill
-     *   is returned except the task-tracking pair (`to_do` /
-     *   `finish_to_do_item`) — for small local models that cannot plan
-     *   reliably.
-     * @return list of schema maps from each registered skill
+     * The filter is `toolMode in skill.allowedToolModes` — the same
+     * membership check [gradum.agent.Agent] uses at runtime to gate
+     * tool calls. The two checks must agree: if a tool's schema is in
+     * the LLM's tool list, the LLM can call it, so the runtime gate
+     * must not reject it. If a tool is not in the LLM's tool list, the
+     * runtime gate might still be hit (LLM-hallucinated calls), so the
+     * runtime gate must not let it through.
+     *
+     * The previous implementation maintained a separate hardcoded set
+     * per mode (`READ_ONLY_ALLOWED_SKILLS`, `SINGLE_STEP_EXCLUDED_SKILLS`).
+     * It was a second source of truth for the same invariant — if a
+     * skill's [Skill.allowedToolModes] drift away from those sets, the
+     * LLM would see tools it cannot actually call, or vice versa. The
+     * single-source-of-truth version is this filter plus the runtime
+     * gate, both reading from the same property.
+     *
+     * @param toolMode Which mode the LLM is being started in. Defaults
+     *   to [ToolMode.WRITE] (unrestricted).
+     * @return list of schema maps from every registered skill that
+     *   declares [toolMode] in its [Skill.allowedToolModes]
      */
     fun getSchemas(toolMode: ToolMode = ToolMode.WRITE): List<Map<String, Any>> {
-        val allSkills: Collection<Skill> = registeredSkills.values
-        val filtered: Collection<Skill> = when (toolMode) {
-            ToolMode.WRITE -> allSkills
-            ToolMode.READ_ONLY -> allSkills.filter { skill: Skill -> skill.skillName in READ_ONLY_ALLOWED_SKILLS }
-            ToolMode.SINGLE_STEP -> allSkills.filter { skill: Skill -> skill.skillName !in SINGLE_STEP_EXCLUDED_SKILLS }
-        }
-        return filtered.map { skill: Skill -> skill.getSchema() }
+        return registeredSkills.values
+            .filter { skill: Skill -> toolMode in skill.allowedToolModes }
+            .map { skill: Skill -> skill.getSchema() }
     }
-
-    private val READ_ONLY_ALLOWED_SKILLS: Set<String> = setOf("read_file", "explore_project", "run_cmd")
-    private val SINGLE_STEP_EXCLUDED_SKILLS: Set<String> = setOf("to_do", "finish_to_do_item")
 
     /**
      * Registers a single skill in the registry.
