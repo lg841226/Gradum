@@ -2,30 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-06-21 07:53:44 Changed by gwy
+ * Main.kt  2026-06-30 02:35:10 Changed by gwy
  */
 
 package gradum.server
 
-import gradum.ProjectPaths
-import org.slf4j.LoggerFactory
 import org.slf4j.Logger
-import java.nio.file.Path
-import java.nio.file.Paths
+import org.slf4j.LoggerFactory
 
 private val logger: Logger = LoggerFactory.getLogger("GradumMain")
 
 fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
-
-    // Resolve --project-root before any skill touches ProjectPaths so that
-    // log directories, context storage, and run_cmd cwd all follow the
-    // override. When omitted we leave the default (process CWD) in place.
-    parsedArguments.projectRootPath?.let { rawPath: String ->
-        val resolvedRoot: Path = Paths.get(rawPath).toAbsolutePath().normalize()
-        ProjectPaths.setProjectRoot(resolvedRoot)
-        logger.info("Project root overridden to: $resolvedRoot")
-    }
 
     val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
         val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
@@ -40,9 +28,8 @@ fun main(arguments: Array<String>) {
 
     val serverConfiguration = ServerConfiguration(
         hostAddress = parsedArguments.hostAddress,
-        portNumber = resolvedPort,
         providerName = parsedArguments.providerName,
-        projectRootPath = parsedArguments.projectRootPath,
+        portNumber = resolvedPort,
     )
 
     val server: GradumServer = createServerInstance(serverConfiguration)
@@ -61,7 +48,6 @@ private data class ServerArguments(
     val autoDetectPort: Boolean,
     val portRange: String,
     val providerName: String,
-    val projectRootPath: String?,
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
@@ -70,7 +56,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
     var providerName = "ollama"
     var portNumber = 8765
     var autoDetectPort = false
-    var projectRootPath: String? = null
 
     val iterator: Iterator<String> = arguments.iterator()
     while (iterator.hasNext()) {
@@ -80,7 +65,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
             "--auto-port" -> autoDetectPort = true
             "--port-range" -> portRange = iterator.next()
             "--provider" -> providerName = iterator.next()
-            "--project-root" -> projectRootPath = iterator.next()
             "--help" -> {
                 printUsage()
             }
@@ -93,7 +77,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
         autoDetectPort = autoDetectPort,
         portRange = portRange,
         providerName = providerName,
-        projectRootPath = projectRootPath,
     )
 }
 
@@ -108,8 +91,8 @@ private fun printUsage() {
     println("  --auto-port             Auto-find available port")
     println("  --port-range <range>    Port range for auto-port (default: 8765-8775)")
     println("  --provider <provider>   LLM provider (ollama/openai)")
-    println("  --project-root <path>   Override the project root (defaults to CWD).")
-    println("                          Use this to run the server from a Gradle Run Config")
-    println("                          while operating on a different target project.")
+    println()
+    println("Note: projectRoot is no longer a server-side concern. The plugin")
+    println("sends it on every /events request, derived from Project.basePath.")
     println("  --help                  Show this help message")
 }

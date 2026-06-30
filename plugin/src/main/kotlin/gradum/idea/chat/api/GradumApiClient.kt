@@ -100,7 +100,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         config: Map<String, String>? = null,
         loadContext: Boolean = true,
         toolMode: String? = null,
-        promptVariant: String? = null
+        promptVariant: String? = null,
+        projectRoot: String? = null,
     ): Flow<String> = flow {
         val requestBody: JsonObject = buildJsonObject {
             put("message", message)
@@ -112,6 +113,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
             put("loadContext", loadContext)
             if (toolMode != null) put("toolMode", toolMode)
             if (promptVariant != null) put("promptVariant", promptVariant)
+            if (projectRoot != null) put("projectRoot", projectRoot)
         }
 
         val request: HttpRequest = HttpRequest.newBuilder()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-23 08:09:34 Changed by gwy
+ * Agent.kt  2026-06-30 03:15:42 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -266,10 +266,12 @@ class Agent(
                         contentParts.add(chunk.text)
                         emitEvent("response", mapOf("content" to chunk.text))
                     }
+
                     is LLMResponseChunk.ToolCallBatch -> toolCallsResult = chunk.toolCalls
                     is LLMResponseChunk.ReasoningContent -> {
                         emitEvent("thinking", mapOf("content" to chunk.text))
                     }
+
                     is LLMResponseChunk.ErrorMessage -> errorMessage = chunk.description
                 }
             }
@@ -344,15 +346,22 @@ class Agent(
                 convertedArguments[key] = converted
         }
 
-        // Inject the server-side project root into every tool call so the
-        // file/process skills don't have to rely on the IDE sending it
-        // over HTTP. The root is whatever Main.main() resolved from
-        // --project-root (or CWD as fallback). Plugin overrides are
-        // intentionally NOT supported: the server picks the target
-        // project at startup, full stop.
-        if (!convertedArguments.containsKey("projectRoot")) {
-            convertedArguments["projectRoot"] = ProjectPaths.getProjectRoot().toString()
-        }
+        // Strip any path/root keys the LLM may have slipped in despite the
+        // schema not exposing them. `projectRoot` / `project_root` are
+        // server-private — the LLM has no business setting them, and if it
+        // does we MUST drop them before injecting our own, otherwise the
+        // injection no-op `if (!containsKey)` below would leave the LLM's
+        // value in place and the tool would resolve against the wrong tree.
+        convertedArguments.remove("projectRoot")
+        convertedArguments.remove("project_root")
+
+        // Inject the session's project root into every tool call. The root
+        // comes from the plugin (via the HTTP request body) — not from any
+        // process-level or filesystem-level default — so the server is
+        // always acting on exactly the project the IDE has open. Routes
+        // validates that `projectRoot` is non-empty before constructing the
+        // Agent, so this is never blank in practice.
+        convertedArguments["projectRoot"] = configuration.projectRoot
 
         if (checkToolRunaway(functionName, convertedArguments)) {
             emitRevoked(
@@ -368,7 +377,7 @@ class Agent(
 
         // Read-only mode guard: the schema whitelist in SkillRegistry hides
         // write tools, but run_cmd is still in the tool list and the model
-        // could route a write through it ("touch foo", "rm bar", "git
+        // could route a White through it ("touch foo", "rm bar", "git
         // commit"). Re-classify the command against the active toolMode
         // before it reaches RunCommandSkill so the agent loop sees a real
         // COMMAND_BLOCKED instead of a successful mutation.

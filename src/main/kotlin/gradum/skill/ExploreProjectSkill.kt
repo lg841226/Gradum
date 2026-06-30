@@ -164,10 +164,6 @@ class ExploreProjectSkill : Skill() {
             "parameters" to mapOf(
                 "type" to "object",
                 "properties" to mapOf(
-                    "project_root" to mapOf(
-                        "type" to "string",
-                        "description" to "Absolute or CWD-relative path to the project root directory to scan.",
-                    ),
                     "depth" to mapOf(
                         "type" to "integer",
                         "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
@@ -177,14 +173,29 @@ class ExploreProjectSkill : Skill() {
                         "default" to DEFAULT_DEPTH,
                     ),
                 ),
-                "required" to listOf("project_root"),
+                "required" to emptyList<String>(),
             ),
         ),
     )
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
-        val injectedRoot: String = arguments["projectRoot"] as? String ?: ""
-        val projectRoot: String = arguments["project_root"] as? String ?: injectedRoot
+        // The root to scan is ALWAYS the server-injected projectRoot (resolved
+        // from --project-root at startup). The LLM has no way to influence it
+        // because the schema no longer exposes any path/root parameter. Some
+        // models still pass `project_root` out of habit / training memory —
+        // we HARD-reject it so the model gets a clear error and stops wasting
+        // turns, instead of silently ignoring and leaving the model confused.
+        if (arguments.containsKey("project_root")) {
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER,
+                "'project_root' is not a valid parameter for explore_project. " +
+                    "The server determines the project root from its --project-root startup flag. " +
+                    "Do not pass any path/root argument; just call explore_project with depth=N.",
+            )
+        }
+
+        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+
         val depth: Int = when (val depthValue: Any? = arguments["depth"]) {
             is Number -> depthValue.toInt()
             is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH
@@ -192,7 +203,10 @@ class ExploreProjectSkill : Skill() {
         }
 
         if (projectRoot.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'project_root' parameter")
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER,
+                "Server has no project root configured (start the server with --project-root <path>).",
+            )
         if (depth !in MINIMUM_DEPTH..MAXIMUM_DEPTH)
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
@@ -204,7 +218,7 @@ class ExploreProjectSkill : Skill() {
         } catch (_: Exception) {
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
-                "Invalid 'project_root' path: $projectRoot"
+                "Invalid project root path: $projectRoot"
             )
         }
 

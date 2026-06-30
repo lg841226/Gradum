@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.api.GradumApiClient
@@ -62,6 +63,14 @@ class GradumChatSession {
 
     /** Coroutine scope used by [processPendingQueue] to launch the next send. */
     var scope: CoroutineScope? = null
+
+    /**
+     * The IntelliJ project this session belongs to. Set once by
+     * [gradum.idea.GradumToolWindowFactory.createToolWindowContent] and used
+     * to resolve the project root path that is sent with every chat request
+     * so the server knows which tree to operate on.
+     */
+    var project: Project? = null
 
     /** The text field state for the chat input area. */
     val textState: TextFieldState = TextFieldState()
@@ -366,7 +375,8 @@ class GradumChatSession {
                 model = selectedModel?.name,
                 config = modelConfig,
                 loadContext = shouldLoadContext,
-                toolMode = toolMode
+                toolMode = toolMode,
+                projectRoot = project?.basePath,
             ).catch { exception ->
                 log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
                 val assistantIndex: Int = messages.lastIndex

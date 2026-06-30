@@ -112,4 +112,13 @@ data class AgentConfiguration(
     val maxRepeatedResponses: Int = 3,
     val maxRedLineHits: Int = 3,
     val maxRepeatedToolCalls: Int = 5,
+    /**
+     * Absolute, validated, normalized path to the project the current
+     * session is operating on. Resolved by `Routes` from the
+     * `projectRoot` field of the HTTP request body, which the plugin
+     * populates from `Project.basePath`. The server never infers this
+     * from CWD or any other source — only the plugin knows which
+     * project is actually open in the IDE.
+     */
+    val projectRoot: String = "",
 )

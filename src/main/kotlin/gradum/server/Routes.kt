@@ -42,6 +42,13 @@ data class EventsRequestBody(
     val loadContext: Boolean = true,
     val toolMode: String? = null,
     val promptVariant: String? = null,
+    /**
+     * Absolute path to the project the IDE has open. The server uses this
+     * as the root for every file/process tool in this session. The plugin
+     * is the only place that knows which project is open, so it must
+     * provide it; the server has no other source of truth.
+     */
+    val projectRoot: String? = null,
 )
 
 @Serializable
@@ -107,6 +114,36 @@ fun Application.registerAllRoutes() {
             val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
             val sessionId: String = UUID.randomUUID().toString()
 
+            // The plugin is the only authority on which project is open in
+            // the IDE. Reject requests that omit projectRoot (or send a
+            // path that does not point to an existing directory) with 400
+            // — letting the server fall back to a guessed CWD is exactly
+            // the bug that caused the "tools read Gradum instead of the
+            // user's test project" misroute.
+            val rawProjectRoot: String? = requestBody.projectRoot
+            if (rawProjectRoot.isNullOrBlank()) {
+                call.respondText(
+                    text = JsonUtil.encodeMap(
+                        mapOf("error" to "projectRoot is required (the IDE must send the open project's absolute path)")
+                    ),
+                    status = HttpStatusCode.BadRequest,
+                    contentType = ContentType.Application.Json,
+                )
+                return@post
+            }
+            val projectRootPath: java.nio.file.Path = java.nio.file.Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+            val projectRootFile: java.io.File = projectRootPath.toFile()
+            if (!projectRootFile.exists() || !projectRootFile.isDirectory) {
+                call.respondText(
+                    text = JsonUtil.encodeMap(
+                        mapOf("error" to "projectRoot is not an existing directory: $projectRootPath")
+                    ),
+                    status = HttpStatusCode.BadRequest,
+                    contentType = ContentType.Application.Json,
+                )
+                return@post
+            }
+
             // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
             // emit rate is bounded by LLM response size. Reconsider if user input ever flows
             // through this channel unfiltered.
@@ -130,7 +167,11 @@ fun Application.registerAllRoutes() {
                 // the provider. The default is WRITE (every tool exposed)
                 // when the client does not override.
                 toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.WRITE,
-                promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant)
+                promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
+                // The plugin owns project selection; the server is just a
+                // per-session executor. We resolved + validated above so
+                // AgentConfiguration can require a non-null String.
+                projectRoot = projectRootPath.toString(),
             )
 
             launch(Dispatchers.IO) {
