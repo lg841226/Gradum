@@ -70,6 +70,19 @@ class EditFileSkill : Skill() {
     override val description: String = "Search and replace edits with sequential or atomic mode"
 
     /**
+     * edit_file mutates the filesystem. It is rejected in READ_ONLY mode
+     * by the agent's mode gate; the schema whitelist hides it from the
+     * LLM in that mode but the agent enforces the invariant regardless.
+     * SINGLE_STEP is allowed because the user has explicitly opted into
+     * write access — the gate only excludes READ_ONLY.
+     */
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+        gradum.ToolMode.WRITE,
+        gradum.ToolMode.SINGLE_STEP,
+    )
+    override val mutatesProject: Boolean = true
+
+    /**
      * Keep the full diff metrics (linesAdded / linesRemoved / syntaxErrors / totalEdits)
      * for the most recent 2 results. Older results only carry the path and edit count
      * so the LLM can still tell what happened, but the conversation context stays small.

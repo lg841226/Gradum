@@ -2,17 +2,55 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-06-21 07:53:44 Changed by gwy
+ * Skill.kt  2026-06-30 18:30:00 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.SkillResult
+import gradum.ToolMode
 
 abstract class Skill {
     abstract val skillName: String
     abstract val description: String
     abstract val alias: String
+
+    /**
+     * The set of [ToolMode] values under which this skill is allowed to
+     * execute. The [gradum.agent.Agent] checks this once per call, BEFORE
+     * invoking [execute], and rejects any call whose mode is not in the
+     * set with [gradum.ErrorCode.TOOL_NOT_PERMITTED]. This is the SINGLE
+     * source of truth for mode gating — the agent does NOT maintain a
+     * per-skill allowlist of its own.
+     *
+     * Skills that mutate the project (write files, run destructive
+     * commands) must exclude [ToolMode.READ_ONLY]. Skills that do
+     * multi-step task planning must exclude [ToolMode.SINGLE_STEP].
+     * Skills that are pure inspection (read_file, explore_project,
+     * run_cmd) leave the default — every mode is allowed.
+     *
+     * Why this is in the interface, not in [gradum.skill.SkillRegistry]:
+     * SkillRegistry only knows the schema whitelist used to build the
+     * LLM's tool list. The runtime gate has to live on the Skill itself
+     * because LLM-hallucinated tool calls bypass the schema filter — the
+     * model can still call `edit_file` even when its tool list shows
+     * only three read-only tools, so the agent has to enforce the
+     * invariant regardless of what the schema filter let through.
+     */
+    open val allowedToolModes: Set<ToolMode> = setOf(
+        ToolMode.WRITE,
+        ToolMode.SINGLE_STEP,
+        ToolMode.READ_ONLY,
+    )
+
+    /**
+     * Hint for documentation and future audit. Whether this skill
+     * mutates the project (filesystem, git, process environment). The
+     * agent does NOT enforce this — the actual gate is
+     * [allowedToolModes]. Use this only to communicate intent in logs
+     * or schema descriptions.
+     */
+    open val mutatesProject: Boolean = false
 
     abstract fun execute(arguments: Map<String, Any>): SkillResult
 

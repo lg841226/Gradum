@@ -411,6 +411,26 @@ class Agent(
                 "success" to false,
                 "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
             )
+        } else if (configuration.toolMode !in skillInstance.allowedToolModes) {
+            // Mode gate: each skill declares the ToolMode values it is
+            // allowed to run in. The schema whitelist in SkillRegistry
+            // hides forbidden skills from the LLM's tool list, but the
+            // model can still hallucinate a tool call (it has seen edit_file
+            // in training data, and the system prompt mentions it). The
+            // agent enforces the invariant here, BEFORE the skill's own
+            // execute() runs, so a read-only session physically cannot
+            // mutate the project regardless of what the LLM emits.
+            val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
+            mapOf(
+                "success" to false,
+                "error" to mapOf(
+                    "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
+                    "message" to "Tool '${functionName}' is not permitted in ${configuration.toolMode} mode " +
+                                 "(allowed: ${allowedNames.joinToString(", ")})",
+                    "toolMode" to configuration.toolMode.name,
+                    "allowedModes" to allowedNames,
+                ),
+            )
         } else {
             when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
                 is SkillResult.Success -> mapOf("success" to true).plus(result.data)

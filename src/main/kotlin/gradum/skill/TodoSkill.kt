@@ -133,6 +133,16 @@ class TodoSkill : Skill() {
     override val alias: String = "Planned"
     override val description: String = "Initialize a task list"
 
+    /**
+     * Task planning is a strong-model skill; SINGLE_STEP deliberately
+     * hides to_do / finish_to_do_item. The agent's mode gate enforces
+     * the exclusion at runtime — even if the model hallucinates a to_do
+     * call, the agent returns TOOL_NOT_PERMITTED before TodoSkill runs.
+     */
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+        gradum.ToolMode.WRITE,
+    )
+
     override fun getSchema(): Map<String, Any> {
         return mapOf(
             "type" to "function",
@@ -184,6 +194,16 @@ class CompletePlanSkill : Skill() {
     override val skillName: String = "finish_to_do_item"
     override val alias: String = "Completed"
     override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
+
+    /**
+     * finish_to_do_item is the completion-tracking sibling of [TodoSkill]
+     * — both are withheld in SINGLE_STEP (no task planning) and in
+     * READ_ONLY (no project mutation at all). The mode gate rejects
+     * every other mode with TOOL_NOT_PERMITTED.
+     */
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+        gradum.ToolMode.WRITE,
+    )
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(

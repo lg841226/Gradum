@@ -67,6 +67,17 @@ class SaveFileSkill : Skill() {
     override val description: String =
         "Create or overwrite a file. mode='overwrite' (default) or 'append'. Creates parent directories."
 
+    /**
+     * save_file mutates the filesystem. The agent's mode gate rejects
+     * this call in READ_ONLY mode. SINGLE_STEP is allowed because the
+     * user has explicitly opted into write access.
+     */
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+        gradum.ToolMode.WRITE,
+        gradum.ToolMode.SINGLE_STEP,
+    )
+    override val mutatesProject: Boolean = true
+
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")
 

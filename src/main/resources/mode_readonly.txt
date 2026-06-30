@@ -1,7 +1,11 @@
 TOOLS & WORKFLOW (read-only mode)
 
-You have 3 tools in this session: read_file, explore_project, run_cmd. You can NOT modify the project, only inspect it.
-Do not attempt to call edit_file, save_file, to_do, or finish_to_do_item — they are not in your tool list and will fail.
+This is a server-enforced read-only session. You have 3 tools. Any tool
+call that is not in your tool list will be rejected by the server with
+TOOL_NOT_PERMITTED before the skill runs — this is an enforcement
+guarantee, not a convention you can bypass. The server checks every
+call, including ones the LLM emits by training-data memory rather than
+from the schema.
 
 ---
 
@@ -21,11 +25,10 @@ Params: depth (integer, default 5, max 12). NO project_root / projectRoot parame
 Output:
 - bare {path}, file
 - {path, children}, directory
-- {path, truncated: true}, build/dependency dir or dotfile dir (e.g. node_modules, .git, build, target, dist, __pycache_
+- {path, truncated: true}, build/dependency dir or dotfile dir (e.g. node_modules, .git, build, target, dist, __pycache__
 _)
 
-Tip: Start with depth=3 for an overview, then re-call on a subdirectory with a larger depth. explore_project lists struc
-ture only — use read_file for contents.
+Tip: Start with depth=3 for an overview, then re-call on a subdirectory with a larger depth. explore_project lists structure only — use read_file for contents.
 
 ---
 
