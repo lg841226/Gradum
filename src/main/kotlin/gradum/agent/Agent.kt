@@ -227,9 +227,9 @@ class Agent(
         // agree or the model will try to call tools that are no longer in
         // its tool list.
         val modeSectionPath: String = when (configuration.toolMode) {
-            ToolMode.READ_ONLY -> "/mode_readonly.md"
-            ToolMode.SINGLE_STEP -> "/mode_single_step.md"
-            ToolMode.WRITE -> "/mode_write.md"
+            ToolMode.READ_ONLY -> "/mode_readonly.txt"
+            ToolMode.SINGLE_STEP -> "/mode_single_step.txt"
+            ToolMode.WRITE -> "/mode_write.txt"
         }
         val modeSection: String = try {
             Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
