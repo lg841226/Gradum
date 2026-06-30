@@ -65,7 +65,7 @@ sealed class RenderBlock {
         val errorDetail: String = ""
     ) : RenderBlock()
     data class Response(val content: String) : RenderBlock()
-    data class Error(val message: String) : RenderBlock()
+    data class Error(val message: String, val code: String = "") : RenderBlock()
 }
 
 /**
@@ -160,12 +160,12 @@ data class ChatMessage(
                     errorDetail = event.info.errorDetail
                 )
             }
-            is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message)
+            is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
         }
         return copy(
             events = newEvents,
             renderBlocks = newRenderBlocks,
-            hasResponse = hasResponse || event is ChatEvent.Response
+            hasResponse = hasResponse || event is ChatEvent.Response || event is ChatEvent.Error
         )
     }
 

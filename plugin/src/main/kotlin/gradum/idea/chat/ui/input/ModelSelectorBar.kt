@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-29 10:05:01 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-30 17:58:28 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ModelInfo
@@ -26,7 +25,10 @@ import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 /**
  * Bottom bar showing the current model name and a feedback link.
@@ -61,6 +63,7 @@ fun ModelSelectorBar(
                     else -> message("gradum.model.none")
                 },
                 contentDescription = message("gradum.model.select"),
+                iconKey = selectedModel?.let { resolveProviderIcon(it) },
                 onClick = { showModelMenu = true }
             )
             if (showModelMenu) {
@@ -141,7 +144,7 @@ fun ModelSelectorBar(
                         }.forEach { model ->
                             selectableItem(
                                 selected = selectedModel?.name == model.name
-                                        && selectedModel?.serverName == model.serverName,
+                                    && selectedModel.serverName == model.serverName,
                                 onClick = {
                                     onSelectModel(model)
                                     showModelMenu = false
@@ -183,35 +186,45 @@ private fun ModelItemContent(
             .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (model.name.contains("cloud")) {
-            Icon(
-                key = GradumIcons.Cloud,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp)
-            )
-            Spacer(modifier = Modifier.width(GradumSpacing.sm))
+        val isCloud = model.name.contains("cloud")
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                resolveProviderIcon(model)?.let { iconKey ->
+                    Icon(
+                        key = iconKey,
+                        contentDescription = null,
+                        modifier = Modifier.size(GradumSpacing.lrl)
+                    )
+                    Spacer(modifier = Modifier.width(GradumSpacing.sm))
+                }
+                Text(text = formatModelName(model.name))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ModelCapabilityIcons(model)
+                Spacer(modifier = Modifier.width(GradumSpacing.sm))
+                if (isCloud) {
+                    Icon(
+                        key = GradumIcons.Cloud,
+                        contentDescription = "Cloud"
+                    )
+                    Spacer(modifier = Modifier.width(GradumSpacing.sm))
+                }
+                if (model.serverName.isNotBlank()) {
+                    Text(
+                        text = model.serverName,
+                        style = JewelTheme.typography.small,
+                        color = JewelTheme.globalColors.text.info
+                    )
+                }
+            }
         }
-
-        Text(text = formatModelName(model.name))
-
-        Spacer(modifier = Modifier.width(GradumSpacing.sm))
-
-        if (model.serverName.isNotBlank()) {
-            Text(
-                text = model.serverName,
-                color = JewelTheme.globalColors.text.info
-            )
-            Spacer(modifier = Modifier.width(GradumSpacing.md))
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         IconTooltipButton(
             tooltip = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin"),
             iconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin,
             contentDescription = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin"),
-            onClick = onTogglePin,
-            modifier = Modifier.size(14.dp)
+            onClick = onTogglePin
         )
     }
 }
@@ -260,5 +273,46 @@ private fun ModelAutoItemContent(enabled: Boolean) {
             color = if (enabled) JewelTheme.globalColors.text.normal
             else JewelTheme.globalColors.text.disabled
         )
+    }
+}
+
+private fun resolveProviderIcon(model: ModelInfo): IconKey? {
+    val provider = model.provider.lowercase().trim()
+    if (provider.isNotBlank()) {
+        PROVIDER_ICON_MAP[provider]?.let { return it }
+    }
+    return GradumIcons.resolveModelIcon(model.name)
+}
+
+private val PROVIDER_ICON_MAP = mapOf(
+    "qwen" to GradumIcons.ProviderAlibaba,
+    "anthropic" to GradumIcons.ProviderAnthropic,
+    "deepseek" to GradumIcons.ProviderDeepseek,
+    "google" to GradumIcons.ProviderGoogle,
+    "meta" to GradumIcons.ProviderMeta,
+    "minimax" to GradumIcons.ProviderMinimax,
+    "mistral" to GradumIcons.ProviderMistral,
+    "openai" to GradumIcons.ProviderOpenai,
+    "xai" to GradumIcons.ProviderXai,
+    "xiaomi" to GradumIcons.ProviderXiaomi,
+    "glm" to GradumIcons.ProviderZhipuai
+)
+
+@Composable
+private fun ModelCapabilityIcons(model: ModelInfo) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (model.toolCall)
+            Icon(
+                key = GradumIcons.ModelTools,
+                contentDescription = "Tools"
+            )
+        if (model.attachment)
+            Icon(
+                key = GradumIcons.ModelVision,
+                contentDescription = "Vision"
+            )
     }
 }

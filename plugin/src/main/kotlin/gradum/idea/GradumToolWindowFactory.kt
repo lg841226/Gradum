@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-30 01:00:06 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-30 14:07:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -39,10 +39,7 @@ import gradum.idea.chat.ui.GradumCodeBlockRenderer
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
@@ -52,6 +49,7 @@ import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.io.File
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 
 class GradumToolWindowFactory : ToolWindowFactory {
 
@@ -105,12 +103,30 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         ?: EditorContext.EMPTY
 
     LaunchedEffect(session.hasSentMessage, session.isSending) {
-        val content = toolWindow?.contentManager?.contents?.firstOrNull()
-        if (content != null) {
-            val base = if (session.hasSentMessage) message("gradum.toolwindow.newchat")
+        val tabContent = toolWindow?.contentManager?.contents?.firstOrNull()
+        if (tabContent != null) {
+            val tabName: String = if (session.hasSentMessage) message("gradum.toolwindow.newchat")
             else message("gradum.toolwindow.welcome")
-            content.displayName = if (session.isSending) "$base - ${message("gradum.toolwindow.running")}" else base
+            tabContent.displayName = tabName
         }
+    }
+
+    LaunchedEffect(session.isSending) {
+        val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
+        val tabName: String = if (session.hasSentMessage) {
+            message("gradum.toolwindow.newchat")
+        } else message("gradum.toolwindow.welcome")
+
+        if (session.isSending) {
+            val spinnerFrames: CharArray =
+                charArrayOf('\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827')
+            var frameIndex = 0
+            while (session.isSending) {
+                tabContent.displayName = "$tabName  ${spinnerFrames[frameIndex]}"
+                frameIndex = (frameIndex + 1) % spinnerFrames.size; delay(100.milliseconds)
+            }
+        }
+        tabContent.displayName = tabName
     }
 
     val scope = rememberCoroutineScope()
@@ -214,6 +230,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         if (session.messages.isEmpty()) {
             session.hasSentMessage = false
             session.isSending = false
+            session.sendingPhase = ""
             session.pendingMessages.clear()
             session.attachedFiles.clear()
             session.textState.edit { delete(0, length) }
@@ -408,6 +425,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 messages = session.messages,
                 isLoading = session.isSending,
                 isWaitingForResponse = session.isWaitingForResponse,
+                sendingPhase = session.sendingPhase,
                 textState = session.textState,
                 inputState = inputState,
                 inputActions = inputActions,

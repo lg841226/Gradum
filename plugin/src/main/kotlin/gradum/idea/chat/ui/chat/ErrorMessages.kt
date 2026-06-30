@@ -35,6 +35,7 @@ fun friendlyErrorMessage(code: String): String = when (code) {
     ErrorCode.NOT_INITIALIZED.code -> message("gradum.error.not.initialized")
     ErrorCode.ALREADY_INITIALIZED.code -> message("gradum.error.already.initialized")
     ErrorCode.ALL_COMPLETED.code -> message("gradum.error.all.completed")
+    ErrorCode.INTERRUPTED.code -> message("gradum.error.interrupted")
     else -> message("gradum.error.unexpected")
 }
 

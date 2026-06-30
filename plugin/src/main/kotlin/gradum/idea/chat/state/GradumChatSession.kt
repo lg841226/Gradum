@@ -168,6 +168,9 @@ class GradumChatSession {
     /** The session ID returned by the server, used for stop requests. */
     var sessionId: String? by mutableStateOf(null)
 
+    /** Current phase label shown during sending (e.g. "Synthesizing...", "Distilling..."). */
+    var sendingPhase: String by mutableStateOf("")
+
     /** Background job for periodic model polling. */
     private var pollingJob: Job? = null
 
@@ -185,6 +188,7 @@ class GradumChatSession {
     fun reset() {
         hasSentMessage = false
         isSending = false
+        sendingPhase = ""
         currentJob?.cancel()
         currentJob = null
         sessionId = null
@@ -295,7 +299,7 @@ class GradumChatSession {
             sessionId = null
         }
 
-        isSending = false; isWaitingForResponse = false; resetThinkingState(); processPendingQueue()
+        isSending = false; sendingPhase = ""; isWaitingForResponse = false; resetThinkingState(); processPendingQueue()
     }
 
     /**
@@ -331,6 +335,7 @@ class GradumChatSession {
         val messageWithHint = "${prefix}${userMessage} Don't use Markdown tables."
 
         // Validate server connectivity and model availability before sending.
+        sendingPhase = message("gradum.phase.synthesizing")
         val validationStart: Long = System.currentTimeMillis()
         try {
             val modelsJson: String = apiClient.getModels()
@@ -345,7 +350,7 @@ class GradumChatSession {
                         )
                     )
                 }
-                isSending = false; isWaitingForResponse = false; processPendingQueue()
+                isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
 
                 return
             }
@@ -359,7 +364,7 @@ class GradumChatSession {
                     )
                 )
             }
-            isSending = false; isWaitingForResponse = false; processPendingQueue()
+            isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
 
             return
         }
@@ -370,6 +375,7 @@ class GradumChatSession {
 
         try {
             val shouldLoadContext: Boolean = !contextLoaded
+            sendingPhase = if (shouldLoadContext) message("gradum.phase.distilling") else message("gradum.phase.catalyzing")
             apiClient.sendMessage(
                 message = messageWithHint,
                 model = selectedModel?.name,
@@ -378,6 +384,15 @@ class GradumChatSession {
                 toolMode = toolMode,
                 projectRoot = project?.basePath,
             ).catch { exception ->
+                if (exception is CancellationException) {
+                    val assistantIndex: Int = messages.lastIndex
+                    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+                        messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                            ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+                        )
+                    }
+                    isSending = false; sendingPhase = ""; return@catch
+                }
                 log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
                 val assistantIndex: Int = messages.lastIndex
                 if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
@@ -387,7 +402,7 @@ class GradumChatSession {
                         )
                     )
                 }
-                isSending = false; processPendingQueue()
+                isSending = false; sendingPhase = ""; processPendingQueue()
             }.collect { ndjsonLine ->
                 try {
                     val event: JsonObject = eventJson.parseToJsonElement(ndjsonLine) as JsonObject
@@ -411,7 +426,7 @@ class GradumChatSession {
                         "tool_call" -> handleToolCallEvent(data)
                         "error" -> handleErrorEvent(data)
                         "session_end" -> {
-                            isSending = false
+                            isSending = false; sendingPhase = ""
                             isWaitingForResponse = false
                             currentJob = null
                             sessionId = null
@@ -424,6 +439,16 @@ class GradumChatSession {
                 }
             }
         } catch (exception: Exception) {
+            if (exception is CancellationException) {
+                val assistantIndex: Int = messages.lastIndex
+                if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                        ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+                    )
+                }
+                isSending = false; sendingPhase = ""; isWaitingForResponse = false
+                return
+            }
             log.warn("Streaming interrupted for ${apiClient.baseUrl}", exception)
             val assistantIndex: Int = messages.lastIndex
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
@@ -433,7 +458,7 @@ class GradumChatSession {
                     )
                 )
             }
-            isSending = false; isWaitingForResponse = false; processPendingQueue()
+            isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
         }
     }
 
@@ -481,6 +506,7 @@ class GradumChatSession {
     private fun handleToolCallEvent(data: JsonObject?) {
         try {
             val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+            sendingPhase = message("gradum.phase.weaving")
             val alias: String = data?.get("alias")?.jsonPrimitive?.content ?: toolName
             val toolCallId: String = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
             val success: Boolean = data?.get("success")?.toString()?.trim('"')?.toBooleanStrictOrNull() ?: true

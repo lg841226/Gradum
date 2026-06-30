@@ -35,6 +35,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
+    sendingPhase: String = "",
     onDeleteMessage: (Int) -> Unit = {},
     onRetryMessage: (Int) -> Unit = {},
     onCopyAsContext: (String) -> Unit = {}
@@ -64,6 +65,7 @@ fun ChatMessageList(
                 else -> AssistantChatBubble(
                     message = message,
                     isLoading = isLastAssistant,
+                    sendingPhase = if (isLastAssistant) sendingPhase else "",
                     onRetry = { onRetryMessage(index) }
                 )
             }

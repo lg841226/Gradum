@@ -41,6 +41,7 @@ fun ChatScreen(
     messages: List<ChatMessage>,
     isLoading: Boolean,
     isWaitingForResponse: Boolean,
+    sendingPhase: String,
     textState: TextFieldState,
     inputState: ChatInputState,
     inputActions: ChatInputActions,
@@ -88,6 +89,7 @@ fun ChatScreen(
                     else -> AssistantChatBubble(
                         message = message,
                         isLoading = isLastAssistant,
+                        sendingPhase = if (isLastAssistant) sendingPhase else "",
                         actionsEnabled = !isWaitingForResponse,
                         onRetry = { onRetryMessage(index) },
                         onUrlClick = { url ->

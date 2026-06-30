@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-06-29 21:37:12 Changed by gwy
+ * AssistantChatBubble.kt  2026-06-30 18:14:48 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.input.formatModelName
@@ -45,6 +46,7 @@ private const val FADE_IN_MS: Int = 600
 fun AssistantChatBubble(
     message: ChatMessage,
     isLoading: Boolean = false,
+    sendingPhase: String = "",
     actionsEnabled: Boolean = true,
     onRetry: () -> Unit = {},
     onUrlClick: (String) -> Unit = {},
@@ -52,7 +54,7 @@ fun AssistantChatBubble(
     modifier: Modifier = Modifier
 ) {
     val renderBlocks = message.renderBlocks
-    val hasContent = message.hasResponse
+    val hasContent = renderBlocks.isNotEmpty()
 
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
         Column(horizontalAlignment = Alignment.Start) {
@@ -61,19 +63,10 @@ fun AssistantChatBubble(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
                 ) {
-                    val isCloud = message.modelName.contains("cloud")
-                    Icon(
-                        contentDescription = null,
-                        key = if (!isCloud) GradumIcons.Local else GradumIcons.Web
-                    )
-                    if (message.serverName.isNotBlank()) {
-                        Text(
-                            maxLines = 1,
-                            text = message.serverName
-                        )
+                    GradumIcons.resolveModelIcon(message.modelName)?.let { iconKey ->
                         Icon(
-                            key = AllIconsKeys.General.ChevronRight,
-                            contentDescription = null
+                            contentDescription = null,
+                            key = iconKey
                         )
                     }
                     Text(
@@ -81,7 +74,6 @@ fun AssistantChatBubble(
                         overflow = TextOverflow.Ellipsis,
                         text = formatModelName(message.modelName)
                     )
-
                 }
             }
             Spacer(Modifier.height(GradumSpacing.lg))
@@ -99,7 +91,7 @@ fun AssistantChatBubble(
 
             if (isLoading) {
                 Spacer(Modifier.height(GradumSpacing.md))
-                LoadingIndicatorRow()
+                LoadingIndicatorRow(sendingPhase)
             }
 
             Spacer(modifier = Modifier.height(GradumSpacing.md))
@@ -163,17 +155,21 @@ private fun ResponseBlock(
 
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
+    val isInterrupted = block.code == ErrorCode.INTERRUPTED.code
+    val iconKey = if (isInterrupted) GradumIcons.Warning else AllIconsKeys.Status.FailedInProgress
+    val textColor = if (isInterrupted) JewelTheme.globalColors.text.info else JewelTheme.globalColors.text.error
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
     ) {
         Icon(
-            contentDescription = null,
-            key = AllIconsKeys.Status.FailedInProgress
+            key = iconKey,
+            contentDescription = null
         )
         Text(
-            text = block.message,
-            color = JewelTheme.globalColors.text.error
+            color = textColor,
+            text = friendlyErrorMessage(block.code)
         )
     }
 }
@@ -236,12 +232,12 @@ private fun ToolCallBlock(
 }
 
 @Composable
-private fun LoadingIndicatorRow() {
+private fun LoadingIndicatorRow(phase: String = message("gradum.generating")) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
         SweepLightText(
-            text = message("gradum.generating"),
+            text = phase.ifBlank { message("gradum.generating") },
             modifier = Modifier
         )
     }
