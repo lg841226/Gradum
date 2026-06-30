@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-06-30 01:05:00 Changed by gwy
+ * PermissionSelector.kt  2026-06-30 20:41:32 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -25,7 +25,38 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
- * Dropdown that switches between readonly and full-control permissions.
+ * Wire-format identifiers sent to the server. Kept as constants so
+ * [gradum.idea.chat.state.GradumChatSession.selectedPermission] and
+ * [PermissionSelector] can never disagree on spelling.
+ */
+object PermissionMode {
+    const val ReadOnly = "read_only"
+    const val SingleStep = "single_step"
+    const val Write = "write"
+}
+
+/**
+ * UI label for a [PermissionMode] wire value. The selector stores the
+ * wire value but shows the user-facing label; this is the one place
+ * that maps between the two. The previous implementation stored the
+ * label in [gradum.idea.chat.state.GradumChatSession.selectedPermission]
+ * and translated to wire inside the tool window factory, which meant
+ * the initial state was always the label and the translation was
+ * never run — a silent default back to "write" on every fresh session.
+ */
+fun permissionLabel(wire: String): String = when (wire) {
+    PermissionMode.ReadOnly -> message("gradum.read")
+    PermissionMode.SingleStep -> message("gradum.edit")
+    PermissionMode.Write -> message("gradum.agent")
+    else -> wire
+}
+
+/**
+ * Dropdown that switches between read-only, edit, and full agent
+ * permissions. Stores the wire-format value (e.g. "read_only") in
+ * [gradum.idea.chat.state.GradumChatSession.selectedPermission] so the
+ * server receives a parseable enum name; the user-facing label is
+ * looked up via [permissionLabel].
  */
 @Composable
 fun PermissionSelector(
@@ -37,7 +68,7 @@ fun PermissionSelector(
     modifier: Modifier = Modifier
 ) {
     SelectorButton(
-        text = selectedPermission,
+        text = permissionLabel(selectedPermission),
         contentDescription = message("gradum.select.permissions"),
         onClick = onToggle,
         color = JewelTheme.globalColors.text.normal,
@@ -45,58 +76,79 @@ fun PermissionSelector(
     )
 
     if (isMenuVisible) {
-        PopupMenu(onDismissRequest = { onDismiss(); true }, horizontalAlignment = Alignment.Start) {
+        PopupMenu(
+            onDismissRequest = { onDismiss(); true },
+            horizontalAlignment = Alignment.Start
+        ) {
             selectableItem(
-                selected = selectedPermission == message("gradum.read"),
-                onClick = { onSelect(message("gradum.read")) }
+                selected = selectedPermission == PermissionMode.ReadOnly,
+                onClick = { onSelect(PermissionMode.ReadOnly) }
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
                         Text(text = message("gradum.read"))
-                        Text(text = message("gradum.read.info"), color = JewelTheme.globalColors.text.info)
+                        Text(
+                            text = message("gradum.read.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
                     }
                 }
             }
             selectableItem(
-                selected = selectedPermission == message("gradum.edit"),
-                onClick = { onSelect(message("gradum.edit")) }
+                selected = selectedPermission == PermissionMode.SingleStep,
+                onClick = { onSelect(PermissionMode.SingleStep) }
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(key = GradumIcons.Edit, contentDescription = message("gradum.edit.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
                         Text(text = message("gradum.edit"))
-                        Text(text = message("gradum.edit.info"), color = JewelTheme.globalColors.text.info)
+                        Text(
+                            text = message("gradum.edit.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
                     }
                 }
             }
             selectableItem(
-                selected = selectedPermission == message("gradum.agent"),
-                onClick = { onSelect(message("gradum.agent")) }
+                selected = selectedPermission == PermissionMode.Write,
+                onClick = { onSelect(PermissionMode.Write) }
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(key = GradumIcons.Build, contentDescription = message("gradum.agent.mode"))
                     Spacer(modifier = Modifier.width(GradumSpacing.md))
                     Column {
                         Text(text = message("gradum.agent"))
-                        Text(text = message("gradum.agent.info"), color = JewelTheme.globalColors.text.info)
+                        Text(
+                            text = message("gradum.agent.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
                     }
                 }
             }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-30 14:07:18 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-30 21:00:24 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -147,12 +147,11 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             val onToggleMenu: () -> Unit = { session.isMenuVisible = !session.isMenuVisible }
             val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
             val onSelectPermission: (String) -> Unit = { permission ->
+                // `permission` is the wire format the server understands
+                // (e.g. "read_only"). Storing it directly into the session
+                // keeps selectedPermission and toolMode in lockstep — they
+                // are the same value now, see GradumChatSession.toolMode.
                 session.selectedPermission = permission
-                session.toolMode = when (permission) {
-                    message("gradum.read") -> "read_only"
-                    message("gradum.edit") -> "single_step"
-                    else -> "write"
-                }
                 session.isMenuVisible = false
             }
 

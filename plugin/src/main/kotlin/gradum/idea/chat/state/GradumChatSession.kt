@@ -105,21 +105,35 @@ class GradumChatSession {
     /** Whether the "add context" popup menu is visible. */
     var showAddMenu: Boolean by mutableStateOf(false)
 
-    /** The currently selected permission level (read-only or full). */
-    var selectedPermission: String = message("gradum.read")
+    /**
+     * The currently selected permission level, stored as the wire-format
+     * string the server understands (`"read_only"`, `"single_step"`, or
+     * `"write"`). The UI label is a separate concern, looked up in
+     * [gradum.idea.chat.ui.input.permissionLabel] from this value.
+     *
+     * The previous implementation stored the i18n label here (e.g. "Read-only
+     * Permissions" / "只读权限") and translated it to the wire format only
+     * inside [gradum.idea.GradumToolWindowFactory]'s onSelectPermission. The
+     * translation was skipped on session creation, so the initial toolMode
+     * silently defaulted to `"write"` and read-only was a no-op. The
+     * session is now created with the wire format directly, and
+     * [toolMode] is a pure derivation of this value — no parallel mutable
+     * state to drift.
+     */
+    var selectedPermission: String by mutableStateOf("read_only")
 
     /**
-     * Tool surface for the current session. Local models perform better with
-     * a smaller tool list, and read-only sessions cannot accidentally mutate
-     * the project.
+     * The ToolMode string sent to the server. Derived from
+     * [selectedPermission] so the two cannot diverge: the only way to
+     * change what the server sees is to change [selectedPermission], and
+     * the two are always equal. Allowed values:
      *
-     * Allowed values (sent verbatim to the server):
-     * - `"write"` (default) — every Skill is exposed.
      * - `"read_only"` — only `read_file`, `explore_project`, `run_cmd`.
-     *
-     * Any other value is treated as `"write"` by the server.
+     * - `"single_step"` — read-only set plus `edit_file` / `save_file`,
+     *   no task planning (`to_do` / `finish_to_do_item` are blocked).
+     * - `"write"` — every Skill is exposed.
      */
-    var toolMode: String by mutableStateOf("write")
+    val toolMode: String get() = selectedPermission
 
     /**
      * Which system prompt the server should load. `"auto"` (default) lets
