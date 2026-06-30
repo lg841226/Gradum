@@ -1,10 +1,16 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * CommandFilterTest.kt  2026-06-30 20:11:17 Changed by gwy
+ */
+
 package gradum.utils
 
 import gradum.ToolMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 class CommandFilterTest {
 
@@ -98,7 +104,7 @@ class CommandFilterTest {
     @Test
     fun `default toolMode parameter is write so existing callers stay safe`() {
         // RunCommandSkill and any other caller that doesn't pass a toolMode
-        // must keep the old behaviour: only the always-on blocklist applies.
+        // must keep the old behavior: only the always-on blocklist applies.
         val verdict = classifyCommand("rm junk.txt")
         assertEquals(CommandVerdict.Safe, verdict, "Default toolMode should be WRITE")
     }

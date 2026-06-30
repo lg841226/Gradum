@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-06-21 07:53:44 Changed by gwy
+ * EditFileSkill.kt  2026-06-30 20:16:16 Changed by gwy
  */
 
 @file:Suppress("RedundantExplicitType")
@@ -20,26 +20,35 @@ import java.nio.file.Path
 
 /**
  * Computes the length of the longest common subsequence of two line lists.
- * Standard O(n*m) DP. Used by [computeLineDiff] to figure out how many
+ * Standard O(nxm) DP. Used by [computeLineDiff] to figure out how many
  * search lines were preserved (and therefore do not count as removed) and
  * how many replace lines were already present (and therefore do not count
  * as added).
  */
 private fun longestCommonSubsequenceLength(oldLines: List<String>, newLines: List<String>): Int {
-    val oldLineCount: Int = oldLines.size
-    val newLineCount: Int = newLines.size
+    val oldLineCount = oldLines.size
+    val newLineCount = newLines.size
+
     if (oldLineCount == 0 || newLineCount == 0) return 0
-    val dp: Array<IntArray> = Array(oldLineCount + 1) { IntArray(newLineCount + 1) }
-    for (i in 1..oldLineCount) {
-        for (j in 1..newLineCount) {
-            dp[i][j] = if (oldLines[i - 1] == newLines[j - 1]) {
-                dp[i - 1][j - 1] + 1
-            } else {
-                maxOf(dp[i - 1][j], dp[i][j - 1])
-            }
+
+    // dp[firstIndex][secondIndex] = LCS length for prefixes up to these indices
+    val longestCommonSubsequence = Array(oldLineCount + 1) { IntArray(newLineCount + 1) }
+
+    for (firstIndex in 1..oldLineCount) {
+        for (secondIndex in 1..newLineCount) {
+            longestCommonSubsequence[firstIndex][secondIndex] =
+                if (oldLines[firstIndex - 1] == newLines[secondIndex - 1]) {
+                    longestCommonSubsequence[firstIndex - 1][secondIndex - 1] + 1
+                } else {
+                    maxOf(
+                        longestCommonSubsequence[firstIndex - 1][secondIndex],
+                        longestCommonSubsequence[firstIndex][secondIndex - 1]
+                    )
+                }
         }
     }
-    return dp[oldLineCount][newLineCount]
+
+    return longestCommonSubsequence[oldLineCount][newLineCount]
 }
 
 /**
@@ -88,7 +97,8 @@ class EditFileSkill : Skill() {
      * so the LLM can still tell what happened, but the conversation context stays small.
      */
     override val historyKeepCount: Int = 2
-    override val historyVolatileKeys: List<String> = listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")
+    override val historyVolatileKeys: List<String> =
+        listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -126,7 +136,8 @@ class EditFileSkill : Skill() {
 
     override fun execute(arguments: Map<String, Any>): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
-        val rawEdits: List<Map<String, Any>> = (arguments["edits"] as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: emptyList()
+        val rawEdits: List<Map<String, Any>> =
+            (arguments["edits"] as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: emptyList()
         val editMode: String = arguments["mode"] as? String ?: "sequential"
         val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
@@ -156,7 +167,7 @@ class EditFileSkill : Skill() {
             val invalidEdit: EditOperation? = edits.firstOrNull { it.search.isBlank() }
             if (invalidEdit != null) {
                 return makeFailure(
-                    ErrorCode.INVALID_PARAMETER, "Edit ${invalidEdit.index + 1} has empty 'search' text",
+                    ErrorCode.INVALID_PARAMETER, "Edit ${invalidEdit.index + 1} has empty 'search' text"
                 )
             }
 
@@ -165,14 +176,24 @@ class EditFileSkill : Skill() {
                 else -> applySequentialEdits(resolvedPath, targetFile, originalContent, edits)
             }
         } catch (_: FileNotFoundException) {
-            makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
+            makeFailure(
+                ErrorCode.FILE_NOT_FOUND,
+                "File not found: $filePath",
+                mapOf("path" to resolvedPath.toString())
+            )
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?:
-            "Unknown error during edit", mapOf("path" to resolvedPath.toString()))
+            makeFailure(
+                ErrorCode.IO_ERROR,
+                exception.message ?: "Unknown error during edit",
+                mapOf("path" to resolvedPath.toString())
+            )
         }
     }
 
-    private fun applySequentialEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
+    private fun applySequentialEdits(
+        resolvedPath: Path, targetFile: File,
+        originalContent: String, edits: List<EditOperation>
+    ): SkillResult {
         var currentContent: String = originalContent
         val appliedEdits: MutableList<Int> = mutableListOf()
         var linesAdded = 0
@@ -214,7 +235,11 @@ class EditFileSkill : Skill() {
 
         if (currentContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
-            return makeFailure(ErrorCode.EMPTY_RESULT, "Edit resulted in empty content", mapOf("path" to resolvedPath.toString()))
+            return makeFailure(
+                ErrorCode.EMPTY_RESULT,
+                "Edit resulted in empty content",
+                mapOf("path" to resolvedPath.toString())
+            )
         }
 
         targetFile.writeText(currentContent, Charsets.UTF_8)
@@ -230,7 +255,12 @@ class EditFileSkill : Skill() {
         )
     }
 
-    private fun applyAtomicEdits(resolvedPath: Path, targetFile: File, originalContent: String, edits: List<EditOperation>): SkillResult {
+    private fun applyAtomicEdits(
+        resolvedPath: Path,
+        targetFile: File,
+        originalContent: String,
+        edits: List<EditOperation>
+    ): SkillResult {
         var workingContent: String = originalContent
         var linesAdded = 0
         var linesRemoved = 0
@@ -242,7 +272,8 @@ class EditFileSkill : Skill() {
                 occurrences == 0 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        ErrorCode.CODE_NOT_FOUND, "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
+                        ErrorCode.CODE_NOT_FOUND,
+                        "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
                     )
                 }
@@ -250,7 +281,8 @@ class EditFileSkill : Skill() {
                 occurrences > 1 -> {
                     targetFile.writeText(originalContent, Charsets.UTF_8)
                     return makeFailure(
-                        ErrorCode.MULTIPLE_MATCHES, "Edit ${edit.index + 1} failed: Found $occurrences matches. Original content restored.",
+                        ErrorCode.MULTIPLE_MATCHES,
+                        "Edit ${edit.index + 1} failed: Found $occurrences matches. Original content restored.",
                         mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
                     )
                 }

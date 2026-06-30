@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-30 10:59:59 Changed by gwy
+ * Agent.kt  2026-06-30 21:42:45 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -82,19 +82,16 @@ class Agent(
     ): Unit {
         val startTimeMillis: Long = System.currentTimeMillis().also { sessionStartTimeMillis = it }
 
-        val contextLoaded: Boolean = if (loadPreviousContext) {
-            val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
-            conversationHistory.addAll(loadedMessages)
-            loadedMessages.isNotEmpty()
-        } else {
-            false
-        }
+        val contextLoaded: Boolean =
+            if (loadPreviousContext) {
+                val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
+                conversationHistory.addAll(loadedMessages)
+                loadedMessages.isNotEmpty()
+            } else false
 
         loadSystemPrompt()
 
-        sessionAborted = false
-        lastToolCallKey = null
-        repeatedToolCallCount = 0
+        sessionAborted = false; lastToolCallKey = null; repeatedToolCallCount = 0
 
         for (skill: Skill in SkillRegistry.getAllSkills())
             skill.resetHistoryCount()
@@ -426,7 +423,7 @@ class Agent(
                 "error" to mapOf(
                     "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
                     "message" to "Tool '${functionName}' is not permitted in ${configuration.toolMode} mode " +
-                                 "(allowed: ${allowedNames.joinToString(", ")})",
+                        "(allowed: ${allowedNames.joinToString(", ")})",
                     "toolMode" to configuration.toolMode.name,
                     "allowedModes" to allowedNames,
                 ),

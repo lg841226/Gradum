@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-06-30 17:35:54 Changed by gwy
+ * GradumIcons.kt  2026-06-30 19:51:24 Changed by gwy
  */
 
 package gradum.idea.icons
@@ -34,8 +34,6 @@ object GradumIcons {
     val FeatText = PathIconKey("/icons/feat/text/text.svg", GradumIcons::class.java)
     val Ran = PathIconKey("/icons/cmd/cmd.svg", GradumIcons::class.java)
     val Explore = PathIconKey("/icons/explore/explore.svg", GradumIcons::class.java)
-    val Web = PathIconKey("/icons/web/web.svg", GradumIcons::class.java)
-    val Local = PathIconKey("/icons/local/local.svg", GradumIcons::class.java)
     val Build = PathIconKey("/icons/build/build.svg", GradumIcons::class.java)
     val ModelTools = PathIconKey("/icons/tools/tool.svg", GradumIcons::class.java)
     val ModelVision = PathIconKey("/icons/vison/vison.svg", GradumIcons::class.java)

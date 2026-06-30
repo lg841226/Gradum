@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-30 17:58:28 Changed by gwy
+ * ModelSelectorBar.kt  2026-06-30 19:26:15 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -26,7 +26,6 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey
-import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -51,8 +50,7 @@ fun ModelSelectorBar(
 
     Row(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = GradumSpacing.md),
+            .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
@@ -75,7 +73,7 @@ fun ModelSelectorBar(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = GradumSpacing.xs),
+                                .padding(horizontal = GradumSpacing.xs, vertical = GradumSpacing.sm),
                             horizontalArrangement = Arrangement.Center
                         ) { Text(text = message("gradum.model"), fontWeight = FontWeight.Bold) }
                     }
@@ -84,7 +82,7 @@ fun ModelSelectorBar(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                                    .padding(horizontal = GradumSpacing.xs, vertical = GradumSpacing.xs),
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Text(
@@ -112,7 +110,10 @@ fun ModelSelectorBar(
                                     fontWeight = FontWeight.Medium,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
+                                        .padding(
+                                            horizontal = GradumSpacing.xs,
+                                            vertical = GradumSpacing.xs
+                                        )
                                 )
                             }
                             pinnedModels.forEach { pinned ->
@@ -183,8 +184,8 @@ private fun ModelItemContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = GradumSpacing.xs),
+        verticalAlignment = Alignment.Top
     ) {
         val isCloud = model.name.contains("cloud")
 
@@ -206,7 +207,7 @@ private fun ModelItemContent(
                 if (isCloud) {
                     Icon(
                         key = GradumIcons.Cloud,
-                        contentDescription = "Cloud"
+                        contentDescription = message("gradum.cloud")
                     )
                     Spacer(modifier = Modifier.width(GradumSpacing.sm))
                 }
@@ -234,7 +235,7 @@ private fun RefreshButtonItem(onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = GradumSpacing.md),
+            .padding(horizontal = GradumSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -261,7 +262,7 @@ private fun ModelAutoItemContent(enabled: Boolean) {
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
+            .padding(horizontal = GradumSpacing.xs)
     ) {
         Icon(
             key = GradumIcons.Auto,
@@ -307,12 +308,12 @@ private fun ModelCapabilityIcons(model: ModelInfo) {
         if (model.toolCall)
             Icon(
                 key = GradumIcons.ModelTools,
-                contentDescription = "Tools"
+                contentDescription = message("gradum.tools")
             )
         if (model.attachment)
             Icon(
                 key = GradumIcons.ModelVision,
-                contentDescription = "Vision"
+                contentDescription = message("gradum.vision")
             )
     }
 }

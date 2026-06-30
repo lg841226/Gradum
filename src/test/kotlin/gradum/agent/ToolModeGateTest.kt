@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolModeGateTest.kt  2026-06-30 20:11:49 Changed by gwy
+ * ToolModeGateTest.kt  2026-06-30 20:12:21 Changed by gwy
  */
 
 package gradum.agent
@@ -21,10 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.JsonPrimitive
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /**
  * Pins the read-only / single-step tool surface to a real disk: when the
@@ -49,7 +46,7 @@ class ToolModeGateTest {
     @Test
     fun `read-only mode rejects edit_file call and does not touch the file`() {
         val targetFile: Path = tempProjectRoot.resolve("victim.txt")
-        val originalContent: String = "original line one\noriginal line two\n"
+        val originalContent = "original line one\noriginal line two\n"
         Files.writeString(targetFile, originalContent)
 
         val toolCall = ToolCallEntry(
@@ -188,10 +185,11 @@ class ToolModeGateTest {
         // should reflect the edit. We do NOT assert on the exact result
         // map shape (linesAdded etc. are skill-level concerns tested
         // elsewhere) — we only assert that the gate let the call through.
-        assertFalse(
-            (result["error"] as? Map<*, *>)?.get("code") == ErrorCode.TOOL_NOT_PERMITTED.name,
+        assertNotEquals(
+            (result["error"] as? Map<*, *>)?.get("code"),
+            ErrorCode.TOOL_NOT_PERMITTED.name,
             "WRITE mode must NOT reject edit_file — only the mode gate should not fire, " +
-                "result was: $result",
+                "result was: $result"
         )
         assertEquals(
             "goodbye world\n",
@@ -220,9 +218,10 @@ class ToolModeGateTest {
 
         @Suppress("UNCHECKED_CAST")
         val result = toolCallEvent.second["result"] as Map<String, Any>
-        assertFalse(
-            (result["error"] as? Map<*, *>)?.get("code") == ErrorCode.TOOL_NOT_PERMITTED.name,
-            "read_file should be allowed in READ_ONLY mode",
+        assertNotEquals(
+            (result["error"] as? Map<*, *>)?.get("code"),
+            ErrorCode.TOOL_NOT_PERMITTED.name,
+            "read_file should be allowed in READ_ONLY mode"
         )
     }
 
