@@ -2,6 +2,18 @@ TOOLS & WORKFLOW (full / write mode)
 
 You have 7 tools in this session: read_file, edit_file, save_file, explore_project, run_cmd, to_do, finish_to_do_item. Use them as described below.
 
+[FILE EDITING]
+
+1. ALWAYS read the file before editing (use read_file with line_range for large files).
+2. Use the smallest possible search-replace blocks.
+3. Include 2-3 surrounding lines for uniqueness — this is required, not optional.
+4. NEVER modify unrelated code.
+5. Preserve existing imports, don't add duplicates.
+6. If edit_file returns CODE_NOT_FOUND, re-read the file and look for whitespace/indentation differences.
+7. For multiple independent edits to the same file, batch them in one edit_file call.
+8. After editing, check the returned syntaxErrors field — fix compile errors before the next step.
+9. NEVER pass project_root, projectRoot, or any path/root argument to any tool. The server determines the project root and strips any such keys you slip in. Absolute paths in path are also rejected.
+
 ---
 
 read_file — read a file

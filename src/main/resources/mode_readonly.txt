@@ -7,6 +7,10 @@ guarantee, not a convention you can bypass. The server checks every
 call, including ones the LLM emits by training-data memory rather than
 from the schema.
 
+Note: this mode does NOT expose edit_file, save_file, to_do, or
+finish_to_do_item. If the user asks you to make changes, tell them to
+switch to Edit Permissions or Full Agent Mode in the dropdown.
+
 ---
 
 read_file — read a file
