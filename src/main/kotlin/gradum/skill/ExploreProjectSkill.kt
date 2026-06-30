@@ -178,23 +178,24 @@ class ExploreProjectSkill : Skill() {
         ),
     )
 
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         // The root to scan is ALWAYS the server-injected projectRoot (resolved
-        // from --project-root at startup). The LLM has no way to influence it
-        // because the schema no longer exposes any path/root parameter. Some
-        // models still pass `project_root` out of habit / training memory —
-        // we HARD-reject it so the model gets a clear error and stops wasting
-        // turns, instead of silently ignoring and leaving the model confused.
+        // from the per-session SkillContext). The LLM has no way to influence
+        // it because the schema no longer exposes any path/root parameter.
+        // Some models still pass `project_root` out of habit / training
+        // memory — we HARD-reject it so the model gets a clear error and
+        // stops wasting turns, instead of silently ignoring and leaving the
+        // model confused.
         if (arguments.containsKey("project_root")) {
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
                 "'project_root' is not a valid parameter for explore_project. " +
-                    "The server determines the project root from its --project-root startup flag. " +
+                    "The server determines the project root from the per-session SkillContext. " +
                     "Do not pass any path/root argument; just call explore_project with depth=N.",
             )
         }
 
-        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+        val projectRoot: String = context.projectRoot
 
         val depth: Int = when (val depthValue: Any? = arguments["depth"]) {
             is Number -> depthValue.toInt()
@@ -205,7 +206,7 @@ class ExploreProjectSkill : Skill() {
         if (projectRoot.isBlank())
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
-                "Server has no project root configured (start the server with --project-root <path>).",
+                "Server has no project root configured for this session.",
             )
         if (depth !in MINIMUM_DEPTH..MAXIMUM_DEPTH)
             return makeFailure(

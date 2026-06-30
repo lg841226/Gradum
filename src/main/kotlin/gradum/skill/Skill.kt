@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-06-30 18:30:00 Changed by gwy
+ * Skill.kt  2026-06-30 22:06:58 Changed by gwy
  */
 
 package gradum.skill
@@ -38,9 +38,7 @@ abstract class Skill {
      * invariant regardless of what the schema filter let through.
      */
     open val allowedToolModes: Set<ToolMode> = setOf(
-        ToolMode.WRITE,
-        ToolMode.SINGLE_STEP,
-        ToolMode.READ_ONLY,
+        ToolMode.WRITE, ToolMode.SINGLE_STEP, ToolMode.READ_ONLY
     )
 
     /**
@@ -52,7 +50,24 @@ abstract class Skill {
      */
     open val mutatesProject: Boolean = false
 
-    abstract fun execute(arguments: Map<String, Any>): SkillResult
+    /**
+     * Execute the skill with the LLM's tool-call arguments and the
+     * per-session [SkillContext] (tool mode + project root).
+     *
+     * The [context] is the single source of truth for session-level
+     * state. Skills that need to know the project root or the active
+     * permission tier should read them from here — never from a
+     * process-global like `ProjectPaths`. The agent constructs one
+     * [SkillContext] per session from `AgentConfiguration` and passes
+     * the same instance to every call, so all Skills see the same
+     * project root and the same [ToolMode] within a session.
+     *
+     * @param arguments LLM-supplied tool-call arguments, with the
+     *   `projectRoot` key already injected by the agent (LLM-supplied
+     *   `projectRoot` / `project_root` are stripped before injection).
+     * @param context per-session state owned by the agent.
+     */
+    abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
     abstract fun getSchema(): Map<String, Any>
 
@@ -82,13 +97,11 @@ abstract class Skill {
 
     open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
-        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) {
+        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty())
             return result
-        }
-        return if (prepareHistoryCallCount <= historyKeepCount) {
+        return if (prepareHistoryCallCount <= historyKeepCount)
             result
-        } else {
+        else
             result.filterKeys { it !in historyVolatileKeys }
-        }
     }
 }

@@ -13,6 +13,7 @@ import gradum.*
 import gradum.PromptVariant.*
 import gradum.client.*
 import gradum.skill.Skill
+import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
 import gradum.utils.ContextManager
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
@@ -40,7 +42,32 @@ class Agent(
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
     private var activeClient: LlmClient
 
-    private val contextManager: ContextManager = ContextManager(ProjectPaths.outputDirectory())
+    // Per-session ContextManager: the .gradum output directory lives
+    // inside the project the IDE has open (NOT the server's CWD). The
+    // plugin provides the projectRoot over HTTP and Routes validates it
+    // before the Agent is constructed, so this is never empty in
+    // production. Using the legacy ProjectPaths.outputDirectory() here
+    // would write context.json to the wrong project whenever the server
+    // was launched from a developer workspace rather than the user's
+    // target project.
+    private val contextManager: ContextManager = ContextManager(
+        Path.of(configuration.projectRoot).resolve(".gradum")
+    )
+
+    /**
+     * Per-session [SkillContext] shared by every [Skill.execute] call.
+     *
+     * Constructed once from [configuration] and frozen for the lifetime
+     * of this Agent — both `toolMode` and `projectRoot` are immutable
+     * for the duration of a session, so passing the same instance down
+     * means every Skill sees the same values. The previous design
+     * relied on `ProjectPaths.setProjectRoot` (a process-global) and
+     * gave Skills no way to access `toolMode` at all; this replaces both.
+     */
+    private val skillContext: SkillContext = SkillContext(
+        toolMode = configuration.toolMode,
+        projectRoot = configuration.projectRoot,
+    )
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
     private val repeatedResponseTracker: MutableList<String> = mutableListOf()
@@ -429,7 +456,7 @@ class Agent(
                 ),
             )
         } else {
-            when (val result: SkillResult = skillInstance.execute(convertedArguments)) {
+            when (val result: SkillResult = skillInstance.execute(convertedArguments, skillContext)) {
                 is SkillResult.Success -> mapOf("success" to true).plus(result.data)
                 is SkillResult.Failure -> mapOf(
                     "success" to false,

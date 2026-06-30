@@ -134,12 +134,12 @@ class EditFileSkill : Skill() {
         )
     }
 
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
         val rawEdits: List<Map<String, Any>> =
             (arguments["edits"] as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: emptyList()
         val editMode: String = arguments["mode"] as? String ?: "sequential"
-        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+        val projectRoot: String = context.projectRoot
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")

@@ -143,12 +143,12 @@ class SaveFileSkill : Skill() {
      * @param arguments Map containing `path`, `content`, and optional `mode`, `encoding`
      * @return [SkillResult.Success] with path, bytesWritten, totalLines, created, mode, encoding
      */
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
         val fileContent: String = arguments["content"] as? String ?: ""
         val writeMode: String = arguments["mode"] as? String ?: "overwrite"
         val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
-        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+        val projectRoot: String = context.projectRoot
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")

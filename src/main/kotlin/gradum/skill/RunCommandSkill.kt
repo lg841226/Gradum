@@ -14,7 +14,6 @@ import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.utils.classifyCommand
 import gradum.utils.CommandVerdict
-import gradum.ProjectPaths
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -62,10 +61,10 @@ class RunCommandSkill : Skill() {
     }
 
     @OptIn(DangerousOperation::class)
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val commandText: String = arguments["command"] as? String ?: ""
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
-        val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+        val projectRoot: String = context.projectRoot
 
         if (commandText.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'command' parameter")
@@ -79,7 +78,7 @@ class RunCommandSkill : Skill() {
             )
         }
 
-        if (runDetached) return executeDetached(commandText)
+        if (runDetached) return executeDetached(commandText, context)
 
         return executeBlocking(commandText, projectRoot)
     }
@@ -124,9 +123,13 @@ class RunCommandSkill : Skill() {
     }
 
     @DangerousOperation
-    private fun executeDetached(commandText: String): SkillResult {
+    private fun executeDetached(commandText: String, context: SkillContext): SkillResult {
         return try {
-            val logDirectory: Path = ProjectPaths.outputDirectory().resolve("run_cmd")
+            // Per-session log directory: <projectRoot>/.gradum/run_cmd
+            // (not the legacy global ProjectPaths.outputDirectory() which
+            // resolved to the server's CWD and wrote to the wrong project
+            // when the plugin opened a different one in the IDE).
+            val logDirectory: Path = Path.of(context.projectRoot, ".gradum", "run_cmd")
             logDirectory.toFile().mkdirs()
             val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
 

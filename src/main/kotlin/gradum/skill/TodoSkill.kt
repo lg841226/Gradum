@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-06-23 08:09:34 Changed by gwy
+ * TodoSkill.kt  2026-06-30 22:06:58 Changed by gwy
  */
 
 package gradum.skill
@@ -168,10 +168,11 @@ class TodoSkill : Skill() {
      * Parses the task list from arguments and initializes [TodoManager].
      *
      * @param arguments Map containing `tasks` — a list of task descriptions.
+     * @param context per-session state (unused here, but required by [Skill.execute]).
      * @return [SkillResult.Success] with totalTasks, currentTask, currentIndex;
      *         or [SkillResult.Failure] if tasks is empty or already initialized.
      */
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
         if (rawTasks.isEmpty())
@@ -227,7 +228,7 @@ class CompletePlanSkill : Skill() {
         )
     }
 
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val action: String = arguments["action"] as? String ?: "complete"
 
         return when (action) {
