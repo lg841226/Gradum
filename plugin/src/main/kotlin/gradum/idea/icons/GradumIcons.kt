@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-06-30 01:05:00 Changed by gwy
+ * GradumIcons.kt  2026-06-30 17:35:54 Changed by gwy
  */
 
 package gradum.idea.icons
 
+import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icon.PathIconKey
 
 object GradumIcons {
@@ -36,4 +37,42 @@ object GradumIcons {
     val Web = PathIconKey("/icons/web/web.svg", GradumIcons::class.java)
     val Local = PathIconKey("/icons/local/local.svg", GradumIcons::class.java)
     val Build = PathIconKey("/icons/build/build.svg", GradumIcons::class.java)
+    val ModelTools = PathIconKey("/icons/tools/tool.svg", GradumIcons::class.java)
+    val ModelVision = PathIconKey("/icons/vison/vison.svg", GradumIcons::class.java)
+
+    val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)
+    val ProviderAnthropic = PathIconKey("/icons/model-provider/anthropic.svg", GradumIcons::class.java)
+    val ProviderDeepseek = PathIconKey("/icons/model-provider/deepseek.svg", GradumIcons::class.java)
+    val ProviderGoogle = PathIconKey("/icons/model-provider/google.svg", GradumIcons::class.java)
+    val ProviderMeta = PathIconKey("/icons/model-provider/meta.svg", GradumIcons::class.java)
+    val ProviderMinimax = PathIconKey("/icons/model-provider/minimax.svg", GradumIcons::class.java)
+    val ProviderMistral = PathIconKey("/icons/model-provider/mistral.svg", GradumIcons::class.java)
+    val ProviderOpenai = PathIconKey("/icons/model-provider/openai.svg", GradumIcons::class.java)
+    val ProviderXai = PathIconKey("/icons/model-provider/xai.svg", GradumIcons::class.java)
+    val ProviderXiaomi = PathIconKey("/icons/model-provider/xiaomi.svg", GradumIcons::class.java)
+    val ProviderZhipuai = PathIconKey("/icons/model-provider/zhipuai.svg", GradumIcons::class.java)
+
+    private val PROVIDER_KEYWORD_MAP = mapOf(
+        "qwen" to ProviderAlibaba,
+        "claude" to ProviderAnthropic,
+        "deepseek" to ProviderDeepseek,
+        "gemini" to ProviderGoogle,
+        "gemma" to ProviderGoogle,
+        "llama" to ProviderMeta,
+        "minimax" to ProviderMinimax,
+        "mistral" to ProviderMistral,
+        "mixtral" to ProviderMistral,
+        "gpt" to ProviderOpenai,
+        "o1" to ProviderOpenai,
+        "o3" to ProviderOpenai,
+        "o4" to ProviderOpenai,
+        "grok" to ProviderXai,
+        "mimo" to ProviderXiaomi,
+        "glm" to ProviderZhipuai
+    )
+
+    fun resolveModelIcon(modelName: String): IconKey? {
+        val lower = modelName.lowercase()
+        return PROVIDER_KEYWORD_MAP.entries.firstOrNull { lower.contains(it.key) }?.value
+    }
 }

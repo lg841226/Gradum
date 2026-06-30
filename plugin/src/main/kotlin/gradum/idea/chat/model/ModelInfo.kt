@@ -14,5 +14,10 @@ data class ModelInfo(
     val name: String,
     val serverName: String = "",
     val provider: String = "",
-    val server: String = ""
+    val server: String = "",
+    val contextLimit: Int = 0,
+    val reasoning: Boolean = false,
+    val toolCall: Boolean = false,
+    val openWeights: Boolean = false,
+    val attachment: Boolean = false
 )

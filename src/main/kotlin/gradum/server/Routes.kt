@@ -2,15 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-26 17:32:11 Changed by gwy
+ * Routes.kt  2026-06-30 11:24:19 Changed by gwy
  */
 
 package gradum.server
 
-import gradum.AgentConfiguration
-import gradum.Provider
-import gradum.PromptVariant
-import gradum.ToolMode
+import gradum.*
 import gradum.Version
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
@@ -31,7 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.time.LocalDateTime
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
@@ -131,7 +128,8 @@ fun Application.registerAllRoutes() {
                 )
                 return@post
             }
-            val projectRootPath: java.nio.file.Path = java.nio.file.Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+            val projectRootPath: java.nio.file.Path =
+                java.nio.file.Paths.get(rawProjectRoot).toAbsolutePath().normalize()
             val projectRootFile: java.io.File = projectRootPath.toFile()
             if (!projectRootFile.exists() || !projectRootFile.isDirectory) {
                 call.respondText(
@@ -168,8 +166,7 @@ fun Application.registerAllRoutes() {
                 // when the client does not override.
                 toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.WRITE,
                 promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-                // The plugin owns project selection; the server is just a
-                // per-session executor. We resolved + validated above so
+                // The plugin owns project selection; the server is just a per-session executor. We resolved + validated above so
                 // AgentConfiguration can require a non-null String.
                 projectRoot = projectRootPath.toString(),
             )
@@ -258,7 +255,12 @@ fun Application.registerAllRoutes() {
                                 "name" to entry.modelName,
                                 "provider" to entry.providerType,
                                 "server" to entry.serverUrl,
-                                "serverName" to entry.serverName
+                                "serverName" to entry.serverName,
+                                "contextLimit" to entry.contextLimit,
+                                "reasoning" to entry.reasoning,
+                                "toolCall" to entry.toolCall,
+                                "openWeights" to entry.openWeights,
+                                "attachment" to entry.attachment
                             )
                         },
                     )

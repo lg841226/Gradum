@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-06-28 22:15:18 Changed by gwy
+ * ExploreProjectSkill.kt  2026-06-30 10:33:39 Changed by gwy
  */
 
 package gradum.skill
@@ -17,8 +17,8 @@ import java.nio.file.Paths
 
 private const val MINIMUM_DEPTH: Int = 1
 private const val MAXIMUM_DEPTH: Int = 12
-private const val DEFAULT_DEPTH: Int = 5
-private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2000
+private const val DEFAULT_DEPTH: Int = 8
+private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2048
 
 private val truncatedDirectoryNames: Set<String> = setOf(
     // VCS
@@ -167,7 +167,7 @@ class ExploreProjectSkill : Skill() {
                     "depth" to mapOf(
                         "type" to "integer",
                         "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
-                                "depth=1 lists immediate children only.",
+                            "depth=1 lists immediate children only.",
                         "minimum" to MINIMUM_DEPTH,
                         "maximum" to MAXIMUM_DEPTH,
                         "default" to DEFAULT_DEPTH,

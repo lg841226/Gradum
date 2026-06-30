@@ -23,7 +23,12 @@ data class ModelEntry(
     val modelName: String,
     val providerType: String,
     val serverUrl: String,
-    val serverName: String
+    val serverName: String,
+    val contextLimit: Int = 0,
+    val reasoning: Boolean = false,
+    val toolCall: Boolean = false,
+    val openWeights: Boolean = false,
+    val attachment: Boolean = false
 )
 
 private val knownServers: List<ServerDefinition> = listOf(
@@ -43,6 +48,7 @@ private data class ServerDefinition(
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
 fun discoverModels(): List<ModelEntry> {
+    loadCatalog()
     val discoveredModels: MutableList<ModelEntry> = mutableListOf()
 
     for (server in knownServers) {
@@ -50,7 +56,20 @@ fun discoverModels(): List<ModelEntry> {
         discoveredModels.addAll(serverModels)
     }
 
-    return discoveredModels
+    return discoveredModels.map { entry ->
+        val metadata = lookupMetadata(entry.modelName)
+        if (metadata != null) {
+            entry.copy(
+                contextLimit = metadata.contextLimit,
+                reasoning = metadata.reasoning,
+                toolCall = metadata.toolCall,
+                openWeights = metadata.openWeights,
+                attachment = metadata.attachment
+            )
+        } else {
+            entry
+        }
+    }
 }
 
 private fun probeServer(server: ServerDefinition): List<ModelEntry> {
