@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-30 03:15:42 Changed by gwy
+ * Agent.kt  2026-06-30 10:59:59 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -10,6 +10,7 @@
 package gradum.agent
 
 import gradum.*
+import gradum.PromptVariant.*
 import gradum.client.*
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
@@ -203,13 +204,13 @@ class Agent(
 
     private fun loadSystemPrompt() {
         val resolvedVariant: PromptVariant = when (configuration.promptVariant) {
-            PromptVariant.AUTO -> PromptVariant.resolveAuto(configuration.provider)
-            PromptVariant.CLOUD, PromptVariant.LOCAL -> configuration.promptVariant
+            CLOUD, LOCAL -> configuration.promptVariant
+            AUTO -> PromptVariant.resolveAuto(configuration.provider)
         }
         val primaryPath: String = when (resolvedVariant) {
-            PromptVariant.CLOUD -> "/system_prompt_cloud.md"
-            PromptVariant.LOCAL -> "/system_prompt_local.md"
-            PromptVariant.AUTO -> "/system_prompt.md"
+            CLOUD -> "/system_prompt_cloud.txt"
+            LOCAL -> "/system_prompt_local.txt"
+            AUTO -> "/system_prompt_local.txt"  // unreachable — resolveAuto() never returns AUTO
         }
 
         val promptContent: String = try {

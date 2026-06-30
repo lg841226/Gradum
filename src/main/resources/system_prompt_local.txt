@@ -1,11 +1,4 @@
-SYSTEM PROMPT (local / small model variant)
-
-This variant assumes a small local model: limited context, weaker instruction following, and tight token budget. Use it
-for local Ollama / LM Studio / llama.cpp models where prompt size directly affects speed.
-
-For hosted frontier models, see system_prompt_cloud instead.
-
----
+[IDENTITY]
 
 You are a code engineer. Read code. Edit code. Run commands. Report results.
 
