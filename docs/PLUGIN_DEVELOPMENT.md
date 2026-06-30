@@ -4,6 +4,22 @@ This document explains how to develop new skills (Skill) for Gradum.
 
 ---
 
+## Table of Contents
+
+1. [Architecture Overview](#1-architecture-overview)
+2. [Skill Type System](#2-skill-type-system)
+3. [Skill Abstract Base Class](#3-skill-abstract-base-class)
+4. [SkillResult Output Format](#4-skillresult-output-format)
+5. [getSchema() Format](#5-getschema-format)
+6. [Developing a New Skill: Step-by-Step Guide](#6-developing-a-new-skill-step-by-step-guide)
+7. [Complete Example: File Counter Skill](#7-complete-example-file-counter-skill)
+8. [Best Practices](#8-best-practices)
+9. [Existing Skills Reference](#9-existing-skills-reference)
+10. [Declaring `allowedToolModes` — The Three-Tier Model](#10-declaring-allowedtoolmodes--the-three-tier-model)
+11. [Using `SkillContext` for Project Root and Mode](#11-using-skillcontext-for-project-root-and-mode)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Coding Style](#13-coding-style)
+
 ## 1. Architecture Overview
 
 Gradum uses a hard-coded skill registration system. A skill is a Kotlin class that extends the `Skill` abstract base
@@ -119,7 +135,33 @@ abstract class Skill {
     abstract val description: String
     abstract val alias: String
 
-    abstract fun execute(arguments: Map<String, Any>): SkillResult
+    /**
+     * The set of ToolMode tiers under which this skill is allowed to
+     * execute. The agent enforces this both at schema-filter time
+     * (hides the tool from the LLM in modes where it is not allowed)
+     * and at runtime (rejects the call with TOOL_NOT_PERMITTED if the
+     * model hallucinates a forbidden call). The default is "all three".
+     */
+    open val allowedToolModes: Set<ToolMode> = setOf(
+        ToolMode.WRITE, ToolMode.SINGLE_STEP, ToolMode.READ_ONLY,
+    )
+
+    /**
+     * Hint for documentation. Whether this skill mutates the project
+     * (filesystem, git, process environment). The actual gate is
+     * `allowedToolModes`; this is just a self-declared label.
+     */
+    open val mutatesProject: Boolean = false
+
+    /**
+     * Execute the skill with the LLM-supplied arguments and the
+     * per-session SkillContext (tool mode + project root).
+     *
+     * @param arguments LLM-supplied tool-call arguments.
+     * @param context per-session state owned by the agent — see §11.
+     */
+    abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
+
     abstract fun getSchema(): Map<String, Any>
 
     /**
@@ -137,14 +179,32 @@ abstract class Skill {
 
     private var prepareHistoryCallCount: Int = 0
 
+    /**
+     * Resets the internal history call counter.
+     * Should be called at the start of each session to ensure
+     * [historyKeepCount] behaves correctly across sessions.
+     */
+    fun resetHistoryCount() {
+        prepareHistoryCallCount = 0
+    }
+
     open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
-        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return result
-        return if (prepareHistoryCallCount <= historyKeepCount) result
-        else result.filterKeys { it !in historyVolatileKeys }
+        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) {
+            return result
+        }
+        return if (prepareHistoryCallCount <= historyKeepCount) {
+            result
+        } else {
+            result.filterKeys { it !in historyVolatileKeys }
+        }
     }
 }
 ```
+
+> **Heads up — signature change.** `execute` now takes a second argument
+> `context: SkillContext`. The previous single-argument signature
+> `execute(arguments: Map<String, Any>)` is gone. See [§11](#11-using-skillcontext-for-project-root-and-mode).
 
 ### Required Class Properties
 
@@ -156,17 +216,19 @@ abstract class Skill {
 
 ### Required Methods
 
-| Method                                              | Return                                       | Purpose                                               |
-|-----------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
-| `execute(arguments: Map<String, Any>): SkillResult` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(): Map<String, Any>`                     | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+| Method                                                           | Return                                       | Purpose                                               |
+|------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>, context: SkillContext)`   | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
+| `getSchema(): Map<String, Any>`                                  | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
 
 ### Optional Properties
 
-| Property              | Type           | Default         | Purpose                                                              |
-|-----------------------|----------------|-----------------|----------------------------------------------------------------------|
-| `historyKeepCount`    | `Int`          | `Int.MAX_VALUE` | Keep this many recent results intact; strip volatile keys beyond     |
-| `historyVolatileKeys` | `List<String>` | `emptyList()`   | Keys to remove from history result when exceeding `historyKeepCount` |
+| Property              | Type             | Default         | Purpose                                                                                                                                                |
+|-----------------------|------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allowedToolModes`    | `Set<ToolMode>`  | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes--the-three-tier-model). |
+| `mutatesProject`      | `Boolean`        | `false`         | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                                                          |
+| `historyKeepCount`    | `Int`            | `Int.MAX_VALUE` | Keep this many recent results intact; strip volatile keys beyond                                                                                       |
+| `historyVolatileKeys` | `List<String>`   | `emptyList()`   | Keys to remove from history result when exceeding `historyKeepCount`                                                                                   |
 
 ### Optional Hooks
 
@@ -336,14 +398,23 @@ class YourSkill : Skill() {
         )
     }
 
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    /**
+     * @param arguments LLM-supplied tool-call arguments. The
+     *   `projectRoot` is provided by the agent; do NOT read it from
+     *   here — use [context].projectRoot instead.
+     * @param context per-session state (tool mode + project root).
+     */
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val inputValue: String = arguments["input"] as? String ?: ""
 
         if (inputValue.isBlank()) {
             return makeFailure("INVALID_PARAMETER", "Missing 'input' parameter")
         }
 
-        val resolvedPath: Path = Path.of(inputValue).toAbsolutePath().normalize()
+        // Read the project root from the SkillContext, not from arguments
+        // or from a process-global. See §11 for the full rationale.
+        val projectRoot: String = context.projectRoot
+        val resolvedPath: Path = Path.of(projectRoot, inputValue).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
 
         return try {
@@ -423,19 +494,21 @@ class FileCounterSkill : Skill() {
         )
     }
 
-    override fun execute(arguments: Map<String, Any>): SkillResult {
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
 
         if (filePath.isBlank()) {
             return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
         }
 
-        val resolvedPath: Path = Path.of(filePath).toAbsolutePath().normalize()
+        // Resolve relative to the session's projectRoot (NOT the server CWD).
+        val projectRoot: String = context.projectRoot
+        val resolvedPath: Path = Path.of(projectRoot, filePath).toAbsolutePath().normalize()
         val targetFile: File = resolvedPath.toFile()
 
         val fileContent: String = try {
             targetFile.readText(Charsets.UTF_8)
-        } catch (exception: java.io.FileNotFoundException) {
+        } catch (_: java.io.FileNotFoundException) {
             return makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (exception: Exception) {
             return makeFailure("IO_ERROR", exception.message ?: "Failed to read file", mapOf("path" to resolvedPath.toString()))
@@ -583,7 +656,202 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ---
 
-## 10. Troubleshooting
+## 10. Declaring `allowedToolModes` — The Three-Tier Model
+
+Gradum exposes **three permission tiers** through a single field on every
+`Skill` — `allowedToolModes`. The agent enforces it twice (schema filter at
+LLM time, runtime gate at execution time) so the two views can never drift.
+The `SkillRegistrySchemaTest.`allowedToolModes and getSchemas are the same
+source of truth`` contract test pins this invariant.
+
+### 10.1 The three tiers
+
+| Tier           | Wire format      | When to use                                                          |
+|----------------|------------------|----------------------------------------------------------------------|
+| `READ_ONLY`    | `"read_only"`    | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)        |
+| `SINGLE_STEP`  | `"single_step"`  | Single-shot edits (`edit_file`, `save_file`) — no multi-step planning |
+| `WRITE`        | `"write"`        | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
+
+A skill should declare the **narrowest** set of tiers that covers what it does.
+Anything else weakens the safety net for the user.
+
+### 10.2 Decision table
+
+| Does the skill ...                                                | Declare `allowedToolModes`                                    | Example skills                         |
+|-------------------------------------------------------------------|---------------------------------------------------------------|-----------------------------------------|
+| Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, SINGLE_STEP, WRITE}` (the default — all three)   | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` filter) |
+| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                        | `edit_file`, `save_file`                |
+| Drives the agent loop (initializes a task list, marks completion)  | `{WRITE}`                                                     | `to_do`, `finish_to_do_item`            |
+
+### 10.3 Worked example
+
+```kotlin
+class EditFileSkill : Skill() {
+    override val skillName: String = "edit_file"
+    override val alias: String = "Edited"
+    override val description: String = "Atomic find-and-replace in a file."
+
+    // EditFileSkill mutates the project. It is allowed in SINGLE_STEP
+    // (single-shot edit) and WRITE (full agent loop), but NEVER in
+    // READ_ONLY. A user in READ_ONLY mode physically cannot trigger it,
+    // even if the LLM hallucinates a call.
+    override val allowedToolModes: Set<ToolMode> = setOf(
+        ToolMode.SINGLE_STEP,
+        ToolMode.WRITE,
+    )
+
+    override val mutatesProject: Boolean = true
+
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+        // ...
+    }
+}
+```
+
+### 10.4 How the gate is enforced
+
+The agent runs the same `toolMode in skill.allowedToolModes` check at two
+points, so the LLM cannot bypass it:
+
+1. **Schema filter** (LLM side). `SkillRegistry.getSchemas(toolMode)` returns
+   only the tools whose `allowedToolModes` includes the active tier. The LLM
+   is never told the tool exists in modes where it is forbidden.
+2. **Runtime gate** (Agent side). `Agent.executeSingleTool` does the same
+   check before dispatch. If the LLM hallucinates an `edit_file` call in
+   `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk
+   is byte-for-byte unchanged.
+
+For a `READ_ONLY` `run_cmd`, the agent also runs `classifyCommand(...)`
+with the active `ToolMode` so `touch`, `rm`, `git commit` etc. are blocked
+with `COMMAND_BLOCKED` even when the schema filter let them through.
+
+### 10.5 Testing your tier declaration
+
+`SkillRegistrySchemaTest` (5 cases) and `ToolModeGateTest` (6 cases) pin
+the contract. A new skill that declares a tier set must satisfy both:
+
+```kotlin
+// SkillRegistrySchemaTest style:
+val allSkills = SkillRegistry.discoverSkills()
+val writeTier = SkillRegistry.getSchemas(ToolMode.WRITE)
+assert(writeTier.any { it.matches(yourSkill) })  // WRITE always sees everything
+
+val readOnlyTier = SkillRegistry.getSchemas(ToolMode.READ_ONLY)
+if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.SINGLE_STEP, ToolMode.WRITE)) {
+    assert(readOnlyTier.any { it.matches(yourSkill) })
+} else {
+    assert(readOnlyTier.none { it.matches(yourSkill) })
+}
+```
+
+---
+
+## 11. Using `SkillContext` for Project Root and Mode
+
+`SkillContext` is a small data class the agent constructs **once per
+session** and hands to every `Skill.execute` call:
+
+```kotlin
+data class SkillContext(
+    val toolMode: ToolMode,
+    val projectRoot: String,
+)
+```
+
+It replaces the legacy process-global `ProjectPaths.setProjectRoot` (and
+removes the previous blind spot: Skills had no way to read `toolMode` at
+all). The two properties are immutable for the lifetime of the session, and
+the agent guarantees every Skill in that session sees the same instance.
+
+### 11.1 Why a parameter, not a global
+
+Three reasons — the third one is the one that bit us before this refactor:
+
+1. **Sessions can run concurrently.** Two `/events` requests in flight at
+   once would have shared `ProjectPaths` and overwritten each other's
+   project root. With `SkillContext` constructed per `Agent`, sessions are
+   fully isolated.
+2. **Auditability.** Reading `context.projectRoot` in a Skill makes the
+   dependency visible in the function signature. There is no way to
+   "forget" to pass it, and unit tests can construct a deterministic
+   `SkillContext` without touching process-globals.
+3. **The bug this fixes.** Before this refactor, `ContextManager` was
+   constructed from `ProjectPaths.outputDirectory()` — which defaulted to
+   the server's CWD, not the IDE's project. So if the developer started
+   the server from a workspace different from the project they had open
+   in IntelliJ, `context.json` would silently be written to the wrong
+   project. With `SkillContext.projectRoot` flowing from `Project.basePath`
+   all the way down, every file path in the agent loop resolves against
+   the project the user is actually working on.
+
+### 11.2 Where the values come from
+
+```mermaid
+sequenceDiagram
+    participant IDE
+    participant Plugin
+    participant Server
+    participant Agent
+    participant Skill
+
+    IDE->>Plugin: User opens project → Project.basePath
+    Plugin->>Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
+    Note over Server: Routes validates projectRoot is non-empty<br/>+ points to an existing directory
+    Server->>Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
+    Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot)
+    Agent->>Skill: skill.execute(arguments, skillContext)
+    Note over Skill: read context.projectRoot for file ops
+```
+
+The plugin is the **only** source of truth for `projectRoot`. The server
+has no fallback — if the plugin forgets to send it, `Routes` returns
+`400 INVALID_PARAMETER` instead of guessing from CWD.
+
+### 11.3 How to use it in your Skill
+
+```kotlin
+override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+    // Read these from context — never from arguments, never from a global.
+    val projectRoot: String = context.projectRoot
+    val toolMode: ToolMode = context.toolMode
+
+    // Resolve a relative path the LLM gave you against the session's root.
+    val inputPath: String = arguments["path"] as? String ?: ""
+    val resolved: Path = Path.of(projectRoot, inputPath).toAbsolutePath().normalize()
+
+    // For mode-aware behaviour, branch on context.toolMode. The agent
+    // owns the actual gate; this is informational.
+    val logDirectory: Path = when (toolMode) {
+        ToolMode.READ_ONLY -> Path.of(projectRoot, ".gradum", "logs", "readonly")
+        else -> Path.of(projectRoot, ".gradum", "logs", "write")
+    }
+
+    // ...
+}
+```
+
+### 11.4 What NOT to do
+
+```kotlin
+// ❌ WRONG — reads from arguments. The agent injects projectRoot for
+// audit/NDJSON reasons, but Skills should treat the arguments as
+// "what the LLM sent us" and read session state from context.
+val projectRoot: String = arguments["projectRoot"] as? String ?: ""
+
+// ❌ WRONG — process-global. Two concurrent sessions will overwrite
+// each other.
+val projectRoot: String = ProjectPaths.outputDirectory().toString()
+
+// ❌ WRONG — derives from CWD. This is the bug SkillContext replaces.
+val projectRoot: String = System.getProperty("user.dir")
+
+// ✅ RIGHT — single source of truth, per-session, immutable.
+val projectRoot: String = context.projectRoot
+```
+
+---
+
+## 12. Troubleshooting
 
 ### The skill is never called by the LLM
 
@@ -596,7 +864,24 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 - Check parameter conversion: could `arguments["foo"] as? String` produce null?
 - Verify no uncaught exceptions escape (there should always be a `catch (exception: Exception)` fallback)
-- Verify file paths resolve correctly to absolute paths
+- Verify file paths resolve correctly to absolute paths (use `context.projectRoot` as the base, not CWD)
+
+### "Tool not permitted" / "Command blocked" in read-only mode
+
+- The skill's `allowedToolModes` excludes `READ_ONLY`, or `classifyCommand`
+  rejected the command. Either switch the IDE to `SINGLE_STEP`/`WRITE` mode
+  (user action) or declare a broader `allowedToolModes` (skill author action).
+  The agent's gate is the same on both sides — the LLM is told the tool
+  doesn't exist AND the runtime rejects the call if it tries anyway.
+
+### Context file is written to the wrong project
+
+- Check that the plugin sends `projectRoot` in the `/events` body — without
+  it, `Routes` returns 400 and the agent is never constructed. If it does
+  send it, but the file still lands in the wrong directory, the Skill is
+  reading from `arguments["projectRoot"]` (deprecated) or from a process
+  global — both are the legacy paths this refactor replaces. Update the
+  Skill to read `context.projectRoot`.
 
 ### NDJSON event fields are wrong
 
@@ -605,7 +890,7 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ---
 
-## 11. Coding Style
+## 13. Coding Style
 
 Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 

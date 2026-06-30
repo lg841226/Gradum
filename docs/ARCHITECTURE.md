@@ -47,7 +47,8 @@ HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while pre
 6. [Security Model](#6-security-model)
 7. [Limitations and Future Work](#7-limitations-and-future-work)
 8. [IntelliJ IDEA Plugin](#8-intellij-idea-plugin)
-9. [Glossary](#9-glossary)
+9. [Three-Tier Permission Model and SkillContext](#9-three-tier-permission-model-and-skillcontext)
+10. [Glossary](#10-glossary)
 
 ---
 
@@ -1636,12 +1637,193 @@ gradum.idea/
 
 ---
 
-## 9. Glossary
+## 9. Three-Tier Permission Model and SkillContext
+
+The permission model and session-scoped project context are the two pillars that
+hold the whole "tools can only act on the project the IDE has open, and only
+under the tier the user picked" invariant. They are wired through one
+data class — `SkillContext` — and one interface field — `Skill.allowedToolModes`.
+This section documents the end-to-end contract.
+
+### 9.1 The Three Tiers (`ToolMode`)
+
+| Tier             | Wire format      | Tools exposed to the LLM                                                                | Use case                                                            |
+|------------------|------------------|------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `READ_ONLY`      | `"read_only"`    | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` run-mode filter)        | Code review, bug-hunting, reading the project without touching it     |
+| `SINGLE_STEP`    | `"single_step"`  | READ_ONLY tools + `edit_file`, `save_file`                                               | Local 7B-14B models that can edit but cannot reliably plan            |
+| `WRITE`          | `"write"`        | SINGLE_STEP tools + `to_do`, `finish_to_do_item` (everything)                            | Code generation, planning, full autonomy                              |
+
+The tier is a **client choice** — the IDE never infers it from the provider,
+because Ollama runs both 7B laptops and 70B cloud models, and the same backend
+deserves different surfaces depending on what the user is doing. The plugin's
+`PermissionSelector` writes the wire-format string into the `/events` request
+body; `Routes` parses it via `ToolMode.fromStringOrDefault(it)`. The default is
+`READ_ONLY` for safety — a user who has not actively opted into write access
+physically cannot mutate the project, even if the LLM hallucinates an `edit_file`
+call.
+
+### 9.2 Per-Skill `allowedToolModes` (single source of truth)
+
+Every `Skill` declares the tiers it is allowed to run in:
+
+```kotlin
+class EditFileSkill : Skill() {
+    override val allowedToolModes: Set<ToolMode> = setOf(
+        ToolMode.WRITE,
+        ToolMode.SINGLE_STEP,
+    )
+    override val mutatesProject: Boolean = true
+    // ...
+}
+```
+
+This set is the **only** place the tier → skill mapping lives. Two consumers
+read it:
+
+- **`SkillRegistry.getSchemas(toolMode)`** filters the LLM's tool list to
+  skills whose `allowedToolModes` includes the active tier. The LLM never sees
+  a tool it cannot actually call.
+- **`Agent.executeSingleTool`** performs the same membership check at runtime
+  before invoking `skill.execute(...)`. If the LLM hallucinates a `edit_file`
+  call under `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file
+  on disk is byte-for-byte unchanged.
+
+The two views were previously two separate sources of truth (a hardcoded set
+in `SkillRegistry` plus per-skill mode metadata), and they drifted. Today the
+runtime gate and the schema filter are both `toolMode in skill.allowedToolModes`,
+which makes a future regression impossible without breaking
+`SkillRegistrySchemaTest` (5 cases pin the contract).
+
+### 9.3 The Three Layers of Defense
+
+1. **Schema filter** (LLM-side). The LLM only sees tools it is allowed to call.
+   Removes the easy-path bypass — the model has to work to call a forbidden tool.
+2. **Runtime mode gate** (Agent-side). `Agent.executeSingleTool` checks
+   `configuration.toolMode in skillInstance.allowedToolModes` before dispatch.
+   Defeats LLM hallucination — the model may have seen `edit_file` in training
+   data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
+3. **Command re-classification** (Read-only `run_cmd` only). The `READ_ONLY`
+   mode still exposes `run_cmd`, because `cat`/`ls`/`grep` are essential for
+   inspection. The agent re-runs `classifyCommand(...)` against the active
+   `ToolMode` before `ProcessBuilder.start()`, so `touch`, `rm`, and `git commit`
+   are blocked with `COMMAND_BLOCKED` even if the schema filter let them
+   through. (See [§3.2](#32-commandfilter-command-safety-filter) for the full
+   filter and `CommandFilterTest` for the 6 pinned cases.)
+
+### 9.4 `SkillContext` — per-session state handed to every Skill
+
+`SkillContext` is the single per-session data class the agent constructs once
+and passes to every `Skill.execute` call:
+
+```kotlin
+data class SkillContext(
+    val toolMode: ToolMode,
+    val projectRoot: String,
+)
+```
+
+Two properties, both of which used to be either process-globals or invisible:
+
+- **`toolMode`** — the active tier. Skills can read it for mode-aware behaviour
+  (e.g. `RunCommandSkill` chooses a different log directory in `READ_ONLY`).
+  The gate is still the agent's, not the skill's; this is informational.
+- **`projectRoot`** — the absolute, validated path to the project the IDE has
+  open. The plugin is the single source of truth: `Project.basePath` →
+  HTTP request body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot`.
+  The server has no other way to learn which project is open.
+
+`SkillContext` replaces the legacy `ProjectPaths.setProjectRoot` process-global
+and gives Skills a way to read `toolMode` at all. It also fixes a class of
+cross-session bugs: two concurrent `/events` requests used to share the same
+`ProjectPaths` static, so one session could leak its project root into another.
+With `SkillContext` constructed per `Agent`, sessions are fully isolated.
+
+### 9.5 Lifecycle of `SkillContext`
+
+```mermaid
+sequenceDiagram
+    participant Plugin
+    participant Routes
+    participant Agent
+    participant Skill
+
+    Plugin->>Routes: POST /events {message, projectRoot, toolMode}
+    Note over Routes: validate projectRoot is non-empty<br/>and points to an existing directory
+    Routes->>Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
+    Note over Agent: construct SkillContext(toolMode, projectRoot)<br/>+ ContextManager(<root>/.gradum)
+    Agent->>Skill: skill.execute(arguments, skillContext)
+    Note over Skill: read context.projectRoot for file ops<br/>read context.toolMode for mode-aware behaviour
+    Skill-->>Agent: SkillResult
+    Agent-->>Plugin: NDJSON events
+```
+
+The `SkillContext` is frozen for the lifetime of the `Agent` (one `Agent` per
+`/events` request). Every Skill in that session sees the same instance, so
+file paths, log directories, and context files all resolve against the same
+project root without any process-globals.
+
+### 9.6 `Skill` interface contract
+
+```kotlin
+abstract class Skill {
+    abstract val skillName: String
+    abstract val description: String
+    abstract val alias: String
+    open val allowedToolModes: Set<ToolMode> = setOf(WRITE, SINGLE_STEP, READ_ONLY)
+    open val mutatesProject: Boolean = false
+    abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
+    abstract fun getSchema(): Map<String, Any>
+    // ... adaptive pruning hooks unchanged
+}
+```
+
+A skill that mutates the project MUST exclude `READ_ONLY`. A skill that
+multi-step plans MUST exclude `SINGLE_STEP`. Anything else (pure inspection
+like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier
+is allowed.
+
+The `Skill.execute` signature now requires `context: SkillContext`. Skills that
+need the project root read `context.projectRoot`; the previous behaviour of
+reading `arguments["projectRoot"]` is gone (the agent still injects it for
+audit / NDJSON-event reasons, but no Skill should rely on it).
+
+### 9.7 Why this design
+
+- **One source of truth, two enforcement points.** `allowedToolModes` is read
+  by both `SkillRegistry.getSchemas` (LLM-side) and `Agent.executeSingleTool`
+  (runtime-side). The previous design had two separate sets; the contract test
+  `SkillRegistrySchemaTest.`allowedToolModes and getSchemas are the same
+  source of truth`` pins the invariant so a regression breaks CI.
+- **No process-globals for per-session state.** `SkillContext` is constructed
+  per `Agent` and travels with the call, so concurrent sessions can target
+  different projects without interfering with each other.
+- **Plugin is the only source of projectRoot.** `Project.basePath` →
+  HTTP body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot` →
+  every Skill in the session. The server has no fallback; if the plugin forgets
+  to send it, `Routes` returns 400 instead of guessing from CWD.
+
+### 9.8 Test pinning
+
+| Concern                                                       | Test file                                       | Cases |
+|---------------------------------------------------------------|--------------------------------------------------|-------|
+| `READ_ONLY` rejects `edit_file` / `save_file` / `to_do`       | `ToolModeGateTest`                              | 6     |
+| `SINGLE_STEP` rejects `to_do` / `finish_to_do_item`           | `ToolModeGateTest`                              | 1     |
+| `WRITE` allows `edit_file` and applies the edit to disk      | `ToolModeGateTest`                              | 1     |
+| `READ_ONLY` still allows `read_file` / `explore_project` / `run_cmd` | `ToolModeGateTest`                       | 1     |
+| `SkillRegistry.getSchemas` agrees with `allowedToolModes`     | `SkillRegistrySchemaTest`                       | 5     |
+| `ToolMode.fromStringOrDefault` parses wire format correctly   | `AgentConfigurationTest`                        | 6     |
+| `READ_ONLY` `run_cmd` blocked by CommandFilter (whitelist)   | `CommandFilterTest`                             | 6     |
+
+---
+
+## 10. Glossary
 
 | Term                     | Definition                                                                                                                                |
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                        |
 | **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                     |
+| **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot)`. Single source of truth for session-level state       |
+| **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                       |
 | **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                   |
 | **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                          |
 | **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                  |
@@ -1658,3 +1840,5 @@ gradum.idea/
 | **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session        |
 | **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                              |
 | **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                           |
+| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                |
+| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`              |
