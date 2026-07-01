@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallContent.kt  2026-06-28 23:07:38 Changed by gwy
+ * ToolCallContent.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
 
+import com.intellij.openapi.diagnostic.Logger
 import kotlinx.serialization.json.*
 
 /**
@@ -36,32 +37,54 @@ sealed class ToolCallContent {
     data class Completed(val task: String) : ToolCallContent()
 
     companion object {
+        private val log: Logger = Logger.getInstance(ToolCallContent::class.java)
+
         /**
          * Creates the appropriate [ToolCallContent] based on the tool alias and arguments.
          *
+         * When arguments fail validation (missing or blank required fields), the
+         * method falls back to [None] and writes a debug-level log line so the
+         * LLM-emitted argument shape is visible in the IDE log without polluting
+         * the UI. The previous implementation returned [None] silently, which
+         * made "model sent the wrong field name" bugs hard to diagnose — the
+         * user only saw an empty capsule and had no idea why.
+         *
          * @param alias The tool alias (e.g., "Ran", "Edited").
          * @param arguments The arguments passed to the tool.
-         * @return The corresponding [ToolCallContent] subclass.
+         * @param result The raw JSON result string from the server.
+         * @return The corresponding [ToolCallContent] subclass, or [None] if the
+         *   arguments did not match the expected shape for the given alias.
          */
         fun fromArguments(alias: String, arguments: Map<String, Any>, result: String = ""): ToolCallContent {
             return when (alias) {
                 "Ran" -> {
                     val reason = arguments["reason"] as? String ?: ""
                     val command = arguments["command"] as? String ?: ""
-                    if (reason.isNotBlank() || command.isNotBlank()) Ran(reason, command) else None
+                    if (reason.isBlank() && command.isBlank()) {
+                        log.debug("Ran alias: both 'reason' and 'command' are missing/blank — falling back to None")
+                        None
+                    } else Ran(reason, command)
                 }
 
                 "Edited" -> {
                     val path = arguments["path"] as? String
+                    if (path.isNullOrBlank()) {
+                        log.debug("Edited alias: 'path' argument is missing/blank — falling back to None")
+                        return None
+                    }
                     val resultData = parseResult(result)
                     val linesAdded = (resultData["linesAdded"] as? Number)?.toInt() ?: 0
                     val linesRemoved = (resultData["linesRemoved"] as? Number)?.toInt() ?: 0
-                    if (!path.isNullOrBlank()) Edited(path, linesAdded, linesRemoved) else None
+                    Edited(path, linesAdded, linesRemoved)
                 }
 
                 "Read" -> {
                     val path = arguments["path"] as? String
-                    if (!path.isNullOrBlank()) Read(path) else None
+                    if (path.isNullOrBlank()) {
+                        log.debug("Read alias: 'path' argument is missing/blank — falling back to None")
+                        return None
+                    }
+                    Read(path)
                 }
 
                 "Explored" -> {
@@ -71,21 +94,36 @@ sealed class ToolCallContent {
                         is String -> depthValue.toIntOrNull() ?: 0
                         else -> 0
                     }
-                    if (!projectRoot.isNullOrBlank() && depth > 0) Explored(projectRoot, depth) else None
+                    if (projectRoot.isNullOrBlank() || depth <= 0) {
+                        log.debug("Explored alias: 'project_root'=$projectRoot, 'depth'=$depth — falling back to None")
+                        return None
+                    }
+                    Explored(projectRoot, depth)
                 }
 
                 "Planned" -> {
                     @Suppress("UNCHECKED_CAST")
                     val tasks = arguments["tasks"] as? List<String>
-                    if (!tasks.isNullOrEmpty()) Planned(tasks) else None
+                    if (tasks.isNullOrEmpty()) {
+                        log.debug("Planned alias: 'tasks' is missing/empty — falling back to None")
+                        return None
+                    }
+                    Planned(tasks)
                 }
 
                 "Completed" -> {
                     val task = arguments["task"] as? String
-                    if (!task.isNullOrBlank()) Completed(task) else None
+                    if (task.isNullOrBlank()) {
+                        log.debug("Completed alias: 'task' argument is missing/blank — falling back to None")
+                        return None
+                    }
+                    Completed(task)
                 }
 
-                else -> None
+                else -> {
+                    log.debug("Unknown tool alias '$alias' — no ToolCallContent mapping, falling back to None")
+                    None
+                }
             }
         }
 
@@ -112,8 +150,7 @@ sealed class ToolCallContent {
                     }
                 }
             } catch (exception: Exception) {
-                com.intellij.openapi.diagnostic.Logger.getInstance(ToolCallContent::class.java)
-                    .debug("Failed to parse tool result JSON", exception)
+                log.debug("Failed to parse tool result JSON, returning empty map", exception)
                 emptyMap()
             }
         }

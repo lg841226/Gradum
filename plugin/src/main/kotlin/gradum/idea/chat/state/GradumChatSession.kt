@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-06-29 19:53:42 Changed by gwy
+ * GradumChatSession.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -28,7 +28,11 @@ import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.PendingMessage
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import kotlin.random.Random
@@ -261,30 +265,81 @@ class GradumChatSession {
      *
      * @param scope The coroutine scope to launch the polling job in.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun startModelPolling(scope: CoroutineScope) {
         stopModelPolling()
 
+        // The polling pipeline is split into two Flow stages so the
+        // architecture reads as "for every tick, fire a single fetch, and
+        // cancel any in-flight fetch if a new tick comes in":
+        //
+        //   tickerFlow  ──flatMapLatest──▶  fetchOnce()  ──▶  collect
+        //     │                                  │
+        //     └── delay POLL_INTERVAL_MS          └── HTTP GET /models
+        //         then emit Unit                  (Dispatchers.IO,
+        //                                          swallow transient errors)
+        //
+        // The original `while (true) { delay; try {...} }` worked, but
+        // mixed the two concerns (timing + I/O) into one loop, which
+        // made it impossible to cancel a slow request when the user
+        // closes the tool window or the timer ticks again. With
+        // flatMapLatest, a stale fetch is cancelled by the upstream
+        // tick before its result lands in the UI.
         pollingJob = scope.launch {
-            while (true) {
-                delay(POLL_INTERVAL_MS.milliseconds)
-                try {
-                    val json: String = withContext(Dispatchers.IO) { apiClient.getModels() }
-                    val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
-                    val newModels: List<ModelInfo> = response.models
-
-                    // Only update if the model list actually changed.
-                    if (newModels.size != models.size ||
-                        newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
-                    ) {
-                        applyModelList(newModels)
-                        log.info("Model list updated: ${newModels.size} models discovered")
-                    }
-                } catch (_: Exception) {
-                    // Silently ignore polling failures — the server may be temporarily
-                    // unreachable. The next poll cycle will retry.
+            tickerFlow()
+                .flatMapLatest { fetchModelsOnce() }
+                .catch { exception ->
+                    // Flow-level failures (shouldn't happen because the
+                    // inner flow swallows I/O errors, but defensive). The
+                    // ticker keeps ticking so the next cycle gets a chance.
+                    log.warn("Model polling stream error: ${exception.message}", exception)
                 }
-            }
+                .collect { json ->
+                    runCatching {
+                        val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
+                        val newModels: List<ModelInfo> = response.models
+                        if (newModels.size != models.size ||
+                            newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
+                        ) {
+                            applyModelList(newModels)
+                            log.info("Model list updated: ${newModels.size} models discovered")
+                        }
+                    }.onFailure { exception ->
+                        log.debug("Failed to decode /models response, skipping this tick", exception)
+                    }
+                }
         }
+    }
+
+    /**
+     * Tick stream that fires one emission per [POLL_INTERVAL_MS]. Suspends
+     * cooperatively and stops emitting when the parent coroutine is
+     * cancelled (e.g. tool window closed, project closed).
+     */
+    private fun tickerFlow(): Flow<Unit> = flow {
+        while (currentCoroutineContext().isActive) {
+            delay(POLL_INTERVAL_MS.milliseconds)
+            emit(Unit)
+        }
+    }
+
+    /**
+     * Single-shot /models fetch wrapped in a Flow so [flatMapLatest] can
+     * cancel it when the next tick arrives. I/O runs on [Dispatchers.IO]
+     * to keep the UI thread free, and transient errors are swallowed —
+     * the ticker will simply fire again.
+     */
+    private fun fetchModelsOnce(): Flow<String> = flow {
+        val json: String = try {
+            withContext(Dispatchers.IO) { apiClient.getModels() }
+        } catch (exception: CancellationException) {
+            // Structured concurrency: never swallow cancellation.
+            throw exception
+        } catch (exception: Exception) {
+            log.debug("Polling /models failed: ${exception.message}")
+            return@flow
+        }
+        emit(json)
     }
 
     /**
@@ -389,7 +444,8 @@ class GradumChatSession {
 
         try {
             val shouldLoadContext: Boolean = !contextLoaded
-            sendingPhase = if (shouldLoadContext) message("gradum.phase.distilling") else message("gradum.phase.catalyzing")
+            sendingPhase =
+                if (shouldLoadContext) message("gradum.phase.distilling") else message("gradum.phase.catalyzing")
             apiClient.sendMessage(
                 message = messageWithHint,
                 model = selectedModel?.name,
@@ -585,7 +641,15 @@ class GradumChatSession {
             val providerName: String = selectedModel?.provider ?: ""
             val serverLabel: String = selectedModel?.serverName ?: ""
             messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
-            messages.add(ChatMessage(role = "assistant", content = "", modelName = displayName, provider = providerName, serverName = serverLabel))
+            messages.add(
+                ChatMessage(
+                    role = "assistant",
+                    content = "",
+                    modelName = displayName,
+                    provider = providerName,
+                    serverName = serverLabel
+                )
+            )
 
             hasSentMessage = true; isSending = true; isWaitingForResponse = true
             currentJob = scope?.launch { sendMessage(next.content, next.attachments, "") }
