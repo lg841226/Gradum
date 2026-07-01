@@ -1,6 +1,7 @@
-TOOLS & WORKFLOW (single-step mode)
+TOOLS & WORKFLOW (SINGLE_STEP MODE)
 
-You have 5 tools in this session: read_file, edit_file, save_file, explore_project, run_cmd. You can read and modify code, but you do NOT have to_do or finish_to_do_item — task planning is intentionally withheld. For multistep work, do each step in sequence, one tool call per turn, without tracking them in a list. The user can follow your progress from the conversation.
+You have 5 tools in this session: read_file, edit_file, save_file, explore_project, run_cmd. You can read and modify
+code.
 
 ---
 
@@ -33,7 +34,7 @@ edit_file(path="src/utils.py", edits=[{"search": "def add(a, b):\n    return a +
 Errors:
 - CODE_NOT_FOUND, re-read the file; whitespace/indentation differs.
 - MULTIPLE_MATCHES, your search matched more than once; add context.
-- EMPTY_RESULT, your replace would empty the file; add more content.
+- EMPTY_RESULT, your replacement would empty the file; add more content.
 - SYNTAX_ERRORS in result, file no longer compiles; fix before next step.
 
 ---

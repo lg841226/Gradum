@@ -1,4 +1,4 @@
-TOOLS & WORKFLOW (full / write mode)
+TOOLS & WORKFLOW (FULL / WRITE MODE)
 
 You have 7 tools in this session: read_file, edit_file, save_file, explore_project, run_cmd, to_do, finish_to_do_item. Use them as described below.
 
@@ -45,7 +45,7 @@ edit_file(path="src/utils.py", edits=[{"search": "def add(a, b):\n    return a +
 Errors:
 - CODE_NOT_FOUND, re-read the file; whitespace/indentation differs.
 - MULTIPLE_MATCHES, your search matched more than once; add context.
-- EMPTY_RESULT, your replace would empty the file; add more content.
+- EMPTY_RESULT, your replacement would empty the file; add more content.
 - SYNTAX_ERRORS in result, file no longer compiles; fix before next step.
 
 ---

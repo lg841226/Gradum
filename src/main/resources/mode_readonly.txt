@@ -1,4 +1,4 @@
-TOOLS & WORKFLOW (read-only mode)
+TOOLS & WORKFLOW (READ_ONLY MODE)
 
 This is a server-enforced read-only session. You have 3 tools. Any tool
 call that is not in your tool list will be rejected by the server with
@@ -6,10 +6,6 @@ TOOL_NOT_PERMITTED before the skill runs — this is an enforcement
 guarantee, not a convention you can bypass. The server checks every
 call, including ones the LLM emits by training-data memory rather than
 from the schema.
-
-Note: this mode does NOT expose edit_file, save_file, to_do, or
-finish_to_do_item. If the user asks you to make changes, tell them to
-switch to Edit Permissions or Full Agent Mode in the dropdown.
 
 ---
 
