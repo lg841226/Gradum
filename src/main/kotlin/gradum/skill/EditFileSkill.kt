@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-06-30 20:16:16 Changed by gwy
+ * EditFileSkill.kt  2026-07-01 12:28:57 Changed by gwy
  */
 
 @file:Suppress("RedundantExplicitType")
@@ -89,7 +89,6 @@ class EditFileSkill : Skill() {
         gradum.ToolMode.WRITE,
         gradum.ToolMode.SINGLE_STEP,
     )
-    override val mutatesProject: Boolean = true
 
     /**
      * Keep the full diff metrics (linesAdded / linesRemoved / syntaxErrors / totalEdits)
@@ -256,10 +255,8 @@ class EditFileSkill : Skill() {
     }
 
     private fun applyAtomicEdits(
-        resolvedPath: Path,
-        targetFile: File,
-        originalContent: String,
-        edits: List<EditOperation>
+        resolvedPath: Path, targetFile: File,
+        originalContent: String, edits: List<EditOperation>
     ): SkillResult {
         var workingContent: String = originalContent
         var linesAdded = 0

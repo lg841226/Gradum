@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-06-30 19:26:15 Changed by gwy
+ * ModelSelectorBar.kt  2026-07-01 13:57:22 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -56,13 +56,23 @@ fun ModelSelectorBar(
         Box {
             SelectorButton(
                 text = when {
+                    // Auto mode: show "Auto - {picked model}" so the
+                    // user can tell at a glance which model the
+                    // server's recommender picked, and the leading
+                    // "Auto" label makes the implicit mode visible
+                    // without forcing them to reopen the menu. A
+                    // manual pick hides the prefix.
+                    selectedModel != null && isAutoSelected -> message(
+                        "gradum.model.auto.with",
+                        formatModelName(selectedModel.name)
+                    )
+
                     selectedModel != null -> formatModelName(selectedModel.name)
                     isAutoSelected -> message("gradum.model.auto")
                     else -> message("gradum.model.none")
                 },
-                contentDescription = message("gradum.model.select"),
-                iconKey = selectedModel?.let { resolveProviderIcon(it) },
-                onClick = { showModelMenu = true }
+                onClick = { showModelMenu = true },
+                contentDescription = message("gradum.model.select")
             )
             if (showModelMenu) {
                 PopupMenu(

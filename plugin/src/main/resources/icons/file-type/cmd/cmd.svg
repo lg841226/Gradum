@@ -1,5 +1,12 @@
+<!--
+  - Copyright (c) 2026 Gradum team, some rights reserved.
+  - For licensing terms and conditions, see the MIT LICENSE file.
+  -
+  - cmd.svg  2026-06-30 23:35:47 Changed by gwy
+  -->
+
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="#EBECF0" stroke="#6C707E"/>
-<path d="M4 6L6 8L4 10" stroke="#6C707E" stroke-linecap="round"/>
-<path d="M7.5 10.5H11.5" stroke="#6C707E" stroke-linecap="round"/>
+    <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" fill="#EBECF0" stroke="#6C707E"/>
+    <path d="M4 6L6 8L4 10" stroke="#6C707E" stroke-linecap="round"/>
+    <path d="M7.5 10.5H11.5" stroke="#6C707E" stroke-linecap="round"/>
 </svg>

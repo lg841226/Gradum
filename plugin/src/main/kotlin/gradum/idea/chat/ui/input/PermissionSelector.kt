@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-06-30 20:41:32 Changed by gwy
+ * PermissionSelector.kt  2026-07-01 14:12:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -69,10 +69,9 @@ fun PermissionSelector(
 ) {
     SelectorButton(
         text = permissionLabel(selectedPermission),
-        contentDescription = message("gradum.select.permissions"),
         onClick = onToggle,
-        color = JewelTheme.globalColors.text.normal,
-        modifier = modifier
+        contentDescription = message("gradum.select.permissions"),
+        color = JewelTheme.globalColors.text.normal
     )
 
     if (isMenuVisible) {

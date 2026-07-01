@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-06-26 18:39:33 Changed by gwy
+ * ModelNameFormatter.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentList.kt  2026-06-26 23:55:00 Changed by gwy
+ * MessageAttachmentList.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)

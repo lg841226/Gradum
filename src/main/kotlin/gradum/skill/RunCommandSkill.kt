@@ -2,18 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-06-21 07:53:44 Changed by gwy
+ * RunCommandSkill.kt  2026-07-01 12:27:25 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.DangerousOperation
-import gradum.ErrorCode
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
-import gradum.utils.classifyCommand
+import gradum.*
 import gradum.utils.CommandVerdict
+import gradum.utils.classifyCommand
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
@@ -88,8 +84,8 @@ class RunCommandSkill : Skill() {
             val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectErrorStream(false)
             if (projectRoot.isNotBlank()) {
-                val dir = java.io.File(projectRoot)
-                if (dir.isDirectory) processBuilder.directory(dir)
+                val workingDirectory = java.io.File(projectRoot)
+                if (workingDirectory.isDirectory) processBuilder.directory(workingDirectory)
             }
 
             val process: Process = processBuilder.start()
@@ -118,7 +114,11 @@ class RunCommandSkill : Skill() {
                 ),
             )
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to execute command", mapOf("command" to commandText))
+            makeFailure(
+                ErrorCode.IO_ERROR,
+                exception.message ?: "Failed to execute command",
+                mapOf("command" to commandText)
+            )
         }
     }
 
@@ -140,7 +140,7 @@ class RunCommandSkill : Skill() {
             val process: Process = processBuilder.start()
             val processId: Long = process.pid()
 
-            logger.info("Detached command (PID $processId): $commandText -> ${logFile.absolutePath}")
+            logger.info("Detached command (PID $processId): $commandText to ${logFile.absolutePath}")
 
             makeSuccess(
                 mapOf(
@@ -152,7 +152,11 @@ class RunCommandSkill : Skill() {
                 ),
             )
         } catch (exception: Exception) {
-            makeFailure(ErrorCode.IO_ERROR, exception.message ?: "Failed to start detached command", mapOf("command" to commandText))
+            makeFailure(
+                ErrorCode.IO_ERROR,
+                exception.message ?: "Failed to start detached command",
+                mapOf("command" to commandText)
+            )
         }
     }
 

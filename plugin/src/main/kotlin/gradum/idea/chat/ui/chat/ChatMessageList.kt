@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-06-28 11:13:44 Changed by gwy
+ * ChatMessageList.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -49,7 +49,7 @@ fun ChatMessageList(
         messages.forEachIndexed { index, message ->
             val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
             val shouldShowTimestamp: Boolean = index == 0 ||
-                    formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
+                formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
             if (shouldShowTimestamp) {
                 Spacer(modifier = Modifier.height(TimestampSpacing))
                 MessageTimestamp(timestamp = message.timestamp)

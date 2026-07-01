@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * QuickStartSection.kt  2026-06-29 10:04:34 Changed by gwy
+ * QuickStartSection.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -49,7 +49,7 @@ fun QuickStartSection(
     onRefreshSuggestions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val featIcons = remember {
+    val featureIcons = remember {
         listOf(GradumIcons.FeatChat, GradumIcons.FeatQuestion, GradumIcons.FeatCode, GradumIcons.FeatText)
     }
 
@@ -73,8 +73,8 @@ fun QuickStartSection(
         }
         Spacer(modifier = Modifier.height(GradumSpacing.lg))
         Column(modifier = Modifier.widthIn(max = 300.dp)) {
-            repeat(4) { cat ->
-                val suggestionText = message("gradum.suggestion.$cat.${suggestionVariants[cat]}")
+            repeat(4) { categoryIndex ->
+                val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
                 val interactionSource = remember { MutableInteractionSource() }
                 val isHovered by interactionSource.collectIsHoveredAsState()
                 Row(
@@ -91,7 +91,7 @@ fun QuickStartSection(
                         .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
                 ) {
                     Icon(
-                        key = featIcons[cat],
+                        key = featureIcons[categoryIndex],
                         contentDescription = null
                     )
                     Spacer(modifier = Modifier.width(GradumSpacing.md))

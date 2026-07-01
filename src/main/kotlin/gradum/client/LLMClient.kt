@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-06-29 23:35:00 Changed by gwy
+ * LLMClient.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.client
@@ -168,7 +168,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                     if (serverErrorMessage.isNotBlank())
                         emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
 
-                    recordTokenUsage(eventData, "prompt_eval_count", "eval_count", tokenUsage)
+                    tokenUsage = recordTokenUsage(eventData, "prompt_eval_count", "eval_count", tokenUsage)
                 }
 
                 lastError = null; break
@@ -305,7 +305,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
             }
 
             parsedPayload["usage"]?.jsonObject?.let { usageStats ->
-                recordTokenUsage(usageStats, "prompt_tokens", "completion_tokens", tokenUsage)
+                tokenUsage = recordTokenUsage(usageStats, "prompt_tokens", "completion_tokens", tokenUsage)
             }
         }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-06-30 21:30:00 Changed by gwy
+ * SkillRegistry.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.skill
@@ -30,7 +30,9 @@ object SkillRegistry {
 
     private val registeredSkills: MutableMap<String, Skill> = mutableMapOf()
 
-    init { discoverSkills() }
+    init {
+        discoverSkills()
+    }
 
     fun getAllSkills(): Collection<Skill> {
         return registeredSkills.values

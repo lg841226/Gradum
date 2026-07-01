@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JsonUtil.kt  2026-06-21 07:53:44 Changed by gwy
+ * JsonUtil.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.utils
@@ -56,16 +56,19 @@ object JsonUtil {
                 }
             }
         }
+
         is Iterable<*> -> buildJsonArray {
-            for (item: Any? in value) {
-                add(toJsonElement(item))
+            for (element: Any? in value) {
+                add(toJsonElement(element))
             }
         }
+
         is Array<*> -> buildJsonArray {
-            for (item: Any? in value) {
-                add(toJsonElement(item))
+            for (element: Any? in value) {
+                add(toJsonElement(element))
             }
         }
+
         else -> JsonPrimitive(value.toString())
     }
 
@@ -87,9 +90,11 @@ object JsonUtil {
             value.content.toDoubleOrNull() != null -> value.content.toDouble()
             else -> value.content
         }
+
         is JsonObject -> value.entries.associate { (key: String, element: JsonElement) ->
             key to fromJsonElement(element)
         }
+
         is JsonArray -> value.map { fromJsonElement(it) }
     }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-06-30 02:35:10 Changed by gwy
+ * Main.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.server
@@ -28,7 +28,6 @@ fun main(arguments: Array<String>) {
 
     val serverConfiguration = ServerConfiguration(
         hostAddress = parsedArguments.hostAddress,
-        providerName = parsedArguments.providerName,
         portNumber = resolvedPort,
     )
 
@@ -46,13 +45,11 @@ private data class ServerArguments(
     val hostAddress: String,
     val portNumber: Int,
     val autoDetectPort: Boolean,
-    val portRange: String,
     val providerName: String,
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
     var hostAddress = "localhost"
-    var portRange = "8765-8775"
     var providerName = "ollama"
     var portNumber = 8765
     var autoDetectPort = false
@@ -63,7 +60,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
             "--host" -> hostAddress = iterator.next()
             "--port" -> portNumber = iterator.next().toIntOrNull() ?: portNumber
             "--auto-port" -> autoDetectPort = true
-            "--port-range" -> portRange = iterator.next()
             "--provider" -> providerName = iterator.next()
             "--help" -> {
                 printUsage()
@@ -75,7 +71,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
         hostAddress = hostAddress,
         portNumber = portNumber,
         autoDetectPort = autoDetectPort,
-        portRange = portRange,
         providerName = providerName,
     )
 }
@@ -89,7 +84,6 @@ private fun printUsage() {
     println("  --host <host>           Host to bind (default: localhost)")
     println("  --port <port>           Port to bind (default: 8765)")
     println("  --auto-port             Auto-find available port")
-    println("  --port-range <range>    Port range for auto-port (default: 8765-8775)")
     println("  --provider <provider>   LLM provider (ollama/openai)")
     println()
     println("Note: projectRoot is no longer a server-side concern. The plugin")

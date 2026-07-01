@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-06-28 23:07:38 Changed by gwy
+ * ChatMessage.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -64,6 +64,7 @@ sealed class RenderBlock {
         val errorMessage: String = "",
         val errorDetail: String = ""
     ) : RenderBlock()
+
     data class Response(val content: String) : RenderBlock()
     data class Error(val message: String, val code: String = "") : RenderBlock()
 }
@@ -77,7 +78,6 @@ sealed class RenderBlock {
  * @property events  Ordered list of events for assistant messages
  *   (thinking, tool calls, responses, errors).
  * @property renderBlocks  Pre-aggregated render blocks, maintained incrementally.
- * @property hasResponse  Whether this message contains at least one Response event.
  */
 data class ChatMessage(
     val role: String,
@@ -86,7 +86,6 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val events: List<ChatEvent> = emptyList(),
     val renderBlocks: List<RenderBlock> = emptyList(),
-    val hasResponse: Boolean = false,
     val modelName: String = "",
     val provider: String = "",
     val serverName: String = ""
@@ -109,20 +108,22 @@ data class ChatMessage(
 
             val toolCallAliases = events
                 .filterIsInstance<ChatEvent.ToolCall>().map { it.info.alias }
-
-            if (toolCallAliases.isNotEmpty())
-                if (isNotEmpty()) append("\n\n"); append(toolCallAliases.joinToString("\n"))
+            if (toolCallAliases.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append(toolCallAliases.joinToString("\n"))
+            }
 
             val responseText = responseContent
-            if (responseText.isNotBlank())
-                if (isNotEmpty()) append("\n\n"); append(responseText)
-
+            if (responseText.isNotBlank()) {
+                if (isNotEmpty()) append("\n\n")
+                append(responseText)
+            }
 
             val errorMessages = events.filterIsInstance<ChatEvent.Error>().map { it.message }
-
-            if (errorMessages.isNotEmpty())
-                if (isNotEmpty()) append("\n\n"); append(errorMessages.joinToString("\n"))
-
+            if (errorMessages.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append(errorMessages.joinToString("\n"))
+            }
         }
 
     /**
@@ -142,6 +143,7 @@ data class ChatMessage(
                     renderBlocks + RenderBlock.Response(event.content)
                 }
             }
+
             is ChatEvent.Thinking -> {
                 val last = renderBlocks.lastOrNull()
                 if (last is RenderBlock.Thinking) {
@@ -150,6 +152,7 @@ data class ChatMessage(
                     renderBlocks + RenderBlock.Thinking(event.content)
                 }
             }
+
             is ChatEvent.ToolCall -> {
                 renderBlocks + RenderBlock.ToolCall(
                     alias = event.info.alias,
@@ -160,12 +163,12 @@ data class ChatMessage(
                     errorDetail = event.info.errorDetail
                 )
             }
+
             is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
         }
         return copy(
             events = newEvents,
             renderBlocks = newRenderBlocks,
-            hasResponse = hasResponse || event is ChatEvent.Response || event is ChatEvent.Error
         )
     }
 
@@ -189,9 +192,9 @@ data class ChatMessage(
 
         val lastFailedBlockIdx = renderBlocks.indexOfLast { it is RenderBlock.ToolCall && !it.success }
         val newRenderBlocks = if (lastFailedBlockIdx >= 0) {
-            val old = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
+            val existingBlock = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
             renderBlocks.toMutableList().apply {
-                set(lastFailedBlockIdx, old.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
+                set(lastFailedBlockIdx, existingBlock.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
             }
         } else {
             renderBlocks
@@ -223,14 +226,18 @@ fun formatTimestamp(timestamp: Long): String {
             "${message("gradum.timestamp.yesterday")} $time"
         }
 
-        now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(timestamp))
+        now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat(
+            "MMM d",
+            Locale.getDefault()
+        ).format(Date(timestamp))
+
         else -> "$diffDays ${message("gradum.timestamp.days.ago")}"
     }
 }
 
 private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
     return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+        cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun isYesterday(now: Calendar, target: Calendar): Boolean {

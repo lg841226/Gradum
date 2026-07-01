@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-06-26 17:32:11 Changed by gwy
+ * SyntaxChecker.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.utils
@@ -372,8 +372,8 @@ private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): Li
         if (issue.line != null) return@filter true
         val message: String = issue.message
         message.contains(absolutePath.toString()) || message.contains(fileName) || (
-                !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
-                )
+            !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
+            )
     }
 }
 
@@ -487,9 +487,10 @@ object SyntaxChecker {
 
         for (command: CompileCommand in configuration.commands) {
             val executableName: String = command.args.first()
-            val commandFoundOnPath: Boolean = System.getenv("PATH")?.split(File.pathSeparatorChar)?.any { directory: String ->
-                File(directory, executableName).canExecute()
-            } ?: false
+            val commandFoundOnPath: Boolean =
+                System.getenv("PATH")?.split(File.pathSeparatorChar)?.any { directory: String ->
+                    File(directory, executableName).canExecute()
+                } ?: false
             if (!commandFoundOnPath) continue
 
             return try {
@@ -507,11 +508,13 @@ object SyntaxChecker {
                     break
                 }
 
-                val compilerOutput: String = process.inputStream.bufferedReader(Charsets.UTF_8).use(BufferedReader::readText)
+                val compilerOutput: String =
+                    process.inputStream.bufferedReader(Charsets.UTF_8).use(BufferedReader::readText)
 
                 if (process.exitValue() == 0) return emptyList()
 
-                configuration.outputParser.parse(compilerOutput, resolvedFilePath).map { issue: SyntaxIssue -> issue.toMap() }
+                configuration.outputParser.parse(compilerOutput, resolvedFilePath)
+                    .map { issue: SyntaxIssue -> issue.toMap() }
             } catch (exception: Exception) {
                 logger.warn("Syntax check failed for $executableName: ${exception.message}")
                 continue

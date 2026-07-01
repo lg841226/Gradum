@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-06-29 19:22:38 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")

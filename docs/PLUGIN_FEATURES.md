@@ -1,0 +1,661 @@
+<!--
+  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ PLUGIN_FEATURES.md  2026-07-01 13:55:00 Changed by gwy
+  -->
+
+# Gradum Plugin Features
+
+This document describes every user-facing feature of the Gradum IntelliJ IDEA
+plugin (the `plugin/` module). It is the canonical reference for the chat
+tool-window, its composing UI surfaces, and the cross-cutting infrastructure
+that holds them together.
+
+For the server-side protocol, the agent loop, and the Skill contract see
+[`ARCHITECTURE.md`](ARCHITECTURE.md). For Skill authoring see
+[`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md). This file is plugin-only.
+
+---
+
+## At a glance
+
+| Area                                | Count / Scope                               |
+|-------------------------------------|---------------------------------------------|
+| Kotlin source files (plugin module) | 41                                          |
+| Tool-window / chat UI components    | 24                                          |
+| i18n keys                           | 127 (`en` + `zh_CN`)                        |
+| SVG icon resources                  | 324 SVGs + 1 PNG                            |
+| Project-level services              | 1 (`GradumChatSession`)                     |
+| HTTP endpoints consumed             | 3 (`/events`, `/models`, `/skills`)         |
+| Wire event types handled            | 4 (thinking / tool_call / response / error) |
+
+The plugin is built on JetBrains Jewel + Compose for Desktop. Every visible
+string is localizable; every color is theme-aware through `JewelTheme`; every
+icon is loaded from the plugin classpath at runtime.
+
+---
+
+## 1. Tool window integration
+
+The plugin registers a single IntelliJ tool window:
+
+- **`id`** — `Gradum`
+- **`anchor`** — right sidebar
+- **`factoryClass`** — `gradum.idea.GradumToolWindowFactory`
+- **`icon`** — `icons/logo/logo.svg`
+
+The factory hosts a Compose tab via `addComposeTab` and seeds the chat session
+from the project-level `GradumChatSession` service. A `New Chat` title-bar
+action is registered to reset the session and reset the tab display name to
+the localized welcome string.
+
+> Project-level state is non-negotiable: when the user collapses the sidebar
+> the IntelliJ Platform disposes the tool-window content, so any in-Compose
+> `mutableStateOf` is lost on the next expand. `GradumChatSession` is the
+> sole owner of cross-collapse state.
+
+Source: [`GradumToolWindowFactory.kt`](../../plugin/src/main/kotlin/gradum/idea/GradumToolWindowFactory.kt),
+[`plugin.xml`](../../plugin/src/main/resources/META-INF/plugin.xml).
+
+---
+
+## 2. Welcome screen
+
+The first surface the user sees when the tool window opens against an empty
+session.
+
+- **Layout** — outer `Box` with `contentAlignment = Center`; inner `Column`
+  capped at `max width = 600.dp` with `start padding = 6.dp` so the header,
+  the input area, and the quick-start section all share one vertical line.
+- **Rotating greeting** — a `SweepLightText` composable renders a typewriter
+  effect across a hand-curated list of welcome messages (anti-repetition
+  logic guarantees the same greeting is never shown twice in a row).
+- **Quick-start** — four categories with five variants each (chat, code,
+  question, text); a fresh `Random.nextInt(5)` is drawn for each category at
+  every open, then frozen for the session.
+
+Source: [`WelcomeScreen.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/home/WelcomeScreen.kt),
+[`QuickStartSection.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/home/QuickStartSection.kt),
+[`SweepLightText.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/SweepLightText.kt).
+
+---
+
+## 3. Chat screen
+
+The `ChatScreen` composable is the root of the message experience and is
+mounted as soon as the user sends their first message (`hasSentMessage` flips
+to `true`). It composes:
+
+1. A scrollable message list.
+2. The input section (toolbar + text field + attachments + model bar).
+3. A reactive `isWaitingForResponse` overlay.
+
+The screen takes 11 typed parameters today; the 8-parameter model selector
+bar inside it is a known refactor target (a dedicated data class would let
+callers pass a single `ModelSelectorState` instead).
+
+Source: [`ChatScreen.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/ChatScreen.kt).
+
+---
+
+## 4. Message bubbles
+
+Every visible message is one of two bubbles, both anchored to the right
+edge for symmetry.
+
+### 4.1 `UserChatBubble`
+
+- Renders the user's raw text and a row of attached files.
+- Attachments render in a collapsible list (animated visibility toggle).
+- A copy button (`MessageCopyButton`) sits in the bubble footer.
+
+### 4.2 `AssistantChatBubble`
+
+- Renders an event timeline — `Thinking`, `ToolCall`, `Response`, `Error` —
+  in arrival order.
+- Each event is a `RenderBlock`; consecutive events of the same type are
+  coalesced into a single block so Compose can reuse composables without
+  rebuilding the list (see [Section 5](#5-message-event-timeline)).
+- A `MessageTimestamp` sits in the bubble footer and formats the timestamp
+  based on how recent the message is — see [Section 5.3](#53-message-timestamp).
+
+Source: [`UserChatBubble.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/UserChatBubble.kt),
+[`AssistantChatBubble.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/AssistantChatBubble.kt),
+[`MessageAttachmentList.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/MessageAttachmentList.kt),
+[`MessageCopyButton.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/MessageCopyButton.kt).
+
+---
+
+## 5. Message event timeline
+
+### 5.1 Wire events → UI blocks
+
+The server streams four `ChatEvent` subtypes as NDJSON. The client folds
+them into three `RenderBlock` kinds:
+
+| Wire event  | Render block           | Behaviour                                                             |
+|-------------|------------------------|-----------------------------------------------------------------------|
+| `thinking`  | `RenderBlock.Thinking` | Coalesced with the previous thinking block; concatenated as a string. |
+| `tool_call` | `RenderBlock.ToolCall` | Never coalesced (one block per invocation).                           |
+| `response`  | `RenderBlock.Response` | Coalesced with the previous response block; concatenated as a string. |
+| `error`     | `RenderBlock.Error`    | Never coalesced.                                                      |
+
+`ChatMessage.appendEvent` performs an O(1) update — it never re-iterates
+the existing list. `updateLastError` likewise does an O(1) `indexOfLast +
+set` to patch a failed tool call's error message after the fact.
+
+### 5.2 Per-tool call content
+
+`ToolCallContent` is a sealed class with seven subclasses, one per
+server-side skill alias. `fromArguments` switches on the alias name and
+parses the relevant fields; when a model emits a malformed argument
+shape the method falls back to `None` and writes a debug log so the
+offending payload is visible in `idea.log` instead of silently rendering
+as an empty capsule.
+
+| Subclass     | Server alias | Skill          | Fields                                       |
+|--------------|--------------|----------------|----------------------------------------------|
+| `None`       | (any malformed) | —           | —                                            |
+| `Ran`        | `Ran`        | `run_cmd`      | `reason: String`, `command: String`          |
+| `Edited`     | `Edited`     | `edit_file`    | `path: String`, `linesAdded: Int`, `linesRemoved: Int` |
+| `Read`       | `Read`       | `read_file`    | `path: String`                               |
+| `Explored`   | `Explored`   | `explore_project` | `projectRoot: String`, `depth: Int`       |
+| `Planned`    | `Planned`    | `to_do` (add)  | `tasks: List<String>`                        |
+| `Completed`  | `Completed`  | `to_do` (done) | `task: String`                               |
+
+### 5.3 Streaming indicators
+
+- **`ThinkingIndicator`** — a three-dot pulsing animation displayed while
+  the server emits `thinking` chunks.
+- **`ToolCallIndicator`** — a one-line alias + status icon shown beneath the
+  active tool call (e.g. "Ran read_file").
+- **`SweepLightText`** — the typewriter + shimmer effect used both on the
+  welcome screen and on streaming response text.
+
+### 5.3 Message timestamp
+
+`formatTimestamp` is locale-aware (`Locale.getDefault()`) and produces:
+
+- **Today** — `HH:mm` (e.g. `14:30`).
+- **Yesterday** — `Yesterday HH:mm` (localized).
+- **This year** — `MMM d` (e.g. `Jun 15`).
+- **Older** — `N days ago` (localized).
+
+The message list only renders a date separator when the day changes between
+consecutive messages; everything else gets a per-message inline timestamp.
+
+Source: [`ChatMessage.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/model/ChatMessage.kt),
+[`ThinkingIndicator.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/ThinkingIndicator.kt),
+[`ToolCallIndicator.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/ToolCallIndicator.kt),
+[`ToolCallContent.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/ToolCallContent.kt),
+[`MessageTimestamp.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/MessageTimestamp.kt).
+
+---
+
+## 6. Markdown rendering
+
+The chat uses JetBrains' Jewel Markdown renderer, bridged to the IDE's code
+highlighter.
+
+- **`GradumMarkdownStyling`** — configures colors, fonts, list markers, and
+  link styling from `JewelTheme`. A `remember` block at the call site keeps
+  the styling stable across recompositions.
+- **`GradumCodeBlockRenderer`** — produces a Jewel `MarkdownBlockRenderer`
+  that wraps every fenced code block with a copy button + the IDE's syntax
+  highlighter (resolved through the Jewel bridge to whatever language
+  services the host project has loaded).
+- **Streaming integration** — `SweepLightText` is fed the accumulated
+  response string so the user sees a typewriter + shimmer effect as the
+  model emits tokens.
+
+Source: [`GradumMarkdownStyling.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/GradumMarkdownStyling.kt),
+[`GradumCodeBlockRenderer.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/GradumCodeBlockRenderer.kt).
+
+---
+
+## 7. Input panel
+
+The chat input is a layered composition from outer to inner:
+
+```
+ChatInputSection               (top-level section, only mounted in chat screen)
+  └── ChatInputPanel           (composes toolbar + textarea + attachments)
+        ├── ChatToolbar        (add-menu, permission selector, send/stop)
+        ├── AttachmentBar      (current attachments row)
+        ├── TextField          (auto-growing multi-line)
+        ├── ModelSelectorBar   (current model + auto + pinned + all)
+        └── ExternalLink       (GitHub feedback)
+```
+
+The state for this whole tree is a `ChatInputState` snapshot; the callbacks
+form a `ChatInputActions` data class. `ChatInputState` is recomposed via
+`mutableStateOf` on the session — never as a `mutableStateListOf` — to keep
+Compose's snapshot model predictable.
+
+Source: [`ChatInputSection.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ChatInputSection.kt),
+[`ChatInputPanel.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ChatInputPanel.kt),
+[`ChatToolbar.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ChatToolbar.kt),
+[`ChatInputState.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/input/ChatInputState.kt),
+[`PreviewText.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/PreviewText.kt).
+
+---
+
+## 8. Model selection
+
+The model selector is a `SelectorButton` (icon + label + chevron) that opens
+a `PopupMenu` with three sections:
+
+1. **`Auto`** — always present, highlighted when `isAutoSelected` is true.
+2. **Pinned** — only when the user has pinned at least one model.
+3. **All models** — everything else, minus pinned entries.
+
+### 8.1 Auto mode (server-recommended)
+
+When the user picks **Auto**, the plugin does **not** flip a flag and stop
+there — it actively selects the server's recommendation. The recommender
+runs server-side on every `/models` request and is described in detail in
+[`ARCHITECTURE.md`](ARCHITECTURE.md#model-recommendation); the short version
+of the algorithm is:
+
+1. **Context window** — the universal baseline (`min(contextLimit, 200K) / 2000`).
+2. **Cloud preference** — cloud models get a flat `+200` bonus because the
+   project is local-first by intent, not by capability.
+3. **Local parameter count** — `paramsB × 1.5`, where `paramsB` is parsed
+   out of the model name with a `(\d+(?:\.\d+)?)b` regex. A 70B beats a 7B
+   decisively, but not so much that a 70B blows past a stronger cloud
+   candidate.
+4. **Memory gate** — a local model whose estimated VRAM
+   (`paramsB × 0.8`, Ollama Q4 average) exceeds the user's current free RAM
+   (sampled fresh per request, then discounted 25% for OS/IDE overhead) is
+   hit with a `-500` penalty. This is large enough to demote it below every
+   cloud candidate and every smaller local alternative, but the entry stays
+   selectable for users who insist.
+5. **Capability flags** — `+20` for reasoning, `+10` for tool-calling,
+   `+5` for vision.
+
+When the user is in **Auto** mode the selector button renders as
+`Auto - {picked model name}` so the user can see at a glance which model
+the recommender picked, and the leading "Auto" makes the implicit mode
+visible without forcing them to reopen the menu. The menu's Auto row stays
+highlighted to keep the mode signal in two places.
+
+When the user is in manual mode, only the model name is shown — the
+`Auto -` prefix is suppressed to avoid noise.
+
+### 8.2 Provider icons
+
+`GradumIcons.resolveModelIcon(modelName)` resolves a model to a
+provider-branded icon by scanning the lower-cased name for the first
+keyword hit. The mapping is hard-coded in `PROVIDER_KEYWORD_MAP` and
+covers every cloud and self-hosted provider the project advertises:
+
+| Keyword        | Provider icon |
+|----------------|---------------|
+| `qwen`         | Alibaba       |
+| `claude`       | Anthropic     |
+| `deepseek`     | Deepseek      |
+| `gemini`, `gemma` | Google     |
+| `llama`        | Meta          |
+| `minimax`      | MiniMax       |
+| `mistral`, `mixtral` | Mistral |
+| `gpt`, `o1`, `o3`, `o4` | OpenAI |
+| `grok`         | xAI           |
+| `mimo`         | Xiaomi        |
+| `glm`          | ZhipuAI       |
+
+The eleven provider folders under `icons/model-provider/` each ship a
+light/dark pair so the icon tracks the IDE theme. `ModelSelectorBar`
+prefers this resolution for the selector button, and
+`AssistantChatBubble` uses it to render a small leading icon on every
+assistant message.
+
+### 8.3 Pin / unpin
+
+Every non-Auto model in the menu has a pin toggle. Pinned models surface in
+their own section above "All models" and survive across sessions within
+the project.
+
+### 8.4 Model name formatting
+
+Raw names from the wire look like `qwen2.5-coder-32b-instruct` or
+`lmstudio-community/qwen2.5-7b`. `formatModelName` strips the
+`username/model` prefix (LM Studio convention), drops the trailing
+size tag, and looks the remainder up in a hand-curated display table that
+maps `qwen2.5-coder` → `Qwen 2.5 Coder`. Unrecognised names fall back to a
+title-cased hyphen substitution.
+
+Source: [`ModelSelectorBar.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ModelSelectorBar.kt),
+[`ModelNameFormatter.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ModelNameFormatter.kt),
+[`SelectorButton.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/common/SelectorButton.kt),
+[`GradumIcons.kt`](../../plugin/src/main/kotlin/gradum/idea/icons/GradumIcons.kt).
+
+---
+
+## 9. Permission selector
+
+A dropdown that controls the active `ToolMode`:
+
+- **`READ_ONLY`** — `explore_project`, `read_file`, `run_cmd`. No `edit_file`,
+  no `save_file`, no `to_do`.
+- **`SINGLE_STEP`** — everything in read-only plus `to_do`.
+- **`WRITE`** — every Skill is exposed.
+
+The default for a new session is `READ_ONLY`; the user promotes to
+`SINGLE_STEP` or `WRITE` from the dropdown once they understand what each
+mode unlocks.
+
+The selector writes the chosen mode into a wire-format string and the
+plugin's `PermissionSelector` enforces the same gate server-side via
+`Skill.allowedToolModes`.
+
+Source: [`PermissionSelector.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/PermissionSelector.kt),
+[`Skill.kt`](../../src/main/kotlin/gradum/skill/Skill.kt),
+[`SkillRegistry.kt`](../../src/main/kotlin/gradum/skill/SkillRegistry.kt).
+
+---
+
+## 10. Attachments
+
+The user can attach files and folders to a message. The bar lives between
+the toolbar and the text field.
+
+- **Maximum count** — `MAX_ATTACHMENTS = 5`. The add button is disabled
+  (with a tooltip explaining why) once the limit is reached.
+- **Add surface** — `AddContextPopup` exposes file pickers for both files
+  and directories. Adding a directory walks it and freezes the result at
+  send time so subsequent edits in the IDE do not affect the in-flight
+  message.
+- **Remove** — every file chip has a remove button; deletion is
+  non-destructive (the file on disk is untouched).
+- **Long-paste detection** — any text longer than 200 characters pasted
+  into the input is automatically lifted out as a `text/plain` attachment
+  and removed from the input. The detection uses a reactive diff against
+  the `textState` subscription rather than a `KeyEvent` interceptor, so
+  it works equally well for paste, drag-drop, and IME input.
+- **Collapsible** — the attachment list is collapsible with an animated
+  visibility toggle so a full bar of five files does not crowd the input
+  on small tool windows.
+
+Source: [`AttachmentBar.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/AttachmentBar.kt),
+[`AddContextPopup.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/AddContextPopup.kt),
+[`FileItem.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/input/FileItem.kt),
+[`Attachments.kt`](../../plugin/src/main/kotlin/gradum/idea/editor/Attachments.kt),
+[`EditorContext.kt`](../../plugin/src/main/kotlin/gradum/idea/editor/EditorContext.kt).
+
+---
+
+## 11. State management
+
+`GradumChatSession` is a `Service(Service.Level.PROJECT)`. It owns the
+in-flight UI state and survives the tool window being collapsed and
+re-expanded.
+
+### 11.1 Persistent state
+
+| Field              | Type                                 | Notes                                           |
+|--------------------|--------------------------------------|-------------------------------------------------|
+| `messages`         | `SnapshotStateList<ChatMessage>`     | The visible chat history.                       |
+| `models`           | `SnapshotStateList<ModelInfo>`       | Last `/models` response.                        |
+| `pinnedModels`     | `SnapshotStateList<ModelInfo>`       | User-pinned models.                             |
+| `recommendedModel` | `ModelInfo?`                         | Server's current Auto pick.                     |
+| `selectedModel`    | `ModelInfo?`                         | The model that will be used for the next send.  |
+| `isAutoSelected`   | `Boolean`                            | True when in Auto mode.                         |
+| `modelsLoaded`     | `Boolean`                            | True after the first successful `/models` call. |
+| `toolMode`         | `String`                             | The active `ToolMode` (wire format).            |
+| `promptVariant`    | `String`                             | `auto` / `cloud` / `local`.                     |
+| `attachments`      | `SnapshotStateList<AttachedContext>` | Pending attachments.                            |
+
+### 11.2 Model polling
+
+The session starts a background poller that ticks every
+`POLL_INTERVAL_MS = 5_000` (5 seconds). Each tick fires a fresh
+`/models` request and, if either the model roster or the server's
+recommendation has changed since the last tick, applies the update. The
+recommendation can flip even when the model list is unchanged — for
+example, when the user closes another app, freeing enough memory for a
+larger local model to win the recommender.
+
+The poller is implemented as `tickerFlow().flatMapLatest { fetchModelsOnce() }`
+so a slow request that overlaps with a tick is canceled by the upstream
+emission rather than racing the next one.
+
+Source: [`GradumChatSession.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/state/GradumChatSession.kt).
+
+---
+
+## 12. HTTP API client
+
+`GradumApiClient` is a thin wrapper around the JDK 11 `HttpClient`. The
+plugin only ever calls three endpoints.
+
+### 12.1 `GET /models`
+
+Returns a JSON object of the shape:
+
+```json
+{
+  "models": [
+    {
+      "name": "...",
+      "provider": "...",
+      "server": "...",
+      "serverName": "...",
+      "contextLimit": 0,
+      "reasoning": false,
+      "toolCall": false,
+      "openWeights": false,
+      "attachment": false
+    }
+  ],
+  "recommended": {
+    "name": "...",
+    "...": "..."
+  }
+}
+```
+
+`recommended` is nullable for backward compatibility — older server builds
+that do not include the field decode cleanly thanks to
+`Json { ignoreUnknownKeys = true }`.
+
+### 12.2 `POST /events` (NDJSON stream)
+
+Sends a single user turn and consumes the streamed agent events as
+NDJSON. The parser is per-line resilient: a malformed line is logged at
+`warn` level and skipped, so a single bad event does not break the
+stream. The four event types mirror the `ChatEvent` subtypes in
+[Section 5](#5-message-event-timeline).
+
+### 12.3 `POST /stop`
+
+Tells the server to abort the in-flight `Agent` for a given `sessionId`.
+The plugin calls this when the user clicks the **Stop** button in the
+chat toolbar; the server replies with `{"status": "stopped", ...}` and
+the client drops the `isSending` flag.
+
+### 12.4 Error handling
+
+A typed `ErrorCode` enum is shared between the server and the plugin (16
+codes, including `MODEL_TIMEOUT`, `TOOL_BLOCKED`, `READ_ONLY_VIOLATION`,
+`RATE_LIMITED`, etc.). The plugin maps codes to localized, user-friendly
+messages — never raw stack traces.
+
+Source: [`GradumApiClient.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/api/GradumApiClient.kt),
+[`ErrorCode.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/model/ErrorCode.kt),
+[`ErrorMessages.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/ErrorMessages.kt).
+
+---
+
+## 13. i18n
+
+Every user-visible string in the plugin is loaded through `GradumBundle`,
+which extends IntelliJ's `DynamicBundle`. The bundle ships two locales:
+
+- **`en`** — `messages/GradumBundle.properties` (default).
+- **`zh_CN`** — `messages/GradumBundle_zh_CN.properties`.
+
+There are **132 keys** in each file. Both files are kept in lockstep — a
+key that exists in one must exist in the other; the bundle is hardened
+with two safety nets:
+
+1. **Startup probe** — the `init` block of `GradumBundle` looks up a
+   sentinel key (e.g. `gradum.toolwindow.welcome`) to confirm the active
+   locale's resource is on the classpath.
+2. **Per-key fallback** — `GradumBundle.message(key, ...)` catches
+   `MissingResourceException` and returns `???<key>???` so a missing key
+   is obvious in the UI without breaking layout.
+
+The Chinese copy is not a direct translation; it is curated for cultural
+relevance (Chinese proverbs, regional phrasing) and the English copy is
+deliberately terse and tech-flavored.
+
+Source: [`GradumBundle.kt`](../../plugin/src/main/kotlin/gradum/idea/bundle/GradumBundle.kt),
+[`GradumBundle.properties`](../../plugin/src/main/resources/messages/GradumBundle.properties),
+[`GradumBundle_zh_CN.properties`](../../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties).
+
+---
+
+## 14. Icons
+
+The plugin ships **325 icon assets** (324 SVGs + one PNG) under
+`plugin/src/main/resources/icons/`, organised by purpose:
+
+- `auto/`, `build/`, `cloud/`, `local/` — model-mode indicators.
+- `cmd/`, `edit/`, `explore/`, `web/`, `file-type/` — tool affordances.
+- `feat/chat/`, `feat/code/`, `feat/question/`, `feat/text/` — quick-start tiles.
+- `file-type/` — language-typed file glyphs (Kotlin, Python, TypeScript, JSX, PHP, …).
+- `model-provider/` — brand logos for 11 providers, each with a
+  light/dark pair for IDE theme parity.
+- `like/`, `like-selected/`, `send/`, `tools/`, `search/`, `warning/`, `vison/`, `image/`, `markdown/`, `logo/` — UI affordances.
+- `hands.png` — a 1600 × 1600 PNG used in the welcome screen's empty
+  state; kept as raster because the artwork uses a continuous gradient
+  that does not survive the SVG simplification pass.
+
+Every icon has a light/dark pair (suffix `_dark`) so it tracks the IDE
+theme. `GradumIcons` is the single source of truth for icon lookups;
+UI code never hard-codes an icon path.
+
+Source: [`GradumIcons.kt`](../../plugin/src/main/kotlin/gradum/idea/icons/GradumIcons.kt),
+[`icons/`](../../plugin/src/main/resources/icons).
+
+---
+
+## 15. Editor integration
+
+The plugin reads three things out of the host IDE:
+
+- **Current selection** — `EditorContext` snapshots the user's text
+  selection in the focused editor at the moment a chat message is sent,
+  so the LLM can quote it back.
+- **Open file path** — the active file's path is added to the
+  conversation as an implicit attachment.
+- **Pending messages** — `PendingMessage` is the data class that snapshots
+  one user message (text + frozen attachments) while it is queued. The
+  queue itself lives on `GradumChatSession.pendingMessages` and is
+  capped at `MAX_PENDING_MESSAGES = 2`. When the streaming turn
+  finishes, the next pending message is dispatched automatically.
+
+Source: [`EditorContext.kt`](../../plugin/src/main/kotlin/gradum/idea/editor/EditorContext.kt),
+[`PendingMessage.kt`](../../plugin/src/main/kotlin/gradum/idea/editor/PendingMessage.kt).
+
+---
+
+## 16. Styling conventions
+
+- **Theme** — every composable pulls from `JewelTheme` (`globalColors`,
+  `typography`, `editorColors`). No hard-coded hex colors; no
+  `Color.Red` / `Color.Blue` literals.
+- **Spacing** — all paddings, gaps, and margins come from `GradumSpacing`
+  in `Spacing.kt`. Popup items use
+  `Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp)`;
+  section headers use `vertical = 4.dp`; icon-to-text gaps use
+  `Spacer(Modifier.width(6.dp))`. This is the canonical spacing rule
+  for any new popup or menu in the plugin.
+- **Icon-to-tooltip semantics** — pin and unpin, share and unshare, and
+  similar toggle pairs use a state-based icon: the icon for the *active*
+  state is the "selected" or "filled" variant, the icon for the *inactive*
+  state is the "outline" variant. Tooltips mirror the icon's meaning,
+  not the underlying state.
+- **Text composables** — every `Text` uses the named `text =` parameter
+  (not positional). This is enforced project-wide and lints clean.
+- **Single-line `if`** — `if (cond) doThing()` without braces is the
+  default; only wrap when the body is non-trivial.
+- **Wildcard imports** — the project allows wildcard imports for the
+  four Compose-for-Desktop key packages (`androidx.compose.foundation.layout.*`,
+  `org.jetbrains.jewel.ui.component.*`, `androidx.compose.foundation.*`,
+  `androidx.compose.runtime.*`); everything else uses explicit imports.
+
+Source: [`Spacing.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/Spacing.kt),
+[`IconTooltipButton.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/common/IconTooltipButton.kt),
+[`CONVENTIONS.md`](CONVENTIONS.md),
+[`CODING_STANDARDS_KOTLIN.md`](CODING_STANDARDS_KOTLIN.md).
+
+---
+
+## 17. Accessibility & UX guarantees
+
+- **Disabled state tooltips** — every disabled control has a tooltip
+  explaining *why* it is disabled (e.g. "Maximum of 5 attachments" on
+  the add button when the limit is reached). No silent greying-out.
+- **Consistent chat patterns** — user and assistant bubbles, message
+  timestamps, copy buttons, and error states share one visual layout
+  across the welcome screen, the chat list, and any future surface
+  (the rule is documented in `CONVENTIONS.md`).
+- **Date separators** — the chat list inserts a separator only when the
+  day changes between consecutive messages; per-message timestamps use
+  the four-tier format described in [Section 5.3](#53-message-timestamp).
+- **Typewriter welcome** — the welcome screen uses an anti-repetition
+  rotating greeting so the user does not see the same line twice in a
+  row within a session.
+- **Streaming animation** — `SweepLightText` is reused for both the
+  welcome greeting and the live response stream, so the user gets one
+  visual language for "text that is arriving".
+
+---
+
+## 18. File-by-file index
+
+| Path                                    | Role                                                                   |
+|-----------------------------------------|------------------------------------------------------------------------|
+| `GradumToolWindowFactory.kt`            | Tool-window factory, "New Chat" action, top-level Compose tab.         |
+| `bundle/GradumBundle.kt`                | i18n bundle with startup probe and per-key fallback.                   |
+| `chat/api/GradumApiClient.kt`           | HTTP client (`/events`, `/models`, `/stop`).                           |
+| `chat/input/ChatInputState.kt`          | `ChatInputState` + `ChatInputActions` data classes.                    |
+| `chat/model/ChatMessage.kt`             | `ChatEvent` / `RenderBlock` / `ChatMessage` model + `formatTimestamp`. |
+| `chat/model/ErrorCode.kt`               | Shared 16-code error enum.                                             |
+| `chat/model/ModelInfo.kt`               | Wire shape for a single model from `/models`.                          |
+| `chat/state/GradumChatSession.kt`       | Project-level service, state owner, model poller.                      |
+| `chat/ui/ChatScreen.kt`                 | Top-level chat screen composable.                                      |
+| `chat/ui/GradumCodeBlockRenderer.kt`    | Markdown fenced code block renderer.                                   |
+| `chat/ui/GradumMarkdownStyling.kt`      | Markdown styling config from `JewelTheme`.                             |
+| `chat/ui/Spacing.kt`                    | `GradumSpacing` token object.                                          |
+| `chat/ui/chat/AssistantChatBubble.kt`   | Assistant message bubble.                                              |
+| `chat/ui/chat/ChatMessageList.kt`       | Scrollable list + day-change separators.                               |
+| `chat/ui/chat/ErrorMessages.kt`         | Localised, code-driven error messages.                                 |
+| `chat/ui/chat/MessageAttachmentList.kt` | Collapsible attachment list.                                           |
+| `chat/ui/chat/MessageCopyButton.kt`     | Copy button + tooltip semantics.                                       |
+| `chat/ui/chat/MessageTimestamp.kt`      | Bubble timestamp footer.                                               |
+| `chat/ui/chat/SweepLightText.kt`        | Typewriter + shimmer animation.                                        |
+| `chat/ui/chat/ThinkingIndicator.kt`     | Pulsing dots during thinking.                                          |
+| `chat/ui/chat/ToolCallContent.kt`       | Tool-call row body (alias, args, result, error).                       |
+| `chat/ui/chat/ToolCallIndicator.kt`     | One-line tool-call status.                                             |
+| `chat/ui/chat/UserChatBubble.kt`        | User message bubble.                                                   |
+| `chat/ui/common/IconTooltipButton.kt`   | Canonical icon button with tooltip.                                    |
+| `chat/ui/common/SelectorButton.kt`      | Canonical selector button (icon + label + chevron).                    |
+| `chat/ui/home/QuickStartSection.kt`     | Welcome quick-start tiles (4 × 5 variants).                            |
+| `chat/ui/home/WelcomeScreen.kt`         | Welcome screen composable.                                             |
+| `chat/ui/input/AddContextPopup.kt`      | File / directory add menu.                                             |
+| `chat/ui/input/AttachmentBar.kt`        | Pending attachments row.                                               |
+| `chat/ui/input/ChatInputPanel.kt`       | Composes toolbar + textarea + bar.                                     |
+| `chat/ui/input/ChatInputSection.kt`     | Top-level chat input section.                                          |
+| `chat/ui/input/ChatToolbar.kt`          | Add menu, permission selector, send/stop.                              |
+| `chat/ui/input/FileItem.kt`             | Single attachment chip.                                                |
+| `chat/ui/input/ModelNameFormatter.kt`   | Raw-name → display-name lookup.                                        |
+| `chat/ui/input/ModelSelectorBar.kt`     | Model selector with Auto / Pinned / All.                               |
+| `chat/ui/input/PermissionSelector.kt`   | Three-tier permission dropdown.                                        |
+| `chat/ui/input/PreviewText.kt`          | Text-field preview / hint composable.                                  |
+| `editor/Attachments.kt`                 | `AttachedContext` model + file/dir freezing.                           |
+| `editor/EditorContext.kt`               | Current editor selection / file snapshot.                              |
+| `editor/PendingMessage.kt`              | In-flight message queue.                                               |
+| `icons/GradumIcons.kt`                  | Icon registry + provider / model lookups.                              |

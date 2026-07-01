@@ -1,27 +1,34 @@
+<!--
+  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ Gradum Plugin.run.xml  2026-06-30 23:35:47 Changed by gwy
+  -->
+
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Gradum Plugin" type="GradleRunConfiguration" factoryName="Gradle">
-    <ExternalSystemSettings>
-      <option name="executionName" />
-      <option name="externalProjectPath" value="$PROJECT_DIR$/plugin" />
-      <option name="externalSystemIdString" value="GRADLE" />
-      <option name="scriptParameters" value="" />
-      <option name="taskDescriptions">
-        <list />
-      </option>
-      <option name="taskNames">
-        <list>
-          <option value=":plugin:runIde" />
-        </list>
-      </option>
-      <option name="vmOptions" value="" />
-    </ExternalSystemSettings>
-    <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
-    <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-    <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-    <DebugAllEnabled>false</DebugAllEnabled>
-    <RunAsTest>false</RunAsTest>
-    <GradleProfilingDisabled>false</GradleProfilingDisabled>
-    <GradleCoverageDisabled>false</GradleCoverageDisabled>
-    <method v="2" />
-  </configuration>
+    <configuration default="false" name="Gradum Plugin" type="GradleRunConfiguration" factoryName="Gradle">
+        <ExternalSystemSettings>
+            <option name="executionName"/>
+            <option name="externalProjectPath" value="$PROJECT_DIR$/plugin"/>
+            <option name="externalSystemIdString" value="GRADLE"/>
+            <option name="scriptParameters" value=""/>
+            <option name="taskDescriptions">
+                <list/>
+            </option>
+            <option name="taskNames">
+                <list>
+                    <option value=":plugin:runIde"/>
+                </list>
+            </option>
+            <option name="vmOptions" value=""/>
+        </ExternalSystemSettings>
+        <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+        <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+        <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
+        <DebugAllEnabled>false</DebugAllEnabled>
+        <RunAsTest>false</RunAsTest>
+        <GradleProfilingDisabled>false</GradleProfilingDisabled>
+        <GradleCoverageDisabled>false</GradleCoverageDisabled>
+        <method v="2"/>
+    </configuration>
 </component>

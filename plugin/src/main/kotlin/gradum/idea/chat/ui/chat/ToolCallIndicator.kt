@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-29 11:16:38 Changed by gwy
+ * ToolCallIndicator.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -258,9 +258,9 @@ fun FileToolCallIndicator(
                         }
                         Spacer(Modifier.weight(1f))
                         if (isEdited) {
-                            val green = JewelTheme.globalColors.text.info
+                            val addedLinesColor = JewelTheme.globalColors.text.info
                             if (linesAdded > 0)
-                                Text(text = "+$linesAdded", color = green)
+                                Text(text = "+$linesAdded", color = addedLinesColor)
                             if (linesRemoved > 0)
                                 Text(text = "-$linesRemoved", color = JewelTheme.globalColors.text.error)
                         }

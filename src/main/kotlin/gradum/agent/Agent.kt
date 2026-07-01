@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-30 21:42:45 Changed by gwy
+ * Agent.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -232,9 +232,9 @@ class Agent(
             AUTO -> PromptVariant.resolveAuto(configuration.provider)
         }
         val primaryPath: String = when (resolvedVariant) {
-            CLOUD -> "/system_prompt_cloud.txt"
-            LOCAL -> "/system_prompt_local.txt"
-            AUTO -> "/system_prompt_local.txt"  // unreachable — resolveAuto() never returns AUTO
+            CLOUD -> "/prompts/system/cloud.txt"
+            LOCAL -> "/prompts/system/local.txt"
+            AUTO -> "/prompts/system/local.txt"
         }
 
         val promptContent: String = try {
@@ -561,8 +561,14 @@ class Agent(
         }
     }
 
-    private fun checkToolRunaway(name: String, args: Map<String, Any>): Boolean {
-        val key = "$name|${args.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
+    /**
+     * Detects if the same tool is being called repeatedly with identical arguments.
+     * Builds a signature from tool name + sorted args; if it matches the previous call,
+     * increments the counter. Returns true when the repeat count exceeds the threshold.
+     */
+    private fun checkToolRunaway(name: String, toolArguments: Map<String, Any>): Boolean {
+        // Build a deterministic key: "toolName|arg1=val1,arg2=val2" (sorted by arg name)
+        val key = "$name|${toolArguments.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
         repeatedToolCallCount = if (key == lastToolCallKey) repeatedToolCallCount + 1 else 1
         lastToolCallKey = key
         return repeatedToolCallCount >= configuration.maxRepeatedToolCalls

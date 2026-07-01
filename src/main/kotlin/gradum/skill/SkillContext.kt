@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-06-30 22:06:58 Changed by gwy
+ * SkillContext.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.skill
@@ -37,7 +37,4 @@ import gradum.ToolMode
  *   project the IDE has open. Always non-empty in production (the
  *   `/events` route rejects requests that omit it).
  */
-data class SkillContext(
-    val toolMode: ToolMode,
-    val projectRoot: String,
-)
+data class SkillContext(val toolMode: ToolMode, val projectRoot: String)

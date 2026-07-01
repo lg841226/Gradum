@@ -138,8 +138,7 @@ flowchart TB
         C1["AgentConfiguration.kt"]
         C2["Annotations.kt"]
         C3["SkillResult.kt"]
-        C4["ProjectPaths.kt"]
-        C5["Version.kt"]
+        C4["Version.kt"]
     end
 
     SERVER --> APP
@@ -208,7 +207,6 @@ flowchart LR
 src/main/kotlin/gradum/
 ├── AgentConfiguration.kt          # Agent runtime configuration (model/provider/temperature, etc.)
 ├── Annotations.kt                 # @ExperimentalApi, @DangerousOperation compile-time annotations
-├── ProjectPaths.kt                # OUTPUT_DIRECTORY path constant
 ├── SkillResult.kt                 # SkillResult sealed class + makeSuccess/makeFailure factories
 ├── Version.kt                     # GRADUM_VERSION constant
 │
@@ -219,7 +217,8 @@ src/main/kotlin/gradum/
 │   └── LLMClient.kt               # OllamaClient + OpenAICompatibleClient + ToolCallEntry + TokenUsageSnapshot
 │
 ├── discovery/
-│   └── ModelDiscovery.kt          # discoverModels() + resolveModel() + server probing
+│   ├── ModelDiscovery.kt          # discoverModels() + resolveModel() + server probing
+│   └── ModelCatalog.kt            # Model metadata catalog (context limits, capabilities)
 │
 ├── server/
 │   ├── App.kt                     # createServerInstance() + Application.module() assembly

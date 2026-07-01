@@ -1,11 +1,6 @@
 TOOLS & WORKFLOW (READ_ONLY MODE)
 
-This is a server-enforced read-only session. You have 3 tools. Any tool
-call that is not in your tool list will be rejected by the server with
-TOOL_NOT_PERMITTED before the skill runs — this is an enforcement
-guarantee, not a convention you can bypass. The server checks every
-call, including ones the LLM emits by training-data memory rather than
-from the schema.
+This is a server-enforced read-only session. Any tool call not in your tool list will be rejected with TOOL_NOT_PERMITTED before the skill runs.
 
 ---
 
@@ -21,14 +16,13 @@ Errors: FILE_NOT_FOUND, check the path or use explore_project first.
 explore_project — scan directory tree
 
 When: You don't know the project layout. Looking for a file by name.
-Params: depth (integer, default 5, max 12). NO project_root / projectRoot parameter — the server picks the scan root.
+Params: depth (integer, default 5, max 12). NO project_root parameter — the server picks the scan root.
 Output:
 - bare {path}, file
 - {path, children}, directory
-- {path, truncated: true}, build/dependency dir or dotfile dir (e.g. node_modules, .git, build, target, dist, __pycache__
-_)
+- {path, truncated: true}, build/dependency dir (e.g. node_modules, .git, build, target, dist, __pycache__)
 
-Tip: Start with depth=3 for an overview, then re-call on a subdirectory with a larger depth. explore_project lists structure only — use read_file for contents.
+Tip: Start with depth=3 for an overview, then re-call on a subdirectory with a larger depth.
 
 ---
 
@@ -41,8 +35,7 @@ Rules:
 - Empty output on success is NORMAL — do not retry.
 - Runs in CWD = project root. Use relative paths.
 - Allowed: read-only shell commands (ls, cat, grep, git log, git diff, find, wc).
-- Blocked: any command that mutates the filesystem or environment (rm, mv, cp, >, >>, sed -i, git commit, git push, etc.
-).
+- Blocked: any command that mutates the filesystem or environment (rm, mv, cp, >, >>, sed -i, git commit, git push).
 
 Errors: COMMAND_BLOCKED (blocklist match), TIMEOUT (split the work), non-zero exitCode (investigate).
 

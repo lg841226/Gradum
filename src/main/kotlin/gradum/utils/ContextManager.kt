@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-06-29 23:35:00 Changed by gwy
+ * ContextManager.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.utils
 
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.nio.file.Path
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
@@ -32,11 +33,10 @@ class ContextManager(private val outputDirectory: Path) {
     fun loadContext(): List<Map<String, Any>> {
         cachedMessages?.let { return it }
 
-        val contextFile: java.io.File = contextFilePath.toFile()
+        val contextFile: File = contextFilePath.toFile()
 
         if (!contextFile.exists()) {
-            logger.info("No context file at ${contextFilePath.toAbsolutePath()}")
-            return emptyList()
+            logger.info("No context file at ${contextFilePath.toAbsolutePath()}"); return emptyList()
         }
 
         logger.info("Loading context (${contextFile.length()} bytes)")
@@ -46,8 +46,7 @@ class ContextManager(private val outputDirectory: Path) {
             val parsedJson: JsonObject = jsonFormatter.parseToJsonElement(rawContent).jsonObject
 
             val rawMessages: JsonArray = parsedJson["messages"]?.jsonArray ?: run {
-                logger.warn("Context file has no 'messages' field")
-                return emptyList()
+                logger.warn("Context file has no 'messages' field"); return emptyList()
             }
 
             logger.info("Found ${rawMessages.size} messages in context file")
@@ -57,8 +56,7 @@ class ContextManager(private val outputDirectory: Path) {
                 decryptMessageIfNeeded(messageMap)
             }
 
-            logMessageStats(decryptedMessages)
-            cachedMessages = decryptedMessages
+            logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
             decryptedMessages
         } catch (exception: Exception) {
             logger.error("Failed to load context: ${exception.message}", exception)
@@ -87,11 +85,10 @@ class ContextManager(private val outputDirectory: Path) {
         return try {
             contextFilePath.toFile().writeText(contextJson, Charsets.UTF_8)
             val writtenSize: Long = contextFilePath.toFile().length()
-            logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted")
-            true
+
+            logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted"); true
         } catch (exception: Exception) {
-            logger.error("Failed to save context: ${exception.message}", exception)
-            false
+            logger.error("Failed to save context: ${exception.message}", exception); false
         }
     }
 
@@ -120,15 +117,18 @@ class ContextManager(private val outputDirectory: Path) {
     }
 
     private fun parseJsonObject(jsonObject: JsonObject): MutableMap<String, Any> {
-        val result: MutableMap<String, Any> = mutableMapOf()
-        for ((key: String, jsonElement) in jsonObject) result[key] = convertJsonElement(jsonElement)
-        return result
+        val parsedMap: MutableMap<String, Any> = mutableMapOf()
+        for ((key: String, jsonElement) in jsonObject) parsedMap[key] = convertJsonElement(jsonElement)
+        return parsedMap
     }
 
+    /** Recursively converts a kotlinx.serialization JsonElement to a plain Kotlin/Java object. */
     private fun convertJsonElement(element: JsonElement): Any {
         return when (element) {
             is JsonPrimitive if element.isString -> element.content
+            // Number/boolean primitives: try to parse as typed value, fall back to string
             is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
+            // Nested objects/arrays: serialize back to string representation
             is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element).toString()
         }
     }

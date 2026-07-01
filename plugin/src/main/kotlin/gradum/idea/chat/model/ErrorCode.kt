@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorCode.kt  2026-06-29 15:30:00 Changed by gwy
+ * ErrorCode.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.model

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EncryptionUtil.kt  2026-06-21 07:53:44 Changed by gwy
+ * EncryptionUtil.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.utils
@@ -70,7 +70,8 @@ private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce
 
         val blockLength: Int = minOf(BLOCK_SIZE_BYTES, plaintext.size - offset)
         for (byteIndex in 0 until blockLength) {
-            ciphertext[offset + byteIndex] = (plaintext[offset + byteIndex].toInt() xor streamBlock[byteIndex].toInt()).toByte()
+            ciphertext[offset + byteIndex] =
+                (plaintext[offset + byteIndex].toInt() xor streamBlock[byteIndex].toInt()).toByte()
         }
     }
 

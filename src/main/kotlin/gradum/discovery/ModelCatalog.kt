@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ModelCatalog.kt  2026-06-30 23:35:47 Changed by gwy
+ */
+
 package gradum.discovery
 
 import io.ktor.client.*
@@ -37,15 +44,15 @@ fun loadCatalog() {
                 for ((_, providerData) in root) {
                     val models = providerData.jsonObject["models"]?.jsonObject ?: continue
                     for ((_, modelData) in models) {
-                        val model = modelData.jsonObject
-                        val id = model["id"]?.jsonPrimitive?.content ?: continue
+                        val modelObject = modelData.jsonObject
+                        val id = modelObject["id"]?.jsonPrimitive?.content ?: continue
                         val normalizedKey = normalizeModelName(id)
                         catalogCache[normalizedKey] = ModelMetadata(
-                            contextLimit = model["limit"]?.jsonObject?.get("context")?.jsonPrimitive?.int ?: 0,
-                            reasoning = model["reasoning"]?.jsonPrimitive?.boolean ?: false,
-                            toolCall = model["tool_call"]?.jsonPrimitive?.boolean ?: false,
-                            openWeights = model["open_weights"]?.jsonPrimitive?.boolean ?: false,
-                            attachment = model["attachment"]?.jsonPrimitive?.boolean ?: false
+                            contextLimit = modelObject["limit"]?.jsonObject?.get("context")?.jsonPrimitive?.int ?: 0,
+                            reasoning = modelObject["reasoning"]?.jsonPrimitive?.boolean ?: false,
+                            toolCall = modelObject["tool_call"]?.jsonPrimitive?.boolean ?: false,
+                            openWeights = modelObject["open_weights"]?.jsonPrimitive?.boolean ?: false,
+                            attachment = modelObject["attachment"]?.jsonPrimitive?.boolean ?: false
                         )
                         count++
                     }
@@ -73,8 +80,8 @@ fun lookupMetadata(modelName: String): ModelMetadata? {
 
     val modelBase = normalized.split("-").takeWhile { part ->
         !part.startsWith("7b") && !part.startsWith("8b") && !part.startsWith("13b") &&
-                !part.startsWith("14b") && !part.startsWith("32b") && !part.startsWith("70b") &&
-                !part.startsWith("72b") && !part.startsWith("30b") && !part.startsWith("80b")
+            !part.startsWith("14b") && !part.startsWith("32b") && !part.startsWith("70b") &&
+            !part.startsWith("72b") && !part.startsWith("30b") && !part.startsWith("80b")
     }.joinToString("-")
 
     if (modelBase.length >= 4) {
@@ -94,7 +101,10 @@ private fun normalizeModelName(name: String): String {
         .replace(":", "-")
         .replace("_", "-")
         .replace(Regex("-(instruct|chat|hf|gguf|ggml|awq|gptq|exl2|fp16|bf16)$"), "")
-        .replace(Regex(":?(7b|8b|13b|14b|32b|70b|72b|30b|80b|3b|1b|0.5b|0.6b|1.5b|2b|4b|9b|11b|22b|34b|40b|65b|110b|180b|405b)(-|$)"), "-")
+        .replace(
+            Regex(":?(7b|8b|13b|14b|32b|70b|72b|30b|80b|3b|1b|0.5b|0.6b|1.5b|2b|4b|9b|11b|22b|34b|40b|65b|110b|180b|405b)(-|$)"),
+            "-"
+        )
         .replace(Regex("-+"), "-")
         .trim('-')
 }

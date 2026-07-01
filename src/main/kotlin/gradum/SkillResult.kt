@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillResult.kt  2026-06-21 07:53:44 Changed by gwy
+ * SkillResult.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum
@@ -11,7 +11,8 @@ sealed class SkillResult {
 
     data class Success(val data: Map<String, Any>) : SkillResult()
 
-    data class Failure(val code: String, val message: String, val context: Map<String, Any> = emptyMap()) : SkillResult()
+    data class Failure(val code: String, val message: String, val context: Map<String, Any> = emptyMap()) :
+        SkillResult()
 }
 
 fun makeSuccess(data: Map<String, Any>): SkillResult {

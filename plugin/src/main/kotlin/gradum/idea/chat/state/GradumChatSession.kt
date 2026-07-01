@@ -40,9 +40,17 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Raw response from the `/models` endpoint, containing the list of discovered LLM models.
+ *
+ * `recommended` is the server-side pick driven by the `ModelRecommender` algorithm
+ * (cloud-first, then biggest local model that fits in the current free RAM).
+ * It is nullable for backward compatibility with older server builds and is
+ * decoded leniently — a missing field is treated as "no recommendation".
  */
 @Serializable
-private data class ModelsListResponse(val models: List<ModelInfo>)
+private data class ModelsListResponse(
+    val models: List<ModelInfo>,
+    val recommended: ModelInfo? = null,
+)
 
 /**
  * Project-level service that manages the chat session state.
@@ -159,10 +167,22 @@ class GradumChatSession {
     /** Models the user has pinned for quick access. */
     val pinnedModels: SnapshotStateList<ModelInfo> = mutableStateListOf()
 
-    /** The currently selected model, or `null` when in auto-select mode. */
+    /**
+     * Server-side recommendation for auto-select mode. Refreshed on every
+     * successful `/models` response. Null only when the server did not
+     * include the field (older build) or when no models are discoverable.
+     */
+    var recommendedModel: ModelInfo? by mutableStateOf(null)
+
+    /** The currently selected model, or `null` when no model is selectable yet. */
     var selectedModel: ModelInfo? by mutableStateOf(null)
 
-    /** Whether the model selector is in "auto-select" mode (first available model). */
+    /**
+     * True when the user picked "Auto" from the model menu (or when a
+     * previous manual selection disappeared and we fell back to auto).
+     * In both cases [selectedModel] is the server's recommendation rather
+     * than a user-chosen entry.
+     */
     var isAutoSelected: Boolean by mutableStateOf(false)
 
     /** Whether models have been loaded from the server at least once. */
@@ -228,23 +248,37 @@ class GradumChatSession {
         try {
             val json: String = apiClient.getModels()
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
-            applyModelList(response.models)
+            applyModelList(response.models, response.recommended)
         } catch (exception: Exception) {
             log.warn("Failed to load models from ${apiClient.baseUrl}", exception)
             models.clear(); modelsLoaded = false
         }
     }
 
-    private fun applyModelList(newModels: List<ModelInfo>) {
+    private fun applyModelList(newModels: List<ModelInfo>, recommended: ModelInfo? = null) {
         models.clear(); models.addAll(newModels); modelsLoaded = true
+        recommendedModel = recommended
 
         val current = selectedModel
-        if (current != null) {
-            if (models.none { it.name == current.name && it.serverName == current.serverName }) {
-                selectedModel = null; isAutoSelected = true
+        when {
+            current == null -> {
+                // First load (or reset). Adopt the server's recommendation
+                // so the user starts on the strongest available model
+                // rather than whichever entry the probe happened to
+                // surface first.
+                if (models.isNotEmpty()) {
+                    selectedModel = recommended ?: models.first()
+                    isAutoSelected = true
+                }
             }
-        } else if (models.isNotEmpty()) {
-            selectedModel = models.first()
+            models.none { it.name == current.name && it.serverName == current.serverName } -> {
+                // The user's prior pick disappeared (e.g. Ollama shut
+                // down). Fall back to the recommendation in auto mode so
+                // the user is not silently stuck on a dead model.
+                selectedModel = recommended ?: models.firstOrNull()
+                isAutoSelected = true
+            }
+            // else: the user's prior pick is still present; leave it.
         }
 
         pinnedModels.removeAll { pinned ->
@@ -297,11 +331,20 @@ class GradumChatSession {
                     runCatching {
                         val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
                         val newModels: List<ModelInfo> = response.models
-                        if (newModels.size != models.size ||
+                        val newRecommended: ModelInfo? = response.recommended
+                        // Trigger an apply if either the model roster
+                        // or the server's recommendation changed —
+                        // recommended can flip on a polling tick even
+                        // when the model list is identical (e.g. the
+                        // user closed another app, freeing memory).
+                        val modelsChanged: Boolean = newModels.size != models.size ||
                             newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
-                        ) {
-                            applyModelList(newModels)
-                            log.info("Model list updated: ${newModels.size} models discovered")
+                        val recommendedChanged: Boolean =
+                            newRecommended?.name != recommendedModel?.name ||
+                                newRecommended?.serverName != recommendedModel?.serverName
+                        if (modelsChanged || recommendedChanged) {
+                            applyModelList(newModels, newRecommended)
+                            log.info("Model state updated: ${newModels.size} models, recommended = ${newRecommended?.name ?: "<none>"}")
                         }
                     }.onFailure { exception ->
                         log.debug("Failed to decode /models response, skipping this tick", exception)
@@ -579,7 +622,7 @@ class GradumChatSession {
             val alias: String = data?.get("alias")?.jsonPrimitive?.content ?: toolName
             val toolCallId: String = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
             val success: Boolean = data?.get("success")?.toString()?.trim('"')?.toBooleanStrictOrNull() ?: true
-            val result: String = data?.get("result")?.toString() ?: ""
+            val toolResultString: String = data?.get("result")?.toString() ?: ""
             val arguments: Map<String, Any> = parseArguments(data?.get("arguments")?.jsonObject)
 
             val toolCall = ToolCallInfo(
@@ -587,7 +630,7 @@ class GradumChatSession {
                 alias = alias,
                 toolCallId = toolCallId,
                 success = success,
-                result = result,
+                result = toolResultString,
                 arguments = arguments
             )
 
@@ -608,20 +651,20 @@ class GradumChatSession {
      */
     private fun handleErrorEvent(data: JsonObject?) {
         val rawMessage: String = data?.get("message")?.jsonPrimitive?.content ?: "Unknown error"
-        val code: String = data?.get("code")?.jsonPrimitive?.content ?: ""
-        val tool: String = data?.get("tool")?.jsonPrimitive?.content ?: ""
+        val errorCode: String = data?.get("code")?.jsonPrimitive?.content ?: ""
+        val errorToolName: String = data?.get("tool")?.jsonPrimitive?.content ?: ""
         val assistantIndex: Int = messages.lastIndex
 
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
             val updated = messages[assistantIndex].updateLastError(
-                friendlyErrorMessage(code),
-                errorDetailText(code, rawMessage, tool)
+                friendlyErrorMessage(errorCode),
+                errorDetailText(errorCode, rawMessage, errorToolName)
             )
             if (updated !== messages[assistantIndex]) {
                 messages[assistantIndex] = updated
             } else {
                 messages[assistantIndex] = messages[assistantIndex].appendEvent(
-                    ChatEvent.Error(rawMessage, code, tool)
+                    ChatEvent.Error(rawMessage, errorCode, errorToolName)
                 )
             }
         }
@@ -678,13 +721,20 @@ class GradumChatSession {
         return config
     }
 
+    /**
+     * Converts a kotlinx.serialization JsonObject to a plain Map<String, Any>.
+     * Handles nested objects/arrays as strings and infers primitive types
+     * (string, boolean, int, long, double) from JSON values.
+     */
     private fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
         if (jsonObject == null) return emptyMap()
         return jsonObject.mapValues { (_, value) ->
             when (value) {
+                // Nested structures: keep as string representation
                 is JsonObject -> value.toString()
                 is JsonArray -> value.toString()
                 else -> {
+                    // Infer the most specific primitive type
                     val primitive = value.jsonPrimitive
                     when {
                         primitive.isString -> primitive.content

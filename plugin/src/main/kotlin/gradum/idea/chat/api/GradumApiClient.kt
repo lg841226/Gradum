@@ -2,18 +2,21 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-06-30 23:35:47 Changed by gwy
+ * GradumApiClient.kt  2026-07-01 12:27:56 Changed by gwy
  */
 
 package gradum.idea.chat.api
 
 import com.intellij.openapi.diagnostic.Logger
+import gradum.idea.chat.api.GradumApiClient.Companion.MAX_LOGGED_LINE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
+import java.io.BufferedReader
 import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpClient
@@ -33,7 +36,7 @@ import java.net.http.HttpResponse
  * This used to live in the caller ([gradum.idea.chat.state.GradumChatSession]),
  * but the previous per-line try-catch was easy to miss when adding new
  * consumers and meant the same JSON object was being parsed twice (once to
- * validate, once to dispatch). Centralising it here gives us a typed
+ * validate, once to dispatch). Centralizing it here gives us a typed
  * `Flow<JsonObject>` contract and a single place to add observability
  * (e.g. per-line counters, schema validation).
  *
@@ -43,11 +46,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
     private val log: Logger = Logger.getInstance(GradumApiClient::class.java)
     private val client: HttpClient = HttpClient.newHttpClient()
-    private val jsonEncoder: Json = Json { ignoreUnknownKeys = true }
+
     /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
     private val ndjsonParser: Json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
+        ignoreUnknownKeys = true; isLenient = true
     }
 
     /**
@@ -121,13 +123,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
      *   to parse are logged and skipped — they do not appear in the flow.
      */
     fun sendMessage(
-        message: String,
-        model: String? = null,
+        message: String, model: String? = null,
         config: Map<String, String>? = null,
-        loadContext: Boolean = true,
-        toolMode: String? = null,
-        promptVariant: String? = null,
-        projectRoot: String? = null,
+        loadContext: Boolean = true, toolMode: String? = null,
+        promptVariant: String? = null, projectRoot: String? = null
     ): Flow<JsonObject> = flow {
         val requestBody: JsonObject = buildJsonObject {
             put("message", message)
@@ -151,19 +150,20 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         val response: HttpResponse<InputStream> = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
         // Per-line try-catch lives here, NOT in the consumer. The previous
-        // design (raw Flow<String>) pushed the burden onto every caller and
+        // design (raw Flow<String>) pushed the burden onto every caller, and
         // it was easy to add a new consumer and forget the catch. By parsing
         // up-front, callers receive a typed Flow<JsonObject> and a single
         // .catch on the consumer side is enough to handle connection-level
         // failures only.
-        response.body().bufferedReader().use { reader: java.io.BufferedReader ->
-            var lineNumber: Int = 0
+        response.body().bufferedReader().use { reader: BufferedReader ->
+            var lineNumber = 0
             var ndjsonLine: String? = reader.readLine()
             while (ndjsonLine != null) {
                 lineNumber++
-                if (ndjsonLine.isNotBlank()) {
+
+                if (ndjsonLine.isNotBlank())
                     parseAndEmit(ndjsonLine, lineNumber)
-                }
+
                 ndjsonLine = reader.readLine()
             }
         }
@@ -176,10 +176,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
      * through whether [emit][kotlinx.coroutines.flow.FlowCollector.emit] was
      * called.
      */
-    private suspend fun kotlinx.coroutines.flow.FlowCollector<JsonObject>.parseAndEmit(
-        line: String,
-        lineNumber: Int,
-    ) {
+    private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
         val parsed: JsonElement = try {
             ndjsonParser.parseToJsonElement(line)
         } catch (exception: Exception) {
@@ -190,8 +187,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         val asObject: JsonObject = when (parsed) {
             is JsonObject -> parsed
             else -> {
-                log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
-                return
+                log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}"); return
             }
         }
         emit(asObject)

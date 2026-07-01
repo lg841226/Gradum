@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * AgentGuardrailTest.kt  2026-06-30 23:35:47 Changed by gwy
+ */
+
 package gradum.agent
 
 import gradum.AgentConfiguration
@@ -27,7 +34,12 @@ class AgentGuardrailTest {
     fun `no red line hit emits no guardrail events`() {
         val events = mutableListOf<Pair<String, Map<String, Any>>>()
         val mockClient: LlmClient = mockk {
-            every { sendChat(any(), any()) } returns flowOf(LLMResponseChunk.TextContent("normal response without keywords"))
+            every {
+                sendChat(
+                    any(),
+                    any()
+                )
+            } returns flowOf(LLMResponseChunk.TextContent("normal response without keywords"))
             every { tokenUsage } returns TokenUsageSnapshot()
         }
 
@@ -48,7 +60,12 @@ class AgentGuardrailTest {
     fun `red line hit below threshold emits guardrail warning but not revocation`() {
         val events = mutableListOf<Pair<String, Map<String, Any>>>()
         val mockClient: LlmClient = mockk {
-            every { sendChat(any(), any()) } returns flowOf(LLMResponseChunk.TextContent("this contains red-flag in the text"))
+            every {
+                sendChat(
+                    any(),
+                    any()
+                )
+            } returns flowOf(LLMResponseChunk.TextContent("this contains red-flag in the text"))
             every { tokenUsage } returns TokenUsageSnapshot()
         }
 
@@ -70,7 +87,12 @@ class AgentGuardrailTest {
     fun `red line hit reaches threshold triggers mission_revoked`() {
         val events = mutableListOf<Pair<String, Map<String, Any>>>()
         val mockClient: LlmClient = mockk {
-            every { sendChat(any(), any()) } returns flowOf(LLMResponseChunk.TextContent("this mentions TOP-SECRET in the text"))
+            every {
+                sendChat(
+                    any(),
+                    any()
+                )
+            } returns flowOf(LLMResponseChunk.TextContent("this mentions TOP-SECRET in the text"))
             every { tokenUsage } returns TokenUsageSnapshot()
         }
 
@@ -88,6 +110,7 @@ class AgentGuardrailTest {
         assertContains(eventTypes, "mission_revoked", "Should emit mission_revoked when threshold is reached")
 
         val revokedEvent = events.first { it.first == "mission_revoked" }
+
         @Suppress("UNCHECKED_CAST")
         val details = revokedEvent.second["details"] as? Map<String, Any>
         assertEquals("red_line_violation", revokedEvent.second["reason"], "Reason should be red_line_violation")
@@ -123,7 +146,12 @@ class AgentGuardrailTest {
         val events = mutableListOf<Pair<String, Map<String, Any>>>()
 
         val mockClient: LlmClient = mockk {
-            every { sendChat(any(), any()) } returns flowOf(LLMResponseChunk.TextContent("red-flag and confidential together"))
+            every {
+                sendChat(
+                    any(),
+                    any()
+                )
+            } returns flowOf(LLMResponseChunk.TextContent("red-flag and confidential together"))
             every { tokenUsage } returns TokenUsageSnapshot()
         }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-06-23 08:42:51 Changed by gwy
+ * SaveFileSkill.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.skill
@@ -76,7 +76,6 @@ class SaveFileSkill : Skill() {
         gradum.ToolMode.WRITE,
         gradum.ToolMode.SINGLE_STEP,
     )
-    override val mutatesProject: Boolean = true
 
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")

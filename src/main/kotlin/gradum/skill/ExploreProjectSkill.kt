@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-06-30 10:33:39 Changed by gwy
+ * ExploreProjectSkill.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.skill
@@ -146,10 +146,16 @@ class ExploreProjectSkill : Skill() {
      */
     override val historyKeepCount: Int = 1
 
+    /**
+     * After the first call, compact the tree to just top-level directory names
+     * so subsequent LLM calls see a summary instead of the full recursive tree.
+     */
     override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
         if (prepareHistoryCallCount <= historyKeepCount) return result
 
+        // Extract child entries and replace full tree with just path names
+        @Suppress("UNCHECKED_CAST")
         val originalChildren: List<Map<String, Any>> = result["children"] as? List<Map<String, Any>> ?: return result
         val topLevelNames: List<String> = originalChildren.mapNotNull { child -> child["path"] as? String }
         val compactChildren: List<Map<String, Any>> = topLevelNames.map { name -> linkedMapOf("path" to name) }

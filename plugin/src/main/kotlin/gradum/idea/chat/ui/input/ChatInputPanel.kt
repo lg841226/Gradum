@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-06-29 10:03:35 Changed by gwy
+ * ChatInputPanel.kt  2026-07-01 14:12:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -54,7 +54,6 @@ fun ChatInputPanel(
     textState: TextFieldState,
     modifier: Modifier = Modifier
 ) {
-
     val initialTextLength: Int = remember { textState.text.length }
     var previousTextLength by remember { mutableStateOf(initialTextLength) }
     LaunchedEffect(textState.text) {
@@ -78,18 +77,21 @@ fun ChatInputPanel(
             .onFocusChanged { actions.onFocusChange(it.hasFocus) }
             .thenIf(!state.isFocused) {
                 border(
-                    alignment = Stroke.Alignment.Inside,
                     width = 1.dp,
-                    color = JewelTheme.globalColors.borders.normal,
-                    shape = roundedCornerShape
+                    shape = roundedCornerShape,
+                    alignment = Stroke.Alignment.Inside,
+                    color = JewelTheme.globalColors.borders.normal
                 )
             }
-            .focusOutline(showOutline = state.isFocused, outlineShape = roundedCornerShape)
+            .focusOutline(
+                showOutline = state.isFocused,
+                outlineShape = roundedCornerShape
+            )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
+                .padding(GradumSpacing.md)
         ) {
             if (state.pendingMessages.isNotEmpty()) {
                 state.pendingMessages.forEach { pending ->
@@ -98,7 +100,10 @@ fun ChatInputPanel(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = GradumSpacing.sm, vertical = GradumSpacing.xs),
+                            .padding(
+                                horizontal = GradumSpacing.sm,
+                                vertical = GradumSpacing.xs
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
                     ) {
@@ -124,15 +129,16 @@ fun ChatInputPanel(
                     .heightIn(min = 60.dp, max = 160.dp)
                     .onPreviewKeyEvent { keyEvent ->
                         if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when {
-                            keyEvent.key == Key.Enter && (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                val hasModel = state.selectedModel != null || state.isAutoSelected
-                                if (hasModel && (!state.isSending || !state.isPendingQueueFull)) actions.onSend()
-                                true
-                            }
 
-                            else -> false
-                        }
+                        val isSubmitKey = keyEvent.key == Key.Enter &&
+                            (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)
+                        if (!isSubmitKey) return@onPreviewKeyEvent false
+
+                        val modelSelected = state.selectedModel != null || state.isAutoSelected
+                        val canSend = !state.isSending || !state.isPendingQueueFull
+                        if (modelSelected && canSend) actions.onSend()
+
+                        true
                     }
             )
 

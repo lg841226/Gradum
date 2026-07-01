@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-06-30 22:06:58 Changed by gwy
+ * TodoSkill.kt  2026-07-01 12:26:45 Changed by gwy
  */
 
 package gradum.skill
@@ -30,12 +30,10 @@ class TodoManager {
     fun initializeTasks(tasks: List<String>): SkillResult {
         if (taskList != null)
             return makeFailure(ErrorCode.ALREADY_INITIALIZED, "To-do list already initialized")
-
         if (tasks.isEmpty())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Task list cannot be empty")
 
-        taskList = tasks
-        currentTaskIndex = 0
+        taskList = tasks; currentTaskIndex = 0
 
         return makeSuccess(
             mapOf("totalTasks" to tasks.size, "currentTask" to tasks[0], "currentIndex" to 0)
@@ -87,6 +85,7 @@ class TodoManager {
 
         val skippedTask: String = tasks[currentTaskIndex]
         currentTaskIndex++
+
         val allDone: Boolean = currentTaskIndex >= tasks.size
 
         return makeSuccess(
@@ -139,9 +138,7 @@ class TodoSkill : Skill() {
      * the exclusion at runtime — even if the model hallucinates a to_do
      * call, the agent returns TOOL_NOT_PERMITTED before TodoSkill runs.
      */
-    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-        gradum.ToolMode.WRITE,
-    )
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.WRITE)
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(
@@ -202,9 +199,7 @@ class CompletePlanSkill : Skill() {
      * READ_ONLY (no project mutation at all). The mode gate rejects
      * every other mode with TOOL_NOT_PERMITTED.
      */
-    override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-        gradum.ToolMode.WRITE,
-    )
+    override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.WRITE)
 
     override fun getSchema(): Map<String, Any> {
         return mapOf(

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-06-30 22:06:58 Changed by gwy
+ * Skill.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.skill
@@ -25,7 +25,7 @@ abstract class Skill {
      *
      * Skills that mutate the project (write files, run destructive
      * commands) must exclude [ToolMode.READ_ONLY]. Skills that do
-     * multi-step task planning must exclude [ToolMode.SINGLE_STEP].
+     * multistep task planning must exclude [ToolMode.SINGLE_STEP].
      * Skills that are pure inspection (read_file, explore_project,
      * run_cmd) leave the default — every mode is allowed.
      *
@@ -40,15 +40,6 @@ abstract class Skill {
     open val allowedToolModes: Set<ToolMode> = setOf(
         ToolMode.WRITE, ToolMode.SINGLE_STEP, ToolMode.READ_ONLY
     )
-
-    /**
-     * Hint for documentation and future audit. Whether this skill
-     * mutates the project (filesystem, git, process environment). The
-     * agent does NOT enforce this — the actual gate is
-     * [allowedToolModes]. Use this only to communicate intent in logs
-     * or schema descriptions.
-     */
-    open val mutatesProject: Boolean = false
 
     /**
      * Execute the skill with the LLM's tool-call arguments and the
@@ -84,6 +75,7 @@ abstract class Skill {
      */
     open val historyVolatileKeys: List<String> = emptyList()
 
+    /** Tracks how many times [prepareHistoryResult] has been called in this session. */
     protected var prepareHistoryCallCount: Int = 0
 
     /**
@@ -95,10 +87,19 @@ abstract class Skill {
         prepareHistoryCallCount = 0
     }
 
+    /**
+     * Strips volatile keys from older history entries to save context window space.
+     * Newer results (within [historyKeepCount]) are returned untouched; older ones
+     * have their [historyVolatileKeys] removed.
+     */
     open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
+
+        // No stripping if: unlimited retention OR no volatile keys defined
         if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty())
             return result
+
+        // Keep recent results intact; strip volatile keys from older ones
         return if (prepareHistoryCallCount <= historyKeepCount)
             result
         else

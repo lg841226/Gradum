@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-30 21:00:24 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -414,7 +414,15 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.pinnedModels.add(model)
         },
         onSelectAuto = {
-            session.selectedModel = null; session.isAutoSelected = true
+            // Honour the server's recommendation so the Auto button
+            // actually picks a model instead of just flipping a flag.
+            // The previous behaviour (selectedModel = null) left the
+            // server to fall back to a hard-coded default and
+            // contradicted the plugin-side "isAutoSelected" branch in
+            // buildModelConfig, which forces provider = "ollama" —
+            // a latent bug that this fix also resolves.
+            session.selectedModel = session.recommendedModel ?: session.models.firstOrNull()
+            session.isAutoSelected = true
         }
     )
 

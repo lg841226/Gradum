@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommandFilter.kt  2026-06-21 07:53:44 Changed by gwy
+ * CommandFilter.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.utils
@@ -113,11 +113,11 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.WRITE): C
             val trimmed: String = subcommand.trim()
             if (trimmed.isEmpty()) continue
             val subTokens: List<String> = trimmed.split("\\s+".toRegex())
-            val subExe: String = Paths.get(subTokens[0]).fileName.toString()
-            if (subExe !in readOnlyAllowedExecutables) {
+            val subcommandExecutable: String = Paths.get(subTokens[0]).fileName.toString()
+            if (subcommandExecutable !in readOnlyAllowedExecutables) {
                 return CommandVerdict.Blocked(
-                    "readonly:executable:$subExe",
-                    "Read-only mode: '$subExe' is not in the read-only command set"
+                    "readonly:executable:$subcommandExecutable",
+                    "Read-only mode: '$subcommandExecutable' is not in the read-only command set"
                 )
             }
         }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PortUtil.kt  2026-06-21 07:53:44 Changed by gwy
+ * PortUtil.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.server
@@ -34,6 +34,6 @@ fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String
             return port
         }
     }
-    logger.error("Could not find available port in range$startPort - ${startPort+ maxAttempts}")
+    logger.error("Could not find available port in range$startPort - ${startPort + maxAttempts}")
     return null
 }

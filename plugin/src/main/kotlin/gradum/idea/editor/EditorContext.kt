@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-06-26 23:55:00 Changed by gwy
+ * EditorContext.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.editor
 
-import com.intellij.lang.LanguageUtil
 import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
@@ -20,11 +19,10 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 data class EditorContext(
     val currentFile: VirtualFile?,
     val allOpenFiles: List<VirtualFile>,
-    val currentLanguage: String?,
     val projectDir: VirtualFile?
 ) {
     companion object {
-        val EMPTY = EditorContext(null, emptyList(), null, null)
+        val EMPTY = EditorContext(null, emptyList(), null)
     }
 }
 
@@ -62,18 +60,15 @@ object EditorUtils {
             }
 
             if (currentFile != null) {
-                val language = LanguageUtil.getLanguageForPsi(project, currentFile)
                 EditorContext(
                     currentFile = currentFile,
                     allOpenFiles = allFiles,
-                    currentLanguage = language?.displayName ?: currentFile.fileType.name,
                     projectDir = projectDir
                 )
             } else {
                 EditorContext(
                     currentFile = null,
                     allOpenFiles = allFiles,
-                    currentLanguage = null,
                     projectDir = projectDir
                 )
             }

@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-06-26 08:42:34 Changed by gwy
+  ~ plugin.xml  2026-06-30 23:35:47 Changed by gwy
   -->
 
 <idea-plugin>
@@ -23,10 +23,10 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
-                id="Gradum"
-                icon="/icons/logo/logo.svg"
-                anchor="right"
-                factoryClass="gradum.idea.GradumToolWindowFactory"/>
+            id="Gradum"
+            icon="/icons/logo/logo.svg"
+            anchor="right"
+            factoryClass="gradum.idea.GradumToolWindowFactory"/>
 
         <!--
             Project-scoped chat state. The IntelliJ Platform disposes tool

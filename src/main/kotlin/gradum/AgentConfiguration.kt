@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-06-21 07:53:44 Changed by gwy
+ * AgentConfiguration.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum
@@ -104,8 +104,8 @@ data class AgentConfiguration(
     val enableThinking: Boolean = false,
     val temperatureValue: Double = 0.7,
     val topPValue: Double = 0.9,
-    val contextWindowSize: Int = 8192*2,
-    val maxTokensToGenerate: Int = 2048*12,
+    val contextWindowSize: Int = 8192 * 2,
+    val maxTokensToGenerate: Int = 2048 * 12,
     val provider: Provider = Provider.OLLAMA,
     val toolMode: ToolMode = ToolMode.WRITE,
     val promptVariant: PromptVariant = PromptVariant.AUTO,

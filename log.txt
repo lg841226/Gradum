@@ -1,0 +1,3180 @@
+commit f6f00d34853a705ddfa8b1cdbc2cb037e8bd0e7d
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jul 1 09:12:50 2026 +0800
+
+    fix(plugin): harden i18n bundle — startup probe and per-key fallback
+    
+    GradumBundle trusted a hard-coded `messages.GradumBundle` resource
+    path and exposed a single-line `message()` that delegated straight to
+    DynamicBundle.getMessage. Two silent failure modes followed:
+    
+    1. If the resource itself was missing (renamed messages/ folder,
+       wrong base name in a packaged plugin where the .properties got
+       stripped by a buggy exclude rule), the first UI element that
+       called `message()` would throw MissingResourceException. There
+       was no log line tying the failure to the bundle path — the user
+       would see empty labels in the tool window with no breadcrumb.
+    
+    2. If a single key was missing (typo, removed in zh_CN, never
+       added in the first place), the same exception bubbled up, the
+       Compose Text composable rendered empty, and "did I spell the
+       key wrong?" was invisible unless you happened to have the IDE
+       exception breakpoint on.
+    
+    This commit adds two defensive layers without re-architecting the
+    resource layout (the hard-coded `messages.GradumBundle` path stays
+    — the class lives in gradum.idea.bundle but its resources sit in
+    the messages package on purpose, and moving 132 keys × 2 locales
+    into gradum/idea/bundle/ is out of scope for a hardening fix):
+    
+    - `init {}` block on the object probes one well-known key
+      (`gradum.toolwindow.welcome`) at class-init. If the resource is
+      unreachable, a single WARN line in the IDE log names the bundle
+      path and tells the user to check the .properties packaging.
+    - `message()` now try-catches MissingResourceException, logs the
+      offending key + bundle name at WARN, and returns `???<key>???` as
+      the visible fallback. The UI is never blank, missing keys stand
+      out in screenshots, and the log has the breadcrumb.
+    
+    `BUNDLE_NAME` and `PROBE_KEY` are kept as file-level `private const`
+    because the supertype call `DynamicBundle(BUNDLE_NAME)` in the
+    class header must resolve before any object-body initialiser runs,
+    and Kotlin does not let a private const inside the object itself
+    be referenced from its own supertype list. The file-level form is
+    also slightly safer — it cannot accidentally be shadowed by an
+    object member with the same name in a future refactor.
+    
+    No tests touched. No resource files moved.
+
+commit eef35593c599fe987155ecd117b8d0098f2d8461
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jul 1 09:12:39 2026 +0800
+
+    fix(plugin): make NDJSON parsing per-line resilient in GradumApiClient
+    
+    The previous `sendMessage` returned `Flow<String>` (raw NDJSON lines)
+    and pushed the per-line JSON parse + try-catch onto the consumer in
+    GradumChatSession. Two problems followed:
+    
+    1. The "do not let a malformed line kill the whole stream" guarantee
+       lived in the consumer. Any new caller of `sendMessage` would have
+       to remember to add the same per-line try-catch, or a single bad
+       line (e.g. server sent a stray non-JSON byte mid-stream, or a
+       serializer race) would tear the whole chat down. The user has hit
+       this before in earlier sessions and it took a while to track down.
+    
+    2. The same JSON object was being parsed twice: once in the consumer
+       to validate, once when dispatched into ChatEvent. Pure waste, and
+       any future schema check would have to be added in two places.
+    
+    This commit moves parsing into GradumApiClient:
+    
+    - `sendMessage` now returns `Flow<JsonObject>` — every emission is a
+      parsed, well-formed object. Lines that fail to parse are logged at
+      WARN with line number + 200-char preview and skipped. Lines that
+      parse but are not JSON objects are also skipped with a clear log.
+    - Added a private `FlowCollector<JsonObject>.parseAndEmit(line, n)`
+      extension so the per-line try-catch is in one place. A lineNumber
+      counter makes log triage easier ("which event in the stream went
+      bad?").
+    - Lenient parser (`isLenient = true`) so trailing whitespace / BOM
+      / non-standard JSON variants from upstream LLM SDKs don't blow up
+      the parse.
+    - GradumChatSession no longer needs the per-line try-catch — its
+      `.collect` body assumes every emission is a JsonObject, and the
+      outer `.catch` now handles connection-level failures only (which
+      is the correct separation of concerns). The unused `eventJson`
+      field is removed.
+    
+    Behavioural table:
+      Old: Flow<String> + consumer per-line try-catch (skipped bad lines)
+      New: Flow<JsonObject> + client per-line try-catch (skipped bad lines)
+      Result: identical from the UI's point of view; the bad-line
+      handling is now structural rather than conventional.
+    
+    No tests touched (plugin side has no test infra yet, separate task).
+
+commit f8c2dac5c0696677128551e237f402034d02b4cc
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jul 1 09:04:35 2026 +0800
+
+    chore(plugin): debug-log ToolCallContent fallbacks and rewrite polling as Flow
+    
+    Two independent polish changes that share the theme of "make the
+    plugin observable and idiomatic".
+    
+    1. ToolCallContent.fromArguments now logs at debug level every time it
+       falls back to None because the LLM emitted malformed arguments
+       (missing/blank path, empty tasks list, unknown alias, etc.). The
+       previous implementation returned None silently, which made
+       "model sent the wrong field name" bugs hard to diagnose — the user
+       only saw an empty capsule and had no idea why. Logs include the
+       alias and which argument was wrong. The `parseResult` catch block
+       already logged JSON-parse failures; the new logs close the
+       remaining silent-fallback gap so every None-fallback is traceable
+       in Help → Diagnostic Tools → Debug Log Settings
+       (#gradum.idea.chat.ui.chat.ToolCallContent).
+    
+       No behaviour change: still returns None, just no longer silent.
+       parseResult's redundant inline `Logger.getInstance` was replaced
+       with a single companion-level `log` field.
+    
+    2. startModelPolling was rewritten as a two-stage Flow pipeline:
+    
+           tickerFlow  ──flatMapLatest──▶  fetchModelsOnce()  ──▶  collect
+    
+       The original `while (true) { delay; try {...} }` worked but mixed
+       the two concerns (timing + I/O) into one loop and could not cancel
+       an in-flight fetch when a new tick arrived or the tool window
+       closed. With flatMapLatest, a stale fetch is cancelled by the
+       upstream tick before its result lands in the UI. Cancellation is
+       propagated correctly (CancellationException is rethrown, not
+       swallowed). I/O still runs on Dispatchers.IO; transient errors
+       are still swallowed at the inner flow so the ticker keeps
+       ticking. The Flow-level .catch is defensive — it should not fire
+       under normal operation.
+    
+       Behaviour table (unchanged from the old loop):
+       - POLL_INTERVAL_MS = 5s, first fetch after 5s (delay-first)
+       - same diff against the existing models list
+       - same log.info on actual list change
+       - same silent retry on transient failures
+    
+       Marked with @OptIn(ExperimentalCoroutinesApi::class) for
+       flatMapLatest's experimental status.
+    
+       No tests touched. Plugin side still has no unit tests (separate
+       task) — verification is the existing 37-test server suite, which
+       continues to pass.
+
+commit c6f80e6e8d18d38b2ce8a21f5e98864b2a3b267c
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jul 1 09:04:21 2026 +0800
+
+    chore(prompts): tighten mode-level copy
+    
+    Three small prompt refinements the user wanted:
+    
+    - mode_readonly.txt: drop the redundant "Note: this mode does NOT expose..."
+      UX hint. The schema filter hides those tools from the LLM and the
+      runtime gate returns TOOL_NOT_PERMITTED, so the prompt hint was
+      duplicating what the tool list itself already conveys. Keeps the
+      prompt terse and lets the server-side enforcement speak for itself.
+    - mode_single_step.txt: same rationale — collapse the long "you do NOT
+      have to_do..." paragraph into the bare list of tools, since
+      forbidding the tool in the schema is the real contract.
+    - mode_{single_step,write}.txt: "your replace would empty the file" →
+      "your replacement would empty the file". Tiny wording nit but keeps
+      the EMPTY_RESULT error message consistent with the other error
+      strings in the same file.
+    
+    Also: TOOLS & WORKFLOW headings use the canonical enum-name form
+    (READ_ONLY / SINGLE_STEP / FULL_WRITE) so the prompt's own header
+    mirrors the wire-format constant the plugin sends. Makes it obvious
+    to a future reader which mode the prompt is for without having to
+    scroll back to the file name.
+    
+    No server code touched. No tests touched.
+
+commit 5af8cba90ffff9a661af1fb3070edc3f20fbd2db
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 22:08:35 2026 +0800
+
+    docs(arch, plugin): document the three-tier permission model and SkillContext
+    
+    Two documentation updates that flow directly from the SkillContext
+    refactor and the preceding ToolMode gate commits (390204f, 44935a3,
+    ab0d0a5, c4b079d).
+    
+    ARCHITECTURE.md:
+    - New §9 "Three-Tier Permission Model and SkillContext" documents the
+      end-to-end contract: tier table (READ_ONLY / SINGLE_STEP / WRITE),
+      per-Skill allowedToolModes as the single source of truth, the three
+      layers of defense (schema filter, runtime gate, command re-classify),
+      SkillContext flow diagram, the Skill interface contract change, and a
+      test pinning table covering the 6 contract tests (24 cases).
+    - Glossary gains "ToolMode", "SkillContext", "TOOL_NOT_PERMITTED",
+      "projectRoot" terms.
+    - Table of contents updated.
+    
+    PLUGIN_DEVELOPMENT.md:
+    - §3 (Skill base class) updated to show the new execute signature with
+      SkillContext; the optional properties table now includes
+      allowedToolModes and mutatesProject.
+    - New §10 "Declaring allowedToolModes — The Three-Tier Model": tier
+      table, decision matrix, worked example (EditFileSkill), enforcement
+      diagram, and a Testing section pointing at SkillRegistrySchemaTest
+      and ToolModeGateTest.
+    - New §11 "Using SkillContext for Project Root and Mode": three reasons
+      it's a parameter not a global (concurrent session isolation,
+      auditability, the CWD-vs-projectRoot bug it fixes), a sequence
+      diagram from Project.basePath to Skill.execute, a worked example of
+      reading context in a Skill, and a "What NOT to do" section showing
+      the four anti-patterns (arguments["projectRoot"], ProjectPaths,
+      user.dir, vs context.projectRoot).
+    - §12 Troubleshooting adds two new entries: "Tool not permitted /
+      Command blocked in read-only mode" and "Context file is written to
+      the wrong project".
+    - Section numbering shifted: 10 Troubleshooting → 12, 11 Coding Style
+      → 13. Table of contents updated.
+    
+    The doc updates are intentionally thorough so a future contributor
+    adding a new Skill can read §10 + §11 once and never have to guess
+    about the tier model or where projectRoot comes from. They also
+    explain *why* the agent's projectRoot injection into arguments is a
+    hint, not a contract — preventing the "I'll just read it from
+    arguments" regression that motivated the refactor.
+
+commit 0a508115f6ef2c1176b960dcf00f7dd400b87e85
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 22:08:23 2026 +0800
+
+    refactor(skill): per-session SkillContext centralises projectRoot and toolMode
+    
+    The legacy flow coupled projectRoot to a process-global (ProjectPaths) and
+    gave Skills no way to read the active toolMode. As a result ContextManager
+    silently wrote to the server's CWD instead of the project the IDE had open
+    — a real cross-session bug surfaced when context.json appeared in the
+    developer workspace rather than the target project.
+    
+    This refactor introduces SkillContext, a per-session data class the agent
+    constructs once from AgentConfiguration and hands to every Skill.execute:
+    
+      data class SkillContext(val toolMode: ToolMode, val projectRoot: String)
+    
+    Flow: Project.basePath → /events body → AgentConfiguration → SkillContext
+    → every Skill in the session. ProjectPaths is now used only as a unit-test
+    fallback. Concurrent sessions can no longer overwrite each other's root.
+    
+    Touched:
+    - SkillContext: new (toolMode + projectRoot, immutable for session life)
+    - Skill.execute: signature gains `context: SkillContext`; old single-arg
+      signature removed. KDoc explains the new contract.
+    - All 7 Skills (ReadFileSkill, EditFileSkill, SaveFileSkill,
+      ExploreProjectSkill, RunCommandSkill, TodoSkill x2): read projectRoot
+      from context, no longer from arguments["projectRoot"]. (The agent still
+      injects projectRoot into the converted arguments for NDJSON/audit
+      reasons; Skills should treat arguments as "what the LLM sent" and read
+      session state from context.)
+    - Agent: constructs a single SkillContext from configuration; passes it to
+      every skillInstance.execute. ContextManager now resolves to
+      <projectRoot>/.gradum instead of ProjectPaths.outputDirectory() (CWD).
+    - RunCommandSkill.executeDetached: log directory is now
+      <projectRoot>/.gradum/run_cmd, not the server CWD.
+    - ProjectPaths.setProjectRoot is no longer called by production code.
+      Kept for unit-test fallbacks; will be removed in a follow-up.
+    
+    Test impact: 37 tests pass unchanged. The change is signature-only at
+    the Skill boundary, so existing ToolModeGateTest / SkillRegistrySchemaTest
+    / AgentGuardrailTest cases continue to exercise the same end-to-end
+    behaviour via Agent.executeTask.
+    
+    Behavioural changes:
+    - context.json now lives in the project the IDE has open, not the server
+      CWD. (Fixes the bug user reported: "上下文文件会生成在我的项目,而不是
+      在规定的项目里".)
+    - Concurrent /events requests on different projects no longer share
+      state via ProjectPaths.
+    - Skill no longer reads projectRoot from arguments. This is a hard break
+      for any external Skill that relied on arguments["projectRoot"]; the
+      agent's injection is now a hint for NDJSON events, not a contract.
+
+commit f443cacb8ef5deccdf28668bb819c7c1c56716b2
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 21:52:23 2026 +0800
+
+    chore: readability cleanup across agent, skills, and tests
+    
+    Mechanical readability sweep that came out of the security/prompt
+    audit. No behavior change. Three buckets:
+    
+    - Rename loop indices i/j to firstIndex/secondIndex and remove
+      redundant Int type annotations inside AlgorithmBody / computeLineDiff
+      in EditFileSkill. The original names were inherited from an
+      O(n*m) DP textbook and made the diff hard to scan; the new names
+      match what those loops actually index. The lines are not under
+      hot constraints (the DP is bounded by file size, not request rate)
+      so the cost of an extra lookup is a non-issue.
+    - Drop the EditFileSkill DP-internal "replacement" wording to a
+      consistent "replace" / "search" / "replace" trio (and the matching
+      "search"→"replace" pair in mode_write.txt's error copy), and tidy
+      the comments above the LCS table to match.
+    - Remove two unused icons (Web, Local) from GradumIcons. They were
+      added in an earlier commit for an experiment that never landed.
+      Their presence was harmless but every new file in the icons/
+      directory has to be referenced by GradumIcons, otherwise IntelliJ
+      warns at build time.
+    - Tidy ModelSelectorBar spacing constants to match the unified
+      popup spacing rules (chat message bubbles, attachment rows,
+      permission selector items). One less number to remember.
+    - Behavior fix in CommandFilterTest: rename "behaviour" to "behavior"
+      to match the US spelling used in every other comment, and remove
+      a stale import.
+    - ToolModeGateTest lost one extra blank line in a multiline
+      assertion message; the assertions themselves are unchanged.
+    
+    Verified by re-running ToolModeGateTest, CommandFilterTest, and
+    the full :test target after each batch of edits. The 6-case
+    read-only rejection suite and the 5-case SkillRegistrySchemaTest
+    both still pass.
+
+commit 44935a346929e5b83d1df1198448861a78c126c4
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 21:43:51 2026 +0800
+
+    refactor(skill): drive getSchemas filter from Skill.allowedToolModes, drop the hardcoded set
+    
+    SkillRegistry.getSchemas(toolMode) used to maintain two private
+    string sets, READ_ONLY_ALLOWED_SKILLS and SINGLE_STEP_EXCLUDED_SKILLS,
+    that hand-coded which Skills each mode could see. Skill.allowedToolModes
+    held the same information per Skill, and Agent.executeSingleTool used
+    it as the runtime gate.
+    
+    The two views were a second source of truth for the same invariant.
+    If a Skill's allowedToolModes drifted away from the registry's
+    hardcoded sets, the LLM would either see tools it could not call
+    or be missing tools it could call. They happened to agree today —
+    the Skills' overrides were written after the original whitelist — but
+    nothing prevented a future refactor from breaking that. The contract
+    should be one line: a tool is in the LLM's list iff the tool's
+    allowedToolModes contains the active mode.
+    
+    Fix: getSchemas is now a single filter chain
+    `toolMode in skill.allowedToolModes`, mirroring the runtime gate in
+    Agent exactly. The two private string sets are deleted. Adding a new
+    Skill now means writing one allowedToolModes override; there is no
+    second mapping to keep in sync.
+    
+    Behaviour table for the seven registered Skills
+    (Skill.allowedToolModes -> old getSchemas vs new getSchemas):
+    
+      read_file            {WRITE, READ_ONLY, SINGLE_STEP}  in/out unchanged
+      explore_project      {WRITE, READ_ONLY, SINGLE_STEP}  in/out unchanged
+      run_cmd              {WRITE, READ_ONLY, SINGLE_STEP}  in/out unchanged
+      edit_file            {WRITE, SINGLE_STEP}             in/out unchanged
+      save_file            {WRITE, SINGLE_STEP}             in/out unchanged
+      to_do                {WRITE}                          in/out unchanged
+      finish_to_do_item    {WRITE}                          in/out unchanged
+    
+    Each cell is byte-for-byte the same; the refactor is non-observable
+    to the LLM and to every other caller of getSchemas. SkillRegistrySchemaTest
+    pins the per-mode schema set and the equivalence between
+    getSchemas(mode) and the per-skill allowedToolModes projection, so a
+    future regression that re-introduces a hardcoded mapping gets caught
+    the first time it lands.
+
+commit ab0d0a55f910f8058c5b983ec9c98980d51d721e
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 21:32:14 2026 +0800
+
+    fix(prompts): make system prompts mode-agnostic and lift edit_file rules into write mode only
+    
+    The system_prompt_{cloud,local}.txt had a global [IDENTITY] line ("Read
+    code. Edit code. Run commands. Report results."), a global [RULES]
+    block (4 of 12 rules were about edit_file), and — for the cloud
+    variant — a [FILE EDITING] block that enumerated 9 edit_file rules.
+    Every mode received the same prefix, so a READ_ONLY session also
+    taught the LLM it was a builder that edits code. The mode section
+    that comes after {{MODE}} was correctly scoped, but the prefix was
+    not, and the prefix is what anchors the LLM's self-image. Combined
+    with the read-only prompt's earlier "Do not attempt to call
+    edit_file, save_file, to_do, finish_to_do_item" — which names every
+    forbidden tool — the LLM is left knowing the tool exists, knowing
+    the parameter shape, and being told it cannot call it: a recipe for
+    a TOOL_NOT_PERMITTED round-trip that wastes tokens and confuses
+    small local models into looping.
+    
+    Fix: lift the mode-specific pieces out of the shared prefix and into
+    the mode section that already varies.
+    
+    - system_prompt_local.txt: IDENTITY now says "Read code, run
+      commands, and report results" with no Edit; RULES is now 8
+      mode-agnostic rules (path safety, secret safety, no-prompt-reveal,
+      no-retry-loop, no-tool-outside-schema, no-absolute-path,
+      no-project_root). The 4 edit_file rules that lived here are
+      removed because they were never the right place to teach
+      edit_file.
+    - system_prompt_cloud.txt: IDENTITY tone-down (no more
+      "PROFESSIONAL CODE ENGINEER" / "BUILDER, not a consultant"),
+      [DEPLOYMENT] no longer enumerates the file tools, and the entire
+      [FILE EDITING] block is removed. The cloud prompt used to push
+      harder for action than the local prompt, which is also a
+      READ_ONLY bug.
+    - mode_write.txt: receives the [FILE EDITING] block lifted from
+      system_prompt_cloud.txt, so write-mode sessions still see the
+      full edit_file ruleset.
+    - mode_readonly.txt: adds an explicit "this mode does NOT expose
+      edit_file, save_file, to_do, or finish_to_do_item" line and tells
+      the LLM to redirect the user to the permission dropdown when they
+      ask for changes. This is a UX hint for the LLM, not a security
+      guarantee — the gate is still the server's mode check.
+    
+    mode_single_step.txt was untouched; it already had its own
+    edit_file description in-line with its tool list.
+    
+    The result is a prompt where the prefix never names a write tool
+    and the mode section is the single source of truth for which tools
+    exist. If a future mode is added, its own mode_*.txt carries the
+    tool-specific instructions and the prefix is unchanged.
+
+commit c4b079dc57ebfaaf177d12a7d807679a5499e158
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 21:08:31 2026 +0800
+
+    fix(security): default session to read_only and use wire format for toolMode
+    
+    The session initially exposed selectedPermission as the i18n label
+    ("Read-only Permissions" / "只读权限") and toolMode as a separate
+    mutableStateOf defaulted to "write". The two were only ever
+    synchronised inside GradumToolWindowFactory.onSelectPermission, which
+    runs on user click. A fresh session — i.e. every time the user opens
+    the tool window — never fired the click handler, so the label showed
+    "Read-only Permissions" while toolMode silently stayed "write". The
+    server parsed "write" as ToolMode.WRITE and the mode gate in
+    Agent.executeSingleTool let every Skill through. The previous commit
+    that added the gate was correct on the server side; the missing piece
+    was that the plugin never actually sent "read_only" in the first place.
+    
+    The i18n-label-as-state shape was also wrong in a quieter way: the
+    ToolWindowFactory compared the incoming label against
+    message("gradum.read") / message("gradum.edit"), which means the
+    match only worked in the default locale. A Chinese-locale user
+    clicking "只读权限" would not have hit the read-only branch at all
+    in the old code path, and the `else -> "write"` fallback would have
+    silently promoted them to write.
+    
+    Fix:
+    1. GradumChatSession.selectedPermission is now the wire format
+       ("read_only"), defaulted at construction. The session starts in
+       the read-only mode the UI always claimed to be in.
+    2. GradumChatSession.toolMode is no longer a mutable property; it is
+       a `val` that returns selectedPermission. There is now exactly one
+       source of truth — the wire value. The two cannot drift.
+    3. GradumToolWindowFactory.onSelectPermission no longer runs a
+       `when (permission)` translation; the incoming value is the wire
+       format and is stored verbatim. The i18n label is no longer part
+       of the state machine.
+    4. PermissionSelector introduces PermissionMode (object with the
+       three wire constants) and permissionLabel(wire) for UI display.
+       The dropdown sends wire strings on click and renders labels via
+       the helper. The selected check is now a constant compare, not a
+       message-bundle compare.
+    5. The dropped println(permission) is removed (debug residue).
+    
+    Sanity: server-side ToolMode.fromStringOrDefault("read_only") already
+    matched READ_ONLY case-insensitively, so the plugin's new default
+    "read_only" reaches the server correctly without any server-side
+    change. AgentConfigurationTest pins the parsing + the silent-WRITE
+    default fallback so a future regression to case-sensitive parsing
+    or a stricter default gets caught before it can re-open the hole.
+
+commit f5716e262c70dab36159a2bbeb3d32cd42585e23
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 20:11:59 2026 +0800
+
+    test(security): pin the per-skill ToolMode gate to a real filesystem
+    
+    6 cases covering both sides of the new mode gate in
+    gradum.agent.Agent.executeSingleTool. The first three prove the bug
+    that the previous commit fixes: in READ_ONLY mode, a tool call
+    hallucinated by the LLM (edit_file, save_file, to_do) returns
+    TOOL_NOT_PERMITTED AND the target file on disk is byte-for-byte
+    unchanged. The last three prove the gate is not over-broad: it lets
+    edit_file through in WRITE mode, blocks to_do in SINGLE_STEP (the
+    write-but-no-planning mode), and still permits read_file in READ_ONLY
+    so the agent can do its inspection work.
+    
+    The file-on-disk assertion is the actual security property the gate
+    is meant to enforce. The emitted-event assertion is just a label
+    check. If a future refactor regresses the gate in a way that lets
+    the skill's logic run anyway, the disk check is what catches it.
+    
+    Pinned to gradum/agent because Agent.executeSingleTool is the
+    single chokepoint — no need to wire the gate from a higher-level
+    test through Routes, the security boundary is internal to the agent
+    loop.
+
+commit 390204f20ab7682bebdebbae9cef757c7b1c478c
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 20:11:47 2026 +0800
+
+    fix(security): enforce per-skill ToolMode gate so read-only cannot be bypassed
+    
+    The schema whitelist in SkillRegistry.getSchemas(READ_ONLY) hid write
+    tools from the LLM's tool list, but it was the only barrier. The
+    system prompt taught the model the exact edit_file parameter shape, and
+    the LLM has seen edit_file in countless training corpora, so it would
+    emit a structurally-correct edit_file call from memory. The agent
+    forwarded it to EditFileSkill, the skill parsed it and wrote to disk
+    without any mode check. The READ_ONLY mode was a prompt-only invariant
+    backed by zero enforcement.
+    
+    Root cause: Agent.executeSingleTool only special-cased run_cmd
+    (CommandFilter). Every other skill was routed unconditionally, and no
+    skill checked configuration.toolMode inside its own execute(). A
+    hallucinated tool call bypassed the schema filter and reached the
+    filesystem.
+    
+    Fix: move the gate from a single hard-coded functionName check in
+    Agent into the Skill interface itself, where each skill declares the
+    ToolMode values it may run in. The agent now performs a single
+    configuration.toolMode in skillInstance.allowedToolModes check before
+    invoking execute(); a mismatch returns TOOL_NOT_PERMITTED. This is the
+    SINGLE source of truth for mode gating — no per-skill functionName
+    list in Agent, no duplicated mode checks inside each skill.
+    
+    Allowed modes per skill (the only four overrides needed):
+    - EditFileSkill     : WRITE, SINGLE_STEP            (excludes READ_ONLY)
+    - SaveFileSkill     : WRITE, SINGLE_STEP            (excludes READ_ONLY)
+    - TodoSkill         : WRITE                         (excludes SINGLE_STEP, READ_ONLY)
+    - CompletePlanSkill : WRITE                         (excludes SINGLE_STEP, READ_ONLY)
+    - read_file, explore_project, run_cmd: every mode (default)
+    
+    TOOL_NOT_PERMITTED is a new error code distinct from COMMAND_BLOCKED
+    so the plugin can show a different message ("this tool is not
+    available in read-only mode" vs. "this command would mutate the
+    filesystem"). Defined in src/main/java/gradum/ErrorCode.java and
+    mirrored in plugin ErrorCode.kt; the friendly text is in both
+    GradumBundle properties files.
+    
+    Mode read-only prompt no longer enumerates the forbidden tools
+    ("don't call edit_file, save_file, to_do, finish_to_do_item") — that
+    behaviour teaches the LLM those tool names exist, so it knows to call
+    them from training-data memory. The new copy says "the server's mode
+    check runs before the skill" so the LLM treats the gate as a hard
+    enforcement point, not a polite convention.
+
+commit dd3fbb4b30b3d76b59f4abb002da816ee248f51d
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 18:26:43 2026 +0800
+
+    chore: i18n copy, plain-text prompts cleanup, dev scripts, and capability icons
+    
+    i18n and copy. Adds the four sending-phase labels (Sending /
+    Synthesizing / Distilling / Catalyzing / Weaving) and the INTERRUPTED
+    error message in both en and zh_CN. The phase copy is shown by
+    AssistantChatBubble in commit d513d10; the interrupted message is
+    surfaced by ErrorMessages for the new error state.
+    
+    Plain-text prompts. Both system_prompt_*.txt previously opened with a
+    "## SYSTEM PROMPT (cloud / large model variant)" header that explained
+    which file the server had picked. The server already knows that and the
+    explanation was eating ~80 input tokens per turn across both variants.
+    The headers are removed; the rest of the prompt is unchanged. Agent
+    trims the prompt-variant branch to be a one-liner with a comment.
+    
+    Dev workflow. scripts/start.sh brings the server up via ./gradlew
+    installDist in --continuous mode and tails the build log so the same
+    terminal surfaces restart signals. A new combined ".run/Server & Plugin
+    Run.run.xml" run-config boots both processes from the IDE without
+    re-typing --project-root. The existing ".run/Gradum Ktor Server.run.xml"
+    no longer flips activateToolWindowBeforeRun, so the run tool window
+    stays in the background during iterative dev.
+    
+    Capability icons. icons/tools/ holds the two existing "tool" SVGs (light
+    + dark); icons/vison/ holds the new "vision" SVGs (note: the directory
+    and filenames retain the original typo to match GradumIcons.ModelVision,
+    which is referenced by its own name; renaming would touch every call
+    site and is intentionally deferred). GradumIcons grows ModelVision to
+    back the lookup helper.
+    
+    .gitignore. Server-side runtime artifacts (context.json, model-catalog
+    cache, etc.) are written under .gradum/ in the working directory; add
+    the entry so git status no longer shows them as untracked.
+
+commit d513d10d605f64b1dd10acbd4d0c7f18562573ce
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 18:26:02 2026 +0800
+
+    feat(ui): sending phase indicator, INTERRUPTED error state, and per-provider icons
+    
+    Wires the catalog/helper work from f34dcf4 into the chat surface and adds
+    two new interaction states that were both "looks like an error" before
+    but deserve distinct treatment.
+    
+    Sending phase (4-stage). The chat shows a single static "Thinking..." label
+    while the server may still be tokenizing, fetching, and reasoning. The
+    client now receives a sendingPhase from the stream and threads it down to
+    AssistantChatBubble, which substitutes LoadingIndicatorRow(phase) so users
+    see Sending -> Synthesizing -> Distilling -> Catalyzing -> Weaving and
+    understand that long latencies are not the model being stuck.
+    
+    INTERRUPTED error state. The previous ErrorBlock always rendered the red
+    FailedInProgress icon. New ErrorCode.INTERRUPTED (sent when the user
+    cancels a turn) renders the warning icon in the info color, because it is
+    the user's intent, not a failure. ChatMessage.Error now carries a code
+    field; hasResponse and the retry button only fire on real responses or
+    non-interrupt errors.
+    
+    Per-provider icons. AssistantChatBubble replaces the brittle
+    "if (name.contains('cloud'))" branch with resolveModelIcon(modelName),
+    and ModelSelectorBar shows a per-provider avatar through
+    resolveProviderIcon(model). SelectorButton grows an iconKey slot for
+    the same family of icons. The header strip is now consistent across
+    selector, message header, and model card.
+    
+    Also: the tool window spinner now drives a single in-place status line
+    instead of swapping the tab displayName, so the tab does not flicker
+    between "Gradum" and "Gradum (running)" on every toggle.
+
+commit f34dcf473402e2ef6900ff2742c2d3b998eb59ac
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 18:25:34 2026 +0800
+
+    feat(catalog): enrich model metadata via models.dev and ship provider icons
+    
+    The /models endpoint previously returned only id, name, and provider. The
+    plugin had no way to know whether a model supports reasoning, tool
+    calling, vision attachments, or its context window, so the model picker
+    could not hint at capability differences and the model icon had to be
+    chosen with hard-coded "if (name.contains('cloud'))" branches.
+    
+    ModelCatalog fetches https://models.dev/api.json on first use, caches
+    the slim projection in ~/.gradum/model-catalog.json, and exposes a
+    metadata lookup. Routes now overlays five new fields (contextLimit,
+    reasoning, toolCall, openWeights, attachment) onto every ModelEntry.
+    Plugin-side ModelInfo mirrors the same five fields so the wire format
+    is round-trip safe.
+    
+    GradumIcons grows 12 per-provider PathIconKeys (light + dark variants
+    under icons/model-provider/) and two lookup helpers:
+    - resolveModelIcon(modelId)    - for chat header avatar
+    - resolveProviderIcon(model)   - for model selector bar
+    This removes the brittle string-matching branch in AssistantChatBubble
+    and ModelSelectorBar; commit 2 will migrate the call sites.
+    
+    Also bumps ExploreProjectSkill defaults to depth=8 and
+    MAXIMUM_CHILDREN_PER_DIRECTORY=2048 so a single call covers full
+    projects; both are still bounded for safety.
+
+commit 2452546f913ebc428be1dd9f175fc65f31888dce
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 10:12:05 2026 +0800
+
+    perf(prompts): switch system prompts to plain text and forbid path/root params
+    
+    Two concerns, one commit because they touch the same files:
+    
+    1. Plain text over Markdown. The system prompts were previously authored
+       as Markdown (## headers, **bold**, numbered lists, code blocks), but
+       the LLM never renders Markdown — every `##`, `**`, and `` ` ``
+       pair is a token spent on syntax that produces nothing. Switched all
+       5 prompt files (system_prompt_{cloud,local} + mode_{readonly,
+       single_step,write}) to plain text with [SECTION] tags and --- rules.
+       Cloud prompt dropped from ~240 to ~108 lines, others shrunk
+       proportionally. Renamed .md to .txt to match the new format.
+    
+    2. Forbid path/root parameters. The cloud prompt used to say "You are
+       running inside the Gradum IntelliJ plugin", which primed the LLM
+       to hallucinate Gradum-relative paths in tool calls. The local prompt
+       said "Server CWD = project root", which is the same bug in different
+       words. New wording for both: "the server's working directory IS
+       the project root; you do not know and do not need to know its
+       absolute path". Both prompts also explicitly say that
+       explore_project takes no path argument and that passing
+       project_root / projectRoot / any absolute path is rejected.
+    
+    The Agent.kt resource paths are updated to .txt. The dead AUTO ->
+    "/system_prompt.md" branch is kept as a defensive unreachable fallback
+    so a future refactor that re-introduces AUTO without a file surfaces
+    a loud error rather than silently loading the wrong prompt.
+
+commit 5af3156182b91c1fa4498418c2a4451bbe4edab8
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 10:11:44 2026 +0800
+
+    chore(i18n): tighten agent mode copy and add jsx/tsx file type icons
+    
+    EN: "Reads, writes, handles complex tasks autonomously"
+      -> "Reads, writes, executes complex tasks"
+    ZH: "可读可写，可自主拆解并执行多步任务"
+      -> "可读可写，自主拆解并执行多步任务"
+    
+    The verb "handles" / "处理" is redundant once "executes" / "执行"
+    is there — execute already implies handling. The rewritten copy is
+    shorter and lands the same meaning faster in the dropdown.
+    
+    Add jsx/tsx file type icons (light + dark) so the IDE recognises
+    those extensions in the project tree.
+
+commit e860c7a7cf7cd4a27eb8091dc47ac9a13e8be51a
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 10:11:39 2026 +0800
+
+    refactor: drive projectRoot from plugin (per-session), drop server --project-root CLI
+    
+    The server previously resolved the target project at startup from the
+    --project-root CLI flag (or fell back to process CWD). This caused
+    mysterious "tools read Gradum instead of the user's test project"
+    misroutes whenever the server was launched from a Gradle Run Config
+    whose CWD happened to be the plugin's own source tree.
+    
+    Move the authority for project selection to the plugin. The IntelliJ
+    Platform already knows which project is open via Project.basePath, and
+    the plugin now sends that path on every /events request. The server
+    validates the path (must exist, must be a directory) and threads it
+    through AgentConfiguration -> Agent.executeSingleTool -> every file
+    skill's `projectRoot` argument. Reject with 400 if the plugin omits or
+    sends a bad path; the server never infers project selection any more.
+    
+    Defense in depth, in case a future LLM hallucinates the parameter:
+    - Agent.executeSingleTool STRIPS `projectRoot` / `project_root` from
+      the LLM's tool call before injecting the session's value, so the
+      LLM cannot override the server's decision. (Replaces the previous
+      `if (!containsKey)` guard which silently let the LLM's value win.)
+    - ExploreProjectSkill rejects `project_root` at the entry point with
+      INVALID_PARAMETER. The schema no longer exposes it, but some
+      misbehaving models still try — give them a loud error instead of
+      silently dropping the key.
+    
+    Also drops the ServerArguments.projectRootPath CLI plumbing and the
+    projectRootPath field on ServerConfiguration, since neither is reached
+    anymore. The IDE's Run Config can drop `--project-root $PROJECT_DIR$`
+    from its program parameters.
+    
+    Plugin side (3 files):
+    - GradumApiClient.sendMessage gains a `projectRoot: String?` param
+      and forwards it in the JSON body.
+    - GradumChatSession gains a `var project: Project?` field, set by the
+      tool window factory, and passes `project?.basePath` to sendMessage.
+    - GradumToolWindowFactory.createToolWindowContent now assigns
+      `session.project = project` once on open.
+    
+    Server side (7 files):
+    - EventsRequestBody gains `projectRoot: String?` field.
+    - AgentConfiguration gains `projectRoot: String` field (non-null;
+      Routes guarantees it before constructing the agent).
+    - Routes validates the path (non-blank, exists, is directory) and
+      returns 400 on failure. On success it builds AgentConfiguration
+      with the resolved absolute path.
+    - Agent.executeSingleTool now reads `configuration.projectRoot`
+      instead of the global ProjectPaths.getProjectRoot().
+    - ExploreProjectSkill.getSchema drops the `project_root` property and
+      the required list. explore() rejects `project_root` at the top with
+      INVALID_PARAMETER so any LLM that still passes it gets a clear
+      error and stops wasting turns.
+    - Main.kt and ServerConfiguration.kt no longer carry --project-root
+      CLI plumbing or the projectRootPath field.
+
+commit b62da4aae90fe2911882365413b2d16b31818683
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 02:31:36 2026 +0800
+
+    fix: server CWD decoupling, ServerConfiguration cleanup, READ_ONLY hard guard
+    
+    Four intertwined cleanups landed together because they share the same
+    audience (the server startup path) and the same set of files.
+    
+    1. **Server CWD decoupling** — `ProjectPaths` now exposes
+       `setProjectRoot(Path)` + a method-style `outputDirectory()` instead
+       of a static `OUTPUT_DIRECTORY` field. `Main.main()` calls
+       `setProjectRoot(...)` early when `--project-root` is present, so
+       every per-project path (run_cmd log dir, context storage, skill
+       injection point) follows the override without re-doing the
+       argument plumbing.
+       - Agent.executeSingleTool now injects `ProjectPaths.getProjectRoot()`
+         into the skill's `projectRoot` argument on every tool call. This
+         closes the gap where ReadFileSkill/EditFileSkill/etc. were
+         reading `projectRoot` from the LLM call (which the plugin never
+         sent), falling through to CWD, and silently operating on the
+         Gradum workspace instead of the intended test project.
+    
+    2. **ServerConfiguration cleanup** — drop six dead/fake fields.
+       - `debugMode` / `enableThinking` / `defaultModel` / `serverBaseUrl`
+         and their CLI flags `--debug` / `--think` / `--model` / `--base-url`
+         were never read after Main.kt constructed the data class; LLM
+         config is taken from the HTTP request body, not the server
+         defaults. Kept the fields would have been a trap for anyone
+         reading the source.
+       - `maximumSessions` / `sessionTimeoutSeconds` were aspirational
+         (zero references) — removed until someone actually needs them.
+    
+    3. **READ_ONLY hard guard** — closing the gap between the schema
+       whitelist and the actual skill behaviour.
+       - `utils.classifyCommand` now takes a `ToolMode`. Under READ_ONLY
+         it enforces a read-only executable whitelist (ls/cat/grep/...)
+         AND rejects shell file redirects (>, >>) — both checks
+         previously were absent, so the LLM could route a write through
+         `run_cmd` (e.g. `echo hi > out.txt`) and the server would
+         happily execute it.
+       - `Agent.executeSingleTool` calls the classifier before
+         `RunCommandSkill.execute` and emits a real `COMMAND_BLOCKED`
+         tool result so the agent loop sees the failure and recovers
+         instead of a "successful" mutation.
+       - Same function was refactored to extract `emitToolResult(...)` so
+         the blocked-by-guard path and the normal skill path share the
+         same tool_call / error / history-event emission.
+    
+    4. **Markdown polish** — `***` → `---` for horizontal rules, blank
+       line before bullet groups, `multi-step` → `multistep`. The
+       `{{MODE}}` placeholders introduced in 04ec103 are unchanged.
+    
+    Tests: ProjectPathsTest (4) + CommandFilterTest (6) cover the new
+    behaviour. Full `./gradlew test` is green.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit e509d84d545d1d295c5ba1f68301b675ac489297
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 02:31:25 2026 +0800
+
+    feat: dev workflow — Gradle continuous restart + run-config placeholder
+    
+    Two pieces of glue that close the loop on the "rebuild fatJar every
+    time" pain point:
+    
+    - build.gradle.kts: give the `run` task `standardInput = System.in` and
+      `setIgnoreExitValue(true)`. With these, `./gradlew run --continuous`
+      monitors src/**/*.kt, rebuilds, SIGTERMs the running JVM, and
+      relaunches it. Ktor's shutdown hook (already wired in Main.kt) gets
+      to run cleanly, so the agent loop isn't left holding a half-closed
+      socket.
+    - .run/Gradum Ktor Server.run.xml: prefill programParameters with
+      `--project-root /path/to/your/test-project`. The path is a
+      deliberate placeholder — leaving it as-is triggers an immediate
+      "no such directory" at startup so the user can't accidentally
+      point the dev server at the Gradum workspace itself.
+    
+    How to use: replace the placeholder in the Run Config with the real
+    test-project path, then either hit Run from the IDE or run
+    `./gradlew run --continuous` from a terminal. No more manual fatJar
+    + scp + java -jar dance.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 04ec10383b1000bc62881cfdc14c03eedee27fab
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 01:19:11 2026 +0800
+
+    feat: render system prompt per active ToolMode
+    
+    SkillRegistry.getSchemas() filters the LLM's tool list to 3 / 5 / 7
+    depending on the user's selected permission level, but the system
+    prompt still hard-coded descriptions and workflows for all 7
+    tools. The model would then either try to call tools that are no
+    longer in its tool list (e.g. to_do under Edit / Agent-mode) or
+    ignore the schema and call them anyway — both waste turns.
+    
+    Split the per-mode content out of the variant templates into
+    standalone section files, and stitch them in at load time:
+    
+    - mode_readonly.md / mode_single_step.md / mode_write.md: each
+      describes exactly the tools the model can actually call, plus a
+      mode-specific WORKFLOW block. Single-step and Read-only variants
+      state up front that to_do / finish_to_do_item / edit_file /
+      save_file are intentionally absent and tell the model how to
+      proceed without them.
+    - system_prompt_cloud.md and system_prompt_local.md: collapse the
+      old CORE WORKFLOW + TOOL REFERENCE / TOOL MANUAL sections into a
+      single {{MODE}} placeholder. Everything else (identity, code
+      style, security, error handling, response format) is shared
+      across modes and stays in the variant template.
+    - Agent.loadSystemPrompt(): after the variant template loads,
+      read the matching mode section by ToolMode and substitute
+      {{MODE}} alongside the existing {{OS}} replacement. Defensive
+      try/catch mirrors the variant loader — a missing section falls
+      back to "no tools" rather than crashing the session.
+    
+    Result: whatever the user picks in the dropdown, the prompt and
+    the schema describe the same tool surface.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 2576637e006ac588909b7ee42882e5bf041a2113
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 01:19:01 2026 +0800
+
+    fix: rename PermissionSelector i18n keys and tighten copy
+    
+    The dropdown now exposes three levels with parallel naming
+    (Read-only Permissions / Edit Permissions / Agent Mode) and matching
+    contentDescription for the leading icons.
+    
+    - Rename i18n keys: gradum.readonly → gradum.read,
+      gradum.single_step → gradum.edit, gradum.full → gradum.agent so
+      every reference is a single, mode-shaped token. Update
+      GradumToolWindowFactory, PermissionSelector, and
+      GradumChatSession.selectedPermission default in lockstep.
+    - GradumChatSession default was still reading the old gradum.readonly
+      key, throwing a "key not found" Throwable during service
+      instantiation and breaking tool-window open. Switch the default to
+      gradum.read.
+    - PermissionSelector copy: drop the "X tools" parenthetical from the
+      primary label (it is redundant with the .info line) and rephrase
+      the .info strings to read as a one-sentence capability summary
+      instead of a verb list.
+    - GradumIcons: add the Build PathIconKey placeholder (light + dark
+      SVGs land in a follow-up) so model-category icons stay consistent
+      with the Local / Web pair.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 4a884158ca92805247d6494f5a1733f9a9c040b1
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 00:32:23 2026 +0800
+
+    feat: per-session tool mode and prompt variant for local/small models
+    
+    Small/local models need a smaller, more precise tool surface and
+    prompt, while cloud models can handle the full verbose setup. Since
+    Ollama runs everything from 7B laptops to 70B cloud tiers, let the
+    user pick — never infer from the provider.
+    
+    Backend:
+    - AgentConfiguration: add ToolMode.SINGLE_STEP (WRITE minus to_do and
+      finish_to_do_item) and PromptVariant (CLOUD / LOCAL / AUTO with
+      provider-based resolution)
+    - SkillRegistry: exclude planning skills in SINGLE_STEP mode
+    - Routes: trust client-selected toolMode instead of inferring from
+      provider
+    - system_prompt.md split into system_prompt_cloud.md (verbose,
+      TOOL REFERENCE) and system_prompt_local.md (compact, TOOL MANUAL,
+      planning skills marked NOT AVAILABLE); both packaged via
+      processResources / ProjectPaths
+    
+    Skills (compact descriptions and tighter history for small models):
+    - ReadFileSkill / SaveFileSkill / RunCommandSkill: trimmed descriptions
+      while keeping the critical hints (line_range, mode, depth, etc.)
+    - ExploreProjectSkill: override prepareHistoryResult to surface only
+      the top-level tree
+    - EditFileSkill: LCS-based computeLineDiff with historyVolatileKeys so
+      a follow-up read sees the actual line counts
+    - Skill.prepareHistoryCallCount: private → protected for subclass hooks
+    
+    Plugin UI:
+    - GradumChatSession / GradumApiClient: carry toolMode + promptVariant
+      in the chat request
+    - PermissionSelector: 3 options (read-only / single-step / full) with
+      per-option tool counts and detailed descriptions
+    - GradumToolWindowFactory: persist onSelectPermission across the
+      session and forward it to the backend
+    - Local / web provider icons (light + dark) wired through GradumIcons
+    - AssistantChatBubble / ThinkingIndicator / GradumMarkdownStyling
+      tweaks for the new metadata
+    - i18n: gradum.readonly / gradum.single_step / gradum.full and their
+      .info variants in en + zh_CN
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 1132a895981a7c19720d8424c59918bb8dbf8363
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 00:32:06 2026 +0800
+
+    refactor: extract LLMClient helpers and rename ToolCallEntry.functionTitle
+    
+    LLMClient.kt:
+    - Extract formatLlmError() and recordTokenUsage() as top-level helpers so
+      OllamaClient and OpenAICompatibleClient share one implementation
+    - Rename ToolCallEntry.functionTitle to functionName to match the actual
+      JSON field coming from the LLM stream
+    
+    Agent.kt: align call site (functionName, plus the TodoSkill.resetTaskList
+    follow-up that was deferred from the previous fix commit to keep that
+    commit self-contained on the TodoSkill side)
+    
+    AgentGuardrailTest.kt: align the mock ToolCallEntry fixture
+    docs/ARCHITECTURE.md: align the mermaid label
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 7f4e27dd7db3cee36ca6849b9a344531878ae470
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 30 00:31:57 2026 +0800
+
+    fix: clean up stray file, ModelSelectorBar selection state, and TodoSkill typos
+    
+    - Remove 0-byte eiuyr8yr stub under chat/ui/chat
+    - ModelSelectorBar: 3 places had 'selected = false' hardcoded; switch to
+      real selection state for the auto-suggested, pinned, and regular model
+      rows so the highlighted item actually tracks the active model
+    - TodoSkill: rename restTaskList() to resetTaskList() (call site follows
+      in a later refactor commit)
+    - TodoSkill: emit ALL_COMPLETED instead of NOT_INITIALIZED when the queue
+      is already empty — semantically correct for "nothing to do"
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit cb34780db68f6377918520e2b24826b89ded9790
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 29 18:17:14 2026 +0800
+
+    perf: incremental render block aggregation for streaming responses
+    
+    Move RenderBlock from UI layer to model layer and maintain it
+    incrementally via ChatMessage.appendEvent(). Each streaming token
+    now appends to the last block in O(1) instead of re-iterating the
+    entire events list in O(n).
+    
+    - Add RenderBlock sealed class to ChatMessage.kt
+    - Add appendEvent() and updateLastError() methods to ChatMessage
+    - Add hasResponse flag to avoid events.any{} on every recomposition
+    - Replace all copy(events=...) calls in GradumChatSession with appendEvent()
+    - Remove aggregateRenderBlocks() from AssistantChatBubble.kt (55 lines)
+    - UI reads message.renderBlocks directly, converts ToolCall at render time
+
+commit 9e147ebc36b4bd70995b6e712230faedb65a6266
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 29 00:14:50 2026 +0800
+
+    feat(ui): tool call indicators, pending queue fix, and code quality improvements
+    
+    - ToolCallIndicator: capsule UI with per-tool customization, file diff (+X/-Y)
+    - FileToolCallIndicator: merged Read/Edited indicators with IDE-theme colors
+    - Agent.finishSession: always save context even when session is aborted
+    - processPendingQueue: launch sendMessage for queued messages via CoroutineScope
+    - RunCommandSkill: log stream read errors at warn level
+    - ContextManager.saveContext: return Boolean to indicate success
+    - EditFileSkill: rename short variable names (a/b/n/m → descriptive)
+    - ToolCallContent: log parseResult errors instead of silent swallow
+    - ExploreProjectSkill: extract buildDirectoryNode helper, show symlink loops
+    - Remove ErrorBlock from UI (errors shown via capsule status icon only)
+
+commit 8ea0fee9e87efcc8f3275a533a834e8e6ec52d7d
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 17:25:29 2026 +0800
+
+    fix(ui): log exceptions instead of silently swallowing them
+    
+    - Add Logger.warn for onOpenInEditor exception handling
+
+commit 8b05e6cc828529c0009e0edc8808e4f9df9f0616
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 17:21:34 2026 +0800
+
+    feat(ui): open actual file in editor for Read tool indicator
+    
+    - Detect if target is a valid file path
+    - If so, open the actual file directly in IntelliJ editor
+    - Otherwise fall back to temp file for command text (Ran tool)
+
+commit b1ba62169f0520b3cee64e21da6693f3fde1c014
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 17:11:40 2026 +0800
+
+    fix(ui): add ellipsis overflow to tool call text
+    
+    - Add TextOverflow.Ellipsis to RanToolCallIndicator reason text
+    - Add TextOverflow.Ellipsis to ReadToolCallIndicator path text
+    - Text now truncates with ... when too narrow
+
+commit f1ddd93028c148f0ad21201218c8854b7fd6800f
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 16:19:43 2026 +0800
+
+    feat: pass project directory from plugin to server
+    
+    - Plugin sends projectDir (IntelliJ project.baseDir) in sendMessage
+    - Server stores it in AgentConfiguration per session
+    - Agent injects projectRoot into skill arguments before execution
+    - Skills (ReadFile, EditFile, SaveFile, RunCommand, ExploreProject)
+      resolve relative paths against projectRoot instead of JVM CWD
+    - ExploreProjectSkill uses injected projectRoot as default for project_root
+    - RunCommandSkill sets ProcessBuilder.directory() to projectRoot
+    - Backward compatible: projectDir is nullable, no change when not provided
+
+commit 434e43d9180bc305ca79c514dc3b8b200c4dd539
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 16:03:11 2026 +0800
+
+    refactor(ui): extract OpenInEditorButton to remove duplication
+    
+    - Create shared OpenInEditorButton composable
+    - Reuse in RanToolCallIndicator and ReadToolCallIndicator
+    - Use AllIconsKeys.Actions.EditFile icon consistently
+
+commit 364e4d3b579e53e2b73247a6cb43b54842dc7627
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 15:56:47 2026 +0800
+
+    feat(ui): add ReadToolCallIndicator for read_file tool
+    
+    - Show file name in capsule (path.substringAfterLast('/'))
+    - Add open-in-editor button with tooltip
+    - Update AssistantChatBubble to use ReadToolCallIndicator for Read tool
+
+commit 4f6941f90482367a981464e6f74de9b975340212
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 15:47:50 2026 +0800
+
+    fix(ui): update export button tooltip to show localized text
+    
+    - Change tooltip from command text to 'Open in Editor' / '从编辑器打开'
+    - Use GradumBundle i18n string for tooltip
+
+commit 72897bac8b42933ecc1d1a3639e490f8784ec795
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 15:38:08 2026 +0800
+
+    fix(run_cmd): merge stdout/stderr into single output field
+    
+    - Replace standardOutput/standardError with unified output field
+    - stdout preferred, stderr as fallback when stdout is blank
+    - Update system_prompt.md and ARCHITECTURE.md docs
+    - Fix AI reporting empty output for commands writing to stderr
+
+commit 0c3e8e984f8ef7c0f9a381d78bfd9e9acc7e8197
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 15:19:49 2026 +0800
+
+    refactor: remove SearchSkill, update tool call UI and docs
+    
+    - Delete SearchSkill (replaced by ExploreProjectSkill)
+    - Update ToolCallContent: add Explored alias for explore_project
+    - Update ThinkingIndicator and ToolCallIndicator
+    - Update README, ARCHITECTURE, CODING_STANDARDS, PLUGIN_DEVELOPMENT docs
+    - Remove SearchSkill from META-INF services
+
+commit 89627761c4277f5a7b2eeb10056ca607f3e912bf
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 15:19:17 2026 +0800
+
+    feat: add ExploreProjectSkill with default depth=3
+    
+    - New ExploreProjectSkill replacing SearchSkill
+    - Default depth=3, optional parameter
+    - Truncated dirs: build, node_modules, .git, etc.
+    - Updated system prompt and skill schema
+
+commit 57333c137996e12cbfb00c7f58660cb901ec29df
+Merge: c6fb94b 8a6c524
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 12:50:05 2026 +0800
+
+    Merge branch 'feature/@gradum-gwy-idea-plugin'
+    
+    - feat(server+idea): tool call alias + session abort endpoint
+    - feat(idea): event-driven chat rendering with stable fade-in
+    - refactor(idea): restructure chat screen with 20/60/20 anchor layout
+
+commit 8a6c524d2189b7fda74db27a2c069a2d6b7ede7e
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 12:48:36 2026 +0800
+
+    refactor(idea): restructure chat screen with 20/60/20 anchor layout
+    
+    Replace the previous scroll-and-anchor hack with a pure structural
+    layout: a 20% top breathing band, a 60% middle band that hosts the
+    active conversation pair (current user bubble + assistant reply), and
+    a 20% bottom band for the scrollable history. The user's bubble is
+    now structurally pinned at 20% of the viewport; the assistant reply
+    unfolds downward inside the middle band as content streams in, with
+    no scroll math required.
+    
+    The render pipeline splits messages by role into currentUserMessage /
+    currentAssistantMessage / historyMessages so each band only owns the
+    subset of the conversation it is responsible for. onRetryMessage
+    indices are resolved back into the original messages list before
+    delegating to the caller.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 3f5e727006c768da8434ae970dbd433050c3ce2d
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 12:48:25 2026 +0800
+
+    feat(idea): event-driven chat rendering with stable fade-in
+    
+    - GradumChatSession: rewire the stream handler around the new
+      ChatEvent timeline. sendMessage validates the selected model against
+      the server's /models list, enforces a minimum "Sending" display
+      window, tracks sessionId / currentJob, dispatches session_start /
+      session_end, and converts response / thinking / tool_call / error
+      events into ChatEvent entries appended to the assistant message.
+      Adds stopSession() that cancels the local Job and calls
+      /stop on the server.
+    - GradumToolWindowFactory: wire the stop button to stopSession and
+      plumb the new factory through AssistantChatBubble.
+    - AssistantChatBubble: rewrite as event-driven render blocks
+      (Thinking / ToolCall / Response / Error). Split into private
+      ThinkingBlock / ResponseBlock / ToolCallBlock / ErrorBlock /
+      LoadingIndicatorRow / MessageActionsRow composables plus an
+      aggregateRenderBlocks helper. Drive a stable per-block key so
+      that streaming chunks don't re-key the composables.
+    - ThinkingIndicator: harden the collapse interaction.
+    - MessageCopyButton: copy the aggregated responseContent for
+      assistant messages, and gate on its presence.
+    - UserChatBubble: wrap the bubble text in a SelectionContainer so
+      the user can select their own message.
+    - ChatMessageList: drop the now-unused onCopyAsContext parameter on
+      AssistantChatBubble.
+    - GradumMarkdownStyling: lineHeight / spacing adjustments to match
+      the event-driven bubble layout.
+    - ModelSelectorBar: relocate the pin toggle so it always sits at
+      the trailing edge of each row.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 24484d47ccda240992f56fa2161cd8fdab479f66
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 28 12:48:08 2026 +0800
+
+    feat(server+idea): tool call alias + session abort endpoint
+    
+    - Agent: track sessionAborted flag and expose abort() to terminate the
+      main loop from outside.
+    - Agent: emit a human-readable alias for tool_call events (e.g. "Ran"
+      for run_cmd) in addition to the raw tool name.
+    - Routes: register an active session map keyed by UUID, include the
+      sessionId in every NDJSON event, and add a POST /stop endpoint that
+      aborts the agent for the given session.
+    - GradumApiClient: add stopSession(sessionId) on the client.
+    - ChatMessage: introduce ToolCallInfo and a ChatEvent sealed class
+      (Thinking / ToolCall / Response / Error) plus a responseContent
+      accessor; ChatMessage now stores an events list to preserve the
+      full timeline of an assistant turn.
+    - ToolCallIndicator + ToolCallContent: capsule-shaped indicator and
+      collapsible detail view for tool invocations, including a "Ran"
+      variant that exposes a tooltip + open-in-editor action.
+    - Icons: register GradumIcons.Ran backed by new cmd.svg / cmd_dark.svg.
+    - i18n: gradum.tool.success / failed / open.in.editor in both locales.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 8e023a810d53369ba0382aa85580022da717219d
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 27 18:54:48 2026 +0800
+
+    feat(idea): categorized quick-start suggestions with refresh and icons
+    
+    - New QuickStartSection with four suggestion categories (chat, code,
+      question, text), each with five variants, a refresh button to roll
+      new variants, hover highlight, and click-to-fill on the input.
+    - WelcomeScreen gains a typewriter welcome text picked from sixteen
+      rotating greetings (Chinese proverbs, Western tech references, and
+      a monospaced Hello World easter egg), a Hands icon, suggestion
+      variants plumbing, and a centered left-aligned layout.
+    - Wire ProvideMarkdownStyling / LocalCodeHighlighter around GradumUI
+      so the new Markdown renderer picks up the IDE theme, expose
+      onRetryMessage, and disable the send button with a dedicated
+      tooltip when no model is selected.
+    - Chat message list grows 80dp wider than the input section; the
+      retry tooltip now reads "Retry this message" instead of "Delete".
+    - Refresh the model selector styling, add unpin tooltip, ship four
+      feat/* SVG icon pairs (with dark variants) plus a Hands PNG.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 825426b41730dfeb96fb94e75bc145e84638ac1f
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 27 18:54:25 2026 +0800
+
+    feat(server+idea): stream LLM responses with reasoning and Markdown rendering
+    
+    - Server: Agent emits TextContent and ReasoningContent chunks as they
+      arrive from the LLM, LLMClient forwards them via Flow, and Routes flips
+      loadContext default to true so context-aware chat works out of the box.
+    - IDEA plugin: GradumApiClient parses the NDJSON stream line by line and
+      feeds events into GradumChatSession.sendMessage, which progressively
+      updates the assistant message in real time.
+    - New thinking field on ChatMessage plus a collapsible ThinkingIndicator
+      so users can watch the model's reasoning before the final answer.
+    - AssistantChatBubble now renders content through JetBrains Jewel Markdown
+      with a custom GradumMarkdownStyling and GradumCodeBlockRenderer (info
+      row hidden, code highlighted via LocalCodeHighlighter), and fades in
+      smoothly as tokens stream in.
+    - Wire Jewel Markdown dependencies in plugin/build.gradle.kts and add the
+      gradum.thinking / gradum.reset.tooltip i18n strings.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit a73e788b3f9469f867e4586167450e4dd40473c4
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 19:09:32 2026 +0800
+
+    chore(idea): drop redundant dark.svg under icons/cloud
+    
+    The light/dark split now lives in cloud.svg + cloud_dark.svg. The
+    leftover dark.svg from an earlier iteration was identical to the
+    new cloud_dark.svg, so the rename is clean.
+
+commit d09c277dc37cd9f65fb0c2b085df311640f3a4e1
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 19:09:08 2026 +0800
+
+    feat(idea): pinned / auto model selection + cloud icon + i18n
+    
+    Chat input now distinguishes between a single user-pinned model and
+    auto-selection, so the user can curate a small set of favourites
+    instead of scrolling the full model list every time.
+    
+    State:
+      - GradumChatSession gains pinnedModels: SnapshotStateList<ModelInfo>
+        and isAutoSelected: Boolean, plus a default-selection branch in
+        loadModels() that picks the first model if none was chosen
+        (and prunes pins that no longer exist on the server)
+      - ChatInputState exposes pinnedModels and isAutoSelected to the UI;
+        ChatInputActions gains onTogglePin and onSelectAuto, and
+        onSelectModel now accepts ModelInfo? so the auto path can pass
+        null
+    
+    UI:
+      - ModelSelectorBar shows three states in its trigger text:
+        pinned/selected model, Auto-select Model, and the empty
+        placeholder
+      - Pinned section header reads "Pinned" with the unified
+        section-header padding (6/4) and FontWeight.Medium
+      - "All models" label added to the bottom of the model popup in
+        zh_CN (en shares the same heading concept via the pop title)
+      - New cloud icon (icons/cloud/cloud.svg, light + dark) registered
+        as GradumIcons.Cloud for the future "cloud-hosted model" tag
+    
+    i18n:
+      - gradum.model.pin: "Pin this model" / "置顶此模型" (was misleading
+        "Select this model")
+      - gradum.model.pinned: "Pinned" / "已置顶" (new section header)
+      - gradum.model.all: "All models" / "所有模型" (new section header)
+      - gradum.model.auto: "Auto-select Model" (capitalisation fix)
+      - gradum.disclaimer: rewritten in en so the project name appears
+        up front, matching the zh_CN style
+      - Removed unused keys: gradum.model.empty, gradum.pending.messages
+    
+    API:
+      - GradumApiClient.close() removed; the JVM shuts the underlying
+        HttpClient down via its daemon thread at process exit
+
+commit 3890ae4af164f61841eaca72b4e626b6c91cfdf3
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 19:08:55 2026 +0800
+
+    style(server): normalize server code formatting
+    
+    - Drop redundant explicit return types on private functions
+      (recordTokenUsage in LLMClient, the helper in SyntaxChecker) where
+      the compiler can infer them
+    - Re-flow multi-line block bodies so the closing brace of the outer
+      scope and the inner entry's closing brace line up
+    - Add blank lines between when branches that are followed by a
+      longer branch, so the "exceptional" path is visually separated
+      from the "expected" path
+    - Align continuation indentation across nested lambdas in
+      OpenAICompatibleClient.buildCompletedCalls
+    
+    No behaviour change; verified by reading the diff (every change is
+    either whitespace, removal of explicit Unit, or added blank line).
+
+commit 40a82a071757cd4d18ed9707bb6922d09f1d5613
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 19:08:48 2026 +0800
+
+    docs(arch): document IntelliJ IDEA plugin module
+    
+    Add section 8 covering the plugin module: overview (Compose UI in a
+    right-side tool window, HTTP-only runtime contract with the server),
+    module dependency map (IntelliJ Platform SDK, Compose for Desktop,
+    Jewel, kotlinx-serialization-json 1.7.3), and the tool window +
+    chat session service wiring. Renumber Glossary from 8 to 9.
+
+commit b67fd8711a5219f258c2de56a943b886db1fa808
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 19:08:42 2026 +0800
+
+    chore(repo): gradle wrapper 9.5.1, IDE run configurations, plugin gradle
+    
+    - Bump gradle wrapper to 9.5.1 and add a per-plugin gradle wrapper
+      properties under plugin/gradle/wrapper/ so the plugin subproject
+      resolves consistently when run in isolation
+    - Add .run/Gradum Plugin.run.xml and .run/Gradum Ktor Server.run.xml
+      IDE run configurations so the Ktor server and the plugin sandbox
+      can be launched from the IDE without further setup
+    - Bump gradlew / gradlew.bat and the gradle-wrapper.jar to match
+      the 9.5.1 distribution
+
+commit 48e4f3bf17cf15fcb649aeff03704872f9086c70
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 17:43:15 2026 +0800
+
+    style(idea): unify popup item/header padding and icon-to-text gap
+    
+    Three popups (PermissionSelector, AddContextPopup, ModelSelectorBar)
+    had drifted apart on spacing. Standardize on three roles:
+    
+      List item         Modifier.fillMaxWidth()
+                          .padding(horizontal = 6.dp, vertical = 2.dp)
+      Section header    Modifier.fillMaxWidth()
+                          .padding(horizontal = 6.dp, vertical = 4.dp)
+      Icon -> text      Spacer(Modifier.width(6.dp))
+    
+    Changes:
+      PermissionSelector items were rendered with no Row-level padding;
+      add the standard 6/2 padding so they match the other popups.
+      AddContextPopup items used padding(vertical = 2.dp) with no
+      horizontal padding and Icon.padding(end = 6.dp) for the gap;
+      upgrade to 6/2 padding and switch the icon gap to a Spacer so
+      every popup uses the same primitive.
+      AddContextPopup search row also moved to Spacer for consistency.
+      ModelSelectorBar ModelItemContent rows were rendered with no Row
+      padding; add the standard 6/2 padding so the model items match
+      the permission items and the add-context items.
+      ModelSelectorBar "Pinned" header: vertical 2 -> 4 and
+      FontWeight.Bold -> Medium, matching AddContextPopup's "Workspace"
+      header.
+      ModelSelectorBar pin icon 16.dp -> 14.dp to match the size used
+      by the attachment chip icon in MessageAttachmentList.
+      SelectorButton: drop the Modifier.padding(horizontal = 2.dp) on
+      the trigger text. IconButton's default padding already supplies
+      the breathing room; the extra 2.dp was unique to this file and
+      made the text look pinched next to the chevron.
+    
+    Verified with :plugin:compileKotlin. No behaviour change.
+
+commit f2fed412a271f1a0db2777d92469e697350fb6f4
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 17:27:25 2026 +0800
+
+    style(idea): require Text composables to use named text = parameter
+    
+    All Text(...) calls in the plugin module now pass the string via the
+    named text = parameter, dropping the positional form. This keeps every
+    Text call self-documenting at the call site — you can see the visible
+    content without having to count argument positions — and makes the
+    parameter naming consistent with sibling composables like IconButton,
+    SelectorButton, and SweepLightText.
+    
+    Single-line Text calls in tooltips and popups were the easy wins; the
+    multi-line ones (in MessageTimestamp, WelcomeScreen, AddContextPopup,
+    UserChatBubble, ModelSelectorBar) were already on text = so they
+    needed no change.
+    
+    Verification: the awk one-liner walks every .kt file, tracks () depth
+    across lines for multi-line calls, and only reports Text invocations
+    that lack text = — zero output, so the rule is now uniformly applied.
+    
+    Note: ModelSelectorBar.kt, IconTooltipButton.kt, and UserChatBubble.kt
+    also carry the user's in-progress pinned-model work and import
+    reorg (wildcard -> explicit) in the same working tree. Those changes
+    are bundled into this commit because the line-level diffs are
+    interleaved with the text = fixes; split them off with `git rebase
+    -i HEAD~1` if you want a clean history.
+
+commit 485bdd0acd57a5879de115e751b4e9763e7260d6
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 16:16:06 2026 +0800
+
+    refactor(idea): split plugin module by feature into chat/editor/icons/bundle
+    
+    Plugin module was a single 8-file flat package; the 800-line
+    InputComponents.kt and 500-line ChatComponents.kt had grown past
+    comfortable. Restructure into feature-based subpackages with no
+    behavioural change.
+    
+    Layout:
+      bundle/  GradumBundle            i18n (moved, no content change)
+      icons/   GradumIcons             Jewel PathIconKey objects
+      editor/  EditorContext           EditorContext data class + EditorUtils
+              Attachments              AttachedContext, AttachedFile, AttachedText
+              PendingMessage           data class
+      chat/
+        api/    GradumApiClient        HTTP client for /models
+        state/  GradumChatSession      @Service PROJECT container + loadModels
+        model/  ModelInfo              @Serializable data class
+               ChatMessage            data class + isUserMessage + formatTimestamp
+        input/  ChatInputState         ChatInputState + ChatInputActions (data classes)
+        ui/
+          common/  IconTooltipButton, SelectorButton
+          chat/    ChatMessageList, UserChatBubble, AssistantChatBubble,
+                   MessageCopyButton (incl. copyToClipboard),
+                   MessageAttachmentList, MessageTimestamp, SweepLightText
+          input/   ChatInputSection, ChatInputPanel, ChatToolbar,
+                   AttachmentBar, PermissionSelector, ModelSelectorBar,
+                   AddContextPopup, FileItem, PreviewText, ModelNameFormatter
+          home/    WelcomeScreen
+          ChatScreen                 extracted from GradumUI
+      GradumToolWindowFactory.kt      factory + thin GradumUI that delegates to
+                                      ChatScreen / WelcomeScreen
+    
+    GradumToolWindowFactory is the only file left at gradum.idea root
+    because it is the platform entry point referenced from plugin.xml
+    as gradum.idea.GradumToolWindowFactory. The GradumChatSession
+    service is now at gradum.idea.chat.state.GradumChatSession
+    (plugin.xml updated).
+    
+    Each composable lives in its own file (no two of UserChatBubble /
+    AssistantChatBubble / ModelSelectorBar / etc. share a file anymore).
+    Several `private` functions and constants had to move alongside the
+    composable that uses them (e.g. `MAX_PREVIEW_CODE_POINTS` into
+    PreviewText.kt, `modelDisplayNames` into ModelNameFormatter.kt).
+    CopyButton became a public MessageCopyButton in its own file so both
+    bubbles can call it.
+    
+    Verified with :plugin:compileKotlin — only pre-existing deprecation
+    warnings remain.
+
+commit 1a372b5c180ee7e77a30328153f1ddc98ad90005
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 16:05:27 2026 +0800
+
+    feat(server): expose serverName in /models and tighten discovery logging
+    
+    - /models now returns serverName alongside name/provider/server so the
+      plugin can disambiguate models hosted on multiple backends
+    - Add a request/response info line in the route handler for live
+      visibility into what discovery produced
+    - probeServer drops the retry + exponential backoff (a single 2s
+      timeout is enough for a localhost probe, and a wedged server
+      surfacing fast is more useful than one that hides for 15s)
+    - Add info-level logs for the URL being probed, the first 200 chars
+      of the response, and the resolved model list so issues are
+      reproducible from the server log alone
+    - Trim now-unused imports (delay, millis, math.pow)
+
+commit 7db10b0db0961ea70b907969db3631b7e19a6ceb
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 16:05:16 2026 +0800
+
+    feat(idea): model selector bar with refresh + pin, code-point preview
+    
+    - ModelSelectorBar now takes models/selectedModel/onRefresh/onSelectModel
+      so the active session drives it (no more hardcoded empty list)
+    - Pin each model via the existing SelectableItem contract, falling back
+      to the populated list when no model is pinned yet
+    - Add a refresh row to the popup, with new i18n keys
+      gradum.model.refresh and gradum.model.pin in en + zh_CN
+    - Pretty-print model names through a small formatModelName() helper
+      with a hand-curated lookup map for the common families
+    - Replace char-based preview truncation with truncateToCodePoints() so
+      emoji / CJK in pending messages no longer split mid-code-point
+    - Tighten IconTooltipButton.iconKey from Any to IconKey and remove the
+      redundant cast at the call site
+    - Dedupe the gradum.model.refresh key that landed twice in the bundle
+      files during the iteration
+
+commit ec34218330ea6a4c2c89138e016e43324b4d72d9
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 16:03:24 2026 +0800
+
+    fix(idea): replace regex JSON parser and silent catches with typed code
+    
+    - loadModels() now decodes via kotlinx-serialization into a typed
+      ModelsListResponse wrapper around ModelInfo, dropping two fragile
+      regex patterns that broke on escaped quotes, nested braces, or
+      re-ordered fields
+    - add @Serializable to ModelInfo and register the kotlin serialization
+      plugin + dependency in plugin/build.gradle.kts (matches the root
+      project)
+    - silence the empty catch in loadModels with an IntelliJ Logger.warn
+      that includes the failing baseUrl and the exception for triage
+    - expose GradumApiClient.baseUrl as a public val so the logger message
+      can include it
+    - onDeleteMessage now uses !isUserMessage instead of role == "assistant"
+      to keep the contract in one place (ChatMessage)
+    - onRemovePending uses the data class equality from remove(pending)
+      instead of hand-rolled content/attachments field comparison
+    
+    Build verified with :plugin:compileKotlin.
+
+commit 05c4256d9c98b83e6790c4151fbef0c8c52de2d7
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 12:04:47 2026 +0800
+
+    feat: refactor chat input UI with pending queue and retry
+    
+    - Add pending message queue (max 2) with remove button
+    - Add retry button for AI responses
+    - Extract ChatInputState/ChatInputActions data classes to reduce params
+    - Extract IconTooltipButton reusable component (7 patterns → 1)
+    - Extract AddContextPopup as standalone composable
+    - Fix multi-line text preview in pending queue
+    - Add scrollbar and auto-scroll to chat messages
+
+commit 94e3d29bbbe3d0ee39d72b52ddb899bed546e28e
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 03:04:18 2026 +0800
+
+    style(idea): rename long-paste locals to be self-documenting
+    
+    The state-diff LaunchedEffect uses paired local names that read like
+    "the X length at point Y" so a future reader can see at a glance which
+    quantity is being compared against which:
+    
+      - initialLength       -> initialTextLength
+      - baseline            -> baselineTextLength
+      - appendedLength      -> appendedTextLength
+      - appended            -> appendedText
+      - currentText         -> currentInputText   (to distinguish from the
+                                                  baseline snapshot, which
+                                                  is also "text")
+    
+    No behavior change. The two `if` bodies in this block each have more
+    than one statement so the "no braces on a single-line if" rule does
+    not apply here.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 17110de1ab81a4e474fbf41addf76254eac34b5b
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 02:47:59 2026 +0800
+
+    refactor(idea): detect long pastes via state diff instead of key intercept
+    
+    Replace the Cmd+V / Ctrl+V onPreviewKeyEvent handler with a
+    LaunchedEffect that watches the input's text state and routes any
+    jump of more than 200 chars into the attachment bar. The user's
+    reported flow ("input state vs. pasted state, char delta, if > 200
+    then to attachment") is implemented literally.
+    
+    Why not keep the key handler:
+      - Compose Desktop's BasicTextField can consume Cmd+V via its
+        internal TextInputService before the Modifier chain sees the
+        keystroke, so onPreviewKeyEvent is unreliable as a guard.
+      - The key handler only fires for Cmd+V / Ctrl+V; right-click
+        -> Paste and dragged-and-dropped text would slip past it.
+      - A state-diff approach catches every paste source uniformly.
+    
+    Implementation notes:
+      - previousTextLength is seeded from the current textState length
+        on first composition so a pre-existing draft (e.g. a draft
+        restored from GradumChatSession) is not mistaken for a paste.
+      - 50ms delay collapses rapid bursts (paste + immediate typing)
+        into a single snapshot, so a few normal keystrokes won't trip
+        the 200-char threshold.
+      - The 200-char threshold matches the existing rule on the
+        assistant bubble's "copy as context" button
+        (message.content.length > 200), so the two paths agree.
+      - onPasteAsContext itself was already wired through ChatInputPanel
+        / ChatInputSection / GradumUI in the previous commit, so this
+        change is a pure refactor of where the trigger lives.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 46a92ef1d05926440fabccc2814794e617a71ce1
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 02:41:39 2026 +0800
+
+    feat(idea): text-to-attachment (copy + paste) for long AI responses
+    
+    Two new ways for the user to feed long assistant text back into the
+    next message as a context attachment rather than a clipboard hop:
+    
+    1) Click the Copy icon on an assistant bubble.
+       - If the message is short (<=200 chars), the icon behaves exactly as
+         before: copies the text to the system clipboard and flashes the
+         "copied" check mark.
+       - If the message is long (>200 chars), the icon now skips the
+         clipboard entirely and adds the text directly to the next
+         message's attachment bar as an AttachedText (capped preview,
+         FileTypes.Text icon, deduped by full content, capped at
+         MAX_ATTACHMENTS).
+    
+    2) Cmd+V / Ctrl+V inside the chat input.
+       - The TextArea's existing onPreviewKeyEvent handler now also
+         intercepts the paste keystroke before the underlying
+         BasicTextField sees it, reads the system clipboard via
+         Toolkit + DataFlavor.stringFlavor, and routes the same code
+         path as (1) — add as AttachedText instead of inserting into
+         the text. Both the copy-as-context callback and the paste
+         callback share the same implementation so behavior stays
+         consistent (capping, preview, dedup-by-content).
+    
+    Supporting refactors:
+    - AttachedFile is no longer a bare data class; it is now a subtype
+      of an AttachedContext sealed class, with AttachedText as the
+      other subtype. AttachmentBar already keyed off `iconKey` and
+      `displayName`, so the polymorphic iteration works without a UI
+      change.
+    - onRemoveFile is `when`-dispatched over the sealed class so that
+      AttachedFile removal stays path-based and AttachedText removal is
+      content-based.
+    - onSelectFile / onUploadImage dedup is narrowed to AttachedFile so
+      that an attached AI snippet and a real file can coexist without
+      interference.
+    - gradum.clipboard.text.attached i18n key is reserved in en + zh_CN
+      for a future status notification; intentionally not wired up
+      here since the design currently ships the silent "add to bar"
+      behavior the user asked for.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit bfb3416a084598489d683718b98d871cc7abcf04
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 01:50:36 2026 +0800
+
+    feat(idea): group chat messages with date separators
+    
+    Render a small centered date/timestamp separator between message groups
+    in the chat list, the same way iMessage / Telegram / Discord do: not
+    on every message, but whenever the formatted label for a message
+    differs from the previous one. A 14:30 dialog stays clean, a new day
+    gets a "Yesterday 14:30" / "Jun 15" / "N days ago" header, and the
+    first message always gets a separator.
+    
+    - ChatMessage gains timestamp: Long = System.currentTimeMillis() and an
+      isUserMessage convenience getter; the ChatMessageList uses both to
+      drop the role-string comparisons.
+    - New formatTimestamp(timestamp) returns the four-tier label and uses
+      SimpleDateFormat with Locale.getDefault() so the MMM month name
+      and the "X days ago" suffix localize.
+    - New MessageTimestamp composable renders the centered label with
+      JewelTheme.typography.medium and globalColors.text.info so it
+      blends with whatever theme the IDE is in.
+    - i18n: gradum.timestamp.yesterday / gradum.timestamp.days.ago added
+      in en + zh_CN; the other two formats (HH:mm and MMM d) are
+      locale-driven by SimpleDateFormat.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 110b29783def94162a65ee5844a027ea2ad9dd08
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 01:19:30 2026 +0800
+
+    chore(repo): gitignore IntelliJ Platform cache, vendored jars, and scratch files
+    
+    The IntelliJ Platform gradle plugin populates .intellijPlatform/ with
+    local caches (layoutIndex, localPlatformArtifacts, sandbox, the
+    coroutines javaagent, self-update lock) and these had been committed
+    to the repo by accident. They are machine-local, regenerated on every
+    build, and have been showing up as drive-by diffs on every plugin
+    compile.
+    
+    Untrack the 17 already-committed files in .intellijPlatform/ and add
+    .gitignore entries for:
+      - .intellijPlatform/   (cache, never tracked)
+      - plugin/libs/         (manually vendored Jewel / Compose / Skiko
+                              jars referenced via files("libs/..."))
+      - main.txt             (local scratch, e.g. the Jewel README used
+                              as reference while working on the plugin)
+    
+    Build still works on this machine because the cache files are still
+    on disk; they just won't be committed again, and a fresh clone will
+    let the IntelliJ Platform gradle plugin regenerate them on first run.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit d0d04b447f06df04e7a1d187b5f1b7116e5fad93
+Author: gwy <lg841226@outlook.com>
+Date:   Fri Jun 26 01:17:02 2026 +0800
+
+    feat(idea): per-message delete with confirmation, collapsible attachments
+    
+    User chat bubble
+    - Add a "delete this message" action behind the existing Reset/Retry
+      icon: clicking it opens a small confirm popup with the new Warning
+      icon, and confirming removes the user message and the paired
+      assistant reply in one go. If the conversation becomes empty, the UI
+      flips back to the welcome page (session.hasSentMessage = false) so
+      the next send re-enters chat mode cleanly.
+    - Thread onDeleteMessage through ChatMessageList -> UserChatBubble
+      (defaults to no-op for call sites that don't care), and wire the
+      handler in GradumUI against the GradumChatSession so the removal
+      survives tool window collapse alongside the rest of the state.
+    - Replace the inline "MessageAttachmentList" Column with a Box + FlowRow
+      so attachments wrap on overflow, and add a clickable header row with
+      a chevron + "Attachments" label that toggles an AnimatedVisibility
+      around the chip list.
+    
+    Input
+    - Add a Modifier parameter to ChatInputSection (was hardcoded to no
+      modifier), so the calling site can width-cap the section at 600dp
+      when rendering the welcome page.
+    - The Add button's tooltip now flips between "Add files or context"
+      and "Attachment limit reached (max 5)" depending on
+      isAttachmentLimitReached, and the button itself is disabled at the
+      cap (UI side only; the callback still defensively enforces the cap).
+    
+    Icons
+    - New /icons/warning/warning{,_dark}.svg (Apache 2.0, JetBrains s.r.o.)
+      referenced as GradumIcons.Warning.
+    
+    i18n
+    - New keys: gradum.delete.confirm, gradum.delete.action,
+      gradum.add.context.disabled, gradum.attachments. Re-purpose
+      gradum.reset.tooltip from "Resend message" to "Delete this message"
+      to match the new action. Polish gradum.readonly.info and
+      gradum.full.info wording in both en and zh_CN.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit be7f6da70f9daf6da9aa023d742ac14503955d43
+Author: gwy <lg841226@outlook.com>
+Date:   Thu Jun 25 23:38:44 2026 +0800
+
+    fix(idea): persist chat session across tool window collapse
+    
+    The IntelliJ Platform disposes a tool window's content whenever the user
+    collapses it via the sidebar logo, and calls createToolWindowContent
+    again on the next expand. Previously all chat state lived in Compose
+    remember { mutableStateOf ... } blocks inside GradumUI, so every
+    collapse silently dropped the in-progress conversation and bounced the
+    UI back to the welcome page.
+    
+    Move the state into a project-scoped GradumChatSession service that
+    lives for the lifetime of the project, and have GradumUI read/write
+    through it. The welcome page is now a UI branch inside the same Compose
+    tree gated on session.hasSentMessage, so the same tab is reused instead
+    of being removed and re-added.
+    
+    Also drop the old removeContent + addComposeTab dance from the
+    "New Chat" title action in favor of session.reset() + displayName
+    update, which keeps the tab stable and avoids recreating Compose
+    hierarchy on every new chat.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 30e360c7809d89ec8117f868d7e77fd1df9c599b
+Author: gwy <lg841226@outlook.com>
+Date:   Thu Jun 25 21:41:44 2026 +0800
+
+    feat(idea): render attachments under bubble and cap at 10
+    
+    Freeze attached files onto the outgoing ChatMessage at send time and
+    render them as a vertical chip list under the user bubble via the new
+    MessageAttachmentList + AttachmentChip composables. The input-panel
+    attachment bar clears on send (its existing `if (isEmpty()) return`
+    then auto-hides it).
+    
+    Add a MAX_ATTACHMENTS = 10 constant in GradumToolWindowFactory. The
+    callbacks gate onSelectFile and onUploadImage defensively, and
+    onUploadImage additionally limits the file-chooser selection via
+    .take(remaining) so a multi-pick cannot overflow the cap. The new
+    isAttachmentLimitReached flag threads through ChatInputSection,
+    ChatInputPanel, and ChatToolbar; the Add IconButton uses
+    enabled = !isAttachmentLimitReached and the two selectableItems
+    (Project directory, Upload Image) guard inside onClick for parity.
+
+commit 846aad272af0531ad86d6bd1fafe7b7567e7c6a8
+Author: gwy <lg841226@outlook.com>
+Date:   Thu Jun 25 21:21:19 2026 +0800
+
+    fix(idea): align chat send shortcut with Jewel key event pattern
+    
+    Use a `when` block and filter on KeyEventType.KeyDown so KeyUp
+    cannot re-trigger send. The modifier stays on TextArea directly
+    (not the outer container) so the focus chain matches
+    EditableComboBox and SelectableLazyColumn. The send trigger
+    remains Cmd/Ctrl+Enter to preserve the existing multi-line UX;
+    Switching to plain-Enter-send is a one-line change in the `when`
+    branch.
+
+commit 6d4f541e49e109b6c841f25cb02959db51921f8b
+Author: gwy <lg841226@outlook.com>
+Date:   Thu Jun 25 21:07:08 2026 +0800
+
+    feat(idea): plugin epic upgrade with chat UI, i18n, icons, and polish
+    
+    Bootstraps the IntelliJ IDEA plugin with a Compose/Jewel tool window
+    chat surface. Decomposes GradumUI into focused components (chat,
+    input, icons, context, bundle). Externalizes every user-visible
+    string into en + zh_CN GradumBundle properties. Adds file-type icons
+    for cmd, image, and php, and a dedicated image attach icon for the
+    add menu.
+    
+    Polish:
+    - Send chat message with Cmd/Ctrl+Enter; onPreviewKeyEvent suppresses
+      the newline that would otherwise be inserted on plain Enter.
+    - Add KDoc to SweepLightText and AttachedFile.
+
+commit 906b441511e608227964ca1d623dabe6d672eefd
+Author: gwy <lg841226@outlook.com>
+Date:   Thu Jun 25 00:10:13 2026 +0800
+
+    feat(icons): add image icons, register Image in GradumIcons, simplify add menu with i18n
+
+commit 50102b7c59c05c820a00fb2d9ec485d88c3cc741
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 22:46:19 2026 +0800
+
+    refactor(idea): extract GradumIcons and EditorContext into separate files
+
+commit bea28c98050d39d182e44472ca826622f491e885
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 22:46:07 2026 +0800
+
+    i18n(idea): add bundle keys for add-popup, like, and search strings
+
+commit a4b26b0a0cdc5bd331eaf3599d139dc69b9074b6
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 19:29:26 2026 +0800
+
+    feat(idea): add chat components, dynamic tab title, like icons, and consolidate sending state
+    
+    - Extract ChatComponents.kt with ChatMessage, ChatMessageList, UserChatBubble, AssistantChatBubble, CopyButton
+    - Add hasSentMessage state to switch UI between welcome and chat views
+    - Dynamic tab title: shows 'Welcome' initially, 'New Chat' after first message
+    - Consolidate isLoading/isSending into single isSending state
+    - Add ChatInputSection wrapper to eliminate duplication
+    - Add Like and LikeSelected icons with dark variant SVGs
+    - Add copy, reset, generating bundle keys (EN/ZH)
+    - Add KDoc comments and remove unused messagePointer
+
+commit 445b781909da3dae93ac37f25f9ce3f6926deaeb
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 13:32:47 2026 +0800
+
+    i18n(idea): externalize all hardcoded UI strings into GradumBundle
+    
+    - Replace 30+ hardcoded string literals with GradumBundle.message() calls
+    - Add 10 new bundle keys for add button, clear, permissions, stop response
+    - Add Chinese translations for all new keys in GradumBundle_zh_CN.properties
+    - Fix permission value comparisons to use bundle messages instead of string literals
+
+commit 5e9fbfccacebf5386be38390a0f7052a1e2de10e
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 07:47:33 2026 +0800
+
+    chore(plugin): upgrade intellij platform plugin to 2.16.0 and add Compose/Jewel dependencies
+    
+    - Bump org.jetbrains.intellij.platform from 2.7.2 to 2.16.0
+    - Add org.jetbrains.kotlin.plugin.compose and changelog plugins
+    - Add Aliyun mirror and JetBrains KPM repositories
+    - Add local JAR dependencies for Compose Desktop, Skiko, and Jewel
+    - Configure ExperimentalComposeLibrary opt-in at project level
+    - Add idea-version constraint and change-notes to plugin.xml
+
+commit 024051bd364c096855ac993448974e8241869e50
+Author: gwy <lg841226@outlook.com>
+Date:   Wed Jun 24 07:46:24 2026 +0800
+
+    refactor(idea): decompose GradumUI into focused components, add tooltips, fix send button state
+    
+    - Extract ChatInputPanel, ChatToolbar, PermissionSelector, ModelSelectorBar,
+      and SelectorButton from the monolithic GradumUI composable
+    - Add reusable SelectorButton with configurable color and built-in tooltip
+      support via Jewel's Tooltip wrapper
+    - Fix send/stop button: now properly toggles isSending state and switches
+      between Send and Stop icons
+    - Fix send button enabled logic: always active while sending, only active
+      on non-empty text when idle (isTextNotEmpty || isSending)
+    - Rename isSend -> isSending, menuVisible -> isMenuVisible, MyIcons -> GradumIcons
+    - Replace placeholder text with 'Ask Gradum anything'
+    - Add trailing-comma-free formatting per project preference
+    - Add KDoc comments on all public declarations
+    - Center the input panel and model selector as a single unit in the tool window
+
+commit cbe30c8c5f3f704fdc0121c35ad9f848d83984df
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 23 16:10:26 2026 +0800
+
+    feat(idea): bootstrap IntelliJ IDEA plugin with GradumToolWindowFactory skeleton and plugin.xml descriptor
+
+commit c6fb94b3f582fff0fac958ceffd8e2423673cec4
+Merge: 5bdb3f8 df8a15a
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 23 08:51:23 2026 +0800
+
+    Merge branch 'hotfix/@gradum-gwy-fix-security-issues' into master
+    
+    Fix TodoManager state reset and SaveFileSkill path restrictions.
+
+commit df8a15a0ef9712e08b33ed65479a023929bf756b
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 23 08:51:02 2026 +0800
+
+    fix: restrict SaveFileSkill to sensitive system paths
+    
+    - Add PERMISSION_DENIED error code to ErrorCode enum
+    - Add isBlockedPath() validation in SaveFileSkill
+    - Block writes to system directories (/etc, /usr, /var, etc.)
+    - Block writes to sensitive home subdirectories (.ssh, .aws, etc.)
+    - Prevents AI from writing to critical system/user paths
+
+commit 345416c953b4cdd13784650b677abeb880609525
+Author: gwy <lg841226@outlook.com>
+Date:   Tue Jun 23 08:50:48 2026 +0800
+
+    fix: reset TodoManager state between sessions
+    
+    - Add restTaskList() method to TodoManager
+    - Call reset at start of each executeTask() session
+    - Prevents task state leaking from previous sessions
+    - Fixes ALREADY_INITIALIZED error when starting new session
+
+commit 5bdb3f8f3a051547ad436f96a68123d511d28504
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 23:12:10 2026 +0800
+
+    feat(todo): add task skip action and fix multiple code quality issues
+    
+    TodoSkill:
+    - Add skipTask() to advance cursor without completing
+    - Add action parameter to CompletePlanSkill (complete/skip)
+    - Add KDoc for TodoSkill, TodoManager, and CompletePlanSkill
+    
+    Bug fixes:
+    - Fix HttpClient resource leak in ModelDiscovery with .use {}
+    - Fix NDJSON Content-Type mismatch in Routes.kt
+    - Fix null safety for System.getProperty("user.home") in CommandFilter
+    - Fix BufferedReader resource leak in SyntaxChecker with .use {}
+    
+    Refactor:
+    - Use ProjectPaths.OUTPUT_DIRECTORY in RunCommandSkill (remove duplicate)
+    - Add Javadoc to ProjectPaths and Version
+    
+    Style:
+    - Remove trailing commas across multiple files
+    - Fix formatting and import order
+
+commit 8d89400dc63e0221595bc7a0e82f25fad0f128b9
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 20:13:46 2026 +0800
+
+    style: minor formatting and cleanup
+
+commit 35e0368e3e3f78c305b3d017a047c2cf9c43ee1c
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 20:13:33 2026 +0800
+
+    refactor(java): migrate ErrorCode and Version from Kotlin to Java
+
+commit 8e6ac75d3bc56bd30dfe91a1f22296ff7c596f35
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 20:11:49 2026 +0800
+
+    refactor(java): migrate ProjectPaths from Kotlin to Java
+
+commit 3e22eafe4bad0c5f48f36f94dbc381df961080cc
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 19:45:24 2026 +0800
+
+    feat(guardrail): add mission revocation system with red line keyword, repetitive loop, and tool runaway detection
+
+commit 57fd22d4e247a16919713f7ff26e01c66d346f01
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 17:24:33 2026 +0800
+
+    style(save_file): replace inline import with top-level import for Charsets
+
+commit 3d2b46116ae5a7c0d4f416dfe9e01a6720d2d530
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 17:15:32 2026 +0800
+
+    perf(save_file): deduplicate toByteArray, early charset validation, skip readLines on overwrite
+
+commit 28c93c0eefea2a81fe64518cf13d372dc9dd6d66
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 17:12:11 2026 +0800
+
+    fix(save_file): return charset name string instead of Charset object in response
+
+commit fa35ec6ad86a20d1ea64877a5e860523874833fc
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 17:11:43 2026 +0800
+
+    docs(save_file): fix KDoc and schema description for encoding parameter
+
+commit 84b9ee68ad10f39e534ea8bdee14ddac7997bc8e
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 16:48:22 2026 +0800
+
+    style: code formatting cleanup across skills and core modules
+    
+    - Remove unnecessary braces on single-expression if/when branches
+    - Remove trailing semicolons on enum entries
+    - Condense short companion functions to single-line where appropriate
+    - Adjust mapOf/trailing comma formatting for consistency
+    - Apply consistent code style across EditFileSkill, ReadFileSkill,
+      RunCommandSkill, TodoSkill, SkillRegistry, CommandFilter,
+      SyntaxChecker, AgentConfiguration, LLMClient, ModelDiscovery,
+      App, Main, ServerConfiguration
+
+commit 2c844370c3119aac929e066ebc72d9ccf63e72a3
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 16:33:18 2026 +0800
+
+    fix(read): remove bogus sun.jvm import; fix(readStreamOutput): log exception
+    
+    - Remove 'import sun.jvm.hotspot.HelloWorld.e' from ReadFileSkill.kt (merged artifact)
+    - Add logger.debug to readStreamOutput catch block instead of silent empty string
+
+commit 405f061ab43b8be5f1ae81df18c7a4eb61ff9501
+Merge: 64f6dca f1bc9ad
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 16:14:13 2026 +0800
+
+    Merge feature/@gradum-gwy-enhance-search-skill: enhanced search skill
+
+commit f1bc9add1542ff20ff3c9cbeca1bdfaff7b7e4f5
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 16:14:03 2026 +0800
+
+    feat(search): unified response, structured hints, relevance sorting, context lines
+    
+    - Unified response structure: all modes return results/totalMatches/truncated
+    - type='all' (default) additionally provides contentResults/filenameResults
+    - Structured hint JSON: suggestedFilters, mostCommonExtensions, estimatedMatches, scannedFiles, scannedDepth, elapsedMs
+    - Search summary: byFile (per-file match count), byMatchType (content/filename breakdown)
+    - Relevance sorting: exact > prefix > substring, filename > content, shorter path > longer path
+    - max_results parameter (1-100, default 20) for result count control
+    - context_lines parameter (0-10, default 0) for surrounding content in matches
+    - OR/AND keyword logic: OR for arrays, lookahead for AND
+    - History compression: strip hint/summary from searches older than 2
+    - Error messages include scannedFiles, scannedDepth, elapsedMs diagnostics
+    - Removed binary extension filtering
+    - Updated system_prompt.md and ARCHITECTURE.md documentation
+
+commit e606d0c05597363cf13024dcadf753cc757f3cc0
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:30:05 2026 +0800
+
+    docs(prompt): document binary skip, excluded dirs, and regex in search section
+
+commit 8e051d8ea73fc6e04b5143657621214abb8390c4
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:29:46 2026 +0800
+
+    docs(search): clarify description, KDoc, and keyword schema — regex, binary skip, limits
+
+commit df2c68d3add65a43ab52722d7e0b93226e81a6ff
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:27:48 2026 +0800
+
+    fix(search): validate regex keywords upfront, return clear error to AI
+
+commit 6fc29abc4495c2b0121a2b7213ba8bae58404e83
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:24:58 2026 +0800
+
+    fix(search): skip known binary file extensions in content search
+
+commit 1b9f5a18436fe26ca2693085c850b3dac845e885
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:12:02 2026 +0800
+
+    docs(prompt): add path/totalMatches/searchType to search reference
+
+commit 2263fd92b07ccb2ebfb18300955a1fa48d88d9de
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:10:06 2026 +0800
+
+    docs(search): add KDoc for extractKeywords, remove inline comments
+
+commit f703bdde2983e0f3515f0a064700e4e557b038ae
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:05:42 2026 +0800
+
+    style(search): align with coding standards — imports, naming, signatures
+    
+    - Remove copyright header (standard: start with package)
+    - Group imports by stdlib / project, alphabetical within groups
+    - Rename abbreviations: fs→fileSystem, topExt→topExtension, exts→matchedExtensions
+    - Flatten function signatures with ≤4 params to one line
+    - Catch IllegalArgumentException instead of broad Exception in compileGlob
+
+commit 895fa7eb350623575baea9de243faacfc4889713
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:03:59 2026 +0800
+
+    feat(search): support keyword (string/array), file_pattern glob filter, and truncation hint
+    
+    - Add 'keyword' parameter replacing 'query' (backward-compatible)
+    - Support multi-keyword OR search via keyword=["a", "b"]
+    - Add 'file_pattern' glob filter (e.g. *.java, *.{kt,py})
+    - Add smart truncation hint when results exceed 20
+    - Update schema to expose new parameters to LLM
+    - Align system_prompt.md examples with actual API
+
+commit 7f9466d8515391415b7324bd541b4098accde9b1
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 22 13:01:30 2026 +0800
+
+    fix(search): strip metadata not results from history
+    fix(prompt): remove non-existent lsp tool, fix lspDiagnostics->syntaxErrors
+    fix(read): remove syntaxErrors from read_file response
+    fix(test): update lsp assertion to save_file
+
+commit 64f6dcaf1f1d5174479d7779714818727c55f999
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 15:58:43 2026 +0800
+
+    feat(syntax-checker): replace LSP-based checking with language-specific parsers
+    
+    - Rewrite SyntaxChecker with 7 parsers supporting 9 languages (Java, Kotlin, C/C++, Rust, TypeScript, Go, Haskell, Python, JS/TS, Ruby, Perl, PHP, Bash)
+    - Add linter fallback chains for Python (pyflakes/flake8/py_compile) and JS (eslint/jshint/node --check)
+    - Force English diagnostics via -J-Duser.language=en for javac/kotlinc and LC_ALL=C for all subprocesses
+    - Remove LSP infrastructure (LspSkill, LspClient, LspServerDefinition, SessionManager)
+    - Conform to KDoc coding standards: full documentation, explicit types, no abbreviations
+    
+    Co-authored-by: opencode <opencode@opencode.ai>
+
+commit c118c42f1b80e5873c7f79481fb45ce8ae3d3ac3
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 11:23:43 2026 +0800
+
+    fix(agent): bundle system_prompt.md as classpath resource
+    
+    Move the system prompt from a `prompts/` file-system path into
+    `src/main/resources/` so it is included inside the fat JAR.
+    Previously, running `java -jar gradum.jar` from any directory
+    other than the project root would fail with "No such file or
+    directory" for /Users/gwy/prompts/system_prompt.md.
+    
+    Agent.kt now loads the prompt via `getResourceAsStream()`.
+
+commit e27c2302d4f0c781b9c19a233127860acc8366dc
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 08:57:50 2026 +0800
+
+    docs: explain the "why" behind five non-obvious code paths
+    
+    Pure documentation pass; no code logic changed.
+    
+    Five single-spot `//` comments added at sites where the
+    code does something surprising or non-obvious, so a future
+    reader can see the rationale without having to ask:
+    
+    - Agent.kt:150  runBlocking around responseFlow.collect
+      (TODO: migrate to suspend fun; tracked tech debt).
+    - Main.kt:19    checkNotNull after auto-port detect
+      (fail-fast vs Ktor's less-informative bind error).
+    - Routes.kt:96  Channel(UNLIMITED) for the /events stream
+      (safe because producer rate is bounded by LLM response
+      size; reconsider if user input ever flows through this
+      channel unfiltered).
+    - LspClient.kt:109  future.get(30s) timeout
+      (calibration: 30s is generous for a static-analysis
+      request; bump to 60s+ if the first query hits a cold
+      LSP server).
+    - LspClient.kt:174  catch in readLoop
+      (daemon death = whole connection death; surface the real
+      exception to in-flight callers instead of letting them
+      time out on an already-dead socket).
+
+commit 0d14fc36e5e21dec1faa80393495ef2ffdfd26ab
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 08:33:10 2026 +0800
+
+    docs: drop custom Mermaid color overrides from README and standards
+    
+    Two Mermaid diagrams shipped hand-tuned `style X fill:#...`
+    overrides that hardcoded light-mode colors and rendered
+    incorrectly on GitHub's dark mode background. Mermaid's
+    default theme is theme-aware and produces a sensible palette
+    on both light and dark backgrounds, so the manual override
+    was strictly worse than the default.
+    
+    Files touched:
+      - README.md (11 style lines removed)
+      - docs/CODING_STANDARDS_KOTLIN.md (14 style lines removed)
+
+commit 49fde8d05a1435b37a57924e501a608ae251aded
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 08:07:44 2026 +0800
+
+    chore: refresh copyright headers to "Changed by" / lowercase reserved
+    
+    Batch update across 19 files. The header format migrates
+    from:
+    
+      Copyright (c) 2026 Gradum team, Some Rights Reserved.
+      <File>  YYYY-MM-DD HH:mm:ss Created by gwy
+    
+    to:
+    
+      Copyright (c) 2026 Gradum team, some rights reserved.
+      <File>  YYYY-MM-DD HH:mm:ss Changed by gwy
+    
+    Rationale: the previous "Created by" line was wrong as a
+    general template once a file got touched in a later pass
+    (headers said "Created" forever, which the audit trail
+    could not tell apart from "still untouched since creation").
+    The new "Changed by" + fresh timestamp makes the header
+    honest about each commit.
+    
+    No source logic touched.
+
+commit 700b16e411fb25bfc1829ddb265a085e46967e5b
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 08:07:33 2026 +0800
+
+    refactor: code style pass and behavior-aligning consistency fixes
+    
+    Behavior / semantics:
+    
+    - Agent.kt: change system_prompt.md fallback message to
+      "You are a helpful AI assistant. You can't call any tool
+      and report it" instead of a bare "You are a helpful AI
+      assistant." When system_prompt.md is missing, the agent
+      now self-reports that it has no tool capability, rather
+      than silently degrading.
+    
+    - Routes.kt: replace `Instant` with `LocalDateTime` for
+      serverStartTime + uptime calculation. `Duration.between`
+      only needs nano-of-day; LocalDateTime is more honest about
+      the fact that uptime has no timezone. Also drop the
+      `java.time.Duration` fully-qualified name in favor of an
+      import.
+    
+    - ServerConfiguration.kt: reorder data class fields so
+      `providerName` sits next to other server-bootstrap fields
+      rather than at the tail. Pure readability; no functional
+      impact (destructuring is not used in this codebase).
+    
+    Style / convention:
+    
+    - SearchSkill.kt, LspServerSpec.kt: rename catch parameter
+      from `e` to `exception` to match the detekt SingleCharName
+      rule and the rest of the codebase.
+    - LspSkill.kt: extract `startEndOrNull` / `lineOf` / `colOf`
+      helpers; tighten diagnostic-text building with a single
+      `joinToString` instead of a hand-rolled StringBuilder.
+    - App.kt, LspClient.kt: import `org.slf4j.Logger` and use
+      the short name instead of `org.slf4j.Logger` inline.
+    - All 9 files: drop trailing commas in multi-line argument
+      lists and data class definitions (detekt NoTrailingCommas).
+    - logback.xml, META-INF/services/gradum.skill.Skill:
+      copyright header refresh to the new "Changed by" / lowercase
+      "some rights reserved" format.
+
+commit 44f28bf74a49865d2c83fa57a0fc6040c3de8b7e
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 21 08:07:20 2026 +0800
+
+    fix(server): start LSP reader/stderr threads via init block; guard auto-port
+    
+    Three independent fixes bundled here for atomicity of the
+    "runtime is broken" class of bugs:
+    
+    1. LspClient.kt: move the daemon-thread startup out of
+       `private val readerThread / stderrThread` field assignments
+       and into a single `init { }` block. The previous pattern
+       was easy to lose during refactor (the refactor that produced
+       this commit deleted both fields but left readLoop /
+       drainStderr as orphans, so every sendRequest hung 30s
+       before timing out). `init` ties the threads to the
+       instance's lifetime, not to a particular field position.
+    
+    2. PortUtil.kt: change `findAvailablePort` return type from
+       `Int` to `Int?` (return null on no-port-found instead of
+       returning -1). The caller can no longer accidentally
+       pass -1 to Ktor's bind(), which would have thrown
+       "port out of range" much later and far less informatively
+       than a null check at the call site.
+    
+    3. Main.kt: add `checkNotNull(detectedPort) { ... }` immediately
+       after the auto-detect call, before any logger.info, so the
+       server fails fast with a clear "no available port in range"
+       message instead of falling through to Ktor with -1.
+    
+    Also picked up: copyright header updates for the same three
+    files (Created -> Changed, Some Rights -> some rights, new
+    timestamp from the post-LSP audit refactor pass).
+
+commit 74d86ec5e739bcb486b74bdeacc62eede98d2f60
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 20:46:46 2026 +0800
+
+    feat: add LSP skill for language-aware code intelligence
+    
+    Expose 6 tools to the LLM agent via the existing Skill registry:
+      - diagnostics  project-level compile errors / warnings / hints
+      - hover        type / signature / doc on cursor
+      - definition   jump-to-definition
+      - references   all usages across the project
+      - symbols      file outline (class / function / var tree)
+      - format       LSP server's formatting edits
+    
+    Languages supported (declarative, one entry per language):
+      Kotlin, Java, TypeScript, JavaScript, Python, Go, Rust,
+      C/C++ (clangd), C#, Ruby.
+    
+    New files:
+      - util/LspServerSpec.kt   10-entry registry, project-root walker
+      - util/LspClient.kt       process-per-language pool, JSON-RPC
+                                over stdio, Content-Length framed,
+                                async id -> future correlation
+      - skill/LspSkill.kt       friendly structured return
+                                (key-value pairs + summary text)
+    
+    Integration:
+      - skill/EditFileSkill     auto-fetch diagnostics after each
+                                edit, surface as `lspDiagnostics`
+      - META-INF/services/...   register LspSkill for ServiceLoader
+      - prompts/system_prompt.md  document the `lsp` tool + new rule
+                                to check `lspDiagnostics` after edits
+    
+    detekt: bump MaxLineLength to 200, disable ArgumentListWrapping
+    to match the Apple-kernel long-line style documented in
+    CODING_STANDARDS_KOTLIN.md.
+    
+    Variable names: self-documenting per § 2.2 (spec -> serverSpec,
+    id -> requestId, conn -> connection, msg -> rpcMessage, etc.).
+
+commit 95d62a0f4857b2b072528861f8d9338373e3c7cf
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 20:46:12 2026 +0800
+
+    chore: add creation timestamps to source file copyright headers
+    
+    Batch update across 26 files:
+    
+    - 23 .kt files: append HH:mm:ss to the
+      "<File> YYYY-MM-DD Created by gwy" line so the audit trail
+      records the precise edit time, not just the date.
+    - 2 .kt files (ContextManager, EncryptionUtil): add the full
+      copyright header for the first time.
+    - logback.xml: same timestamp append on the XML comment header.
+    
+    Pure cosmetic / metadata change. No source logic touched.
+
+commit ad1f5487453664d15934e0f6d10c3765ce7eabdc
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 18:34:19 2026 +0800
+
+    refactor(transport+skill): typed ConfigOverrides, explicit Channel close, parseRangeBound helper
+    
+    - server/Routes.kt: introduce ConfigOverrides data class with
+      fromRequestMap factory, centralising every string→typed conversion
+      (`toBoolean`, `toDoubleOrNull`, `toIntOrNull`) so the route handler
+      no longer chains nine of them at the call site. Replace
+      MutableSharedFlow + "\n" sentinel with Channel + close() for the
+      NDJSON stream — termination is now explicit instead of an out-of-band
+      magic string. Use Provider.fromStringOrDefault for the config-supplied
+      provider name.
+    - skill/ReadFileSkill.kt: extract the private parseRangeBound helper
+      (rawValue.trim().toIntOrNull()) so the two call sites in
+      execute() stop duplicating the parse logic, and collapse the
+      MessageDigest digest chain onto a single long line.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit f1384f822f6f8ee70608024afcec7c38805ef9bf
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 18:34:12 2026 +0800
+
+    refactor(core): introduce Provider enum and LlmClient interface, drop string dispatch
+    
+    - AgentConfiguration.kt: add Provider enum with fromStringOrDefault factory
+      that tolerates blank or unknown input, replacing the free-form
+      providerName: String field that forced every consumer to perform string
+      equality checks and silently accepted typos.
+    - client/LLMClient.kt: add three private JsonObject extension helpers
+      (optString, optInt, optObject) that centralise the optional-primitive
+      pattern repeated across the streaming parsers. Introduce LlmClient
+      interface extending TokenUsageProvider so OllamaClient and
+      OpenAICompatibleClient share a uniform sendChat signature and the agent
+      no longer needs to special-case string-based dispatch.
+    - agent/Agent.kt: use Provider enum and LlmClient interface end-to-end,
+      drop the @OptIn(ExperimentalApi) annotation, remove the four
+      `providerName == "openai"` equality checks, and consolidate obviously
+      over-split code (retry branches, helper chains) into long-line form.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit aebd552e0d1ca57d988bc2957c4eeaef3206b96b
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 18:34:04 2026 +0800
+
+    chore: add license headers, integrate detekt, refactor util layer
+    
+    - Annotations.kt, SkillResult.kt, Version.kt, ProjectPaths.kt,
+      discovery/ModelDiscovery.kt, server/{App,Main,PortUtil,ServerConfiguration,
+      SessionManager}.kt, skill/{Edit,RunCommand,Save,Search,Skill,SkillRegistry,
+      Todo}Skill.kt, util/CommandFilter.kt: add MIT license header.
+    - ProjectPaths.kt: drop unused PROJECT_DIRECTORY export.
+    - META-INF/services/gradum.skill.Skill, logback.xml: add license header.
+    - build.gradle.kts: integrate detekt 1.23.7 with config/detekt/detekt.yml,
+      upgrade logback-classic to 1.5.25.
+    - docs/ARCHITECTURE.md: drop emoji from Mermaid subgraph labels, quote
+      edge labels so Mermaid parser accepts the diagram.
+    - util/EncryptionUtil.kt: cache derived encryption/authentication keys via
+      @Volatile singletons, share a single SecureRandom instance, hoist the
+      Mac init out of the CTR inner loop.
+    - util/ContextManager.kt: split load/save into single-purpose helpers
+      (parseJsonObject, decryptMessageIfNeeded, logMessageStats) with per-step
+      logging and structured error handling.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit df7005646554f5aaf2933d2e0ea4995aaba87c01
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 16:16:59 2026 +0800
+
+    fix(context): use JsonUtil.encodeMap for persisting conversation history
+    
+    ContextManager.saveContext() crashed with
+    "Serializer for class 'kotlin.Any' is not found" because it called
+    the same broken `jsonFormatter.encodeToString(serializer<Map<String, Any>>(),
+    contextMap)` pattern that Routes.kt and Agent.executeTask used to
+    crash on. Routing the heterogeneous Map<String, Any> payload through
+    JsonUtil.encodeMap() handles the unknown-Any case by first
+    converting to a JsonElement tree, then serializing that.
+    
+    Drop the now-unused kotlinx.serialization.serializer import.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit d16eb2ab2d3019027d4d27b46c28bcb28e5719e3
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 16:11:14 2026 +0800
+
+    fix(agent): handle JsonArray/JsonObject tool-call arguments safely
+    
+    Agent.appendAssistantMessage called `value.jsonPrimitive.contentOrNull`
+    on every tool-call argument, which throws IllegalArgumentException
+    ("Element class kotlinx.serialization.json.JsonArray is not a
+    JsonPrimitive") the moment the LLM passes an array or object as an
+    argument (e.g. read_file lineRange, search content arrays, edit
+    patches). The same bug was latent in executeSingleTool, which would
+    have crashed as soon as a non-scalar argument was passed.
+    
+    - Add JsonUtil.fromJsonElement(JsonElement): Any? that handles every
+      JsonElement subtype (JsonNull, JsonPrimitive, JsonObject, JsonArray)
+      and unwraps scalars into String/Long/Double/Boolean.
+    - Use it in appendAssistantMessage (Ollama tool_calls payload) and
+      executeSingleTool (skill argument conversion).
+    - executeSingleTool skips null values to preserve the existing
+      Map<String, Any> contract that Skill.execute depends on; the
+      Skill layer already treats missing keys as defaults via `as? T ?: ...`.
+    - Drop now-unused kotlinx.serialization.json.contentOrNull and
+      .jsonPrimitive imports from Agent.kt.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 25a8b91e42e365dc4546b04b3dde21f63bd77bd2
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 14:31:51 2026 +0800
+
+    fix(server): pass timeoutMillis to Ktor stop() in shutdown hook
+    
+    Ktor 3's EmbeddedServer.stop() does not auto-derive timeout from
+    gracePeriodMillis, so calling stop(gracePeriodMillis = 3000) leaves
+    timeout at its 1000ms default, which is < the 3000ms quietPeriod and
+    triggers IllegalArgumentException ("timeout: 1000 (expected >=
+    quietPeriod (3000))") on every clean shutdown.
+    
+    Pass timeoutMillis = 5000 explicitly so the Netty event-loop group
+    has time to drain in-flight requests and the process exits cleanly
+    without leaving a zombie listener on the port.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 20c881b256c48409ee8b77435e85ad77cd423c69
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 14:23:16 2026 +0800
+
+    style: align implementation with Kotlin coding standards
+    
+    Brings the codebase into compliance with docs/CODING_STANDARDS_KOTLIN.md
+    ahead of the next feature push. Pure style, no behavior changes
+    except where required to fix type-inference cascades.
+    
+    - Add explicit : org.slf4j.Logger type annotations to all 9 top-level
+      logger declarations
+    - Annotate local vals / lambda parameters that previously relied on
+      inference (Agent.responseFlow, skillInstance, chunk; Routes.eventMap,
+      entry, skill; ContextManager.contextMap; LLMClient.requestUrl x2;
+      ModelDiscovery.httpClient; Main.server)
+    - Wrap EmbeddedServer<Netty, NettyApplicationEngine.Configuration> in
+      a GradumServer typealias so createServerInstance and its caller fit
+      the 100-char line width
+    - Split long makeFailure / CommandVerdict.Blocked / mapOf calls across
+      multiple lines (EditFileSkill EMPTY_RESULT branch, CommandFilter
+      chmod recursive branch, Routes /models and /skills payloads)
+    - Replace string concatenation with multi-line trimIndent strings
+      (TodoSkill reminder, LLMClient formatOllamaError IOException branch)
+    - Add KDoc explaining "why" to 14 public classes/objects/extension
+      functions (Agent, OllamaClient, OpenAICompatibleClient,
+      TokenUsageProvider, Session, SessionManager, Application.module,
+      Application.registerAllRoutes, ContextManager, TodoManager,
+      TodoSkill, CompletePlanSkill, ReadFileSkill, EditFileSkill,
+      SaveFileSkill, SearchSkill, RunCommandSkill)
+    - Reorganize imports in App.kt, Agent.kt, and Routes.kt into the
+      stdlib / third-party / project three-group layout with blank lines
+    - Rename parseArguments(args) to parseArguments(arguments) per the
+      no-abbreviations rule
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 7bb28253c27ed40e63764b4eef1effe8bc193f6a
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 14:23:02 2026 +0800
+
+    refactor(skills): discover built-in skills via Java ServiceLoader
+    
+    Replaces the hardcoded registerSkill(ReadFileSkill()) ... block in
+    SkillRegistry with a ServiceLoader-based scan, so that dropping an
+    external Skill JAR on the classpath is enough to plug in new tools.
+    
+    - Add META-INF/services/gradum.skill.Skill listing the seven built-in
+      skills
+    - SkillRegistry now iterates ServiceLoader<Skill> in discoverSkills()
+      and logs how many skills were discovered
+    - Add JsonUtil helper for safely serializing heterogeneous
+      Map<String, Any> payloads (kotlinx-serialization cannot resolve a
+      serializer for Any, so the previous encodeToString(serializer<Map<...>>(),
+      ...) call failed at runtime)
+    - Add ktor-server-content-negotiation + ktor-serialization-kotlinx-json
+      to build.gradle.kts and declare the application main class so
+      ./gradlew run works
+    - Pin Gradle to the in-process Kotlin compiler and bump JVM heap to
+      1g in gradle.properties to avoid the daemon file-permission issues
+      on macOS
+    - Document the ServiceLoader mechanism in ARCHITECTURE.md and add a
+      full "Adding New Skills" walkthrough to CODING_STANDARDS_KOTLIN.md
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 960e549cd415413d3376a275aeef68787cfc3094
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:38:50 2026 +0800
+
+    fix(docs): remove overloaded END node from CommandFilter flowchart
+    
+    The CommandFilter diagram had 11 separate result nodes (SAFE, BL,
+    DD, SAFE_RM, RM_BLK, SAFE_CHMOD, CHMOD_BLK, SAFE_CHMOD2,
+    SAFE_OTHER, CRIT, NOT_CRIT) all connecting to a single
+    END([Done]) stadium node. Mermaid renders this as 11 arrows
+    colliding into one shape, producing the visual glitch where
+    arrows overlap and the Done node appears to be drawn incorrectly.
+    
+    Drop the END sink entirely. Mermaid now flows the diagram straight
+    from each terminal branch to its result label, which is a normal
+    flowchart pattern. Also fix two minor cosmetic issues:
+    
+    - TMP{prefix == '/tmp' or '/tmp/...'} rewritten to
+      TMP{prefix starts with /tmp} (cleaner label, no == operator
+      inside diamond)
+    - Remove extra whitespace on the PRE -->|No| HOME line
+
+commit 4a2ff172f8af41c7d0627621e9a0c62ae331f9df
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:37:24 2026 +0800
+
+    fix(docs): quote remaining Mermaid node labels in error code diagram
+    
+    The error code taxonomy flowchart in section 5.1 contained several
+    nodes with bare [...] labels (F1 through F12) using multi-line text
+    that included commas, apostrophes and '>' inside. While some render
+    fine, nodes with single quotes (F1, F4) trigger Mermaid's quoted
+    text heuristic and fail to render correctly.
+    
+    Wrap all twelve F1..F12 nodes in "..." so Mermaid treats the entire
+    content as a literal string. Also rewrote the F4 description to
+    spell out 'more than 1 times' to avoid the > character.
+
+commit d4c7aac6a7ac0e86b259a5d67b5606b72e56366f
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:36:06 2026 +0800
+
+    fix(docs): repair Mermaid parse errors in ARCHITECTURE.md
+    
+    Mermaid flowcharts treat unquoted [...] labels as shape syntax.
+    When the label text contains characters like '(', ')', ',', '?' or
+    '{', '}' the parser fails with "Expecting ... got 'PS'".
+    
+    Three issues were present in the diagrams:
+    
+    1. Runtime data flow: A[Agent.executeTask(userInput, loadContext)]
+       The '(' was interpreted as the start of a stadium shape (...) and
+       the comma then broke the parser. Quote the label to make Mermaid
+       treat the entire content as a string.
+    
+    2. Module dependency invariants: same pattern with
+       [RunCommandSkill.execute], [classifyCommand()],
+       [SkillResult.Failure], [ProcessBuilder.start()]. All four
+       nodes were rewrapped in "...".
+    
+    3. EditFileSkill state machine: nested state blocks used multiline
+       [label] with '{...}' and '?' inside, plus S2{matches?} with '?'
+       outside a quoted label. Rewrote the inner SequentialMode and
+       AtomicMode to use plain 'ID: description' state labels which
+       are always safe.
+    
+    Also removed nested double-quotes from the TodoManager state
+    diagram ("You still have N tasks unfinished...") which would
+    have confused the stateDiagram parser.
+
+commit 35bfaaaa6e876e00e3abc4463427f926c38903a5
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:31:10 2026 +0800
+
+    chore: ignore .kotlin/ Gradle local cache directory
+    
+    The .kotlin/ directory is created by Gradle 9.x in the project root
+    to cache build tool state. It is local-only and should not be tracked.
+    
+    Add it to the Kotlin/Gradle section of .gitignore alongside the
+    existing build/, .gradle/, .idea/, *.iml rules.
+
+commit e9ddcc2145b8058253a642c48bd3314c0aec76ac
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:30:10 2026 +0800
+
+    docs: rewrite documentation for Kotlin implementation
+    
+    Bring the project documentation in line with the new Kotlin
+    implementation. The previous docs described a Python-based system
+    that no longer exists in the repository.
+    
+    - README.md: project overview, feature list, Gradle build instructions,
+      HTTP API contract, complete skill parameter reference, technology
+      stack table, LLM backend setup (Ollama, LM Studio, vLLM, LocalAI),
+      security model summary, and limitations. Adds a Mermaid system
+      overview diagram.
+    - docs/ARCHITECTURE.md: rewritten technical whitepaper with 27
+      Mermaid diagrams covering module layers, dependency invariants,
+      runtime data flow, Agent main loop, NDJSON event lifecycle,
+      Ollama/OpenAI protocol differences, HMAC-CTR encryption scheme,
+      model auto-discovery, HTTP routes, SessionManager, EditFileSkill
+      state machine, CommandFilter, blocking vs detached execution,
+      TodoManager state, error code taxonomy, threat model, and future
+      work roadmap.
+    - docs/PLUGIN_DEVELOPMENT.md: full skill development guide covering
+      Skill type system, SkillResult sealed class, getSchema() format,
+      step-by-step skill creation, complete FileCounterSkill example,
+      best practices (parameters, errors, file I/O, LLM guidance, shell
+      command safety with @OptIn(DangerousOperation::class), path
+      handling, state management). Includes 3 Mermaid diagrams
+      (registration flow, class hierarchy, result flow).
+    - docs/CODING_STANDARDS_KOTLIN.md: 20-section Kotlin coding standards
+      (naming, imports, null safety, SkillResult error handling,
+      kotlinx-serialization usage, string templates, braces,
+      parameters, Path handling with normalize(), UTF-8 file I/O,
+      blank lines, line width, explicit type annotations, file
+      organization by abstraction level, shell command safety, build
+      instructions). Opens with a Mermaid style-decision flow chart.
+    - LICENSE: refreshed boilerplate.
+
+commit 7b4d0e134bef9d85a632dac389886bc18c369d1c
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:29:56 2026 +0800
+
+    feat: add Kotlin 2.0.21 implementation
+    
+    Introduce the Gradum 0.8.2 core written in Kotlin 2.0.21 on JVM 21.
+    The system exposes a local-first AI coding agent with a Ktor-based
+    HTTP API, NDJSON streaming responses, hardcoded skill registry, and
+    encrypted context persistence.
+    
+    Module layout under src/main/kotlin/gradum/:
+    
+    - agent/        Agent main loop: context load, system prompt injection,
+                    tool dispatch, NDJSON event emission, todo-reminder
+                    injection, context save
+    - client/       LLMClient with OllamaClient and OpenAICompatibleClient
+                    streaming implementations plus ToolCallEntry and
+                    TokenUsageSnapshot
+    - discovery/    ModelDiscovery: parallel probe of 4 local LLM server
+                    ports (Ollama 11434, LM Studio 1234, vLLM 8000,
+                    LocalAI 8080) with 1.5s timeout and exponential backoff
+    - server/       Ktor server: App.kt, Main.kt (CLI parsing), Routes.kt
+                    (/events, /health, /models, /skills), PortUtil,
+                    ServerConfiguration, SessionManager
+    - skill/        Skill abstract base + SkillRegistry.discoverSkills
+                    with 7 hardcoded skills: ReadFile, EditFile
+                    (sequential/atomic), SaveFile, RunCommand (blocking/
+                    detached + CommandFilter), Search, TodoManager
+    - util/         CommandFilter (executable blocklist + critical path
+                    protection), ContextManager (encrypted I/O), and
+                    EncryptionUtil (custom HMAC-CTR + HMAC-SHA256)
+    - Top-level:    AgentConfiguration, Annotations (@ExperimentalApi /
+                    @DangerousOperation), ProjectPaths, SkillResult
+                    sealed class, Version
+    
+    Resources:
+    - src/main/resources/logback.xml: console + per-module log levels
+    - prompts/system_prompt.md: agent system prompt loaded at runtime
+    
+    Scripts:
+    - scripts/backup.sh: parameterize the USB drive name via
+      USB_DRIVE_NAME env var (default: Gradum) so the script no longer
+      hard-codes a specific volume name
+
+commit 2f3f2cb227495088db4bfc33de8aa778ec96d69a
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:29:43 2026 +0800
+
+    chore: migrate build system to Gradle 9.1.0
+    
+    Replace the Python build toolchain (uv/pip via pyproject.toml) with a
+    Gradle-based Kotlin build. The build script declares the production
+    runtime: Ktor server/client, kotlinx-serialization, kotlinx-coroutines,
+    and Logback.
+    
+    Added:
+    - settings.gradle.kts: root project name 'gradum'
+    - build.gradle.kts: Kotlin 2.0.21 + JVM 21 toolchain, 8 implementation
+      dependencies, application plugin, fat jar via java-application plugin
+    - gradle.properties: Kotlin code style + JVM args
+    - gradle/wrapper/{gradle-wrapper.jar, gradle-wrapper.properties}:
+      pins Gradle 9.1.0 distribution
+    - gradlew / gradlew.bat: standard Gradle wrapper launchers
+    
+    Updated:
+    - .gitignore: add Kotlin/Gradle rules (build/, .gradle/, *.iml, .idea/)
+
+commit fd114adf07af472b47852d1db19ba26281a1bc2e
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 12:29:21 2026 +0800
+
+    chore: remove legacy Python implementation and launcher GUI
+    
+    Drop the Python source tree under src/gradum/ and the archived
+    PySide-based desktop launcher under _archived/launcher/. The codebase
+    is being rewritten in Kotlin and the Python implementation is no
+    longer maintained or required for runtime.
+    
+    Removed:
+    - src/gradum/{agent,client,discovery,paths}.py and Python __main__
+    - src/gradum/server/ (Python Ktor-equivalent HTTP layer)
+    - src/gradum/skills/ (8 Python skill implementations)
+    - src/gradum/utils/ (command filter, encryption, IO, health)
+    - src/gradum/prompts/system_prompt.md
+    - _archived/launcher/ (47-file PySide GUI: widgets, panels, theme,
+      i18n, icons, conversation history)
+    - pyproject.toml
+    - .vscode/launch.json and .vscode/settings.json
+      (no longer match the Kotlin/Gradle workflow)
+
+commit 09b943023af1931a7075683b8d54578fdbc4232f
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 02:25:49 2026 +0800
+
+    chore: 删除根目录 agent.py 向后兼容垫片
+    
+    - 删除 agent.py（原用于 python agent.py 向后兼容）
+    - 更新 ARCHITECTURE.md 中的示例命令使用 python -m gradum.server
+
+commit 41e19c37178f451ec3a730269a1fd228a2fc8b11
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 20 02:20:26 2026 +0800
+
+    feat(skills): 统一错误响应格式，添加 run_cmd 工作目录和环境变量支持
+    
+    - base.py 新增 make_error()/make_success() 辅助函数
+    - 所有技能返回统一格式：{success, tool, error: {code, message}, ...context}
+    - run_cmd 新增 cwd（工作目录）和 env（环境变量）参数
+    - edit_file.py 修复部分失败时 success: True 的问题（改为 success: False + partial: True）
+    - read_file.py/edit_file.py 添加文件大小限制（1MB）
+    - todo.py 添加任务数量限制（20个）
+    - complete_plan.py 修复 int() 转换异常
+    - 修复 Python 3.9 兼容性（使用 Optional/Union 替代 X | Y 语法）
+
+commit fe817645100d2659eaa3dec8e4973932fdcf7b4b
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 15 22:35:48 2026 +0800
+
+    feat(server): add experimental decorator for route handlers
+    
+    为路由处理函数添加实验性装饰器，调用时会弹出对应警告提示
+
+commit d5b6edc1171b8266f0ee9f597a21c0e91f176597
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 15 22:33:24 2026 +0800
+
+    docs: 添加项目文档、许可证和服务器实验性提示
+    
+    - 新增LICENSE文件，使用MIT许可证
+    - 新增完整的README.md文档，包含项目介绍、使用方法等
+    - 在服务器相关模块的注释中添加实验性功能提示
+    - 完善FastAPI lifespan函数的文档注释
+    - 为/action接口添加实验性标记说明
+
+commit f6077825c87aad44afce49735efadcef7c524342
+Author: gwy <lg841226@outlook.com>
+Date:   Mon Jun 15 21:48:48 2026 +0800
+
+    feat(server): 新增Gradum HTTP服务器模块，添加版本0.6.0
+    
+    新增完整的HTTP服务端实现：
+    1. 添加server模块目录结构与核心文件
+    2. 新增FastAPI应用与路由系统
+    3. 实现会话管理与配置模块
+    4. 添加CLI启动入口
+    5. 更新pyproject.toml添加依赖与服务启动脚本
+    6. 更新架构文档，新增服务层相关内容
+
+commit ec5424305b1fe3a615e073822f04973f91947807
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 14 20:06:27 2026 +0800
+
+    feat: 新增模型自动发现功能，支持OpenAI兼容API
+    
+    - 更新项目描述，添加OpenAI兼容API支持说明
+    - 新增模型自动发现模块，支持探测Ollama、LM Studio、vLLM、LocalAI本地服务
+    - 为搜索技能新增二进制文件过滤和项目路径校验
+    - 重构LLM客户端，支持Ollama和OpenAI兼容两种协议
+    - 重构代理逻辑，支持自动选择提供商和模型
+    - 新增命令行参数支持自定义提供商、基础URL和模型
+    - 清理临时示例文件和测试日志内容
+
+commit 19c45cd9dd4e172cb44872c53945e464ebee8487
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 13 23:11:54 2026 +0800
+
+    refactor(skills): 优化搜索结果排序逻辑并修复代码细节
+    
+    1. 为搜索技能添加基于目录深度的结果排序，让结果按项目结构分组展示
+    2. 简化normalize_keyword返回值的冗余括号
+    3. 重构edit_file技能：
+       - 新增多编码文件写入支持
+       - 添加前置编辑校验、编码读取、分步执行注释
+       - 修复多余的行计数代码
+    4. 新增插件开发文档PLUGIN_DEVELOPMENT.md
+    5. 清理测试日志文件内容
+
+commit ec2ee7e028623b666fc6e1704a941473f039c4c8
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 13 11:30:03 2026 +0800
+
+    chore: 完成项目代码规范整理与功能优化
+    
+    - 添加ruff lint配置，统一代码风格
+    - 新增CODING_STANDARDS.md编码规范文档
+    - 重构搜索技能，新增上下文行、根目录参数与结果排序
+    - 优化导入顺序与类型注解，移除冗余导入
+    - 修复agent.py末尾缺失换行问题
+    - 更新架构文档中的技能名称与代码引用行号
+    - 简化异常捕获，移除未使用的异常变量
+
+commit 3f688617cb945f35a1e3aa13f3b18ab640875c16
+Author: gwy <lg841226@outlook.com>
+Date:   Sun Jun 7 19:47:03 2026 +0800
+
+    feat: 初始化本地AI编程代理Gradum项目
+    
+    新增项目基础结构、技能系统、Ollama集成工具、命令行入口与配置文件，修复备份脚本路径错误，整理.gitignore规则
+
+commit 67ce595f1df056a7dfee1553df9f68b64d1ac684
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 6 21:52:40 2026 +0800
+
+    refactor: 重构代码并优化功能细节
+    
+    1.  更新系统提示词，添加{{OS}}占位符并替换为实际系统信息
+    2.  简化edit_file.py的错误处理函数参数
+    3.  为sample.py添加中文注释并新增发票生成函数
+    4.  重构Ollama客户端，新增错误标记并优化错误处理逻辑
+    5.  完善Agent工具调用管理，添加单调计数器生成唯一工具调用ID
+    6.  调整默认上下文窗口大小为16384
+
+commit 855d68ce37de08e02fe60b67e2d9771114ade058
+Author: gwy <lg841226@outlook.com>
+Date:   Sat Jun 6 19:50:48 2026 +0800
+
+    refactor: 重构技能返回格式为结构化字典
+    
+    - 将所有技能的execute方法返回值从字符串改为标准化字典格式
+    - 移除技能类中的format_content和format_args方法
+    - 重构save_file、read_file、run_cmd、todo、finish_todo等技能实现
+    - 优化错误处理，返回更详细的错误信息和状态码
+    - 更新skills/__init__.py添加版本号
+
+commit 1b43d11dccb188178aea4a6534672907ce1b1c55
+Author: gwy <lg841226@outlook.com>
+Date:   Sun May 31 21:13:02 2026 +0800
+
+    feat: 完成AI启动器核心功能开发
+    
+    本次提交完成了以下核心内容：
+    1.  添加项目依赖并更新requirements.txt
+    2.  新增全套UI图标资源
+    3.  配置VSCode开发环境
+    4.  实现国际化多语言支持框架
+    5.  新增项目配置常量定义
+    6.  编写核心业务服务类，包含模型格式化、Ollama服务管理、资源监控等功能
+    7.  实现自定义UI组件，包括可折叠卡片、自动隐藏滚动区域、旋转加载动画等
+    8.  完成三栏布局的面板管理系统
+    9.  编写完整的样式表文件，优化UI视觉效果
+    10. 修复备份脚本，排除虚拟环境目录
+
+commit 6d9cae90f5acf86d7bf21e1271741bd0e6c7fee9
+Author: gwy <lg841226@outlook.com>
+Date:   Sat May 30 20:34:20 2026 +0800
+
+    refactor: 重构项目代码结构，抽离公共组件到独立模块
+    
+    - 将ToastNotification、AutoHideScrollArea等自定义组件抽离到launcher.widgets模块
+    - 重构launcher.py，移除内置的重复代码并引入公共组件
+    - 新增多个SVG图标资源用于UI展示
+    - 更新.gitignore忽略launcher/conversations目录
+    - 优化备份脚本的空行格式
+    - 更新VSCode编辑器配置项
+    - 新增聊天面板相关组件实现会话管理
+    - 重构资源信息统计逻辑，改为统计全局系统资源
+
+commit 90c6fdb59fe0f7bcdd12ef64e3c5fc799c47abf2
+Author: gwy <lg841226@outlook.com>
+Date:   Wed May 27 22:36:16 2026 +0800
+
+    feat: 新增系统资源监控、UI优化与依赖补充
+    
+    1. 新增CPU、内存、请求延迟监控面板与对应图标
+    2. 重构输入区域布局，优化按钮与输入框样式
+    3. 补充PyQt6-Qt6依赖项
+    4. 调整多处文字样式与间距细节
+    5. 优化请求日志解析与延迟统计逻辑
+    6. 移除字符计数相关逻辑，简化按钮状态判断
+
+commit 1ffce93ca8781aabce307c8be048c4a3aab9e22d
+Author: gwy <lg841226@outlook.com>
+Date:   Sun May 24 17:06:46 2026 +0800
+
+    feat: 新增多项功能并优化UI样式
+    
+    - 新增6个侧边栏SVG图标
+    - 重构样式表，调整字体大小与组件样式
+    - 添加可折叠卡片图标支持
+    - 实现自动隐藏滚动条的滚动区域组件
+    - 新增请求监控面板与日志功能
+    - 添加Toast通知组件
+    - 支持面板拖拽调整大小并设置尺寸限制
+    - 优化输入框验证与错误提示
+    - 新增Ollama服务监控与日志解析
+    - 调整布局间距与组件尺寸
+
+commit e25e9f697e2603987cfcd62a6ea41d5bc113dae4
+Author: gwy <lg841226@outlook.com>
+Date:   Sat May 23 23:22:00 2026 +0800
+
+    refactor: 重构项目结构，将GUI代码迁移至launcher模块
+    
+    1.  拆分原launcher.py文件，将UI代码、启动逻辑等按模块划分
+    2.  新增依赖配置requirements.txt，添加PyQt6和psutil依赖
+    3.  新增launcher模块的__init__.py导出AgentLauncher类
+    4.  新增GUI所需的箭头图标资源和样式表文件
+    5.  更新VSCode调试配置，指向新的launcher入口文件
+    6.  为agent和client新增温度、上下文长度等模型参数支持
+
+commit 5efe28514e0fa556c7aa8fbee524ae26804273eb
+Author: gwy <lg841226@outlook.com>
+Date:   Sun May 17 23:50:05 2026 +0800
+
+    chore: 完成多批量化更新与功能迭代
+    
+    1. 重构日志管理器实现逻辑
+    2. 新增待办事项管理与完成技能
+    3. 添加Windows/macOS备份脚本
+    4. 优化编辑器输出格式化与类型提示
+    5. 替换VSCode字体与字号配置
+    6. 重写GUI启动器为PyQt6版本
+    7. 修正系统提示文档格式与说明
+
+commit 40881731eb77dc0ccd59dd154b474ea18e4010e3
+Author: gwy <lg841226@outlook.com>
+Date:   Sun May 17 01:26:07 2026 +0800
+
+    refactor: 重构日志与上下文管理，新增GUI启动器
+    
+    1.  重构agent.py，将日志和上下文管理抽离到utils模块
+    2.  新增launcher.py提供图形化启动界面
+    3.  优化搜索技能的依赖导入位置
+    4.  新增日志格式化和IO工具类
+    5.  更新VSCode配置与调试配置
+
+commit 79e8ce4ffbf981651cab7ba25327b2b4ddad5845
+Author: 葛汪洋 <lg841226@outlook.com>
+Date:   Sat May 9 23:42:15 2026 +0800
+
+    refactor: 优化日志处理和消息输出逻辑
+    
+    - 移除 tool_call_start 日志类型，简化日志记录流程
+    - 优化消息处理逻辑，减少重复输出
+    - 改进消息内容处理，减少token使用
+    - 更新系统提示文档，优化任务执行流程说明
+    - 添加新的模型选项到调试配置
+    - 改进命令执行和文件编辑的输出格式
+
+commit 4a17822ce864ab3c065cfdda1c0ada3ea84b978b
+Author: 葛汪洋 <lg841226@outlook.com>
+Date:   Tue May 5 20:10:03 2026 +0800
+
+    refactor(agent): 重构输出和日志处理逻辑
+    
+    合并多个输出方法为统一的_output_content方法
+    简化日志写入逻辑，移除_write_log_entry_immediately方法
+    优化消息过滤规则，跳过空内容和工具消息
+
+commit e95bbb56e62b47abe4bbe8dad325d1b658f3adae
+Author: 葛汪洋 <lg841226@outlook.com>
+Date:   Tue May 5 19:30:23 2026 +0800
+
+    refactor(agent): 优化加载上下文文件的错误处理逻辑
+    
+    将多个分散的错误检查和处理逻辑整合为统一的错误消息收集机制，减少重复代码并提高可维护性
+
+commit 8d31ef1c5f3011b487fac6e9f307c2de7183e03b
+Author: 葛汪洋 <lg841226@outlook.com>
+Date:   Tue May 5 19:26:05 2026 +0800
+
+    feat(agent): 添加对话上下文持久化支持
+    
+    - 在Agent类中实现上下文保存和加载功能
+    - 支持通过--context参数加载历史对话
+    - 添加info/warning/error日志类型支持
+    - 优化系统提示文档和VS Code调试配置
+    - 限制上下文消息数量防止内存问题
+
+commit c66f14a3ad8c613a445f5409cc640ee6f87c6928
+Author: 葛汪洋 <lg841226@outlook.com>
+Date:   Tue May 5 17:39:54 2026 +0800
+
+    feat: 添加上下文保存与加载功能并优化代码结构
+    
+    refactor: 重构日志处理和工具调用逻辑
+    
+    fix: 修复文件操作错误处理和恢复逻辑
+    
+    docs: 更新系统提示文档添加复杂项目处理指南
+    
+    style: 统一代码格式和命名规范
+    
+    perf: 优化令牌统计和错误处理性能
+    
+    test: 添加上下文管理相关测试用例
+    
+    chore: 更新依赖和配置文件
+
+commit faa031b12ecb4f85a3aa880feb0edea0a855e063
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Sun May 3 13:37:04 2026 +0800
+
+    feat(search): 扩展搜索功能支持文件名和目录名搜索
+    
+    refactor(complete_plan): 优化任务完成错误提示信息
+    docs(system_prompt): 更新系统提示文件格式为markdown
+
+commit c8a147fa4821bc0aab2cf5836111882273078b62
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Sat May 2 23:04:17 2026 +0800
+
+    refactor: 清理代码注释和简化安全命令检查
+    
+    style: 统一错误消息格式并移除多余注释
+    docs: 更新系统提示文本以更专业
+    fix: 改进异常处理以捕获特定错误类型
+
+commit ba84b9678629ea2cf421d9ce9d791dec159a2f7b
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Thu Apr 30 22:31:15 2026 +0800
+
+    refactor(skills): 优化技能描述和功能实现
+    
+    feat(complete_plan): 添加批量完成模式
+    perf(search): 改进搜索性能和过滤功能
+    style: 清理代码格式和注释
+    docs(system_prompt): 更新系统提示内容
+    chore: 更新默认模型配置
+
+commit d6685913347dc01d99036c4297341b078da7fe3b
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Wed Apr 29 21:57:01 2026 +0800
+
+    feat: 添加项目备份脚本和更新.gitignore
+    
+    添加PowerShell备份脚本用于自动备份项目文件并压缩
+    在.gitignore中添加output/目录并调整注释格式
+
+commit 6cfb64c3c7a6b8cd367b9283f7953e8050c61233
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Tue Apr 28 21:25:38 2026 +0800
+
+    chore: 添加VS Code配置并简化.gitignore
+    
+    添加VS Code的settings.json和launch.json配置文件，优化开发环境设置
+    简化.gitignore文件，移除不必要的条目，保留核心Python和IDE相关配置
+
+commit c78f10879d0c30588edd4d1ebe3378e00aa057cd
+Author: Ge_Wangyang <lg841226@outlook.com>
+Date:   Mon Apr 27 22:33:21 2026 +0800
+
+    feat: 添加基础技能框架和核心功能模块
+    
+    新增技能基础类及多个具体技能实现，包括文件操作、任务管理和命令执行等功能。同时添加客户端模块、日志格式化工具和系统提示文件。
+    
+    主要变更：
+    - 添加技能基础类及多个具体技能实现
+    - 实现文件读写、编辑和搜索功能
+    - 添加任务计划和管理功能
+    - 实现安全的命令执行功能
+    - 添加Ollama客户端模块
+    - 提供日志格式化工具
+    - 添加系统提示文件

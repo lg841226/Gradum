@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-06-30 11:24:19 Changed by gwy
+ * Routes.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.server
@@ -12,6 +12,8 @@ import gradum.Version
 import gradum.agent.Agent
 import gradum.discovery.ModelEntry
 import gradum.discovery.discoverModels
+import gradum.discovery.recommend
+import gradum.discovery.RecommendationContext
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
 import gradum.utils.JsonUtil
@@ -246,23 +248,35 @@ fun Application.registerAllRoutes() {
 
         get("/models") {
             val discoveredModels: List<ModelEntry> = discoverModels()
-            application.log.info("Discovered ${discoveredModels.size} models: ${discoveredModels.map { it.modelName }}")
+            // Re-snapshot free memory on every request so a freshly
+            // opened IDE / browser does not push the local ranking
+            // past a user's available headroom. Per-request cost is
+            // one getFreeMemorySize() syscall — negligible.
+            val recommendationContext: RecommendationContext = RecommendationContext.fromSystemMemory()
+            val recommended: ModelEntry? = recommend(discoveredModels, recommendationContext)
+            application.log.info(
+                "Discovered ${discoveredModels.size} models; available RAM headroom " +
+                    "= ${"%.1f".format(recommendationContext.availableRamGB)} GB; " +
+                    "recommended = ${recommended?.modelName ?: "<none>"}"
+            )
+            val modelToJson: (ModelEntry) -> Map<String, Any> = { entry: ModelEntry ->
+                mapOf(
+                    "name" to entry.modelName,
+                    "provider" to entry.providerType,
+                    "server" to entry.serverUrl,
+                    "serverName" to entry.serverName,
+                    "contextLimit" to entry.contextLimit,
+                    "reasoning" to entry.reasoning,
+                    "toolCall" to entry.toolCall,
+                    "openWeights" to entry.openWeights,
+                    "attachment" to entry.attachment
+                )
+            }
             call.respondText(
                 text = JsonUtil.encodeMap(
                     mapOf(
-                        "models" to discoveredModels.map { entry: ModelEntry ->
-                            mapOf(
-                                "name" to entry.modelName,
-                                "provider" to entry.providerType,
-                                "server" to entry.serverUrl,
-                                "serverName" to entry.serverName,
-                                "contextLimit" to entry.contextLimit,
-                                "reasoning" to entry.reasoning,
-                                "toolCall" to entry.toolCall,
-                                "openWeights" to entry.openWeights,
-                                "attachment" to entry.attachment
-                            )
-                        },
+                        "models" to discoveredModels.map(modelToJson),
+                        "recommended" to recommended?.let(modelToJson)
                     )
                 ),
                 contentType = ContentType.Application.Json
