@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-06-28 11:09:27 Changed by gwy
+ * GradumApiClient.kt  2026-06-30 23:35:47 Changed by gwy
  */
 
 package gradum.idea.chat.api
 
+import com.intellij.openapi.diagnostic.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -26,12 +27,28 @@ import java.net.http.HttpResponse
  * via the server's REST API. The server exposes a streaming NDJSON endpoint
  * at `POST /events` for real-time agent responses.
  *
+ * The NDJSON stream is consumed and **parsed per line inside this client**:
+ * each line is JSON-decoded independently, and a line that fails to parse
+ * is logged at WARN level and skipped — the stream itself does not abort.
+ * This used to live in the caller ([gradum.idea.chat.state.GradumChatSession]),
+ * but the previous per-line try-catch was easy to miss when adding new
+ * consumers and meant the same JSON object was being parsed twice (once to
+ * validate, once to dispatch). Centralising it here gives us a typed
+ * `Flow<JsonObject>` contract and a single place to add observability
+ * (e.g. per-line counters, schema validation).
+ *
  * @property baseUrl The base URL of the Gradum server (default: `http://localhost:8765`).
  */
 class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
+    private val log: Logger = Logger.getInstance(GradumApiClient::class.java)
     private val client: HttpClient = HttpClient.newHttpClient()
     private val jsonEncoder: Json = Json { ignoreUnknownKeys = true }
+    /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
+    private val ndjsonParser: Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     /**
      * Fetches the list of available LLM models discovered by the server.
@@ -73,12 +90,20 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     }
 
     /**
-     * Sends a chat message to the Gradum server and returns a streaming response.
+     * Sends a chat message to the Gradum server and returns a streaming response
+     * of pre-parsed JSON event objects.
      *
      * The server processes the message through an agent loop that may invoke
      * tools (file editing, search, command execution) and streams back NDJSON
      * events as the agent works. Each event line contains a JSON object with
      * `type`, `timestamp`, and `data` fields.
+     *
+     * **Per-line resilience:** Each NDJSON line is parsed in isolation. A
+     * malformed line is logged at WARN and the stream continues with the
+     * next line. Only connection-level failures (e.g. the underlying
+     * [HttpClient.send] throws) abort the flow — those are caught by the
+     * caller's `Flow.catch` block. The line payload is truncated to
+     * [MAX_LOGGED_LINE] characters in the log to keep IDE logs readable.
      *
      * Event types include:
      * - `session_start` — Agent session initialized
@@ -92,7 +117,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
      * @param model Optional model name override. When `null`, the server uses its configured default.
      * @param config Optional configuration map with keys like `baseUrl`, `provider`, `think`, etc.
      * @param loadContext Whether to load previous conversation context from disk.
-     * @return A [Flow] of NDJSON event lines from the server.
+     * @return A [Flow] of [JsonObject] events from the server. Lines that fail
+     *   to parse are logged and skipped — they do not appear in the flow.
      */
     fun sendMessage(
         message: String,
@@ -102,7 +128,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         toolMode: String? = null,
         promptVariant: String? = null,
         projectRoot: String? = null,
-    ): Flow<String> = flow {
+    ): Flow<JsonObject> = flow {
         val requestBody: JsonObject = buildJsonObject {
             put("message", message)
             if (model != null) put("model", model)
@@ -124,12 +150,55 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
         val response: HttpResponse<InputStream> = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
+        // Per-line try-catch lives here, NOT in the consumer. The previous
+        // design (raw Flow<String>) pushed the burden onto every caller and
+        // it was easy to add a new consumer and forget the catch. By parsing
+        // up-front, callers receive a typed Flow<JsonObject> and a single
+        // .catch on the consumer side is enough to handle connection-level
+        // failures only.
         response.body().bufferedReader().use { reader: java.io.BufferedReader ->
+            var lineNumber: Int = 0
             var ndjsonLine: String? = reader.readLine()
             while (ndjsonLine != null) {
-                if (ndjsonLine.isNotBlank()) emit(ndjsonLine)
+                lineNumber++
+                if (ndjsonLine.isNotBlank()) {
+                    parseAndEmit(ndjsonLine, lineNumber)
+                }
                 ndjsonLine = reader.readLine()
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Parses a single NDJSON line into a [JsonObject] and emits it. Failures
+     * are logged with a truncated preview and swallowed so the stream keeps
+     * flowing. Returns nothing — the result (success or skipped) is expressed
+     * through whether [emit][kotlinx.coroutines.flow.FlowCollector.emit] was
+     * called.
+     */
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<JsonObject>.parseAndEmit(
+        line: String,
+        lineNumber: Int,
+    ) {
+        val parsed: JsonElement = try {
+            ndjsonParser.parseToJsonElement(line)
+        } catch (exception: Exception) {
+            val preview: String = line.take(MAX_LOGGED_LINE)
+            log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
+            return
+        }
+        val asObject: JsonObject = when (parsed) {
+            is JsonObject -> parsed
+            else -> {
+                log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
+                return
+            }
+        }
+        emit(asObject)
+    }
+
+    private companion object {
+        /** Cap on how much of a malformed line we copy into the IDE log. */
+        const val MAX_LOGGED_LINE: Int = 200
+    }
 }

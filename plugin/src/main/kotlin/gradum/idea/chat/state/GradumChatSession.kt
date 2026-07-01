@@ -63,7 +63,6 @@ private data class ModelsListResponse(val models: List<ModelInfo>)
 class GradumChatSession {
 
     private val log: Logger = Logger.getInstance(GradumChatSession::class.java)
-    private val eventJson: Json = Json { ignoreUnknownKeys = true }
 
     /** Coroutine scope used by [processPendingQueue] to launch the next send. */
     var scope: CoroutineScope? = null
@@ -473,39 +472,39 @@ class GradumChatSession {
                     )
                 }
                 isSending = false; sendingPhase = ""; processPendingQueue()
-            }.collect { ndjsonLine ->
-                try {
-                    val event: JsonObject = eventJson.parseToJsonElement(ndjsonLine) as JsonObject
-                    val type: String = event["type"]?.jsonPrimitive?.content ?: return@collect
-                    val data: JsonObject? = event["data"]?.jsonObject
+            }.collect { event: JsonObject ->
+                // Per-line parse errors are handled in GradumApiClient
+                // (logged + skipped, stream continues). The .catch on the
+                // outer flow handles connection-level failures only, so
+                // this collector body can assume every emission is a
+                // well-formed JsonObject.
+                val type: String = event["type"]?.jsonPrimitive?.content ?: return@collect
+                val data: JsonObject? = event["data"]?.jsonObject
 
-                    when (type) {
-                        "session_start" -> {
-                            sessionId = event["sessionId"]?.jsonPrimitive?.content
-                            contextLoaded = true
-                        }
-
-                        "response" -> {
-                            isWaitingForResponse = false; handleResponseEvent(data)
-                        }
-
-                        "thinking" -> {
-                            isWaitingForResponse = false; handleThinkingEvent(data)
-                        }
-
-                        "tool_call" -> handleToolCallEvent(data)
-                        "error" -> handleErrorEvent(data)
-                        "session_end" -> {
-                            isSending = false; sendingPhase = ""
-                            isWaitingForResponse = false
-                            currentJob = null
-                            sessionId = null
-                            resetThinkingState()
-                            processPendingQueue()
-                        }
+                when (type) {
+                    "session_start" -> {
+                        sessionId = event["sessionId"]?.jsonPrimitive?.content
+                        contextLoaded = true
                     }
-                } catch (exception: Exception) {
-                    log.warn("Failed to parse NDJSON event: $ndjsonLine", exception)
+
+                    "response" -> {
+                        isWaitingForResponse = false; handleResponseEvent(data)
+                    }
+
+                    "thinking" -> {
+                        isWaitingForResponse = false; handleThinkingEvent(data)
+                    }
+
+                    "tool_call" -> handleToolCallEvent(data)
+                    "error" -> handleErrorEvent(data)
+                    "session_end" -> {
+                        isSending = false; sendingPhase = ""
+                        isWaitingForResponse = false
+                        currentJob = null
+                        sessionId = null
+                        resetThinkingState()
+                        processPendingQueue()
+                    }
                 }
             }
         } catch (exception: Exception) {
