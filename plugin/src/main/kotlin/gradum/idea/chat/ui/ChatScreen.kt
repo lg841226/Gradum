@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-06-30 23:35:47 Changed by gwy
+ * ChatScreen.kt  2026-07-04 11:46:56 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.model.ChatMessage
@@ -50,6 +51,8 @@ fun ChatScreen(
     onCopyAsContext: (String) -> Unit,
     onRefreshModels: () -> Unit,
     onOpenInEditor: (String) -> Unit = {},
+    onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
+    onAttachmentClick: (VirtualFile) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -66,8 +69,7 @@ fun ChatScreen(
                 .verticalScroll(scrollState)
         ) {
             messages.forEachIndexed { index, message ->
-                val shouldShowTimestamp = index == 0 ||
-                    formatTimestamp(message.timestamp) != formatTimestamp(
+                val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) != formatTimestamp(
                     messages.getOrNull(index - 1)?.timestamp ?: 0L
                 )
                 val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
@@ -83,13 +85,14 @@ fun ChatScreen(
                     message.isUserMessage -> UserChatBubble(
                         message = message,
                         onDeleteMessage = { onDeleteMessage(index) },
-                        onCopyAsContext = onCopyAsContext
+                        onCopyAsContext = onCopyAsContext,
+                        onAttachmentClick = onAttachmentClick
                     )
 
                     else -> AssistantChatBubble(
                         message = message,
-                        isLoading = isLastAssistant,
                         sendingPhase = if (isLastAssistant) sendingPhase else "",
+                        isLoading = isLastAssistant,
                         actionsEnabled = !isWaitingForResponse,
                         onRetry = { onRetryMessage(index) },
                         onUrlClick = { url ->
@@ -99,7 +102,8 @@ fun ChatScreen(
                                 logger.warn("Failed to open URL: $url", exception)
                             }
                         },
-                        onOpenInEditor = onOpenInEditor
+                        onOpenInEditor = onOpenInEditor,
+                        onViewDiff = onViewDiff
                     )
                 }
             }
@@ -109,11 +113,11 @@ fun ChatScreen(
         ChatInputSection(
             modifier = Modifier
                 .widthIn(max = 600.dp)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(bottom = GradumSpacing.sml),
             state = inputState,
             actions = inputActions,
-            textState = textState,
-            onRefreshModels = onRefreshModels
+            textState = textState
         )
     }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-06-30 23:35:47 Changed by gwy
+ * WelcomeScreen.kt  2026-07-03 00:17:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -94,8 +94,7 @@ fun WelcomeScreen(
                 modifier = Modifier.widthIn(max = 600.dp),
                 state = inputState,
                 actions = inputActions,
-                textState = textState,
-                onRefreshModels = onRefreshModels
+                textState = textState
             )
             Spacer(modifier = Modifier.height(20.dp))
             QuickStartSection(

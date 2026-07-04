@@ -34,7 +34,7 @@ package gradum;
  */
 public final class Version {
 
-    public static final String GRADUM_VERSION = "0.9.0";
+    public static final String GRADUM_VERSION = "0.9.2";
 
     private Version() {
     }

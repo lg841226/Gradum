@@ -7,6 +7,7 @@
 
 package gradum.server
 
+import gradum.skill.SkillRegistry
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -43,5 +44,7 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
     }
 
     registerAllRoutes()
+    val skills = SkillRegistry.getAllSkills()
+    logger.info("Registered ${skills.size} skills: ${skills.joinToString { "${it.alias}(${it.skillName})" }}")
     logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")
 }

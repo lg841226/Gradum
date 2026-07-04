@@ -12,13 +12,13 @@ import kotlin.test.assertEquals
 
 /**
  * Locks the wire format that the plugin sends for [ToolMode]. The plugin
- * emits `"read_only"` / `"single_step"` / `"write"` (lowercase, snake_case)
+ * emits `"read_only"` / `"edit"` / `"agent"` (lowercase)
  * — see [gradum.idea.chat.ui.input.PermissionMode] — and the server's
  * [ToolMode.fromStringOrDefault] must translate those to the actual
  * enum constants. If this translation ever regresses to be case-sensitive
  * or to reject lowercase values, the read-only mode is silently treated
- * as write and the security gate in `Agent.executeSingleTool` becomes a
- * no-op. The default fallback (unknown -> WRITE) is also pinned because
+ * as agent and the security gate in `Agent.executeSingleTool` becomes a
+ * no-op. The default fallback (unknown -> AGENT) is also pinned because
  * it is the silent-success path that previously masked the bug.
  */
 class AgentConfigurationTest {
@@ -29,45 +29,38 @@ class AgentConfigurationTest {
     }
 
     @Test
-    fun `single_step wire value resolves to SINGLE_STEP`() {
-        assertEquals(ToolMode.SINGLE_STEP, ToolMode.fromStringOrDefault("single_step"))
+    fun `edit wire value resolves to EDIT`() {
+        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("edit"))
     }
 
     @Test
-    fun `write wire value resolves to WRITE`() {
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault("write"))
+    fun `agent wire value resolves to AGENT`() {
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("agent"))
     }
 
     @Test
     fun `uppercase wire value also resolves (case insensitive)`() {
-        // The previous version of fromStringOrDefault was case sensitive.
-        // The plugin now always sends lowercase but tests pin this so a
-        // future refactor that re-introduces case sensitivity (or worse,
-        // throws on mismatch) gets caught before shipping.
         assertEquals(ToolMode.READ_ONLY, ToolMode.fromStringOrDefault("READ_ONLY"))
-        assertEquals(ToolMode.SINGLE_STEP, ToolMode.fromStringOrDefault("SINGLE_STEP"))
+        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("EDIT"))
     }
 
     @Test
-    fun `unknown wire value falls back to WRITE`() {
-        // The fallback default IS the silent-success path that previously
-        // hid the bug (the plugin emitted an i18n label like "Read-only
-        // Permissions" which fell through to WRITE). Pin it so we know
-        // if anyone changes the default to something stricter — a stricter
-        // default would break compatibility with old plugins, a laxer
-        // default would re-open the security hole.
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault("garbage"))
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault("Read-only Permissions"))
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault("只读权限"))
+    fun `old wire values still resolve via aliases`() {
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("write"))
+        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("single_step"))
     }
 
     @Test
-    fun `null and blank wire value falls back to WRITE`() {
-        // The plugin should never send null/blank but the server must not
-        // crash if it does. A null toolMode historically defaulted to
-        // WRITE; that is documented behavior for the /events endpoint.
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault(null))
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault(""))
-        assertEquals(ToolMode.WRITE, ToolMode.fromStringOrDefault("   "))
+    fun `unknown wire value falls back to AGENT`() {
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("garbage"))
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("Read-only Permissions"))
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("只读权限"))
+    }
+
+    @Test
+    fun `null and blank wire value falls back to AGENT`() {
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(null))
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(""))
+        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("   "))
     }
 }

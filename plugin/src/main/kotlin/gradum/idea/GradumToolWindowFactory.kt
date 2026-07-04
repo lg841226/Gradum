@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-06-30 23:35:47 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-07-03 22:01:33 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -36,6 +36,7 @@ import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.ChatScreen
 import gradum.idea.chat.ui.GradumCodeBlockRenderer
+import gradum.idea.chat.ui.common.DiffViewer
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
@@ -51,15 +52,17 @@ import java.io.File
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
+@OptIn(ExperimentalJewelApi::class)
 class GradumToolWindowFactory : ToolWindowFactory {
 
-    @OptIn(ExperimentalJewelApi::class)
+    @Suppress("UnstableApiUsage")
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
         val session: GradumChatSession = project.getService(GradumChatSession::class.java)
             ?: error("GradumChatSession is not registered in plugin.xml")
         session.project = project
 
         toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
+
             SwingBridgeTheme {
                 val scope: CoroutineScope = rememberCoroutineScope()
                 session.scope = scope
@@ -147,14 +150,14 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
             val onToggleMenu: () -> Unit = { session.isMenuVisible = !session.isMenuVisible }
             val onDismissMenu: () -> Unit = { session.isMenuVisible = false }
             val onSelectPermission: (String) -> Unit = { permission ->
-                // `permission` is the wire format the server understands
-                // (e.g. "read_only"). Storing it directly into the session
-                // keeps selectedPermission and toolMode in lockstep — they
-                // are the same value now, see GradumChatSession.toolMode.
+                /**
+                 * `permission` is the server wire format (e.g. "read_only").
+                 * Storing it directly keeps selectedPermission and toolMode
+                 * in lockstep — see [GradumChatSession.toolMode].
+                 */
                 session.selectedPermission = permission
                 session.isMenuVisible = false
             }
-
             val onToggleAddMenu: () -> Unit = { session.showAddMenu = !session.showAddMenu }
             val onDismissAddMenu: () -> Unit = { session.showAddMenu = false }
 
@@ -174,13 +177,15 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 when (attachedContext) {
                     is AttachedFile -> session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }
                     is AttachedText -> session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }
+                    is AttachedImage -> session.attachedFiles.removeAll { it is AttachedImage && it.id == attachedContext.id }
                 }
             }
 
             val onUploadImage: () -> Unit = Unit@{
-                if (session.attachedFiles.size >= MAX_ATTACHMENTS) return@Unit
+                val remainingSlots: Int = MAX_ATTACHMENTS - session.attachedFiles.size
+                if (remainingSlots <= 0) return@Unit
                 val project = toolWindow?.project ?: return@Unit
-                val remaining = MAX_ATTACHMENTS - session.attachedFiles.size
+
                 val imageExtensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff")
 
                 val descriptor = FileChooserDescriptorFactory.multiFiles().apply {
@@ -189,18 +194,24 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 }
                 val baseDir = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
                 FileChooser.chooseFiles(descriptor, project, baseDir) { files ->
-                    files.filter { it.extension?.lowercase() in imageExtensions }
+                    files.asSequence()
+                        .filter { it.extension?.lowercase() in imageExtensions }
                         .filter { imageFile ->
-                            session.attachedFiles.none { existing -> existing is AttachedFile && existing.file.path == imageFile.path }
+                            session.attachedFiles.none { existing ->
+                                when (existing) {
+                                    is AttachedFile -> existing.file.path == imageFile.path
+                                    is AttachedImage -> existing.originalName == imageFile.name &&
+                                        imageFile.length == existing.originalSizeBytes
+
+                                    is AttachedText -> false
+                                }
+                            }
                         }
-                        .take(remaining)
+                        .take(remainingSlots)
                         .forEach { file ->
-                            session.attachedFiles.add(
-                                AttachedFile(
-                                    file = file,
-                                    iconKey = getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
-                                )
-                            )
+                            if (file.length > MAX_IMAGE_BYTES) return@forEach
+                            val attachment: AttachedImage = encodeImageToAttachment(file) ?: return@forEach
+                            session.attachedFiles.add(attachment)
                         }
                 }
             }
@@ -237,11 +248,13 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     }
 
     val onRetryMessage: (Int) -> Unit = { assistantMessageIndex: Int ->
-        val userMessageIndex: Int = assistantMessageIndex - 1
-        if (userMessageIndex >= 0 && userMessageIndex < session.messages.size &&
-            session.messages[userMessageIndex].isUserMessage
-        ) {
-            val userMessage: ChatMessage = session.messages[userMessageIndex]
+        val userMessageIndex = (assistantMessageIndex - 1 downTo 0)
+            .firstOrNull { session.messages[it].isUserMessage }
+
+        if (userMessageIndex != null) {
+            val userMessage = session.messages[userMessageIndex]
+
+
             val project = toolWindow?.project
             val editorContext = project?.let { EditorUtils.getEditorContext(it) }
             val focusedPath = editorContext?.currentFile?.path ?: ""
@@ -250,12 +263,18 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 userMessage.content,
                 focusedPath, openFiles
             )
+
             val displayName = session.selectedModel?.name ?: "Auto"
             val providerName = session.selectedModel?.provider ?: ""
             val serverLabel = session.selectedModel?.serverName ?: ""
-            session.messages.removeAt(assistantMessageIndex)
-            session.messages.removeAt(userMessageIndex)
+
+            val messagesToRemove = assistantMessageIndex - userMessageIndex + 1
+            repeat(messagesToRemove) {
+                session.messages.removeAt(userMessageIndex)
+            }
+
             session.messages.add(
+                userMessageIndex,
                 ChatMessage(
                     role = "user",
                     content = userMessage.content,
@@ -263,6 +282,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 )
             )
             session.messages.add(
+                userMessageIndex + 1,
                 ChatMessage(
                     role = "assistant",
                     content = "",
@@ -271,6 +291,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                     serverName = serverLabel
                 )
             )
+
             session.isSending = true
             session.isWaitingForResponse = true
             scope.launch {
@@ -368,6 +389,33 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         }
     }
 
+    val onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit =
+        { path, original, modified ->
+            /**
+             * DiffViewer.showFileDiff runs on the platform EDT internally,
+             * so we can call it directly. The platform accepts null Project
+             * for floating diff windows.
+             */
+            DiffViewer.showFileDiff(
+                project = toolWindow?.project,
+                path = path,
+                originalContent = original,
+                modifiedContent = modified,
+            )
+        }
+
+    /**
+     * Opens a sent attachment (image / file / text) in the IDE editor. The
+     * file comes from the user's original `VirtualFile` — no path parsing
+     * needed because the bubble already resolved it at upload time.
+     */
+    val onAttachmentClick: (VirtualFile) -> Unit = { file ->
+        val project: Project? = toolWindow?.project
+        if (project != null && file.isValid) {
+            FileEditorManager.getInstance(project).openFile(file, true)
+        }
+    }
+
     val inputState = ChatInputState(
         isFocused = session.isFocused,
         isSending = session.isSending,
@@ -414,13 +462,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 session.pinnedModels.add(model)
         },
         onSelectAuto = {
-            // Honour the server's recommendation so the Auto button
-            // actually picks a model instead of just flipping a flag.
-            // The previous behaviour (selectedModel = null) left the
-            // server to fall back to a hard-coded default and
-            // contradicted the plugin-side "isAutoSelected" branch in
-            // buildModelConfig, which forces provider = "ollama" —
-            // a latent bug that this fix also resolves.
+            /**
+             * Honor the server's recommendation so the Auto button picks
+             * a model instead of just flipping a flag. Setting selectedModel
+             * = null caused a latent bug: the plugin-side "isAutoSelected"
+             * branch in buildModelConfig forced provider = "ollama".
+             */
             session.selectedModel = session.recommendedModel ?: session.models.firstOrNull()
             session.isAutoSelected = true
         }
@@ -441,6 +488,8 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                 onCopyAsContext = callbacks.onCopyAsContext,
                 onRefreshModels = onRefreshModels,
                 onOpenInEditor = onOpenInEditor,
+                onViewDiff = onViewDiff,
+                onAttachmentClick = onAttachmentClick,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -456,3 +505,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         }
     }
 }
+
+
+/** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
+private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L

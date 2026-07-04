@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SelectorButton.kt  2026-07-01 14:18:23 Changed by gwy
+ * SelectorButton.kt  2026-07-01 16:10:48 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -31,7 +31,7 @@ fun SelectorButton(
     text: String,
     onClick: () -> Unit,
     contentDescription: String,
-    color: Color = JewelTheme.globalColors.text.info,
+    color: Color = JewelTheme.globalColors.text.info
 ) {
     Tooltip(tooltip = { Text(text = contentDescription) }) {
         IconButton(onClick = onClick) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputSection.kt  2026-06-30 23:35:47 Changed by gwy
+ * ChatInputSection.kt  2026-07-03 00:17:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -30,7 +30,6 @@ fun ChatInputSection(
     state: ChatInputState,
     actions: ChatInputActions,
     textState: TextFieldState,
-    onRefreshModels: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -40,13 +39,12 @@ fun ChatInputSection(
             roundedCornerShape = RoundedCornerShape(6.dp),
             textState = textState
         )
-        Spacer(modifier = Modifier.height(GradumSpacing.md))
+        Spacer(modifier = Modifier.height(GradumSpacing.sml))
         ModelSelectorBar(
             models = state.models,
             selectedModel = state.selectedModel,
             pinnedModels = state.pinnedModels,
             isAutoSelected = state.isAutoSelected,
-            onRefresh = onRefreshModels,
             onSelectModel = actions.onSelectModel,
             onTogglePin = actions.onTogglePin,
             onSelectAuto = actions.onSelectAuto

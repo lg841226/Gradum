@@ -15,11 +15,10 @@ import kotlin.test.assertIs
 class CommandFilterTest {
 
     @Test
-    fun `write mode allows all commands that are not on the danger blocklist`() {
-        // Anything not in the always-on blocklist should pass under WRITE.
+    fun `agent mode allows all commands that are not on the danger blocklist`() {
         listOf("ls", "cat foo.txt", "rm /tmp/junk", "git status", "echo hi").forEach { command ->
-            val verdict = classifyCommand(command, ToolMode.WRITE)
-            assertEquals(CommandVerdict.Safe, verdict, "WRITE should allow '$command'")
+            val verdict = classifyCommand(command, ToolMode.AGENT)
+            assertEquals(CommandVerdict.Safe, verdict, "AGENT should allow '$command'")
         }
     }
 
@@ -91,21 +90,16 @@ class CommandFilterTest {
     }
 
     @Test
-    fun `always-on danger filter still applies in write mode`() {
-        // Sanity check that READ_ONLY didn't accidentally weaken the
-        // existing danger rules — sudo / mkfs / rm of /etc must still be
-        // rejected under WRITE.
+    fun `always-on danger filter still applies in agent mode`() {
         listOf("sudo reboot", "mkfs.ext4 /dev/sdb", "rm -rf /etc").forEach { command ->
-            val verdict = classifyCommand(command, ToolMode.WRITE)
-            assertIs<CommandVerdict.Blocked>(verdict, "WRITE danger filter should block '$command'")
+            val verdict = classifyCommand(command, ToolMode.AGENT)
+            assertIs<CommandVerdict.Blocked>(verdict, "AGENT danger filter should block '$command'")
         }
     }
 
     @Test
-    fun `default toolMode parameter is write so existing callers stay safe`() {
-        // RunCommandSkill and any other caller that doesn't pass a toolMode
-        // must keep the old behavior: only the always-on blocklist applies.
+    fun `default toolMode parameter is agent so existing callers stay safe`() {
         val verdict = classifyCommand("rm junk.txt")
-        assertEquals(CommandVerdict.Safe, verdict, "Default toolMode should be WRITE")
+        assertEquals(CommandVerdict.Safe, verdict, "Default toolMode should be AGENT")
     }
 }

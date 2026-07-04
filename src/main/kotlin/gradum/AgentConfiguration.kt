@@ -36,28 +36,37 @@ enum class Provider {
 /**
  * Tool surface selection. Local models benefit from a smaller tool list —
  * fewer schemas to attend to, less prompt noise, and clearer intent
- * (a read-only session can't accidentally mutate the project; a
- * single-step session can't fake multi-step planning it can't actually do).
+ * (a read-only session can't accidentally mutate the project; an
+ * edit session can't fake multi-step planning it can't actually do).
  *
- * - [WRITE] exposes every registered Skill. Use for code generation.
+ * - [AGENT] exposes every registered Skill. Use for code generation.
  * - [READ_ONLY] exposes only file inspection, project exploration, and
  *   read-only shell commands (e.g. `cat`, `ls`, `grep`). Use for analysis
  *   and bug-hunting where the LLM should not modify the project.
- * - [SINGLE_STEP] is [WRITE] minus the task-tracking tools
+ * - [EDIT] is [AGENT] minus the task-tracking tools
  *   (`to_do` / `finish_to_do_item`). For small local models that cannot
  *   plan reliably — task decomposition is a strong-model skill, and giving
  *   a 7B model a `to_do` tool just produces fake planning the model can't
  *   follow. Let it work step-by-step instead.
  */
 enum class ToolMode {
-    WRITE,
+    AGENT,
     READ_ONLY,
-    SINGLE_STEP;
+    EDIT;
 
     companion object {
-        fun fromStringOrDefault(rawValue: String?, default: ToolMode = WRITE): ToolMode {
+        private val ALIASES: Map<String, ToolMode> = mapOf(
+            "write" to AGENT,
+            "single_step" to EDIT,
+            "read_only" to READ_ONLY,
+        )
+
+        fun fromStringOrDefault(rawValue: String?, default: ToolMode = AGENT): ToolMode {
             if (rawValue.isNullOrBlank()) return default
-            return entries.firstOrNull { it.name.equals(rawValue, ignoreCase = true) } ?: default
+            val normalized = rawValue.trim().lowercase()
+            return ALIASES[normalized]
+                ?: entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
+                ?: default
         }
     }
 }
@@ -107,7 +116,7 @@ data class AgentConfiguration(
     val contextWindowSize: Int = 8192 * 2,
     val maxTokensToGenerate: Int = 2048 * 12,
     val provider: Provider = Provider.OLLAMA,
-    val toolMode: ToolMode = ToolMode.WRITE,
+    val toolMode: ToolMode = ToolMode.AGENT,
     val promptVariant: PromptVariant = PromptVariant.AUTO,
     val maxRepeatedResponses: Int = 3,
     val maxRedLineHits: Int = 3,

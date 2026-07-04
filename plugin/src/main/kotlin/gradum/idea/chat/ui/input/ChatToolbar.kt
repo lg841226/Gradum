@@ -92,7 +92,7 @@ fun ChatToolbar(
             enabled = isTextNotEmpty
         )
 
-        Row {
+        Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
             if (state.isSending || state.pendingMessages.isNotEmpty()) {
                 IconTooltipButton(
                     tooltip = message("gradum.stop"),

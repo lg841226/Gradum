@@ -2,7 +2,7 @@
 
 ## Local-First AI Code Assistant (Kotlin Edition)
 
-### Technical Architecture Whitepaper
+### Technical Architecture White Paper
 
 | Field              | Value                                                            |
 |--------------------|------------------------------------------------------------------|
@@ -532,15 +532,15 @@ pie
 
 #### `tool_call.result` Fields by Skill
 
-| Skill                  | Result Fields                                                                                                                                                                                                                                                |
-|------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`)                                                                                              |
-| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                                                                                                                         |
-| **save_file**          | `{path, bytesWritten, created}`                                                                                                                                                                                                                              |
-| **run_cmd** (blocking) | `{command, exitCode, output, timedOut}` (output keeps full content; older ones strip `output` via `historyKeepCount=2`)                                                                                                                                     |
-| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                                                                                                                           |
-| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                                                                                                                    |
-| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                                                                                                                      |
+| Skill                  | Result Fields                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **read_file**          | `{path, lineRange, totalLines, contentHash, content}` (last 2 keep full content; older ones strip `content` from conversation history via `historyKeepCount=2`) |
+| **edit_file**          | `{path, editsApplied, totalEdits}` (or error fields)                                                                                                            |
+| **save_file**          | `{path, bytesWritten, created}`                                                                                                                                 |
+| **run_cmd** (blocking) | `{command, exitCode, output, timedOut}` (output keeps full content; older ones strip `output` via `historyKeepCount=2`)                                         |
+| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                              |
+| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                       |
+| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                         |
 
 ### 2.7 LLM Client Protocol Comparison
 
@@ -1127,10 +1127,10 @@ LLM context window without losing the structural metadata (path, exit code, matc
 
 **Current application:**
 
-| Skill             | historyKeepCount | Volatile keys stripped            | Rationale                                                                      |
-|-------------------|------------------|-----------------------------------|--------------------------------------------------------------------------------|
-| `ReadFileSkill`   | 2                | `content`                         | File content is large (hundreds of lines); only the last 2 reads are relevant  |
-| `RunCommandSkill` | 2                | `output`                          | Command output may be very large; old results are rarely referenced            |
+| Skill             | historyKeepCount | Volatile keys stripped | Rationale                                                                     |
+|-------------------|------------------|------------------------|-------------------------------------------------------------------------------|
+| `ReadFileSkill`   | 2                | `content`              | File content is large (hundreds of lines); only the last 2 reads are relevant |
+| `RunCommandSkill` | 2                | `output`               | Command output may be very large; old results are rarely referenced           |
 
 The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is
 trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called
@@ -1205,15 +1205,15 @@ gradum.skill.CompletePlanSkill
 
 ### 4.3 Skill Overview
 
-| Skill             | Input Parameters                                                     | Output Fields                                                                                                                                                                                            | Error Codes                                                                                   | Limits                                                                                                                       |
-|-------------------|----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| ReadFileSkill     | `path`, `lineRange?`                                                 | `path, lineRange, totalLines, contentHash, content`                                                                                                                                                      | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                                                                                                    |
-| EditFileSkill     | `path, edits[], mode?`                                               | `path, editsApplied, totalEdits`                                                                                                                                                                         | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                                                                                                |
-| SaveFileSkill     | `path, content`                                                      | `path, bytesWritten, created`                                                                                                                                                                            | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                                                                                               |
-| RunCommandSkill   | `command, reason?, detached?`                                        | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message`                                                                                                   | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                                                                                         |
-| ExploreProjectSkill | `path?, depth?`                                                    | `path, entries: [{name, type, children?}]`                                                                                                                                                               | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories                                                                           |
-| TodoSkill         | `tasks[]`                                                            | `totalTasks, currentTask, currentIndex`                                                                                                                                                                  | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization                                                                              |
-| CompletePlanSkill | none                                                                 | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                                                                                                              | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                                                                                         |
+| Skill               | Input Parameters              | Output Fields                                                                                          | Error Codes                                                                                   | Limits                                             |
+|---------------------|-------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------|
+| ReadFileSkill       | `path`, `lineRange?`          | `path, lineRange, totalLines, contentHash, content`                                                    | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                          |
+| EditFileSkill       | `path, edits[], mode?`        | `path, editsApplied, totalEdits`                                                                       | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                      |
+| SaveFileSkill       | `path, content`               | `path, bytesWritten, created`                                                                          | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                     |
+| RunCommandSkill     | `command, reason?, detached?` | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check               |
+| ExploreProjectSkill | `path?, depth?`               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories |
+| TodoSkill           | `tasks[]`                     | `totalTasks, currentTask, currentIndex`                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization    |
+| CompletePlanSkill   | none                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                               |
 
 ---
 
@@ -1543,7 +1543,8 @@ flowchart TB
 
 ### 8.1 Overview
 
-The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool window.
+The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool
+window.
 It communicates with the standalone Gradum server over HTTP at runtime — there is **no compile-time dependency** between
 the plugin and the server module.
 
@@ -1646,11 +1647,11 @@ This section documents the end-to-end contract.
 
 ### 9.1 The Three Tiers (`ToolMode`)
 
-| Tier             | Wire format      | Tools exposed to the LLM                                                                | Use case                                                            |
-|------------------|------------------|------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| `READ_ONLY`      | `"read_only"`    | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` run-mode filter)        | Code review, bug-hunting, reading the project without touching it     |
-| `SINGLE_STEP`    | `"single_step"`  | READ_ONLY tools + `edit_file`, `save_file`                                               | Local 7B-14B models that can edit but cannot reliably plan            |
-| `WRITE`          | `"write"`        | SINGLE_STEP tools + `to_do`, `finish_to_do_item` (everything)                            | Code generation, planning, full autonomy                              |
+| Tier          | Wire format     | Tools exposed to the LLM                                                           | Use case                                                          |
+|---------------|-----------------|------------------------------------------------------------------------------------|-------------------------------------------------------------------|
+| `READ_ONLY`   | `"read_only"`   | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` run-mode filter) | Code review, bug-hunting, reading the project without touching it |
+| `SINGLE_STEP` | `"single_step"` | READ_ONLY tools + `edit_file`, `save_file`                                         | Local 7B-14B models that can edit but cannot reliably plan        |
+| `WRITE`       | `"write"`       | SINGLE_STEP tools + `to_do`, `finish_to_do_item` (everything)                      | Code generation, planning, full autonomy                          |
 
 The tier is a **client choice** — the IDE never infers it from the provider,
 because Ollama runs both 7B laptops and 70B cloud models, and the same backend
@@ -1723,7 +1724,7 @@ data class SkillContext(
 
 Two properties, both of which used to be either process-globals or invisible:
 
-- **`toolMode`** — the active tier. Skills can read it for mode-aware behaviour
+- **`toolMode`** — the active tier. Skills can read it for mode-aware behavior
   (e.g. `RunCommandSkill` chooses a different log directory in `READ_ONLY`).
   The gate is still the agent's, not the skill's; this is informational.
 - **`projectRoot`** — the absolute, validated path to the project the IDE has
@@ -1745,15 +1746,14 @@ sequenceDiagram
     participant Routes
     participant Agent
     participant Skill
-
-    Plugin->>Routes: POST /events {message, projectRoot, toolMode}
+    Plugin ->> Routes: POST /events {message, projectRoot, toolMode}
     Note over Routes: validate projectRoot is non-empty<br/>and points to an existing directory
-    Routes->>Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
+    Routes ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
     Note over Agent: construct SkillContext(toolMode, projectRoot)<br/>+ ContextManager(<root>/.gradum)
-    Agent->>Skill: skill.execute(arguments, skillContext)
+    Agent ->> Skill: skill.execute(arguments, skillContext)
     Note over Skill: read context.projectRoot for file ops<br/>read context.toolMode for mode-aware behaviour
-    Skill-->>Agent: SkillResult
-    Agent-->>Plugin: NDJSON events
+    Skill -->> Agent: SkillResult
+    Agent -->> Plugin: NDJSON events
 ```
 
 The `SkillContext` is frozen for the lifetime of the `Agent` (one `Agent` per
@@ -1782,7 +1782,7 @@ like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier
 is allowed.
 
 The `Skill.execute` signature now requires `context: SkillContext`. Skills that
-need the project root read `context.projectRoot`; the previous behaviour of
+need the project root read `context.projectRoot`; the previous behavior of
 reading `arguments["projectRoot"]` is gone (the agent still injects it for
 audit / NDJSON-event reasons, but no Skill should rely on it).
 
@@ -1803,15 +1803,15 @@ audit / NDJSON-event reasons, but no Skill should rely on it).
 
 ### 9.8 Test pinning
 
-| Concern                                                       | Test file                                       | Cases |
-|---------------------------------------------------------------|--------------------------------------------------|-------|
-| `READ_ONLY` rejects `edit_file` / `save_file` / `to_do`       | `ToolModeGateTest`                              | 6     |
-| `SINGLE_STEP` rejects `to_do` / `finish_to_do_item`           | `ToolModeGateTest`                              | 1     |
-| `WRITE` allows `edit_file` and applies the edit to disk      | `ToolModeGateTest`                              | 1     |
-| `READ_ONLY` still allows `read_file` / `explore_project` / `run_cmd` | `ToolModeGateTest`                       | 1     |
-| `SkillRegistry.getSchemas` agrees with `allowedToolModes`     | `SkillRegistrySchemaTest`                       | 5     |
-| `ToolMode.fromStringOrDefault` parses wire format correctly   | `AgentConfigurationTest`                        | 6     |
-| `READ_ONLY` `run_cmd` blocked by CommandFilter (whitelist)   | `CommandFilterTest`                             | 6     |
+| Concern                                                              | Test file                 | Cases |
+|----------------------------------------------------------------------|---------------------------|-------|
+| `READ_ONLY` rejects `edit_file` / `save_file` / `to_do`              | `ToolModeGateTest`        | 6     |
+| `SINGLE_STEP` rejects `to_do` / `finish_to_do_item`                  | `ToolModeGateTest`        | 1     |
+| `WRITE` allows `edit_file` and applies the edit to disk              | `ToolModeGateTest`        | 1     |
+| `READ_ONLY` still allows `read_file` / `explore_project` / `run_cmd` | `ToolModeGateTest`        | 1     |
+| `SkillRegistry.getSchemas` agrees with `allowedToolModes`            | `SkillRegistrySchemaTest` | 5     |
+| `ToolMode.fromStringOrDefault` parses wire format correctly          | `AgentConfigurationTest`  | 6     |
+| `READ_ONLY` `run_cmd` blocked by CommandFilter (whitelist)           | `CommandFilterTest`       | 6     |
 
 ---
 
@@ -1821,8 +1821,8 @@ audit / NDJSON-event reasons, but no Skill should rely on it).
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                        |
 | **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                     |
-| **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot)`. Single source of truth for session-level state       |
-| **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                       |
+| **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot)`. Single source of truth for session-level state         |
+| **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                        |
 | **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                   |
 | **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                          |
 | **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                  |
@@ -1839,5 +1839,5 @@ audit / NDJSON-event reasons, but no Skill should rely on it).
 | **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session        |
 | **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                              |
 | **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                           |
-| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                |
-| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`              |
+| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                               |
+| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`               |

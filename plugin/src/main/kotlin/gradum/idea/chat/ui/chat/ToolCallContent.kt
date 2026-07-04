@@ -21,8 +21,26 @@ sealed class ToolCallContent {
     /** Content for the "Ran" (run_cmd) tool. */
     data class Ran(val reason: String, val command: String) : ToolCallContent()
 
-    /** Content for the "Edited" (edit_file) tool. */
-    data class Edited(val path: String, val linesAdded: Int = 0, val linesRemoved: Int = 0) : ToolCallContent()
+    /**
+     * Content for the "Edited" (edit_file) tool.
+     *
+     * [originalContent] and [modifiedContent] are the file snapshots
+     * captured by the server's `EditFileSkill` immediately before and
+     * after the edit. They are sent on the wire in the `tool_call`
+     * event so the chat UI can offer a "View Diff" action via the
+     * platform's native diff viewer, but they are stripped from the
+     * LLM conversation history by `EditFileSkill.prepareHistoryResult`
+     * server-side. Both are nullable because older server builds do
+     * not include the field — the UI hides the "View Diff" button
+     * when either is missing.
+     */
+    data class Edited(
+        val path: String,
+        val linesAdded: Int = 0,
+        val linesRemoved: Int = 0,
+        val originalContent: String? = null,
+        val modifiedContent: String? = null,
+    ) : ToolCallContent()
 
     /** Content for the "Read" (read_file) tool. */
     data class Read(val path: String) : ToolCallContent()
@@ -75,7 +93,9 @@ sealed class ToolCallContent {
                     val resultData = parseResult(result)
                     val linesAdded = (resultData["linesAdded"] as? Number)?.toInt() ?: 0
                     val linesRemoved = (resultData["linesRemoved"] as? Number)?.toInt() ?: 0
-                    Edited(path, linesAdded, linesRemoved)
+                    val originalContent: String? = resultData["originalContent"] as? String
+                    val modifiedContent: String? = resultData["modifiedContent"] as? String
+                    Edited(path, linesAdded, linesRemoved, originalContent, modifiedContent)
                 }
 
                 "Read" -> {

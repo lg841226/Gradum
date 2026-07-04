@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-06-30 23:35:47 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-03 23:16:43 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -12,7 +12,9 @@ package gradum.idea.chat.ui.chat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,8 +35,10 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 private const val FADE_IN_MS: Int = 600
+private const val PHASE_FADE_MS: Int = 100
 
 /**
  * Left-aligned assistant message bubble.
@@ -45,13 +49,15 @@ private const val FADE_IN_MS: Int = 600
 @Composable
 fun AssistantChatBubble(
     message: ChatMessage,
-    isLoading: Boolean = false,
+    modifier: Modifier = Modifier,
     sendingPhase: String = "",
+    isLoading: Boolean = false,
     actionsEnabled: Boolean = true,
     onRetry: () -> Unit = {},
     onUrlClick: (String) -> Unit = {},
     onOpenInEditor: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onViewDiff: (path: String, originalContent: String, modifiedContent: String) ->
+    Unit = { _, _, _ -> }
 ) {
     val renderBlocks = message.renderBlocks
     val hasContent = renderBlocks.isNotEmpty()
@@ -61,19 +67,22 @@ fun AssistantChatBubble(
             if (message.modelName.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
                 ) {
-                    GradumIcons.resolveModelIcon(message.modelName)?.let { iconKey ->
-                        Icon(
-                            contentDescription = null,
-                            key = iconKey
-                        )
-                    }
+                    Icon(
+                        contentDescription = null,
+                        key = GradumIcons.ColorLogo
+                    )
                     Text(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         text = formatModelName(message.modelName)
                     )
+                    val tokenUsage = message.tokenUsage
+                    if (tokenUsage != null && tokenUsage.totalTokens > 0) {
+                        Spacer(modifier = Modifier.width(GradumSpacing.sm))
+                        TokenUsageBadge(totalTokens = tokenUsage.totalTokens)
+                    }
                 }
             }
             Spacer(Modifier.height(GradumSpacing.lg))
@@ -81,7 +90,7 @@ fun AssistantChatBubble(
                 key(block.key(index)) {
                     when (block) {
                         is RenderBlock.Thinking -> ThinkingBlock(block, isLoading)
-                        is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor)
+                        is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
                         is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
                         is RenderBlock.Error -> ErrorBlock(block)
                     }
@@ -125,7 +134,9 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean) {
     ThinkingIndicator(
         thinking = block.content,
         isTaskComplete = !isLoading,
-        modifier = Modifier.graphicsLayer { this.alpha = alpha.value }
+        modifier = Modifier.graphicsLayer {
+            this.alpha = alpha.value
+        }
     )
 }
 
@@ -142,13 +153,15 @@ private fun ResponseBlock(
         )
     }
     SelectionContainer(
-        modifier = Modifier.graphicsLayer { this.alpha = alpha.value }
+        modifier = Modifier.graphicsLayer {
+            this.alpha = alpha.value
+        }
     ) {
         Markdown(
-            markdown = block.content,
-            markdownStyling = rememberGradumMarkdownStyling(),
             onUrlClick = onUrlClick,
-            modifier = Modifier.fillMaxWidth()
+            markdown = block.content,
+            modifier = Modifier.fillMaxWidth(),
+            markdownStyling = rememberGradumMarkdownStyling()
         )
     }
 }
@@ -156,20 +169,30 @@ private fun ResponseBlock(
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
     val isInterrupted = block.code == ErrorCode.INTERRUPTED.code
-    val iconKey = if (isInterrupted) GradumIcons.Warning else AllIconsKeys.Status.FailedInProgress
-    val textColor = if (isInterrupted) JewelTheme.globalColors.text.info else JewelTheme.globalColors.text.error
+
+    val iconKey = if (isInterrupted)
+        GradumIcons.Warning
+    else AllIconsKeys.Status.FailedInProgress
+
+    val textColor = if (isInterrupted) JewelTheme.globalColors.text.normal
+    else JewelTheme.globalColors.text.error
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
     ) {
         Icon(
             key = iconKey,
             contentDescription = null
         )
         Text(
+            maxLines = 1,
             color = textColor,
-            text = friendlyErrorMessage(block.code)
+            text = friendlyErrorMessage(block.code),
+            style = JewelTheme.typography.editorTextStyle
         )
     }
 }
@@ -177,7 +200,8 @@ private fun ErrorBlock(block: RenderBlock.Error) {
 @Composable
 private fun ToolCallBlock(
     block: RenderBlock.ToolCall,
-    onOpenInEditor: (String) -> Unit
+    onOpenInEditor: (String) -> Unit,
+    onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
@@ -187,7 +211,8 @@ private fun ToolCallBlock(
         )
     }
     val animModifier = Modifier.graphicsLayer { this.alpha = alpha.value }
-    when (val content = ToolCallContent.fromArguments(block.alias, block.arguments, block.result)) {
+    val content = ToolCallContent.fromArguments(block.alias, block.arguments, block.result)
+    when (content) {
         is ToolCallContent.Ran -> RanToolCallIndicator(
             alias = block.alias,
             reason = content.reason,
@@ -199,17 +224,22 @@ private fun ToolCallBlock(
             onOpenInEditor = onOpenInEditor
         )
 
-        is ToolCallContent.Edited -> FileToolCallIndicator(
-            alias = block.alias,
-            path = content.path,
-            linesAdded = content.linesAdded,
-            linesRemoved = content.linesRemoved,
-            success = block.success,
-            modifier = animModifier,
-            errorMessage = block.errorMessage,
-            errorDetail = block.errorDetail,
-            onOpenInEditor = onOpenInEditor
-        )
+        is ToolCallContent.Edited -> {
+            val hasDiffPayload = content.originalContent != null && content.modifiedContent != null
+            FileToolCallIndicator(
+                alias = block.alias,
+                path = content.path,
+                linesAdded = content.linesAdded,
+                linesRemoved = content.linesRemoved,
+                success = block.success,
+                modifier = animModifier,
+                errorMessage = block.errorMessage,
+                errorDetail = block.errorDetail,
+                onOpenInEditor = onOpenInEditor,
+                onViewDiff = { onViewDiff(content.path, content.originalContent!!, content.modifiedContent!!) },
+                hasDiffPayload = hasDiffPayload
+            )
+        }
 
         is ToolCallContent.Read -> FileToolCallIndicator(
             alias = block.alias,
@@ -233,23 +263,39 @@ private fun ToolCallBlock(
 
 @Composable
 private fun LoadingIndicatorRow(phase: String = message("gradum.generating")) {
+    val text = phase.ifBlank { message("gradum.generating") }
+    var displayText by remember { mutableStateOf(text) }
+    var previousText by remember { mutableStateOf(text) }
+    val alpha = remember { Animatable(1f) }
+
+    LaunchedEffect(text) {
+        if (text != previousText) {
+            alpha.animateTo(0f, tween(PHASE_FADE_MS))
+            displayText = text
+            previousText = text
+            alpha.animateTo(1f, tween(PHASE_FADE_MS))
+        }
+    }
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
         SweepLightText(
-            text = phase.ifBlank { message("gradum.generating") },
-            modifier = Modifier
+            text = displayText,
+            modifier = Modifier.graphicsLayer {
+                this.alpha = alpha.value
+            }
         )
     }
 }
 
 @Composable
 private fun MessageActionsRow(
+    onRetry: () -> Unit,
     message: ChatMessage,
     isLoading: Boolean,
     hasContent: Boolean,
-    actionsEnabled: Boolean,
-    onRetry: () -> Unit
+    actionsEnabled: Boolean
 ) {
     var isCopied by remember { mutableStateOf(false) }
     var isSelectedLike by remember { mutableStateOf(false) }
@@ -267,17 +313,20 @@ private fun MessageActionsRow(
                 onClick = onRetry,
                 enabled = actionsEnabled && !isLoading && hasContent
             ) {
-                Icon(key = AllIconsKeys.Actions.Refresh, contentDescription = message("gradum.reset"))
+                Icon(
+                    contentDescription = message("gradum.reset"),
+                    key = AllIconsKeys.Actions.Refresh
+                )
             }
         }
         Spacer(modifier = Modifier.width(GradumSpacing.sm))
         IconButton(
-            onClick = { isSelectedLike = !isSelectedLike },
-            enabled = hasContent
+            enabled = hasContent,
+            onClick = { isSelectedLike = !isSelectedLike }
         ) {
             Icon(
-                key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like,
-                contentDescription = message("gradum.like")
+                contentDescription = message("gradum.like"),
+                key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
             )
         }
     }

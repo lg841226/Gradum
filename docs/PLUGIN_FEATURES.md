@@ -154,15 +154,15 @@ shape the method falls back to `None` and writes a debug log so the
 offending payload is visible in `idea.log` instead of silently rendering
 as an empty capsule.
 
-| Subclass     | Server alias | Skill          | Fields                                       |
-|--------------|--------------|----------------|----------------------------------------------|
-| `None`       | (any malformed) | —           | —                                            |
-| `Ran`        | `Ran`        | `run_cmd`      | `reason: String`, `command: String`          |
-| `Edited`     | `Edited`     | `edit_file`    | `path: String`, `linesAdded: Int`, `linesRemoved: Int` |
-| `Read`       | `Read`       | `read_file`    | `path: String`                               |
-| `Explored`   | `Explored`   | `explore_project` | `projectRoot: String`, `depth: Int`       |
-| `Planned`    | `Planned`    | `to_do` (add)  | `tasks: List<String>`                        |
-| `Completed`  | `Completed`  | `to_do` (done) | `task: String`                               |
+| Subclass    | Server alias    | Skill             | Fields                                                 |
+|-------------|-----------------|-------------------|--------------------------------------------------------|
+| `None`      | (any malformed) | —                 | —                                                      |
+| `Ran`       | `Ran`           | `run_cmd`         | `reason: String`, `command: String`                    |
+| `Edited`    | `Edited`        | `edit_file`       | `path: String`, `linesAdded: Int`, `linesRemoved: Int` |
+| `Read`      | `Read`          | `read_file`       | `path: String`                                         |
+| `Explored`  | `Explored`      | `explore_project` | `projectRoot: String`, `depth: Int`                    |
+| `Planned`   | `Planned`       | `to_do` (add)     | `tasks: List<String>`                                  |
+| `Completed` | `Completed`     | `to_do` (done)    | `task: String`                                         |
 
 ### 5.3 Streaming indicators
 
@@ -290,19 +290,19 @@ provider-branded icon by scanning the lower-cased name for the first
 keyword hit. The mapping is hard-coded in `PROVIDER_KEYWORD_MAP` and
 covers every cloud and self-hosted provider the project advertises:
 
-| Keyword        | Provider icon |
-|----------------|---------------|
-| `qwen`         | Alibaba       |
-| `claude`       | Anthropic     |
-| `deepseek`     | Deepseek      |
-| `gemini`, `gemma` | Google     |
-| `llama`        | Meta          |
-| `minimax`      | MiniMax       |
-| `mistral`, `mixtral` | Mistral |
-| `gpt`, `o1`, `o3`, `o4` | OpenAI |
-| `grok`         | xAI           |
-| `mimo`         | Xiaomi        |
-| `glm`          | ZhipuAI       |
+| Keyword                 | Provider icon |
+|-------------------------|---------------|
+| `qwen`                  | Alibaba       |
+| `claude`                | Anthropic     |
+| `deepseek`              | Deepseek      |
+| `gemini`, `gemma`       | Google        |
+| `llama`                 | Meta          |
+| `minimax`               | MiniMax       |
+| `mistral`, `mixtral`    | Mistral       |
+| `gpt`, `o1`, `o3`, `o4` | OpenAI        |
+| `grok`                  | xAI           |
+| `mimo`                  | Xiaomi        |
+| `glm`                   | ZhipuAI       |
 
 The eleven provider folders under `icons/model-provider/` each ship a
 light/dark pair so the icon tracks the IDE theme. `ModelSelectorBar`
@@ -360,7 +360,8 @@ Source: [`PermissionSelector.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/
 The user can attach files and folders to a message. The bar lives between
 the toolbar and the text field.
 
-- **Maximum count** — `MAX_ATTACHMENTS = 5`. The add button is disabled
+- **Maximum count** — `MAX_ATTACHMENTS = 10`. Files, images, and text
+  attachments all share the same pool. The add button is disabled
   (with a tooltip explaining why) once the limit is reached.
 - **Add surface** — `AddContextPopup` exposes file pickers for both files
   and directories. Adding a directory walks it and freezes the result at
@@ -519,7 +520,7 @@ Source: [`GradumBundle.kt`](../../plugin/src/main/kotlin/gradum/idea/bundle/Grad
 ## 14. Icons
 
 The plugin ships **325 icon assets** (324 SVGs + one PNG) under
-`plugin/src/main/resources/icons/`, organised by purpose:
+`plugin/src/main/resources/icons/`, organized by purpose:
 
 - `auto/`, `build/`, `cloud/`, `local/` — model-mode indicators.
 - `cmd/`, `edit/`, `explore/`, `web/`, `file-type/` — tool affordances.
@@ -527,7 +528,8 @@ The plugin ships **325 icon assets** (324 SVGs + one PNG) under
 - `file-type/` — language-typed file glyphs (Kotlin, Python, TypeScript, JSX, PHP, …).
 - `model-provider/` — brand logos for 11 providers, each with a
   light/dark pair for IDE theme parity.
-- `like/`, `like-selected/`, `send/`, `tools/`, `search/`, `warning/`, `vison/`, `image/`, `markdown/`, `logo/` — UI affordances.
+- `like/`, `like-selected/`, `send/`, `tools/`, `search/`, `warning/`, `vison/`, `image/`, `markdown/`, `logo/` — UI
+  affordances.
 - `hands.png` — a 1600 × 1600 PNG used in the welcome screen's empty
   state; kept as raster because the artwork uses a continuous gradient
   that does not survive the SVG simplification pass.
@@ -596,7 +598,7 @@ Source: [`Spacing.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/Spacing.
 ## 17. Accessibility & UX guarantees
 
 - **Disabled state tooltips** — every disabled control has a tooltip
-  explaining *why* it is disabled (e.g. "Maximum of 5 attachments" on
+  explaining *why* it is disabled (e.g. "Maximum of 10 attachments" on
   the add button when the limit is reached). No silent greying-out.
 - **Consistent chat patterns** — user and assistant bubbles, message
   timestamps, copy buttons, and error states share one visual layout

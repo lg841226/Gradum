@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-06-30 23:35:47 Changed by gwy
+ * GradumIcons.kt  2026-07-02 14:29:15 Changed by gwy
  */
 
 package gradum.idea.icons
@@ -49,6 +49,8 @@ object GradumIcons {
     val ProviderXai = PathIconKey("/icons/model-provider/xai.svg", GradumIcons::class.java)
     val ProviderXiaomi = PathIconKey("/icons/model-provider/xiaomi.svg", GradumIcons::class.java)
     val ProviderZhipuai = PathIconKey("/icons/model-provider/zhipuai.svg", GradumIcons::class.java)
+
+    val ColorLogo = PathIconKey("/icons/logo/color_logo.svg", GradumIcons::class.java)
 
     private val PROVIDER_KEYWORD_MAP = mapOf(
         "qwen" to ProviderAlibaba,

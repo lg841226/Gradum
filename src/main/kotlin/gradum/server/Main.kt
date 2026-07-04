@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-06-30 23:35:47 Changed by gwy
+ * Main.kt  2026-07-04 12:23:21 Changed by gwy
  */
 
 package gradum.server
@@ -10,7 +10,7 @@ package gradum.server
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-private val logger: Logger = LoggerFactory.getLogger("GradumMain")
+private val logger: Logger = LoggerFactory.getLogger("Main")
 
 fun main(arguments: Array<String>) {
     val parsedArguments: ServerArguments = parseArguments(arguments)
@@ -19,23 +19,26 @@ fun main(arguments: Array<String>) {
         val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
 
         // fail-fast: Ktor would throw on bind(-1) with a less informative "port out of range" message.
-        checkNotNull(detectedPort) { "No available port in range ${parsedArguments.portNumber} - ${parsedArguments.portNumber + 10}; aborting server start" }
+        checkNotNull(detectedPort) {
+            "No available port in range ${parsedArguments.portNumber} - " +
+                "${parsedArguments.portNumber + 10}; aborting server start"
+        }
+
         logger.info("Using auto-detected port: $detectedPort")
         detectedPort
-    } else {
+    } else
         parsedArguments.portNumber
-    }
 
     val serverConfiguration = ServerConfiguration(
         hostAddress = parsedArguments.hostAddress,
-        portNumber = resolvedPort,
+        portNumber = resolvedPort
     )
 
     val server: GradumServer = createServerInstance(serverConfiguration)
 
     Runtime.getRuntime().addShutdownHook(Thread {
         server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
-        logger.info("Gradum Server shut down")
+        logger.info("Gradum Server has been shut down successfully")
     })
 
     server.start(wait = true)
@@ -76,17 +79,32 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
 }
 
 private fun printUsage() {
-    println("Gradum HTTP Server")
-    println()
-    println("Usage: java -jar gradum@<version>.jar [options]")
-    println()
-    println("Available Options:")
-    println("  --host <host>           Host to bind (default: localhost)")
-    println("  --port <port>           Port to bind (default: 8765)")
-    println("  --auto-port             Auto-find available port")
-    println("  --provider <provider>   LLM provider (ollama/openai)")
-    println()
-    println("Note: projectRoot is no longer a server-side concern. The plugin")
-    println("sends it on every /events request, derived from Project.basePath.")
-    println("  --help                  Show this help message")
+    println(
+        """
+        |Gradum HTTP Server
+        |
+        |Usage: java -jar gradum@<version>.jar [options]
+        |
+        |Available Options:
+        |  --host <host>          Host to bind (default: localhost)
+        |  --port <port>          Port to bind (default: 8765)
+        |  --auto-port            Auto-find available port
+        |  --provider <name>      LLM provider: ollama or openai (default: ollama)
+        |  --base-url <url>       Provider base URL (default: http://localhost:11434)
+        |  --model <name>         Default model name
+        |  --think                Enable thinking mode (default: off)
+        |  --project-root <path>  Project root path for the session
+        |  --help                 Show this help message
+        |
+        |HTTP Endpoints:
+        |  POST /events   Execute agent, returns NDJSON stream
+        |  POST /stop     Stop current agent task
+        |  GET  /health   Liveness probe
+        |  GET  /models   List available models
+        |  GET  /skills   List registered skills
+        |
+        |Note: projectRoot is sent by the plugin on every /events request.
+        |      It is not a server-side configuration.
+    """.trimMargin()
+    )
 }

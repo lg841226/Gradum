@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelRecommender.kt  2026-07-01 12:45:00 Changed by gwy
+ * ModelRecommender.kt  2026-07-01 21:56:07 Changed by gwy
  */
 
 package gradum.discovery
@@ -97,14 +97,14 @@ fun recommend(
  *     / vision model outranks an otherwise-identical sibling.
  */
 internal fun score(model: ModelEntry, context: RecommendationContext): Double {
-    var s: Double = 0.0
+    var s = 0.0
 
     s += minOf(model.contextLimit, 200_000) / 2_000.0
 
     if (isCloud(model)) {
         s += 200.0
     } else {
-        val paramsB: Double = extractedParamsB(model)
+        val paramsB: Double = parseParamsB(model)
         s += paramsB * 1.5
 
         // Binary memory gate: a local model that cannot fit in the
@@ -128,7 +128,7 @@ internal fun score(model: ModelEntry, context: RecommendationContext): Double {
 /**
  * A model is treated as cloud if its name carries a `cloud` suffix
  * (the project convention — see `ModelSelectorBar.isCloud`) or if it
- * came from a server we don't recognise as a local runtime. The
+ * came from a server we don't recognize as a local runtime. The
  * second check is the safety net for upstream models.dev entries that
  * don't follow the naming convention.
  */
@@ -144,7 +144,7 @@ private fun isCloud(model: ModelEntry): Boolean {
  * non-cloud models without a size tag fall to the bottom of the
  * local ranking by design).
  */
-fun extractedParamsB(model: ModelEntry): Double {
+fun parseParamsB(model: ModelEntry): Double {
     val match: MatchResult? = Regex("""(\d+(?:\.\d+)?)b""", RegexOption.IGNORE_CASE)
         .find(model.modelName)
     return match?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0

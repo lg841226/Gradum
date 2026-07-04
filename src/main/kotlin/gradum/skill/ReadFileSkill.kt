@@ -2,15 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-06-30 23:35:47 Changed by gwy
+ * ReadFileSkill.kt  2026-07-04 20:59:37 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.ErrorCode
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
+import gradum.*
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -35,10 +32,11 @@ class ReadFileSkill : Skill() {
     override val alias: String = "Read"
     override val description: String = "Read file content. Use line_range to read a section."
 
-    override val historyKeepCount: Int = 2
+    override val historyKeepCount: Int = 5
     override val historyVolatileKeys: List<String> = listOf("content")
 
-    override fun getSchema(): Map<String, Any> {
+    override fun getSchema(context: SkillContext?): Map<String, Any> {
+        val useSimpleSchema = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
         return mapOf(
             "type" to "function",
             "function" to mapOf(
@@ -46,39 +44,54 @@ class ReadFileSkill : Skill() {
                 "description" to description,
                 "parameters" to mapOf(
                     "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf(
-                            "type" to "string",
-                            "description" to "File path to read. Use relative path from current directory.",
-                        ),
-                        "lineRange" to mapOf(
-                            "type" to "string",
-                            "description" to "Specific line range. Format: 'start-end' (e.g., '12-22').",
-                        ),
-                        "show" to mapOf(
-                            "type" to "string",
-                            "description" to "Keyword to highlight in yellow background.",
-                        ),
-                    ),
+                    "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
                     "required" to listOf("path"),
                 ),
             ),
         )
     }
 
+    private fun localProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "File path to read",
+        ),
+        "line_range" to mapOf(
+            "type" to "string",
+            "description" to "Line range to read. Format: 'start-end' (e.g., '12-22')",
+        ),
+    )
+
+    private fun cloudProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "File path to read. Use relative path from current directory.",
+        ),
+        "lineRange" to mapOf(
+            "type" to "string",
+            "description" to "Line range to read. Format: 'start-end' (e.g., '12-22').",
+        ),
+        "line_range" to mapOf(
+            "type" to "string",
+            "description" to "Alias for lineRange. Format: 'start-end' (e.g., '12-22').",
+        ),
+    )
+
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
-        val lineRange: String = arguments["lineRange"] as? String ?: ""
+        val lineRange: String = (arguments["lineRange"] as? String ?: "")
+            .ifBlank { arguments["line_range"] as? String ?: "" }
         val projectRoot: String = context.projectRoot
+        val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
         if (filePath.isBlank())
             return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
 
         val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
             Path.of(projectRoot, filePath).toAbsolutePath().normalize()
-        } else {
+        } else
             Path.of(filePath).toAbsolutePath().normalize()
-        }
+        
         val targetFile: File = resolvedPath.toFile()
 
         return try {
@@ -102,8 +115,8 @@ class ReadFileSkill : Skill() {
                 )
             }
 
-            val (startLineNumber: Int, endLineNumber: Int, fileContent: String) = if (lineRange.isBlank()) {
-                Triple(1, totalLines, allLines.joinToString("\n"))
+            val (startLineNumber: Int, endLineNumber: Int, selectedLines: List<String>) = if (lineRange.isBlank()) {
+                Triple(1, totalLines, allLines)
             } else {
                 val rangeParts: List<String> = lineRange.split("-")
                 if (rangeParts.size != 2) {
@@ -131,22 +144,39 @@ class ReadFileSkill : Skill() {
                 val actualStart: Int = minOf(clampedStart, clampedEnd)
                 val actualEnd: Int = maxOf(clampedStart, clampedEnd)
 
-                val selectedContent: String = readLinesInRange(allLines, actualStart, actualEnd)
-                Triple(actualStart, actualEnd, selectedContent)
+                Triple(actualStart, actualEnd, allLines.subList(actualStart - 1, actualEnd))
             }
 
-            val contentHash: String = MessageDigest.getInstance("MD5").digest(fileContent.toByteArray(Charsets.UTF_8))
+            val contentHash: String = MessageDigest.getInstance("MD5")
+                .digest(selectedLines.joinToString("\n").toByteArray(Charsets.UTF_8))
                 .joinToString("") { byte: Byte -> "%02x".format(byte) }
 
-            makeSuccess(
-                mapOf(
-                    "path" to resolvedPath.toString(),
-                    "lineRange" to "$startLineNumber-$endLineNumber",
-                    "totalLines" to totalLines,
-                    "contentHash" to contentHash,
-                    "content" to fileContent,
-                ),
-            )
+            if (useSimpleOutput) {
+                // Simplified key-value format for small models: {lineNumber: content, ...}
+                val numberedContent: Map<String, String> = selectedLines.mapIndexed { index: Int, line: String ->
+                    (startLineNumber + index).toString() to line
+                }.toMap()
+
+                makeSuccess(
+                    mapOf(
+                        "path" to resolvedPath.toString(),
+                        "totalLines" to totalLines,
+                        "contentHash" to contentHash,
+                        "content" to numberedContent,
+                    ),
+                )
+            } else {
+                // Full format for cloud models
+                makeSuccess(
+                    mapOf(
+                        "path" to resolvedPath.toString(),
+                        "lineRange" to "$startLineNumber-$endLineNumber",
+                        "totalLines" to totalLines,
+                        "contentHash" to contentHash,
+                        "content" to selectedLines.joinToString("\n"),
+                    ),
+                )
+            }
         } catch (_: FileNotFoundException) {
             makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (exception: Exception) {

@@ -98,17 +98,50 @@ class ContextManager(private val outputDirectory: Path) {
     ): List<Map<String, Any>> {
         val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
 
+        // Step 1: Identify tool calls from read_file and explore_project
+        val preservedToolCallIds: MutableSet<String> = mutableSetOf()
+        for (message in messages) {
+            val role: String = message["role"] as? String ?: ""
+            if (role != "assistant") continue
+
+            @Suppress("UNCHECKED_CAST")
+            val toolCalls: List<Map<String, Any>> = message["tool_calls"] as? List<Map<String, Any>> ?: continue
+            for (toolCall in toolCalls) {
+                val function: Map<String, Any> = toolCall["function"] as? Map<String, Any> ?: continue
+                val functionName: String = function["name"] as? String ?: ""
+                val callId: String = toolCall["id"] as? String ?: ""
+
+                if (functionName in listOf("read_file", "explore_project") && callId.isNotBlank()) {
+                    preservedToolCallIds.add(callId)
+                }
+            }
+        }
+
+        // Step 2: Filter messages, preserving tool results from read_file/explore_project
         for (message in messages) {
             val role: String = message["role"] as? String ?: ""
             val content: String = message["content"] as? String ?: ""
 
-            val isSystemOrTool: Boolean = role in listOf("system", "tool")
-            val isEmptyAssistant: Boolean = role == "assistant" && content.isBlank()
+            val isSystemOrEmptyAssistant: Boolean = (role == "system") || (role == "assistant" && content.isBlank())
+
+            if (isSystemOrEmptyAssistant) continue
+
+            // Preserve tool messages from read_file and explore_project
+            if (role == "tool") {
+                val callId: String = message["tool_call_id"] as? String ?: ""
+                if (callId in preservedToolCallIds) {
+                    cleanedMessages.add(message)
+                    continue
+                }
+                // Skip other tool messages
+                continue
+            }
+
+            // Skip other fully-read file messages
             val isFullyRead: Boolean = fullyReadFiles.any { filePath ->
                 content.startsWith("Success: Read $filePath") || content.startsWith("Success: Read '$filePath")
             }
-
-            if (isSystemOrTool || isEmptyAssistant || isFullyRead) continue
+            if (isFullyRead) continue
 
             cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
         }

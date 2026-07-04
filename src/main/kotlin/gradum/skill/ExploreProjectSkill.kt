@@ -2,20 +2,17 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-06-30 23:35:47 Changed by gwy
+ * ExploreProjectSkill.kt  2026-07-03 20:03:42 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.ErrorCode
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
+import gradum.*
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 
-private const val MINIMUM_DEPTH: Int = 1
+private const val MINIMUM_DEPTH: Int = 5
 private const val MAXIMUM_DEPTH: Int = 12
 private const val DEFAULT_DEPTH: Int = 8
 private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2048
@@ -31,7 +28,7 @@ private val truncatedDirectoryNames: Set<String> = setOf(
     // Python
     "__pycache__", ".venv", "venv", "env", ".eggs", ".pytest_cache",
     ".mypy_cache", ".ruff_cache", ".tox",
-    // Go / PHP / Ruby (shared "vendor" kept as one entry — first match wins in the set)
+    // Go / PHP / Ruby
     "vendor", ".bundle",
     // iOS / macOS
     "Pods", "DerivedData", ".build",
@@ -40,15 +37,62 @@ private val truncatedDirectoryNames: Set<String> = setOf(
     "coverage", ".nyc_output"
 )
 
-/**
- * Returns true when [name] is a directory we want visible to the LLM
- * (so it knows the directory exists) but do not want to recursively
- * expand — typically build artifacts, dependencies, and caches.
- *
- * Any dotfile directory (`.git`, `.idea`, `.venv`, …) is treated as
- * truncated as well; hidden top-level entries are configuration/tooling
- * state that almost never contains handwritten code worth expanding.
- */
+private val configFiles: Set<String> = setOf(
+    // Build tools
+    "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+    "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
+    "gradle.properties", "gradlew", "gradlew.bat",
+    "Cargo.toml", "Cargo.lock",
+    "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "poetry.lock",
+    "CMakeLists.txt", "Makefile", "makefile",
+    "go.mod", "go.sum",
+    "Gemfile", "Gemfile.lock",
+    "composer.json", "composer.lock",
+    // Config files
+    "tsconfig.json", "tsconfig.base.json",
+    ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintrc.yml",
+    ".prettierrc", ".prettierrc.json", ".prettierrc.js",
+    "jest.config.js", "jest.config.ts", "vitest.config.ts",
+    "webpack.config.js", "vite.config.ts", "vite.config.js",
+    "tailwind.config.js", "tailwind.config.ts",
+    "postcss.config.js",
+    ".babelrc", "babel.config.js",
+    "docker-compose.yml", "docker-compose.yaml", "docker-compose.override.yml",
+    "Dockerfile", "Dockerfile.dev", "Dockerfile.prod",
+    ".env", ".env.example", ".env.local", ".env.development", ".env.production",
+    // VCS
+    ".gitignore", ".gitattributes", ".gitmodules",
+    // IDE
+    "*.iml", ".editorconfig",
+    // Misc
+    "LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.txt",
+    "CHANGELOG.md", "CHANGELOG.txt", "CHANGES.md",
+    "CONTRIBUTING.md", "CONTRIBUTING.txt",
+    ".DS_Store", "Thumbs.db"
+)
+
+private val codeExtensions: Set<String> = setOf(
+    // JVM
+    "kt", "kts", "java", "scala", "groovy",
+    // JS / TS
+    "js", "jsx", "ts", "tsx", "mjs", "cjs",
+    // Python
+    "py", "pyw",
+    // Systems
+    "c", "cpp", "cc", "cxx", "h", "hpp", "hxx",
+    "rs", "go", "swift", "m", "mm",
+    // Web
+    "html", "htm", "css", "scss", "sass", "less", "vue", "svelte",
+    // Shell
+    "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
+    // Data / Config (still code)
+    "sql", "graphql", "gql", "proto", "thrift",
+    "yaml", "yml", "toml", "xml", "json", "json5",
+    "rb", "php", "pl", "pm", "r", "R", "lua", "dart", "ex", "exs", "erl",
+    // Other
+    "md", "txt", "rst", "adoc"
+)
+
 private fun shouldTruncate(name: String): Boolean {
     if (name.startsWith(".")) return true
     if (name in truncatedDirectoryNames) return true
@@ -57,26 +101,51 @@ private fun shouldTruncate(name: String): Boolean {
     return false
 }
 
-/**
- * Recursively builds the children list for [directory] up to [remainingDepth]
- * additional levels. Truncated directories are emitted as `{path, truncated: true}`
- * leaves; regular files are emitted as bare `{path}` objects; real directories
- * carry a nested `children` array (omitted when empty).
- *
- * Symlink loops are detected via [visited] (absolute, normalized paths) and
- * silently skipped so a single misconfigured symlink cannot wedge the scan.
- * Permission errors on individual directories are caught and the rest of the
- * listing is returned.
- */
-private fun buildChildren(directory: Path, remainingDepth: Int, visited: Set<Path>): List<Map<String, Any>> {
-    if (remainingDepth <= 0) return emptyList()
+private fun isConfigFile(name: String): Boolean {
+    if (name in configFiles) return true
+    if (name.endsWith(".iml")) return true
+    if (name.startsWith(".env")) return true
+    return false
+}
 
-    val children: MutableList<Map<String, Any>> = mutableListOf()
+private fun isCodeFile(name: String): Boolean {
+    val ext = name.substringAfterLast('.', "")
+    return ext in codeExtensions
+}
+
+private fun countLines(file: File): Int {
+    return try {
+        file.bufferedReader().use { reader ->
+            reader.lines().count().toInt()
+        }
+    } catch (_: Exception) {
+        0
+    }
+}
+
+private fun formatSize(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024))
+        else -> String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024))
+    }
+}
+
+private data class ScanResult(
+    val configFiles: MutableList<String> = mutableListOf(),
+    val codeFiles: MutableList<Map<String, Any>> = mutableListOf(),
+    val otherFiles: MutableList<String> = mutableListOf(),
+    var totalSize: Long = 0
+)
+
+private fun scanDirectory(directory: Path, remainingDepth: Int, visited: Set<Path>, result: ScanResult) {
+    if (remainingDepth <= 0) return
 
     val entries: List<File> = try {
         directory.toFile().listFiles()?.toList() ?: emptyList()
     } catch (_: SecurityException) {
-        return children
+        return
     }
 
     val sortedEntries: List<File> = entries
@@ -89,80 +158,80 @@ private fun buildChildren(directory: Path, remainingDepth: Int, visited: Set<Pat
     }
 
     for (entry in limitedEntries) {
-        if (entry.isDirectory)
-            children.add(buildDirectoryNode(entry, remainingDepth, visited))
-        else
-            children.add(linkedMapOf("path" to entry.name))
+        if (entry.isDirectory) {
+            if (shouldTruncate(entry.name)) continue
+
+            val childPath: Path = entry.toPath()
+            val normalizedChild: Path = childPath.toAbsolutePath().normalize()
+
+            if (normalizedChild in visited) continue
+
+            val newVisited: Set<Path> = visited.plusElement(normalizedChild)
+            scanDirectory(childPath, remainingDepth - 1, newVisited, result)
+        } else {
+            result.totalSize += entry.length()
+
+            val relativePath = directory.relativize(entry.toPath()).toString()
+
+            when {
+                isConfigFile(entry.name) -> result.configFiles.add(relativePath)
+                isCodeFile(entry.name) -> {
+                    val lines = countLines(entry)
+                    result.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lines))
+                }
+
+                else -> result.otherFiles.add(relativePath)
+            }
+        }
     }
-
-    return children
-}
-
-private fun buildDirectoryNode(entry: File, remainingDepth: Int, visited: Set<Path>): Map<String, Any> {
-    if (shouldTruncate(entry.name))
-        return linkedMapOf("path" to entry.name, "truncated" to true)
-
-    val childPath: Path = entry.toPath()
-    val normalizedChild: Path = childPath.toAbsolutePath().normalize()
-
-    if (normalizedChild in visited)
-        return linkedMapOf("path" to entry.name, "truncated" to true)
-
-    val newVisited: Set<Path> = visited.plusElement(normalizedChild)
-    val grandChildren: List<Map<String, Any>> =
-        buildChildren(childPath, remainingDepth - 1, newVisited)
-
-    val directoryNode: MutableMap<String, Any> = linkedMapOf("path" to entry.name)
-
-    if (grandChildren.isNotEmpty())
-        directoryNode["children"] = grandChildren
-
-    return directoryNode
 }
 
 /**
- * Scans a project directory tree up to a configurable depth, returning a
- * hierarchical structure that lets the LLM understand project layout
- * without paying the cost of reading file contents.
+ * Scans a project directory tree and returns a flat categorized summary:
+ * - config_files: project configuration files
+ * - code_files: source code files with line counts
+ * - other_files: miscellaneous files
  *
- * Build artifacts and dependency directories (.git, build, node_modules, …)
- * are emitted as truncated placeholders so the LLM can see they exist
- * while preventing a single scan from ballooning the conversation context.
- * Use [read_file][ReadFileSkill] on a specific path once the LLM has
- * located the file of interest.
+ * Build artifacts and dependency directories are skipped.
+ * The first call returns detailed lists; subsequent calls return counts only.
  */
 class ExploreProjectSkill : Skill() {
 
     override val skillName: String = "explore_project"
     override val alias: String = "Explored"
     override val description: String =
-        "Scan directory tree. depth 1-$MAXIMUM_DEPTH (default $DEFAULT_DEPTH). Build/dependency dirs truncated."
+        "Scan project and categorize files. Returns config files, code files (with line counts), and other files."
 
-    /**
-     * Keep the full nested tree for the most recent 1 result. Older results are
-     * collapsed to a flat list of top-level entry names so a session that
-     * explores the project once at the start does not pay for the full tree
-     * on every subsequent LLM call.
-     */
-    override val historyKeepCount: Int = 1
+    override val allowedToolModes: Set<ToolMode> = setOf(
+        ToolMode.AGENT,
+        ToolMode.EDIT
+    )
 
-    /**
-     * After the first call, compact the tree to just top-level directory names
-     * so subsequent LLM calls see a summary instead of the full recursive tree.
-     */
+    override val historyKeepCount: Int = 3
+
     override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
         prepareHistoryCallCount++
         if (prepareHistoryCallCount <= historyKeepCount) return result
 
-        // Extract child entries and replace full tree with just path names
         @Suppress("UNCHECKED_CAST")
-        val originalChildren: List<Map<String, Any>> = result["children"] as? List<Map<String, Any>> ?: return result
-        val topLevelNames: List<String> = originalChildren.mapNotNull { child -> child["path"] as? String }
-        val compactChildren: List<Map<String, Any>> = topLevelNames.map { name -> linkedMapOf("path" to name) }
-        return result.toMutableMap().apply { this["children"] = compactChildren }
+        val configCount = (result["config_files"] as? List<*>)?.size ?: 0
+
+        @Suppress("UNCHECKED_CAST")
+        val codeCount = (result["code_files"] as? List<*>)?.size ?: 0
+
+        @Suppress("UNCHECKED_CAST")
+        val otherCount = (result["other_files"] as? List<*>)?.size ?: 0
+
+        return linkedMapOf(
+            "project_root" to (result["project_root"] ?: ""),
+            "total_size" to (result["total_size"] ?: "0 B"),
+            "config_files" to configCount,
+            "code_files" to codeCount,
+            "other_files" to otherCount
+        )
     }
 
-    override fun getSchema(): Map<String, Any> = mapOf(
+    override fun getSchema(context: SkillContext?): Map<String, Any> = mapOf(
         "type" to "function",
         "function" to mapOf(
             "name" to skillName,
@@ -173,7 +242,7 @@ class ExploreProjectSkill : Skill() {
                     "depth" to mapOf(
                         "type" to "integer",
                         "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
-                            "depth=1 lists immediate children only.",
+                            "depth=$MINIMUM_DEPTH lists immediate children only. Values below $MINIMUM_DEPTH are forced to $DEFAULT_DEPTH.",
                         "minimum" to MINIMUM_DEPTH,
                         "maximum" to MAXIMUM_DEPTH,
                         "default" to DEFAULT_DEPTH,
@@ -185,39 +254,18 @@ class ExploreProjectSkill : Skill() {
     )
 
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-        // The root to scan is ALWAYS the server-injected projectRoot (resolved
-        // from the per-session SkillContext). The LLM has no way to influence
-        // it because the schema no longer exposes any path/root parameter.
-        // Some models still pass `project_root` out of habit / training
-        // memory — we HARD-reject it so the model gets a clear error and
-        // stops wasting turns, instead of silently ignoring and leaving the
-        // model confused.
-        if (arguments.containsKey("project_root")) {
-            return makeFailure(
-                ErrorCode.INVALID_PARAMETER,
-                "'project_root' is not a valid parameter for explore_project. " +
-                    "The server determines the project root from the per-session SkillContext. " +
-                    "Do not pass any path/root argument; just call explore_project with depth=N.",
-            )
-        }
-
         val projectRoot: String = context.projectRoot
 
         val depth: Int = when (val depthValue: Any? = arguments["depth"]) {
             is Number -> depthValue.toInt()
             is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH
             else -> DEFAULT_DEPTH
-        }
+        }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
 
         if (projectRoot.isBlank())
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
                 "Server has no project root configured for this session.",
-            )
-        if (depth !in MINIMUM_DEPTH..MAXIMUM_DEPTH)
-            return makeFailure(
-                ErrorCode.INVALID_PARAMETER,
-                "Invalid 'depth': $depth (allowed: $MINIMUM_DEPTH..$MAXIMUM_DEPTH)"
             )
 
         val resolvedPath: Path = try {
@@ -243,14 +291,17 @@ class ExploreProjectSkill : Skill() {
                 mapOf("project_root" to resolvedPath.toString())
             )
 
+        val result = ScanResult()
         val visited: Set<Path> = setOf(resolvedPath)
-        val children: List<Map<String, Any>> = buildChildren(resolvedPath, depth, visited)
+        scanDirectory(resolvedPath, depth, visited, result)
 
         return makeSuccess(
-            mapOf(
+            linkedMapOf(
                 "project_root" to resolvedPath.toString(),
-                "depth" to depth,
-                "children" to children
+                "total_size" to formatSize(result.totalSize),
+                "config_files" to result.configFiles.sorted(),
+                "code_files" to result.codeFiles.sortedBy { (it["path"] as? String) ?: "" },
+                "other_files" to result.otherFiles.sorted()
             )
         )
     }

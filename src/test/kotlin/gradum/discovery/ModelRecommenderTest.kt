@@ -33,7 +33,7 @@ class ModelRecommenderTest {
         toolCall: Boolean = false,
     ): ModelEntry {
         // Compose "<name>-<X>b" when paramsB is given; the regex under
-        // test (extractedParamsB) only matches a trailing "<digits>b"
+        // test (parseParamsB) only matches a trailing "<digits>b"
         // token, so a helper that forgets the literal `b` is a
         // guaranteed failure.
         val resolvedName: String = if (paramsB == null) {
@@ -141,21 +141,21 @@ class ModelRecommenderTest {
     }
 
     @Test
-    fun `extractedParamsB parses integer size suffix`() {
+    fun `parseParamsB parses integer size suffix`() {
         val model: ModelEntry = localModel("qwen", paramsB = 32.0)
-        assertEquals(32.0, extractedParamsB(model), 0.001)
+        assertEquals(32.0, parseParamsB(model), 0.001)
     }
 
     @Test
-    fun `extractedParamsB parses decimal size suffix`() {
+    fun `parseParamsB parses decimal size suffix`() {
         val model: ModelEntry = localModel("qwen", paramsB = 0.5)
-        assertEquals(0.5, extractedParamsB(model), 0.001)
+        assertEquals(0.5, parseParamsB(model), 0.001)
     }
 
     @Test
-    fun `extractedParamsB returns zero when no size suffix is present`() {
+    fun `parseParamsB returns zero when no size suffix is present`() {
         val model: ModelEntry = localModel("qwen2.5", paramsB = null)
-        assertEquals(0.0, extractedParamsB(model), 0.001)
+        assertEquals(0.0, parseParamsB(model), 0.001)
     }
 
     @Test

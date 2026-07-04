@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AttachmentBar.kt  2026-06-30 23:35:47 Changed by gwy
+ * AttachmentBar.kt  2026-07-01 21:56:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -10,11 +10,7 @@
 package gradum.idea.chat.ui.input
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +27,11 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
- * Attachment bar below the toolbar, showing selected attachments.
+ * Attachment bar below the toolbar, showing selected attachments
+ * as a flat horizontal row of [file-type icon, name, remove] chips.
+ * Image attachments do not decode a preview bitmap here — the
+ * full-fidelity preview is rendered by [MessageAttachmentPreview]
+ * once the message is sent, using the user's original file.
  */
 @Composable
 fun AttachmentBar(

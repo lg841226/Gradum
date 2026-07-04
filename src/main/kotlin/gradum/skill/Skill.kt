@@ -25,7 +25,7 @@ abstract class Skill {
      *
      * Skills that mutate the project (write files, run destructive
      * commands) must exclude [ToolMode.READ_ONLY]. Skills that do
-     * multistep task planning must exclude [ToolMode.SINGLE_STEP].
+     * multistep task planning must exclude [ToolMode.EDIT].
      * Skills that are pure inspection (read_file, explore_project,
      * run_cmd) leave the default — every mode is allowed.
      *
@@ -38,7 +38,7 @@ abstract class Skill {
      * invariant regardless of what the schema filter let through.
      */
     open val allowedToolModes: Set<ToolMode> = setOf(
-        ToolMode.WRITE, ToolMode.SINGLE_STEP, ToolMode.READ_ONLY
+        ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY
     )
 
     /**
@@ -60,7 +60,16 @@ abstract class Skill {
      */
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
-    abstract fun getSchema(): Map<String, Any>
+    /**
+     * Returns the OpenAI-compatible function schema for this skill.
+     *
+     * @param context optional session context. When provided, skills
+     *   that offer different parameter structures for local vs cloud
+     *   models (e.g. [EditFileSkill]) can return a schema tailored
+     *   to the active [gradum.Provider]. Skills that don't need
+     *   provider-aware schemas may ignore this parameter.
+     */
+    abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
 
     /**
      * How many recent results keep their [historyVolatileKeys] in conversation history.

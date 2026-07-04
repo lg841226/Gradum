@@ -15,35 +15,40 @@ This document explains how to develop new skills (Skill) for Gradum.
 7. [Complete Example: File Counter Skill](#7-complete-example-file-counter-skill)
 8. [Best Practices](#8-best-practices)
 9. [Existing Skills Reference](#9-existing-skills-reference)
-10. [Declaring `allowedToolModes` — The Three-Tier Model](#10-declaring-allowedtoolmodes--the-three-tier-model)
+10. [Declaring
+    `allowedToolModes` — The Three-Tier Permission Model](#10-declaring-allowedtoolmodes--the-three-tier-permission-model)
 11. [Using `SkillContext` for Project Root and Mode](#11-using-skillcontext-for-project-root-and-mode)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Coding Style](#13-coding-style)
+12. [Conversation History Management](#12-conversation-history-management)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Coding Style](#14-coding-style)
 
 ## 1. Architecture Overview
 
-Gradum uses a hard-coded skill registration system. A skill is a Kotlin class that extends the `Skill` abstract base
-class and lives under `src/main/kotlin/gradum/skill/`.
+Gradum uses **classpath scanning** for automatic skill discovery — skills are NOT hardcoded and require NO manual
+registration. A skill is a Kotlin class that extends the `Skill` abstract base class and lives under
+`src/main/kotlin/gradum/skill/`.
 
 **Key characteristics:**
 
 - Skills are fully decoupled from each other
 - All skills share a unified `SkillResult` output shape
-- Adding a skill = one new `.kt` file + one registration line in `SkillRegistry.discoverSkills()`
-- Removing a skill = delete the file + delete the registration line
+- Skills are discovered automatically by scanning the `gradum.skill` package
+- Just create a class extending `Skill` — no configuration needed
 
-**Registration flow:**
+**Registration flow (classpath scanning):**
 
 ```mermaid
 flowchart TD
-    subgraph Registry["SkillRegistry"]
+    subgraph Registry["SkillRegistry (singleton)"]
         Init["init { discoverSkills() }"]
-        Init --> R1["registerSkill(ReadFileSkill())"]
-        Init --> R2["registerSkill(EditFileSkill())"]
-        Init --> R3["registerSkill(SaveFileSkill())"]
-        Init --> R4["registerSkill(RunCommandSkill())"]
-        Init --> R5["registerSkill(TodoSkill())"]
-        Init --> R7["registerSkill(CompletePlanSkill())"]
+        Init --> SCAN["Scan gradum.skill package"]
+        SCAN --> R1["ReadFileSkill"]
+        SCAN --> R2["EditFileSkill"]
+        SCAN --> R3["SaveFileSkill"]
+        SCAN --> R4["RunCommandSkill"]
+        SCAN --> R5["TodoSkill"]
+        SCAN --> R6["CompletePlanSkill"]
+        SCAN --> R7["ExploreProjectSkill"]
     end
 
     subgraph Map["registeredSkills: Map<String, Skill>"]
@@ -51,8 +56,9 @@ flowchart TD
         Key2["'edit_file' -> EditFileSkill"]
         Key3["'save_file' -> SaveFileSkill"]
         Key4["'run_cmd' -> RunCommandSkill"]
-        Key5["'to_do' -> TodoSkill"]
-        Key6["'finish_to_do_item' -> CompletePlanSkill"]
+        Key5["'explore_project' -> ExploreProjectSkill"]
+        Key6["'to_do' -> TodoSkill"]
+        Key7["'finish_to_do_item' -> CompletePlanSkill"]
     end
 
     R1 --> Key1
@@ -60,12 +66,33 @@ flowchart TD
     R3 --> Key3
     R4 --> Key4
     R5 --> Key5
-    R7 --> Key6
+    R6 --> Key6
+    R7 --> Key7
     Agent[Agent.kt] -->|"skillRegistry.getSkill(name)"| SkillLook[Look up by key]
     SkillLook -->|matches| Skills[Skills in the registry]
     style Registry fill:#3b82f6
     style Map fill:#34d399
     style Agent fill:#f59e0b
+```
+
+### Adding a New Skill (Fully Automatic)
+
+No code changes, no configuration files — just create the class:
+
+1. Create your skill class extending `Skill` in `src/main/kotlin/gradum/skill/`
+2. That's it! The skill is automatically discovered at startup
+
+```kotlin
+package gradum.skill
+
+class YourCustomSkill : Skill() {
+    override val skillName: String = "your_tool"
+    override val alias: String = "Done"
+    override val description: String = "What your skill does"
+
+    override fun getSchema(): Map<String, Any> = /* ... */
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult = /* ... */
+}
 ```
 
 ## 2. Skill Type System
@@ -208,27 +235,27 @@ abstract class Skill {
 
 ### Required Class Properties
 
-| Property      | Type     | Purpose                                 | Example                                            |
-|---------------|----------|-----------------------------------------|----------------------------------------------------|
-| `skillName`   | `String` | Unique name used for LLM function calls | `"edit_file"`                                       |
-| `description` | `String` | Description shown to the LLM            | `"Atomic find-and-replace in a file"`              |
-| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Ran"`, `"Planned"`                                  |
+| Property      | Type     | Purpose                                 | Example                               |
+|---------------|----------|-----------------------------------------|---------------------------------------|
+| `skillName`   | `String` | Unique name used for LLM function calls | `"edit_file"`                         |
+| `description` | `String` | Description shown to the LLM            | `"Atomic find-and-replace in a file"` |
+| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Ran"`, `"Planned"`                  |
 
 ### Required Methods
 
-| Method                                                           | Return                                       | Purpose                                               |
-|------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
-| `execute(arguments: Map<String, Any>, context: SkillContext)`   | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(): Map<String, Any>`                                  | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+| Method                                                        | Return                                       | Purpose                                               |
+|---------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
+| `getSchema(): Map<String, Any>`                               | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
 
 ### Optional Properties
 
-| Property              | Type             | Default         | Purpose                                                                                                                                                |
-|-----------------------|------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allowedToolModes`    | `Set<ToolMode>`  | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes--the-three-tier-model). |
-| `mutatesProject`      | `Boolean`        | `false`         | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                                                          |
-| `historyKeepCount`    | `Int`            | `Int.MAX_VALUE` | Keep this many recent results intact; strip volatile keys beyond                                                                                       |
-| `historyVolatileKeys` | `List<String>`   | `emptyList()`   | Keys to remove from history result when exceeding `historyKeepCount`                                                                                   |
+| Property              | Type            | Default                           | Purpose                                                                                                              |
+|-----------------------|-----------------|-----------------------------------|----------------------------------------------------------------------------------------------------------------------|
+| `allowedToolModes`    | `Set<ToolMode>` | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes--the-three-tier-model). |
+| `mutatesProject`      | `Boolean`       | `false`                           | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                        |
+| `historyKeepCount`    | `Int`           | `Int.MAX_VALUE`                   | Keep this many recent results intact; strip volatile keys beyond                                                     |
+| `historyVolatileKeys` | `List<String>`  | `emptyList()`                     | Keys to remove from history result when exceeding `historyKeepCount`                                                 |
 
 ### Optional Hooks
 
@@ -270,17 +297,16 @@ The Agent flattens `SkillResult` into the following shape before writing to the 
 ```mermaid
 flowchart LR
     Exec["skill.execute(arguments)"] --> Result{SkillResult}
-    Result -->|"Success(data)"| SUCC["success: true<br/>+ data fields flattened"]
-    Result -->|"Failure(code, msg, ctx)"| FAIL["success: false<br/>+ error: {code, message}"]
+    Result -->|" Success(data) "| SUCC["success: true<br/>+ data fields flattened"]
+    Result -->|" Failure(code, msg, ctx) "| FAIL["success: false<br/>+ error: {code, message}"]
     SUCC --> NDJSON["emitEvent(tool_call)"]
     FAIL --> NDJSON
     NDJSON --> HIST["append to conversation history"]
-
-    style Exec fill:#3b82f6
-    style SUCC fill:#34d399
-    style FAIL fill:#f87171
-    style NDJSON fill:#0ea5e9
-    style HIST fill:#a78bfa
+    style Exec fill: #3b82f6
+    style SUCC fill: #34d399
+    style FAIL fill: #f87171
+    style NDJSON fill: #0ea5e9
+    style HIST fill: #a78bfa
 ```
 
 ```
@@ -435,14 +461,9 @@ class YourSkill : Skill() {
 
 ### 6.2 Register the Skill
 
-Add a single line inside `discoverSkills()` in `SkillRegistry.kt`:
-
-```kotlin
-private fun discoverSkills() {
-    // ... existing registrations
-    registerSkill(YourSkill())  // <-- add this line
-}
-```
+**No registration required!** The `SkillRegistry` automatically discovers all classes
+in the `gradum.skill` package that extend `Skill`. Just place your class file in
+`src/main/kotlin/gradum/skill/` and it will be found at startup.
 
 ### 6.3 Build and Test
 
@@ -511,7 +532,11 @@ class FileCounterSkill : Skill() {
         } catch (_: java.io.FileNotFoundException) {
             return makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
         } catch (exception: Exception) {
-            return makeFailure("IO_ERROR", exception.message ?: "Failed to read file", mapOf("path" to resolvedPath.toString()))
+            return makeFailure(
+                "IO_ERROR",
+                exception.message ?: "Failed to read file",
+                mapOf("path" to resolvedPath.toString())
+            )
         }
 
         val lines: Int = fileContent.lines().size
@@ -548,6 +573,72 @@ class YourSkill : Skill() {
 For more granular control, you can override `prepareHistoryResult` directly instead.
 
 Refer to `ReadFileSkill` for a real-world example.
+
+---
+
+### 6.5 Real-World Skill Examples
+
+#### ReadFileSkill (Read-only inspection)
+
+| Property              | Value                              |
+|-----------------------|------------------------------------|
+| `skillName`           | `"read_file"`                      |
+| `alias`               | `"Read"`                           |
+| `allowedToolModes`    | Default (all three modes)          |
+| `historyKeepCount`    | 5 (keeps content for last 5 calls) |
+| `historyVolatileKeys` | `listOf("content")`                |
+
+**Key behavior**: Resolves relative paths against `context.projectRoot`, computes MD5 hash of content, returns path +
+lineRange + totalLines + contentHash + content. Max file size 1MB, max 10,000 lines.
+
+#### EditFileSkill (Mutating, search-and-replace)
+
+| Property              | Value                                                                        |
+|-----------------------|------------------------------------------------------------------------------|
+| `skillName`           | `"edit_file"`                                                                |
+| `alias`               | `"Edited"`                                                                   |
+| `allowedToolModes`    | `setOf(WRITE, SINGLE_STEP)` — **excludes READ_ONLY**                         |
+| `historyKeepCount`    | 2                                                                            |
+| `historyVolatileKeys` | `listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")` |
+
+**Key behavior**: Two edit modes — **Sequential** (apply one-by-one, stop on failure) and **Atomic** (all-or-nothing
+rollback). Custom `prepareHistoryResult` strips `originalContent` and `modifiedContent` from ALL history entries.
+
+#### RunCommandSkill (Shell execution)
+
+| Property              | Value                     |
+|-----------------------|---------------------------|
+| `skillName`           | `"run_cmd"`               |
+| `alias`               | `"Ran"`                   |
+| `allowedToolModes`    | Default (all three modes) |
+| `historyKeepCount`    | 2                         |
+| `historyVolatileKeys` | `listOf("output")`        |
+
+**Key behavior**: Pre-classifies every command via `classifyCommand()`. 45-second hard timeout. Two execution modes: *
+*Blocking** (waits for completion) and **Detached** (background, returns PID + log path).
+
+#### ExploreProjectSkill (Directory tree scan)
+
+| Property              | Value                                                           |
+|-----------------------|-----------------------------------------------------------------|
+| `skillName`           | `"explore_project"`                                             |
+| `alias`               | `"Explored"`                                                    |
+| `allowedToolModes`    | Default (all three modes)                                       |
+| `historyKeepCount`    | 1 (only keeps full tree for first call)                         |
+| `historyVolatileKeys` | Custom `prepareHistoryResult` collapses tree to top-level names |
+
+**Key behavior**: Recognizes and truncates build/dependency dirs (`.git`, `build`, `node_modules`, `__pycache__`,
+`.venv`, `target`, etc.). All dotfile dirs are truncated.
+
+#### TodoSkill and CompletePlanSkill (Task planning)
+
+| Property           | Value                                                   |
+|--------------------|---------------------------------------------------------|
+| `skillName`        | `"to_do"` / `"finish_to_do_item"`                       |
+| `allowedToolModes` | `setOf(WRITE)` — **excludes READ_ONLY and SINGLE_STEP** |
+
+**Key behavior**: Both share a singleton `TodoManager` that maintains the in-memory task list. Reminder text is injected
+automatically after each tool call to keep the model on track.
 
 ---
 
@@ -656,32 +747,31 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ---
 
-## 10. Declaring `allowedToolModes` — The Three-Tier Model
+## 10. Declaring `allowedToolModes` — The Three-Tier Permission Model
 
 Gradum exposes **three permission tiers** through a single field on every
 `Skill` — `allowedToolModes`. The agent enforces it twice (schema filter at
 LLM time, runtime gate at execution time) so the two views can never drift.
-The `SkillRegistrySchemaTest.`allowedToolModes and getSchemas are the same
-source of truth`` contract test pins this invariant.
+The `SkillRegistrySchemaTest` pins this invariant.
 
 ### 10.1 The three tiers
 
-| Tier           | Wire format      | When to use                                                          |
-|----------------|------------------|----------------------------------------------------------------------|
-| `READ_ONLY`    | `"read_only"`    | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)        |
-| `SINGLE_STEP`  | `"single_step"`  | Single-shot edits (`edit_file`, `save_file`) — no multi-step planning |
-| `WRITE`        | `"write"`        | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
+| Tier          | Wire format     | UI Label   | When to use                                                                     |
+|---------------|-----------------|------------|---------------------------------------------------------------------------------|
+| `READ_ONLY`   | `"read_only"`   | Read-only  | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)                   |
+| `SINGLE_STEP` | `"single_step"` | Edit mode  | Single-shot edits (`edit_file`, `save_file`) — no multi-step planning           |
+| `WRITE`       | `"write"`       | Agent mode | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
 
 A skill should declare the **narrowest** set of tiers that covers what it does.
 Anything else weakens the safety net for the user.
 
 ### 10.2 Decision table
 
-| Does the skill ...                                                | Declare `allowedToolModes`                                    | Example skills                         |
-|-------------------------------------------------------------------|---------------------------------------------------------------|-----------------------------------------|
-| Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, SINGLE_STEP, WRITE}` (the default — all three)   | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` filter) |
-| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                        | `edit_file`, `save_file`                |
-| Drives the agent loop (initializes a task list, marks completion)  | `{WRITE}`                                                     | `to_do`, `finish_to_do_item`            |
+| Does the skill ...                                                | Declare `allowedToolModes`                                  | Example skills                                                            |
+|-------------------------------------------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------|
+| Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, SINGLE_STEP, WRITE}` (the default — all three) | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` filter) |
+| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                      | `edit_file`, `save_file`                                                  |
+| Drives the agent loop (initializes a task list, marks completion) | `{WRITE}`                                                   | `to_do`, `finish_to_do_item`                                              |
 
 ### 10.3 Worked example
 
@@ -793,13 +883,12 @@ sequenceDiagram
     participant Server
     participant Agent
     participant Skill
-
-    IDE->>Plugin: User opens project → Project.basePath
-    Plugin->>Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
+    IDE ->> Plugin: User opens project → Project.basePath
+    Plugin ->> Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
     Note over Server: Routes validates projectRoot is non-empty<br/>+ points to an existing directory
-    Server->>Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
+    Server ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
     Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot)
-    Agent->>Skill: skill.execute(arguments, skillContext)
+    Agent ->> Skill: skill.execute(arguments, skillContext)
     Note over Skill: read context.projectRoot for file ops
 ```
 
@@ -819,7 +908,7 @@ override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillR
     val inputPath: String = arguments["path"] as? String ?: ""
     val resolved: Path = Path.of(projectRoot, inputPath).toAbsolutePath().normalize()
 
-    // For mode-aware behaviour, branch on context.toolMode. The agent
+    // For mode-aware behavior, branch on context.toolMode. The agent
     // owns the actual gate; this is informational.
     val logDirectory: Path = when (toolMode) {
         ToolMode.READ_ONLY -> Path.of(projectRoot, ".gradum", "logs", "readonly")
@@ -833,25 +922,63 @@ override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillR
 ### 11.4 What NOT to do
 
 ```kotlin
-// ❌ WRONG — reads from arguments. The agent injects projectRoot for
+// WRONG — reads from arguments. The agent injects projectRoot for
 // audit/NDJSON reasons, but Skills should treat the arguments as
 // "what the LLM sent us" and read session state from context.
 val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
-// ❌ WRONG — process-global. Two concurrent sessions will overwrite
+// WRONG — process-global. Two concurrent sessions will overwrite
 // each other.
 val projectRoot: String = ProjectPaths.outputDirectory().toString()
 
-// ❌ WRONG — derives from CWD. This is the bug SkillContext replaces.
+// WRONG — derives from CWD. This is the bug SkillContext replaces.
 val projectRoot: String = System.getProperty("user.dir")
 
-// ✅ RIGHT — single source of truth, per-session, immutable.
+// RIGHT — single source of truth, per-session, immutable.
 val projectRoot: String = context.projectRoot
 ```
 
 ---
 
-## 12. Troubleshooting
+## 12. Conversation History Management
+
+### 12.1 Retention Policy
+
+History is retained **indefinitely** — there is no time-based expiry. The only constraint is message count:
+
+| Layer                            | Constant               | Limit | File & Line            |
+|----------------------------------|------------------------|-------|------------------------|
+| **Persistence** (ContextManager) | `MAX_CONTEXT_MESSAGES` | 30    | `ContextManager.kt:19` |
+| **Runtime** (Agent)              | `maxHistoryMessages`   | 20    | `Agent.kt:113`         |
+
+### 12.2 How History is Cleaned
+
+Before saving, `ContextManager.cleanMessageHistory()` removes:
+
+- System messages
+- Tool call results
+- Empty assistant messages
+- Messages matching "fully read" file content
+
+The remaining messages are capped at 30 via `takeLast(30)`.
+
+### 12.3 Encryption
+
+History is encrypted using custom **HMAC-CTR + HMAC-SHA256**:
+
+- Key source: `GRADUM_CONTEXT_KEY` env var, or hardcoded fallback
+- Only `user` and `assistant` messages with content are encrypted
+- Storage: `<projectRoot>/.gradum/context.json`
+- Write strategy: full overwrite (not append)
+
+### 12.4 Agent-Side Truncation
+
+Before each LLM turn, `Agent.truncateHistory()` trims to 20 messages + system prompt, preserving the most recent
+messages. This prevents local LLMs from being overwhelmed.
+
+---
+
+## 13. Troubleshooting
 
 ### The skill is never called by the LLM
 
@@ -890,7 +1017,7 @@ val projectRoot: String = context.projectRoot
 
 ---
 
-## 13. Coding Style
+## 14. Coding Style
 
 Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-06-30 23:35:47 Changed by gwy
+ * ChatMessageList.kt  2026-07-03 23:16:43 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.ui.GradumSpacing
@@ -29,6 +30,8 @@ private val TimestampSpacing = GradumSpacing.xs
  * Scrollable list of chat bubbles with a bottom spacer.
  *
  * When [isLoading] is true the last assistant bubble shows a progress indicator.
+ * [onAttachmentClick] is forwarded to the user bubble so the attachment
+ * preview can open the original file in the IDE.
  */
 @Composable
 fun ChatMessageList(
@@ -38,7 +41,8 @@ fun ChatMessageList(
     sendingPhase: String = "",
     onDeleteMessage: (Int) -> Unit = {},
     onRetryMessage: (Int) -> Unit = {},
-    onCopyAsContext: (String) -> Unit = {}
+    onCopyAsContext: (String) -> Unit = {},
+    onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
 
@@ -59,13 +63,14 @@ fun ChatMessageList(
                 message.isUserMessage -> UserChatBubble(
                     message = message,
                     onDeleteMessage = { onDeleteMessage(index) },
-                    onCopyAsContext = onCopyAsContext
+                    onCopyAsContext = onCopyAsContext,
+                    onAttachmentClick = onAttachmentClick
                 )
 
                 else -> AssistantChatBubble(
                     message = message,
-                    isLoading = isLastAssistant,
                     sendingPhase = if (isLastAssistant) sendingPhase else "",
+                    isLoading = isLastAssistant,
                     onRetry = { onRetryMessage(index) }
                 )
             }

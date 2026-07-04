@@ -207,7 +207,6 @@ data class ModelBarState(
 )
 
 data class ModelBarActions(
-    val onRefresh: () -> Unit,
     val onSelectModel: (Model) -> Unit,
     val onTogglePin: (Model) -> Unit,
     val onSelectAuto: () -> Unit
@@ -227,7 +226,6 @@ fun ModelSelectorBar(
     selectedModel: Model?,
     pinnedModels: List<Model>,
     isAutoSelected: Boolean,
-    onRefresh: () -> Unit,
     onSelectModel: (Model) -> Unit,
     onTogglePin: (Model) -> Unit,
     onSelectAuto: () -> Unit

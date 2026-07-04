@@ -24,7 +24,7 @@ import java.nio.file.Path
 import kotlin.test.*
 
 /**
- * Pins the read-only / single-step tool surface to a real disk: when the
+ * Pins the read-only / edit tool surface to a real disk: when the
  * LLM emits an edit_file / save_file / to_do / finish_to_do_item call
  * under a mode that excludes it, the agent must return TOOL_NOT_PERMITTED
  * AND the file on disk must be unchanged. The first condition is easy to
@@ -33,7 +33,7 @@ import kotlin.test.*
  * Why this test exists: the schema whitelist in SkillRegistry.getSchemas
  * hides forbidden skills from the LLM's tool list, but the model still
  * knows about edit_file from training data and from the system prompt
- * (which documents the tool surface in WRITE mode). The mode gate in
+ * (which documents the tool surface in AGENT mode). The mode gate in
  * executeSingleTool is the only line of defense against a hallucinated
  * tool call — if that gate ever regresses, these tests will catch it.
  */
@@ -72,7 +72,7 @@ class ToolModeGateTest {
         )
         assertEquals("READ_ONLY", errorMap["toolMode"])
         assertTrue(
-            ((errorMap["allowedModes"] as List<*>).contains("WRITE")),
+            ((errorMap["allowedModes"] as List<*>).contains("AGENT")),
             "Error should list the actually-allowed modes",
         )
 
@@ -126,10 +126,7 @@ class ToolModeGateTest {
     }
 
     @Test
-    fun `single-step mode rejects to_do call`() {
-        // to_do / finish_to_do_item are the task-planning pair withheld in
-        // SINGLE_STEP. Different from READ_ONLY (where write tools are
-        // blocked) but the gate is the same mechanism.
+    fun `edit mode rejects to_do call`() {
         val toolCall = ToolCallEntry(
             callIdentifier = "call_1",
             functionName = "to_do",
@@ -139,7 +136,7 @@ class ToolModeGateTest {
                 ),
             ),
         )
-        val events = runAgentWithToolCall(toolCall, ToolMode.SINGLE_STEP)
+        val events = runAgentWithToolCall(toolCall, ToolMode.EDIT)
 
         val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
             ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
@@ -147,13 +144,11 @@ class ToolModeGateTest {
         @Suppress("UNCHECKED_CAST")
         val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
         assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-        assertEquals("SINGLE_STEP", errorMap["toolMode"])
+        assertEquals("EDIT", errorMap["toolMode"])
     }
 
     @Test
-    fun `write mode allows edit_file to actually run`() {
-        // Negative case: WRITE is the unrestricted mode. The gate must
-        // NOT trip here — edit_file should pass through to the skill.
+    fun `agent mode allows edit_file to actually run`() {
         val targetFile: Path = tempProjectRoot.resolve("legit.txt")
         Files.writeString(targetFile, "hello world\n")
 
@@ -174,27 +169,23 @@ class ToolModeGateTest {
                 ),
             ),
         )
-        val events = runAgentWithToolCall(toolCall, ToolMode.WRITE)
+        val events = runAgentWithToolCall(toolCall, ToolMode.AGENT)
 
         val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
             ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
 
         @Suppress("UNCHECKED_CAST")
         val result = toolCallEvent.second["result"] as Map<String, Any>
-        // The error field is null/missing on success; the file content
-        // should reflect the edit. We do NOT assert on the exact result
-        // map shape (linesAdded etc. are skill-level concerns tested
-        // elsewhere) — we only assert that the gate let the call through.
         assertNotEquals(
             (result["error"] as? Map<*, *>)?.get("code"),
             ErrorCode.TOOL_NOT_PERMITTED.name,
-            "WRITE mode must NOT reject edit_file — only the mode gate should not fire, " +
+            "AGENT mode must NOT reject edit_file — only the mode gate should not fire, " +
                 "result was: $result"
         )
         assertEquals(
             "goodbye world\n",
             Files.readString(targetFile),
-            "edit_file should have applied the edit in WRITE mode"
+            "edit_file should have applied the edit in AGENT mode"
         )
     }
 
@@ -245,7 +236,7 @@ class ToolModeGateTest {
 
         val agent = Agent(
             configuration = AgentConfiguration(
-                provider = Provider.OLLAMA,
+                provider = Provider.OPENAI,
                 toolMode = toolMode,
                 projectRoot = tempProjectRoot.toString(),
             ),

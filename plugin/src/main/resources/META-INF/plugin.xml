@@ -36,5 +36,14 @@
             round-trip.
         -->
         <projectService serviceImplementation="gradum.idea.chat.state.GradumChatSession"/>
+
+        <!--
+            Notification group used by the image upload pipeline to
+            surface size/format/slot-limit errors as IDE balloons. The
+            group id matches the string looked up in
+            NotificationGroupManager.getInstance().getNotificationGroup
+            from `GradumToolWindowFactory`.
+        -->
+        <notificationGroup id="Gradum.Notifications" displayType="BALLOON" isLogByDefault="false"/>
     </extensions>
 </idea-plugin>

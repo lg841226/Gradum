@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-06-30 23:35:47 Changed by gwy
+ * Agent.kt  2026-07-04 20:06:00 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -30,6 +30,32 @@ import java.nio.file.Path
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 /**
+ * A single user-supplied attachment (currently only `image`) for
+ * a chat turn. Agent-side mirror of
+ * `gradum.idea.chat.api.GradumApiClient.ApiImageAttachment` and
+ * the `AttachmentDto` defined in `gradum.server.Routes`.
+ *
+ * All three types are structurally identical and field
+ * conversions happen at exactly one boundary — `Routes.events`
+ * maps `List<AttachmentDto>` → `List<AttachmentPayload>` once,
+ * then the wire shape stays untouched all the way to
+ * [buildUserMessage] and from there to the multimodal rewriter
+ * in [gradum.client.LLMClient]. This avoids a server → agent
+ * import cycle (Routes already depends on Agent).
+ *
+ * The payload is already base64-encoded JPEG bytes — the plugin
+ * pipeline normalizes every uploaded image to JPEG at quality
+ * 0.85 before serializing, so the server does not need to
+ * re-decode.
+ */
+data class AttachmentPayload(
+    val type: String,
+    val mime: String?,
+    val data: String,
+    val filename: String?
+)
+
+/**
  * Drives a single user request through one or more LLM turns, dispatching
  * tool calls to [SkillRegistry] between turns until the model stops
  * requesting tools. Streams progress through [emitEvent] as NDJSON.
@@ -42,14 +68,17 @@ class Agent(
     private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
     private var activeClient: LlmClient
 
-    // Per-session ContextManager: the .gradum output directory lives
-    // inside the project the IDE has open (NOT the server's CWD). The
-    // plugin provides the projectRoot over HTTP and Routes validates it
-    // before the Agent is constructed, so this is never empty in
-    // production. Using the legacy ProjectPaths.outputDirectory() here
-    // would write context.json to the wrong project whenever the server
-    // was launched from a developer workspace rather than the user's
-    // target project.
+    /**
+     * Per-session ContextManager that stores .gradum output inside the IDE's
+     * open project, not the server's CWD.
+     *
+     * The plugin provides `projectRoot` over HTTP, and Routes validates it
+     * before Agent construction, so this is never empty in production.
+     *
+     * Using ProjectPaths.outputDirectory() would write to the wrong project
+     * if the server was launched from a developer workspace instead of the
+     * user's target project.
+     */
     private val contextManager: ContextManager = ContextManager(
         Path.of(configuration.projectRoot).resolve(".gradum")
     )
@@ -67,6 +96,8 @@ class Agent(
     private val skillContext: SkillContext = SkillContext(
         toolMode = configuration.toolMode,
         projectRoot = configuration.projectRoot,
+        provider = configuration.provider,
+        modelName = configuration.modelName,
     )
 
     private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
@@ -105,7 +136,8 @@ class Agent(
 
     fun executeTask(
         userInput: String,
-        loadPreviousContext: Boolean = false
+        loadPreviousContext: Boolean = false,
+        attachments: List<AttachmentPayload> = emptyList(),
     ): Unit {
         val startTimeMillis: Long = System.currentTimeMillis().also { sessionStartTimeMillis = it }
 
@@ -135,9 +167,13 @@ class Agent(
             )
         )
 
-        conversationHistory.add(mapOf("role" to "user", "content" to userInput))
+        conversationHistory.add(buildUserMessage(userInput, attachments))
 
-        val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(toolMode = configuration.toolMode)
+        val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
+            toolMode = configuration.toolMode,
+            provider = configuration.provider,
+            modelName = configuration.modelName,
+        )
 
         while (true) {
             if (sessionAborted) break
@@ -205,9 +241,8 @@ class Agent(
                     abortSession(startTimeMillis)
                     break
                 }
-            } else {
+            } else
                 repeatedResponseTracker.clear()
-            }
 
             if (result.toolCalls.isNullOrEmpty()) {
                 result.responseText?.let { text -> appendAssistantMessage(text, null) }
@@ -232,9 +267,9 @@ class Agent(
             AUTO -> PromptVariant.resolveAuto(configuration.provider)
         }
         val primaryPath: String = when (resolvedVariant) {
-            CLOUD -> "/prompts/system/cloud.txt"
-            LOCAL -> "/prompts/system/local.txt"
-            AUTO -> "/prompts/system/local.txt"
+            CLOUD -> "/prompts/system/cloud.xml"
+            LOCAL -> "/prompts/system/local.xml"
+            AUTO -> "/prompts/system/local.xml"
         }
 
         val promptContent: String = try {
@@ -246,15 +281,12 @@ class Agent(
             "You are a helpful AI assistant. You can't call any tool and report it"
         }
 
-        // Tool surface and workflow guidance must match the active ToolMode —
-        // the schema whitelist in SkillRegistry.getSchemas() hides to_do /
-        // edit_file / save_file under the smaller modes, so the prompt has to
-        // agree or the model will try to call tools that are no longer in
-        // its tool list.
+        // Prompt must match ToolMode. SkillRegistry hides certain tools in smaller modes.
+        // Otherwise, the model may call tools not in its list.
         val modeSectionPath: String = when (configuration.toolMode) {
-            ToolMode.READ_ONLY -> "/mode_readonly.txt"
-            ToolMode.SINGLE_STEP -> "/mode_single_step.txt"
-            ToolMode.WRITE -> "/mode_write.txt"
+            ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
+            ToolMode.EDIT -> "/prompts/modes/edit.xml"
+            ToolMode.AGENT -> "/prompts/modes/agent.xml"
         }
         val modeSection: String = try {
             Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
@@ -267,11 +299,90 @@ class Agent(
 
         val osName: String = System.getProperty("os.name")
         val osVersion: String = System.getProperty("os.version")
+        val schemaVariant: SchemaVariant = SchemaVariant.resolve(configuration.modelName)
         val substitutedContent: String = promptContent
             .replace("{{OS}}", "$osName $osVersion")
             .replace("{{MODE}}", modeSection)
+            .replace("{{SCHEMA_VARIANT}}", schemaVariant.name)
 
-        conversationHistory.add(0, mapOf("role" to "system", "content" to substitutedContent))
+        // Filter conditional sections based on schemaVariant
+        val filteredContent: String = filterConditionalSections(substitutedContent, schemaVariant)
+
+        conversationHistory.add(0, mapOf("role" to "system", "content" to filteredContent))
+    }
+
+    /**
+     * Filters conditional sections in the prompt based on [SchemaVariant].
+     *
+     * Sections wrapped in `<!-- if SIMPLE -->...<!-- endif -->` are kept
+     * only when [schemaVariant] is [SchemaVariant.SECTIONS]. Sections wrapped in
+     * `<!-- if FULL -->...<!-- endif -->` are kept only when [schemaVariant] is [SchemaVariant.FULL].
+     *
+     * Edge cases:
+     * - Nested conditionals are NOT supported (outer block wins)
+     * - Malformed tags (missing endif) → section is dropped
+     * - Empty sections are preserved (may be intentional)
+     *
+     * @param content the prompt content with conditional sections
+     * @param schemaVariant the active schema variant
+     * @return content with only the matching conditional sections
+     */
+    private fun filterConditionalSections(content: String, schemaVariant: SchemaVariant): String {
+        if (content.isBlank()) return content
+
+        val result = StringBuilder()
+        val lines = content.lines()
+        var i = 0
+        var insideConditional = false
+        var skipUntilEndif = false
+
+        while (i < lines.size) {
+            val line = lines[i]
+            val trimmed = line.trim()
+
+            when {
+                // Opening tag: <!-- if SIMPLE --> or <!-- if FULL -->
+                !insideConditional && trimmed.startsWith("<!-- if ") && trimmed.endsWith(" -->") -> {
+                    val conditionName = trimmed
+                        .removePrefix("<!-- if ")
+                        .removeSuffix(" -->")
+                        .trim()
+
+                    val conditionVariant = try {
+                        SchemaVariant.valueOf(conditionName)
+                    } catch (_: IllegalArgumentException) {
+                        null
+                    }
+
+                    insideConditional = true
+                    skipUntilEndif = conditionVariant != schemaVariant
+                    i++
+                }
+
+                // Closing tag: <!-- endif -->
+                insideConditional && trimmed == "<!-- endif -->" -> {
+                    insideConditional = false
+                    skipUntilEndif = false
+                    i++
+                }
+
+                // Inside conditional block
+                insideConditional -> {
+                    if (!skipUntilEndif) {
+                        result.appendLine(line)
+                    }
+                    i++
+                }
+
+                // Normal line outside conditional
+                else -> {
+                    result.appendLine(line)
+                    i++
+                }
+            }
+        }
+
+        return result.toString().trimEnd()
     }
 
     private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
@@ -279,7 +390,29 @@ class Agent(
         var toolCallsResult: List<ToolCallEntry>? = null
         var errorMessage: String? = null
 
-        val responseFlow: Flow<LLMResponseChunk> = activeClient.sendChat(conversationHistory, toolSchemas)
+        // Buffers for accumulating complete blocks before emitting.
+        // Each buffer collects consecutive chunks of the same type;
+        // when the chunk type changes, the buffer is flushed as a
+        // single complete event.
+        val thinkingBuffer = StringBuilder()
+        val responseBuffer = StringBuilder()
+
+        fun flushThinking() {
+            if (thinkingBuffer.isNotEmpty()) {
+                emitEvent("thinking", mapOf("content" to thinkingBuffer.toString()))
+                thinkingBuffer.clear()
+            }
+        }
+
+        fun flushResponse() {
+            if (responseBuffer.isNotEmpty()) {
+                emitEvent("response", mapOf("content" to responseBuffer.toString()))
+                responseBuffer.clear()
+            }
+        }
+
+        val responseFlow: Flow<LLMResponseChunk> =
+            activeClient.sendChat(conversationHistory, toolSchemas)
 
         // TODO(tech-debt): migrate this to a `suspend fun` so the Netty event loop is not
         // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
@@ -289,18 +422,32 @@ class Agent(
                 when (chunk) {
                     is LLMResponseChunk.TextContent -> {
                         contentParts.add(chunk.text)
-                        emitEvent("response", mapOf("content" to chunk.text))
+                        flushThinking()           // thinking block ended
+                        responseBuffer.append(chunk.text)
                     }
 
-                    is LLMResponseChunk.ToolCallBatch -> toolCallsResult = chunk.toolCalls
                     is LLMResponseChunk.ReasoningContent -> {
-                        emitEvent("thinking", mapOf("content" to chunk.text))
+                        flushResponse()           // response block ended
+                        thinkingBuffer.append(chunk.text)
                     }
 
-                    is LLMResponseChunk.ErrorMessage -> errorMessage = chunk.description
+                    is LLMResponseChunk.ToolCallBatch -> {
+                        flushThinking()
+                        flushResponse()
+                        toolCallsResult = chunk.toolCalls
+                    }
+
+                    is LLMResponseChunk.ErrorMessage -> {
+                        flushThinking()
+                        flushResponse()
+                        errorMessage = chunk.description
+                    }
                 }
             }
         }
+
+        // Flush any remaining buffered content at stream end.
+        flushThinking(); flushResponse()
 
         return AgentTurnResult(
             responseText = contentParts.joinToString(""),
@@ -319,6 +466,59 @@ class Agent(
                 ProcessedToolCall(callIdentifier = "call_$toolCallCounter", callData = call)
             }
         }
+    }
+
+    /**
+     * Build the user message map that gets appended to
+     * [conversationHistory]. The shape is the OpenAI-compatible
+     * `content` array intermediate:
+     *
+     * ```
+     * {"role": "user", "content": [
+     *   {"type": "text", "text": "What is this?"},
+     *   {"type": "image", "data": "<base64>", "mime": "image/jpeg",
+     *    "filename": "screenshot.png"},
+     *   ...
+     * ]}
+     * ```
+     *
+     * `text` always appears first when there are attachments so
+     * the LLM prompt reads in the natural top-to-bottom order.
+     * When there are no attachments, the message collapses to the
+     * old shape `{"role": "user", "content": "..."}` for
+     * backwards compatibility with persisted conversation
+     * history files and with the per-provider `LLMClient` paths
+     * that have not yet learned the array shape.
+     *
+     * The per-provider clients (`OllamaClient`,
+     * `OpenAICompatibleClient`) are responsible for translating
+     * the array shape into the wire format each backend expects
+     * — see [gradum.client.LLMClient.sendChat].
+     */
+    private fun buildUserMessage(text: String, attachments: List<AttachmentPayload>): Map<String, Any> {
+        if (attachments.isEmpty()) {
+            return mapOf("role" to "user", "content" to text)
+        }
+        val parts: MutableList<Map<String, Any>> = mutableListOf(
+            mapOf("type" to "text", "text" to text)
+        )
+        for (attachment in attachments) {
+            // Non-image attachments are ignored (generic envelope for future types).
+            // Logged once per request to surface unknown kinds.
+            if (attachment.type != "image") {
+                logger.warn("Ignoring unsupported attachment type '${attachment.type}' (filename=${attachment.filename})")
+                continue
+            }
+            parts.add(
+                mapOf(
+                    "type" to "image",
+                    "data" to (attachment.data),
+                    "mime" to (attachment.mime ?: "image/jpeg"),
+                    "filename" to (attachment.filename ?: "")
+                )
+            )
+        }
+        return mapOf("role" to "user", "content" to parts)
     }
 
     private fun appendAssistantMessage(content: String, processedCalls: List<ProcessedToolCall>?): Unit {
@@ -371,24 +571,24 @@ class Agent(
                 convertedArguments[key] = converted
         }
 
-        // Strip any path/root keys the LLM may have slipped in despite the
-        // schema not exposing them. `projectRoot` / `project_root` are
-        // server-private — the LLM has no business setting them, and if it
-        // does we MUST drop them before injecting our own, otherwise the
-        // injection no-op `if (!containsKey)` below would leave the LLM's
-        // value in place and the tool would resolve against the wrong tree.
+        // Remove any project root keys the LLM might have injected.
+        // The server provides the actual root; the LLM must not override it.
         convertedArguments.remove("projectRoot")
         convertedArguments.remove("project_root")
 
-        // Inject the session's project root into every tool call. The root
-        // comes from the plugin (via the HTTP request body) — not from any
-        // process-level or filesystem-level default — so the server is
-        // always acting on exactly the project the IDE has open. Routes
-        // validates that `projectRoot` is non-empty before constructing the
-        // Agent, so this is never blank in practice.
+        // Inject the session's project root (from IDE request) into every tool call.
+        // Routes guarantee this is non-empty.
         convertedArguments["projectRoot"] = configuration.projectRoot
 
+        logger.info("Skill : $functionName")
+        logger.info("Args  : ${JsonUtil.encodeMap(convertedArguments, prettyPrint = true)}")
+
+        val executionResult: Map<String, Any>
+        val skillInstance: Skill?
+
         if (checkToolRunaway(functionName, convertedArguments)) {
+            logger.error("Result: TOOL_RUNAWAY — repeated call ($repeatedToolCallCount times), aborting")
+            executionResult = emptyMap()
             emitRevoked(
                 "tool_runaway", mapOf(
                     "tool" to functionName,
@@ -397,55 +597,59 @@ class Agent(
                 )
             )
             abortSession(sessionStartTimeMillis)
-            return
-        }
-
-        // Read-only mode guard: the schema whitelist in SkillRegistry hides
-        // write tools, but run_cmd is still in the tool list and the model
-        // could route a White through it ("touch foo", "rm bar", "git
-        // commit"). Re-classify the command against the active toolMode
-        // before it reaches RunCommandSkill so the agent loop sees a real
-        // COMMAND_BLOCKED instead of a successful mutation.
-        if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
+        } else if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
             val commandText: String = convertedArguments["command"] as? String ?: ""
             val verdict: gradum.utils.CommandVerdict =
                 gradum.utils.classifyCommand(commandText, configuration.toolMode)
+
             if (verdict is gradum.utils.CommandVerdict.Blocked) {
-                emitToolResult(
-                    processedCall,
-                    functionName,
-                    convertedArguments,
-                    skillInstance = null,
-                    executionResult = mapOf(
-                        "success" to false,
-                        "error" to mapOf(
-                            "code" to ErrorCode.COMMAND_BLOCKED.name,
-                            "message" to verdict.description,
-                            "rule" to verdict.ruleName,
-                        ),
+                logger.error("  Result: ✗ COMMAND_BLOCKED — ${verdict.description} (rule: ${verdict.ruleName})")
+                skillInstance = SkillRegistry.getSkill(functionName)
+                executionResult = mapOf(
+                    "success" to false,
+                    "error" to mapOf(
+                        "code" to ErrorCode.COMMAND_BLOCKED.name,
+                        "message" to verdict.description,
+                        "rule" to verdict.ruleName,
                     ),
                 )
-                return
+                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+            } else {
+                skillInstance = SkillRegistry.getSkill(functionName)
+                executionResult = executeSkill(skillInstance, functionName, convertedArguments)
+                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
             }
+        } else {
+            skillInstance = SkillRegistry.getSkill(functionName)
+            executionResult = executeSkill(skillInstance, functionName, convertedArguments)
+            emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
         }
 
-        val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
-        val executionResult: Map<String, Any> = if (skillInstance == null) {
-            mapOf(
+        logToolResult(functionName, executionResult)
+    }
+
+    private fun executeSkill(
+        skillInstance: Skill?,
+        functionName: String,
+        convertedArguments: Map<String, Any>
+    ): Map<String, Any> {
+        if (skillInstance == null) {
+            logger.error("Result: SKILL_NOT_FOUND — '$functionName' not registered")
+            return mapOf(
                 "success" to false,
                 "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
             )
-        } else if (configuration.toolMode !in skillInstance.allowedToolModes) {
-            // Mode gate: each skill declares the ToolMode values it is
-            // allowed to run in. The schema whitelist in SkillRegistry
-            // hides forbidden skills from the LLM's tool list, but the
-            // model can still hallucinate a tool call (it has seen edit_file
-            // in training data, and the system prompt mentions it). The
-            // agent enforces the invariant here, BEFORE the skill's own
-            // execute() runs, so a read-only session physically cannot
-            // mutate the project regardless of what the LLM emits.
+        }
+        if (configuration.toolMode !in skillInstance.allowedToolModes) {
             val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
-            mapOf(
+            logger.error(
+                "Result: TOOL_NOT_PERMITTED — '${functionName}' not allowed in ${configuration.toolMode} (allowed: ${
+                    allowedNames.joinToString(
+                        ", "
+                    )
+                })"
+            )
+            return mapOf(
                 "success" to false,
                 "error" to mapOf(
                     "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
@@ -455,17 +659,28 @@ class Agent(
                     "allowedModes" to allowedNames,
                 ),
             )
-        } else {
-            when (val result: SkillResult = skillInstance.execute(convertedArguments, skillContext)) {
-                is SkillResult.Success -> mapOf("success" to true).plus(result.data)
-                is SkillResult.Failure -> mapOf(
-                    "success" to false,
-                    "error" to mapOf("code" to result.code, "message" to result.message)
-                )
-            }
         }
+        return when (val result: SkillResult = skillInstance.execute(convertedArguments, skillContext)) {
+            is SkillResult.Success -> mapOf("success" to true).plus(result.data)
+            is SkillResult.Failure -> mapOf(
+                "success" to false,
+                "error" to mapOf("code" to result.code, "message" to result.message)
+            )
+        }
+    }
 
-        emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+    private fun logToolResult(functionName: String, executionResult: Map<String, Any>) {
+        val callSuccess = executionResult["success"] as? Boolean ?: false
+        if (callSuccess) {
+            logger.info("Result: success")
+        } else {
+            @Suppress("UNCHECKED_CAST")
+
+            val errorInfo = executionResult["error"] as? Map<String, Any> ?: emptyMap()
+            val errorCode = errorInfo["code"] ?: "UNKNOWN"
+            val errorMessage = errorInfo["message"] ?: "No message"
+            logger.error("  Result: failed [$errorCode] $errorMessage")
+        }
     }
 
     /**
@@ -516,9 +731,8 @@ class Agent(
 
         val toolMessage: Map<String, Any> = if (configuration.provider == Provider.OPENAI) {
             mapOf("role" to "tool", "tool_call_id" to processedCall.callIdentifier, "content" to finalResult)
-        } else {
+        } else
             mapOf("role" to "tool", "content" to finalResult)
-        }
 
         conversationHistory.add(toolMessage)
     }
@@ -553,11 +767,12 @@ class Agent(
     }
 
     private fun checkRedLineKeywords(text: String?): List<String> {
-        if (text.isNullOrBlank()) return emptyList()
-        if (redLineKeywords.isEmpty()) return emptyList()
-        val lowerText: String = text.lowercase()
+        if (text.isNullOrBlank() || redLineKeywords.isEmpty()) {
+            return emptyList()
+        }
+
         return redLineKeywords.filter { keyword: String ->
-            lowerText.contains(keyword.lowercase())
+            text.lowercase().contains(keyword.lowercase())
         }
     }
 
@@ -617,12 +832,10 @@ class Agent(
             val sentences = trimmed.split(Regex("(?<=[.!?])\\s+"))
                 .map { it.trim() }
                 .filter { it.isNotBlank() && it.length > 3 }
-            if (sentences.size >= 3) {
-                val sentenceFreq = sentences.groupingBy { it.lowercase() }.eachCount()
-                if (sentenceFreq.values.any { it >= 3 }) return true
-            }
 
-            return false
+            return sentences.size >= 3 && sentences.groupingBy {
+                it.lowercase()
+            }.eachCount().values.any { it >= 3 }
         }
     }
 

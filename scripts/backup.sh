@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Gradum team, some rights reserved.
 # For licensing terms and conditions, see the MIT LICENSE file.
 #
-# backup.sh  2026-06-30 23:35:47 Changed by gwy
+# backup.sh  2026-07-01 21:56:07 Changed by gwy
 #
 
 # Project Backup Script for macOS
@@ -79,7 +79,7 @@ echo "Copied $FILE_COUNT files"
 # 3. Compress backup directory
 echo ""
 echo "[3/5] Compressing project files..."
-cd /temp
+cd /temp || exit
 zip -r -q "$ZIP_FILENAME" "${PROJECT_NAME}_backup_${TIMESTAMP}"
 echo "Compression completed"
 

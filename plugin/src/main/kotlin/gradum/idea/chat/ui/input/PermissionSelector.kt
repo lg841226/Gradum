@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-07-01 14:12:36 Changed by gwy
+ * PermissionSelector.kt  2026-07-01 21:53:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -30,9 +30,9 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * [PermissionSelector] can never disagree on spelling.
  */
 object PermissionMode {
-    const val ReadOnly = "read_only"
-    const val SingleStep = "single_step"
-    const val Write = "write"
+    const val READONLY = "read_only"
+    const val SINGLE_STEP = "edit"
+    const val WRITE = "agent"
 }
 
 /**
@@ -45,9 +45,9 @@ object PermissionMode {
  * never run — a silent default back to "write" on every fresh session.
  */
 fun permissionLabel(wire: String): String = when (wire) {
-    PermissionMode.ReadOnly -> message("gradum.read")
-    PermissionMode.SingleStep -> message("gradum.edit")
-    PermissionMode.Write -> message("gradum.agent")
+    PermissionMode.READONLY -> message("gradum.read")
+    PermissionMode.SINGLE_STEP -> message("gradum.edit")
+    PermissionMode.WRITE -> message("gradum.agent")
     else -> wire
 }
 
@@ -80,8 +80,8 @@ fun PermissionSelector(
             horizontalAlignment = Alignment.Start
         ) {
             selectableItem(
-                selected = selectedPermission == PermissionMode.ReadOnly,
-                onClick = { onSelect(PermissionMode.ReadOnly) }
+                selected = selectedPermission == PermissionMode.READONLY,
+                onClick = { onSelect(PermissionMode.READONLY) }
             ) {
                 Row(
                     modifier = Modifier
@@ -104,8 +104,8 @@ fun PermissionSelector(
                 }
             }
             selectableItem(
-                selected = selectedPermission == PermissionMode.SingleStep,
-                onClick = { onSelect(PermissionMode.SingleStep) }
+                selected = selectedPermission == PermissionMode.SINGLE_STEP,
+                onClick = { onSelect(PermissionMode.SINGLE_STEP) }
             ) {
                 Row(
                     modifier = Modifier
@@ -128,8 +128,8 @@ fun PermissionSelector(
                 }
             }
             selectableItem(
-                selected = selectedPermission == PermissionMode.Write,
-                onClick = { onSelect(PermissionMode.Write) }
+                selected = selectedPermission == PermissionMode.WRITE,
+                onClick = { onSelect(PermissionMode.WRITE) }
             ) {
                 Row(
                     modifier = Modifier

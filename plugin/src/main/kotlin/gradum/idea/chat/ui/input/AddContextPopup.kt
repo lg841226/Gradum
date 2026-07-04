@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-06-30 23:35:47 Changed by gwy
+ * AddContextPopup.kt  2026-07-02 16:15:04 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -22,6 +22,7 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -83,19 +84,56 @@ fun AddContextPopup(
             }
         }
 
-        selectableItem(
-            selected = false,
-            onClick = { if (!state.isAttachmentLimitReached) actions.onUploadImage() }
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically
+        // Hidden when the active model is text-only (no vision =
+        // irrelevant option) and disabled when the per-message
+        // image cap is hit. The disabled dark background on
+        // `selectableItem(enabled = false)` reads as a visual
+        // glitch rather than a "you cannot do this" hint, which
+        // is why vision-unsupported is a visibility gate.
+        val isVisionSupported: Boolean = state.isCurrentModelSupportsVision
+        if (isVisionSupported) {
+            val isLimitReached: Boolean = state.isAttachmentLimitReached
+            val isUploadEnabled: Boolean = !isLimitReached
+            val tooltipText: String? = if (isLimitReached) {
+                message("gradum.image.limit.reached", MAX_ATTACHMENTS)
+            } else null
+
+            // `JewelTheme.globalColors` is `@Composable`, so color
+            // resolution must live inside the `selectableItem`
+            // lambda rather than the (non-composable) popup scope.
+            selectableItem(
+                selected = false,
+                enabled = isUploadEnabled,
+                onClick = { if (isUploadEnabled) actions.onUploadImage() }
             ) {
-                Icon(key = GradumIcons.Image, contentDescription = message("gradum.add.popup.upload.image"))
-                Spacer(modifier = Modifier.width(GradumSpacing.md))
-                Text(text = message("gradum.add.popup.upload.image"))
+                val uploadTint: androidx.compose.ui.graphics.Color =
+                    if (isUploadEnabled) JewelTheme.globalColors.text.normal
+                    else JewelTheme.globalColors.text.normal.copy(alpha = 0.5f)
+                val row: @Composable () -> Unit = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = GradumSpacing.md,
+                                vertical = GradumSpacing.xs
+                            )
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                key = GradumIcons.Image,
+                                contentDescription = message("gradum.add.popup.upload.image"),
+                                modifier = Modifier.size(GradumSpacing.lrl)
+                            )
+                            Spacer(modifier = Modifier.width(GradumSpacing.md))
+                            Text(text = message("gradum.add.popup.upload.image"), color = uploadTint)
+                        }
+                        Text(
+                            color = JewelTheme.globalColors.text.info,
+                            text = message("gradum.add.popup.upload.image.hint", MAX_ATTACHMENTS)
+                        )
+                    }
+                }
+                if (tooltipText != null) Tooltip(tooltip = { Text(tooltipText) }) { row() } else row()
             }
         }
 

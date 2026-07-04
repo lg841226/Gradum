@@ -69,12 +69,12 @@ class SaveFileSkill : Skill() {
 
     /**
      * save_file mutates the filesystem. The agent's mode gate rejects
-     * this call in READ_ONLY mode. SINGLE_STEP is allowed because the
+     * this call in READ_ONLY mode. EDIT is allowed because the
      * user has explicitly opted into write access.
      */
     override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-        gradum.ToolMode.WRITE,
-        gradum.ToolMode.SINGLE_STEP,
+        gradum.ToolMode.AGENT,
+        gradum.ToolMode.EDIT,
     )
 
     override val historyKeepCount: Int = 2
@@ -89,7 +89,7 @@ class SaveFileSkill : Skill() {
      * - `mode` (optional): `overwrite` or `append`
      * - `encoding` (optional): character encoding, defaults to `UTF-8`
      */
-    override fun getSchema(): Map<String, Any> {
+    override fun getSchema(context: SkillContext?): Map<String, Any> {
         return mapOf(
             "type" to "function",
             "function" to mapOf(

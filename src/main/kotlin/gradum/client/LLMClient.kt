@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-06-30 23:35:47 Changed by gwy
+ * LLMClient.kt  2026-07-01 21:56:07 Changed by gwy
  */
 
 package gradum.client
@@ -92,6 +92,136 @@ interface LlmClient : TokenUsageProvider {
 }
 
 /**
+ * Provider enum used by the multimodal rewriter to pick the
+ * right projection without coupling the helper to either of the
+ * two concrete `LlmClient` implementations.
+ */
+private enum class MultimodalTarget { OLLAMA, OPENAI_COMPATIBLE }
+
+/**
+ * Project a single `Map<String, Any>` message into the wire shape
+ * the target LLM backend expects.
+ *
+ * The conversation history uses the OpenAI-style content-array
+ * intermediate shape for any user message that carries image
+ * attachments:
+ *
+ *     {"role": "user", "content": [
+ *         {"type": "text", "text": "..."},
+ *         {"type": "image", "data": "<base64>", "mime": "image/jpeg", "filename": "..."},
+ *         ...
+ *     ]}
+ *
+ * The two backends disagree on the wire shape, so the
+ * translation lives here rather than in the per-client request
+ * payload builder:
+ *
+ *  - **Ollama** (`/api/chat`): collapses all `text` parts into
+ *    a single `content: string` and lifts `image` parts into a
+ *    top-level `images: [base64, ...]` field on the same message
+ *    map. This is Ollama's native multimodal format documented
+ *    in ollama/docs/api.md.
+ *
+ *  - **OpenAI-compatible** (`/v1/chat/completions`): keeps the
+ *    content as an array but re-shapes each `image` part into
+ *    `{"type": "image_url", "image_url": {"url": "data:<mime>;base64,..."}}`.
+ *    Text parts pass through unchanged. This is the OpenAI vision
+ *    standard also used by Hunyuan, Anthropic-via-proxy, and
+ *    most 2026-era LLM gateways.
+ *
+ * Non-user messages and user messages with a plain `String`
+ * content (no attachments) pass through untouched, so the
+ * rewriter is a no-op for text-only turns — backwards-compatible
+ * with persisted conversation history from before the image
+ * upload feature.
+ */
+private fun projectMessageForBackend(
+    message: Map<String, Any>,
+    target: MultimodalTarget
+): Map<String, Any> {
+    val role: Any? = message["role"]
+    if (role != "user") return message
+    val rawContent: Any? = message["content"]
+    val parts: List<Map<String, Any>> = (rawContent as? List<*>)?.filterIsInstance<Map<String, Any>>() ?: return message
+
+    return when (target) {
+        MultimodalTarget.OLLAMA -> {
+            val textBuilder: StringBuilder = StringBuilder()
+            val images: MutableList<String> = mutableListOf()
+            for (part in parts) {
+                when (part["type"]) {
+                    "text" -> {
+                        val text: String = part["text"] as? String ?: continue
+                        if (textBuilder.isNotEmpty()) textBuilder.append("\n\n")
+                        textBuilder.append(text)
+                    }
+
+                    "image" -> {
+                        val data: String = part["data"] as? String ?: continue
+                        images.add(data)
+                    }
+                    // Non-text, non-image parts are dropped at the
+                    // wire boundary — they are part of the
+                    // intermediate shape only and have no Ollama
+                    // equivalent. Logged by the caller once per
+                    // request via `logger`.
+                }
+            }
+            val projected: MutableMap<String, Any> = mutableMapOf("role" to "user")
+            if (textBuilder.isNotEmpty()) projected["content"] = textBuilder.toString()
+            if (images.isNotEmpty()) projected["images"] = images
+            projected
+        }
+
+        MultimodalTarget.OPENAI_COMPATIBLE -> {
+            val projectedParts: MutableList<Map<String, Any>> = mutableListOf()
+            for (part in parts) {
+                when (part["type"]) {
+                    "text" -> {
+                        val text: String = part["text"] as? String ?: continue
+                        projectedParts.add(mapOf("type" to "text", "text" to text))
+                    }
+
+                    "image" -> {
+                        val data: String = part["data"] as? String ?: continue
+                        val mime: String = (part["mime"] as? String) ?: "image/jpeg"
+                        val url = "data:$mime;base64,$data"
+                        projectedParts.add(
+                            mapOf(
+                                "type" to "image_url",
+                                "image_url" to mapOf("url" to url)
+                            )
+                        )
+                    }
+                    // Unknown / unsupported parts are dropped here
+                    // for the OpenAI-compatible shape. The shape is
+                    // stricter than the intermediate (OpenAI only
+                    // knows text + image_url), so silent dropping is
+                    // safer than passing through and triggering a
+                    // 422 from the gateway.
+                }
+            }
+            mapOf("role" to "user", "content" to projectedParts)
+        }
+    }
+}
+
+/**
+ * Walk a full conversation history, projecting only the user
+ * messages that use the multimodal content-array shape. The
+ * `LLMClient` implementations call this once per `sendChat`
+ * call to keep the request payload aligned with their backend's
+ * wire format without forcing the conversation history
+ * (persisted to disk) to know about provider quirks.
+ */
+private fun projectHistoryForBackend(
+    messageHistory: List<Map<String, Any>>,
+    target: MultimodalTarget
+): List<Map<String, Any>> = messageHistory.map { message ->
+    projectMessageForBackend(message, target)
+}
+
+/**
  * Talks to a local or remote Ollama server using its native /api/chat streaming
  * protocol. Supports thinking-mode content separation and tool-call parsing.
  */
@@ -107,9 +237,16 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         val requestUrl = "${configuration.baseUrl}/api/chat"
         val shouldThink: Boolean = configuration.enableThinking
 
+        // Translate the intermediate (OpenAI-style) content-array
+        // shape into Ollama's native multimodal format
+        // (text → string `content`, image → base64 in top-level
+        // `images: [...]`). See `projectHistoryForBackend` KDoc.
+        val projectedHistory: List<Map<String, Any>> =
+            projectHistoryForBackend(messageHistory, MultimodalTarget.OLLAMA)
+
         val requestPayload: MutableMap<String, Any> = mutableMapOf(
             "model" to configuration.modelName,
-            "messages" to messageHistory,
+            "messages" to projectedHistory,
             "stream" to true,
             "options" to mapOf(
                 "temperature" to configuration.temperatureValue,
@@ -216,9 +353,17 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
         val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
 
+        // Translate the intermediate (OpenAI-style) content-array
+        // shape into the OpenAI vision wire format: text parts
+        // pass through, image parts become
+        // `{type: "image_url", image_url: {url: "data:..."}}`.
+        // See `projectHistoryForBackend` KDoc.
+        val projectedHistory: List<Map<String, Any>> =
+            projectHistoryForBackend(messageHistory, MultimodalTarget.OPENAI_COMPATIBLE)
+
         val requestPayload: MutableMap<String, Any> = mutableMapOf(
             "model" to configuration.modelName,
-            "messages" to messageHistory,
+            "messages" to projectedHistory,
             "stream" to true,
             "temperature" to configuration.temperatureValue,
             "top_p" to configuration.topPValue,

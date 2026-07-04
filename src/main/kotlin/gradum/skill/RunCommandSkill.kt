@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-07-01 12:27:25 Changed by gwy
+ * RunCommandSkill.kt  2026-07-01 21:56:07 Changed by gwy
  */
 
 package gradum.skill
@@ -37,7 +37,7 @@ class RunCommandSkill : Skill() {
     override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("output")
 
-    override fun getSchema(): Map<String, Any> {
+    override fun getSchema(context: SkillContext?): Map<String, Any> {
         return mapOf(
             "type" to "function",
             "function" to mapOf(
@@ -84,7 +84,7 @@ class RunCommandSkill : Skill() {
             val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectErrorStream(false)
             if (projectRoot.isNotBlank()) {
-                val workingDirectory = java.io.File(projectRoot)
+                val workingDirectory = File(projectRoot)
                 if (workingDirectory.isDirectory) processBuilder.directory(workingDirectory)
             }
 

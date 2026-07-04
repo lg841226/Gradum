@@ -32,31 +32,21 @@ import kotlin.test.assertTrue
 class SkillRegistrySchemaTest {
 
     @Test
-    fun `write mode exposes every registered skill`() {
-        val names: List<String> = SkillRegistry.getSchemas(ToolMode.WRITE).map { nameOf(it) }
-        // Every Skill — including ones that opted out of SINGLE_STEP and
-        // READ_ONLY — must still be reachable in WRITE. If a Skill is
-        // missing, somebody changed a default in Skill.kt.
-        assertEquals(EXPECTED_ALL, names.toSet(), "WRITE must expose every registered skill, got: $names")
+    fun `agent mode exposes every registered skill`() {
+        val names: List<String> = SkillRegistry.getSchemas(ToolMode.AGENT).map { nameOf(it) }
+        assertEquals(EXPECTED_ALL, names.toSet(), "AGENT must expose every registered skill, got: $names")
     }
 
     @Test
     fun `read-only mode exposes only inspection skills`() {
         val names: Set<String> = SkillRegistry.getSchemas(ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
-        // Exactly the three pure-inspection Skills. edit_file / save_file
-        // / to_do / finish_to_do_item must NOT appear in the LLM's tool
-        // list in this mode.
         assertEquals(EXPECTED_READ_ONLY, names, "READ_ONLY must expose only inspection skills, got: $names")
     }
 
     @Test
-    fun `single-step mode exposes write skills but not task planning`() {
-        val names: Set<String> = SkillRegistry.getSchemas(ToolMode.SINGLE_STEP).map { nameOf(it) }.toSet()
-        // Everything in WRITE minus the task-planning pair. The pair
-        // (to_do / finish_to_do_item) is the only Skills whose
-        // allowedToolModes does NOT include SINGLE_STEP, so they
-        // disappear from this mode's schema.
-        assertEquals(EXPECTED_SINGLE_STEP, names, "SINGLE_STEP must exclude task-planning skills, got: $names")
+    fun `edit mode exposes write skills but not task planning`() {
+        val names: Set<String> = SkillRegistry.getSchemas(ToolMode.EDIT).map { nameOf(it) }.toSet()
+        assertEquals(EXPECTED_EDIT, names, "EDIT must exclude task-planning skills, got: $names")
     }
 
     @Test
@@ -123,10 +113,9 @@ class SkillRegistrySchemaTest {
         )
         val EXPECTED_READ_ONLY: Set<String> = setOf(
             "read_file",
-            "explore_project",
             "run_cmd",
         )
-        val EXPECTED_SINGLE_STEP: Set<String> = setOf(
+        val EXPECTED_EDIT: Set<String> = setOf(
             "read_file",
             "explore_project",
             "run_cmd",

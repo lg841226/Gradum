@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-06-30 23:35:47 Changed by gwy
+ * ToolCallIndicator.kt  2026-07-02 00:29:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -152,6 +152,26 @@ private fun OpenInEditorButton(
 }
 
 /**
+ * Diff button shown on a successful `Edited` tool call when the server
+ * supplied both pre- / post-edit snapshots. Hidden for older builds or
+ * no-op edits where snapshots were never produced.
+ */
+@Composable
+private fun ViewDiffButton(
+    onViewDiff: () -> Unit
+) {
+    Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
+        Icon(
+            key = AllIconsKeys.Actions.Diff,
+            contentDescription = null,
+            modifier = Modifier
+                .size(14.dp)
+                .clickable { onViewDiff() }
+        )
+    }
+}
+
+/**
  * Generic capsule-shaped indicator for tool calls (non-Ran).
  */
 @Composable
@@ -225,7 +245,9 @@ fun FileToolCallIndicator(
     modifier: Modifier = Modifier,
     errorMessage: String = "",
     errorDetail: String = "",
-    onOpenInEditor: (String) -> Unit = {}
+    onOpenInEditor: (String) -> Unit = {},
+    onViewDiff: () -> Unit = {},
+    hasDiffPayload: Boolean = false,
 ) {
     val iconKey = when (alias) {
         "Edited" -> GradumIcons.Edit; else -> AllIconsKeys.General.Show
@@ -259,15 +281,43 @@ fun FileToolCallIndicator(
                         Spacer(Modifier.weight(1f))
                         if (isEdited) {
                             val addedLinesColor = JewelTheme.globalColors.text.info
-                            if (linesAdded > 0)
-                                Text(text = "+$linesAdded", color = addedLinesColor)
-                            if (linesRemoved > 0)
-                                Text(text = "-$linesRemoved", color = JewelTheme.globalColors.text.error)
+                            // `+X / -Y` is a single-line diff summary; clamp each
+                            // piece to maxLines = 1 and group them in a Row with
+                            // explicit spacing so they read as a tight pair ("+12 -3")
+                            // instead of getting squeezed onto two lines or
+                            // glued together with no gap when the parent capsule
+                            // is narrow. The Row itself inherits the surrounding
+                            // verticalAlignment so the count stays centred with
+                            // the file path label next to it.
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (linesAdded > 0) Text(
+                                    maxLines = 1,
+                                    text = "+$linesAdded",
+                                    color = addedLinesColor
+                                )
+                                if (linesRemoved > 0) Text(
+                                    maxLines = 1,
+                                    text = "-$linesRemoved",
+                                    color = JewelTheme.globalColors.text.error
+                                )
+                            }
                         }
                     }
                 }
             }
-            OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
+            /**
+             * Single-slot trailing action — two 14.dp icons + a 200.dp path label get clipped on narrow capsules.
+             * [ViewDiffButton] used for successful `Edited` with a diff payload;
+             * [OpenInEditorButton] is the fallback for `Read` or diff-less `Edited` (older builds / failed edits).
+             */
+            if (alias == "Edited" && success && hasDiffPayload) {
+                ViewDiffButton(onViewDiff = onViewDiff)
+            } else {
+                OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
+            }
         }
     )
 }

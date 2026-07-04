@@ -82,10 +82,10 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
  *    `rm`, `mv`, `touch`, `mkdir`, `git commit`, `>`, etc. through
  *    `run_cmd` even though `run_cmd` is in the tool list.
  *
- * Defaults to [ToolMode.WRITE] for callers that don't have a toolMode
+ * Defaults to [ToolMode.AGENT] for callers that don't have a toolMode
  * in scope (the existing dangerous-only path inside RunCommandSkill).
  */
-fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.WRITE): CommandVerdict {
+fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): CommandVerdict {
     if (commandText.isBlank()) return CommandVerdict.Safe
 
     val tokens: List<String> = commandText.trim().split("\\s+".toRegex())

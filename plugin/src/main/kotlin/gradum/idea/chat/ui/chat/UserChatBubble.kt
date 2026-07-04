@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-06-30 23:35:47 Changed by gwy
+ * UserChatBubble.kt  2026-07-02 17:04:53 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -22,9 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.editor.AttachedContext
+import gradum.idea.editor.AttachedFile
+import gradum.idea.editor.AttachedImage
+import gradum.idea.editor.AttachedText
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -34,21 +39,42 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 /**
  * Right-aligned user message bubble with copy and reset buttons.
  *
- * Renders inside a rounded rectangle with a border color background.
+ * Image attachments render as a compact preview row *above* the
+ * bubble ([MessageAttachmentPreview]). File and text attachments
+ * render as a chevron-toggled, animated list *below* the bubble
+ * ([MessageAttachmentList]). The two halves never overlap because
+ * they live in different render slots.
+ *
+ * @param onAttachmentClick Forwarded to [MessageAttachmentPreview];
+ *   file chips have no click action (they are display-only after
+ *   the message is sent).
  */
 @Composable
 fun UserChatBubble(
     message: ChatMessage,
     onDeleteMessage: () -> Unit = {},
     onCopyAsContext: (String) -> Unit = {},
+    onAttachmentClick: (VirtualFile) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var isCopied by remember { mutableStateOf(false) }
-    var isAttachmentsExpanded by remember { mutableStateOf(true) }
     var showResetPopup by remember { mutableStateOf(false) }
+    var isAttachmentsExpanded by remember { mutableStateOf(true) }
+
+    val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
+    val fileAttachments: List<AttachedContext> = message.attachments.filter {
+        it is AttachedFile || it is AttachedText
+    }
 
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(horizontalAlignment = Alignment.End) {
+            if (imageAttachments.isNotEmpty()) {
+                MessageAttachmentPreview(
+                    attachments = imageAttachments,
+                    onAttachmentClick = onAttachmentClick
+                )
+                Spacer(modifier = Modifier.height(GradumSpacing.md))
+            }
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 0.dp))
@@ -59,14 +85,14 @@ fun UserChatBubble(
                     Text(text = message.content)
                 }
             }
-            if (message.attachments.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
+            if (fileAttachments.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
                 Row(
                     modifier = Modifier
                         .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
-                        .padding(horizontal = GradumSpacing.sm),
+                        .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Icon(
                         key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
@@ -79,9 +105,9 @@ fun UserChatBubble(
                         fontWeight = FontWeight.Medium
                     )
                 }
-                Spacer(modifier = Modifier.height(GradumSpacing.sm))
+                Spacer(Modifier.height(GradumSpacing.sm))
                 AnimatedVisibility(visible = isAttachmentsExpanded) {
-                    MessageAttachmentList(attachments = message.attachments, modifier = Modifier.fillMaxWidth())
+                    MessageAttachmentList(attachments = fileAttachments)
                 }
             }
             Spacer(modifier = Modifier.height(GradumSpacing.md))
@@ -94,15 +120,18 @@ fun UserChatBubble(
                     onCopyAsContext = onCopyAsContext
                 )
                 Spacer(modifier = Modifier.width(GradumSpacing.sm))
-                Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
+                Tooltip(tooltip = {
+                    Text(text = message("gradum.reset.tooltip"))
+                }
+                ) {
                     IconButton(onClick = { showResetPopup = true }) {
                         Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
                     }
                 }
                 if (showResetPopup) {
                     PopupMenu(
-                        onDismissRequest = { showResetPopup = false; true },
-                        horizontalAlignment = Alignment.End
+                        horizontalAlignment = Alignment.End,
+                        onDismissRequest = { showResetPopup = false; true }
                     ) {
                         passiveItem {
                             Column(modifier = Modifier.padding(horizontal = 6.dp)) {

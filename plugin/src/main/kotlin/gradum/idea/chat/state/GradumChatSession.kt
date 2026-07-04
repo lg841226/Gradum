@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-06-30 23:35:47 Changed by gwy
+ * GradumChatSession.kt  2026-07-04 12:39:24 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -24,13 +24,10 @@ import gradum.idea.chat.model.*
 import gradum.idea.chat.state.GradumChatSession.Companion.POLL_INTERVAL_MS
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
-import gradum.idea.editor.AttachedContext
-import gradum.idea.editor.AttachedFile
-import gradum.idea.editor.PendingMessage
+import gradum.idea.editor.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
@@ -118,8 +115,8 @@ class GradumChatSession {
 
     /**
      * The currently selected permission level, stored as the wire-format
-     * string the server understands (`"read_only"`, `"single_step"`, or
-     * `"write"`). The UI label is a separate concern, looked up in
+     * string the server understands (`"read_only"`, `"edit"`, or
+     * `"agent"`). The UI label is a separate concern, looked up in
      * [gradum.idea.chat.ui.input.permissionLabel] from this value.
      *
      * The previous implementation stored the i18n label here (e.g. "Read-only
@@ -140,23 +137,11 @@ class GradumChatSession {
      * the two are always equal. Allowed values:
      *
      * - `"read_only"` — only `read_file`, `explore_project`, `run_cmd`.
-     * - `"single_step"` — read-only set plus `edit_file` / `save_file`,
+     * - `"edit"` — read-only set plus `edit_file` / `save_file`,
      *   no task planning (`to_do` / `finish_to_do_item` are blocked).
-     * - `"write"` — every Skill is exposed.
+     * - `"agent"` — every Skill is exposed.
      */
     val toolMode: String get() = selectedPermission
-
-    /**
-     * Which system prompt the server should load. `"auto"` (default) lets
-     * the server pick based on the model/provider: cloud-style prompt for
-     * hosted frontier models, terse rule-only prompt for small local ones.
-     *
-     * Allowed values (sent verbatim to the server):
-     * - `"auto"` (default) — server picks based on provider
-     * - `"cloud"` — verbose, philosophy-rich prompt for strong models
-     * - `"local"` — terse, rule-only prompt for small models
-     */
-    var promptVariant: String by mutableStateOf("auto")
 
     /** HTTP client for communicating with the Gradum backend server. */
     val apiClient: GradumApiClient = GradumApiClient()
@@ -179,7 +164,7 @@ class GradumChatSession {
 
     /**
      * True when the user picked "Auto" from the model menu (or when a
-     * previous manual selection disappeared and we fell back to auto).
+     * previous manual selection disappeared, and we fell back to auto).
      * In both cases [selectedModel] is the server's recommendation rather
      * than a user-chosen entry.
      */
@@ -211,10 +196,6 @@ class GradumChatSession {
     /** Background job for periodic model polling. */
     private var pollingJob: Job? = null
 
-    /** Whether context has already been loaded for this session. */
-    var contextLoaded: Boolean = false
-        private set
-
     /**
      * Resets the entire session to its initial state.
      *
@@ -223,13 +204,12 @@ class GradumChatSession {
      * discarded and started fresh.
      */
     fun reset() {
-        hasSentMessage = false
-        isSending = false
-        sendingPhase = ""
         currentJob?.cancel()
         currentJob = null
         sessionId = null
-        contextLoaded = false
+        hasSentMessage = false
+        isSending = false
+        sendingPhase = ""
         messages.clear()
         attachedFiles.clear()
         pendingMessages.clear()
@@ -256,26 +236,27 @@ class GradumChatSession {
     }
 
     private fun applyModelList(newModels: List<ModelInfo>, recommended: ModelInfo? = null) {
-        models.clear(); models.addAll(newModels); modelsLoaded = true
-        recommendedModel = recommended
+        // Drop unavailable models from the active roster and pinned set.
+        // The server retains them with `available = false` for future health checks.
+        // This keeps the UI clean and avoids haunting users with dead pinned entries.
+        val healthyModels: List<ModelInfo> = newModels.filter { it.available }
+        models.clear(); models.addAll(healthyModels); modelsLoaded = true
+        recommendedModel = recommended?.takeIf { it.available }
 
         val current = selectedModel
         when {
             current == null -> {
-                // First load (or reset). Adopt the server's recommendation
-                // so the user starts on the strongest available model
-                // rather than whichever entry the probe happened to
-                // surface first.
+                // First load: adopt the server's recommended model.
+                // This gives the user the strongest available model, not the first probe result.
                 if (models.isNotEmpty()) {
-                    selectedModel = recommended ?: models.first()
+                    selectedModel = recommendedModel ?: models.first()
                     isAutoSelected = true
                 }
             }
+
             models.none { it.name == current.name && it.serverName == current.serverName } -> {
-                // The user's prior pick disappeared (e.g. Ollama shut
-                // down). Fall back to the recommendation in auto mode so
-                // the user is not silently stuck on a dead model.
-                selectedModel = recommended ?: models.firstOrNull()
+                // User's previous model is no longer available. Fall back to server recommendation in auto mode.
+                selectedModel = recommendedModel ?: models.firstOrNull()
                 isAutoSelected = true
             }
             // else: the user's prior pick is still present; leave it.
@@ -306,25 +287,24 @@ class GradumChatSession {
         // architecture reads as "for every tick, fire a single fetch, and
         // cancel any in-flight fetch if a new tick comes in":
         //
-        //   tickerFlow  ──flatMapLatest──▶  fetchOnce()  ──▶  collect
+        //   tickerFlow ── flatMapLatest ──▶  fetchOnce()  ──▶  collect
         //     │                                  │
-        //     └── delay POLL_INTERVAL_MS          └── HTTP GET /models
-        //         then emit Unit                  (Dispatchers.IO,
-        //                                          swallow transient errors)
+        //     └── delay POLL_INTERVAL_MS         └── HTTP GET /models
+        //         then emit Unit                  (Dispatchers.IO, swallow transient errors)
         //
         // The original `while (true) { delay; try {...} }` worked, but
         // mixed the two concerns (timing + I/O) into one loop, which
         // made it impossible to cancel a slow request when the user
         // closes the tool window or the timer ticks again. With
-        // flatMapLatest, a stale fetch is cancelled by the upstream
+        // flatMapLatest, a stale fetch is canceled by the upstream
         // tick before its result lands in the UI.
+
         pollingJob = scope.launch {
             tickerFlow()
                 .flatMapLatest { fetchModelsOnce() }
                 .catch { exception ->
-                    // Flow-level failures (shouldn't happen because the
-                    // inner flow swallows I/O errors, but defensive). The
-                    // ticker keeps ticking so the next cycle gets a chance.
+                    // Flow-level failures (shouldn't happen because the inner flow swallows I/O errors, but defensive).
+                    // The ticker keeps ticking so the next cycle gets a chance.
                     log.warn("Model polling stream error: ${exception.message}", exception)
                 }
                 .collect { json ->
@@ -332,11 +312,9 @@ class GradumChatSession {
                         val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
                         val newModels: List<ModelInfo> = response.models
                         val newRecommended: ModelInfo? = response.recommended
-                        // Trigger an apply if either the model roster
-                        // or the server's recommendation changed —
-                        // recommended can flip on a polling tick even
-                        // when the model list is identical (e.g. the
-                        // user closed another app, freeing memory).
+                        // Apply if model roster or recommendation changed.
+                        // Recommendation may flip even when model list stays the same
+                        // (e.g. another app closed, freeing memory).
                         val modelsChanged: Boolean = newModels.size != models.size ||
                             newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
                         val recommendedChanged: Boolean =
@@ -356,7 +334,7 @@ class GradumChatSession {
     /**
      * Tick stream that fires one emission per [POLL_INTERVAL_MS]. Suspends
      * cooperatively and stops emitting when the parent coroutine is
-     * cancelled (e.g. tool window closed, project closed).
+     * canceled (e.g. tool window closed, project closed).
      */
     private fun tickerFlow(): Flow<Unit> = flow {
         while (currentCoroutineContext().isActive) {
@@ -410,7 +388,7 @@ class GradumChatSession {
             sessionId = null
         }
 
-        isSending = false; sendingPhase = ""; isWaitingForResponse = false; resetThinkingState(); processPendingQueue()
+        isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
     }
 
     /**
@@ -439,11 +417,14 @@ class GradumChatSession {
     ) {
         val modelConfig: Map<String, String> = buildModelConfig()
         val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
+        val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
         val prefix: String = buildString {
             if (contextPath.isNotEmpty()) append("<Context path=\"$contextPath\"/>")
             if (attachmentPaths.isNotEmpty()) append("<Attachments paths=\"${attachmentPaths.joinToString(", ")}\"/>")
+            textAttachments.forEach { append("<Context text=\"${it.content}\"/>") }
         }
-        val messageWithHint = "${prefix}${userMessage} Don't use Markdown tables."
+
+        val messageWithHint = "${prefix}${userMessage}"
 
         // Validate server connectivity and model availability before sending.
         sendingPhase = message("gradum.phase.synthesizing")
@@ -452,12 +433,15 @@ class GradumChatSession {
             val modelsJson: String = apiClient.getModels()
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
             val currentModel: ModelInfo? = selectedModel
+
             if (currentModel != null && response.models.none { it.name == currentModel.name }) {
                 val assistantIndex: Int = messages.lastIndex
+
                 if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
                     messages[assistantIndex] = messages[assistantIndex].appendEvent(
                         ChatEvent.Error(
-                            "Model ${currentModel.name} is no longer available", code = ErrorCode.CLIENT_ERROR.code
+                            code = ErrorCode.CLIENT_ERROR.code,
+                            message = "Model ${currentModel.name} is no longer available"
                         )
                     )
                 }
@@ -471,7 +455,8 @@ class GradumChatSession {
             if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
                 messages[assistantIndex] = messages[assistantIndex].appendEvent(
                     ChatEvent.Error(
-                        "Cannot reach server at ${apiClient.baseUrl}", code = ErrorCode.CLIENT_ERROR.code
+                        code = ErrorCode.CLIENT_ERROR.code,
+                        message = "Cannot reach server at ${apiClient.baseUrl}"
                     )
                 )
             }
@@ -485,16 +470,45 @@ class GradumChatSession {
         if (elapsed < MIN_SENDING_MS) delay((MIN_SENDING_MS - elapsed).milliseconds)
 
         try {
-            val shouldLoadContext: Boolean = !contextLoaded
-            sendingPhase =
-                if (shouldLoadContext) message("gradum.phase.distilling") else message("gradum.phase.catalyzing")
+            // Server-side Agent resets per request. `context.json` persists history
+            // across calls, so loading it keeps the conversation continuous.
+            val loadContext = true
+            sendingPhase = message("gradum.phase.distilling")
+
+            // Extract images pre-serialization. Validate against current model —
+            // stale vision attachments may remain after switching to a text-only model.
+            val imageAttachments: List<GradumApiClient.ApiImageAttachment> =
+                attachments.filterIsInstance<AttachedImage>()
+                    .map { attachment ->
+                        GradumApiClient.ApiImageAttachment(
+                            mime = attachment.mime,
+                            data = attachment.data,
+                            filename = attachment.originalName
+                        )
+                    }
+
+            if (imageAttachments.isNotEmpty() && selectedModel?.attachment != true) {
+                val userIndex = messages.lastIndex
+                if (userIndex >= 0 && messages[userIndex].isUserMessage)
+                    messages.removeAt(userIndex)
+
+                val assistantIndex: Int = messages.lastIndex
+                if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+                    messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                        ChatEvent.Error(code = ErrorCode.CLIENT_ERROR.code, message = message("gradum.model.no.vision"))
+                    )
+                }
+                isSending = false; sendingPhase = ""; return
+            }
+
             apiClient.sendMessage(
                 message = messageWithHint,
-                model = selectedModel?.name,
-                config = modelConfig,
-                loadContext = shouldLoadContext,
+                modelName = selectedModel?.name,
+                modelParams = modelConfig,
+                loadContext = loadContext,
                 toolMode = toolMode,
                 projectRoot = project?.basePath,
+                imageAttachments = imageAttachments
             ).catch { exception ->
                 if (exception is CancellationException) {
                     val assistantIndex: Int = messages.lastIndex
@@ -516,36 +530,41 @@ class GradumChatSession {
                 }
                 isSending = false; sendingPhase = ""; processPendingQueue()
             }.collect { event: JsonObject ->
-                // Per-line parse errors are handled in GradumApiClient
-                // (logged + skipped, stream continues). The .catch on the
-                // outer flow handles connection-level failures only, so
-                // this collector body can assume every emission is a
-                // well-formed JsonObject.
-                val type: String = event["type"]?.jsonPrimitive?.content ?: return@collect
-                val data: JsonObject? = event["data"]?.jsonObject
+                // Per-line parse errors are handled by the client and skipped.
+                // This collector only receives valid JsonObject emissions.
+                val messageType: String = event["type"]?.jsonPrimitive?.content ?: return@collect
+                val payload: JsonObject? = event["data"]?.jsonObject
 
-                when (type) {
+                when (messageType) {
                     "session_start" -> {
                         sessionId = event["sessionId"]?.jsonPrimitive?.content
-                        contextLoaded = true
                     }
 
                     "response" -> {
-                        isWaitingForResponse = false; handleResponseEvent(data)
+                        isWaitingForResponse = false; handleResponseEvent(payload)
                     }
 
                     "thinking" -> {
-                        isWaitingForResponse = false; handleThinkingEvent(data)
+                        isWaitingForResponse = false; handleThinkingEvent(payload)
                     }
 
-                    "tool_call" -> handleToolCallEvent(data)
-                    "error" -> handleErrorEvent(data)
+                    "tool_call" -> handleToolCallEvent(payload)
+
+                    "error" -> handleErrorEvent(payload)
+
                     "session_end" -> {
+                        val tokenUsageData = payload?.get("tokenUsage")?.jsonObject
+                        if (tokenUsageData != null && messages.isNotEmpty() && !messages.last().isUserMessage) {
+                            val tokenUsage = TokenUsage(
+                                promptTokens = tokenUsageData["promptTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                                completionTokens = tokenUsageData["completionTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                                totalTokens = tokenUsageData["totalTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                            )
+                            messages[messages.lastIndex] = messages.last().copy(tokenUsage = tokenUsage)
+                        }
+
                         isSending = false; sendingPhase = ""
-                        isWaitingForResponse = false
-                        currentJob = null
-                        sessionId = null
-                        resetThinkingState()
+                        isWaitingForResponse = false; currentJob = null; sessionId = null
                         processPendingQueue()
                     }
                 }
@@ -578,15 +597,17 @@ class GradumChatSession {
      * Handles a `response` event by appending the LLM's text content to the
      * current assistant message.
      *
-     * @param data The event data object containing a `content` field.
+     * @param responseData The event data object containing a `content` field.
      */
-    private fun handleResponseEvent(data: JsonObject?) {
-        val content: String = data?.get("content")?.jsonPrimitive?.content ?: return
-        if (content.isBlank()) return
+    private fun handleResponseEvent(responseData: JsonObject?) {
+        val responseContent: String = responseData?.get("content")
+            ?.jsonPrimitive?.content ?: return
+
+        if (responseContent.isBlank()) return
 
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Response(content))
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Response(responseContent))
         }
     }
 
@@ -599,14 +620,9 @@ class GradumChatSession {
         val content: String = data?.get("content")?.jsonPrimitive?.content ?: return
 
         val assistantIndex: Int = messages.lastIndex
-        if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
-        }
-    }
 
-    // Resets thinking state when a new response starts.
-    private fun resetThinkingState() {
-        // No longer needed - thinking state is managed via events list
+        if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage)
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
     }
 
     /**
@@ -619,11 +635,12 @@ class GradumChatSession {
         try {
             val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
             sendingPhase = message("gradum.phase.weaving")
-            val alias: String = data?.get("alias")?.jsonPrimitive?.content ?: toolName
-            val toolCallId: String = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
-            val success: Boolean = data?.get("success")?.toString()?.trim('"')?.toBooleanStrictOrNull() ?: true
-            val toolResultString: String = data?.get("result")?.toString() ?: ""
-            val arguments: Map<String, Any> = parseArguments(data?.get("arguments")?.jsonObject)
+
+            val alias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
+            val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
+            val success = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+            val toolResultString = data?.get("result")?.toString() ?: ""
+            val arguments = parseArguments(data?.get("arguments")?.jsonObject)
 
             val toolCall = ToolCallInfo(
                 toolName = toolName,
@@ -660,13 +677,12 @@ class GradumChatSession {
                 friendlyErrorMessage(errorCode),
                 errorDetailText(errorCode, rawMessage, errorToolName)
             )
-            if (updated !== messages[assistantIndex]) {
+            if (updated !== messages[assistantIndex])
                 messages[assistantIndex] = updated
-            } else {
+            else
                 messages[assistantIndex] = messages[assistantIndex].appendEvent(
                     ChatEvent.Error(rawMessage, errorCode, errorToolName)
                 )
-            }
         }
     }
 
@@ -682,6 +698,7 @@ class GradumChatSession {
             val displayName: String = selectedModel?.name ?: "Auto"
             val providerName: String = selectedModel?.provider ?: ""
             val serverLabel: String = selectedModel?.serverName ?: ""
+
             messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
             messages.add(
                 ChatMessage(
@@ -708,17 +725,17 @@ class GradumChatSession {
      * @return A map of configuration key-value pairs, or an empty map if no overrides are needed.
      */
     private fun buildModelConfig(): Map<String, String> {
-        val config: MutableMap<String, String> = mutableMapOf()
+        val requestParams = mutableMapOf<String, String>()
+
         if (isAutoSelected) {
-            config["provider"] = "ollama"
+            requestParams["provider"] = "ollama"
         } else {
-            val model = selectedModel
-            if (model != null) {
-                if (model.provider.isNotBlank()) config["provider"] = model.provider
-                if (model.server.isNotBlank()) config["baseUrl"] = model.server
+            selectedModel?.let { model ->
+                if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
+                if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
             }
         }
-        return config
+        return requestParams
     }
 
     /**
@@ -728,14 +745,15 @@ class GradumChatSession {
      */
     private fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
         if (jsonObject == null) return emptyMap()
-        return jsonObject.mapValues { (_, value) ->
-            when (value) {
+
+        return jsonObject.mapValues { (_, jsonElement) ->
+            when (jsonElement) {
                 // Nested structures: keep as string representation
-                is JsonObject -> value.toString()
-                is JsonArray -> value.toString()
+                is JsonObject -> jsonElement.toMap()
+                is JsonArray -> jsonElement.toList()
                 else -> {
                     // Infer the most specific primitive type
-                    val primitive = value.jsonPrimitive
+                    val primitive = jsonElement.jsonPrimitive
                     when {
                         primitive.isString -> primitive.content
                         primitive.booleanOrNull != null -> primitive.boolean
@@ -751,7 +769,7 @@ class GradumChatSession {
 
     companion object {
         private val jsonFormat: Json = Json { ignoreUnknownKeys = true }
-        const val MAX_ATTACHMENTS: Int = 5
+        const val MAX_ATTACHMENTS: Int = 10
         const val MAX_PENDING_MESSAGES: Int = 2
 
         /** Minimum milliseconds to display the "Sending" animation before the request fires. */
@@ -773,23 +791,25 @@ class GradumChatSession {
          * @return A pair of (resolved text, whether any replacements were made).
          */
         fun resolveInlineTags(
-            text: String,
-            focusedFilePath: String,
-            openFiles: List<VirtualFile>
+            text: String, focusedFilePath: String, openFiles: List<VirtualFile>
         ): Pair<String, Boolean> {
             val hasFocusTag = focusedFilePath.isNotEmpty() && FOCUS_FILE_PATTERN.containsMatchIn(text)
-            val hasFileRef = FILE_REF_PATTERN.containsMatchIn(text)
-            if (!hasFocusTag && !hasFileRef) return text to false
+            val hasFileReference = FILE_REF_PATTERN.containsMatchIn(text)
 
-            val result = StringBuilder(text);
+            if (!hasFocusTag && !hasFileReference) return text to false
+
+            val result = StringBuilder(text)
             var replaced = false
 
             if (hasFocusTag) {
-                val resolved = result.replace(FOCUS_FILE_PATTERN, "<Context path=\"$focusedFilePath\"/>")
+                val resolved = result.replace(
+                    regex = FOCUS_FILE_PATTERN,
+                    replacement = "<Context path=\"$focusedFilePath\"/>"
+                )
                 result.clear(); result.append(resolved); replaced = true
             }
 
-            if (hasFileRef) {
+            if (hasFileReference) {
                 FILE_REF_PATTERN.findAll(result).toList().reversed().forEach { match ->
                     val fileName: String = match.groupValues[1]
                     val matchedFile: VirtualFile? = openFiles.find { it.name == fileName }
@@ -803,7 +823,6 @@ class GradumChatSession {
                     }
                 }
             }
-
             return result.toString() to replaced
         }
     }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputState.kt  2026-06-30 23:35:47 Changed by gwy
+ * ChatInputState.kt  2026-07-01 21:20:00 Changed by gwy
  */
 
 package gradum.idea.chat.input
@@ -31,7 +31,24 @@ data class ChatInputState(
     val pinnedModels: List<ModelInfo> = emptyList(),
     val isAutoSelected: Boolean = false,
     val modelsLoaded: Boolean = false
-)
+) {
+    /**
+     * `true` if the currently selected model can accept image
+     * attachments. Used by the `Upload Image` row in the add-menu
+     * popup to switch to the disabled state with a `gradum.model.no.vision`
+     * tooltip. Auto-select falls through to the recommended model,
+     * which may or may not be a vision model — if it is not, the
+     * same rule still applies, so we read directly from
+     * [selectedModel] without inspecting [recommendedModel].
+     *
+     * Defaults to `false` when no model is picked yet, so a brand-
+     * new session with an empty roster never exposes the upload
+     * button as enabled. The button becomes enabled the moment the
+     * server returns a model whose `attachment` flag is true.
+     */
+    val isCurrentModelSupportsVision: Boolean
+        get() = selectedModel?.attachment == true
+}
 
 /** Callback actions for the chat input area. */
 data class ChatInputActions(
