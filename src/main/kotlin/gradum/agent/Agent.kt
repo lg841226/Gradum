@@ -406,7 +406,13 @@ class Agent(
 
         fun flushResponse() {
             if (responseBuffer.isNotEmpty()) {
-                emitEvent("response", mapOf("content" to responseBuffer.toString()))
+                val snapshot = activeClient.tokenUsage
+                emitEvent("response", mapOf(
+                    "content" to responseBuffer.toString(),
+                    "promptTokens" to snapshot.promptTokens,
+                    "completionTokens" to snapshot.completionTokens,
+                    "totalTokens" to snapshot.totalTokens,
+                ))
                 responseBuffer.clear()
             }
         }
