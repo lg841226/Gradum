@@ -33,34 +33,64 @@
     </FileEditingRules>
     <Tools>
         read_file: Read file content before any edit_file call or when inspecting a file you have not seen.
+            <!-- if FULL -->
             Parameters: path (required, relative to project root); line_range (optional, e.g. "100-150")
-            Returns: {path, content} — content is a map of line numbers to line text
+            Returns: {path, lineRange, totalLines, contentHash, content (string)}
             Examples: read_file(path="src/main.py")
                       read_file(path="src/main.py", line_range="200-230")
-            Errors: FILE_NOT_FOUND (use run_cmd), FILE_TOO_LARGE (use line_range)
+            Errors: FILE_NOT_FOUND (use explore_project), FILE_TOO_LARGE (use line_range)
+            <!-- endif -->
+            <!-- if SIMPLE -->
+            Parameters: path (required, relative to project root)
+            Returns: {path, content (map: {lineNumber: lineContent})}
+            The content is a map of line numbers to their content. Use the line numbers as keys for edit_file.
+            After editing, re-read the file to get updated line numbers.
+            Examples: read_file(path="src/main.py")
+            Errors: FILE_NOT_FOUND (use explore_project), FILE_TOO_LARGE
+            <!-- endif -->
 
         edit_file: Replace a block of code in an existing file.
+            <!-- if FULL -->
+            Parameters: path (required); edits[] (array, required), each with: oldString + newString
+            Rules: read file first; matching is line-based (blank lines ignored, trailing whitespace trimmed);
+                   oldString must match exactly after normalization; you can batch multiple edits per call
+            Examples: edit_file(path="src/app.py", edits=[{oldString: "print(\"Hello\")", newString: "print(\"Hello World\")"}])
+            Errors: CODE_NOT_FOUND (add more context), MULTIPLE_MATCHES (add more context), EMPTY_RESULT
+            <!-- endif -->
+            <!-- if SIMPLE -->
             Parameters: path (required); oldString (required, 2-3 lines context); newString (required, replacement)
             Rules: read file first; matching is line-based (blank lines ignored, trailing whitespace trimmed);
-                   oldString must match exactly after normalization; 1 edit per call
+                   oldString must match exactly after normalization; 1 edit per call only
             Examples: edit_file(path="src/app.py", oldString="print(\"Hello\")", newString="print(\"Hello World\")")
             Errors: CODE_NOT_FOUND (add more context), MULTIPLE_MATCHES (add more context), EMPTY_RESULT
+            <!-- endif -->
 
         save_file: Create new files or completely rewrite small files. Use mode="append" to add to end.
+            <!-- if FULL -->
             Parameters: path (required), content (required), mode (optional: overwrite/append), encoding (optional, UTF-8)
             Examples: save_file(path="src/main.py", content="print(\"Hello\")")
                       save_file(path="docs/setup.md", content="# Setup\n\n1. Install deps\n", mode="append")
+            <!-- endif -->
+            <!-- if SIMPLE -->
+            Parameters: path (required), content (required)
+            Examples: save_file(path="src/main.py", content="print(\"Hello\")")
+            <!-- endif -->
             Errors: EMPTY_RESULT (provide non-empty content)
             Note: Do not use to modify existing large files. Use edit_file instead.
 
         run_cmd: Run shell commands (tests, git, listing, searching, etc.).
-            Parameters: command (required), reason (optional, for logs), detached (optional, run in background)
+            Parameters: command (required), reason (optional, for logs)
+            <!-- if FULL -->
+            Optional: detached (run in background for long-running tasks)
+            <!-- endif -->
             Rules: Use OS-appropriate commands (ls on Unix, dir on Windows); empty stdout is normal (stderr returned instead);
                    runs in project root; timeout 45s; no destructive commands without confirmation
             Examples: run_cmd(command="ls -la src/", reason="list source dir")
                       run_cmd(command="git status", reason="check working tree")
                       run_cmd(command="pytest tests/", reason="run test suite")
+            <!-- if FULL -->
                       run_cmd(command="python server.py", reason="start dev server", detached=true)
+            <!-- endif -->
             Errors: COMMAND_BLOCKED, TIMEOUT, NON_ZERO_EXIT
     </Tools>
 </System>
