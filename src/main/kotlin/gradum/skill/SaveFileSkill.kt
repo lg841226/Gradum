@@ -2,15 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-06-30 23:35:47 Changed by gwy
+ * SaveFileSkill.kt  2026-07-05 11:22:59 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.ErrorCode
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
+import gradum.*
 import io.ktor.utils.io.charsets.*
 import java.io.File
 import java.nio.file.Path
@@ -30,19 +27,19 @@ private val blockedHomeSubdirectories: List<String> = listOf(
 
 private val exactBlockedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
 
-private fun isBlockedPaths(path: Path): Boolean {
-    val absolutePath = path.toAbsolutePath().normalize()
+private fun isBlockedPaths(targetPath: Path): Boolean {
+    val absolutePath = targetPath.toAbsolutePath().normalize()
     val pathString = absolutePath.toString()
 
     if (pathString in exactBlockedPaths) return true
 
-    for (prefix in blockedPathPrefixes) {
-        if (pathString.startsWith(prefix)) return true
+    for (blockedPrefix in blockedPathPrefixes) {
+        if (pathString.startsWith(blockedPrefix)) return true
     }
 
     val homeDirectory: String = System.getProperty("user.home") ?: return false
-    for (subdir in blockedHomeSubdirectories) {
-        val protectedPath = "$homeDirectory/$subdir"
+    for (protectedSubdir in blockedHomeSubdirectories) {
+        val protectedPath = "$homeDirectory/$protectedSubdir"
         if (pathString.startsWith(protectedPath)) return true
     }
 
@@ -90,47 +87,55 @@ class SaveFileSkill : Skill() {
      * - `encoding` (optional): character encoding, defaults to `UTF-8`
      */
     override fun getSchema(context: SkillContext?): Map<String, Any> {
+        val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
         return mapOf(
             "type" to "function",
             "function" to mapOf(
                 "name" to skillName,
-                "description" to description,
+                "description" to if (useSimple) "Create or overwrite a file" else description,
                 "parameters" to mapOf(
                     "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf(
-                            "type" to "string",
-                            "description" to "File path to write. Parent directories are created if missing.",
-                        ),
-                        "content" to mapOf(
-                            "type" to "string",
-                            "description" to "Content to write to the file.",
-                        ),
-                        "mode" to mapOf(
-                            "type" to "string",
-                            "description" to "Write mode: 'overwrite' (default) replaces entire file, 'append' adds to end.",
-                            "enum" to listOf("overwrite", "append")
-                        ),
-                        "encoding" to mapOf(
-                            "type" to "string",
-                            "description" to "Character encoding for the file. Defaults to 'UTF-8'.",
-                            "enum" to listOf(
-                                "UTF-8",
-                                "UTF-16",
-                                "UTF-16LE",
-                                "UTF-16BE",
-                                "ISO-8859-1",
-                                "GBK",
-                                "GB2312",
-                                "US-ASCII"
-                            )
-                        )
-                    ),
-                    "required" to listOf("path", "content")
-                )
-            )
+                    "properties" to if (useSimple) simpleProperties() else cloudProperties(),
+                    "required" to listOf("path", "content"),
+                ),
+            ),
         )
     }
+
+    private fun simpleProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "File path to write. Relative paths are resolved from the project root. Parent directories are created automatically if they do not exist.",
+        ),
+        "content" to mapOf(
+            "type" to "string",
+            "description" to "Content to write to the file. This is the exact text that will be written. Must not be empty.",
+        ),
+    )
+
+    private fun cloudProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "File path to write. Parent directories are created if missing.",
+        ),
+        "content" to mapOf(
+            "type" to "string",
+            "description" to "Content to write to the file.",
+        ),
+        "mode" to mapOf(
+            "type" to "string",
+            "description" to "Write mode: 'overwrite' (default) replaces entire file, 'append' adds to end.",
+            "enum" to listOf("overwrite", "append")
+        ),
+        "encoding" to mapOf(
+            "type" to "string",
+            "description" to "Character encoding for the file. Defaults to 'UTF-8'.",
+            "enum" to listOf(
+                "UTF-8", "UTF-16", "UTF-16LE", "UTF-16BE",
+                "ISO-8859-1", "GBK", "GB2312", "US-ASCII"
+            )
+        ),
+    )
 
     /**
      * Writes content to a file at the given path.
@@ -148,27 +153,49 @@ class SaveFileSkill : Skill() {
         val writeMode: String = arguments["mode"] as? String ?: "overwrite"
         val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
         val projectRoot: String = context.projectRoot
+        val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
-        if (filePath.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
+        if (filePath.isBlank()) {
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'path' parameter.",
+                    fixHint = "Provide a file path in the 'path' parameter."
+                )
+            )
+        }
 
-        val charset: Charset = try {
+        val fileCharset: Charset = try {
             Charsets.forName(encodingName)
         } catch (_: Exception) {
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Unsupported encoding: $encodingName")
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Unsupported encoding: $encodingName",
+                    fixHint = "Use a supported encoding: UTF-8, UTF-16, ISO-8859-1, GBK, US-ASCII."
+                )
+            )
         }
 
         if (fileContent.isBlank() && writeMode == "overwrite")
             return makeFailure(
                 ErrorCode.EMPTY_RESULT,
-                "Content is blank. Use append mode or provide non-empty content."
+                buildXmlError(
+                    code = "EMPTY_RESULT",
+                    message = "Content is blank. Use append mode or provide non-empty content.",
+                    fixHint = "Provide content to write, or set mode='append' to add to an existing file."
+                )
             )
 
-        val contentBytes: ByteArray = fileContent.toByteArray(charset)
+        val contentBytes: ByteArray = fileContent.toByteArray(fileCharset)
         if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
             return makeFailure(
                 ErrorCode.FILE_TOO_LARGE,
-                "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+                buildXmlError(
+                    code = "FILE_TOO_LARGE",
+                    message = "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+                    fixHint = "Reduce the content size or split it into smaller writes."
+                ),
             )
 
         val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
@@ -176,49 +203,70 @@ class SaveFileSkill : Skill() {
         } else {
             Path.of(filePath).toAbsolutePath().normalize()
         }
+
         val targetFile: File = resolvedPath.toFile()
         val wasCreated: Boolean = !targetFile.exists()
         val previousSize: Long = if (writeMode == "append" && !wasCreated) targetFile.length() else 0L
 
         return try {
-
-            if (isBlockedPaths(resolvedPath))
+            if (isBlockedPaths(resolvedPath)) {
                 return makeFailure(
                     ErrorCode.PERMISSION_DENIED,
-                    "Writing to '${resolvedPath}' is not allowed for security reasons."
+                    buildXmlError(
+                        code = "PERMISSION_DENIED",
+                        message = "Writing to '${resolvedPath}' is not allowed for security reasons.",
+                        fixHint = "Choose a different file path outside protected system directories."
+                    )
                 )
+            }
 
             targetFile.parentFile?.mkdirs()
 
-            if (writeMode == "append")
-                targetFile.appendText(fileContent, charset)
-            else
-                targetFile.writeText(fileContent, charset)
+            if (writeMode == "append") {
+                targetFile.appendText(fileContent, fileCharset)
+            } else {
+                targetFile.writeText(fileContent, fileCharset)
+            }
 
             val bytesWritten: Long = targetFile.length()
 
-            val totalLines: Int = if (writeMode == "append")
-                targetFile.readLines(charset).size
-            else
+            val totalLines: Int = if (writeMode == "append") {
+                targetFile.readLines(fileCharset).size
+            } else {
                 fileContent.lines().size
+            }
 
-            makeSuccess(
-                buildMap {
-                    put("path", resolvedPath.toString())
-                    put("bytesWritten", bytesWritten)
-                    put("totalLines", totalLines)
-                    put("created", wasCreated)
-                    put("mode", writeMode)
-                    put("encoding", charset.name())
-                    if (writeMode == "append" && !wasCreated) {
-                        put("previousSize", previousSize)
-                    }
-                },
-            )
-        } catch (exception: Exception) {
+            if (useSimpleOutput) {
+                makeSuccess(
+                    mapOf(
+                        "path" to resolvedPath.toString(),
+                        "bytesWritten" to bytesWritten,
+                        "created" to wasCreated,
+                    )
+                )
+            } else {
+                makeSuccess(
+                    buildMap {
+                        put("path", resolvedPath.toString())
+                        put("bytesWritten", bytesWritten)
+                        put("totalLines", totalLines)
+                        put("created", wasCreated)
+                        put("mode", writeMode)
+                        put("encoding", fileCharset.name())
+                        if (writeMode == "append" && !wasCreated) {
+                            put("previousSize", previousSize)
+                        }
+                    },
+                )
+            }
+        } catch (fileWriteException: Exception) {
             makeFailure(
                 ErrorCode.IO_ERROR,
-                exception.message ?: "Failed to write file",
+                buildXmlError(
+                    code = "IO_ERROR",
+                    message = fileWriteException.message ?: "Failed to write file.",
+                    fixHint = "This is not your fault. Check file permissions and disk space."
+                ),
                 mapOf("path" to resolvedPath.toString())
             )
         }

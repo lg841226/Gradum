@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelRecommender.kt  2026-07-01 21:56:07 Changed by gwy
+ * ModelRecommender.kt  2026-07-04 23:19:33 Changed by gwy
  */
 
 package gradum.discovery
@@ -39,12 +39,12 @@ data class RecommendationContext(val availableRamGB: Double) {
          * recommendation.
          */
         fun fromSystemMemory(): RecommendationContext {
-            val osBean: OperatingSystemMXBean =
+            val operatingSystemBean: OperatingSystemMXBean =
                 ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
-            val freeBytes: Long = osBean.freeMemorySize
-            val availableGB: Double =
-                freeBytes.toDouble() / 1024.0 / 1024.0 / 1024.0 * FREE_RAM_HEADROOM_FACTOR
-            return RecommendationContext(availableGB)
+            val freeMemoryBytes: Long = operatingSystemBean.freeMemorySize
+            val usableMemoryGB: Double =
+                freeMemoryBytes.toDouble() / 1024.0 / 1024.0 / 1024.0 * FREE_RAM_HEADROOM_FACTOR
+            return RecommendationContext(usableMemoryGB)
         }
     }
 }
@@ -69,7 +69,7 @@ private val localServerNames: Set<String> = setOf("Ollama", "LM Studio", "vLLM",
  */
 fun recommend(
     models: List<ModelEntry>,
-    context: RecommendationContext = RecommendationContext.fromSystemMemory(),
+    context: RecommendationContext = RecommendationContext.fromSystemMemory()
 ): ModelEntry? {
     if (models.isEmpty()) return null
     return models.maxByOrNull { score(it, context) }
@@ -78,61 +78,46 @@ fun recommend(
 /**
  * Per-model score. Higher = more recommended.
  *
- *  1. Context window: the universal baseline, capped at 200K so a
- *     single 1M-token outlier can't dominate every comparison.
- *  2. Cloud preference: 200-point flat bonus because cloud models are
- *     strictly stronger than the local options the user has today, by
- *     design (see project memory: "专注于本地, 但本地模型性能距离
- *     云端模型还是有些差距").
- *  3. Local parameter count: `paramsB * 1.5` so a 70B beats a 7B
- *     decisively, but not so much that it drowns out a cloud candidate
- *     with better context or capability flags.
- *  4. Memory gate: a local model whose estimated VRAM exceeds the
- *     available headroom is hit with a -500 penalty. This is large
- *     enough to demote it below any plausible cloud candidate and any
- *     smaller local alternative, but it stays selectable (so a user
- *     who insists on the big model still can). A softer "warning"
- *     tier was tried and rejected — see the implementation.
- *  5. Capability flags: small bonuses so a reasoning / tool-calling
- *     / vision model outranks an otherwise-identical sibling.
+ * 1. Context window: baseline, capped at 200K to prevent outliers from dominating.
+ * 2. Cloud bonus: +200 for cloud models (strictly stronger than local).
+ * 3. Local size: +1.5 per billion params (70B beats 7B, but doesn't drown out cloud).
+ * 4. Memory gate: -500 if estimated VRAM exceeds available memory.
+ *    Drops it below all cloud and smaller local models, but keeps it selectable.
+ *    Softer warning tier was rejected (caused ambiguous rankings without preventing OOM).
+ * 5. Capability bonuses: +20 reasoning, +10 tool-call, +5 vision.
  */
 internal fun score(model: ModelEntry, context: RecommendationContext): Double {
-    var s = 0.0
+    var modelScore = 0.0
 
-    s += minOf(model.contextLimit, 200_000) / 2_000.0
+    modelScore += minOf(model.contextLimit, 200_000) / 2_000.0
 
-    if (isCloud(model)) {
-        s += 200.0
+    if (isCloudModel(model)) {
+        modelScore += 200.0
     } else {
-        val paramsB: Double = parseParamsB(model)
-        s += paramsB * 1.5
+        val parameterCountInBillions: Double = parameterCountInBillions(model)
+        modelScore += parameterCountInBillions * 1.5
 
-        // Binary memory gate: a local model that cannot fit in the
-        // current headroom is hard-demoted (-500) so it loses to
-        // every cloud candidate and every smaller local alternative.
-        // A softer "warning" tier was tried and rejected — it tipped
-        // the ranking on borderline cases (e.g. 32B on a 32 GB
-        // machine) and made the recommendation harder to reason
-        // about without actually saving anyone from an OOM.
-        val vramEstimate: Double = paramsB * 0.8
-        if (vramEstimate > context.availableRamGB) s -= 500.0
+        // Local models that exceed available memory get -500, dropping them below all cloud and smaller local alternatives.
+        // A softer warning tier was tried but caused ambiguous rankings (e.g. 32B on 32GB) without preventing OOM.
+        val estimatedMemoryGB: Double = parameterCountInBillions * 0.8
+        if (estimatedMemoryGB > context.availableRamGB) modelScore -= 500.0
     }
 
-    if (model.reasoning) s += 20.0
-    if (model.toolCall) s += 10.0
-    if (model.attachment) s += 5.0
+    if (model.reasoning) modelScore += 20.0
+    if (model.toolCall) modelScore += 10.0
+    if (model.attachment) modelScore += 5.0
 
-    return s
+    return modelScore
 }
 
 /**
  * A model is treated as cloud if its name carries a `cloud` suffix
- * (the project convention — see `ModelSelectorBar.isCloud`) or if it
+ * (the project convention — see `ModelSelectorBar.isCloudModel`) or if it
  * came from a server we don't recognize as a local runtime. The
  * second check is the safety net for upstream models.dev entries that
  * don't follow the naming convention.
  */
-private fun isCloud(model: ModelEntry): Boolean {
+private fun isCloudModel(model: ModelEntry): Boolean {
     if (model.modelName.contains("cloud", ignoreCase = true)) return true
     return model.serverName !in localServerNames
 }
@@ -144,8 +129,9 @@ private fun isCloud(model: ModelEntry): Boolean {
  * non-cloud models without a size tag fall to the bottom of the
  * local ranking by design).
  */
-fun parseParamsB(model: ModelEntry): Double {
-    val match: MatchResult? = Regex("""(\d+(?:\.\d+)?)b""", RegexOption.IGNORE_CASE)
+fun parameterCountInBillions(model: ModelEntry): Double {
+    val parameterMatch: MatchResult? = Regex(pattern = """(\d+(?:\.\d+)?)b""", option = RegexOption.IGNORE_CASE)
         .find(model.modelName)
-    return match?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+
+    return parameterMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
 }

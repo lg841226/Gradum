@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-07-03 20:03:42 Changed by gwy
+ * ExploreProjectSkill.kt  2026-07-04 21:43:23 Changed by gwy
  */
 
 package gradum.skill
@@ -93,42 +93,42 @@ private val codeExtensions: Set<String> = setOf(
     "md", "txt", "rst", "adoc"
 )
 
-private fun shouldTruncate(name: String): Boolean {
-    if (name.startsWith(".")) return true
-    if (name in truncatedDirectoryNames) return true
-    if (name.endsWith(".egg-info")) return true
-    if (name.endsWith(".iml")) return true
+private fun shouldTruncate(entryName: String): Boolean {
+    if (entryName.startsWith(".")) return true
+    if (entryName in truncatedDirectoryNames) return true
+    if (entryName.endsWith(".egg-info")) return true
+    if (entryName.endsWith(".iml")) return true
     return false
 }
 
-private fun isConfigFile(name: String): Boolean {
-    if (name in configFiles) return true
-    if (name.endsWith(".iml")) return true
-    if (name.startsWith(".env")) return true
+private fun isConfigFile(entryName: String): Boolean {
+    if (entryName in configFiles) return true
+    if (entryName.endsWith(".iml")) return true
+    if (entryName.startsWith(".env")) return true
     return false
 }
 
-private fun isCodeFile(name: String): Boolean {
-    val ext = name.substringAfterLast('.', "")
-    return ext in codeExtensions
+private fun isCodeFile(entryName: String): Boolean {
+    val fileExtension = entryName.substringAfterLast('.', "")
+    return fileExtension in codeExtensions
 }
 
-private fun countLines(file: File): Int {
+private fun countLines(targetFile: File): Int {
     return try {
-        file.bufferedReader().use { reader ->
-            reader.lines().count().toInt()
+        targetFile.bufferedReader().use { bufferedReader ->
+            bufferedReader.lines().count().toInt()
         }
     } catch (_: Exception) {
         0
     }
 }
 
-private fun formatSize(bytes: Long): String {
+private fun formatSize(sizeInBytes: Long): String {
     return when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
-        bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024))
-        else -> String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024))
+        sizeInBytes < 1024 -> "$sizeInBytes B"
+        sizeInBytes < 1024 * 1024 -> String.format("%.1f KB", sizeInBytes / 1024.0)
+        sizeInBytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", sizeInBytes / (1024.0 * 1024))
+        else -> String.format("%.1f GB", sizeInBytes / (1024.0 * 1024 * 1024))
     }
 }
 
@@ -139,16 +139,16 @@ private data class ScanResult(
     var totalSize: Long = 0
 )
 
-private fun scanDirectory(directory: Path, remainingDepth: Int, visited: Set<Path>, result: ScanResult) {
+private fun scanDirectory(targetDirectory: Path, remainingDepth: Int, visitedPaths: Set<Path>, scanResult: ScanResult) {
     if (remainingDepth <= 0) return
 
-    val entries: List<File> = try {
-        directory.toFile().listFiles()?.toList() ?: emptyList()
+    val directoryEntries: List<File> = try {
+        targetDirectory.toFile().listFiles()?.toList() ?: emptyList()
     } catch (_: SecurityException) {
         return
     }
 
-    val sortedEntries: List<File> = entries
+    val sortedEntries: List<File> = directoryEntries
         .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
 
     val limitedEntries: List<File> = if (sortedEntries.size > MAXIMUM_CHILDREN_PER_DIRECTORY) {
@@ -157,30 +157,30 @@ private fun scanDirectory(directory: Path, remainingDepth: Int, visited: Set<Pat
         sortedEntries
     }
 
-    for (entry in limitedEntries) {
-        if (entry.isDirectory) {
-            if (shouldTruncate(entry.name)) continue
+    for (directoryEntry in limitedEntries) {
+        if (directoryEntry.isDirectory) {
+            if (shouldTruncate(directoryEntry.name)) continue
 
-            val childPath: Path = entry.toPath()
+            val childPath: Path = directoryEntry.toPath()
             val normalizedChild: Path = childPath.toAbsolutePath().normalize()
 
-            if (normalizedChild in visited) continue
+            if (normalizedChild in visitedPaths) continue
 
-            val newVisited: Set<Path> = visited.plusElement(normalizedChild)
-            scanDirectory(childPath, remainingDepth - 1, newVisited, result)
+            val updatedVisited: Set<Path> = visitedPaths.plusElement(normalizedChild)
+            scanDirectory(childPath, remainingDepth - 1, updatedVisited, scanResult)
         } else {
-            result.totalSize += entry.length()
+            scanResult.totalSize += directoryEntry.length()
 
-            val relativePath = directory.relativize(entry.toPath()).toString()
+            val relativePath = targetDirectory.relativize(directoryEntry.toPath()).toString()
 
             when {
-                isConfigFile(entry.name) -> result.configFiles.add(relativePath)
-                isCodeFile(entry.name) -> {
-                    val lines = countLines(entry)
-                    result.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lines))
+                isConfigFile(directoryEntry.name) -> scanResult.configFiles.add(relativePath)
+                isCodeFile(directoryEntry.name) -> {
+                    val lineCount = countLines(directoryEntry)
+                    scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lineCount))
                 }
 
-                else -> result.otherFiles.add(relativePath)
+                else -> scanResult.otherFiles.add(relativePath)
             }
         }
     }
@@ -197,15 +197,12 @@ private fun scanDirectory(directory: Path, remainingDepth: Int, visited: Set<Pat
  */
 class ExploreProjectSkill : Skill() {
 
-    override val skillName: String = "explore_project"
     override val alias: String = "Explored"
+    override val skillName: String = "explore_project"
     override val description: String =
         "Scan project and categorize files. Returns config files, code files (with line counts), and other files."
 
-    override val allowedToolModes: Set<ToolMode> = setOf(
-        ToolMode.AGENT,
-        ToolMode.EDIT
-    )
+    override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT)
 
     override val historyKeepCount: Int = 3
 
@@ -255,8 +252,9 @@ class ExploreProjectSkill : Skill() {
 
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val projectRoot: String = context.projectRoot
+        val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
-        val depth: Int = when (val depthValue: Any? = arguments["depth"]) {
+        val requestedDepth: Int = when (val depthValue: Any? = arguments["depth"]) {
             is Number -> depthValue.toInt()
             is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH
             else -> DEFAULT_DEPTH
@@ -265,7 +263,11 @@ class ExploreProjectSkill : Skill() {
         if (projectRoot.isBlank())
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
-                "Server has no project root configured for this session.",
+                buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Server has no project root configured for this session.",
+                    fixHint = "Ensure the project root is set in the IDE settings or server configuration."
+                ),
             )
 
         val resolvedPath: Path = try {
@@ -273,7 +275,11 @@ class ExploreProjectSkill : Skill() {
         } catch (_: Exception) {
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
-                "Invalid project root path: $projectRoot"
+                buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Invalid project root path: $projectRoot",
+                    fixHint = "Check that the project root path is valid and accessible."
+                )
             )
         }
 
@@ -281,27 +287,52 @@ class ExploreProjectSkill : Skill() {
         if (!rootFile.exists())
             return makeFailure(
                 ErrorCode.FILE_NOT_FOUND,
-                "project_root does not exist: $resolvedPath",
+                buildXmlError(
+                    code = "FILE_NOT_FOUND",
+                    message = "project_root does not exist: $resolvedPath",
+                    fixHint = "Verify the project directory exists. Use explore_project to find the correct path."
+                ),
                 mapOf("project_root" to resolvedPath.toString())
             )
         if (!rootFile.isDirectory)
             return makeFailure(
                 ErrorCode.INVALID_PARAMETER,
-                "project_root is not a directory: $resolvedPath",
+                buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "project_root is not a directory: $resolvedPath",
+                    fixHint = "The path must point to a directory, not a file."
+                ),
                 mapOf("project_root" to resolvedPath.toString())
             )
 
-        val result = ScanResult()
-        val visited: Set<Path> = setOf(resolvedPath)
-        scanDirectory(resolvedPath, depth, visited, result)
+        val scanResult = ScanResult()
+        val visitedPaths: Set<Path> = setOf(resolvedPath)
+        scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult)
+
+        if (useSimpleOutput) {
+            val codeFileDetails: List<String> = scanResult.codeFiles
+                .sortedBy { (it["path"] as? String) ?: "" }
+                .map { "${it["path"]}:${it["lines"]}" }
+
+            return makeSuccess(
+                linkedMapOf(
+                    "project_root" to resolvedPath.toString(),
+                    "total_size" to formatSize(scanResult.totalSize),
+                    "config_files" to scanResult.configFiles.size,
+                    "code_files" to scanResult.codeFiles.size,
+                    "other_files" to scanResult.otherFiles.size,
+                    "code_file_details" to codeFileDetails,
+                )
+            )
+        }
 
         return makeSuccess(
             linkedMapOf(
                 "project_root" to resolvedPath.toString(),
-                "total_size" to formatSize(result.totalSize),
-                "config_files" to result.configFiles.sorted(),
-                "code_files" to result.codeFiles.sortedBy { (it["path"] as? String) ?: "" },
-                "other_files" to result.otherFiles.sorted()
+                "total_size" to formatSize(scanResult.totalSize),
+                "config_files" to scanResult.configFiles.sorted(),
+                "code_files" to scanResult.codeFiles.sortedBy { (it["path"] as? String) ?: "" },
+                "other_files" to scanResult.otherFiles.sorted()
             )
         )
     }

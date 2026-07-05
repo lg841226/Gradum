@@ -43,11 +43,15 @@ enum class SchemaVariant {
  */
 object ModelCapability {
 
-    /** Parameter count threshold (in billions). Models ≤ these are considered small. */
-    private const val SMALL_MODEL_THRESHOLD_B: Double = 32.0
+    /** Parameter count threshold in billions. Models at or below this are considered small. */
+    private const val MAX_SMALL_MODEL_PARAMETERS_B: Double = 32.0
 
-    /** Regex to extract parameter size from model names like "7b", "14b", "72b", "0.5b" */
-    private val SIZE_PATTERN: Regex = Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""")
+    /**
+     * Regex to extract parameter size from model names.
+     * Matches patterns like "7b", "14b", "72b", "0.5b", "321b"
+     * followed by whitespace, colon, hyphen, underscore, or end of string.
+     */
+    private val PARAMETER_SIZE_PATTERN: Regex = Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""")
 
     /** Keywords indicating a cloud or large model */
     private val CLOUD_KEYWORDS: Set<String> = setOf(
@@ -72,9 +76,9 @@ object ModelCapability {
         if (CLOUD_KEYWORDS.any { lower.contains(it) }) return false
 
         // Extract and evaluate parameter size
-        val match = SIZE_PATTERN.find(lower) ?: return false
-        val sizeB = match.groupValues[1].toDoubleOrNull() ?: return false
+        val match = PARAMETER_SIZE_PATTERN.find(lower) ?: return false
+        val parameterCountBillions: Double = match.groupValues[1].toDoubleOrNull() ?: return false
 
-        return sizeB <= SMALL_MODEL_THRESHOLD_B
+        return parameterCountBillions <= MAX_SMALL_MODEL_PARAMETERS_B
     }
 }

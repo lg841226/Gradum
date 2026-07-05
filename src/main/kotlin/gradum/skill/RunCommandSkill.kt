@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-07-01 21:56:07 Changed by gwy
+ * RunCommandSkill.kt  2026-07-04 22:54:49 Changed by gwy
  */
 
 package gradum.skill
@@ -38,48 +38,68 @@ class RunCommandSkill : Skill() {
     override val historyVolatileKeys: List<String> = listOf("output")
 
     override fun getSchema(context: SkillContext?): Map<String, Any> {
+        val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
         return mapOf(
             "type" to "function",
             "function" to mapOf(
                 "name" to skillName,
-                "description" to description,
+                "description" to if (useSimple) "Execute a shell command" else description,
                 "parameters" to mapOf(
                     "type" to "object",
-                    "properties" to mapOf(
-                        "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
-                        "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
-                        "detached" to mapOf("type" to "boolean", "description" to "Run in background mode"),
-                    ),
+                    "properties" to if (useSimple) simpleProperties() else cloudProperties(),
                     "required" to listOf("command"),
                 ),
             ),
         )
     }
 
+    private fun simpleProperties(): Map<String, Any> = mapOf(
+        "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
+        "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
+    )
+
+    private fun cloudProperties(): Map<String, Any> = mapOf(
+        "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
+        "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
+        "detached" to mapOf("type" to "boolean", "description" to "Run in background mode"),
+    )
+
     @OptIn(DangerousOperation::class)
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val commandText: String = arguments["command"] as? String ?: ""
         val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
         val projectRoot: String = context.projectRoot
+        val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
         if (commandText.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'command' parameter")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, buildXmlError(
+                code = "INVALID_PARAMETER",
+                message = "Missing 'command' parameter.",
+                fixHint = "Provide a shell command string in the 'command' parameter."
+            ))
 
-        val classification: CommandVerdict = classifyCommand(commandText)
-        if (classification is CommandVerdict.Blocked) {
+        val commandVerdict: CommandVerdict = classifyCommand(commandText)
+        if (commandVerdict is CommandVerdict.Blocked) {
             return makeFailure(
                 ErrorCode.COMMAND_BLOCKED,
-                "Blocked by safety filter: ${classification.description}",
-                mapOf("command" to commandText, "rule" to classification.ruleName)
+                buildXmlError(
+                    code = "COMMAND_BLOCKED",
+                    message = "Blocked by safety filter: ${commandVerdict.description}",
+                    fixHint = "This command is blocked by security policy. Choose a different command or ask the user for permission."
+                ),
+                mapOf("command" to commandText, "rule" to commandVerdict.ruleName)
             )
         }
 
-        if (runDetached) return executeDetached(commandText, context)
+        // Simple models always run blocking (no detached mode)
+        if (runDetached && !useSimpleOutput) return executeDetached(commandText, context)
 
-        return executeBlocking(commandText, projectRoot)
+        return executeBlocking(commandText, projectRoot, useSimpleOutput)
     }
 
-    private fun executeBlocking(commandText: String, projectRoot: String = ""): SkillResult {
+    private fun executeBlocking(
+        commandText: String, projectRoot: String = "", useSimpleOutput: Boolean = false
+    ): SkillResult {
         return try {
             val processBuilder = ProcessBuilder("sh", "-c", commandText)
             processBuilder.redirectErrorStream(false)
@@ -88,48 +108,63 @@ class RunCommandSkill : Skill() {
                 if (workingDirectory.isDirectory) processBuilder.directory(workingDirectory)
             }
 
-            val process: Process = processBuilder.start()
-            val finished: Boolean = process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            val commandProcess: Process = processBuilder.start()
+            val processFinished: Boolean = commandProcess.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 
-            if (!finished) {
-                process.destroyForcibly()
+            if (!processFinished) {
+                commandProcess.destroyForcibly()
                 return makeFailure(
                     ErrorCode.TIMEOUT,
-                    "Command timed out after $COMMAND_TIMEOUT_SECONDS seconds",
+                    buildXmlError(
+                        code = "TIMEOUT",
+                        message = "Command timed out after $COMMAND_TIMEOUT_SECONDS seconds.",
+                        fixHint = "The command took too long. Try a simpler command or use detached=true for long-running commands."
+                    ),
                     mapOf("command" to commandText),
                 )
             }
 
-            val exitCode: Int = process.exitValue()
+            val exitCode: Int = commandProcess.exitValue()
 
-            val stdoutText: String = readStreamOutput(process.inputStream)
-            val stderrText: String = readStreamOutput(process.errorStream)
+            val stdoutText: String = readStreamOutput(commandProcess.inputStream)
+            val stderrText: String = readStreamOutput(commandProcess.errorStream)
+            val commandOutput: String = stdoutText.ifBlank { stderrText }
 
-            makeSuccess(
-                mapOf(
-                    "command" to commandText,
-                    "exitCode" to exitCode,
-                    "output" to stdoutText.ifBlank { stderrText },
-                    "timedOut" to false,
-                ),
-            )
-        } catch (exception: Exception) {
+            if (useSimpleOutput) {
+                makeSuccess(
+                    mapOf(
+                        "command" to commandText,
+                        "exitCode" to exitCode,
+                        "output" to commandOutput.take(2000),
+                    )
+                )
+            } else {
+                makeSuccess(
+                    mapOf(
+                        "command" to commandText,
+                        "exitCode" to exitCode,
+                        "output" to commandOutput,
+                        "timedOut" to false,
+                    )
+                )
+            }
+        } catch (executionException: Exception) {
             makeFailure(
                 ErrorCode.IO_ERROR,
-                exception.message ?: "Failed to execute command",
+                buildXmlError(
+                    code = "IO_ERROR",
+                    message = executionException.message ?: "Failed to execute command.",
+                    fixHint = "This is not your fault. Check the command syntax and try again."
+                ),
                 mapOf("command" to commandText)
             )
         }
     }
 
     @DangerousOperation
-    private fun executeDetached(commandText: String, context: SkillContext): SkillResult {
+    private fun executeDetached(commandText: String, skillContext: SkillContext): SkillResult {
         return try {
-            // Per-session log directory: <projectRoot>/.gradum/run_cmd
-            // (not the legacy global ProjectPaths.outputDirectory() which
-            // resolved to the server's CWD and wrote to the wrong project
-            // when the plugin opened a different one in the IDE).
-            val logDirectory: Path = Path.of(context.projectRoot, ".gradum", "run_cmd")
+            val logDirectory: Path = Path.of(skillContext.projectRoot, ".gradum", "run_cmd")
             logDirectory.toFile().mkdirs()
             val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
 
@@ -137,8 +172,8 @@ class RunCommandSkill : Skill() {
             processBuilder.redirectOutput(logFile)
             processBuilder.redirectErrorStream(true)
 
-            val process: Process = processBuilder.start()
-            val processId: Long = process.pid()
+            val detachedProcess: Process = processBuilder.start()
+            val processId: Long = detachedProcess.pid()
 
             logger.info("Detached command (PID $processId): $commandText to ${logFile.absolutePath}")
 
@@ -151,10 +186,14 @@ class RunCommandSkill : Skill() {
                     "message" to "Command started in background with PID $processId"
                 ),
             )
-        } catch (exception: Exception) {
+        } catch (detachedStartException: Exception) {
             makeFailure(
                 ErrorCode.IO_ERROR,
-                exception.message ?: "Failed to start detached command",
+                buildXmlError(
+                    code = "IO_ERROR",
+                    message = detachedStartException.message ?: "Failed to start detached command.",
+                    fixHint = "This is not your fault. Check the command syntax and system resources."
+                ),
                 mapOf("command" to commandText)
             )
         }
@@ -162,11 +201,11 @@ class RunCommandSkill : Skill() {
 
     private fun readStreamOutput(inputStream: java.io.InputStream): String {
         return try {
-            BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
-                reader.readText()
+            BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
+                bufferedReader.readText()
             }
-        } catch (exception: Exception) {
-            logger.warn("Failed to read stream output: {}", exception.message)
+        } catch (streamReadException: Exception) {
+            logger.warn("Failed to read stream output: {}", streamReadException.message)
             ""
         }
     }

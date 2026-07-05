@@ -82,10 +82,10 @@ object SkillRegistry {
         provider: Provider = Provider.OLLAMA,
         modelName: String = "",
     ): List<Map<String, Any>> {
-        val context = SkillContext(toolMode, "", provider, modelName)
+        val schemaContext = SkillContext(toolMode, "", provider, modelName)
         return registeredSkills.values
             .filter { skill: Skill -> toolMode in skill.allowedToolModes }
-            .map { skill: Skill -> skill.getSchema(context) }
+            .map { skill: Skill -> skill.getSchema(schemaContext) }
     }
 
     /**
@@ -93,9 +93,9 @@ object SkillRegistry {
      *
      * @param skill the skill instance to register
      */
-    private fun registerSkill(skill: Skill) {
-        registeredSkills[skill.skillName] = skill
-        logger.info("Registered skill: ${skill.skillName} (${skill.alias})")
+    private fun registerSkill(skillInstance: Skill) {
+        registeredSkills[skillInstance.skillName] = skillInstance
+        logger.info("Registered skill: ${skillInstance.skillName} (${skillInstance.alias})")
     }
 
     /**
@@ -110,19 +110,18 @@ object SkillRegistry {
      * it will be automatically discovered.
      */
     private fun discoverSkills() {
-        val skillClasses = findClassesInPackage()
+        val discoveredClasses = findClassesInPackage()
 
-        for (clazz in skillClasses) {
-            // Only process Skill subclasses
-            if (!Skill::class.java.isAssignableFrom(clazz)) continue
+        for (skillClass in discoveredClasses) {
+            if (!Skill::class.java.isAssignableFrom(skillClass)) continue
 
             try {
-                val instance = clazz.getDeclaredConstructor().newInstance()
-                if (instance is Skill) {
-                    registerSkill(instance)
+                val skillInstance = skillClass.getDeclaredConstructor().newInstance()
+                if (skillInstance is Skill) {
+                    registerSkill(skillInstance)
                 }
-            } catch (exception: Exception) {
-                logger.warn("Failed to instantiate skill class: ${clazz.name}", exception)
+            } catch (instantiationException: Exception) {
+                logger.warn("Failed to instantiate skill class: ${skillClass.name}", instantiationException)
             }
         }
 
@@ -142,42 +141,42 @@ object SkillRegistry {
 
         val classLoader = Thread.currentThread().contextClassLoader
         val packagePath = packageName.replace('.', '/')
-        val classes = mutableListOf<Class<*>>()
+        val discoveredClasses = mutableListOf<Class<*>>()
 
-        val resources = classLoader.getResources(packagePath)
-        while (resources.hasMoreElements()) {
-            val resource: URL = resources.nextElement()
-            val uri: URI = resource.toURI()
+        val packageResources = classLoader.getResources(packagePath)
+        while (packageResources.hasMoreElements()) {
+            val resourceUrl: URL = packageResources.nextElement()
+            val resourceUri: URI = resourceUrl.toURI()
 
-            when (uri.scheme) {
+            when (resourceUri.scheme) {
                 "file" -> {
-                    val filePath = Paths.get(uri)
-                    classes.addAll(findClassesInDirectory(filePath))
+                    val filePath = Paths.get(resourceUri)
+                    discoveredClasses.addAll(findClassesInDirectory(filePath))
                 }
 
                 "jar" -> {
-                    classes.addAll(findClassesInJar(uri, packagePath))
+                    discoveredClasses.addAll(findClassesInJar(resourceUri, packagePath))
                 }
             }
         }
 
-        return classes
+        return discoveredClasses
     }
 
     /**
      * Finds classes in a directory (for development/IDE environments).
      */
-    private fun findClassesInDirectory(directory: Path): List<Class<*>> {
-        val classes = mutableListOf<Class<*>>()
+    private fun findClassesInDirectory(targetDirectory: Path): List<Class<*>> {
+        val discoveredClasses = mutableListOf<Class<*>>()
 
-        Files.walk(directory).use { paths ->
+        Files.walk(targetDirectory).use { paths ->
             paths.filter { it.toString().endsWith(".class") }
-                .forEach { classFile ->
-                    if (getClassName(classFile, directory) != null) {
+                .forEach { classFilePath ->
+                    if (getClassName(classFilePath, targetDirectory) != null) {
                         try {
-                            val clazz = Class.forName(getClassName(classFile, directory))
-                            if (!clazz.isInterface && !Modifier.isAbstract(clazz.modifiers)) {
-                                classes.add(clazz)
+                            val matchedClass = Class.forName(getClassName(classFilePath, targetDirectory))
+                            if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
+                                discoveredClasses.add(matchedClass)
                             }
                         } catch (_: ClassNotFoundException) {
                             // Skip classes that can't be loaded
@@ -185,33 +184,33 @@ object SkillRegistry {
                     }
                 }
         }
-        return classes
+        return discoveredClasses
     }
 
     /**
      * Finds classes in a JAR file (for packaged environments).
      */
     private fun findClassesInJar(jarUri: URI, packagePath: String): List<Class<*>> {
-        val classes = mutableListOf<Class<*>>()
+        val discoveredClasses = mutableListOf<Class<*>>()
 
         try {
-            val jarPath = jarUri.toString().removePrefix("jar:").removePrefix("file:")
-            val jarFile = jarPath.substringBeforeLast("!")
+            val jarPathString = jarUri.toString().removePrefix("jar:").removePrefix("file:")
+            val jarFilePath = jarPathString.substringBeforeLast("!")
 
-            FileSystems.newFileSystem(Paths.get(jarFile), emptyMap<String, Nothing>()).use { fs ->
-                val pathInJar = fs.getPath(packagePath)
+            FileSystems.newFileSystem(Paths.get(jarFilePath), emptyMap<String, Nothing>()).use { fileSystem ->
+                val pathInJar = fileSystem.getPath(packagePath)
                 Files.walk(pathInJar).use { paths ->
                     paths.filter { it.toString().endsWith(".class") }
-                        .forEach { classFile ->
-                            val className = classFile.toString()
+                        .forEach { classFilePath ->
+                            val className = classFilePath.toString()
                                 .removePrefix("/")
                                 .replace('/', '.')
                                 .removeSuffix(".class")
 
                             try {
-                                val clazz = Class.forName(className)
-                                if (!clazz.isInterface && !Modifier.isAbstract(clazz.modifiers)) {
-                                    classes.add(clazz)
+                                val matchedClass = Class.forName(className)
+                                if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
+                                    discoveredClasses.add(matchedClass)
                                 }
                             } catch (_: ClassNotFoundException) {
                                 // Skip classes that can't be loaded
@@ -219,19 +218,19 @@ object SkillRegistry {
                         }
                 }
             }
-        } catch (exception: Exception) {
-            logger.debug("Failed to scan JAR for skills", exception)
+        } catch (jarScanException: Exception) {
+            logger.debug("Failed to scan JAR for skills", jarScanException)
         }
 
-        return classes
+        return discoveredClasses
     }
 
     /**
      * Converts a class file path to a fully qualified class name.
      */
-    private fun getClassName(classFile: Path, baseDir: Path): String? {
+    private fun getClassName(classFilePath: Path, baseDirectory: Path): String? {
         val packageName = SKILL_PACKAGE
-        val relativePath = baseDir.relativize(classFile).toString()
+        val relativePath = baseDirectory.relativize(classFilePath).toString()
         val className = relativePath
             .replace(File.separatorChar, '.')
             .removeSuffix(".class")

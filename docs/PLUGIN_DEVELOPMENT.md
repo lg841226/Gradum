@@ -189,7 +189,16 @@ abstract class Skill {
      */
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
-    abstract fun getSchema(): Map<String, Any>
+    /**
+     * Returns the OpenAI-compatible function schema for this skill.
+     *
+     * @param context optional session context. When provided, skills
+     *   that offer different parameter structures for local vs cloud
+     *   models can check SchemaVariant.resolve(context.modelName)
+     *   and return the appropriate schema. Skills that don't need
+     *   provider-aware schemas may ignore this parameter.
+     */
+    abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
 
     /**
      * How many recent results keep their [historyVolatileKeys] in conversation history.
@@ -243,10 +252,10 @@ abstract class Skill {
 
 ### Required Methods
 
-| Method                                                        | Return                                       | Purpose                                               |
-|---------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
-| `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(): Map<String, Any>`                               | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+| Method                                                              | Return                                       | Purpose                                               |
+|---------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>, context: SkillContext)`       | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
+| `getSchema(context: SkillContext? = null): Map<String, Any>`        | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
 
 ### Optional Properties
 
@@ -836,7 +845,7 @@ if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.SINGLE_STEP
 
 ---
 
-## 11. Using `SkillContext` for Project Root and Mode
+## 11. Using `SkillContext` for Project Root, Mode, and Model Info
 
 `SkillContext` is a small data class the agent constructs **once per
 session** and hands to every `Skill.execute` call:
@@ -845,12 +854,14 @@ session** and hands to every `Skill.execute` call:
 data class SkillContext(
     val toolMode: ToolMode,
     val projectRoot: String,
+    val provider: Provider = Provider.OLLAMA,
+    val modelName: String = "",
 )
 ```
 
 It replaces the legacy process-global `ProjectPaths.setProjectRoot` (and
 removes the previous blind spot: Skills had no way to read `toolMode` at
-all). The two properties are immutable for the lifetime of the session, and
+all). The four properties are immutable for the lifetime of the session, and
 the agent guarantees every Skill in that session sees the same instance.
 
 ### 11.1 Why a parameter, not a global
@@ -887,9 +898,9 @@ sequenceDiagram
     Plugin ->> Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
     Note over Server: Routes validates projectRoot is non-empty<br/>+ points to an existing directory
     Server ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
-    Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot)
+    Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot, provider, modelName)
     Agent ->> Skill: skill.execute(arguments, skillContext)
-    Note over Skill: read context.projectRoot for file ops
+    Note over Skill: read context.projectRoot for file ops<br/>read context.modelName for schema adaptation
 ```
 
 The plugin is the **only** source of truth for `projectRoot`. The server
@@ -936,6 +947,77 @@ val projectRoot: String = System.getProperty("user.dir")
 
 // RIGHT — single source of truth, per-session, immutable.
 val projectRoot: String = context.projectRoot
+```
+
+### 11.5 Using `provider` and `modelName` for Schema Adaptation
+
+The `provider` and `modelName` fields allow Skills to adapt their behavior
+based on the model's capabilities:
+
+```kotlin
+override fun getSchema(context: SkillContext?): Map<String, Any> {
+    val isSmallModel = context != null &&
+        SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+
+    return if (isSmallModel) {
+        // Simplified schema: fewer parameters, simpler output
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to skillName,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "path" to mapOf("type" to "string"),
+                        "content" to mapOf("type" to "string")
+                    ),
+                    "required" to listOf("path", "content")
+                )
+            )
+        )
+    } else {
+        // Full schema: all parameters, advanced features
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to skillName,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "path" to mapOf("type" to "string"),
+                        "content" to mapOf("type" to "string"),
+                        "mode" to mapOf(
+                            "type" to "string",
+                            "enum" to listOf("overwrite", "append")
+                        ),
+                        "encoding" to mapOf("type" to "string")
+                    ),
+                    "required" to listOf("path", "content")
+                )
+            )
+        )
+    }
+}
+```
+
+You can also branch on `modelName` in `execute()`:
+
+```kotlin
+override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+
+    val result = if (useSimpleOutput) {
+        // Simplified output: counts + flat list
+        mapOf("totalLines" to lines, "files" to flatList)
+    } else {
+        // Full output: nested tree structure
+        mapOf("totalLines" to lines, "entries" to nestedTree)
+    }
+
+    return makeSuccess(result)
+}
 ```
 
 ---
@@ -1029,3 +1111,189 @@ Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 - KDoc on public classes and methods should explain **why**, not **what**
 - 100-character line width
 - Error codes: uppercase underscore format (`SCREAMING_SNAKE_CASE`)
+
+---
+
+## 15. SchemaVariant API Reference
+
+Gradum adapts tool schemas and prompt content based on model capability. This
+section documents the API for plugin developers.
+
+### 15.1 `SchemaVariant` Enum
+
+```kotlin
+enum class SchemaVariant {
+    FULL,   // Complete parameter set, batch operations, advanced features
+    SIMPLE; // Minimal parameter set, one action per call, simplified output
+
+    companion object {
+        fun resolve(modelName: String): SchemaVariant
+    }
+}
+```
+
+**Usage:**
+
+```kotlin
+val variant = SchemaVariant.resolve("qwen2.5:14b") // SIMPLE
+val variant = SchemaVariant.resolve("gpt-4o")        // FULL
+val variant = SchemaVariant.resolve("")               // FULL (default)
+```
+
+### 15.2 `ModelCapability` Object
+
+```kotlin
+object ModelCapability {
+    fun isSmall(modelName: String): Boolean
+}
+```
+
+**Detection rules:**
+
+1. Cloud/API indicators (cloud, gpt, claude, gemini, sonnet, haiku, opus, pro, flash, turbo, mini, large, xxl) → large
+2. Parameter size tag (7b, 14b, 70b, etc.) → compare against 32B threshold
+3. Unknown/unrecognized → default to large (assume capable)
+
+**Examples:**
+
+| Model Name              | isSmall | Reason                              |
+|-------------------------|---------|-------------------------------------|
+| `"qwen2.5:7b"`           | true    | 7B ≤ 32B threshold                  |
+| `"qwen2.5:14b"`          | true    | 14B ≤ 32B threshold                 |
+| `"qwen2.5:72b"`          | false   | 72B > 32B threshold                 |
+| `"gpt-4o"`               | false   | Contains "gpt" cloud keyword        |
+| `"claude-3-sonnet"`      | false   | Contains "claude" cloud keyword     |
+| `"local-model"`          | false   | No size tag, default to large       |
+| `""`                     | false   | Blank, default to large             |
+
+### 15.3 Conditional Prompt Sections
+
+Prompt XML files support conditional sections based on `SchemaVariant`:
+
+```xml
+<!-- if FULL -->
+<Example>read_file(path="src/main.py", line_range="200-230")</Example>
+<!-- endif -->
+<!-- if SIMPLE -->
+Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
+<!-- endif -->
+```
+
+The agent filters these sections at prompt load time using
+`filterConditionalSections()`. Sections wrapped in `<!-- if SIMPLE -->` are
+kept only when `SchemaVariant` is `SIMPLE`. Sections wrapped in `<!-- if FULL -->`
+are kept only when `SchemaVariant` is `FULL`.
+
+### 15.4 Per-Skill Behavior
+
+| Skill              | FULL mode                                        | SIMPLE mode                                         |
+|--------------------|--------------------------------------------------|-----------------------------------------------------|
+| `ReadFileSkill`    | Returns `content` as joined string               | Returns `content` as `{lineNumber: lineContent}` map |
+| `SaveFileSkill`    | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
+| `RunCommandSkill`  | Supports `detached` param, full output           | No `detached`, output truncated to 2000 chars        |
+| `ExploreProjectSkill` | Returns nested `entries` tree                | Returns counts + flat `["path:lines", ...]` list    |
+| `EditFileSkill`    | Unified search/replace for all models            | Same as FULL (no SIMPLE variant)                     |
+
+### 15.5 Complete Plugin Example
+
+```kotlin
+package gradum.skill
+
+import gradum.SchemaVariant
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
+import java.nio.file.Path
+
+class AdaptiveFileWriterSkill : Skill() {
+
+    override val skillName: String = "adaptive_file_writer"
+    override val alias: String = "Wrote"
+    override val description: String =
+        "Write content to a file. Adapts schema for small/large models."
+
+    override fun getSchema(context: SkillContext?): Map<String, Any> {
+        val isSmallModel = context != null &&
+            SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+
+        return if (isSmallModel) {
+            // SIMPLE: minimal parameters
+            mapOf(
+                "type" to "function",
+                "function" to mapOf(
+                    "name" to skillName,
+                    "description" to description,
+                    "parameters" to mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "path" to mapOf("type" to "string"),
+                            "content" to mapOf("type" to "string")
+                        ),
+                        "required" to listOf("path", "content")
+                    )
+                )
+            )
+        } else {
+            // FULL: all parameters
+            mapOf(
+                "type" to "function",
+                "function" to mapOf(
+                    "name" to skillName,
+                    "description" to description,
+                    "parameters" to mapOf(
+                        "type" to "object",
+                        "properties" to mapOf(
+                            "path" to mapOf("type" to "string"),
+                            "content" to mapOf("type" to "string"),
+                            "mode" to mapOf(
+                                "type" to "string",
+                                "enum" to listOf("overwrite", "append")
+                            ),
+                            "encoding" to mapOf("type" to "string")
+                        ),
+                        "required" to listOf("path", "content")
+                    )
+                )
+            )
+        }
+    }
+
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+        val path = arguments["path"] as? String ?: ""
+        val content = arguments["content"] as? String ?: ""
+        val mode = arguments["mode"] as? String ?: "overwrite"
+
+        if (path.isBlank() || content.isBlank()) {
+            return makeFailure("INVALID_PARAMETER", "Missing 'path' or 'content'")
+        }
+
+        val resolved = Path.of(context.projectRoot, path).toAbsolutePath().normalize()
+
+        return try {
+            val file = resolved.toFile()
+            if (mode == "append") {
+                file.appendText(content, Charsets.UTF_8)
+            } else {
+                file.writeText(content, Charsets.UTF_8)
+            }
+
+            // Adapt output based on model capability
+            val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+            val result = if (useSimpleOutput) {
+                mapOf("path" to resolved.toString(), "bytesWritten" to content.toByteArray().size)
+            } else {
+                mapOf(
+                    "path" to resolved.toString(),
+                    "bytesWritten" to content.toByteArray().size,
+                    "created" to !file.exists(),
+                    "mode" to mode
+                )
+            }
+
+            makeSuccess(result)
+        } catch (e: Exception) {
+            makeFailure("IO_ERROR", e.message ?: "Unknown error", mapOf("path" to resolved.toString()))
+        }
+    }
+}
+```

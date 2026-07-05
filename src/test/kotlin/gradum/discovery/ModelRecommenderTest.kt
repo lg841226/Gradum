@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelRecommenderTest.kt  2026-07-01 12:45:00 Changed by gwy
+ * ModelRecommenderTest.kt  2026-07-04 23:12:12 Changed by gwy
  */
 
 package gradum.discovery
@@ -14,7 +14,12 @@ import kotlin.test.assertTrue
 
 class ModelRecommenderTest {
 
-    private fun cloudModel(name: String, context: Int = 128_000, reasoning: Boolean = false, toolCall: Boolean = false): ModelEntry =
+    private fun cloudModel(
+        name: String,
+        context: Int = 128_000,
+        reasoning: Boolean = false,
+        toolCall: Boolean = false
+    ): ModelEntry =
         ModelEntry(
             modelName = name,
             providerType = "openai",
@@ -33,7 +38,7 @@ class ModelRecommenderTest {
         toolCall: Boolean = false,
     ): ModelEntry {
         // Compose "<name>-<X>b" when paramsB is given; the regex under
-        // test (parseParamsB) only matches a trailing "<digits>b"
+        // test (parameterCountInBillions) only matches a trailing "<digits>b"
         // token, so a helper that forgets the literal `b` is a
         // guaranteed failure.
         val resolvedName: String = if (paramsB == null) {
@@ -143,19 +148,19 @@ class ModelRecommenderTest {
     @Test
     fun `parseParamsB parses integer size suffix`() {
         val model: ModelEntry = localModel("qwen", paramsB = 32.0)
-        assertEquals(32.0, parseParamsB(model), 0.001)
+        assertEquals(32.0, parameterCountInBillions(model), 0.001)
     }
 
     @Test
     fun `parseParamsB parses decimal size suffix`() {
         val model: ModelEntry = localModel("qwen", paramsB = 0.5)
-        assertEquals(0.5, parseParamsB(model), 0.001)
+        assertEquals(0.5, parameterCountInBillions(model), 0.001)
     }
 
     @Test
     fun `parseParamsB returns zero when no size suffix is present`() {
         val model: ModelEntry = localModel("qwen2.5", paramsB = null)
-        assertEquals(0.0, parseParamsB(model), 0.001)
+        assertEquals(0.0, parameterCountInBillions(model), 0.001)
     }
 
     @Test

@@ -27,34 +27,50 @@ class TodoManager {
         taskList = null; currentTaskIndex = 0
     }
 
-    fun initializeTasks(tasks: List<String>): SkillResult {
+    fun initializeTasks(taskDescriptions: List<String>): SkillResult {
         if (taskList != null)
-            return makeFailure(ErrorCode.ALREADY_INITIALIZED, "To-do list already initialized")
-        if (tasks.isEmpty())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Task list cannot be empty")
+            return makeFailure(ErrorCode.ALREADY_INITIALIZED, buildXmlError(
+                code = "ALREADY_INITIALIZED",
+                message = "To-do list already initialized.",
+                fixHint = "Complete or reset the current task list before initializing a new one."
+            ))
+        if (taskDescriptions.isEmpty())
+            return makeFailure(ErrorCode.INVALID_PARAMETER, buildXmlError(
+                code = "INVALID_PARAMETER",
+                message = "Task list cannot be empty.",
+                fixHint = "Provide at least one task description in the 'tasks' parameter."
+            ))
 
-        taskList = tasks; currentTaskIndex = 0
+        taskList = taskDescriptions; currentTaskIndex = 0
 
         return makeSuccess(
-            mapOf("totalTasks" to tasks.size, "currentTask" to tasks[0], "currentIndex" to 0)
+            mapOf("totalTasks" to taskDescriptions.size, "currentTask" to taskDescriptions[0], "currentIndex" to 0)
         )
     }
 
     fun completeCurrentTask(): SkillResult {
-        val tasks: List<String> =
-            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
+        val taskItems: List<String> =
+            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, buildXmlError(
+                code = "NOT_INITIALIZED",
+                message = "To-do list not initialized.",
+                fixHint = "Call to_do first to initialize the task list."
+            ))
 
-        if (currentTaskIndex >= tasks.size)
-            return makeFailure(ErrorCode.ALL_COMPLETED, "All tasks already completed")
+        if (currentTaskIndex >= taskItems.size)
+            return makeFailure(ErrorCode.ALL_COMPLETED, buildXmlError(
+                code = "ALL_COMPLETED",
+                message = "All tasks already completed.",
+                fixHint = "No more tasks to complete. Call to_do to start a new task list."
+            ))
 
         currentTaskIndex++
-        val allDone: Boolean = currentTaskIndex >= tasks.size
+        val allDone: Boolean = currentTaskIndex >= taskItems.size
 
         if (allDone) {
             return makeSuccess(
                 mapOf(
                     "completed" to true,
-                    "totalTasks" to tasks.size,
+                    "totalTasks" to taskItems.size,
                     "message" to "All tasks completed"
                 ),
             )
@@ -63,8 +79,8 @@ class TodoManager {
         return makeSuccess(
             mapOf(
                 "completed" to false,
-                "totalTasks" to tasks.size,
-                "currentTask" to tasks[currentTaskIndex],
+                "totalTasks" to taskItems.size,
+                "currentTask" to taskItems[currentTaskIndex],
                 "currentIndex" to currentTaskIndex
             ),
         )
@@ -72,42 +88,47 @@ class TodoManager {
 
     /**
      * Skips the current task without marking it as completed and advances the cursor.
-     *
-     * @return [SkillResult.Success] with skipped task info and next task;
-     *         or [SkillResult.Failure] if not initialized or all tasks completed.
      */
     fun skipTask(): SkillResult {
-        val tasks: List<String> =
-            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, "To-do list not initialized")
+        val taskItems: List<String> =
+            taskList ?: return makeFailure(ErrorCode.NOT_INITIALIZED, buildXmlError(
+                code = "NOT_INITIALIZED",
+                message = "To-do list not initialized.",
+                fixHint = "Call to_do first to initialize the task list."
+            ))
 
-        if (currentTaskIndex >= tasks.size)
-            return makeFailure(ErrorCode.NOT_INITIALIZED, "All tasks already completed")
+        if (currentTaskIndex >= taskItems.size)
+            return makeFailure(ErrorCode.NOT_INITIALIZED, buildXmlError(
+                code = "NOT_INITIALIZED",
+                message = "All tasks already completed.",
+                fixHint = "No more tasks to skip. Call to_do to start a new task list."
+            ))
 
-        val skippedTask: String = tasks[currentTaskIndex]
+        val skippedTask: String = taskItems[currentTaskIndex]
         currentTaskIndex++
 
-        val allDone: Boolean = currentTaskIndex >= tasks.size
+        val allDone: Boolean = currentTaskIndex >= taskItems.size
 
         return makeSuccess(
             mapOf(
                 "skipped" to true,
                 "skippedTask" to skippedTask,
                 "completed" to allDone,
-                "totalTasks" to tasks.size,
-                "currentTask" to if (allDone) "" else tasks[currentTaskIndex],
+                "totalTasks" to taskItems.size,
+                "currentTask" to if (allDone) "" else taskItems[currentTaskIndex],
                 "currentIndex" to currentTaskIndex
             )
         )
     }
 
     fun getTaskReminder(): String? {
-        val tasks: List<String> = taskList ?: return null
-        if (currentTaskIndex >= tasks.size) return null
+        val taskItems: List<String> = taskList ?: return null
+        if (currentTaskIndex >= taskItems.size) return null
 
-        val remaining: Int = tasks.size - currentTaskIndex
+        val remainingCount: Int = taskItems.size - currentTaskIndex
         return """
-            You still have $remaining task(s) remaining.
-            Current task: ${tasks[currentTaskIndex]}.
+            You still have $remainingCount task(s) remaining.
+            Current task: ${taskItems[currentTaskIndex]}.
             Complete them using finish_to_do_item, or ask the user for guidance.
         """.trimIndent()
     }
@@ -173,7 +194,11 @@ class TodoSkill : Skill() {
         val rawTasks: List<String> = (arguments["tasks"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
         if (rawTasks.isEmpty())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Tasks list cannot be empty")
+            return makeFailure(ErrorCode.INVALID_PARAMETER, buildXmlError(
+                code = "INVALID_PARAMETER",
+                message = "Tasks list cannot be empty.",
+                fixHint = "Provide at least one task description in the 'tasks' parameter."
+            ))
 
         return sharedTodoManager.initializeTasks(rawTasks)
     }
@@ -184,9 +209,6 @@ class TodoSkill : Skill() {
  *
  * The agent calls this between steps to keep its plan in sync with
  * reminder prompts injected by [TodoManager.getTaskReminder].
- * Supports two actions:
- * - `complete` (default): marks current task done, advances cursor.
- * - `skip`: advances cursor without marking the task as completed.
  */
 class CompletePlanSkill : Skill() {
     override val skillName: String = "finish_to_do_item"

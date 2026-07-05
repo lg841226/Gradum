@@ -37,7 +37,7 @@
             Returns: {path, content} — content is a map of line numbers to line text
             Examples: read_file(path="src/main.py")
                       read_file(path="src/main.py", line_range="200-230")
-            Errors: FILE_NOT_FOUND (use explore_project), FILE_TOO_LARGE (use line_range)
+            Errors: FILE_NOT_FOUND (use run_cmd), FILE_TOO_LARGE (use line_range)
 
         edit_file: Replace a block of code in an existing file.
             Parameters: path (required); oldString (required, 2-3 lines context); newString (required, replacement)

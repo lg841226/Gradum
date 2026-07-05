@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-07-04 12:10:45 Changed by gwy
+ * Routes.kt  2026-07-04 22:43:11 Changed by gwy
  */
 
 package gradum.server
@@ -202,19 +202,19 @@ fun Application.registerAllRoutes() {
 
             val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
             val agentConfiguration = AgentConfiguration(
+                provider = resolvedProvider,
                 modelName = requestBody.model ?: "minimax-m2.5:cloud",
                 baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
-                provider = resolvedProvider,
+                toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT,
+                promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
                 enableThinking = configOverrides.think ?: false,
                 temperatureValue = configOverrides.temperature ?: 0.7,
                 topPValue = configOverrides.topP ?: 0.9,
-                contextWindowSize = configOverrides.numCtx ?: 8192,
                 maxTokensToGenerate = configOverrides.numPredict ?: 24576,
-                timeoutSeconds = configOverrides.timeout ?: 3000,
                 // Tool mode is a client decision, not inferred from provider.
                 // Defaults to AGENT (all tools) when client doesn't specify.
-                toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT,
-                promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
+                contextWindowSize = configOverrides.numCtx ?: 8192,
+                timeoutSeconds = configOverrides.timeout ?: 3000,
                 // The plugin owns project selection; the server is just a per-session executor. We resolved + validated above so
                 // AgentConfiguration can require a non-null String.
                 projectRoot = projectRootPath.toString(),

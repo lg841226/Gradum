@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EncryptionUtil.kt  2026-07-04 11:19:58 Changed by gwy
+ * EncryptionUtil.kt  2026-07-04 23:05:53 Changed by gwy
  */
 
 package gradum.utils
@@ -58,7 +58,7 @@ private fun getAuthenticationKey(): ByteArray {
 private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce: ByteArray): ByteArray {
     val ciphertext = ByteArray(plaintext.size)
     val hmac: Mac = Mac.getInstance("HmacSHA256")
-    val keySpec = SecretKeySpec(encryptionKey, "HmacSHA256")
+    val hmacKeySpec = SecretKeySpec(encryptionKey, "HmacSHA256")
 
     for (offset in plaintext.indices step BLOCK_SIZE_BYTES) {
         val counter: Int = offset / BLOCK_SIZE_BYTES
@@ -67,7 +67,7 @@ private fun hmacCtrEncrypt(plaintext: ByteArray, encryptionKey: ByteArray, nonce
             (counter shr 8).toByte(), counter.toByte()
         )
 
-        hmac.init(keySpec)
+        hmac.init(hmacKeySpec)
         hmac.update(nonce)
         val streamBlock: ByteArray = hmac.doFinal(counterBytes)
 
@@ -97,7 +97,6 @@ fun encryptMessageContent(plaintext: String): String {
 
     val encryptionKey: ByteArray = getEncryptionKey()
     val authenticationKey: ByteArray = getAuthenticationKey()
-
     val nonce: ByteArray = ByteArray(NONCE_SIZE_BYTES).also { array ->
         secureRandom.nextBytes(array)
     }
@@ -106,12 +105,9 @@ fun encryptMessageContent(plaintext: String): String {
     logger.fine("Plaintext preview: $plaintext")
 
     val ciphertext: ByteArray = hmacCtrEncrypt(plaintextBytes, encryptionKey, nonce)
-
     val tokenBody: ByteArray = byteArrayOf(VERSION_BYTE) + nonce + ciphertext
     val authenticationTag: ByteArray = computeHmac(authenticationKey, tokenBody)
-
     val fullToken: ByteArray = tokenBody + authenticationTag
-
     val result = Base64.getEncoder().encodeToString(fullToken)
 
     logger.info("Encryption complete, encrypted length: ${result.length} chars")
@@ -128,6 +124,7 @@ fun decryptMessageContent(encodedCiphertext: String): String {
         val rawBytes: ByteArray = Base64.getDecoder().decode(encodedCiphertext)
 
         val minimumLength: Int = 1 + NONCE_SIZE_BYTES + HMAC_SIZE_BYTES
+
         if (rawBytes.size < minimumLength)
             throw IllegalArgumentException("Token too short: ${rawBytes.size} bytes (minimum $minimumLength)")
 

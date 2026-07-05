@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-06-30 23:35:47 Changed by gwy
+ * AgentConfiguration.kt  2026-07-04 22:43:11 Changed by gwy
  */
 
 package gradum
@@ -34,20 +34,12 @@ enum class Provider {
 }
 
 /**
- * Tool surface selection. Local models benefit from a smaller tool list —
- * fewer schemas to attend to, less prompt noise, and clearer intent
- * (a read-only session can't accidentally mutate the project; an
- * edit session can't fake multi-step planning it can't actually do).
+ * Tool surface selection.
  *
- * - [AGENT] exposes every registered Skill. Use for code generation.
- * - [READ_ONLY] exposes only file inspection, project exploration, and
- *   read-only shell commands (e.g. `cat`, `ls`, `grep`). Use for analysis
- *   and bug-hunting where the LLM should not modify the project.
- * - [EDIT] is [AGENT] minus the task-tracking tools
- *   (`to_do` / `finish_to_do_item`). For small local models that cannot
- *   plan reliably — task decomposition is a strong-model skill, and giving
- *   a 7B model a `to_do` tool just produces fake planning the model can't
- *   follow. Let it work step-by-step instead.
+ * - [AGENT] All skills. Full code generation capability.
+ * - [READ_ONLY] Inspect only. No file writes. Use for analysis.
+ * - [EDIT] All skills except to_do / finish_to_do_item. For local models that can't plan reliably.
+ *   Task tracking wastes tokens; step-by-step works better.
  */
 enum class ToolMode {
     AGENT,
@@ -72,22 +64,14 @@ enum class ToolMode {
 }
 
 /**
- * Which system prompt to load.
+ * System prompt selection.
  *
- * - [CLOUD] loads the verbose, philosophy-rich prompt for hosted frontier
- *   models (GPT-4, Claude, Gemini) that can follow complex instructions.
- * - [LOCAL] loads the terse, rule-only prompt for small local models
- *   (7B-14B Ollama / LM Studio) where every token of prompt has real cost
- *   pressure and complex instructions get ignored.
- * - [AUTO] picks based on [Provider] — [Provider.OPENAI] → [CLOUD],
- *   everything else → [LOCAL]. Override explicitly when a local model
- *   is large enough to handle the cloud prompt, or when a hosted model
- *   is running on a tight budget.
+ * - [CLOUD] Verbose, philosophy-rich prompt for frontier models (GPT-4, Claude).
+ * - [LOCAL] Terse, rule-only prompt for small models (7B-14B).
+ * - [AUTO] Based on [Provider]: OPENAI → CLOUD, others → LOCAL.
  */
 enum class PromptVariant {
-    CLOUD,
-    LOCAL,
-    AUTO;
+    CLOUD, LOCAL, AUTO;
 
     companion object {
         fun fromStringOrDefault(rawValue: String?, default: PromptVariant = AUTO): PromptVariant {
@@ -107,17 +91,21 @@ enum class PromptVariant {
 }
 
 data class AgentConfiguration(
-    val baseUrl: String = "http://localhost:11434",
-    val modelName: String = "minimax-m2.5:cloud",
-    val timeoutSeconds: Int = 3000,
-    val enableThinking: Boolean = false,
-    val temperatureValue: Double = 0.7,
-    val topPValue: Double = 0.9,
-    val contextWindowSize: Int = 8192 * 2,
-    val maxTokensToGenerate: Int = 2048 * 12,
     val provider: Provider = Provider.OLLAMA,
+    val modelName: String = "minimax-m2.5:cloud",
+    val baseUrl: String = "http://localhost:11434",
+
     val toolMode: ToolMode = ToolMode.AGENT,
     val promptVariant: PromptVariant = PromptVariant.AUTO,
+    val enableThinking: Boolean = false,
+
+    val temperatureValue: Double = 0.7,
+    val topPValue: Double = 0.9,
+    val maxTokensToGenerate: Int = 2048 * 12,
+    val contextWindowSize: Int = 8192 * 2,
+
+    val timeoutSeconds: Int = 3000,
+
     val maxRepeatedResponses: Int = 3,
     val maxRedLineHits: Int = 3,
     val maxRepeatedToolCalls: Int = 5,

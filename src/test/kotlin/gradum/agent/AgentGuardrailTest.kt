@@ -2,13 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentGuardrailTest.kt  2026-06-30 23:35:47 Changed by gwy
+ * AgentGuardrailTest.kt  2026-07-04 22:43:11 Changed by gwy
  */
 
 package gradum.agent
 
 import gradum.AgentConfiguration
-import gradum.Provider
 import gradum.client.LLMResponseChunk
 import gradum.client.LlmClient
 import gradum.client.TokenUsageSnapshot
@@ -44,7 +43,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRedLineHits = 3, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
             redLineKeywords = testRedLineKeywords,
@@ -70,7 +69,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRedLineHits = 3, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
             redLineKeywords = testRedLineKeywords,
@@ -97,7 +96,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRedLineHits = 1, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(maxRedLineHits = 1),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
             redLineKeywords = testRedLineKeywords,
@@ -129,7 +128,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRedLineHits = 1, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(maxRedLineHits = 1),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
             redLineKeywords = testRedLineKeywords,
@@ -156,7 +155,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRedLineHits = 2, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(maxRedLineHits = 2),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
             redLineKeywords = testRedLineKeywords,
@@ -194,7 +193,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRepeatedToolCalls = 3, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
         )
@@ -241,7 +240,7 @@ class AgentGuardrailTest {
         }
 
         val agent = Agent(
-            configuration = AgentConfiguration(maxRepeatedToolCalls = 3, provider = Provider.OLLAMA),
+            configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
             emitEvent = { type, data -> events.add(type to data) },
             llmClient = mockClient,
         )
