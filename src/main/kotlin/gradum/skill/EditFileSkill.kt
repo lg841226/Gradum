@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-07-04 19:55:23 Changed by gwy
+ * EditFileSkill.kt  2026-07-05 10:03:38 Changed by gwy
  */
 
 @file:Suppress("RedundantExplicitType")
@@ -19,62 +19,11 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 
-private const val FUZZY_THRESHOLD = 0.85
-
 /**
- * Levenshtein distance between two strings.
- * Returns the minimum number of single-character edits (insertions, deletions, substitutions)
- * required to change [oldString] into [newString].
- */
-private fun levenshteinDistance(oldString: String, newString: String): Int {
-    val oldLength = oldString.length
-    val newLength = newString.length
-
-    val distanceTable = Array(oldLength + 1) { IntArray(newLength + 1) }
-
-    for (oldIndex in 0..oldLength) {
-        distanceTable[oldIndex][0] = oldIndex
-    }
-    for (newIndex in 0..newLength) {
-        distanceTable[0][newIndex] = newIndex
-    }
-
-    for (oldIndex in 1..oldLength) {
-        for (newIndex in 1..newLength) {
-            val charOld = oldString[oldIndex - 1]
-            val charNew = newString[newIndex - 1]
-
-            val costOfDeletion = distanceTable[oldIndex - 1][newIndex] + 1
-            val costOfInsertion = distanceTable[oldIndex][newIndex - 1] + 1
-            val costOfSubstitution = distanceTable[oldIndex - 1][newIndex - 1] + if (charOld == charNew) 0 else 1
-
-            distanceTable[oldIndex][newIndex] = minOf(
-                costOfDeletion,
-                costOfInsertion,
-                costOfSubstitution
-            )
-        }
-    }
-
-    return distanceTable[oldLength][newLength]
-}
-
-/**
- * Similarity ratio between two strings. Returns 1.0 for identical strings, 0.0 for completely different.
- */
-private fun similarity(oldString: String, newString: String): Double {
-    if (oldString == newString) return 1.0
-    if (oldString.isEmpty() || newString.isEmpty()) return 0.0
-    val maxLen = maxOf(oldString.length, newString.length)
-    val distance = levenshteinDistance(oldString, newString)
-    return 1.0 - distance.toDouble() / maxLen
-}
-
-/**
- * Matching strategy used by the 5-step fallback.
+ * Matching strategy used by the matching process.
  */
 private enum class MatchStrategy {
-    EXACT, NORMALIZED, FUZZY, NONE
+    EXACT, NORMALIZED, NONE
 }
 
 /**
@@ -93,60 +42,48 @@ private sealed class FindResult {
     data class Found(val matches: List<MatchResult>) : FindResult()
     data class NotFound(
         val failedAtStep: MatchStrategy,
-        val searchPreview: List<String>,
-        val fileContext: List<String>
+        val searchPreview: List<String>
     ) : FindResult()
 }
 
 /**
- * 5-step fallback matching for search blocks.
+ * Matching for search blocks.
  *
- * Step 1: EXACT - trimEnd() comparison
+ * Step 1: EXACT - trimEnd() comparison (handles \r\n vs \n)
  * Step 2: NORMALIZED - trim() comparison (ignore all whitespace)
- * Step 3: FUZZY - Levenshtein similarity > 85%
- * Step 4: (reserved for future anchor-based matching)
- * Step 5: NONE - return detailed error
+ * Step 3: NONE - return detailed error
  */
 private fun findMatchesWithFallback(
     fileLines: List<String>,
     searchLines: List<String>
 ): FindResult {
     if (searchLines.isEmpty()) return FindResult.NotFound(
-        MatchStrategy.NONE, emptyList(), emptyList()
+        MatchStrategy.NONE, emptyList()
     )
 
     val searchNonBlank = searchLines.filter { it.isNotBlank() }
     if (searchNonBlank.isEmpty()) return FindResult.NotFound(
-        MatchStrategy.NONE, searchLines.take(3), emptyList()
+        MatchStrategy.NONE, searchLines.take(3)
     )
 
     val windowSize = searchLines.size
     if (windowSize > fileLines.size) return FindResult.NotFound(
-        MatchStrategy.NONE, searchNonBlank.take(3), fileLines.take(5)
+        MatchStrategy.NONE, searchNonBlank.take(3)
     )
 
-    // EXACT match (trimEnd)
     val exactMatches = findMatchesByStrategy(fileLines, searchNonBlank, windowSize) { fileLine, searchLine ->
-        fileLine.trimEnd() == searchLine.trimEnd()
+        fileLine.trimEnd('\r', ' ') == searchLine.trimEnd('\r', ' ')
     }
     if (exactMatches.isNotEmpty()) return FindResult.Found(exactMatches)
 
-    // NORMALIZED match (trim all whitespace)
     val normalizedMatches = findMatchesByStrategy(fileLines, searchNonBlank, windowSize) { fileLine, searchLine ->
         fileLine.trim() == searchLine.trim()
     }
     if (normalizedMatches.isNotEmpty()) return FindResult.Found(normalizedMatches)
 
-    // FUZZY match (Levenshtein > 85%)
-    val fuzzyMatches = findFuzzyMatches(fileLines, searchNonBlank, windowSize)
-    if (fuzzyMatches.isNotEmpty()) return FindResult.Found(fuzzyMatches)
-
-    // NONE - return detailed error
-    val nearestLine = findNearestLine(fileLines, searchNonBlank)
     return FindResult.NotFound(
-        failedAtStep = MatchStrategy.FUZZY,
-        searchPreview = searchNonBlank.take(3),
-        fileContext = nearestLine
+        failedAtStep = MatchStrategy.NORMALIZED,
+        searchPreview = searchNonBlank.take(3)
     )
 }
 
@@ -158,81 +95,35 @@ private fun findMatchesByStrategy(
     windowSize: Int, comparator: (String, String) -> Boolean
 ): List<MatchResult> {
     val matches = mutableListOf<MatchResult>()
+    val maxStartIndex = fileLines.size - windowSize
 
-    for (i in 0..fileLines.size - windowSize) {
-        val window = fileLines.subList(i, i + windowSize)
-        val windowNonBlank = window.filter { it.isNotBlank() }
+    for (startIndex in 0..maxStartIndex) {
+        val window = fileLines.subList(startIndex, startIndex + windowSize)
+        val windowContent = window.filter { it.isNotBlank() }
+        val searchContent = searchLines.filter { it.isNotBlank() }
 
-        if (windowNonBlank.size != searchLines.size) continue
+        if (windowContent.size != searchContent.size) continue
 
-        val allMatch = windowNonBlank.zip(searchLines).all { (fileLine, searchLine) ->
+        val isMatch = windowContent.zip(searchContent).all { (fileLine, searchLine) ->
             comparator(fileLine, searchLine)
         }
 
-        if (allMatch)
-            matches.add(MatchResult(i, i + windowSize, MatchStrategy.EXACT))
+        if (isMatch) {
+            matches.add(MatchResult(startIndex, startIndex + windowSize, MatchStrategy.EXACT))
+        }
     }
-
     return matches
 }
 
 /**
- * Find fuzzy matches where average similarity > threshold.
- */
-private fun findFuzzyMatches(fileLines: List<String>, searchLines: List<String>, windowSize: Int): List<MatchResult> {
-    val matches = mutableListOf<MatchResult>()
-
-    for (i in 0..fileLines.size - windowSize) {
-        val window = fileLines.subList(i, i + windowSize)
-        val windowNonBlank = window.filter { it.isNotBlank() }
-
-        if (windowNonBlank.size != searchLines.size) continue
-
-        val avgSimilarity = windowNonBlank.zip(searchLines).map { (fileLine, searchLine) ->
-            similarity(fileLine.trim(), searchLine.trim())
-        }.average()
-
-        if (avgSimilarity >= FUZZY_THRESHOLD) {
-            matches.add(MatchResult(i, i + windowSize, MatchStrategy.FUZZY))
-        }
-    }
-
-    return matches
-}
-
-/**
- * Find the nearest file line to any search line (for error context).
- */
-private fun findNearestLine(fileLines: List<String>, searchLines: List<String>): List<String> {
-    var bestScore = -1.0
-    var bestIndex = 0
-
-    for (i in fileLines.indices) {
-        val fileLine = fileLines[i].trim()
-        if (fileLine.isEmpty()) continue
-
-        for (searchLine in searchLines) {
-            val score = similarity(fileLine, searchLine.trim())
-            if (score > bestScore) {
-                bestScore = score
-                bestIndex = i
-            }
-        }
-    }
-
-    val start = maxOf(0, bestIndex - 2)
-    val end = minOf(fileLines.size, bestIndex + 3)
-    return fileLines.subList(start, end).map { "  $it" }
-}
-
-/**
- * Applies search-and-replace edits to a file using 5-step fallback matching.
+ * Search-and-replace file editing. Local models edit one file at a time with
+ * a single oldString/newString pair. Cloud models can batch multiple edits.
  */
 class EditFileSkill : Skill() {
 
     override val skillName: String = "edit_file"
     override val alias: String = "Edited"
-    override val description: String = "Search and replace edits with sequential or atomic mode"
+    override val description: String = "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString)."
 
     override val allowedToolModes: Set<ToolMode> = setOf(
         ToolMode.AGENT,
@@ -250,58 +141,112 @@ class EditFileSkill : Skill() {
     }
 
     override fun getSchema(context: SkillContext?): Map<String, Any> {
+        val useSimpleSchema = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
         return mapOf(
             "type" to "function",
             "function" to mapOf(
                 "name" to skillName,
-                "description" to description,
+                "description" to if (useSimpleSchema) localDescription() else description,
                 "parameters" to mapOf(
                     "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf("type" to "string", "description" to "File path to edit"),
-                        "edits" to mapOf(
-                            "type" to "array",
-                            "description" to "List of search/replace edits",
-                            "items" to mapOf(
-                                "type" to "object",
-                                "properties" to mapOf(
-                                    "search" to mapOf("type" to "string", "description" to "Text to find"),
-                                    "replace" to mapOf("type" to "string", "description" to "Replacement text"),
-                                ),
-                                "required" to listOf("search", "replace"),
-                            ),
-                        ),
-                        "mode" to mapOf(
-                            "type" to "string",
-                            "description" to "Edit mode: 'sequential' or 'atomic'",
-                            "enum" to listOf("sequential", "atomic"),
-                        ),
-                    ),
-                    "required" to listOf("path", "edits"),
+                    "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
+                    "required" to listOf("path") + if (useSimpleSchema) listOf("oldString", "newString") else listOf("edits"),
                 ),
             ),
         )
     }
 
+    private fun localDescription(): String =
+        "Replace one block of text in a file. " +
+        "Step 1: Call read_file to see the file content and line numbers. " +
+        "Step 2: Find the exact text you want to replace in the content. " +
+        "Step 3: Call edit_file with the file path, the original text as oldString, and your new text as newString. " +
+        "oldString must match the file content exactly, including all whitespace, indentation, and line breaks. " +
+        "Include 2-3 lines of surrounding context in oldString to help find a unique match. " +
+        "You can only edit one location per call. To edit multiple places in the same file, make multiple calls. " +
+        "After editing, call read_file again to verify the change was applied correctly."
+
+    private fun localProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "The file to edit. Must be a path relative to the project root. " +
+                "Do not use absolute paths. Examples: 'src/main.py', 'lib/utils.ts', 'README.md'. " +
+                "Make sure the file exists before calling edit_file. Use read_file first to confirm."
+        ),
+        "oldString" to mapOf(
+            "type" to "string",
+            "description" to "The exact text to find in the file. Must match the file content character-by-character, " +
+                "including all whitespace, indentation, tabs, and line breaks. " +
+                "Include 2-3 lines of surrounding context to help find a unique match. " +
+                "Trailing whitespace on each line is ignored. Line endings (\\r\\n vs \\n) are handled automatically. " +
+                "If the text appears multiple times, the tool will return an error asking you to provide more context. " +
+                "Example: if you want to change a function, include the function definition line and a few lines inside. " +
+                "For example: 'def greet(name):\\n    return f\"Hello, {name}\"' would match that specific function."
+        ),
+        "newString" to mapOf(
+            "type" to "string",
+            "description" to "The replacement text that replaces oldString in the file. " +
+                "Can be longer, shorter, or the same length as oldString. " +
+                "To delete text, pass an empty string as newString. " +
+                "To add new text, include it here with proper indentation. " +
+                "The replacement preserves the indentation of the first line of oldString. " +
+                "Example: 'def greet(name, title=\"Mr\"):\\n    return f\"Hello, {title} {name}\"' " +
+                "replaces the original function with a new version that has an extra parameter."
+        ),
+    )
+
+    private fun cloudProperties(): Map<String, Any> = mapOf(
+        "path" to mapOf(
+            "type" to "string",
+            "description" to "The file to edit. Use a path relative to the project root."
+        ),
+        "edits" to mapOf(
+            "type" to "array",
+            "description" to "List of edits to apply. Each edit has oldString (text to find) and newString (replacement). " +
+                "Edits are applied in order. You can batch multiple edits to the same file in one call.",
+            "items" to mapOf(
+                "type" to "object",
+                "properties" to mapOf(
+                    "oldString" to mapOf("type" to "string", "description" to "Exact text to find. Include 2-3 lines of context for uniqueness."),
+                    "newString" to mapOf("type" to "string", "description" to "Replacement text. Can be empty to delete lines."),
+                ),
+                "required" to listOf("oldString", "newString"),
+            ),
+        ),
+    )
+
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-        return executeCloud(arguments, context)
+        val useSimpleSchema = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+        return if (useSimpleSchema) executeLocal(arguments, context) else executeCloud(arguments, context)
     }
 
     /**
-     * Cloud model execution: search/replace based editing with fuzzy matching.
-     * Powerful and flexible — finds text blocks and replaces them.
+     * Local model execution: single search/replace edit.
+     * Simplified schema with flat parameters for small models.
      */
-    private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+    private fun executeLocal(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
-        val rawEdits: List<Map<String, Any>> = parseEdits(arguments["edits"])
-        val editMode: String = arguments["mode"] as? String ?: "sequential"
+        val oldString: String = arguments["oldString"] as? String ?: ""
+        val newString: String = arguments["newString"] as? String ?: ""
         val projectRoot: String = context.projectRoot
 
         if (filePath.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "Missing 'path' parameter")
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'path' parameter.",
+                    fixHint = "Provide a valid file path in the 'path' parameter."
+                )
+            )
 
-        if (rawEdits.isEmpty())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, "No edits provided")
+        if (oldString.isBlank())
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'oldString' parameter.",
+                    fixHint = "Provide the text to find in the 'oldString' parameter."
+                )
+            )
 
         val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
             Path.of(projectRoot, filePath).toAbsolutePath().normalize()
@@ -312,89 +257,160 @@ class EditFileSkill : Skill() {
 
         return try {
             val originalContent: String = targetFile.readText(Charsets.UTF_8)
-            val edits: List<EditOperation> = rawEdits.mapIndexed { index: Int, edit: Map<String, Any> ->
-                EditOperation(
-                    search = edit["search"] as? String ?: "",
-                    replace = edit["replace"] as? String ?: "",
-                    index = index
-                )
-            }
-
-            val invalidEdit: EditOperation? = edits.firstOrNull { it.search.isBlank() }
-            if (invalidEdit != null) {
-                return makeFailure(
-                    ErrorCode.INVALID_PARAMETER, "Edit ${invalidEdit.index + 1} has empty 'search' text"
-                )
-            }
-
-            when (editMode) {
-                "atomic" -> applyAtomicEdits(resolvedPath, targetFile, originalContent, edits)
-                else -> applySequentialEdits(resolvedPath, targetFile, originalContent, edits)
-            }
+            val singleEdit = listOf(EditOperation(oldString, newString, 0))
+            applySequentialEdits(resolvedPath, targetFile, originalContent, singleEdit)
         } catch (_: FileNotFoundException) {
             makeFailure(
-                ErrorCode.FILE_NOT_FOUND,
-                "File not found: $filePath",
-                mapOf("path" to resolvedPath.toString())
+                ErrorCode.FILE_NOT_FOUND, buildXmlError(
+                    code = "FILE_NOT_FOUND",
+                    message = "File not found: $filePath",
+                    fixHint = "Check the file path. Use explore_project to find the correct path."
+                ), mapOf("path" to resolvedPath.toString())
             )
         } catch (exception: Exception) {
             makeFailure(
-                ErrorCode.IO_ERROR,
-                exception.message ?: "Unknown error during edit",
-                mapOf("path" to resolvedPath.toString())
+                ErrorCode.IO_ERROR, buildXmlError(
+                    code = "IO_ERROR",
+                    message = exception.message ?: "Unknown error during edit.",
+                    fixHint = "This is not your fault. Check file permissions and disk space."
+                ), mapOf("path" to resolvedPath.toString())
+            )
+        }
+    }
+
+    /**
+     * Cloud model execution: multiple search/replace edits via array.
+     */
+    private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+        val filePath: String = arguments["path"] as? String ?: ""
+        val rawEdits: List<Map<String, Any>> = parseEdits(arguments["edits"])
+        val projectRoot: String = context.projectRoot
+
+        if (filePath.isBlank())
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'path' parameter.",
+                    fixHint = "Provide a valid file path in the 'path' parameter."
+                )
+            )
+
+        if (rawEdits.isEmpty())
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "No edits provided.",
+                    fixHint = "Provide at least one edit object with 'oldString' and 'newString' fields."
+                )
+            )
+
+        val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
+            Path.of(projectRoot, filePath).toAbsolutePath().normalize()
+        } else {
+            Path.of(filePath).toAbsolutePath().normalize()
+        }
+        val targetFile: File = resolvedPath.toFile()
+
+        return try {
+            val originalContent: String = targetFile.readText(Charsets.UTF_8)
+            val parsedEdits: List<EditOperation> = rawEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
+                EditOperation(
+                    searchText = editEntry["oldString"] as? String ?: "",
+                    replaceText = editEntry["newString"] as? String ?: "",
+                    editIndex = editIndex
+                )
+            }
+
+            val invalidEdit: EditOperation? = parsedEdits.firstOrNull { it.searchText.isBlank() }
+            if (invalidEdit != null) {
+                return makeFailure(
+                    ErrorCode.INVALID_PARAMETER, buildXmlError(
+                        code = "INVALID_PARAMETER",
+                        message = "Edit ${invalidEdit.editIndex + 1} has empty 'search' text.",
+                        fixHint = "Provide non-empty oldString text that matches the target code block in the file."
+                    )
+                )
+            }
+
+            applySequentialEdits(resolvedPath, targetFile, originalContent, parsedEdits)
+        } catch (_: FileNotFoundException) {
+            makeFailure(
+                ErrorCode.FILE_NOT_FOUND, buildXmlError(
+                    code = "FILE_NOT_FOUND",
+                    message = "File not found: $filePath",
+                    fixHint = "Check the file path. Use explore_project to find the correct path."
+                ), mapOf("path" to resolvedPath.toString())
+            )
+        } catch (exception: Exception) {
+            makeFailure(
+                ErrorCode.IO_ERROR, buildXmlError(
+                    code = "IO_ERROR",
+                    message = exception.message ?: "Unknown error during edit.",
+                    fixHint = "This is not your fault. Check file permissions and disk space."
+                ), mapOf("path" to resolvedPath.toString())
             )
         }
     }
 
     private fun applySequentialEdits(
         resolvedPath: Path, targetFile: File,
-        originalContent: String, edits: List<EditOperation>
+        originalContent: String, editOperations: List<EditOperation>
     ): SkillResult {
         var currentContent: String = originalContent
         val appliedEdits: MutableList<Int> = mutableListOf()
         var linesAdded = 0
         var linesRemoved = 0
 
-        for (edit in edits) {
+        for (editOperation in editOperations) {
             val fileLines = currentContent.lines()
-            val searchLines = edit.search.lines()
+            val searchLines = editOperation.searchText.lines()
 
-            when (val result = findMatchesWithFallback(fileLines, searchLines)) {
+            when (val matchResult = findMatchesWithFallback(fileLines, searchLines)) {
                 is FindResult.Found -> {
-                    if (result.matches.size > 1) {
+                    if (matchResult.matches.size > 1) {
                         targetFile.writeText(currentContent, Charsets.UTF_8)
                         return makeFailure(
-                            ErrorCode.MULTIPLE_MATCHES,
-                            buildPartialFailureMessage(
-                                "Edit ${edit.index + 1} failed: Found ${result.matches.size} matches.",
-                                appliedEdits.size
-                            ),
-                            mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size)
+                            ErrorCode.MULTIPLE_MATCHES, buildXmlError(
+                                code = "MULTIPLE_MATCHES",
+                                message = "Edit ${editOperation.editIndex + 1} found ${matchResult.matches.size} matches. Cannot determine which to replace.",
+                                fixHint = "Add more surrounding context (function name, class declaration, comments) to make the match unique.",
+                                appliedCount = appliedEdits.size
+                            ), mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size)
                         )
                     }
 
-                    val match = result.matches.first()
-                    val replaceLines = if (edit.replace.isBlank()) emptyList() else edit.replace.lines()
+                    val bestMatch = matchResult.matches.first()
+                    val replaceLines = if (editOperation.replaceText.isBlank()) emptyList() else editOperation.replaceText.lines()
                     linesRemoved += searchLines.size
                     linesAdded += replaceLines.size
-                    val newFileLines = fileLines.subList(0, match.startIndex) +
+                    val newFileLines = fileLines.subList(0, bestMatch.startIndex) +
                         replaceLines +
-                        fileLines.subList(match.endIndex, fileLines.size)
+                        fileLines.subList(bestMatch.endIndex, fileLines.size)
                     currentContent = newFileLines.joinToString("\n")
-                    appliedEdits.add(edit.index)
+                    appliedEdits.add(editOperation.editIndex)
                 }
 
                 is FindResult.NotFound -> {
                     targetFile.writeText(currentContent, Charsets.UTF_8)
+                    val failureStep = when (matchResult.failedAtStep) {
+                        MatchStrategy.EXACT -> "exact match"
+                        MatchStrategy.NORMALIZED -> "normalized match"
+                        MatchStrategy.NONE -> "matching"
+                    }
                     return makeFailure(
-                        ErrorCode.CODE_NOT_FOUND,
-                        buildNotFoundMessage(edit, result, appliedEdits.size),
+                        ErrorCode.CODE_NOT_FOUND, buildXmlError(
+                            code = "CODE_NOT_FOUND",
+                            message = "Edit ${editOperation.editIndex + 1} failed at step: $failureStep. oldString text not found in file.",
+                            fixHint = "Check for whitespace differences, line ending differences (\\r\\n vs \\n), " +
+                                "or add more surrounding context (function name, class declaration, comments) to make the match unique.",
+                            searchPreview = matchResult.searchPreview,
+                            appliedCount = appliedEdits.size
+                        ),
                         mapOf(
                             "path" to resolvedPath.toString(),
                             "appliedCount" to appliedEdits.size,
-                            "failedAtStep" to result.failedAtStep.name,
-                            "searchPreview" to result.searchPreview,
-                            "fileContext" to result.fileContext
+                            "failedAtStep" to matchResult.failedAtStep.name,
+                            "searchPreview" to matchResult.searchPreview
                         )
                     )
                 }
@@ -404,9 +420,11 @@ class EditFileSkill : Skill() {
         if (currentContent.isBlank() && originalContent.isNotBlank()) {
             targetFile.writeText(originalContent, Charsets.UTF_8)
             return makeFailure(
-                ErrorCode.EMPTY_RESULT,
-                "Edit resulted in empty content",
-                mapOf("path" to resolvedPath.toString())
+                ErrorCode.EMPTY_RESULT, buildXmlError(
+                    code = "EMPTY_RESULT",
+                    message = "Edit resulted in empty content.",
+                    fixHint = "The oldString block matched the entire file content. Add more context or check the file."
+                ), mapOf("path" to resolvedPath.toString())
             )
         }
 
@@ -415,7 +433,7 @@ class EditFileSkill : Skill() {
             mapOf(
                 "path" to resolvedPath.toString(),
                 "editsApplied" to appliedEdits.size,
-                "totalEdits" to edits.size,
+                "totalEdits" to editOperations.size,
                 "linesAdded" to linesAdded,
                 "linesRemoved" to linesRemoved,
                 "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
@@ -425,120 +443,24 @@ class EditFileSkill : Skill() {
         )
     }
 
-    private fun applyAtomicEdits(
-        resolvedPath: Path, targetFile: File,
-        originalContent: String, edits: List<EditOperation>
-    ): SkillResult {
-        var workingContent: String = originalContent
-        var linesAdded = 0
-        var linesRemoved = 0
-
-        for (edit in edits) {
-            val fileLines = workingContent.lines()
-            val searchLines = edit.search.lines()
-
-            when (val result = findMatchesWithFallback(fileLines, searchLines)) {
-                is FindResult.Found -> {
-                    if (result.matches.size > 1) {
-                        targetFile.writeText(originalContent, Charsets.UTF_8)
-                        return makeFailure(
-                            ErrorCode.MULTIPLE_MATCHES,
-                            "Edit ${edit.index + 1} failed: Found ${result.matches.size} matches. Original content restored.",
-                            mapOf("path" to resolvedPath.toString(), "appliedCount" to 0)
-                        )
-                    }
-
-                    val match = result.matches.first()
-                    val replaceLines = if (edit.replace.isBlank()) emptyList() else edit.replace.lines()
-                    linesRemoved += searchLines.size
-                    linesAdded += replaceLines.size
-                    val newFileLines = fileLines.subList(0, match.startIndex) +
-                        replaceLines +
-                        fileLines.subList(match.endIndex, fileLines.size)
-                    workingContent = newFileLines.joinToString("\n")
-                }
-
-                is FindResult.NotFound -> {
-                    targetFile.writeText(originalContent, Charsets.UTF_8)
-                    return makeFailure(
-                        ErrorCode.CODE_NOT_FOUND,
-                        "Edit ${edit.index + 1} failed: Code not found. Original content restored.",
-                        mapOf(
-                            "path" to resolvedPath.toString(),
-                            "appliedCount" to 0,
-                            "failedAtStep" to result.failedAtStep.name,
-                            "searchPreview" to result.searchPreview,
-                            "fileContext" to result.fileContext
-                        )
-                    )
-                }
-            }
-        }
-
-        if (workingContent.isBlank() && originalContent.isNotBlank()) {
-            targetFile.writeText(originalContent, Charsets.UTF_8)
-            return makeFailure(
-                ErrorCode.EMPTY_RESULT,
-                "Edit resulted in empty content. Original content restored.",
-                mapOf("path" to resolvedPath.toString())
-            )
-        }
-
-        targetFile.writeText(workingContent, Charsets.UTF_8)
-        return makeSuccess(
-            mapOf(
-                "path" to resolvedPath.toString(),
-                "editsApplied" to edits.size,
-                "totalEdits" to edits.size,
-                "linesAdded" to linesAdded,
-                "linesRemoved" to linesRemoved,
-                "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
-                "originalContent" to originalContent,
-                "modifiedContent" to workingContent,
-            ),
-        )
-    }
-
-    private fun buildPartialFailureMessage(baseMessage: String, appliedCount: Int): String {
-        if (appliedCount == 0) return baseMessage
-        return "$baseMessage $appliedCount edit(s) applied before failure."
-    }
-
-    private fun buildNotFoundMessage(edit: EditOperation, result: FindResult.NotFound, appliedCount: Int): String {
-        val step = when (result.failedAtStep) {
-            MatchStrategy.EXACT -> "exact match"
-            MatchStrategy.NORMALIZED -> "normalized match"
-            MatchStrategy.FUZZY -> "fuzzy match (>85% similarity)"
-            MatchStrategy.NONE -> "matching"
-        }
-        val base = "Edit ${edit.index + 1} failed at step: $step"
-        val context = if (result.fileContext.isNotEmpty()) {
-            "\nNearest file content:\n${result.fileContext.joinToString("\n")}"
-        } else ""
-        val hint =
-            "\nHint: Add more surrounding context (function name, class declaration, comments) to make the match unique."
-        val partial = if (appliedCount > 0) " $appliedCount edit(s) applied before failure." else ""
-        return "$base$partial$context$hint"
-    }
-
-    private data class EditOperation(val search: String, val replace: String, val index: Int)
+    private data class EditOperation(val searchText: String, val replaceText: String, val editIndex: Int)
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
 
         @Suppress("UNCHECKED_CAST")
-        fun parseEdits(raw: Any?): List<Map<String, Any>> {
-            if (raw is List<*>) return raw.filterIsInstance<Map<String, Any>>()
+        fun parseEdits(rawInput: Any?): List<Map<String, Any>> {
+            if (rawInput is List<*>) return rawInput.filterIsInstance<Map<String, Any>>()
 
-            if (raw is String && raw.isNotBlank()) {
+            if (rawInput is String && rawInput.isNotBlank()) {
                 try {
-                    val element = json.parseToJsonElement(raw)
-                    if (element is JsonArray) {
-                        return element.mapNotNull { item ->
-                            if (item is JsonObject) {
-                                val search = (item["search"] as? JsonPrimitive)?.content ?: ""
-                                val replace = (item["replace"] as? JsonPrimitive)?.content ?: ""
-                                mapOf("search" to search, "replace" to replace)
+                    val jsonElement = json.parseToJsonElement(rawInput)
+                    if (jsonElement is JsonArray) {
+                        return jsonElement.mapNotNull { jsonItem ->
+                            if (jsonItem is JsonObject) {
+                                val oldStringContent = (jsonItem["oldString"] as? JsonPrimitive)?.content ?: ""
+                                val newStringContent = (jsonItem["newString"] as? JsonPrimitive)?.content ?: ""
+                                mapOf("oldString" to oldStringContent, "newString" to newStringContent)
                             } else null
                         }
                     }
