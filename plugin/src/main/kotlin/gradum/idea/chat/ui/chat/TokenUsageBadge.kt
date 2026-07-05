@@ -10,31 +10,19 @@ package gradum.idea.chat.ui.chat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 
 /**
- * Displays token count with a number growth animation.
+ * Formats a token count into a compact human-readable string with unit.
  *
- * The number animates from 0 to [totalTokens] using a linear interpolation.
- * No fade-in or sweep animation — those are handled by the parent loading indicator.
- *
- * @param totalTokens Total tokens consumed for this assistant turn.
- * @param isActive Whether the loading sweep animation should be active.
+ * - ≥ 1 000     → `"1.2K tokens"`
+ * - 1           → `"1 token"`
+ * - Otherwise   → `"123 tokens"`
  */
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-fun TokenUsageBadge(
-    totalTokens: Int,
-    isActive: Boolean = true,
-    modifier: Modifier = Modifier
-) {
+fun rememberAnimatedTokenCount(totalTokens: Int): String {
     val animatedProgress = remember { Animatable(0f) }
 
     LaunchedEffect(totalTokens) {
@@ -49,19 +37,10 @@ fun TokenUsageBadge(
         }
     }
 
-    if (totalTokens > 0) {
-        SelectionContainer {
-            val currentCount = (animatedProgress.value * totalTokens).toInt()
-            val displayText = formatTokenCount(currentCount)
-            Text(
-                maxLines = 1,
-                text = displayText,
-                modifier = modifier,
-                style = JewelTheme.typography.small
-                    .copy(color = JewelTheme.globalColors.text.info)
-            )
-        }
-    }
+    if (totalTokens <= 0) return ""
+
+    val currentCount = (animatedProgress.value * totalTokens).toInt()
+    return formatTokenCount(currentCount)
 }
 
 /**

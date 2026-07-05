@@ -100,7 +100,12 @@ fun AssistantChatBubble(
                 val tokenUsage = message.tokenUsage
                 if (tokenUsage != null && tokenUsage.totalTokens > 0) {
                     Spacer(Modifier.height(GradumSpacing.md))
-                    TokenUsageBadge(totalTokens = tokenUsage.totalTokens, isActive = false)
+                    val tokenText = formatTokenCountStatic(tokenUsage.totalTokens)
+                    Text(
+                        text = tokenText,
+                        style = JewelTheme.typography.regular
+                            .copy(color = JewelTheme.globalColors.text.info)
+                    )
                 }
             }
 
@@ -264,16 +269,19 @@ private fun ToolCallBlock(
 
 @Composable
 private fun LoadingIndicatorRow(phase: String = message("gradum.generating"), tokenCount: Int = 0) {
-    val text = phase.ifBlank { message("gradum.generating") }
-    var displayText by remember { mutableStateOf(text) }
-    var previousText by remember { mutableStateOf(text) }
+    val phaseText = phase.ifBlank { message("gradum.generating") }
+    val tokenText = rememberAnimatedTokenCount(tokenCount)
+    val combinedText = if (tokenText.isNotBlank()) "$phaseText $tokenText" else phaseText
+
+    var displayText by remember { mutableStateOf(combinedText) }
+    var previousText by remember { mutableStateOf(combinedText) }
     val alpha = remember { Animatable(1f) }
 
-    LaunchedEffect(text) {
-        if (text != previousText) {
+    LaunchedEffect(combinedText) {
+        if (combinedText != previousText) {
             alpha.animateTo(0f, tween(PHASE_FADE_MS))
-            displayText = text
-            previousText = text
+            displayText = combinedText
+            previousText = combinedText
             alpha.animateTo(1f, tween(PHASE_FADE_MS))
         }
     }
@@ -287,11 +295,16 @@ private fun LoadingIndicatorRow(phase: String = message("gradum.generating"), to
                 this.alpha = alpha.value
             }
         )
-        if (tokenCount > 0) {
-            Spacer(modifier = Modifier.width(GradumSpacing.sm))
-            TokenUsageBadge(totalTokens = tokenCount, isActive = true)
-        }
     }
+}
+
+private fun formatTokenCountStatic(count: Int): String {
+    val unitSuffix = if (count == 1) "token" else "tokens"
+    val formattedNumber = if (count >= 1_000)
+        String.format("%.1fK", count / 1_000.0)
+    else
+        count.toString()
+    return "$formattedNumber $unitSuffix"
 }
 
 @Composable
