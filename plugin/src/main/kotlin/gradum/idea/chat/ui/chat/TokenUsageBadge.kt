@@ -11,16 +11,13 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
- * Formats a token count into a compact human-readable string with unit.
+ * Returns an animated token count string that grows from 0 to [totalTokens].
  *
- * - ≥ 1 000     → `"1.2K tokens"`
- * - 1           → `"1 token"`
- * - Otherwise   → `"123 tokens"`
+ * @param totalTokens Total tokens consumed for this assistant turn.
+ * @return Formatted string like "1.2K tokens" or "123 tokens", or empty if totalTokens <= 0.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberAnimatedTokenCount(totalTokens: Int): String {
     val animatedProgress = remember { Animatable(0f) }
@@ -50,7 +47,7 @@ fun rememberAnimatedTokenCount(totalTokens: Int): String {
  * - 1           → `"1 token"`
  * - Otherwise   → `"123 tokens"`
  */
-private fun formatTokenCount(count: Int): String {
+fun formatTokenCount(count: Int): String {
     val unitSuffix = if (count == 1) "token" else "tokens"
 
     val formattedNumber = if (count >= 1_000)

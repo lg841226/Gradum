@@ -100,9 +100,8 @@ fun AssistantChatBubble(
                 val tokenUsage = message.tokenUsage
                 if (tokenUsage != null && tokenUsage.totalTokens > 0) {
                     Spacer(Modifier.height(GradumSpacing.md))
-                    val tokenText = formatTokenCountStatic(tokenUsage.totalTokens)
                     Text(
-                        text = tokenText,
+                        text = formatTokenCount(tokenUsage.totalTokens),
                         style = JewelTheme.typography.regular
                             .copy(color = JewelTheme.globalColors.text.info)
                     )
@@ -296,15 +295,6 @@ private fun LoadingIndicatorRow(phase: String = message("gradum.generating"), to
             }
         )
     }
-}
-
-private fun formatTokenCountStatic(count: Int): String {
-    val unitSuffix = if (count == 1) "token" else "tokens"
-    val formattedNumber = if (count >= 1_000)
-        String.format("%.1fK", count / 1_000.0)
-    else
-        count.toString()
-    return "$formattedNumber $unitSuffix"
 }
 
 @Composable
