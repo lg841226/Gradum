@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-06-30 23:35:47 Changed by gwy
+ * ContextManager.kt  2026-07-04 22:59:35 Changed by gwy
  */
 
 package gradum.utils
@@ -36,7 +36,8 @@ class ContextManager(private val outputDirectory: Path) {
         val contextFile: File = contextFilePath.toFile()
 
         if (!contextFile.exists()) {
-            logger.info("No context file at ${contextFilePath.toAbsolutePath()}"); return emptyList()
+            logger.info("No context file at ${contextFilePath.toAbsolutePath()}")
+            return emptyList()
         }
 
         logger.info("Loading context (${contextFile.length()} bytes)")
@@ -143,7 +144,26 @@ class ContextManager(private val outputDirectory: Path) {
             }
             if (isFullyRead) continue
 
-            cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
+            // For assistant messages, preserve tool_calls if they reference preserved tool results
+            if (role == "assistant") {
+                @Suppress("UNCHECKED_CAST")
+                val toolCalls: List<Map<String, Any>>? = message["tool_calls"] as? List<Map<String, Any>>
+                if (toolCalls != null) {
+                    val preservedCalls: List<Map<String, Any>> = toolCalls.filter { toolCall ->
+                        val callId: String = toolCall["id"] as? String ?: ""
+                        callId in preservedToolCallIds
+                    }
+                    if (preservedCalls.isNotEmpty()) {
+                        cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " "), "tool_calls" to preservedCalls))
+                    } else {
+                        cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
+                    }
+                } else {
+                    cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
+                }
+            } else {
+                cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
+            }
         }
 
         return cleanedMessages.takeLast(MAX_CONTEXT_MESSAGES)

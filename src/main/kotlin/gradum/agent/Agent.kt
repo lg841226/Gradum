@@ -115,7 +115,7 @@ class Agent(
     private var sessionAborted: Boolean = false
 
     /** Maximum messages to keep in conversation history sent to LLM. */
-    private val maxHistoryMessages: Int = 20
+    private val maxHistoryMessages: Int = 30
 
     init {
         activeClient = when (configuration.provider) {
@@ -252,8 +252,8 @@ class Agent(
             val processedCalls: List<ProcessedToolCall> = prepareToolCalls(result.toolCalls)
             appendAssistantMessage(result.responseText ?: "", processedCalls)
 
-            for (processedCall in processedCalls)
-                executeSingleTool(processedCall)
+            for ((index: Int, processedCall: ProcessedToolCall) in processedCalls.withIndex())
+                executeSingleTool(processedCall, isLastToolCall = index == processedCalls.lastIndex)
 
             if (sessionAborted) break
         }
@@ -558,7 +558,7 @@ class Agent(
         conversationHistory.add(assistantMessage)
     }
 
-    private fun executeSingleTool(processedCall: ProcessedToolCall): Unit {
+    private fun executeSingleTool(processedCall: ProcessedToolCall, isLastToolCall: Boolean = true): Unit {
         if (sessionAborted) return
 
         val functionName: String = processedCall.callData.functionName
@@ -613,16 +613,16 @@ class Agent(
                         "rule" to verdict.ruleName,
                     ),
                 )
-                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult, isLastToolCall)
             } else {
                 skillInstance = SkillRegistry.getSkill(functionName)
                 executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+                emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult, isLastToolCall)
             }
         } else {
             skillInstance = SkillRegistry.getSkill(functionName)
             executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-            emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult)
+            emitToolResult(processedCall, functionName, convertedArguments, skillInstance, executionResult, isLastToolCall)
         }
 
         logToolResult(functionName, executionResult)
@@ -695,6 +695,7 @@ class Agent(
         convertedArguments: Map<String, Any>,
         skillInstance: Skill?,
         executionResult: Map<String, Any>,
+        isLastToolCall: Boolean = true,
     ) {
         val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
         val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
@@ -726,7 +727,7 @@ class Agent(
 
         val resultString: String = JsonUtil.encodeMap(historyResult)
 
-        val todoReminder: String? = getTodoManagerInstance().getTaskReminder()
+        val todoReminder: String? = if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
         val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
         val toolMessage: Map<String, Any> = if (configuration.provider == Provider.OPENAI) {

@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.25                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-06-22                                                       |
+| **Last Updated**   | 2026-07-05                                                       |
 
 ---
 
@@ -230,8 +230,9 @@ src/main/kotlin/gradum/
 ├── skill/
 │   ├── Skill.kt                   # Skill abstract base class
 │   ├── SkillRegistry.kt           # Registry (includes discoverSkills)
-│   ├── ReadFileSkill.kt           # File reading (line range/MD5/size limits)
-│   ├── EditFileSkill.kt           # File editing (sequential/atomic modes)
+│   ├── XmlError.kt                # Shared XML error format (buildXmlError)
+│   ├── ReadFileSkill.kt           # File reading (line range/MD5/size limits, local/cloud schema)
+│   ├── EditFileSkill.kt           # File editing (local: single edit, cloud: batch edits)
 │   ├── SaveFileSkill.kt           # File writing (auto mkdir parent directories)
 │   ├── RunCommandSkill.kt         # Shell command execution (blocking/detached + CommandFilter)
 │   ├── ExploreProjectSkill.kt     # Project tree scan (depth 1..14, truncated build/dependency dirs)
@@ -251,7 +252,13 @@ src/main/resources/
         └── gradum.skill.Skill     # ServiceLoader skill descriptor (built-in skills)
 
 prompts/                           # Read at runtime from local directory
-└── system_prompt.md               # System prompt (loaded by the Agent at runtime)
+├── system/
+│   ├── local.xml                  # System prompt for local models
+│   └── cloud.xml                  # System prompt for cloud models
+└── modes/
+    ├── agent.xml                  # Agent mode (full capabilities)
+    ├── edit.xml                   # Edit mode (focused editing)
+    └── read_only.xml              # Read-only mode (inspection only)
 
 output/                            # Generated at runtime on local storage
 ├── context.json                   # Encrypted conversation context (written by ContextManager)
@@ -726,71 +733,78 @@ flowchart TD
 
 ### 3.1 EditFileSkill State Machine
 
-When editing a file, two different execution paths are taken based on the `mode` parameter:
+When editing a file, the execution path is determined by the `SchemaVariant`:
 
 ```mermaid
 stateDiagram-v2
     [*] --> ValidateArgs: EditFileSkill.execute
     ValidateArgs --> PathEmpty: path is empty
-    ValidateArgs --> EditsEmpty: edits is empty
+    ValidateArgs --> EditsEmpty: no edits or oldString/newString
     ValidateArgs --> ReadOriginal: valid arguments
     PathEmpty --> Failure: return INVALID_PARAMETER
     EditsEmpty --> Failure: return INVALID_PARAMETER
     ReadOriginal --> FileNotFound: file does not exist
     FileNotFound --> Failure: return FILE_NOT_FOUND
-    ReadOriginal --> ModeCheck: content loaded
-    ModeCheck --> SequentialMode: mode sequential default
-    ModeCheck --> AtomicMode: mode atomic
+    ReadOriginal --> SchemaCheck: content loaded
 
-    state SequentialMode {
+    state SchemaCheck <<choice>>
+    SchemaCheck --> LocalMode: SIMPLE schema
+    SchemaCheck --> CloudMode: FULL schema
+
+    state LocalMode {
         direction LR
-        S1: for each edit
-        S2: count matches
-        S3: 0 matches CODE_NOT_FOUND
-        S4: multiple matches
-        S5: exactly 1 match
-        S1 --> S2
-        S2 --> S3: zero
-        S2 --> S4: more than one
-        S2 --> S5: exactly one
+        L1: single oldString/newString pair
+        L2: count matches
+        L3: 0 matches CODE_NOT_FOUND
+        L4: multiple matches MULTIPLE_MATCHES
+        L5: exactly 1 match
+        L1 --> L2
+        L2 --> L3: zero
+        L2 --> L4: more than one
+        L2 --> L5: exactly one
     }
 
-    state AtomicMode {
+    state CloudMode {
         direction LR
-        A1: for each edit
-        A2: count matches
-        A3: rollback
-        A4: apply edit
-        A1 --> A2
-        A2 --> A3: not exactly one
-        A2 --> A4: exactly one
+        C1: for each edit in edits[]
+        C2: count matches
+        C3: 0 matches CODE_NOT_FOUND
+        C4: multiple matches
+        C5: exactly 1 match
+        C6: apply edit
+        C1 --> C2
+        C2 --> C3: zero
+        C2 --> C4: more than one
+        C2 --> C5: exactly one
+        C5 --> C6
+        C6 --> C1: next edit
     }
 
-    SequentialMode --> EmptyCheckSequential: after loop
-    AtomicMode --> EmptyCheckAtomic: after loop
-    EmptyCheckSequential --> EmptySequential: result is empty
-    EmptyCheckSequential --> WriteSequential: result has content
-    EmptySequential --> RestoreSequential: restore original
-    RestoreSequential --> FailureEmptySeq: return EMPTY_RESULT
-    WriteSequential --> SuccessSeq: write content
-    SuccessSeq --> SUCCESS: return Success
-    EmptyCheckAtomic --> EmptyAtomic: result is empty
-    EmptyCheckAtomic --> WriteAtomic: result has content
-    EmptyAtomic --> RestoreAtomic: restore original
-    RestoreAtomic --> FailureEmptyAt: return EMPTY_RESULT
-    WriteAtomic --> SUCCESS: return Success
+    LocalMode --> EmptyCheckLocal: after edit
+    CloudMode --> EmptyCheckCloud: after loop
+    EmptyCheckLocal --> EmptyLocal: result is empty
+    EmptyCheckLocal --> WriteLocal: result has content
+    EmptyLocal --> RestoreLocal: restore original
+    RestoreLocal --> FailureEmptyLocal: return EMPTY_RESULT
+    WriteLocal --> SuccessLocal: write content
+    SuccessLocal --> SUCCESS: return Success
+    EmptyCheckCloud --> EmptyCloud: result is empty
+    EmptyCheckCloud --> WriteCloud: result has content
+    EmptyCloud --> RestoreCloud: restore original
+    RestoreCloud --> FailureEmptyCloud: return EMPTY_RESULT
+    WriteCloud --> SUCCESS: return Success
     Failure --> [*]
-    FailureEmptySeq --> [*]
-    FailureEmptyAt --> [*]
+    FailureEmptyLocal --> [*]
+    FailureEmptyCloud --> [*]
     SUCCESS --> [*]
 ```
 
 **Key implementation details**:
 
-- `countOccurrences(substring)`: Kotlin top-level function, exact substring count match (no regex usage, avoids special
-  character interpretation)
-- `buildPartialFailureMessage`: In sequential mode, reports the number of successfully applied edits on failure
-- Result fields: `{path, editsApplied, totalEdits}`
+- **Local mode** (SIMPLE schema): Single `oldString`/`newString` pair, one file per call. Designed for small local models (≤32B).
+- **Cloud mode** (FULL schema): Batch `edits[]` array, multiple edits per call. Designed for cloud models.
+- **2-step matching**: Step 1 exact match (ignore trailing whitespace and line endings), Step 2 normalized match (trim all whitespace).
+- **XmlError**: All errors use `buildXmlError()` from `XmlError.kt` for consistent XML format with PascalCase tags.
 - Error codes: `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, INVALID_PARAMETER, IO_ERROR`
 
 ### 3.2 CommandFilter: Command Safety Filter
@@ -1004,6 +1018,33 @@ The Agent calls `getTodoManagerInstance().getTaskReminder()` after **every tool 
 null, appends it to the tail of the tool result message. This ensures that the model does not "forget" the original task
 plan during long task flows.
 
+### 3.6 XmlError: Shared Error Format
+
+All AI-facing errors use a consistent XML format via `buildXmlError()` from `XmlError.kt`:
+
+```kotlin
+fun buildXmlError(
+    code: String,
+    message: String,
+    fixHint: String? = null,
+    searchPreview: String? = null,
+    partial: String? = null,
+): String
+```
+
+**Output format** (PascalCase XML tags):
+
+```xml
+<Error>
+  <Code>CODE_NOT_FOUND</Code>
+  <Message>Could not find the specified text in the file.</Message>
+  <FixHint>Re-read the file and include 2-3 lines of surrounding context.</FixHint>
+</Error>
+```
+
+**Used by all skills** (ReadFileSkill, EditFileSkill, SaveFileSkill, RunCommandSkill, ExploreProjectSkill, TodoSkill).
+This replaces per-skill XML string construction and ensures consistent error messages across the system.
+
 ---
 
 ## 4. Skill Reference
@@ -1207,8 +1248,8 @@ gradum.skill.CompletePlanSkill
 
 | Skill               | Input Parameters              | Output Fields                                                                                          | Error Codes                                                                                   | Limits                                             |
 |---------------------|-------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------|
-| ReadFileSkill       | `path`, `lineRange?`          | `path, lineRange, totalLines, contentHash, content`                                                    | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                          |
-| EditFileSkill       | `path, edits[], mode?`        | `path, editsApplied, totalEdits`                                                                       | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely                      |
+| ReadFileSkill       | `path`, `lineRange?` (cloud only) | `path, lineRange, totalLines, contentHash, content` (cloud); `path, content` (local)              | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                          |
+| EditFileSkill       | `path, edits[]` (cloud); `path, oldString, newString` (local) | `path, editsApplied, totalEdits`                                                                       | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely; 1 edit per call (local) |
 | SaveFileSkill       | `path, content`               | `path, bytesWritten, created`                                                                          | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                     |
 | RunCommandSkill     | `command, reason?, detached?` | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check               |
 | ExploreProjectSkill | `path?, depth?`               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories |
@@ -1719,10 +1760,12 @@ and passes to every `Skill.execute` call:
 data class SkillContext(
     val toolMode: ToolMode,
     val projectRoot: String,
+    val provider: Provider = Provider.OLLAMA,
+    val modelName: String = "",
 )
 ```
 
-Two properties, both of which used to be either process-globals or invisible:
+Four properties, all of which used to be either process-globals or invisible:
 
 - **`toolMode`** — the active tier. Skills can read it for mode-aware behavior
   (e.g. `RunCommandSkill` chooses a different log directory in `READ_ONLY`).
@@ -1731,6 +1774,12 @@ Two properties, both of which used to be either process-globals or invisible:
   open. The plugin is the single source of truth: `Project.basePath` →
   HTTP request body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot`.
   The server has no other way to learn which project is open.
+- **`provider`** — which LLM backend is driving this session (e.g. `OLLAMA`,
+  `OPENAI`, `ANTHROPIC`). Used by provider-aware skills and by the agent
+  to fill the `{{SCHEMA_VARIANT}}` template variable.
+- **`modelName`** — the model name string (e.g. `"qwen2.5:14b"`, `"gpt-4o"`).
+  Used by `SchemaVariant.resolve()` to infer model capability and choose
+  appropriate tool schemas.
 
 `SkillContext` replaces the legacy `ProjectPaths.setProjectRoot` process-global
 and gives Skills a way to read `toolMode` at all. It also fixes a class of
@@ -1749,9 +1798,9 @@ sequenceDiagram
     Plugin ->> Routes: POST /events {message, projectRoot, toolMode}
     Note over Routes: validate projectRoot is non-empty<br/>and points to an existing directory
     Routes ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
-    Note over Agent: construct SkillContext(toolMode, projectRoot)<br/>+ ContextManager(<root>/.gradum)
+    Note over Agent: construct SkillContext(toolMode, projectRoot, provider, modelName)<br/>+ ContextManager(<root>/.gradum)
     Agent ->> Skill: skill.execute(arguments, skillContext)
-    Note over Skill: read context.projectRoot for file ops<br/>read context.toolMode for mode-aware behaviour
+    Note over Skill: read context.projectRoot for file ops<br/>read context.toolMode for mode-aware behaviour<br/>read context.modelName for schema adaptation
     Skill -->> Agent: SkillResult
     Agent -->> Plugin: NDJSON events
 ```
@@ -1771,7 +1820,7 @@ abstract class Skill {
     open val allowedToolModes: Set<ToolMode> = setOf(WRITE, SINGLE_STEP, READ_ONLY)
     open val mutatesProject: Boolean = false
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
-    abstract fun getSchema(): Map<String, Any>
+    abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
     // ... adaptive pruning hooks unchanged
 }
 ```
@@ -1781,12 +1830,97 @@ multi-step plans MUST exclude `SINGLE_STEP`. Anything else (pure inspection
 like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier
 is allowed.
 
-The `Skill.execute` signature now requires `context: SkillContext`. Skills that
+The `Skill.execute` signature requires `context: SkillContext`. Skills that
 need the project root read `context.projectRoot`; the previous behavior of
 reading `arguments["projectRoot"]` is gone (the agent still injects it for
 audit / NDJSON-event reasons, but no Skill should rely on it).
 
-### 9.7 Why this design
+The `getSchema()` method now accepts an optional `context` parameter. Skills
+that offer different parameter structures for local vs cloud models can check
+`SchemaVariant.resolve(context.modelName)` and return the appropriate schema.
+Skills that don't need provider-aware schemas may ignore this parameter.
+
+### 9.7 SchemaVariant and ModelCapability
+
+Gradum adapts tool schemas and prompt content based on model capability. The
+system is built around two components in `SchemaVariant.kt`:
+
+**`SchemaVariant` enum:**
+
+```kotlin
+enum class SchemaVariant {
+    FULL,   // Complete parameter set, batch operations, advanced features
+    SIMPLE; // Minimal parameter set, one action per call, simplified output
+
+    companion object {
+        fun resolve(modelName: String): SchemaVariant {
+            if (modelName.isBlank()) return FULL
+            return if (ModelCapability.isSmall(modelName)) SIMPLE else FULL
+        }
+    }
+}
+```
+
+**`ModelCapability` object:**
+
+```kotlin
+object ModelCapability {
+    private const val MAX_SMALL_MODEL_PARAMETERS_B: Double = 32.0
+    private val PARAMETER_SIZE_PATTERN: Regex = Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""")
+    private val CLOUD_KEYWORDS: Set<String> = setOf(
+        "cloud", "api", "gpt", "claude", "gemini",
+        "sonnet", "haiku", "opus", "pro", "flash",
+        "turbo", "mini", "large", "xxl",
+    )
+
+    fun isSmall(modelName: String): Boolean {
+        if (modelName.isBlank()) return false
+        val lower = modelName.lowercase()
+        if (CLOUD_KEYWORDS.any { lower.contains(it) }) return false
+        val match = PARAMETER_SIZE_PATTERN.find(lower) ?: return false
+        val parameterCountBillions = match.groupValues[1].toDoubleOrNull() ?: return false
+        return parameterCountBillions <= MAX_SMALL_MODEL_PARAMETERS_B
+    }
+}
+```
+
+**Detection logic:**
+1. Cloud/API indicators (cloud, gpt, claude, gemini, etc.) → large
+2. Parameter size tag (7b, 14b, 70b, etc.) → compare against 32B threshold
+3. Unknown/unrecognized → default to large (assume capable)
+
+**Flow through the system:**
+
+```mermaid
+flowchart LR
+    A["SchemaVariant.resolve(modelName)"] --> B["Agent fills {{SCHEMA_VARIANT}} in prompt"]
+    B --> C["filterConditionalSections() strips non-matching blocks"]
+    C --> D["Skills check context.modelName in getSchema()"]
+    D --> E["LLM sees adapted tool schemas"]
+```
+
+**Conditional prompt sections** in XML files:
+
+```xml
+<!-- if FULL -->
+<Example>read_file(path="src/main.py", line_range="200-230")</Example>
+<!-- endif -->
+<!-- if SIMPLE -->
+Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
+<!-- endif -->
+```
+
+**Per-skill behavior:**
+
+| Skill              | FULL mode                                        | SIMPLE mode                                         |
+|--------------------|--------------------------------------------------|-----------------------------------------------------|
+| `ReadFileSkill`    | Returns `content` as joined string; supports `line_range` | Returns `content` as `{lineNumber: lineContent}` map; no `line_range` |
+| `SaveFileSkill`    | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
+| `RunCommandSkill`  | Supports `detached` param, full output           | No `detached`, output truncated to 2000 chars        |
+| `ExploreProjectSkill` | Returns nested `entries` tree                | Returns counts + flat `["path:lines", ...]` list    |
+| `EditFileSkill`    | Batch `edits[]` array, multiple edits per call   | Single `oldString`/`newString` pair, 1 edit per call |
+
+### 9.8 Why this design
 
 - **One source of truth, two enforcement points.** `allowedToolModes` is read
   by both `SkillRegistry.getSchemas` (LLM-side) and `Agent.executeSingleTool`
@@ -1821,7 +1955,9 @@ audit / NDJSON-event reasons, but no Skill should rely on it).
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                        |
 | **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                     |
-| **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot)`. Single source of truth for session-level state         |
+| **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot, provider, modelName)`. Single source of truth for session-level state |
+| **SchemaVariant**        | Enum (`FULL`/`SIMPLE`) determining tool schema complexity based on model capability                                                    |
+| **ModelCapability**      | Object that infers model size from name heuristics (parameter count, cloud keywords)                                                   |
 | **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                        |
 | **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                   |
 | **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                          |
