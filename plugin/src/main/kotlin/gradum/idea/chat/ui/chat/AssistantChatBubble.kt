@@ -78,11 +78,6 @@ fun AssistantChatBubble(
                         overflow = TextOverflow.Ellipsis,
                         text = formatModelName(message.modelName)
                     )
-                    val tokenUsage = message.tokenUsage
-                    if (tokenUsage != null && tokenUsage.totalTokens > 0) {
-                        Spacer(modifier = Modifier.width(GradumSpacing.sm))
-                        TokenUsageBadge(totalTokens = tokenUsage.totalTokens)
-                    }
                 }
             }
             Spacer(Modifier.height(GradumSpacing.lg))
@@ -100,7 +95,13 @@ fun AssistantChatBubble(
 
             if (isLoading) {
                 Spacer(Modifier.height(GradumSpacing.md))
-                LoadingIndicatorRow(sendingPhase)
+                LoadingIndicatorRow(sendingPhase, message.tokenUsage?.totalTokens ?: 0)
+            } else {
+                val tokenUsage = message.tokenUsage
+                if (tokenUsage != null && tokenUsage.totalTokens > 0) {
+                    Spacer(Modifier.height(GradumSpacing.md))
+                    TokenUsageBadge(totalTokens = tokenUsage.totalTokens, isActive = false)
+                }
             }
 
             Spacer(modifier = Modifier.height(GradumSpacing.md))
@@ -262,7 +263,7 @@ private fun ToolCallBlock(
 }
 
 @Composable
-private fun LoadingIndicatorRow(phase: String = message("gradum.generating")) {
+private fun LoadingIndicatorRow(phase: String = message("gradum.generating"), tokenCount: Int = 0) {
     val text = phase.ifBlank { message("gradum.generating") }
     var displayText by remember { mutableStateOf(text) }
     var previousText by remember { mutableStateOf(text) }
@@ -286,6 +287,10 @@ private fun LoadingIndicatorRow(phase: String = message("gradum.generating")) {
                 this.alpha = alpha.value
             }
         )
+        if (tokenCount > 0) {
+            Spacer(modifier = Modifier.width(GradumSpacing.sm))
+            TokenUsageBadge(totalTokens = tokenCount, isActive = true)
+        }
     }
 }
 

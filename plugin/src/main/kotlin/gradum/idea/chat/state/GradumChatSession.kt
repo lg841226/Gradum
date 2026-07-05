@@ -607,7 +607,22 @@ class GradumChatSession {
 
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Response(responseContent))
+            var updatedMessage = messages[assistantIndex].appendEvent(ChatEvent.Response(responseContent))
+
+            // Update token usage from response chunk if available
+            val tokenUsageData = responseData?.get("tokenUsage")?.jsonObject
+            if (tokenUsageData != null) {
+                val tokenUsage = TokenUsage(
+                    promptTokens = tokenUsageData["promptTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                    completionTokens = tokenUsageData["completionTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                    totalTokens = tokenUsageData["totalTokens"]?.jsonPrimitive?.intOrNull ?: 0,
+                )
+                if (tokenUsage.totalTokens > 0) {
+                    updatedMessage = updatedMessage.copy(tokenUsage = tokenUsage)
+                }
+            }
+
+            messages[assistantIndex] = updatedMessage
         }
     }
 

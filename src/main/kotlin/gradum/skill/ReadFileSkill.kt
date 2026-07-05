@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-04 21:38:29 Changed by gwy
+ * ReadFileSkill.kt  2026-07-05 13:13:51 Changed by gwy
  */
 
 package gradum.skill
@@ -28,7 +28,7 @@ class ReadFileSkill : Skill() {
     override val skillName: String = "read_file"
     override val description: String = "Read file content. Use line_range to read a section."
 
-    override val historyKeepCount: Int = 5
+    override val historyKeepCount: Int = 2
     override val historyVolatileKeys: List<String> = listOf("content")
 
     override fun getSchema(context: SkillContext?): Map<String, Any> {
@@ -48,18 +48,12 @@ class ReadFileSkill : Skill() {
     }
 
     private fun localDescription(): String =
-        "Read the contents of a file. Pass the file path and get back the full content with line numbers. " +
-        "Use this before edit_file to see the exact text you need to replace. " +
-        "The content is returned as a map where each key is a line number and each value is the line content. " +
-        "Use these line numbers when calling edit_file to specify what to change. " +
-        "After editing a file, call read_file again to see the updated content and line numbers."
+        "Read file content. Returns content as a map of line numbers to line text. Use this before edit_file to see the exact text to replace."
 
     private fun localProperties(): Map<String, Any> = mapOf(
         "path" to mapOf(
             "type" to "string",
-            "description" to "The file path to read. Must be a path relative to the project root. " +
-                "Do not use absolute paths. Examples: 'src/main.py', 'lib/utils.ts', 'README.md'. " +
-                "If you are unsure of the file structure, call explore_project first to see the project layout."
+            "description" to "File path relative to project root, e.g. 'src/main.py'."
         ),
     )
 
@@ -86,11 +80,13 @@ class ReadFileSkill : Skill() {
         val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
         if (filePath.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, buildXmlError(
-                code = "INVALID_PARAMETER",
-                message = "Missing 'path' parameter.",
-                fixHint = "Provide a file path in the 'path' parameter."
-            ))
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'path' parameter.",
+                    fixHint = "Provide a file path in the 'path' parameter."
+                )
+            )
 
         val resolvedPath: Path = if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
             Path.of(projectRoot, filePath).toAbsolutePath().normalize()
@@ -134,7 +130,8 @@ class ReadFileSkill : Skill() {
                 val rangeParts: List<String> = lineRange.split("-")
                 if (rangeParts.size != 2) {
                     return makeFailure(
-                        ErrorCode.INVALID_PARAMETER, buildXmlError(
+                        ErrorCode.INVALID_PARAMETER,
+                        buildXmlError(
                             code = "INVALID_PARAMETER",
                             message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
                             fixHint = "Provide lineRange in the format 'start-end' with numeric values."
@@ -198,11 +195,13 @@ class ReadFileSkill : Skill() {
                 )
             }
         } catch (_: FileNotFoundException) {
-            makeFailure(ErrorCode.FILE_NOT_FOUND, buildXmlError(
-                code = "FILE_NOT_FOUND",
-                message = "File not found: $filePath",
-                fixHint = "Check the file path. Use explore_project to find the correct path."
-            ), mapOf("path" to resolvedPath.toString()))
+            makeFailure(
+                ErrorCode.FILE_NOT_FOUND, buildXmlError(
+                    code = "FILE_NOT_FOUND",
+                    message = "File not found: $filePath",
+                    fixHint = "Check the file path. Use explore_project to find the correct path."
+                ), mapOf("path" to resolvedPath.toString())
+            )
         } catch (fileReadException: Exception) {
             makeFailure(
                 ErrorCode.IO_ERROR,

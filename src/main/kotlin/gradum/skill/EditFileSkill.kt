@@ -157,41 +157,20 @@ class EditFileSkill : Skill() {
     }
 
     private fun localDescription(): String =
-        "Replace one block of text in a file. " +
-        "Step 1: Call read_file to see the file content and line numbers. " +
-        "Step 2: Find the exact text you want to replace in the content. " +
-        "Step 3: Call edit_file with the file path, the original text as oldString, and your new text as newString. " +
-        "oldString must match the file content exactly, including all whitespace, indentation, and line breaks. " +
-        "Include 2-3 lines of surrounding context in oldString to help find a unique match. " +
-        "You can only edit one location per call. To edit multiple places in the same file, make multiple calls. " +
-        "After editing, call read_file again to verify the change was applied correctly."
+        "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new text as newString. oldString must match exactly. You can only edit one location per call."
 
     private fun localProperties(): Map<String, Any> = mapOf(
         "path" to mapOf(
             "type" to "string",
-            "description" to "The file to edit. Must be a path relative to the project root. " +
-                "Do not use absolute paths. Examples: 'src/main.py', 'lib/utils.ts', 'README.md'. " +
-                "Make sure the file exists before calling edit_file. Use read_file first to confirm."
+            "description" to "File path relative to project root, e.g. 'src/main.py'."
         ),
         "oldString" to mapOf(
             "type" to "string",
-            "description" to "The exact text to find in the file. Must match the file content character-by-character, " +
-                "including all whitespace, indentation, tabs, and line breaks. " +
-                "Include 2-3 lines of surrounding context to help find a unique match. " +
-                "Trailing whitespace on each line is ignored. Line endings (\\r\\n vs \\n) are handled automatically. " +
-                "If the text appears multiple times, the tool will return an error asking you to provide more context. " +
-                "Example: if you want to change a function, include the function definition line and a few lines inside. " +
-                "For example: 'def greet(name):\\n    return f\"Hello, {name}\"' would match that specific function."
+            "description" to "Exact text to find. Include 2-3 lines of context for uniqueness. Must match file content including whitespace and indentation."
         ),
         "newString" to mapOf(
             "type" to "string",
-            "description" to "The replacement text that replaces oldString in the file. " +
-                "Can be longer, shorter, or the same length as oldString. " +
-                "To delete text, pass an empty string as newString. " +
-                "To add new text, include it here with proper indentation. " +
-                "The replacement preserves the indentation of the first line of oldString. " +
-                "Example: 'def greet(name, title=\"Mr\"):\\n    return f\"Hello, {title} {name}\"' " +
-                "replaces the original function with a new version that has an extra parameter."
+            "description" to "Replacement text. Can be longer, shorter, or empty to delete."
         ),
     )
 

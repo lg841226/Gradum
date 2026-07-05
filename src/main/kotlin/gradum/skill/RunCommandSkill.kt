@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-07-04 22:54:49 Changed by gwy
+ * RunCommandSkill.kt  2026-07-05 13:13:51 Changed by gwy
  */
 
 package gradum.skill
@@ -34,7 +34,7 @@ class RunCommandSkill : Skill() {
     override val alias: String = "Ran"
     override val description: String = "Execute a shell command. Use detached=true to run in the background."
 
-    override val historyKeepCount: Int = 2
+    override val historyKeepCount: Int = 1
     override val historyVolatileKeys: List<String> = listOf("output")
 
     override fun getSchema(context: SkillContext?): Map<String, Any> {
@@ -72,11 +72,13 @@ class RunCommandSkill : Skill() {
         val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
         if (commandText.isBlank())
-            return makeFailure(ErrorCode.INVALID_PARAMETER, buildXmlError(
-                code = "INVALID_PARAMETER",
-                message = "Missing 'command' parameter.",
-                fixHint = "Provide a shell command string in the 'command' parameter."
-            ))
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Missing 'command' parameter.",
+                    fixHint = "Provide a shell command string in the 'command' parameter."
+                )
+            )
 
         val commandVerdict: CommandVerdict = classifyCommand(commandText)
         if (commandVerdict is CommandVerdict.Blocked) {
