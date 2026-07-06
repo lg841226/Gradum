@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -34,112 +33,66 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.intui.markdown.bridge.styling.extensions.github.tables.create
 import org.jetbrains.jewel.markdown.MarkdownBlock
 import org.jetbrains.jewel.markdown.MarkdownText
 import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.extensions.autolink.AutolinkProcessorExtension
 import org.jetbrains.jewel.markdown.extensions.github.strikethrough.GitHubStrikethroughProcessorExtension
-import org.jetbrains.jewel.markdown.extensions.github.tables.*
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
-/** GFM Tables styling for the chat panel. Kept for call-site compatibility. */
-@Composable
-fun rememberGradumTableStyling(): GfmTableStyling {
-  val globalColors: GlobalColors = LocalGlobalColors.current
-  val alternateColor = globalColors.borders.normal.copy(alpha = 0.08f)
-  return remember(globalColors) {
-    GfmTableStyling.create(
-      colors = GfmTableColors.create(
-        rowBackgroundColor = Color.Transparent,
-        alternateRowBackgroundColor = alternateColor,
-        rowBackgroundStyle = RowBackgroundStyle.Striped,
-      ),
-      metrics = GfmTableMetrics.create(
-        defaultCellContentAlignment = Alignment.Start,
-        headerDefaultCellContentAlignment = Alignment.Start,
-        cellPadding = PaddingValues(
-          horizontal = GradumSpacing.md,
-          vertical = GradumSpacing.sm
-        )
-      ),
-      headerBaseFontWeight = FontWeight.SemiBold
-    )
-  }
-}
-
 /**
- * Kept for call-site compatibility. We do not ship a custom
- * table renderer — GFM tables are extracted from the Markdown
- * text at the call site and rendered by [ScrollableTable]
- * instead. See file header for rationale.
- */
-@Suppress("UNUSED_PARAMETER")
-fun gradumMarkdownBlockRenderer(
-  rootStyling: MarkdownStyling,
-  baseRenderer: MarkdownBlockRenderer,
-  tableStyling: GfmTableStyling,
-): MarkdownBlockRenderer = baseRenderer
-
-/**
- * The [MarkdownProcessor] used across the chat UI. Registers three
+ * The [MarkdownProcessor] used across the chat UI. Registers two
  * extensions on top of stock CommonMark:
- * - `GitHubTableProcessorExtension` — parses `| ... |` GFM table syntax
- *   (we strip tables out at the call site in [AssistantChatBubble]
- *   and render them with [ScrollableTable], so this is mostly a
- *   safety net for any stray occurrence in the remaining plain text).
  * - `GitHubStrikethroughProcessorExtension` — adds `~~strike~~` support
  *   both inside table cells (rendered by [MarkdownText]) and in the
  *   surrounding prose.
  * - `AutolinkProcessorExtension` — turns bare `<https://...>` and
  *   plain URLs into clickable links.
+ *
+ * GFM table syntax is *not* registered here: the chat UI strips GFM
+ * tables out at the call site in [AssistantChatBubble] and renders
+ * them with [ScrollableTable]. There is no GFM-table input left for
+ * the processor to see.
  */
 val GradumMarkdownProcessor: MarkdownProcessor by lazy {
   MarkdownProcessor(
     extensions = listOf(
       AutolinkProcessorExtension,
-      GitHubTableProcessorExtension,
       GitHubStrikethroughProcessorExtension(),
     )
   )
 }
 
 /**
- * A piece of Markdown content. Either a plain block of text, a parsed
- * GFM table, or a block that *looked* like a GFM table but couldn't be
- * parsed cleanly. The third case is what we get when a model emits a
- * pipe-delimited block with a separator row but the column counts
- * don't line up, or the header parses empty, etc. — the previous
- * behavior was to dump the raw pipe syntax back to the user as prose,
- * which was visually noisy. The [Failed] segment lets the renderer
- * show a quiet placeholder instead.
+ * A piece of Markdown content. Either a plain block of text, or a
+ * parsed GFM table. The renderer (see [AssistantChatBubble]) decides
+ * what to do with a [Table] that has no renderable content — it
+ * substitutes a muted placeholder instead of letting the table
+ * silently render as an empty grid.
  */
 sealed interface MarkdownSegment {
   data class Plain(val text: String) : MarkdownSegment
   data class Table(
     val header: List<String>, val alignments: List<TextAlign>, val rows: List<List<String>>
   ) : MarkdownSegment
-
-  /**
-   * The original raw text of the malformed table. Kept around in case
-   * the renderer wants to surface it (e.g. a "click to expand" tooltip,
-   * a copy button), but the default render path just shows a muted
-   * placeholder — the raw pipe syntax is ugly and confusing as prose.
-   */
-  data class Failed(val raw: String) : MarkdownSegment
 }
 
 /**
- * Hard cap on body rows per table. Anything beyond this is treated as
- * prose and falls through to the [MarkdownSegment.Plain] path. Prevents
- * a 10 000-row dump from accidentally being rendered as a wall of cells
- * when the upstream model emits one.
+ * Does this [MarkdownSegment.Table] have any visible body content?
+ * The chat bubble uses this as the gate: a `Table` that fails the
+ * check is replaced with the parse-failure placeholder instead of
+ * being rendered as a header-only / empty grid.
+ *
+ * Concretely: there must be at least one non-blank cell in at least
+ * one body row. The header alone is not enough — a header without
+ * any data underneath is just a row of labels, not a table.
  */
-private const val MAX_TABLE_ROWS: Int = 500
+fun MarkdownSegment.Table.isRenderable(): Boolean =
+  rows.any { row -> row.any { it.isNotBlank() } }
 
 /**
  * Per-line length cap. Lines longer than this are not considered as
@@ -151,20 +104,20 @@ private const val MAX_TABLE_ROWS: Int = 500
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
 /**
- * Splits a Markdown string into alternating [MarkdownSegment.Plain],
- * [MarkdownSegment.Table], and [MarkdownSegment.Failed] segments. GFM
- * tables are detected line by line: a header line immediately followed
- * by a separator line (`| --- | :---: |`) starts a table; subsequent
- * `|`-delimited lines are body rows until the first non-table line.
+ * Splits a Markdown string into alternating [MarkdownSegment.Plain]
+ * and [MarkdownSegment.Table] segments. GFM tables are detected line
+ * by line: a header line immediately followed by a separator line
+ * (`| --- | :---: |`) starts a table; subsequent `|`-delimited lines
+ * are body rows until the first non-table line.
  *
- * Invariant: if a block *looks* like a table (header + separator row
- * both present and the separator is a real `---` / `:---:` / `---:` row),
- * this function always emits **either** [MarkdownSegment.Table] **or**
- * [MarkdownSegment.Failed] for it — never [MarkdownSegment.Plain]. We
- * don't want raw pipe syntax leaking into the surrounding prose. The
- * only thing that distinguishes the two outcomes is whether at least
- * one body row survived the column-count check; everything else (empty
- * header, misaligned separator, every row too long, all rows column-mismatched) is just "no body rows" in disguise.
+ * Every header+separator block becomes a [MarkdownSegment.Table].
+ * Whether it ends up rendered as a table or as a parse-failure
+ * placeholder is the caller's decision (see
+ * [MarkdownSegment.Table.isRenderable]); the parser's only job is
+ * structural — it does not pass judgment on whether the data is
+ * meaningful. A header+separator with no usable body rows still
+ * becomes a `Table` with an empty `rows` list, and the chat bubble
+ * will substitute the placeholder for it.
  *
  * The parser handles:
  * - optional leading / trailing `|`
@@ -180,7 +133,6 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
   val lines: List<String> = markdown.split('\n')
   val segments: MutableList<MarkdownSegment> = mutableListOf()
   val plainBuffer: StringBuilder = StringBuilder()
-  val failedBuffer: StringBuilder = StringBuilder()
   var lineIndex = 0
 
   fun flushPlain() {
@@ -190,29 +142,9 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
     }
   }
 
-  fun flushFailed() {
-    if (failedBuffer.isNotEmpty()) {
-      segments.add(MarkdownSegment.Failed(failedBuffer.toString()))
-      failedBuffer.clear()
-    }
-  }
-
-  // Whenever we cross a Plain ↔ Failed boundary, flush the buffer
-  // that's being left behind. Without this, a successful parse *after*
-  // a failed attempt would emit a Plain block first, then a Plain
-  // block, then the previously-buffered Failed — out of order. By
-  // flushing at the transition, the order in [segments] matches the
-  // visual order in the source Markdown.
   fun appendPlain(line: String) {
-    if (failedBuffer.isNotEmpty()) flushFailed()
     if (plainBuffer.isNotEmpty()) plainBuffer.append('\n')
     plainBuffer.append(line)
-  }
-
-  fun appendFailed(line: String) {
-    if (plainBuffer.isNotEmpty()) flushPlain()
-    if (failedBuffer.isNotEmpty()) failedBuffer.append('\n')
-    failedBuffer.append(line)
   }
 
   while (lineIndex < lines.size) {
@@ -229,16 +161,15 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
       val alignments: List<TextAlign> = parseAlignments(separatorLine, headers.size)
         ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
 
-      // Collect every body line we touch, even ones we later reject.
-      // Whatever the outcome (Table or Failed), the whole block has
-      // to be consumed together — partial output would let stray `|`
-      // characters leak into the surrounding prose.
+      // Collect body lines greedily until the first blank or `|`-free
+      // line. Whatever the column-count outcome below, the whole block
+      // has to be consumed together — partial output would let stray
+      // `|` characters leak into the surrounding prose.
       val bodyLines: MutableList<String> = mutableListOf()
       var bodyLineIndex: Int = lineIndex + 2
-      while (bodyLineIndex < lines.size && bodyLines.size < MAX_TABLE_ROWS) {
+      while (bodyLineIndex < lines.size) {
         val currentLine: String = lines[bodyLineIndex]
         val trimmedCurrent: String = currentLine.trim()
-        // A blank line or a line without any `|` ends the table.
         if (trimmedCurrent.isEmpty() || !currentLine.contains('|')) break
         bodyLines.add(currentLine)
         bodyLineIndex++
@@ -249,28 +180,19 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         .map { parseTableRow(it) }
         // Drop rows whose column count doesn't match the header — these
         // are almost always misparsed prose with a stray `|`, not real
-        // table data.≠≠≠≠
+        // table data. The remaining rows are real table data; the
+        // caller will check [isRenderable] to decide whether to
+        // actually render this as a table.
         .filter { it.size == headers.size }
 
-      if (bodyRows.isNotEmpty()) {
-        flushPlain(); flushFailed()
-        segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
-      } else {
-        // Single rule: "I tried to render a table and nothing came out."
-        // The original block (header + separator + every body line we
-        // scanned) goes into Failed, the renderer turns that into a
-        // muted placeholder.
-        flushPlain()
-        appendFailed(headerLine)
-        appendFailed(separatorLine)
-        bodyLines.forEach { appendFailed(it) }
-      }
+      flushPlain()
+      segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
       lineIndex = bodyLineIndex
       continue
     }
     appendPlain(headerLine); lineIndex++
   }
-  flushPlain(); flushFailed()
+  flushPlain()
   return segments
 }
 
@@ -321,8 +243,6 @@ private fun parseTableRow(line: String): List<String> {
 /** A separator row is a pipe row whose every cell is `---` / `:---` / `---:` / `:---:`. */
 private fun isTableSeparator(line: String): Boolean {
   if (!line.contains('|')) return false
-  if (parseTableRow(line).isEmpty()) return false
-
   return parseTableRow(line).all { cell ->
     val trimmedCell: String = cell.trim()
     trimmedCell.isNotEmpty() &&
@@ -375,6 +295,14 @@ private val MinCellWidthDp: Dp = 120.dp
  * [MarkdownText] cells with a fixed per-column width. The whole
  * table is wrapped in a horizontally scrollable [Box] so a wide
  * table shows a horizontal scrollbar instead of being squeezed.
+ *
+ * **Caller contract**: the caller is expected to have already
+ * checked [MarkdownSegment.Table.isRenderable] and substituted a
+ * placeholder for any non-renderable `Table`. This function does not
+ * bail out for empty / degenerate input — if you give it a header
+ * with no body, you'll get a header row with nothing underneath it.
+ * That visible header-only state is exactly what [isRenderable] is
+ * designed to filter out before reaching here.
  *
  * Cell content is fed through [MarkdownText] so inline Markdown
  * (`**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[link](url)`,

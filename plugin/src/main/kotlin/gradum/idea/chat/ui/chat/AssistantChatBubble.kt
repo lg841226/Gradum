@@ -194,9 +194,18 @@ private fun ResponseBlock(
             blockRenderer = JewelTheme.markdownBlockRenderer,
           )
 
-          is MarkdownSegment.Table -> ScrollableTable(segment, onUrlClick = onUrlClick)
-
-          is MarkdownSegment.Failed -> TableParseFailurePlaceholder()
+          is MarkdownSegment.Table -> {
+            // Structural "did the table actually render?" gate: if the
+            // parser produced a Table with no renderable body content
+            // (header + separator but every body row mismatched, or all
+            // body rows are blank), we substitute the muted placeholder
+            // instead of letting ScrollableTable render an empty grid.
+            if (segment.isRenderable()) {
+              ScrollableTable(segment, onUrlClick = onUrlClick)
+            } else {
+              TableParseFailurePlaceholder()
+            }
+          }
         }
       }
     }
@@ -204,14 +213,12 @@ private fun ResponseBlock(
 }
 
 /**
- * Renders a [MarkdownSegment.Failed] — a block that *looked* like a GFM
- * table (header + separator row) but couldn't be parsed into a real
- * [MarkdownSegment.Table]. We don't dump the raw pipe syntax back to the
- * user: the model often emits a header / separator with column counts
- * that don't line up, and the resulting raw prose is confusing. Instead
- * we show a single muted line. The raw text is kept inside the
- * [MarkdownSegment.Failed] for future "click to expand" affordances,
- * but not surfaced here.
+ * Renders the parse-failure placeholder for a [MarkdownSegment.Table]
+ * that the caller has determined to be unrenderable
+ * ([MarkdownSegment.Table.isRenderable] is `false`). The chat bubble
+ * substitutes this for any `Table` whose body is empty / blank — the
+ * raw pipe syntax of the original Markdown block is not surfaced
+ * here, since it's visually noisy and uninformative.
  */
 @Composable
 private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {

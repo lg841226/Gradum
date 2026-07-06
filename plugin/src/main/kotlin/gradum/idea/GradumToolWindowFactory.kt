@@ -67,17 +67,12 @@ class GradumToolWindowFactory : ToolWindowFactory {
           CodeHighlighterFactory(project, scope).createHighlighter()
         }
         val markdownStyling = rememberGradumMarkdownStyling()
-        val tableStyling = rememberGradumTableStyling()
-        val blockRenderer = remember(markdownStyling, tableStyling) {
-          gradumMarkdownBlockRenderer(
-            rootStyling = markdownStyling,
-            baseRenderer = GradumCodeBlockRenderer(
-              styling = markdownStyling,
-              onInsertAsFile = { code, language ->
-                EditorUtils.openCodeAsNewFile(project, code, language)
-              },
-            ),
-            tableStyling = tableStyling,
+        val blockRenderer = remember(markdownStyling) {
+          GradumCodeBlockRenderer(
+            styling = markdownStyling,
+            onInsertAsFile = { code, language ->
+              EditorUtils.openCodeAsNewFile(project, code, language)
+            },
           )
         }
         ProvideMarkdownStyling(

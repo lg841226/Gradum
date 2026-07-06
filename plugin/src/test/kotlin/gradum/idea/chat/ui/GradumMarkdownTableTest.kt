@@ -151,28 +151,28 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table with zero body rows is reported as a Failed segment`() {
+  fun `a table with zero body rows becomes a Table segment with empty rows`() {
     // The header + separator look like a real table, but no body
-    // row follows. Previously we dumped the raw header / separator
-    // back as prose, which was visually noisy. Now the whole block
-    // becomes a single Failed segment that the renderer turns into
-    // a muted placeholder.
+    // row follows. The parser still emits a Table segment (with an
+    // empty rows list); the call site in AssistantChatBubble checks
+    // isRenderable() and substitutes the placeholder.
     val md = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
     val segments = splitMarkdownAtTables(md)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
     assertEquals("Prose.", (segments[0] as MarkdownSegment.Plain).text)
-    val failed = segments[1] as MarkdownSegment.Failed
-    assertTrue(failed.raw.contains("H1"))
-    assertTrue(failed.raw.contains("--"))
-    assertTrue(segments[2] is MarkdownSegment.Plain)
+    val table = segments[1] as MarkdownSegment.Table
+    assertEquals(listOf("H1", "H2"), table.header)
+    assertEquals(emptyList<List<String>>(), table.rows)
     assertEquals("More prose.", (segments[2] as MarkdownSegment.Plain).text)
   }
 
   @Test
-  fun `a table where every body row mismatches the header is reported as Failed`() {
-    // The header has 2 columns, every body row is 1 column. Real-world
-    // models often emit a separator that's wider than the data rows.
+  fun `a table where every body row mismatches the header becomes an empty-rows Table`() {
+    // The header has 2 columns, every body row is 1 column. The
+    // column-count filter drops all body rows, so the Table comes
+    // out with an empty rows list. The placeholder is the caller's
+    // problem, not the parser's.
     val md = """
       | H1 | H2 |
       | -- | -- |
@@ -181,41 +181,46 @@ class GradumMarkdownTableTest {
     """.trimIndent()
     val segments = splitMarkdownAtTables(md)
     assertEquals(1, segments.size)
-    val failed = segments[0] as MarkdownSegment.Failed
-    assertTrue(failed.raw.contains("H1"))
-    assertTrue(failed.raw.contains("only-one-cell"))
+    val table = segments[0] as MarkdownSegment.Table
+    assertEquals(listOf("H1", "H2"), table.header)
+    assertEquals(emptyList<List<String>>(), table.rows)
   }
 
   @Test
-  fun `a Failed segment keeps the surrounding prose on the right side`() {
-    // Prose before and after the malformed block must still be Plain —
-    // the raw pipe syntax of the failed block must not leak into them.
+  fun `an unrenderable Table keeps the surrounding prose on both sides`() {
+    // Prose before and after the malformed block must still be
+    // Plain — the raw pipe syntax of the malformed block must not
+    // leak into the surrounding prose. The malformed block itself
+    // is a Table (with empty rows) that the caller will replace
+    // with a placeholder.
     val md = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
     val segments = splitMarkdownAtTables(md)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
     assertEquals("Lead.", (segments[0] as MarkdownSegment.Plain).text)
-    assertTrue(segments[1] is MarkdownSegment.Failed)
+    assertTrue(segments[1] is MarkdownSegment.Table)
+    val table = segments[1] as MarkdownSegment.Table
+    assertEquals(emptyList<List<String>>(), table.rows)
     assertTrue(segments[2] is MarkdownSegment.Plain)
     assertEquals("Trailing.", (segments[2] as MarkdownSegment.Plain).text)
   }
 
   @Test
-  fun `every failure mode collapses to the same single rule - no Table means Failed`() {
-    // The whole point of the simpler rule: it doesn't matter *why* a
-    // table-shaped block failed to render. No body rows, every body
-    // row column-mismatched — any of these is just "no Table segment
-    // came out" → Failed. The only thing that decides Table vs Failed
-    // is whether at least one body row survived.
+  fun `every body-row failure mode becomes an empty-rows Table`() {
+    // It doesn't matter *why* a table-shaped block has no usable
+    // body rows. No body rows at all, every body row
+    // column-mismatched, body line was actually prose that
+    // happened to contain a `|` — any of these is "Table with
+    // empty rows" from the parser's perspective. The caller
+    // decides what to do with that.
     val noBody = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
     val allMismatched = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
     val separatorButTrailingProse = "| H1 | H2 |\n| -- | -- |\nstray line"
 
     listOf(noBody, allMismatched, separatorButTrailingProse).forEach { md ->
       val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
-      val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
-      assertEquals("expected no Table in: $md", 0, tables.size)
-      assertEquals("expected exactly one Failed in: $md", 1, failed.size)
+      assertEquals("expected exactly one Table in: $md", 1, tables.size)
+      assertEquals("expected empty rows in: $md", 0, tables[0].rows.size)
     }
   }
 
@@ -242,10 +247,60 @@ class GradumMarkdownTableTest {
 
     listOf(emptyHeaderCell, emptyBodyCell).forEach { md ->
       val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
-      val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
       assertEquals("expected exactly one Table in: $md", 1, tables.size)
-      assertEquals("expected no Failed in: $md", 0, failed.size)
+      assertEquals(1, tables[0].rows.size)
     }
+  }
+
+  // ── MarkdownSegment.Table.isRenderable ──────────────────────────
+  //
+  // The call-site gate that decides between ScrollableTable and
+  // TableParseFailurePlaceholder. The parser doesn't know about
+  // this — it always emits a Table. The chat bubble asks
+  // isRenderable() to know whether the Table will actually paint
+  // visible content.
+
+  @Test
+  fun `isRenderable is false for a Table with no body rows`() {
+    val table = MarkdownSegment.Table(
+      header = listOf("H1", "H2"),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
+      rows = emptyList(),
+    )
+    assertEquals(false, table.isRenderable())
+  }
+
+  @Test
+  fun `isRenderable is false when every body cell is blank`() {
+    val table = MarkdownSegment.Table(
+      header = listOf("H1", "H2"),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
+      rows = listOf(listOf("", ""), listOf("   ", "\t")),
+    )
+    assertEquals(false, table.isRenderable())
+  }
+
+  @Test
+  fun `isRenderable is true when at least one body cell is non-blank`() {
+    val table = MarkdownSegment.Table(
+      header = listOf("H1", "H2"),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
+      rows = listOf(listOf("", ""), listOf("", "actual data")),
+    )
+    assertEquals(true, table.isRenderable())
+  }
+
+  @Test
+  fun `isRenderable is true even if the header is entirely blank, as long as body has data`() {
+    // The header is a separate concern — isRenderable only checks
+    // the body, because the structural question is "is there
+    // something to draw underneath the column labels?"
+    val table = MarkdownSegment.Table(
+      header = listOf("", ""),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
+      rows = listOf(listOf("a", "b")),
+    )
+    assertEquals(true, table.isRenderable())
   }
 
   // ── distributeTableWidth ──────────────────────────────────────────
@@ -363,15 +418,13 @@ class GradumMarkdownTableTest {
     val segments = splitMarkdownAtTables(md)
     val tables: List<MarkdownSegment.Table> = segments.filterIsInstance<MarkdownSegment.Table>()
     val plains: List<MarkdownSegment.Plain> = segments.filterIsInstance<MarkdownSegment.Plain>()
-    // First 500 rows become a table; the trailing 100 rows are dumped as
-    // plain prose so the user still sees the data instead of a silent cutoff.
+    // All 600 rows survive — no row cap anymore. The chat panel
+    // doesn't need a defensive cap; AI models don't emit 600-row
+    // tables, and the cost of hitting a 600-row layout in Compose
+    // is acceptable.
     assertEquals(1, tables.size)
-    assertEquals(500, tables[0].rows.size)
-    assertEquals(1, plains.size)
-    val plainText: String = plains[0].text
-    assertTrue(plainText.contains("r501"))
-    assertTrue(plainText.contains("r600"))
-    assertTrue(!plainText.contains("r1 |"))
+    assertEquals(600, tables[0].rows.size)
+    assertEquals(0, plains.size)
   }
 
   @Test
