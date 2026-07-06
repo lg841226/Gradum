@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-06-30 23:35:47 Changed by gwy
+ * EditorContext.kt  2026-07-06 15:43:38 Changed by gwy
  */
 
 package gradum.idea.editor
 
-import com.intellij.openapi.application.runReadActionBlocking
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -51,7 +52,7 @@ fun getLanguageIconKey(extension: String?): IconKey? {
 object EditorUtils {
 
   fun getEditorContext(project: Project): EditorContext {
-    return runReadActionBlocking {
+    return ApplicationManager.getApplication().runReadAction<EditorContext> {
       val fileEditorManager = FileEditorManager.getInstance(project)
       val allFiles = fileEditorManager.openFiles.toList()
       val currentFile = fileEditorManager.selectedFiles.firstOrNull()
@@ -73,5 +74,76 @@ object EditorUtils {
         )
       }
     }
+  }
+
+  /**
+   * Opens a fenced code block as a brand-new untitled editor tab.
+   *
+   * Creates a `LightVirtualFile` backed by a PSI file (so syntax highlighting
+   * kicks in immediately for the chosen language), then asks the
+   * [FileEditorManager] to open it. The file lives in memory until the user
+   * chooses `Save As` from the editor — we never write into the project root
+   * unprompted, since that would be a destructive side effect of just
+   * clicking a code-block toolbar button.
+   *
+   * Threading: this is invoked from the Swing EDT (toolbar click), so the
+   * PSI factory call is wrapped in [ApplicationManager.runReadAction] per
+   * the platform's "read action on EDT" requirement. [FileEditorManager.openFile]
+   * runs back on the EDT once the read action releases.
+   *
+   * @param project  current IntelliJ project.
+   * @param code     raw code block text (no fence markers).
+   * @param language fenced language tag (e.g. `"kotlin"`); pass `""` for
+   *                 unknown / unlabelled blocks — falls back to plain text.
+   */
+  fun openCodeAsNewFile(project: Project, code: String, language: String) {
+    val normalizedLanguage = language.trim().lowercase()
+    val extension = extensionForLanguage(normalizedLanguage)
+    val stem = normalizedLanguage.ifBlank { "untitled" }
+    val fileName = "gradum_$stem.$extension"
+
+    val baseDir: VirtualFile = project.baseDir ?: return
+
+    val virtualFile = WriteCommandAction.writeCommandAction(project)
+      .compute<VirtualFile, Exception> {
+        val newFile = baseDir.createChildData(this, fileName)
+        newFile.setBinaryContent(code.toByteArray(Charsets.UTF_8))
+        newFile
+      }
+
+    ApplicationManager.getApplication().invokeLater {
+      FileEditorManager.getInstance(project).openFile(virtualFile, true)
+    }
+  }
+
+  /**
+   * Maps a GFM fenced-code language tag to a conventional file extension.
+   * Unknown / blank tags fall back to `.txt`.
+   */
+  private fun extensionForLanguage(language: String): String = when (language) {
+    "kotlin", "kt" -> "kt"
+    "java" -> "java"
+    "javascript", "js" -> "js"
+    "typescript", "ts" -> "ts"
+    "python", "py" -> "py"
+    "go", "golang" -> "go"
+    "rust", "rs" -> "rs"
+    "c" -> "c"
+    "cpp", "c++" -> "cpp"
+    "csharp", "cs", "c#" -> "cs"
+    "html" -> "html"
+    "css" -> "css"
+    "scss" -> "scss"
+    "json" -> "json"
+    "yaml", "yml" -> "yaml"
+    "xml" -> "xml"
+    "shell", "bash", "sh", "zsh" -> "sh"
+    "ruby", "rb" -> "rb"
+    "php" -> "php"
+    "sql" -> "sql"
+    "markdown", "md" -> "md"
+    "swift" -> "swift"
+    "kotlin-script", "kts" -> "kts"
+    else -> "txt"
   }
 }

@@ -71,7 +71,12 @@ class GradumToolWindowFactory : ToolWindowFactory {
         val blockRenderer = remember(markdownStyling, tableStyling) {
           gradumMarkdownBlockRenderer(
             rootStyling = markdownStyling,
-            baseRenderer = GradumCodeBlockRenderer(markdownStyling),
+            baseRenderer = GradumCodeBlockRenderer(
+              styling = markdownStyling,
+              onInsertAsFile = { code, language ->
+                EditorUtils.openCodeAsNewFile(project, code, language)
+              },
+            ),
             tableStyling = tableStyling,
           )
         }
