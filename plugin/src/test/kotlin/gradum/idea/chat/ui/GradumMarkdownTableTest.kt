@@ -220,6 +220,25 @@ class GradumMarkdownTableTest {
   }
 
   @Test
+  fun `empty cells parse into a Table segment instead of crashing the renderer`() {
+    // Regression test for a runtime NoSuchElementException: the renderer
+    // used to feed every cell — including the empty ones from
+    // `| | H2 |` style headers — into Jewel's MarkdownText, which calls
+    // parsedBlocks.first() internally and throws on an empty list.
+    // The fix routes empty cells to plain Text. This test just confirms
+    // the parser accepts the input and produces a Table segment the
+    // renderer can then route through CellText safely.
+    val md = """
+      |    | H2  |
+      | -- | --- |
+      | a  | b   |
+    """.trimIndent()
+    val table = splitMarkdownAtTables(md).single() as MarkdownSegment.Table
+    assertEquals(listOf("", "H2"), table.header)
+    assertEquals(listOf(listOf("a", "b")), table.rows)
+  }
+
+  @Test
   fun `a pathologically long line is dropped, not promoted to a single cell`() {
     val longLine = "x".repeat(10_000)
     val md = """

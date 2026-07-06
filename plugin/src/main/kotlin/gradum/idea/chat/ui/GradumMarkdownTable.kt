@@ -43,6 +43,7 @@ import org.jetbrains.jewel.markdown.extensions.github.tables.*
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
+import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
 /** GFM Tables styling for the chat panel. Kept for call-site compatibility. */
@@ -430,7 +431,7 @@ fun ScrollableTable(
     Column {
       Row(modifier = Modifier.background(panelBackground)) {
         table.header.forEachIndexed { columnIndex, cell ->
-          MarkdownText(
+          CellText(
             text = cell,
             modifier = Modifier
               .width(
@@ -443,12 +444,11 @@ fun ScrollableTable(
                 horizontal = CellHorizontalPadding,
                 vertical = CellVerticalPadding
               ),
+            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
             onUrlClick = onUrlClick,
-            blockRenderer = renderer,
-            styling = paragraphStyling,
             fontWeight = FontWeight.SemiBold,
-            processor = GradumMarkdownProcessor,
-            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
+            paragraphStyling = paragraphStyling,
+            renderer = renderer,
           )
         }
       }
@@ -457,7 +457,7 @@ fun ScrollableTable(
           if (rowIndex % 2 == 0) Color.Transparent else panelBackground
         Row(modifier = Modifier.background(rowBackground)) {
           row.forEachIndexed { columnIndex, cell ->
-            MarkdownText(
+            CellText(
               text = cell,
               modifier = Modifier
                 .width(
@@ -472,13 +472,56 @@ fun ScrollableTable(
                 ),
               textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
               onUrlClick = onUrlClick,
-              blockRenderer = renderer,
-              styling = paragraphStyling,
-              processor = GradumMarkdownProcessor
+              fontWeight = null,
+              paragraphStyling = paragraphStyling,
+              renderer = renderer,
             )
           }
         }
       }
     }
+  }
+}
+
+/**
+ * Renders one cell of a GFM table.
+ *
+ * We can't just hand every cell to Jewel's [MarkdownText] unconditionally:
+ * `MarkdownText` calls `parsedBlocks.first()` internally and blows up with
+ * `NoSuchElementException: List is empty` when the input is `""`. Empty
+ * cells are common enough (model output `| | | |` and friends) that this
+ * crash is easy to hit in the chat panel, so we fall through to a plain
+ * [Text] whenever the cell is empty. Non-empty cells still go through
+ * `MarkdownText` so we keep inline-format support (`**bold**`, `` `code` ``,
+ * links) inside cells.
+ */
+@Composable
+private fun CellText(
+  text: String,
+  modifier: Modifier,
+  textAlign: TextAlign,
+  onUrlClick: (String) -> Unit,
+  fontWeight: FontWeight?,
+  paragraphStyling: MarkdownStyling.Paragraph,
+  renderer: MarkdownBlockRenderer,
+) {
+  if (text.isEmpty()) {
+    Text(
+      text = "",
+      modifier = modifier,
+      textAlign = textAlign,
+      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
+    )
+  } else {
+    MarkdownText(
+      text = text,
+      modifier = modifier,
+      onUrlClick = onUrlClick,
+      blockRenderer = renderer,
+      styling = paragraphStyling,
+      processor = GradumMarkdownProcessor,
+      textAlign = textAlign,
+      fontWeight = fontWeight,
+    )
   }
 }
