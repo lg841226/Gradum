@@ -43,7 +43,6 @@ import org.jetbrains.jewel.markdown.extensions.github.tables.*
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
 /** GFM Tables styling for the chat panel. Kept for call-site compatibility. */
@@ -252,14 +251,28 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         // table data.
         .filter { it.size == headers.size }
 
-      if (bodyRows.isNotEmpty()) {
+      // Single rule: if anything in this table-shaped block can't be
+      // fed safely to the renderer, the whole thing is Failed. Two
+      // failure shapes:
+      // 1. No body rows survived the column-count check.
+      // 2. ANY cell — header or body — is empty after parsing.
+      //    Jewel's MarkdownText crashes on an empty input (it calls
+      //    parsedBlocks.first() internally and throws
+      //    NoSuchElementException), so empty cells used to take the
+      //    whole chat panel down. Rather than route empty cells
+      //    through a Text fallback in the renderer, we treat the
+      //    block as unrenderable here: the user gets a clean muted
+      //    placeholder instead of a crash.
+      //    Empty cells are *legal* GFM (models emit them to mark
+      //    "unknown" / "TBD"), so the failure is in the renderer,
+      //    not the data — but we still want a safe surface.
+      val hasEmptyCell: Boolean = headers.any { it.isEmpty() }
+        || bodyRows.any { row -> row.any { it.isEmpty() } }
+
+      if (bodyRows.isNotEmpty() && !hasEmptyCell) {
         flushPlain(); flushFailed()
         segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
       } else {
-        // Single rule: "I tried to render a table and nothing came out."
-        // The original block (header + separator + every body line we
-        // scanned) goes into Failed, the renderer turns that into a
-        // muted placeholder.
         flushPlain()
         appendFailed(headerLine)
         appendFailed(separatorLine ?: "")
@@ -431,7 +444,7 @@ fun ScrollableTable(
     Column {
       Row(modifier = Modifier.background(panelBackground)) {
         table.header.forEachIndexed { columnIndex, cell ->
-          CellText(
+          MarkdownText(
             text = cell,
             modifier = Modifier
               .width(
@@ -444,11 +457,12 @@ fun ScrollableTable(
                 horizontal = CellHorizontalPadding,
                 vertical = CellVerticalPadding
               ),
-            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
             onUrlClick = onUrlClick,
+            blockRenderer = renderer,
+            styling = paragraphStyling,
             fontWeight = FontWeight.SemiBold,
-            paragraphStyling = paragraphStyling,
-            renderer = renderer,
+            processor = GradumMarkdownProcessor,
+            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
           )
         }
       }
@@ -457,7 +471,7 @@ fun ScrollableTable(
           if (rowIndex % 2 == 0) Color.Transparent else panelBackground
         Row(modifier = Modifier.background(rowBackground)) {
           row.forEachIndexed { columnIndex, cell ->
-            CellText(
+            MarkdownText(
               text = cell,
               modifier = Modifier
                 .width(
@@ -472,56 +486,13 @@ fun ScrollableTable(
                 ),
               textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
               onUrlClick = onUrlClick,
-              fontWeight = null,
-              paragraphStyling = paragraphStyling,
-              renderer = renderer,
+              blockRenderer = renderer,
+              styling = paragraphStyling,
+              processor = GradumMarkdownProcessor
             )
           }
         }
       }
     }
-  }
-}
-
-/**
- * Renders one cell of a GFM table.
- *
- * We can't just hand every cell to Jewel's [MarkdownText] unconditionally:
- * `MarkdownText` calls `parsedBlocks.first()` internally and blows up with
- * `NoSuchElementException: List is empty` when the input is `""`. Empty
- * cells are common enough (model output `| | | |` and friends) that this
- * crash is easy to hit in the chat panel, so we fall through to a plain
- * [Text] whenever the cell is empty. Non-empty cells still go through
- * `MarkdownText` so we keep inline-format support (`**bold**`, `` `code` ``,
- * links) inside cells.
- */
-@Composable
-private fun CellText(
-  text: String,
-  modifier: Modifier,
-  textAlign: TextAlign,
-  onUrlClick: (String) -> Unit,
-  fontWeight: FontWeight?,
-  paragraphStyling: MarkdownStyling.Paragraph,
-  renderer: MarkdownBlockRenderer,
-) {
-  if (text.isEmpty()) {
-    Text(
-      text = "",
-      modifier = modifier,
-      textAlign = textAlign,
-      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
-    )
-  } else {
-    MarkdownText(
-      text = text,
-      modifier = modifier,
-      onUrlClick = onUrlClick,
-      blockRenderer = renderer,
-      styling = paragraphStyling,
-      processor = GradumMarkdownProcessor,
-      textAlign = textAlign,
-      fontWeight = fontWeight,
-    )
   }
 }

@@ -220,22 +220,37 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `empty cells parse into a Table segment instead of crashing the renderer`() {
-    // Regression test for a runtime NoSuchElementException: the renderer
-    // used to feed every cell — including the empty ones from
-    // `| | H2 |` style headers — into Jewel's MarkdownText, which calls
-    // parsedBlocks.first() internally and throws on an empty list.
-    // The fix routes empty cells to plain Text. This test just confirms
-    // the parser accepts the input and produces a Table segment the
-    // renderer can then route through CellText safely.
-    val md = """
+  fun `a table with any empty cell is reported as Failed to keep the renderer safe`() {
+    // Empty cells are *legal* GFM (models emit them to mark "unknown"
+    // or "TBD"), but Jewel's MarkdownText calls parsedBlocks.first()
+    // internally and throws NoSuchElementException on an empty input —
+    // that crashed the whole chat panel. Rather than route empty
+    // cells through a Text fallback in the renderer, we treat the
+    // whole block as unrenderable here. The user sees a clean muted
+    // placeholder, and the renderer never has to think about empty
+    // cells at all.
+    val emptyHeader = """
       |    | H2  |
       | -- | --- |
       | a  | b   |
     """.trimIndent()
-    val table = splitMarkdownAtTables(md).single() as MarkdownSegment.Table
-    assertEquals(listOf("", "H2"), table.header)
-    assertEquals(listOf(listOf("a", "b")), table.rows)
+    val emptyBody = """
+      | H1  | H2  |
+      | --- | --- |
+      | a   |     |
+    """.trimIndent()
+    val emptyHeaderAndBody = """
+      |     | H2 |
+      | --- | -- |
+      |     | b  |
+    """.trimIndent()
+
+    listOf(emptyHeader, emptyBody, emptyHeaderAndBody).forEach { md ->
+      val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
+      val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
+      assertEquals("expected no Table in: $md", 0, tables.size)
+      assertEquals("expected exactly one Failed in: $md", 1, failed.size)
+    }
   }
 
   @Test
