@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 20:48:51 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 21:32:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -158,8 +158,9 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 
     if (headerIsLikely) {
       val headers: List<String> = parseTableRow(headerLine)
-      val alignments: List<TextAlign> = parseAlignments(separatorLine, headers.size)
-        ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
+      val alignments: List<TextAlign> =
+        parseAlignments(separatorLine, headers.size)
+          ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
 
       // Collect body lines greedily until the first blank or `|`-free
       // line. Whatever the column-count outcome below, the whole block
@@ -273,12 +274,12 @@ private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>?
 /**
  * Total horizontal cell padding (8.dp on each side).
  */
-private val CellHorizontalPadding: Dp = 8.dp
+private val CellHorizontalPadding: Dp = 10.dp
 
 /**
  * Total vertical cell padding (4.dp on each side).
  */
-private val CellVerticalPadding: Dp = 4.dp
+private val CellVerticalPadding: Dp = 8.dp
 
 /**
  * Floor on a column's content width. A column whose widest cell
@@ -287,7 +288,7 @@ private val CellVerticalPadding: Dp = 4.dp
  * column would stay pathologically narrow and look like a vertical
  * slice in the table.
  */
-private val MinCellWidthDp: Dp = 120.dp
+private val MinCellWidthDp: Dp = 60.dp
 
 /**
  * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
@@ -300,7 +301,7 @@ private val MinCellWidthDp: Dp = 120.dp
  * checked [MarkdownSegment.Table.isRenderable] and substituted a
  * placeholder for any non-renderable `Table`. This function does not
  * bail out for empty / degenerate input — if you give it a header
- * with no body, you'll get a header row with nothing underneath it.
+ * with nobody, you'll get a header row with nothing underneath it.
  * That visible header-only state is exactly what [isRenderable] is
  * designed to filter out before reaching here.
  *
@@ -318,7 +319,10 @@ private val MinCellWidthDp: Dp = 120.dp
  * - Outer `Box` → `panelBackground` (so the table is a visible panel)
  * - Header row → `panelBackground` (same as outer, so it blends)
  * - Even body rows → `Color.Transparent` (shows the outer panel)
- * - Odd body rows → `panelBackground` (re-painted on the cell)
+ * - Odd body rows → `borders.normal @ 8% alpha` (subtle stripe that
+ *   shows up in both light and dark mode; just repainting
+ *   `panelBackground` on the cell would make odd rows visually
+ *   identical to even rows since the outer Box is also panel)
  *
  * Padding: 8.dp horizontal × 4.dp vertical, on every cell.
  */
@@ -330,6 +334,7 @@ fun ScrollableTable(
 ) {
   val globalColors: GlobalColors = LocalGlobalColors.current
   val panelBackground: Color = globalColors.panelBackground
+  val stripeColor: Color = globalColors.borders.normal.copy(alpha = 0.08f)
   val density: Density = LocalDensity.current
   val horizontalPaddingPx: Int = with(density) { CellHorizontalPadding.roundToPx() }
   val textMeasurer: TextMeasurer = rememberTextMeasurer()
@@ -417,7 +422,7 @@ fun ScrollableTable(
         }
         table.rows.forEachIndexed { rowIndex, row ->
           val rowBackground: Color =
-            if (rowIndex % 2 == 0) Color.Transparent else panelBackground
+            if (rowIndex % 2 == 0) Color.Transparent else stripeColor
           Row(modifier = Modifier.background(rowBackground)) {
             row.forEachIndexed { columnIndex, cell ->
               SafeMarkdownText(
@@ -464,26 +469,28 @@ fun ScrollableTable(
  * Pure arithmetic, no Compose / no density — easy to unit-test.
  */
 internal fun distributeTableWidth(
-  naturalColumnWidthsPx: IntArray,
-  containerWidthPx: Int,
-  minCellWidthPx: Int,
-  horizontalPaddingPx: Int,
+  naturalColumnWidthsPx: IntArray, containerWidthPx: Int,
+  minCellWidthPx: Int, horizontalPaddingPx: Int
 ): IntArray {
   if (naturalColumnWidthsPx.isEmpty()) return naturalColumnWidthsPx
-  val paddingPerColumn: Int = horizontalPaddingPx * 2
-  val clamped = IntArray(naturalColumnWidthsPx.size) { i ->
+
+  val paddingPerColumn = horizontalPaddingPx * 2
+  val columnCount = naturalColumnWidthsPx.size
+
+  val clamped = IntArray(columnCount) { i ->
     maxOf(naturalColumnWidthsPx[i], minCellWidthPx)
   }
-  val naturalTotalPx: Int = clamped.sum() + paddingPerColumn * clamped.size
-  if (naturalTotalPx >= containerWidthPx) return clamped
 
-  val scale: Float = containerWidthPx.toFloat() / naturalTotalPx.toFloat()
-  val scaled = IntArray(clamped.size) { i -> (clamped[i] * scale).toInt() }
-  val scaledTotalPx: Int = scaled.sum() + paddingPerColumn * scaled.size
-  val residue: Int = containerWidthPx - scaledTotalPx
-  if (residue != 0 && scaled.isNotEmpty()) {
-    scaled[scaled.size - 1] = scaled.last() + residue
-  }
+  val naturalTotal = clamped.sum() + paddingPerColumn * columnCount
+  if (naturalTotal >= containerWidthPx) return clamped
+
+  val scale = containerWidthPx.toFloat() / naturalTotal.toFloat()
+  val scaled = IntArray(columnCount) { i -> (clamped[i] * scale).toInt() }
+
+  val scaledTotal = scaled.sum() + paddingPerColumn * columnCount
+  val leftover = containerWidthPx - scaledTotal
+  if (leftover != 0) scaled[columnCount - 1] += leftover
+
   return scaled
 }
 
@@ -535,7 +542,7 @@ fun SafeMarkdownText(
       text = "",
       modifier = modifier,
       textAlign = textAlign,
-      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
+      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight)
     )
     return
   }
