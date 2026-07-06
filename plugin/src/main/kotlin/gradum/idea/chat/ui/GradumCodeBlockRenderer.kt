@@ -37,54 +37,54 @@ import org.jetbrains.jewel.ui.component.Text
  */
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
-    styling: MarkdownStyling,
+  styling: MarkdownStyling,
 ) : DefaultMarkdownBlockRenderer(styling) {
 
-    private val codeBlockShape = RoundedCornerShape(8.dp)
+  private val codeBlockShape = RoundedCornerShape(8.dp)
 
-    @OptIn(ExperimentalJewelApi::class)
-    @Composable
-    override fun RenderFencedCodeBlock(
-        block: FencedCodeBlock,
-        styling: MarkdownStyling.Code.Fenced,
-        enabled: Boolean,
-        modifier: Modifier,
-    ) {
-        val language: String = block.language ?: "text"
+  @OptIn(ExperimentalJewelApi::class)
+  @Composable
+  override fun RenderFencedCodeBlock(
+    block: FencedCodeBlock,
+    styling: MarkdownStyling.Code.Fenced,
+    enabled: Boolean,
+    modifier: Modifier,
+  ) {
+    val language: String = block.language ?: "text"
 
-        val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
-            .highlight(block.content, language)
-            .collectAsState(AnnotatedString(block.content))
+    val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
+      .highlight(block.content, language)
+      .collectAsState(AnnotatedString(block.content))
 
-        val containerModifier = modifier
-            .clip(codeBlockShape)
-            .background(styling.background)
-            .border(styling.borderWidth, styling.borderColor, codeBlockShape)
-            .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
+    val containerModifier = modifier
+      .clip(codeBlockShape)
+      .background(styling.background)
+      .border(styling.borderWidth, styling.borderColor, codeBlockShape)
+      .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
-        if (styling.scrollsHorizontally) {
-            HorizontallyScrollableContainer(containerModifier) {
-                CodeBlockContent(annotatedCode, styling)
-            }
-        } else {
-            Box(containerModifier) {
-                CodeBlockContent(annotatedCode, styling)
-            }
-        }
+    if (styling.scrollsHorizontally) {
+      HorizontallyScrollableContainer(containerModifier) {
+        CodeBlockContent(annotatedCode, styling)
+      }
+    } else {
+      Box(containerModifier) {
+        CodeBlockContent(annotatedCode, styling)
+      }
     }
+  }
 
-    @Composable
-    private fun CodeBlockContent(
-        annotatedCode: AnnotatedString,
-        styling: MarkdownStyling.Code.Fenced,
-    ) {
-        Text(
-            text = annotatedCode,
-            style = styling.editorTextStyle,
-            modifier = Modifier
-                .padding(styling.padding)
-                .fillMaxWidth()
-                .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true),
-        )
-    }
+  @Composable
+  private fun CodeBlockContent(
+    annotatedCode: AnnotatedString,
+    styling: MarkdownStyling.Code.Fenced,
+  ) {
+    Text(
+      text = annotatedCode,
+      style = styling.editorTextStyle,
+      modifier = Modifier
+        .padding(styling.padding)
+        .fillMaxWidth()
+        .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true),
+    )
+  }
 }

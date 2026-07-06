@@ -9,8 +9,9 @@ package gradum.idea.bundle
 
 import com.intellij.DynamicBundle
 import com.intellij.openapi.diagnostic.Logger
+import gradum.idea.bundle.GradumBundle.message
 import org.jetbrains.annotations.PropertyKey
-import java.util.MissingResourceException
+import java.util.*
 
 /**
  * Resource-bundle accessor for all user-visible Gradum strings.
@@ -39,45 +40,45 @@ import java.util.MissingResourceException
  */
 object GradumBundle : DynamicBundle(BUNDLE_NAME) {
 
-    private val log: Logger = Logger.getInstance(GradumBundle::class.java)
+  private val log: Logger = Logger.getInstance(GradumBundle::class.java)
 
-    /**
-     * Returns the localized message for the given key, or a visible fallback
-     * marker if the key is not present in the active locale's bundle.
-     *
-     * Substituted parameters use the standard Java `MessageFormat` syntax
-     * (`{0}`, `{1}`, …). The fallback marker is `???<key>???` so a missing
-     * key is obvious in the UI without breaking layout.
-     *
-     * @param key the resource key (IntelliJ's @PropertyKey checks the key
-     *   against [BUNDLE_NAME] at compile time).
-     * @param params format arguments to substitute into the localized
-     *   message template, if any.
-     */
-    @JvmStatic
-    fun message(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any): String {
-        return try {
-            getMessage(key, *params)
-        } catch (exception: MissingResourceException) {
-            log.warn("Missing i18n key '$key' in bundle '$BUNDLE_NAME'", exception)
-            "???$key???"
-        }
+  /**
+   * Returns the localized message for the given key, or a visible fallback
+   * marker if the key is not present in the active locale's bundle.
+   *
+   * Substituted parameters use the standard Java `MessageFormat` syntax
+   * (`{0}`, `{1}`, …). The fallback marker is `???<key>???` so a missing
+   * key is obvious in the UI without breaking layout.
+   *
+   * @param key the resource key (IntelliJ's @PropertyKey checks the key
+   *   against [BUNDLE_NAME] at compile time).
+   * @param params format arguments to substitute into the localized
+   *   message template, if any.
+   */
+  @JvmStatic
+  fun message(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any): String {
+    return try {
+      getMessage(key, *params)
+    } catch (exception: MissingResourceException) {
+      log.warn("Missing i18n key '$key' in bundle '$BUNDLE_NAME'", exception)
+      "???$key???"
     }
+  }
 
-    init {
-        // Probe one well-known key at object-init so a renamed/missing
-        // resource surfaces as a single clear log line at plugin startup
-        // instead of dozens of warnings later from the UI tree.
-        try {
-            getMessage(PROBE_KEY)
-        } catch (exception: MissingResourceException) {
-            log.warn(
-                "Gradum resource bundle '$BUNDLE_NAME' is unreachable. " +
-                    "Check that src/main/resources/messages/GradumBundle*.properties is packaged.",
-                exception,
-            )
-        }
+  init {
+    // Probe one well-known key at object-init so a renamed/missing
+    // resource surfaces as a single clear log line at plugin startup
+    // instead of dozens of warnings later from the UI tree.
+    try {
+      getMessage(PROBE_KEY)
+    } catch (exception: MissingResourceException) {
+      log.warn(
+        "Gradum resource bundle '$BUNDLE_NAME' is unreachable. " +
+          "Check that src/main/resources/messages/GradumBundle*.properties is packaged.",
+        exception,
+      )
     }
+  }
 }
 
 private const val BUNDLE_NAME: String = "messages.GradumBundle"

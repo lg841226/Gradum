@@ -21,9 +21,9 @@ import java.util.concurrent.TimeUnit
  * @property totalTokens Total tokens consumed (prompt + completion).
  */
 data class TokenUsage(
-    val promptTokens: Int = 0,
-    val completionTokens: Int = 0,
-    val totalTokens: Int = 0,
+  val promptTokens: Int = 0,
+  val completionTokens: Int = 0,
+  val totalTokens: Int = 0,
 )
 
 /**
@@ -36,14 +36,14 @@ data class TokenUsage(
  * @property result The result returned by the tool, if any.
  */
 data class ToolCallInfo(
-    val toolName: String,
-    val alias: String = toolName,
-    val toolCallId: String = "",
-    val success: Boolean = true,
-    val result: String = "",
-    val arguments: Map<String, Any> = emptyMap(),
-    val errorMessage: String = "",
-    val errorDetail: String = ""
+  val toolName: String,
+  val alias: String = toolName,
+  val toolCallId: String = "",
+  val success: Boolean = true,
+  val result: String = "",
+  val arguments: Map<String, Any> = emptyMap(),
+  val errorMessage: String = "",
+  val errorDetail: String = ""
 )
 
 /**
@@ -51,14 +51,14 @@ data class ToolCallInfo(
  * Events are rendered in order to preserve the conversation flow.
  */
 sealed class ChatEvent {
-    data class Thinking(val content: String) : ChatEvent()
-    data class ToolCall(val info: ToolCallInfo) : ChatEvent()
-    data class Response(val content: String) : ChatEvent()
-    data class Error(
-        val message: String,
-        val code: String = "",
-        val tool: String = ""
-    ) : ChatEvent()
+  data class Thinking(val content: String) : ChatEvent()
+  data class ToolCall(val info: ToolCallInfo) : ChatEvent()
+  data class Response(val content: String) : ChatEvent()
+  data class Error(
+    val message: String,
+    val code: String = "",
+    val tool: String = ""
+  ) : ChatEvent()
 }
 
 /**
@@ -68,18 +68,18 @@ sealed class ChatEvent {
  * so that Compose can reuse composables without rebuilding the entire list.
  */
 sealed class RenderBlock {
-    data class Thinking(val content: String) : RenderBlock()
-    data class ToolCall(
-        val alias: String,
-        val success: Boolean,
-        val arguments: Map<String, Any> = emptyMap(),
-        val result: String = "",
-        val errorMessage: String = "",
-        val errorDetail: String = ""
-    ) : RenderBlock()
+  data class Thinking(val content: String) : RenderBlock()
+  data class ToolCall(
+    val alias: String,
+    val success: Boolean,
+    val arguments: Map<String, Any> = emptyMap(),
+    val result: String = "",
+    val errorMessage: String = "",
+    val errorDetail: String = ""
+  ) : RenderBlock()
 
-    data class Response(val content: String) : RenderBlock()
-    data class Error(val message: String, val code: String = "") : RenderBlock()
+  data class Response(val content: String) : RenderBlock()
+  data class Error(val message: String, val code: String = "") : RenderBlock()
 }
 
 /**
@@ -93,142 +93,142 @@ sealed class RenderBlock {
  * @property renderBlocks  Pre-aggregated render blocks, maintained incrementally.
  */
 data class ChatMessage(
-    val role: String,
-    val content: String = "",
-    val attachments: List<AttachedContext> = emptyList(),
-    val timestamp: Long = System.currentTimeMillis(),
-    val events: List<ChatEvent> = emptyList(),
-    val renderBlocks: List<RenderBlock> = emptyList(),
-    val modelName: String = "",
-    val provider: String = "",
-    val serverName: String = "",
-    val tokenUsage: TokenUsage? = null
+  val role: String,
+  val content: String = "",
+  val attachments: List<AttachedContext> = emptyList(),
+  val timestamp: Long = System.currentTimeMillis(),
+  val events: List<ChatEvent> = emptyList(),
+  val renderBlocks: List<RenderBlock> = emptyList(),
+  val modelName: String = "",
+  val provider: String = "",
+  val serverName: String = "",
+  val tokenUsage: TokenUsage? = null
 ) {
-    val isUserMessage: Boolean get() = role == "user"
+  val isUserMessage: Boolean get() = role == "user"
 
-    /** Aggregated response content from all Response events. */
-    val responseContent: String
-        get() = events.filterIsInstance<ChatEvent.Response>().joinToString("") { it.content }
+  /** Aggregated response content from all Response events. */
+  val responseContent: String
+    get() = events.filterIsInstance<ChatEvent.Response>().joinToString("") { it.content }
 
-    /** Full content for clipboard: includes thinking, tool calls, and response text. */
-    val fullContent: String
-        get() {
-            if (events.isEmpty()) return responseContent
+  /** Full content for clipboard: includes thinking, tool calls, and response text. */
+  val fullContent: String
+    get() {
+      if (events.isEmpty()) return responseContent
 
-            val contentBuilder = StringBuilder()
-            for (event in events) {
-                when (event) {
-                    is ChatEvent.Thinking -> {
-                        if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                        contentBuilder.append("<thinking>")
-                        contentBuilder.append(event.content)
-                        contentBuilder.append("</thinking>")
-                    }
+      val contentBuilder = StringBuilder()
+      for (event in events) {
+        when (event) {
+          is ChatEvent.Thinking -> {
+            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            contentBuilder.append("<thinking>")
+            contentBuilder.append(event.content)
+            contentBuilder.append("</thinking>")
+          }
 
-                    is ChatEvent.ToolCall -> {
-                        if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                        val argumentString = if (event.info.arguments.isNotEmpty()) {
-                            event.info.arguments.entries.joinToString(", ") {
-                                "${it.key}=${it.value}"
-                            }
-                        } else ""
-                        contentBuilder.append(
-                            "<tool_call>${event.info.alias}${
-                                if (argumentString.isNotBlank()) "($argumentString)" else ""
-                            }</tool_call>"
-                        )
-                    }
+          is ChatEvent.ToolCall -> {
+            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            val argumentString = if (event.info.arguments.isNotEmpty()) {
+              event.info.arguments.entries.joinToString(", ") {
+                "${it.key}=${it.value}"
+              }
+            } else ""
+            contentBuilder.append(
+              "<tool_call>${event.info.alias}${
+                if (argumentString.isNotBlank()) "($argumentString)" else ""
+              }</tool_call>"
+            )
+          }
 
-                    is ChatEvent.Response -> {
-                        if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                        contentBuilder.append(event.content)
-                    }
+          is ChatEvent.Response -> {
+            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            contentBuilder.append(event.content)
+          }
 
-                    is ChatEvent.Error -> {
-                        if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-                        contentBuilder.append("Error: ${event.message}")
-                    }
-                }
-            }
-            return contentBuilder.toString()
+          is ChatEvent.Error -> {
+            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            contentBuilder.append("Error: ${event.message}")
+          }
         }
-
-    /**
-     * Appends a [ChatEvent] and incrementally updates [renderBlocks] in O(1).
-     *
-     * Consecutive events of the same type are merged into the last block
-     * (string concatenation only), avoiding full-list re-iteration on every token.
-     */
-    fun appendEvent(event: ChatEvent): ChatMessage {
-        val newEvents = events + event
-        val newRenderBlocks = when (event) {
-            is ChatEvent.Response -> {
-                val last = renderBlocks.lastOrNull()
-                if (last is RenderBlock.Response) {
-                    renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)
-                } else {
-                    renderBlocks + RenderBlock.Response(event.content)
-                }
-            }
-
-            is ChatEvent.Thinking -> {
-                val last = renderBlocks.lastOrNull()
-                if (last is RenderBlock.Thinking) {
-                    renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)
-                } else {
-                    renderBlocks + RenderBlock.Thinking(event.content)
-                }
-            }
-
-            is ChatEvent.ToolCall -> {
-                renderBlocks + RenderBlock.ToolCall(
-                    alias = event.info.alias,
-                    success = event.info.success,
-                    arguments = event.info.arguments,
-                    result = event.info.result,
-                    errorMessage = event.info.errorMessage,
-                    errorDetail = event.info.errorDetail
-                )
-            }
-
-            is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
-        }
-        return copy(
-            events = newEvents,
-            renderBlocks = newRenderBlocks,
-        )
+      }
+      return contentBuilder.toString()
     }
 
-    /**
-     * Finds the last failed ToolCall and updates its error info in both
-     * [events] and [renderBlocks] in O(1) (no full list re-iteration).
-     *
-     * @return The updated message, or `this` if no failed ToolCall was found.
-     */
-    fun updateLastError(friendlyMessage: String, errorDetail: String): ChatMessage {
-        val lastFailedIdx = events.indexOfLast {
-            it is ChatEvent.ToolCall && !it.info.success
-        }
-        if (lastFailedIdx < 0) return this
-
-        val oldInfo = (events[lastFailedIdx] as ChatEvent.ToolCall).info
-        val updatedEvent = ChatEvent.ToolCall(
-            oldInfo.copy(errorMessage = friendlyMessage, errorDetail = errorDetail)
-        )
-        val newEvents = events.toMutableList().apply { set(lastFailedIdx, updatedEvent) }
-
-        val lastFailedBlockIdx = renderBlocks.indexOfLast { it is RenderBlock.ToolCall && !it.success }
-        val newRenderBlocks = if (lastFailedBlockIdx >= 0) {
-            val existingBlock = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
-            renderBlocks.toMutableList().apply {
-                set(lastFailedBlockIdx, existingBlock.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
-            }
+  /**
+   * Appends a [ChatEvent] and incrementally updates [renderBlocks] in O(1).
+   *
+   * Consecutive events of the same type are merged into the last block
+   * (string concatenation only), avoiding full-list re-iteration on every token.
+   */
+  fun appendEvent(event: ChatEvent): ChatMessage {
+    val newEvents = events + event
+    val newRenderBlocks = when (event) {
+      is ChatEvent.Response -> {
+        val last = renderBlocks.lastOrNull()
+        if (last is RenderBlock.Response) {
+          renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)
         } else {
-            renderBlocks
+          renderBlocks + RenderBlock.Response(event.content)
         }
+      }
 
-        return copy(events = newEvents, renderBlocks = newRenderBlocks)
+      is ChatEvent.Thinking -> {
+        val last = renderBlocks.lastOrNull()
+        if (last is RenderBlock.Thinking) {
+          renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)
+        } else {
+          renderBlocks + RenderBlock.Thinking(event.content)
+        }
+      }
+
+      is ChatEvent.ToolCall -> {
+        renderBlocks + RenderBlock.ToolCall(
+          alias = event.info.alias,
+          success = event.info.success,
+          arguments = event.info.arguments,
+          result = event.info.result,
+          errorMessage = event.info.errorMessage,
+          errorDetail = event.info.errorDetail
+        )
+      }
+
+      is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
     }
+    return copy(
+      events = newEvents,
+      renderBlocks = newRenderBlocks,
+    )
+  }
+
+  /**
+   * Finds the last failed ToolCall and updates its error info in both
+   * [events] and [renderBlocks] in O(1) (no full list re-iteration).
+   *
+   * @return The updated message, or `this` if no failed ToolCall was found.
+   */
+  fun updateLastError(friendlyMessage: String, errorDetail: String): ChatMessage {
+    val lastFailedIdx = events.indexOfLast {
+      it is ChatEvent.ToolCall && !it.info.success
+    }
+    if (lastFailedIdx < 0) return this
+
+    val oldInfo = (events[lastFailedIdx] as ChatEvent.ToolCall).info
+    val updatedEvent = ChatEvent.ToolCall(
+      oldInfo.copy(errorMessage = friendlyMessage, errorDetail = errorDetail)
+    )
+    val newEvents = events.toMutableList().apply { set(lastFailedIdx, updatedEvent) }
+
+    val lastFailedBlockIdx = renderBlocks.indexOfLast { it is RenderBlock.ToolCall && !it.success }
+    val newRenderBlocks = if (lastFailedBlockIdx >= 0) {
+      val existingBlock = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
+      renderBlocks.toMutableList().apply {
+        set(lastFailedBlockIdx, existingBlock.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
+      }
+    } else {
+      renderBlocks
+    }
+
+    return copy(events = newEvents, renderBlocks = newRenderBlocks)
+  }
 }
 
 /**
@@ -240,34 +240,34 @@ data class ChatMessage(
  * - Older: "15 days ago"
  */
 fun formatTimestamp(timestamp: Long): String {
-    val now: Calendar = Calendar.getInstance()
-    val messageTime: Calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+  val now: Calendar = Calendar.getInstance()
+  val messageTime: Calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
 
-    val diffMillis: Long = now.timeInMillis - timestamp
-    val diffDays: Long = TimeUnit.MILLISECONDS.toDays(diffMillis)
+  val diffMillis: Long = now.timeInMillis - timestamp
+  val diffDays: Long = TimeUnit.MILLISECONDS.toDays(diffMillis)
 
-    return when {
-        isSameDay(now, messageTime) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
-        isYesterday(now, messageTime) -> {
-            val time: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
-            "${message("gradum.timestamp.yesterday")} $time"
-        }
-
-        now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat(
-            "MMM d",
-            Locale.getDefault()
-        ).format(Date(timestamp))
-
-        else -> "$diffDays ${message("gradum.timestamp.days.ago")}"
+  return when {
+    isSameDay(now, messageTime) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+    isYesterday(now, messageTime) -> {
+      val time: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+      "${message("gradum.timestamp.yesterday")} $time"
     }
+
+    now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat(
+      "MMM d",
+      Locale.getDefault()
+    ).format(Date(timestamp))
+
+    else -> "$diffDays ${message("gradum.timestamp.days.ago")}"
+  }
 }
 
 private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
-    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-        cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+  return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+    cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
 }
 
 private fun isYesterday(now: Calendar, target: Calendar): Boolean {
-    val yesterday: Calendar = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
-    return isSameDay(yesterday, target)
+  val yesterday: Calendar = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+  return isSameDay(yesterday, target)
 }

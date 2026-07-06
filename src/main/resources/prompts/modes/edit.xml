@@ -1,6 +1,5 @@
 <System>
     <Constraints>
-        - Do not use Markdown tables in your responses.
         - Ask for clarification if the request is unclear.
         - Follow the user's instructions exactly. Do nothing extra.
     </Constraints>

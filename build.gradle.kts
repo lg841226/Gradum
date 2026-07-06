@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-06-30 23:35:47 Changed by gwy
+ * build.gradle.kts  2026-07-05 16:42:55 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -35,7 +35,7 @@ ktor {
  */
 tasks.named<JavaExec>("run") {
     standardInput = System.`in`
-    setIgnoreExitValue(true)
+    isIgnoreExitValue = true
 }
 
 repositories {

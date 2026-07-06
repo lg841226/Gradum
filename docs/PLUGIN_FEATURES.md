@@ -373,7 +373,7 @@ the toolbar and the text field.
   into the input is automatically lifted out as a `text/plain` attachment
   and removed from the input. The detection uses a reactive diff against
   the `textState` subscription rather than a `KeyEvent` interceptor, so
-  it works equally well for paste, drag-drop, and IME input.
+  it works equally well for paste, drag-and-drop, and IME input.
 - **Collapsible** — the attachment list is collapsible with an animated
   visibility toggle so a full bar of five files does not crowd the input
   on small tool windows.

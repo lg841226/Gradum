@@ -39,85 +39,84 @@ private val logger = Logger.getInstance("ChatScreen"::class.java)
  */
 @Composable
 fun ChatScreen(
-    messages: List<ChatMessage>,
-    isLoading: Boolean,
-    isWaitingForResponse: Boolean,
-    sendingPhase: String,
-    textState: TextFieldState,
-    inputState: ChatInputState,
-    inputActions: ChatInputActions,
-    onDeleteMessage: (Int) -> Unit,
-    onRetryMessage: (Int) -> Unit,
-    onCopyAsContext: (String) -> Unit,
-    onRefreshModels: () -> Unit,
-    onOpenInEditor: (String) -> Unit = {},
-    onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
-    onAttachmentClick: (VirtualFile) -> Unit = {},
-    modifier: Modifier = Modifier
+  messages: List<ChatMessage>,
+  isLoading: Boolean,
+  isWaitingForResponse: Boolean,
+  sendingPhase: String,
+  textState: TextFieldState,
+  inputState: ChatInputState,
+  inputActions: ChatInputActions,
+  onDeleteMessage: (Int) -> Unit,
+  onRetryMessage: (Int) -> Unit,
+  onCopyAsContext: (String) -> Unit,
+  onOpenInEditor: (String) -> Unit = {},
+  onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
+  onAttachmentClick: (VirtualFile) -> Unit = {},
+  modifier: Modifier = Modifier
 ) {
-    val scrollState = rememberScrollState()
+  val scrollState = rememberScrollState()
 
+  Column(
+    modifier = modifier.fillMaxSize(),
+    horizontalAlignment = Alignment.CenterHorizontally
+  ) {
     Column(
-        modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally
+      modifier = Modifier
+        .weight(1f)
+        .width(680.dp)
+        .fillMaxWidth()
+        .verticalScroll(scrollState)
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .width(680.dp)
-                .fillMaxWidth()
-                .verticalScroll(scrollState)
-        ) {
-            messages.forEachIndexed { index, message ->
-                val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) != formatTimestamp(
-                    messages.getOrNull(index - 1)?.timestamp ?: 0L
-                )
-                val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
+      messages.forEachIndexed { index, message ->
+        val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) != formatTimestamp(
+          messages.getOrNull(index - 1)?.timestamp ?: 0L
+        )
+        val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
 
-                if (shouldShowTimestamp) {
-                    MessageTimestamp(
-                        timestamp = message.timestamp,
-                        modifier = Modifier.padding(vertical = 14.dp)
-                    )
-                }
-
-                when {
-                    message.isUserMessage -> UserChatBubble(
-                        message = message,
-                        onDeleteMessage = { onDeleteMessage(index) },
-                        onCopyAsContext = onCopyAsContext,
-                        onAttachmentClick = onAttachmentClick
-                    )
-
-                    else -> AssistantChatBubble(
-                        message = message,
-                        sendingPhase = if (isLastAssistant) sendingPhase else "",
-                        isLoading = isLastAssistant,
-                        actionsEnabled = !isWaitingForResponse,
-                        onRetry = { onRetryMessage(index) },
-                        onUrlClick = { url ->
-                            try {
-                                Desktop.getDesktop().browse(URI(url))
-                            } catch (exception: Exception) {
-                                logger.warn("Failed to open URL: $url", exception)
-                            }
-                        },
-                        onOpenInEditor = onOpenInEditor,
-                        onViewDiff = onViewDiff
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(500.dp))
+        if (shouldShowTimestamp) {
+          MessageTimestamp(
+            timestamp = message.timestamp,
+            modifier = Modifier.padding(vertical = 14.dp)
+          )
         }
 
-        ChatInputSection(
-            modifier = Modifier
-                .widthIn(max = 600.dp)
-                .fillMaxWidth()
-                .padding(bottom = GradumSpacing.sml),
-            state = inputState,
-            actions = inputActions,
-            textState = textState
-        )
+        when {
+          message.isUserMessage -> UserChatBubble(
+            message = message,
+            onDeleteMessage = { onDeleteMessage(index) },
+            onCopyAsContext = onCopyAsContext,
+            onAttachmentClick = onAttachmentClick
+          )
+
+          else -> AssistantChatBubble(
+            message = message,
+            sendingPhase = if (isLastAssistant) sendingPhase else "",
+            isLoading = isLastAssistant,
+            actionsEnabled = !isWaitingForResponse,
+            onRetry = { onRetryMessage(index) },
+            onUrlClick = { url ->
+              try {
+                Desktop.getDesktop().browse(URI(url))
+              } catch (exception: Exception) {
+                logger.warn("Failed to open URL: $url", exception)
+              }
+            },
+            onOpenInEditor = onOpenInEditor,
+            onViewDiff = onViewDiff
+          )
+        }
+      }
+      Spacer(modifier = Modifier.height(500.dp))
     }
+
+    ChatInputSection(
+      modifier = Modifier
+        .widthIn(max = 600.dp)
+        .fillMaxWidth()
+        .padding(bottom = GradumSpacing.sml),
+      state = inputState,
+      actions = inputActions,
+      textState = textState
+    )
+  }
 }

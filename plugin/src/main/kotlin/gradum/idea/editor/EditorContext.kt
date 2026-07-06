@@ -17,61 +17,61 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 data class EditorContext(
-    val currentFile: VirtualFile?,
-    val allOpenFiles: List<VirtualFile>,
-    val projectDir: VirtualFile?
+  val currentFile: VirtualFile?,
+  val allOpenFiles: List<VirtualFile>,
+  val projectDir: VirtualFile?
 ) {
-    companion object {
-        val EMPTY = EditorContext(null, emptyList(), null)
-    }
+  companion object {
+    val EMPTY = EditorContext(null, emptyList(), null)
+  }
 }
 
 fun getLanguageIconKey(extension: String?): IconKey? {
-    return when (extension?.lowercase()) {
-        "java" -> AllIconsKeys.FileTypes.Java
-        "js" -> AllIconsKeys.FileTypes.JavaScript
-        "jsx" -> GradumIcons.Jsx
-        "ts" -> GradumIcons.TypeScript
-        "tsx" -> GradumIcons.Tsx
-        "html" -> AllIconsKeys.FileTypes.Html
-        "css" -> AllIconsKeys.FileTypes.Css
-        "xml" -> AllIconsKeys.FileTypes.Xml
-        "json" -> AllIconsKeys.FileTypes.Json
-        "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
-        "txt" -> AllIconsKeys.FileTypes.Text
-        "md" -> GradumIcons.Markdown
-        "kt", "kts" -> GradumIcons.Kotlin
-        "py" -> GradumIcons.Python
-        "http" -> AllIconsKeys.FileTypes.Http
-        "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
-        else -> AllIconsKeys.FileTypes.Text
-    }
+  return when (extension?.lowercase()) {
+    "java" -> AllIconsKeys.FileTypes.Java
+    "js" -> AllIconsKeys.FileTypes.JavaScript
+    "jsx" -> GradumIcons.Jsx
+    "ts" -> GradumIcons.TypeScript
+    "tsx" -> GradumIcons.Tsx
+    "html" -> AllIconsKeys.FileTypes.Html
+    "css" -> AllIconsKeys.FileTypes.Css
+    "xml" -> AllIconsKeys.FileTypes.Xml
+    "json" -> AllIconsKeys.FileTypes.Json
+    "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
+    "txt" -> AllIconsKeys.FileTypes.Text
+    "md" -> GradumIcons.Markdown
+    "kt", "kts" -> GradumIcons.Kotlin
+    "py" -> GradumIcons.Python
+    "http" -> AllIconsKeys.FileTypes.Http
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
+    else -> AllIconsKeys.FileTypes.Text
+  }
 }
 
 object EditorUtils {
 
-    fun getEditorContext(project: Project): EditorContext {
-        return runReadActionBlocking {
-            val fileEditorManager = FileEditorManager.getInstance(project)
-            val allFiles = fileEditorManager.openFiles.toList()
-            val currentFile = fileEditorManager.selectedFiles.firstOrNull()
-            val projectDir = project.basePath?.let {
-                LocalFileSystem.getInstance().findFileByPath(it)
-            }
+  fun getEditorContext(project: Project): EditorContext {
+    return runReadActionBlocking {
+      val fileEditorManager = FileEditorManager.getInstance(project)
+      val allFiles = fileEditorManager.openFiles.toList()
+      val currentFile = fileEditorManager.selectedFiles.firstOrNull()
+      val projectDir = project.basePath?.let {
+        LocalFileSystem.getInstance().findFileByPath(it)
+      }
 
-            if (currentFile != null) {
-                EditorContext(
-                    currentFile = currentFile,
-                    allOpenFiles = allFiles,
-                    projectDir = projectDir
-                )
-            } else {
-                EditorContext(
-                    currentFile = null,
-                    allOpenFiles = allFiles,
-                    projectDir = projectDir
-                )
-            }
-        }
+      if (currentFile != null) {
+        EditorContext(
+          currentFile = currentFile,
+          allOpenFiles = allFiles,
+          projectDir = projectDir
+        )
+      } else {
+        EditorContext(
+          currentFile = null,
+          allOpenFiles = allFiles,
+          projectDir = projectDir
+        )
+      }
     }
+  }
 }

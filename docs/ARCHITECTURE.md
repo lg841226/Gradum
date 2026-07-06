@@ -746,7 +746,6 @@ stateDiagram-v2
     ReadOriginal --> FileNotFound: file does not exist
     FileNotFound --> Failure: return FILE_NOT_FOUND
     ReadOriginal --> SchemaCheck: content loaded
-
     state SchemaCheck <<choice>>
     SchemaCheck --> LocalMode: SIMPLE schema
     SchemaCheck --> CloudMode: FULL schema
@@ -801,9 +800,11 @@ stateDiagram-v2
 
 **Key implementation details**:
 
-- **Local mode** (SIMPLE schema): Single `oldString`/`newString` pair, one file per call. Designed for small local models (≤32B).
+- **Local mode** (SIMPLE schema): Single `oldString`/`newString` pair, one file per call. Designed for small local
+  models (≤32B).
 - **Cloud mode** (FULL schema): Batch `edits[]` array, multiple edits per call. Designed for cloud models.
-- **2-step matching**: Step 1 exact match (ignore trailing whitespace and line endings), Step 2 normalized match (trim all whitespace).
+- **2-step matching**: Step 1 exact match (ignore trailing whitespace and line endings), Step 2 normalized match (trim
+  all whitespace).
 - **XmlError**: All errors use `buildXmlError()` from `XmlError.kt` for consistent XML format with PascalCase tags.
 - Error codes: `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, INVALID_PARAMETER, IO_ERROR`
 
@@ -1035,10 +1036,11 @@ fun buildXmlError(
 **Output format** (PascalCase XML tags):
 
 ```xml
+
 <Error>
-  <Code>CODE_NOT_FOUND</Code>
-  <Message>Could not find the specified text in the file.</Message>
-  <FixHint>Re-read the file and include 2-3 lines of surrounding context.</FixHint>
+    <Code>CODE_NOT_FOUND</Code>
+    <Message>Could not find the specified text in the file.</Message>
+    <FixHint>Re-read the file and include 2-3 lines of surrounding context.</FixHint>
 </Error>
 ```
 
@@ -1246,15 +1248,15 @@ gradum.skill.CompletePlanSkill
 
 ### 4.3 Skill Overview
 
-| Skill               | Input Parameters              | Output Fields                                                                                          | Error Codes                                                                                   | Limits                                             |
-|---------------------|-------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------------|
-| ReadFileSkill       | `path`, `lineRange?` (cloud only) | `path, lineRange, totalLines, contentHash, content` (cloud); `path, content` (local)              | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                          |
+| Skill               | Input Parameters                                              | Output Fields                                                                                          | Error Codes                                                                                   | Limits                                                 |
+|---------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| ReadFileSkill       | `path`, `lineRange?` (cloud only)                             | `path, lineRange, totalLines, contentHash, content` (cloud); `path, content` (local)                   | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                              |
 | EditFileSkill       | `path, edits[]` (cloud); `path, oldString, newString` (local) | `path, editsApplied, totalEdits`                                                                       | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely; 1 edit per call (local) |
-| SaveFileSkill       | `path, content`               | `path, bytesWritten, created`                                                                          | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                     |
-| RunCommandSkill     | `command, reason?, detached?` | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check               |
-| ExploreProjectSkill | `path?, depth?`               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories |
-| TodoSkill           | `tasks[]`                     | `totalTasks, currentTask, currentIndex`                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization    |
-| CompletePlanSkill   | none                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                               |
+| SaveFileSkill       | `path, content`                                               | `path, bytesWritten, created`                                                                          | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                         |
+| RunCommandSkill     | `command, reason?, detached?`                                 | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                   |
+| ExploreProjectSkill | `path?, depth?`                                               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 1–14; truncated build/dependency directories     |
+| TodoSkill           | `tasks[]`                                                     | `totalTasks, currentTask, currentIndex`                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization        |
+| CompletePlanSkill   | none                                                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                   |
 
 ---
 
@@ -1826,7 +1828,7 @@ abstract class Skill {
 ```
 
 A skill that mutates the project MUST exclude `READ_ONLY`. A skill that
-multi-step plans MUST exclude `SINGLE_STEP`. Anything else (pure inspection
+multistep plans MUST exclude `SINGLE_STEP`. Anything else (pure inspection
 like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier
 is allowed.
 
@@ -1885,6 +1887,7 @@ object ModelCapability {
 ```
 
 **Detection logic:**
+
 1. Cloud/API indicators (cloud, gpt, claude, gemini, etc.) → large
 2. Parameter size tag (7b, 14b, 70b, etc.) → compare against 32B threshold
 3. Unknown/unrecognized → default to large (assume capable)
@@ -1904,21 +1907,21 @@ flowchart LR
 ```xml
 <!-- if FULL -->
 <Example>read_file(path="src/main.py", line_range="200-230")</Example>
-<!-- endif -->
-<!-- if SIMPLE -->
-Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
-<!-- endif -->
+        <!-- endif -->
+        <!-- if SIMPLE -->
+        Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
+        <!-- endif -->
 ```
 
 **Per-skill behavior:**
 
-| Skill              | FULL mode                                        | SIMPLE mode                                         |
-|--------------------|--------------------------------------------------|-----------------------------------------------------|
-| `ReadFileSkill`    | Returns `content` as joined string; supports `line_range` | Returns `content` as `{lineNumber: lineContent}` map; no `line_range` |
-| `SaveFileSkill`    | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
-| `RunCommandSkill`  | Supports `detached` param, full output           | No `detached`, output truncated to 2000 chars        |
-| `ExploreProjectSkill` | Returns nested `entries` tree                | Returns counts + flat `["path:lines", ...]` list    |
-| `EditFileSkill`    | Batch `edits[]` array, multiple edits per call   | Single `oldString`/`newString` pair, 1 edit per call |
+| Skill                 | FULL mode                                                 | SIMPLE mode                                                           |
+|-----------------------|-----------------------------------------------------------|-----------------------------------------------------------------------|
+| `ReadFileSkill`       | Returns `content` as joined string; supports `line_range` | Returns `content` as `{lineNumber: lineContent}` map; no `line_range` |
+| `SaveFileSkill`       | Full params: `path`, `content`, `mode`, `encoding`        | Minimal params: `path`, `content` only                                |
+| `RunCommandSkill`     | Supports `detached` param, full output                    | No `detached`, output truncated to 2000 chars                         |
+| `ExploreProjectSkill` | Returns nested `entries` tree                             | Returns counts + flat `["path:lines", ...]` list                      |
+| `EditFileSkill`       | Batch `edits[]` array, multiple edits per call            | Single `oldString`/`newString` pair, 1 edit per call                  |
 
 ### 9.8 Why this design
 
@@ -1951,29 +1954,29 @@ Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent}
 
 ## 10. Glossary
 
-| Term                     | Definition                                                                                                                                |
-|--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                        |
-| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                     |
+| Term                     | Definition                                                                                                                                             |
+|--------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                                     |
+| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                                  |
 | **SkillContext**         | Per-session data class passed to every `Skill.execute`: `(toolMode, projectRoot, provider, modelName)`. Single source of truth for session-level state |
-| **SchemaVariant**        | Enum (`FULL`/`SIMPLE`) determining tool schema complexity based on model capability                                                    |
-| **ModelCapability**      | Object that infers model size from name heuristics (parameter count, cloud keywords)                                                   |
-| **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                        |
-| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                   |
-| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                          |
-| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                  |
-| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary)        |
-| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                                  |
-| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                        |
-| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                               |
-| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                                     |
-| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                                |
-| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                               |
-| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)           |
-| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                 |
-| **Red Line Keywords**    | Configurable list of forbidden substrings loaded from `red_line_keywords.txt`; when detected in model output, triggers session revocation |
-| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session        |
-| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                              |
-| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                           |
-| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                               |
-| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`               |
+| **SchemaVariant**        | Enum (`FULL`/`SIMPLE`) determining tool schema complexity based on model capability                                                                    |
+| **ModelCapability**      | Object that infers model size from name heuristics (parameter count, cloud keywords)                                                                   |
+| **ToolMode**             | Three-tier permission model: `READ_ONLY` / `SINGLE_STEP` / `WRITE`                                                                                     |
+| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                                |
+| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                                       |
+| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                               |
+| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary)                     |
+| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                                               |
+| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                                     |
+| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                                            |
+| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                                                  |
+| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                                             |
+| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                                            |
+| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)                        |
+| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                              |
+| **Red Line Keywords**    | Configurable list of forbidden substrings loaded from `red_line_keywords.txt`; when detected in model output, triggers session revocation              |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session                     |
+| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                                           |
+| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                                        |
+| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                            |
+| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`                            |

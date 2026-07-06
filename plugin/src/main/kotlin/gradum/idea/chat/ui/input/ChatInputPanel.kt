@@ -48,105 +48,105 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @Composable
 fun ChatInputPanel(
-    state: ChatInputState,
-    actions: ChatInputActions,
-    roundedCornerShape: RoundedCornerShape,
-    textState: TextFieldState,
-    modifier: Modifier = Modifier
+  state: ChatInputState,
+  actions: ChatInputActions,
+  roundedCornerShape: RoundedCornerShape,
+  textState: TextFieldState,
+  modifier: Modifier = Modifier
 ) {
-    val initialTextLength: Int = remember { textState.text.length }
-    var previousTextLength by remember { mutableStateOf(initialTextLength) }
-    LaunchedEffect(textState.text) {
-        delay(50.milliseconds)
-        val currentInputText: String = textState.text.toString()
-        val baselineTextLength: Int = previousTextLength
-        val appendedTextLength: Int = currentInputText.length - baselineTextLength
+  val initialTextLength: Int = remember { textState.text.length }
+  var previousTextLength by remember { mutableStateOf(initialTextLength) }
+  LaunchedEffect(textState.text) {
+    delay(50.milliseconds)
+    val currentInputText: String = textState.text.toString()
+    val baselineTextLength: Int = previousTextLength
+    val appendedTextLength: Int = currentInputText.length - baselineTextLength
 
-        if (appendedTextLength > 200) {
-            val appendedText: String = currentInputText.substring(baselineTextLength)
-            if (appendedText.isNotBlank()) {
-                actions.onPasteAsContext(appendedText)
-                textState.edit { delete(baselineTextLength, currentInputText.length) }
-            }
-        }
-        previousTextLength = textState.text.length
+    if (appendedTextLength > 200) {
+      val appendedText: String = currentInputText.substring(baselineTextLength)
+      if (appendedText.isNotBlank()) {
+        actions.onPasteAsContext(appendedText)
+        textState.edit { delete(baselineTextLength, currentInputText.length) }
+      }
     }
+    previousTextLength = textState.text.length
+  }
 
-    Box(
-        modifier = modifier
-            .onFocusChanged { actions.onFocusChange(it.hasFocus) }
-            .thenIf(!state.isFocused) {
-                border(
-                    width = 1.dp,
-                    shape = roundedCornerShape,
-                    alignment = Stroke.Alignment.Inside,
-                    color = JewelTheme.globalColors.borders.normal
-                )
-            }
-            .focusOutline(
-                showOutline = state.isFocused,
-                outlineShape = roundedCornerShape
-            )
+  Box(
+    modifier = modifier
+      .onFocusChanged { actions.onFocusChange(it.hasFocus) }
+      .thenIf(!state.isFocused) {
+        border(
+          width = 1.dp,
+          shape = roundedCornerShape,
+          alignment = Stroke.Alignment.Inside,
+          color = JewelTheme.globalColors.borders.normal
+        )
+      }
+      .focusOutline(
+        showOutline = state.isFocused,
+        outlineShape = roundedCornerShape
+      )
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(GradumSpacing.md)
     ) {
-        Column(
+      if (state.pendingMessages.isNotEmpty()) {
+        state.pendingMessages.forEach { pending ->
+          val singleLineContent: String = pending.content.replace("\n", " ")
+          val preview: String = truncateToCodePoints(singleLineContent)
+          Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(GradumSpacing.md)
-        ) {
-            if (state.pendingMessages.isNotEmpty()) {
-                state.pendingMessages.forEach { pending ->
-                    val singleLineContent: String = pending.content.replace("\n", " ")
-                    val preview: String = truncateToCodePoints(singleLineContent)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                horizontal = GradumSpacing.sm,
-                                vertical = GradumSpacing.xs
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                        SweepLightText(text = preview, modifier = Modifier.weight(1f))
-                        IconTooltipButton(
-                            tooltip = message("gradum.remove"),
-                            iconKey = AllIconsKeys.Actions.Close,
-                            contentDescription = message("gradum.remove"),
-                            onClick = { actions.onRemovePending(pending) },
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            TextArea(
-                state = textState,
-                placeholder = { Text(text = message("gradum.input.placeholder")) },
-                undecorated = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 60.dp, max = 160.dp)
-                    .onPreviewKeyEvent { keyEvent ->
-                        if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-
-                        val isSubmitKey = keyEvent.key == Key.Enter &&
-                            (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)
-                        if (!isSubmitKey) return@onPreviewKeyEvent false
-
-                        val modelSelected = state.selectedModel != null || state.isAutoSelected
-                        val canSend = !state.isSending || !state.isPendingQueueFull
-                        if (modelSelected && canSend) actions.onSend()
-
-                        true
-                    }
+              .fillMaxWidth()
+              .padding(
+                horizontal = GradumSpacing.sm,
+                vertical = GradumSpacing.xs
+              ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+          ) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+            SweepLightText(text = preview, modifier = Modifier.weight(1f))
+            IconTooltipButton(
+              tooltip = message("gradum.remove"),
+              iconKey = AllIconsKeys.Actions.Close,
+              contentDescription = message("gradum.remove"),
+              onClick = { actions.onRemovePending(pending) },
+              modifier = Modifier.size(18.dp)
             )
-
-            Spacer(modifier = Modifier.height(GradumSpacing.md))
-
-            ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty())
-
-            AttachmentBar(attachedFiles = state.attachedFiles, onRemoveFile = actions.onRemoveFile)
+          }
         }
+      }
+
+      TextArea(
+        state = textState,
+        placeholder = { Text(text = message("gradum.input.placeholder")) },
+        undecorated = true,
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(min = 60.dp, max = 160.dp)
+          .onPreviewKeyEvent { keyEvent ->
+            if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+            val isSubmitKey = keyEvent.key == Key.Enter &&
+              (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)
+            if (!isSubmitKey) return@onPreviewKeyEvent false
+
+            val modelSelected = state.selectedModel != null || state.isAutoSelected
+            val canSend = !state.isSending || !state.isPendingQueueFull
+            if (modelSelected && canSend) actions.onSend()
+
+            true
+          }
+      )
+
+      Spacer(modifier = Modifier.height(GradumSpacing.md))
+
+      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty())
+
+      AttachmentBar(attachedFiles = state.attachedFiles, onRemoveFile = actions.onRemoveFile)
     }
+  }
 }

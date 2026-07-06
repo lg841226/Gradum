@@ -80,15 +80,15 @@ curl -X POST http://localhost:8765/events \
 
 ## Built-in Skills
 
-| Skill               | Description                                                  |
-|---------------------|--------------------------------------------------------------|
-| `read_file`         | Read file content (whole file or line range)                 |
-| `edit_file`         | Search-replace editing (sequential or atomic mode)           |
-| `save_file`         | Write a new file                                             |
-| `run_cmd`           | Execute shell commands (blocking or detached)                |
-| `explore_project`   | Explore project structure with depth control and file stats  |
-| `to_do`             | Initialize a task list                                       |
-| `finish_to_do_item` | Mark tasks complete                                          |
+| Skill               | Description                                                 |
+|---------------------|-------------------------------------------------------------|
+| `read_file`         | Read file content (whole file or line range)                |
+| `edit_file`         | Search-replace editing (sequential or atomic mode)          |
+| `save_file`         | Write a new file                                            |
+| `run_cmd`           | Execute shell commands (blocking or detached)               |
+| `explore_project`   | Explore project structure with depth control and file stats |
+| `to_do`             | Initialize a task list                                      |
+| `finish_to_do_item` | Mark tasks complete                                         |
 
 ## LLM Backend Setup
 
@@ -117,7 +117,7 @@ Model auto-discovery scans ports: 11434 (Ollama), 1234 (LM Studio), 8000 (vLLM),
 
 | Layer         | Technology                                        |
 |---------------|---------------------------------------------------|
-| Language      | Kotlin 2.3.0 (JVM 21)                               |
+| Language      | Kotlin 2.3.0 (JVM 21)                             |
 | HTTP Server   | Ktor 3.0.3 + Netty                                |
 | Serialization | kotlinx-serialization-json 1.7.3                  |
 | Coroutines    | kotlinx-coroutines 1.9.0                          |

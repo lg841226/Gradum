@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentPreview.kt  2026-07-02 15:56:45 Changed by gwy
+ * MessageAttachmentPreview.kt  2026-07-05 17:15:14 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -50,75 +50,67 @@ private const val bubbleThumbnailCornerRadiusDp: Int = 6
  */
 @Composable
 fun MessageAttachmentPreview(
-    attachments: List<AttachedContext>,
-    onAttachmentClick: (VirtualFile) -> Unit = {},
-    modifier: Modifier = Modifier
+  attachments: List<AttachedContext>,
+  onAttachmentClick: (VirtualFile) -> Unit = {},
+  modifier: Modifier = Modifier
 ) {
-    val imageAttachments: List<AttachedImage> = attachments.filterIsInstance<AttachedImage>()
-    if (imageAttachments.isEmpty()) return
+  val imageAttachments: List<AttachedImage> = attachments.filterIsInstance<AttachedImage>()
+  if (imageAttachments.isEmpty()) return
 
-    val chipSizeDp = bubbleThumbnailEdgeDp.dp
+  val chipSizeDp = bubbleThumbnailEdgeDp.dp
 
-    HorizontallyScrollableContainer(modifier = modifier) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md, Alignment.End)
-        ) {
-            imageAttachments.forEach { image ->
-                ImageThumbnailChip(
-                    imageAttachment = image,
-                    onClick = { onAttachmentClick(image.file) },
-                    modifier = Modifier.size(chipSizeDp)
-                )
-            }
-        }
+  HorizontallyScrollableContainer(modifier = modifier) {
+    Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md, Alignment.End)) {
+      imageAttachments.forEach { image ->
+        ImageThumbnailChip(
+          imageAttachment = image,
+          onClick = { onAttachmentClick(image.file) },
+          modifier = Modifier.size(chipSizeDp)
+        )
+      }
     }
+  }
 }
 
 /** Single thumbnail chip with rounded corners and border. */
 @Composable
 private fun ImageThumbnailChip(
-    imageAttachment: AttachedImage,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+  imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier
 ) {
-    val decodedBitmap: ImageBitmap? = remember(imageAttachment.file.path) {
-        decodeImage(file = imageAttachment.file)
-    }
+  val decodedBitmap: ImageBitmap? = remember(imageAttachment.file.path) {
+    decodeImage(file = imageAttachment.file)
+  }
 
-    val clipShape = RoundedCornerShape(bubbleThumbnailCornerRadiusDp.dp)
-    val chipModifier: Modifier = modifier
-        .clip(clipShape)
-        .border(
-            width = 1.dp,
-            color = JewelTheme.globalColors.borders.normal,
-            shape = clipShape
-        )
-        .clickable(onClick = onClick)
+  val clipShape = RoundedCornerShape(bubbleThumbnailCornerRadiusDp.dp)
+  val chipModifier: Modifier = modifier
+    .clip(clipShape)
+    .border(
+      width = 1.dp,
+      shape = clipShape,
+      color = JewelTheme.globalColors.borders.normal
+    )
+    .clickable(onClick = onClick)
 
-    if (decodedBitmap != null) {
-        Image(
-            modifier = chipModifier,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            painter = BitmapPainter(image = decodedBitmap, filterQuality = FilterQuality.High),
-        )
-    } else {
-        Icon(key = imageAttachment.iconKey, contentDescription = null, modifier = chipModifier)
-    }
+  if (decodedBitmap != null) {
+    Image(
+      modifier = chipModifier,
+      contentDescription = null,
+      contentScale = ContentScale.Crop,
+      painter = BitmapPainter(
+        image = decodedBitmap,
+        filterQuality = FilterQuality.High
+      )
+    )
+  } else {
+    Icon(
+      modifier = chipModifier,
+      contentDescription = null,
+      key = imageAttachment.iconKey
+    )
+  }
 }
 
 /** Decode `file` into a Compose `ImageBitmap`. Returns null on failure. */
 private fun decodeImage(file: VirtualFile): ImageBitmap? = runCatching {
-    SkiaImage.makeFromEncoded(file.contentsToByteArray()).toComposeImageBitmap()
+  SkiaImage.makeFromEncoded(file.contentsToByteArray()).toComposeImageBitmap()
 }.getOrNull()
-
-/** Binary (1024-based) byte count for tooltip labels. */
-internal fun formatByteCount(bytes: Long): String {
-    val kilobyteBoundary = 1024L
-    val megabyteBoundary: Long = kilobyteBoundary * 1024L
-    return when {
-        bytes < kilobyteBoundary -> "$bytes B"
-        bytes < megabyteBoundary -> "%.1f KB".format(bytes.toDouble() / kilobyteBoundary)
-        else -> "%.1f MB".format(bytes.toDouble() / megabyteBoundary)
-    }
-}

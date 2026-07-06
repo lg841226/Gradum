@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-07-01 21:53:11 Changed by gwy
+ * SkillContext.kt  2026-07-05 22:56:12 Changed by gwy
  */
 
 package gradum.skill
@@ -30,8 +30,8 @@ import gradum.ToolMode
  * @param modelName Model name for capability inference.
  */
 data class SkillContext(
-    val toolMode: ToolMode,
-    val projectRoot: String,
-    val provider: Provider = Provider.OLLAMA,
-    val modelName: String = "",
+  val toolMode: ToolMode,
+  val projectRoot: String,
+  val provider: Provider = Provider.OLLAMA,
+  val modelName: String = "",
 )

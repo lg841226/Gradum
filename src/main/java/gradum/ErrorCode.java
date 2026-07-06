@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorCode.java  2026-06-30 23:35:47 Changed by gwy
+ * ErrorCode.java  2026-07-05 21:12:15 Changed by gwy
  */
 
 package gradum;
@@ -30,7 +30,8 @@ public enum ErrorCode {
      * different message: "this tool is not available in read-only mode"
      * vs. "this shell command would mutate the filesystem".
      */
-    TOOL_NOT_PERMITTED("TOOL_NOT_PERMITTED");
+    TOOL_NOT_PERMITTED("TOOL_NOT_PERMITTED"),
+    CONCURRENT_MODIFICATION("CONCURRENT_MODIFICATION");
 
     private final String code;
 

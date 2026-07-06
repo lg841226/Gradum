@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-02 17:04:53 Changed by gwy
+ * UserChatBubble.kt  2026-07-06 14:15:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -51,140 +51,147 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun UserChatBubble(
-    message: ChatMessage,
-    onDeleteMessage: () -> Unit = {},
-    onCopyAsContext: (String) -> Unit = {},
-    onAttachmentClick: (VirtualFile) -> Unit = {},
-    modifier: Modifier = Modifier
+  message: ChatMessage,
+  onDeleteMessage: () -> Unit = {},
+  onCopyAsContext: (String) -> Unit = {},
+  onAttachmentClick: (VirtualFile) -> Unit = {},
+  modifier: Modifier = Modifier
 ) {
-    var isCopied by remember { mutableStateOf(false) }
-    var showResetPopup by remember { mutableStateOf(false) }
-    var isAttachmentsExpanded by remember { mutableStateOf(true) }
+  var isCopied by remember { mutableStateOf(false) }
+  var showResetPopup by remember { mutableStateOf(false) }
+  var isAttachmentsExpanded by remember { mutableStateOf(true) }
 
-    val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
-    val fileAttachments: List<AttachedContext> = message.attachments.filter {
-        it is AttachedFile || it is AttachedText
-    }
+  val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
+  val fileAttachments: List<AttachedContext> = message.attachments.filter {
+    it is AttachedFile || it is AttachedText
+  }
 
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Column(horizontalAlignment = Alignment.End) {
-            if (imageAttachments.isNotEmpty()) {
-                MessageAttachmentPreview(
-                    attachments = imageAttachments,
-                    onAttachmentClick = onAttachmentClick
-                )
-                Spacer(modifier = Modifier.height(GradumSpacing.md))
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 0.dp))
-                    .background(color = JewelTheme.globalColors.borders.normal)
-                    .padding(10.dp)
-            ) {
-                SelectionContainer {
-                    Text(text = message.content)
-                }
-            }
-            if (fileAttachments.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
-                        .padding(horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
-                        else AllIconsKeys.General.ChevronRight,
-                        contentDescription = null
-                    )
-                    Text(
-                        text = message("gradum.attachments"),
-                        color = JewelTheme.globalColors.text.normal,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                Spacer(Modifier.height(GradumSpacing.sm))
-                AnimatedVisibility(visible = isAttachmentsExpanded) {
-                    MessageAttachmentList(attachments = fileAttachments)
-                }
-            }
-            Spacer(modifier = Modifier.height(GradumSpacing.md))
-            Row {
-                MessageCopyButton(
-                    message = message,
-                    isCopied = isCopied,
-                    onCopy = { isCopied = true },
-                    onReset = { isCopied = false },
-                    onCopyAsContext = onCopyAsContext
-                )
-                Spacer(modifier = Modifier.width(GradumSpacing.sm))
-                Tooltip(tooltip = {
-                    Text(text = message("gradum.reset.tooltip"))
-                }
-                ) {
-                    IconButton(onClick = { showResetPopup = true }) {
-                        Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
-                    }
-                }
-                if (showResetPopup) {
-                    PopupMenu(
-                        horizontalAlignment = Alignment.End,
-                        onDismissRequest = { showResetPopup = false; true }
-                    ) {
-                        passiveItem {
-                            Column(modifier = Modifier.padding(horizontal = 6.dp)) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = GradumSpacing.xs),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        key = GradumIcons.Warning,
-                                        contentDescription = message("gradum.delete.confirm"),
-                                        modifier = Modifier.padding(end = 6.dp)
-                                    )
-                                    Text(text = message("gradum.delete.confirm"))
-                                }
-                                Spacer(modifier = Modifier.height(GradumSpacing.sm))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = message("gradum.delete.revert.warning"),
-                                        color = JewelTheme.globalColors.text.info
-                                    )
-                                }
-                            }
-                        }
-                        separator()
-                        selectableItem(
-                            selected = false,
-                            onClick = {
-                                showResetPopup = false
-                                onDeleteMessage()
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    key = AllIconsKeys.General.Reset,
-                                    contentDescription = message("gradum.delete.action"),
-                                    modifier = Modifier.padding(end = 6.dp)
-                                )
-                                Text(text = message("gradum.delete.action"))
-                            }
-                        }
-                    }
-                }
-            }
+  Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+    Column(horizontalAlignment = Alignment.End) {
+      if (imageAttachments.isNotEmpty()) {
+        MessageAttachmentPreview(
+          attachments = imageAttachments,
+          onAttachmentClick = onAttachmentClick
+        )
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
+      }
+      Box(
+        modifier = Modifier
+          .clip(
+            RoundedCornerShape(
+              topStart = 16.dp,
+              topEnd = 16.dp,
+              bottomStart = 16.dp,
+              bottomEnd = 0.dp
+            )
+          )
+          .background(color = JewelTheme.globalColors.borders.normal)
+          .padding(10.dp)
+      ) {
+        SelectionContainer {
+          Text(text = message.content)
         }
+      }
+      if (fileAttachments.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        Row(
+          modifier = Modifier
+            .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
+            .padding(horizontal = GradumSpacing.sm),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        ) {
+          Icon(
+            contentDescription = null,
+            key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
+            else AllIconsKeys.General.ChevronRight
+          )
+          Text(
+            text = message("gradum.attachments"),
+            fontWeight = FontWeight.Medium,
+            color = JewelTheme.globalColors.text.normal
+          )
+        }
+        Spacer(Modifier.height(GradumSpacing.sm))
+        AnimatedVisibility(visible = isAttachmentsExpanded) {
+          MessageAttachmentList(attachments = fileAttachments)
+        }
+      }
+      Spacer(modifier = Modifier.height(GradumSpacing.md))
+      Row {
+        MessageCopyButton(
+          message = message,
+          isCopied = isCopied,
+          onCopy = { isCopied = true },
+          onReset = { isCopied = false },
+          onCopyAsContext = onCopyAsContext
+        )
+        Spacer(modifier = Modifier.width(GradumSpacing.sm))
+        Tooltip(tooltip = {
+          Text(text = message("gradum.reset.tooltip"))
+        }
+        ) {
+          IconButton(onClick = { showResetPopup = true }) {
+            Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
+          }
+        }
+        if (showResetPopup) {
+          PopupMenu(
+            horizontalAlignment = Alignment.End,
+            onDismissRequest = { showResetPopup = false; true }
+          ) {
+            passiveItem {
+              Column(modifier = Modifier.padding(horizontal = 6.dp)) {
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = GradumSpacing.xs),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Icon(
+                    key = GradumIcons.Warning,
+                    contentDescription = message("gradum.delete.confirm"),
+                    modifier = Modifier.padding(end = 6.dp)
+                  )
+                  Text(text = message("gradum.delete.confirm"))
+                }
+                Spacer(modifier = Modifier.height(GradumSpacing.sm))
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.Center
+                ) {
+                  Text(
+                    text = message("gradum.delete.revert.warning"),
+                    color = JewelTheme.globalColors.text.info
+                  )
+                }
+              }
+            }
+            separator()
+            selectableItem(
+              selected = false,
+              onClick = {
+                showResetPopup = false
+                onDeleteMessage()
+              }
+            ) {
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  key = AllIconsKeys.General.Reset,
+                  contentDescription = message("gradum.delete.action"),
+                  modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(text = message("gradum.delete.action"))
+              }
+            }
+          }
+        }
+      }
     }
+  }
 }

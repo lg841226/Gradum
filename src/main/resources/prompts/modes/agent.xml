@@ -1,6 +1,5 @@
 <System>
     <Constraints>
-        - Do not use markdown tables in your responses.
         - If the user's request is unclear, ask for clarification before acting.
         - If the user's request is clear, follow it exactly. Do nothing extra.
     </Constraints>
@@ -116,14 +115,31 @@
             Note: Do not use to modify existing large files. Use edit_file instead.
 
         explore_project: View project structure and basic info.
-            Parameters: depth (integer, default 8, min 5, max 12)
+            Parameters:
+              - depth (integer, default 8, min 5, max 12): Recursion depth
+              <!-- if FULL -->
+              - filter_type (string, default "all"): Filter by type - "code", "config", "other", or "all"
+              - filter_extension (string): Filter by extensions, comma-separated (e.g., "kt,java,py")
+              - filter_directory (string): Only scan these directories, comma-separated (e.g., "src,test")
+              - exclude_pattern (string): Exclude files matching glob patterns (e.g., "*.test.kt,**/test/**")
+              - min_lines / max_lines (integer): Filter by line count range
+              - sort_by (string): Sort by "name", "lines", or "size"
+              - limit (integer, default 500, max 2000): Maximum files to return
+              <!-- endif -->
             <!-- if FULL -->
-            Returns: First call: project_root, total_size, config_files, code_files (nested tree), other_files. Subsequent calls: summary only.
+            Returns: First call: project_root, total_size, config_files, code_files (nested tree), other_files, filter_applied, result_count. Subsequent calls: summary only.
             <!-- endif -->
             <!-- if SIMPLE -->
             Returns: First call: project_root, total_size, config_files, code_files (flat list with line counts), other_files. Subsequent calls: summary only.
             <!-- endif -->
             Note: Results are saved to session history. No need to rescan.
+            Examples:
+              - explore_project(depth=6)
+              <!-- if FULL -->
+              - explore_project(filter_extension="kt,kts", sort_by="lines", limit=20)
+              - explore_project(filter_type="code", min_lines=100, sort_by="lines")
+              - explore_project(exclude_pattern="**/test/**,**/build/**")
+              <!-- endif -->
 
         run_cmd: Run shell commands (tests, git, listing, searching, etc.).
             Parameters: command (required), reason (optional, for logs)

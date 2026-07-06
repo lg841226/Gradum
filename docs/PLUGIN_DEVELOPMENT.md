@@ -68,11 +68,11 @@ flowchart TD
     R5 --> Key5
     R6 --> Key6
     R7 --> Key7
-    Agent[Agent.kt] -->|"skillRegistry.getSkill(name)"| SkillLook[Look up by key]
+    Agent[Agent.kt] -->|" skillRegistry.getSkill(name) "| SkillLook[Look up by key]
     SkillLook -->|matches| Skills[Skills in the registry]
-    style Registry fill:#3b82f6
-    style Map fill:#34d399
-    style Agent fill:#f59e0b
+    style Registry fill: #3b82f6
+    style Map fill: #34d399
+    style Agent fill: #f59e0b
 ```
 
 ### Adding a New Skill (Fully Automatic)
@@ -91,7 +91,8 @@ class YourCustomSkill : Skill() {
     override val description: String = "What your skill does"
 
     override fun getSchema(): Map<String, Any> = /* ... */
-    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult = /* ... */
+        override
+    fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult = /* ... */
 }
 ```
 
@@ -252,10 +253,10 @@ abstract class Skill {
 
 ### Required Methods
 
-| Method                                                              | Return                                       | Purpose                                               |
-|---------------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
-| `execute(arguments: Map<String, Any>, context: SkillContext)`       | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(context: SkillContext? = null): Map<String, Any>`        | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+| Method                                                        | Return                                       | Purpose                                               |
+|---------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
+| `getSchema(context: SkillContext? = null): Map<String, Any>`  | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
 
 ### Optional Properties
 
@@ -957,7 +958,7 @@ based on the model's capabilities:
 ```kotlin
 override fun getSchema(context: SkillContext?): Map<String, Any> {
     val isSmallModel = context != null &&
-        SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+            SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
     return if (isSmallModel) {
         // Simplified schema: fewer parameters, simpler output
@@ -1156,15 +1157,15 @@ object ModelCapability {
 
 **Examples:**
 
-| Model Name              | isSmall | Reason                              |
-|-------------------------|---------|-------------------------------------|
-| `"qwen2.5:7b"`           | true    | 7B ≤ 32B threshold                  |
-| `"qwen2.5:14b"`          | true    | 14B ≤ 32B threshold                 |
-| `"qwen2.5:72b"`          | false   | 72B > 32B threshold                 |
-| `"gpt-4o"`               | false   | Contains "gpt" cloud keyword        |
-| `"claude-3-sonnet"`      | false   | Contains "claude" cloud keyword     |
-| `"local-model"`          | false   | No size tag, default to large       |
-| `""`                     | false   | Blank, default to large             |
+| Model Name          | isSmall | Reason                          |
+|---------------------|---------|---------------------------------|
+| `"qwen2.5:7b"`      | true    | 7B ≤ 32B threshold              |
+| `"qwen2.5:14b"`     | true    | 14B ≤ 32B threshold             |
+| `"qwen2.5:72b"`     | false   | 72B > 32B threshold             |
+| `"gpt-4o"`          | false   | Contains "gpt" cloud keyword    |
+| `"claude-3-sonnet"` | false   | Contains "claude" cloud keyword |
+| `"local-model"`     | false   | No size tag, default to large   |
+| `""`                | false   | Blank, default to large         |
 
 ### 15.3 Conditional Prompt Sections
 
@@ -1173,10 +1174,10 @@ Prompt XML files support conditional sections based on `SchemaVariant`:
 ```xml
 <!-- if FULL -->
 <Example>read_file(path="src/main.py", line_range="200-230")</Example>
-<!-- endif -->
-<!-- if SIMPLE -->
-Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
-<!-- endif -->
+        <!-- endif -->
+        <!-- if SIMPLE -->
+        Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
+        <!-- endif -->
 ```
 
 The agent filters these sections at prompt load time using
@@ -1186,13 +1187,13 @@ are kept only when `SchemaVariant` is `FULL`.
 
 ### 15.4 Per-Skill Behavior
 
-| Skill              | FULL mode                                        | SIMPLE mode                                         |
-|--------------------|--------------------------------------------------|-----------------------------------------------------|
-| `ReadFileSkill`    | Returns `content` as joined string               | Returns `content` as `{lineNumber: lineContent}` map |
-| `SaveFileSkill`    | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
-| `RunCommandSkill`  | Supports `detached` param, full output           | No `detached`, output truncated to 2000 chars        |
-| `ExploreProjectSkill` | Returns nested `entries` tree                | Returns counts + flat `["path:lines", ...]` list    |
-| `EditFileSkill`    | Unified search/replace for all models            | Same as FULL (no SIMPLE variant)                     |
+| Skill                 | FULL mode                                          | SIMPLE mode                                          |
+|-----------------------|----------------------------------------------------|------------------------------------------------------|
+| `ReadFileSkill`       | Returns `content` as joined string                 | Returns `content` as `{lineNumber: lineContent}` map |
+| `SaveFileSkill`       | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
+| `RunCommandSkill`     | Supports `detached` param, full output             | No `detached`, output truncated to 2000 chars        |
+| `ExploreProjectSkill` | Returns nested `entries` tree                      | Returns counts + flat `["path:lines", ...]` list     |
+| `EditFileSkill`       | Unified search/replace for all models              | Same as FULL (no SIMPLE variant)                     |
 
 ### 15.5 Complete Plugin Example
 
@@ -1214,7 +1215,7 @@ class AdaptiveFileWriterSkill : Skill() {
 
     override fun getSchema(context: SkillContext?): Map<String, Any> {
         val isSmallModel = context != null &&
-            SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+                SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
 
         return if (isSmallModel) {
             // SIMPLE: minimal parameters

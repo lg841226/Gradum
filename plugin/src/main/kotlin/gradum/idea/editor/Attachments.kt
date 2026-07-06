@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Attachments.kt  2026-07-01 21:53:11 Changed by gwy
+ * Attachments.kt  2026-07-05 16:42:55 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -12,23 +12,23 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 sealed class AttachedContext {
-    abstract val iconKey: IconKey
-    abstract val displayName: String
+  abstract val iconKey: IconKey
+  abstract val displayName: String
 }
 
 data class AttachedFile(
-    val file: VirtualFile,
-    override val iconKey: IconKey
+  val file: VirtualFile,
+  override val iconKey: IconKey
 ) : AttachedContext() {
-    override val displayName: String get() = file.name
+  override val displayName: String get() = file.name
 }
 
 data class AttachedText(
-    val content: String,
-    val preview: String,
-    override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
+  val content: String,
+  val preview: String,
+  override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
 ) : AttachedContext() {
-    override val displayName: String get() = preview
+  override val displayName: String get() = preview
 }
 
 /**
@@ -68,7 +68,7 @@ data class AttachedText(
  *   (e.g. user picks the same file twice in the same session).
  * @property mime The image's IANA media type as derived from the
  *   file extension (`image/png`, `image/jpeg`, `image/webp`, …).
- *   This is what the server sees — there is no normalisation to
+ *   This is what the server sees — there is no normalization to
  *   a single type on the wire.
  * @property data Base64-encoded original file bytes (wire path only).
  * @property file The original on-disk file (render path only).
@@ -83,18 +83,18 @@ data class AttachedText(
  *   rejected as too large.
  */
 @Suppress(
-    "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
-    "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
-    "SpellCheckingInspection", "SpellCheckingInspection"
+  "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
+  "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
+  "SpellCheckingInspection", "SpellCheckingInspection"
 )
 data class AttachedImage(
-    val id: String,
-    val mime: String,
-    val data: String,
-    val file: VirtualFile,
-    val originalName: String,
-    val originalSizeBytes: Long,
-    override val iconKey: IconKey = AllIconsKeys.FileTypes.Image
+  val id: String,
+  val mime: String,
+  val data: String,
+  val file: VirtualFile,
+  val originalName: String,
+  val originalSizeBytes: Long,
+  override val iconKey: IconKey = AllIconsKeys.FileTypes.Image
 ) : AttachedContext() {
-    override val displayName: String get() = originalName
+  override val displayName: String get() = originalName
 }

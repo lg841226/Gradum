@@ -42,39 +42,39 @@ import org.jetbrains.jewel.ui.component.Text
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MessageAttachmentList(
-    attachments: List<AttachedContext>,
-    modifier: Modifier = Modifier
+  attachments: List<AttachedContext>,
+  modifier: Modifier = Modifier
 ) {
-    if (attachments.isEmpty()) return
-    FlowRow(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml, Alignment.End),
-        verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-    ) {
-        attachments.forEach { attachment -> AttachmentChip(attachment = attachment) }
-    }
+  if (attachments.isEmpty()) return
+  FlowRow(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml, Alignment.End),
+    verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+  ) {
+    attachments.forEach { attachment -> AttachmentChip(attachment = attachment) }
+  }
 }
 
 @Composable
 private fun AttachmentChip(attachment: AttachedContext) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color = JewelTheme.globalColors.borders.normal)
-            .clickable { /* open file in editor — wired by parent */ }
-            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-    ) {
-        Icon(
-            key = attachment.iconKey,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp)
-        )
-        Text(
-            maxLines = 1,
-            text = attachment.displayName,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+  Row(
+    modifier = Modifier
+      .clip(RoundedCornerShape(4.dp))
+      .background(color = JewelTheme.globalColors.borders.normal)
+      .clickable { /* open file in editor — wired by parent */ }
+      .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+  ) {
+    Icon(
+      key = attachment.iconKey,
+      contentDescription = null,
+      modifier = Modifier.size(14.dp)
+    )
+    Text(
+      maxLines = 1,
+      text = attachment.displayName,
+      overflow = TextOverflow.Ellipsis
+    )
+  }
 }
