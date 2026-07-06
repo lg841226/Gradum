@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 19:43:17 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 20:06:03 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -35,6 +35,7 @@ import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.styling.extensions.github.tables.create
+import org.jetbrains.jewel.markdown.MarkdownBlock
 import org.jetbrains.jewel.markdown.MarkdownText
 import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.extensions.autolink.AutolinkProcessorExtension
@@ -43,6 +44,7 @@ import org.jetbrains.jewel.markdown.extensions.github.tables.*
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
+import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
 /** GFM Tables styling for the chat panel. Kept for call-site compatibility. */
@@ -251,26 +253,14 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         // table data.
         .filter { it.size == headers.size }
 
-      // Single rule: if anything in this table-shaped block can't be
-      // fed safely to the renderer, the whole thing is Failed.
-      // Jewel's MarkdownText internally does
-      //   val block = processor.processMarkdown(text).first()
-      //   block as MarkdownBlock.Paragraph
-      // (we confirmed by decompiling MarkdownTextKt — see line 86-88).
-      // That throws NoSuchElementException for any input the processor
-      // parses to zero blocks. In practice that's `""`, `" "`, `"\t"`,
-      // `"\n"`, etc. — any whitespace-only cell. We use isBlank() to
-      // cover all of them in one shot.
-      // Empty cells are *legal* GFM (models emit them to mark
-      // "unknown" / "TBD"), so the failure is in the renderer, not the
-      // data — but we still want a safe surface.
-      val hasUnrenderableCell: Boolean = headers.any { it.isBlank() }
-        || bodyRows.any { row -> row.any { it.isBlank() } }
-
-      if (bodyRows.isNotEmpty() && !hasUnrenderableCell) {
+      if (bodyRows.isNotEmpty()) {
         flushPlain(); flushFailed()
         segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
       } else {
+        // Single rule: "I tried to render a table and nothing came out."
+        // The original block (header + separator + every body line we
+        // scanned) goes into Failed, the renderer turns that into a
+        // muted placeholder.
         flushPlain()
         appendFailed(headerLine)
         appendFailed(separatorLine)
@@ -402,15 +392,6 @@ fun ScrollableTable(
   onUrlClick: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
-  // Last-line defence. The parser already rejects any table whose
-  // header or body contains an empty cell, but if a future change to
-  // the parser ever leaks a degenerate table through, we bail here
-  // rather than feed it to MarkdownText (which crashes on empty /
-  // unparseable input via parsedBlocks.first()). Bailing silently is
-  // better than crashing the whole chat panel.
-  if (table.header.isEmpty() || table.rows.isEmpty()) {
-    return
-  }
   val globalColors: GlobalColors = LocalGlobalColors.current
   val panelBackground: Color = globalColors.panelBackground
   val density: Density = LocalDensity.current
@@ -451,7 +432,7 @@ fun ScrollableTable(
     Column {
       Row(modifier = Modifier.background(panelBackground)) {
         table.header.forEachIndexed { columnIndex, cell ->
-          MarkdownText(
+          SafeMarkdownText(
             text = cell,
             modifier = Modifier
               .width(
@@ -465,11 +446,10 @@ fun ScrollableTable(
                 vertical = CellVerticalPadding
               ),
             onUrlClick = onUrlClick,
-            blockRenderer = renderer,
-            styling = paragraphStyling,
             fontWeight = FontWeight.SemiBold,
-            processor = GradumMarkdownProcessor,
-            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
+            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
+            blockRenderer = renderer,
+            paragraphStyling = paragraphStyling,
           )
         }
       }
@@ -478,7 +458,7 @@ fun ScrollableTable(
           if (rowIndex % 2 == 0) Color.Transparent else panelBackground
         Row(modifier = Modifier.background(rowBackground)) {
           row.forEachIndexed { columnIndex, cell ->
-            MarkdownText(
+            SafeMarkdownText(
               text = cell,
               modifier = Modifier
                 .width(
@@ -494,12 +474,95 @@ fun ScrollableTable(
               textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
               onUrlClick = onUrlClick,
               blockRenderer = renderer,
-              styling = paragraphStyling,
-              processor = GradumMarkdownProcessor
+              paragraphStyling = paragraphStyling,
             )
           }
         }
       }
     }
+  }
+}
+
+/**
+ * MarkdownText that can't crash the chat panel.
+ *
+ * Jewel 0.37's [MarkdownText] internally does
+ *
+ *     val block = processor.processMarkdown(text).first()
+ *     block as MarkdownBlock.Paragraph
+ *
+ * (we confirmed this by decompiling MarkdownTextKt.class around
+ * line 86-88 with javap). That throws NoSuchElementException for
+ * any input the processor parses to zero blocks — in practice `""`,
+ * `" "`, `"\t"`, `"\n"`, any whitespace-only string — and
+ * ClassCastException for inputs that parse to a non-Paragraph block
+ * type (heading, list, code block, ...). Either of those propagates
+ * out as an unhandled Compose exception and takes the whole chat
+ * panel down.
+ *
+ * We can't try/catch a Composable call directly — exceptions thrown
+ * from inside Composable functions escape the try block and land in
+ * the coroutine exception handler. So we dry-run the parse
+ * ourselves, with [runCatching] around it, and fall back to a plain
+ * [Text] when the parse isn't going to play nicely with MarkdownText.
+ *
+ * Trade-off: the dry-run doubles the markdown parsing work for the
+ * common case (where MarkdownText is happy). For short cell-sized
+ * strings that's negligible. We cache the result in [remember] so it
+ * only fires once per `text` value.
+ */
+@Composable
+fun SafeMarkdownText(
+  text: String,
+  modifier: Modifier = Modifier,
+  onUrlClick: (String) -> Unit = {},
+  fontWeight: FontWeight? = null,
+  textAlign: TextAlign = TextAlign.Unspecified,
+  blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current,
+  paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph,
+  processor: MarkdownProcessor = GradumMarkdownProcessor,
+) {
+  if (text.isBlank()) {
+    // Whitespace-only input. Skip the dry-run; MarkdownText would
+    // crash on this, and rendering as an empty Text in the caller's
+    // style is the closest thing to "show nothing" we can do without
+    // losing the cell.
+    Text(
+      text = "",
+      modifier = modifier,
+      textAlign = textAlign,
+      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
+    )
+    return
+  }
+
+  val canRenderAsMarkdown: Boolean = remember(text) {
+    runCatching { processor.processMarkdownDocument(text) }
+      .map { blocks -> blocks.isNotEmpty() && blocks.first() is MarkdownBlock.Paragraph }
+      .getOrDefault(false)
+  }
+
+  if (canRenderAsMarkdown) {
+    MarkdownText(
+      text = text,
+      modifier = modifier,
+      onUrlClick = onUrlClick,
+      blockRenderer = blockRenderer,
+      styling = paragraphStyling,
+      processor = processor,
+      fontWeight = fontWeight,
+      textAlign = textAlign,
+    )
+  } else {
+    // MarkdownText can't render this safely (rare, but real: hostile
+    // markdown input that the processor can't produce a single
+    // Paragraph block for). Fall back to plain Text so the user still
+    // sees the cell's content as raw text instead of a crash dialog.
+    Text(
+      text = text,
+      modifier = modifier,
+      textAlign = textAlign,
+      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
+    )
   }
 }

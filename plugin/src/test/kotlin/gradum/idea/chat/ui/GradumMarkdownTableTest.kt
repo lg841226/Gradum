@@ -220,36 +220,31 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table with any unrenderable cell - empty or whitespace - is reported as Failed`() {
-    // Jewel's MarkdownText calls
-    //   processor.processMarkdown(text).first() as MarkdownBlock.Paragraph
-    // (confirmed by decompiling MarkdownTextKt). The crash we hit in
-    // production was NoSuchElementException: List is empty — that
-    // triggers not just on `""` but on ANY input the processor parses
-    // to zero blocks. In practice that's `""`, `" "`, `"\t"`, `"\n"`,
-    // etc. — any whitespace-only cell. This test pins the parser
-    // boundary for every one of them.
-    val emptyCell = """
+  fun `blank cells parse into a Table segment - the renderer decides how to render them`() {
+    // Responsibility split: the parser's only job is structural
+    // validity (did we get a header + separator + at least one body
+    // row that lines up?). Whether an individual cell is empty or
+    // whitespace-only is the renderer's problem — SafeMarkdownText
+    // handles that case at the Composable layer, falling back to a
+    // plain Text instead of letting MarkdownText crash the chat
+    // panel. So blank cells still produce a Table segment, they
+    // just render as empty cells in the UI.
+    val emptyHeaderCell = """
       |    | H2 |
       | -- | -- |
       | a  | b  |
     """.trimIndent()
-    val singleSpaceCell = """
+    val emptyBodyCell = """
       | H1 | H2 |
       | -- | -- |
       | a  |    |
     """.trimIndent()
-    val tabCell = """
-      | H1 | H2 |
-      | -- | -- |
-      | 	 | b  |
-    """.trimIndent()
 
-    listOf(emptyCell, singleSpaceCell, tabCell).forEach { md ->
+    listOf(emptyHeaderCell, emptyBodyCell).forEach { md ->
       val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
       val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
-      assertEquals("expected no Table in: ${md.replace("\t", "<TAB>")}", 0, tables.size)
-      assertEquals("expected exactly one Failed in: ${md.replace("\t", "<TAB>")}", 1, failed.size)
+      assertEquals("expected exactly one Table in: $md", 1, tables.size)
+      assertEquals("expected no Failed in: $md", 0, failed.size)
     }
   }
 
