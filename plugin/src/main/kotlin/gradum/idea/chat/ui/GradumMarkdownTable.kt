@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 20:06:03 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 20:36:27 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -114,7 +114,7 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
  * parsed cleanly. The third case is what we get when a model emits a
  * pipe-delimited block with a separator row but the column counts
  * don't line up, or the header parses empty, etc. — the previous
- * behaviour was to dump the raw pipe syntax back to the user as prose,
+ * behavior was to dump the raw pipe syntax back to the user as prose,
  * which was visually noisy. The [Failed] segment lets the renderer
  * show a quiet placeholder instead.
  */
@@ -164,8 +164,7 @@ private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
  * don't want raw pipe syntax leaking into the surrounding prose. The
  * only thing that distinguishes the two outcomes is whether at least
  * one body row survived the column-count check; everything else (empty
- * header, misaligned separator, every row too long, all rows column-
- * mismatched) is just "no body rows" in disguise.
+ * header, misaligned separator, every row too long, all rows column-mismatched) is just "no body rows" in disguise.
  *
  * The parser handles:
  * - optional leading / trailing `|`
@@ -203,7 +202,7 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
   // a failed attempt would emit a Plain block first, then a Plain
   // block, then the previously-buffered Failed — out of order. By
   // flushing at the transition, the order in [segments] matches the
-  // visual order in the source markdown.
+  // visual order in the source Markdown.
   fun appendPlain(line: String) {
     if (failedBuffer.isNotEmpty()) flushFailed()
     if (plainBuffer.isNotEmpty()) plainBuffer.append('\n')
@@ -250,7 +249,7 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         .map { parseTableRow(it) }
         // Drop rows whose column count doesn't match the header — these
         // are almost always misparsed prose with a stray `|`, not real
-        // table data.
+        // table data.≠≠≠≠
         .filter { it.size == headers.size }
 
       if (bodyRows.isNotEmpty()) {
@@ -362,6 +361,15 @@ private val CellHorizontalPadding: Dp = 8.dp
 private val CellVerticalPadding: Dp = 4.dp
 
 /**
+ * Floor on a column's content width. A column whose widest cell
+ * measures narrower than this gets clamped up to it before we
+ * start distributing leftover space — without it, a single-character
+ * column would stay pathologically narrow and look like a vertical
+ * slice in the table.
+ */
+private val MinCellWidthDp: Dp = 80.dp
+
+/**
  * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
  * header row plus body rows, each row a horizontal `Row` of
  * [MarkdownText] cells with a fixed per-column width. The whole
@@ -389,8 +397,8 @@ private val CellVerticalPadding: Dp = 4.dp
 @Composable
 fun ScrollableTable(
   table: MarkdownSegment.Table,
-  onUrlClick: (String) -> Unit = {},
   modifier: Modifier = Modifier,
+  onUrlClick: (String) -> Unit = {}
 ) {
   val globalColors: GlobalColors = LocalGlobalColors.current
   val panelBackground: Color = globalColors.panelBackground
@@ -402,7 +410,7 @@ fun ScrollableTable(
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
 
-  val columnWidthsPx: IntArray = remember(table) {
+  val naturalColumnWidthsPx: IntArray = remember(table) {
     val widths = IntArray(table.header.size.coerceAtLeast(1))
 
     fun measure(row: List<String>, style: TextStyle) {
@@ -422,13 +430,33 @@ fun ScrollableTable(
     widths
   }
 
-  Box(
+  BoxWithConstraints(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .clip(RoundedCornerShape(8.dp))
       .horizontalScroll(rememberScrollState())
   ) {
+    // Take the wider of the panel's allotted width and the natural
+    // table width. naturalColumnWidthsPx is what the cells actually
+    // need to fit; the panel width is what the chat panel can give
+    // us. The latter is what we use to decide whether to scale up.
+    // horizontalScroll inside the Box relaxes the inner maxWidth to
+    // Infinity, so reading maxWidth here gives the panel width, not
+    // the cell content width.
+    val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
+    val minCellWidthPx: Int = with(density) { MinCellWidthDp.roundToPx() }
+    val finalColumnWidthsPx: IntArray = remember(
+      naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, horizontalPaddingPx
+    ) {
+      distributeTableWidth(
+        naturalColumnWidthsPx = naturalColumnWidthsPx,
+        containerWidthPx = containerWidthPx,
+        minCellWidthPx = minCellWidthPx,
+        horizontalPaddingPx = horizontalPaddingPx,
+      )
+    }
+
     Column {
       Row(modifier = Modifier.background(panelBackground)) {
         table.header.forEachIndexed { columnIndex, cell ->
@@ -437,7 +465,7 @@ fun ScrollableTable(
             modifier = Modifier
               .width(
                 with(density) {
-                  (columnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
+                  (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
                     .toDp()
                 }
               )
@@ -463,7 +491,7 @@ fun ScrollableTable(
               modifier = Modifier
                 .width(
                   with(density) {
-                    (columnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
+                    (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
                       .toDp()
                   }
                 )
@@ -481,6 +509,47 @@ fun ScrollableTable(
       }
     }
   }
+}
+
+/**
+ * Picks the final column widths for a table.
+ *
+ * Three steps:
+ * 1. Clamp every column to at least [minCellWidthPx]. A 2-character
+ *    cell shouldn't render as a 24.dp sliver.
+ * 2. Compute the natural total (`Σ clamped + Σ padding`). If the
+ *    natural total is wider than the container, the table would
+ *    overflow — but [Modifier.horizontalScroll] on the outer Box
+ *    handles that case, so we just return the clamped natural widths
+ *    and let the user scroll.
+ * 3. Otherwise scale every column up by the same factor so the new
+ *    total exactly matches the container width. The last column
+ *    absorbs the round-down residue so the widths sum precisely.
+ *
+ * Pure arithmetic, no Compose / no density — easy to unit-test.
+ */
+internal fun distributeTableWidth(
+  naturalColumnWidthsPx: IntArray,
+  containerWidthPx: Int,
+  minCellWidthPx: Int,
+  horizontalPaddingPx: Int,
+): IntArray {
+  if (naturalColumnWidthsPx.isEmpty()) return naturalColumnWidthsPx
+  val paddingPerColumn: Int = horizontalPaddingPx * 2
+  val clamped = IntArray(naturalColumnWidthsPx.size) { i ->
+    maxOf(naturalColumnWidthsPx[i], minCellWidthPx)
+  }
+  val naturalTotalPx: Int = clamped.sum() + paddingPerColumn * clamped.size
+  if (naturalTotalPx >= containerWidthPx) return clamped
+
+  val scale: Float = containerWidthPx.toFloat() / naturalTotalPx.toFloat()
+  val scaled = IntArray(clamped.size) { i -> (clamped[i] * scale).toInt() }
+  val scaledTotalPx: Int = scaled.sum() + paddingPerColumn * scaled.size
+  val residue: Int = containerWidthPx - scaledTotalPx
+  if (residue != 0 && scaled.isNotEmpty()) {
+    scaled[scaled.size - 1] = scaled.last() + residue
+  }
+  return scaled
 }
 
 /**
@@ -506,7 +575,7 @@ fun ScrollableTable(
  * ourselves, with [runCatching] around it, and fall back to a plain
  * [Text] when the parse isn't going to play nicely with MarkdownText.
  *
- * Trade-off: the dry-run doubles the markdown parsing work for the
+ * Trade-off: the dry-run doubles the Markdown parsing work for the
  * common case (where MarkdownText is happy). For short cell-sized
  * strings that's negligible. We cache the result in [remember] so it
  * only fires once per `text` value.
@@ -551,18 +620,18 @@ fun SafeMarkdownText(
       styling = paragraphStyling,
       processor = processor,
       fontWeight = fontWeight,
-      textAlign = textAlign,
+      textAlign = textAlign
     )
   } else {
     // MarkdownText can't render this safely (rare, but real: hostile
-    // markdown input that the processor can't produce a single
+    // Markdown input that the processor can't produce a single
     // Paragraph block for). Fall back to plain Text so the user still
     // sees the cell's content as raw text instead of a crash dialog.
     Text(
       text = text,
       modifier = modifier,
       textAlign = textAlign,
-      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight),
+      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight)
     )
   }
 }

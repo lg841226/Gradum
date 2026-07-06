@@ -248,6 +248,94 @@ class GradumMarkdownTableTest {
     }
   }
 
+  // ── distributeTableWidth ──────────────────────────────────────────
+  //
+  // Pure-arithmetic helper that decides each column's final width.
+  // 1. clamp every column to >= minCellWidthPx,
+  // 2. if the natural total already fills the container, leave it,
+  // 3. otherwise scale all columns up by the same factor so the
+  //    total exactly matches the container.
+  // The last column absorbs the rounding residue.
+
+  @Test
+  fun `distributeTableWidth - short table scales up to fill the container`() {
+    // 3 columns, each natural 100px wide, container 600px. After
+    // scaling every column should be 200px (plus padding from the
+    // caller — we test the content widths only).
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(100, 100, 100),
+      containerWidthPx = 600,
+      minCellWidthPx = 80,
+      horizontalPaddingPx = 0, // strip padding for the test
+    )
+    assertEquals(3, out.size)
+    out.forEach { assertEquals(200, it) }
+  }
+
+  @Test
+  fun `distributeTableWidth - narrow column gets clamped to the minimum width`() {
+    // Clamp only matters when the table isn't being scaled up — once
+    // we hit the "scale all columns proportionally" path, the clamp
+    // is just a floor on the natural width, and the final width is
+    // whatever the proportional scale gives. So the test needs the
+    // natural total to already meet or exceed the container, which
+    // means we can compare the clamped result directly.
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(80, 30, 80),
+      containerWidthPx = 200,
+      minCellWidthPx = 80,
+      horizontalPaddingPx = 0,
+    )
+    assertEquals(80, out[0])
+    assertEquals(80, out[1]) // clamped from 30
+    assertEquals(80, out[2])
+  }
+
+  @Test
+  fun `distributeTableWidth - table wider than container is left untouched`() {
+    // Natural total (3 × 200) already exceeds the container; the
+    // caller will get a horizontal scrollbar instead of squashed
+    // columns.
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(200, 200, 200),
+      containerWidthPx = 500,
+      minCellWidthPx = 80,
+      horizontalPaddingPx = 0,
+    )
+    assertEquals(200, out[0])
+    assertEquals(200, out[1])
+    assertEquals(200, out[2])
+  }
+
+  @Test
+  fun `distributeTableWidth - scaled widths sum to the container width`() {
+    // The whole point: after scaling, the sum of all column widths
+    // (plus per-column padding accounted for by the caller) should
+    // exactly equal the container width, with the round-down
+    // residue absorbed by the last column.
+    val containerWidthPx = 1000
+    val horizontalPaddingPx = 16
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(150, 200, 90, 110),
+      containerWidthPx = containerWidthPx,
+      minCellWidthPx = 80,
+      horizontalPaddingPx = horizontalPaddingPx,
+    )
+    val expectedTotal: Int = containerWidthPx - horizontalPaddingPx * 2 * out.size
+    assertEquals(expectedTotal, out.sum())
+  }
+
+  @Test
+  fun `distributeTableWidth - empty input is a no-op`() {
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(),
+      containerWidthPx = 1000,
+      minCellWidthPx = 80,
+      horizontalPaddingPx = 0,
+    )
+    assertEquals(0, out.size)
+  }
+
   @Test
   fun `a pathologically long line is dropped, not promoted to a single cell`() {
     val longLine = "x".repeat(10_000)
