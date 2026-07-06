@@ -404,6 +404,15 @@ fun ScrollableTable(
   onUrlClick: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
+  // Last-line defence. The parser already rejects any table whose
+  // header or body contains an empty cell, but if a future change to
+  // the parser ever leaks a degenerate table through, we bail here
+  // rather than feed it to MarkdownText (which crashes on empty /
+  // unparseable input via parsedBlocks.first()). Bailing silently is
+  // better than crashing the whole chat panel.
+  if (table.header.isEmpty() || table.rows.isEmpty()) {
+    return
+  }
   val globalColors: GlobalColors = LocalGlobalColors.current
   val panelBackground: Color = globalColors.panelBackground
   val density: Density = LocalDensity.current
