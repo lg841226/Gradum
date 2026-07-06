@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 20:36:27 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 20:48:51 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -435,15 +435,16 @@ fun ScrollableTable(
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .clip(RoundedCornerShape(8.dp))
-      .horizontalScroll(rememberScrollState())
+    // horizontalScroll goes on the *inner* Box below, not here.
+    // If it were on this modifier chain, BoxWithConstraints would
+    // read the post-scroll maxWidth — which is Constraints.Infinity
+    // — and feed it to distributeTableWidth as a sane-looking
+    // pixel count. That would then propagate into Modifier.width()
+    // on every cell, and Layout would refuse to pack a billion-pixel constraint into the constraint record. Keeping the
+    // scrollable modifier on the inner Box leaves the outer
+    // BoxWithConstraints' maxWidth pinned to the chat panel's real
+    // available width.
   ) {
-    // Take the wider of the panel's allotted width and the natural
-    // table width. naturalColumnWidthsPx is what the cells actually
-    // need to fit; the panel width is what the chat panel can give
-    // us. The latter is what we use to decide whether to scale up.
-    // horizontalScroll inside the Box relaxes the inner maxWidth to
-    // Infinity, so reading maxWidth here gives the panel width, not
-    // the cell content width.
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { MinCellWidthDp.roundToPx() }
     val finalColumnWidthsPx: IntArray = remember(
@@ -457,35 +458,14 @@ fun ScrollableTable(
       )
     }
 
-    Column {
-      Row(modifier = Modifier.background(panelBackground)) {
-        table.header.forEachIndexed { columnIndex, cell ->
-          SafeMarkdownText(
-            text = cell,
-            modifier = Modifier
-              .width(
-                with(density) {
-                  (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
-                    .toDp()
-                }
-              )
-              .padding(
-                horizontal = CellHorizontalPadding,
-                vertical = CellVerticalPadding
-              ),
-            onUrlClick = onUrlClick,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
-            blockRenderer = renderer,
-            paragraphStyling = paragraphStyling,
-          )
-        }
-      }
-      table.rows.forEachIndexed { rowIndex, row ->
-        val rowBackground: Color =
-          if (rowIndex % 2 == 0) Color.Transparent else panelBackground
-        Row(modifier = Modifier.background(rowBackground)) {
-          row.forEachIndexed { columnIndex, cell ->
+    Box(
+      modifier = Modifier
+        .width(with(density) { containerWidthPx.toDp() })
+        .horizontalScroll(rememberScrollState())
+    ) {
+      Column {
+        Row(modifier = Modifier.background(panelBackground)) {
+          table.header.forEachIndexed { columnIndex, cell ->
             SafeMarkdownText(
               text = cell,
               modifier = Modifier
@@ -499,11 +479,38 @@ fun ScrollableTable(
                   horizontal = CellHorizontalPadding,
                   vertical = CellVerticalPadding
                 ),
-              textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
               onUrlClick = onUrlClick,
+              fontWeight = FontWeight.SemiBold,
+              textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
               blockRenderer = renderer,
               paragraphStyling = paragraphStyling,
             )
+          }
+        }
+        table.rows.forEachIndexed { rowIndex, row ->
+          val rowBackground: Color =
+            if (rowIndex % 2 == 0) Color.Transparent else panelBackground
+          Row(modifier = Modifier.background(rowBackground)) {
+            row.forEachIndexed { columnIndex, cell ->
+              SafeMarkdownText(
+                text = cell,
+                modifier = Modifier
+                  .width(
+                    with(density) {
+                      (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
+                        .toDp()
+                    }
+                  )
+                  .padding(
+                    horizontal = CellHorizontalPadding,
+                    vertical = CellVerticalPadding
+                  ),
+                textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
+                onUrlClick = onUrlClick,
+                blockRenderer = renderer,
+                paragraphStyling = paragraphStyling,
+              )
+            }
           }
         }
       }
@@ -522,7 +529,7 @@ fun ScrollableTable(
  *    overflow — but [Modifier.horizontalScroll] on the outer Box
  *    handles that case, so we just return the clamped natural widths
  *    and let the user scroll.
- * 3. Otherwise scale every column up by the same factor so the new
+ * 3. Otherwise, scale every column up by the same factor so the new
  *    total exactly matches the container width. The last column
  *    absorbs the round-down residue so the widths sum precisely.
  *
