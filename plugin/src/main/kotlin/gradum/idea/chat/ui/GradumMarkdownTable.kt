@@ -367,7 +367,7 @@ private val CellVerticalPadding: Dp = 4.dp
  * column would stay pathologically narrow and look like a vertical
  * slice in the table.
  */
-private val MinCellWidthDp: Dp = 80.dp
+private val MinCellWidthDp: Dp = 120.dp
 
 /**
  * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
