@@ -220,36 +220,36 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table with any empty cell is reported as Failed to keep the renderer safe`() {
-    // Empty cells are *legal* GFM (models emit them to mark "unknown"
-    // or "TBD"), but Jewel's MarkdownText calls parsedBlocks.first()
-    // internally and throws NoSuchElementException on an empty input —
-    // that crashed the whole chat panel. Rather than route empty
-    // cells through a Text fallback in the renderer, we treat the
-    // whole block as unrenderable here. The user sees a clean muted
-    // placeholder, and the renderer never has to think about empty
-    // cells at all.
-    val emptyHeader = """
-      |    | H2  |
-      | -- | --- |
-      | a  | b   |
+  fun `a table with any unrenderable cell - empty or whitespace - is reported as Failed`() {
+    // Jewel's MarkdownText calls
+    //   processor.processMarkdown(text).first() as MarkdownBlock.Paragraph
+    // (confirmed by decompiling MarkdownTextKt). The crash we hit in
+    // production was NoSuchElementException: List is empty — that
+    // triggers not just on `""` but on ANY input the processor parses
+    // to zero blocks. In practice that's `""`, `" "`, `"\t"`, `"\n"`,
+    // etc. — any whitespace-only cell. This test pins the parser
+    // boundary for every one of them.
+    val emptyCell = """
+      |    | H2 |
+      | -- | -- |
+      | a  | b  |
     """.trimIndent()
-    val emptyBody = """
-      | H1  | H2  |
-      | --- | --- |
-      | a   |     |
+    val singleSpaceCell = """
+      | H1 | H2 |
+      | -- | -- |
+      | a  |    |
     """.trimIndent()
-    val emptyHeaderAndBody = """
-      |     | H2 |
-      | --- | -- |
-      |     | b  |
+    val tabCell = """
+      | H1 | H2 |
+      | -- | -- |
+      | 	 | b  |
     """.trimIndent()
 
-    listOf(emptyHeader, emptyBody, emptyHeaderAndBody).forEach { md ->
+    listOf(emptyCell, singleSpaceCell, tabCell).forEach { md ->
       val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
       val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
-      assertEquals("expected no Table in: $md", 0, tables.size)
-      assertEquals("expected exactly one Failed in: $md", 1, failed.size)
+      assertEquals("expected no Table in: ${md.replace("\t", "<TAB>")}", 0, tables.size)
+      assertEquals("expected exactly one Failed in: ${md.replace("\t", "<TAB>")}", 1, failed.size)
     }
   }
 

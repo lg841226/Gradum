@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 14:31:16 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 19:43:17 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -252,30 +252,28 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         .filter { it.size == headers.size }
 
       // Single rule: if anything in this table-shaped block can't be
-      // fed safely to the renderer, the whole thing is Failed. Two
-      // failure shapes:
-      // 1. No body rows survived the column-count check.
-      // 2. ANY cell — header or body — is empty after parsing.
-      //    Jewel's MarkdownText crashes on an empty input (it calls
-      //    parsedBlocks.first() internally and throws
-      //    NoSuchElementException), so empty cells used to take the
-      //    whole chat panel down. Rather than route empty cells
-      //    through a Text fallback in the renderer, we treat the
-      //    block as unrenderable here: the user gets a clean muted
-      //    placeholder instead of a crash.
-      //    Empty cells are *legal* GFM (models emit them to mark
-      //    "unknown" / "TBD"), so the failure is in the renderer,
-      //    not the data — but we still want a safe surface.
-      val hasEmptyCell: Boolean = headers.any { it.isEmpty() }
-        || bodyRows.any { row -> row.any { it.isEmpty() } }
+      // fed safely to the renderer, the whole thing is Failed.
+      // Jewel's MarkdownText internally does
+      //   val block = processor.processMarkdown(text).first()
+      //   block as MarkdownBlock.Paragraph
+      // (we confirmed by decompiling MarkdownTextKt — see line 86-88).
+      // That throws NoSuchElementException for any input the processor
+      // parses to zero blocks. In practice that's `""`, `" "`, `"\t"`,
+      // `"\n"`, etc. — any whitespace-only cell. We use isBlank() to
+      // cover all of them in one shot.
+      // Empty cells are *legal* GFM (models emit them to mark
+      // "unknown" / "TBD"), so the failure is in the renderer, not the
+      // data — but we still want a safe surface.
+      val hasUnrenderableCell: Boolean = headers.any { it.isBlank() }
+        || bodyRows.any { row -> row.any { it.isBlank() } }
 
-      if (bodyRows.isNotEmpty() && !hasEmptyCell) {
+      if (bodyRows.isNotEmpty() && !hasUnrenderableCell) {
         flushPlain(); flushFailed()
         segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
       } else {
         flushPlain()
         appendFailed(headerLine)
-        appendFailed(separatorLine ?: "")
+        appendFailed(separatorLine)
         bodyLines.forEach { appendFailed(it) }
       }
       lineIndex = bodyLineIndex
