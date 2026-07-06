@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-06-30 23:35:47 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-07-06 14:55:35 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -16,6 +16,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.TextUnit
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
@@ -60,8 +61,14 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     )
 
     fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight): TextStyle {
+      val headingFontSize: TextUnit = paragraphTextStyle.fontSize * fontSizeMultiplier
+      // Scale lineHeight proportionally with the new fontSize; otherwise
+      // an H1 (2.0x) keeps paragraph's 1.5x base-size lineHeight and wraps
+      // look squashed against the larger glyphs.
+      val headingLineHeight: TextUnit = headingFontSize * 1.5f
       return paragraphTextStyle.copy(
-        fontSize = paragraphTextStyle.fontSize * fontSizeMultiplier,
+        fontSize = headingFontSize,
+        lineHeight = headingLineHeight,
         fontWeight = fontWeight
       )
     }
@@ -69,7 +76,8 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     fun headingInlines(textStyle: TextStyle): InlinesStyling {
       return InlinesStyling(
         textStyle = textStyle,
-        inlineCode = textStyle.toSpanStyle().copy(color = globalColors.text.info),
+        inlineCode = textStyle.toSpanStyle()
+          .copy(color = globalColors.text.info),
         link = linkSpan,
         linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
         linkFocused = SpanStyle(

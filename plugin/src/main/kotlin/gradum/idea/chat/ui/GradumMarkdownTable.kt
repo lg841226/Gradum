@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 14:27:52 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-06 14:31:16 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -242,9 +242,9 @@ private fun parseTableRow(line: String): List<String> {
     if (trimmed.startsWith("|")) trimmed.substring(1) else trimmed
   // Optional trailing `|`, but not when it's part of an escaped `\|`.
   val withoutTrailing: String =
-    if (withoutLeading.endsWith("|") && !withoutLeading.endsWith("\\|")) {
+    if (withoutLeading.endsWith("|") && !withoutLeading.endsWith("\\|"))
       withoutLeading.substring(0, withoutLeading.length - 1)
-    } else withoutLeading
+    else withoutLeading
 
   val cells: MutableList<String> = mutableListOf()
   val currentCell: StringBuilder = StringBuilder()
@@ -252,8 +252,7 @@ private fun parseTableRow(line: String): List<String> {
   while (charIndex < withoutTrailing.length) {
     when (val currentChar: Char = withoutTrailing[charIndex]) {
       '\\' if charIndex + 1 < withoutTrailing.length &&
-        withoutTrailing[charIndex + 1] == '|'
-        -> {
+        withoutTrailing[charIndex + 1] == '|' -> {
         currentCell.append('|')
         charIndex += 2
       }
