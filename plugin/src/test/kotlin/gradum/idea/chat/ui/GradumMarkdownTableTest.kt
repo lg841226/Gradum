@@ -151,11 +151,72 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table with zero body rows is treated as plain prose`() {
+  fun `a table with zero body rows is reported as a Failed segment`() {
+    // The header + separator look like a real table, but no body
+    // row follows. Previously we dumped the raw header / separator
+    // back as prose, which was visually noisy. Now the whole block
+    // becomes a single Failed segment that the renderer turns into
+    // a muted placeholder.
     val md = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
     val segments = splitMarkdownAtTables(md)
-    assertEquals(1, segments.size)
+    assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
+    assertEquals("Prose.", (segments[0] as MarkdownSegment.Plain).text)
+    val failed = segments[1] as MarkdownSegment.Failed
+    assertTrue(failed.raw.contains("H1"))
+    assertTrue(failed.raw.contains("--"))
+    assertTrue(segments[2] is MarkdownSegment.Plain)
+    assertEquals("More prose.", (segments[2] as MarkdownSegment.Plain).text)
+  }
+
+  @Test
+  fun `a table where every body row mismatches the header is reported as Failed`() {
+    // The header has 2 columns, every body row is 1 column. Real-world
+    // models often emit a separator that's wider than the data rows.
+    val md = """
+      | H1 | H2 |
+      | -- | -- |
+      | only-one-cell |
+      | another-one  |
+    """.trimIndent()
+    val segments = splitMarkdownAtTables(md)
+    assertEquals(1, segments.size)
+    val failed = segments[0] as MarkdownSegment.Failed
+    assertTrue(failed.raw.contains("H1"))
+    assertTrue(failed.raw.contains("only-one-cell"))
+  }
+
+  @Test
+  fun `a Failed segment keeps the surrounding prose on the right side`() {
+    // Prose before and after the malformed block must still be Plain —
+    // the raw pipe syntax of the failed block must not leak into them.
+    val md = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
+    val segments = splitMarkdownAtTables(md)
+    assertEquals(3, segments.size)
+    assertTrue(segments[0] is MarkdownSegment.Plain)
+    assertEquals("Lead.", (segments[0] as MarkdownSegment.Plain).text)
+    assertTrue(segments[1] is MarkdownSegment.Failed)
+    assertTrue(segments[2] is MarkdownSegment.Plain)
+    assertEquals("Trailing.", (segments[2] as MarkdownSegment.Plain).text)
+  }
+
+  @Test
+  fun `every failure mode collapses to the same single rule - no Table means Failed`() {
+    // The whole point of the simpler rule: it doesn't matter *why* a
+    // table-shaped block failed to render. No body rows, every body
+    // row column-mismatched — any of these is just "no Table segment
+    // came out" → Failed. The only thing that decides Table vs Failed
+    // is whether at least one body row survived.
+    val noBody = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
+    val allMismatched = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
+    val separatorButTrailingProse = "| H1 | H2 |\n| -- | -- |\nstray line"
+
+    listOf(noBody, allMismatched, separatorButTrailingProse).forEach { md ->
+      val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
+      val failed = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Failed>()
+      assertEquals("expected no Table in: $md", 0, tables.size)
+      assertEquals("expected exactly one Failed in: $md", 1, failed.size)
+    }
   }
 
   @Test

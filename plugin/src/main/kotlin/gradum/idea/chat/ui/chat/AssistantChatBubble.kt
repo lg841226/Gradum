@@ -2,18 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-06 02:57:52 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-06 17:22:42 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -31,16 +27,13 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.ui.*
 import gradum.idea.chat.ui.GradumSpacing.sml
 import gradum.idea.chat.ui.input.formatModelName
-import gradum.idea.chat.ui.MarkdownSegment
-import gradum.idea.chat.ui.ScrollableTable
-import gradum.idea.chat.ui.splitMarkdownAtTables
-import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.markdown.extensions.markdownBlockRenderer
@@ -202,10 +195,33 @@ private fun ResponseBlock(
           )
 
           is MarkdownSegment.Table -> ScrollableTable(segment, onUrlClick = onUrlClick)
+
+          is MarkdownSegment.Failed -> TableParseFailurePlaceholder()
         }
       }
     }
   }
+}
+
+/**
+ * Renders a [MarkdownSegment.Failed] — a block that *looked* like a GFM
+ * table (header + separator row) but couldn't be parsed into a real
+ * [MarkdownSegment.Table]. We don't dump the raw pipe syntax back to the
+ * user: the model often emits a header / separator with column counts
+ * that don't line up, and the resulting raw prose is confusing. Instead
+ * we show a single muted line. The raw text is kept inside the
+ * [MarkdownSegment.Failed] for future "click to expand" affordances,
+ * but not surfaced here.
+ */
+@Composable
+private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
+  val globalColors = LocalGlobalColors.current
+  Text(
+    text = message("gradum.markdown.table.parse.failed"),
+    style = JewelTheme.typography.regular,
+    color = globalColors.text.disabled,
+    modifier = modifier.padding(vertical = GradumSpacing.sm)
+  )
 }
 
 @Composable
@@ -340,7 +356,7 @@ private fun TokenStatusRow(
         )
       }
       // Phase 4 — overlay a subtle fade-in during the drop so the new
-      // text "materialises" while it's still in the air.
+      // text "materializes" while it's still in the air.
       fadeAlpha.animateTo(1f, tween(durationMillis = PHASE_FADE_IN_MS))
     }
   }

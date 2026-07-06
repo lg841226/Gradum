@@ -106,12 +106,29 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
   )
 }
 
-/** A piece of Markdown content. Either a plain block of text or a parsed GFM table. */
+/**
+ * A piece of Markdown content. Either a plain block of text, a parsed
+ * GFM table, or a block that *looked* like a GFM table but couldn't be
+ * parsed cleanly. The third case is what we get when a model emits a
+ * pipe-delimited block with a separator row but the column counts
+ * don't line up, or the header parses empty, etc. — the previous
+ * behaviour was to dump the raw pipe syntax back to the user as prose,
+ * which was visually noisy. The [Failed] segment lets the renderer
+ * show a quiet placeholder instead.
+ */
 sealed interface MarkdownSegment {
   data class Plain(val text: String) : MarkdownSegment
   data class Table(
     val header: List<String>, val alignments: List<TextAlign>, val rows: List<List<String>>
   ) : MarkdownSegment
+
+  /**
+   * The original raw text of the malformed table. Kept around in case
+   * the renderer wants to surface it (e.g. a "click to expand" tooltip,
+   * a copy button), but the default render path just shows a muted
+   * placeholder — the raw pipe syntax is ugly and confusing as prose.
+   */
+  data class Failed(val raw: String) : MarkdownSegment
 }
 
 /**
@@ -132,11 +149,21 @@ private const val MAX_TABLE_ROWS: Int = 500
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
 /**
- * Splits a Markdown string into alternating [MarkdownSegment.Plain] and
- * [MarkdownSegment.Table] segments. GFM tables are detected line by line:
- * a header line immediately followed by a separator line (`| --- | :---: |`)
- * starts a table; subsequent `|`-delimited lines are body rows until the
- * first non-table line.
+ * Splits a Markdown string into alternating [MarkdownSegment.Plain],
+ * [MarkdownSegment.Table], and [MarkdownSegment.Failed] segments. GFM
+ * tables are detected line by line: a header line immediately followed
+ * by a separator line (`| --- | :---: |`) starts a table; subsequent
+ * `|`-delimited lines are body rows until the first non-table line.
+ *
+ * Invariant: if a block *looks* like a table (header + separator row
+ * both present and the separator is a real `---` / `:---:` / `---:` row),
+ * this function always emits **either** [MarkdownSegment.Table] **or**
+ * [MarkdownSegment.Failed] for it — never [MarkdownSegment.Plain]. We
+ * don't want raw pipe syntax leaking into the surrounding prose. The
+ * only thing that distinguishes the two outcomes is whether at least
+ * one body row survived the column-count check; everything else (empty
+ * header, misaligned separator, every row too long, all rows column-
+ * mismatched) is just "no body rows" in disguise.
  *
  * The parser handles:
  * - optional leading / trailing `|`
@@ -147,17 +174,12 @@ private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
  * - tables nested inside list items (would require a real Markdown parser)
  * - pipes inside inline code spans
  * - alignment applied to header cells (we trust the separator row)
- *
- * Failure modes (all fall back to [MarkdownSegment.Plain] rather than
- * mis-parsing): separator row invalid; header row empty after parsing;
- * no body rows collected; a body row whose column count diverges from
- * the header; any single line longer than [MAX_TABLE_LINE_LENGTH]; a
- * table that grows past [MAX_TABLE_ROWS].
  */
 fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
   val lines: List<String> = markdown.split('\n')
   val segments: MutableList<MarkdownSegment> = mutableListOf()
   val plainBuffer: StringBuilder = StringBuilder()
+  val failedBuffer: StringBuilder = StringBuilder()
   var lineIndex = 0
 
   fun flushPlain() {
@@ -167,9 +189,29 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
     }
   }
 
+  fun flushFailed() {
+    if (failedBuffer.isNotEmpty()) {
+      segments.add(MarkdownSegment.Failed(failedBuffer.toString()))
+      failedBuffer.clear()
+    }
+  }
+
+  // Whenever we cross a Plain ↔ Failed boundary, flush the buffer
+  // that's being left behind. Without this, a successful parse *after*
+  // a failed attempt would emit a Plain block first, then a Plain
+  // block, then the previously-buffered Failed — out of order. By
+  // flushing at the transition, the order in [segments] matches the
+  // visual order in the source markdown.
   fun appendPlain(line: String) {
+    if (failedBuffer.isNotEmpty()) flushFailed()
     if (plainBuffer.isNotEmpty()) plainBuffer.append('\n')
     plainBuffer.append(line)
+  }
+
+  fun appendFailed(line: String) {
+    if (plainBuffer.isNotEmpty()) flushPlain()
+    if (failedBuffer.isNotEmpty()) failedBuffer.append('\n')
+    failedBuffer.append(line)
   }
 
   while (lineIndex < lines.size) {
@@ -183,50 +225,52 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 
     if (headerIsLikely) {
       val headers: List<String> = parseTableRow(headerLine)
-      val alignments: List<TextAlign> = if (headers.isNotEmpty()) {
-        parseAlignments(separatorLine, headers.size) ?: emptyList()
-      } else emptyList()
+      val alignments: List<TextAlign> = parseAlignments(separatorLine, headers.size)
+        ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
 
-      if (headers.isNotEmpty() && alignments.isNotEmpty()) {
-        val bodyRows: MutableList<List<String>> = mutableListOf()
-        var bodyLineIndex: Int = lineIndex + 2
-
-        while (bodyLineIndex < lines.size && bodyRows.size < MAX_TABLE_ROWS) {
-          val currentLine: String = lines[bodyLineIndex]
-          val trimmedCurrent: String = currentLine.trim()
-          // A blank line or a line without any `|` ends the table.
-          if (trimmedCurrent.isEmpty() || !currentLine.contains('|')) break
-
-          if (currentLine.length > MAX_TABLE_LINE_LENGTH) {
-            // Pathologically long lines get dropped silently rather than
-            // being mis-parsed as a 1-cell row. We keep scanning forward
-            // in case the next line is a normal table row again.
-            bodyLineIndex++; continue
-          }
-
-          val row: List<String> = parseTableRow(currentLine)
-          // Drop rows whose column count doesn't match the header — these
-          // are almost always misparsed prose with a stray `|`, not real
-          // table data. We don't break: a later line in the same block
-          // might still be a valid row.
-          if (row.size == headers.size) bodyRows.add(row)
-
-          bodyLineIndex++
-        }
-
-        // A header without any body rows is probably a stray decoration
-        // inside prose, not a real table. Treat it as plain text.
-        if (bodyRows.isNotEmpty()) {
-          flushPlain()
-          segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
-          lineIndex = bodyLineIndex
-          continue
-        }
+      // Collect every body line we touch, even ones we later reject.
+      // Whatever the outcome (Table or Failed), the whole block has
+      // to be consumed together — partial output would let stray `|`
+      // characters leak into the surrounding prose.
+      val bodyLines: MutableList<String> = mutableListOf()
+      var bodyLineIndex: Int = lineIndex + 2
+      while (bodyLineIndex < lines.size && bodyLines.size < MAX_TABLE_ROWS) {
+        val currentLine: String = lines[bodyLineIndex]
+        val trimmedCurrent: String = currentLine.trim()
+        // A blank line or a line without any `|` ends the table.
+        if (trimmedCurrent.isEmpty() || !currentLine.contains('|')) break
+        bodyLines.add(currentLine)
+        bodyLineIndex++
       }
+
+      val bodyRows: List<List<String>> = bodyLines
+        .filter { it.length <= MAX_TABLE_LINE_LENGTH }
+        .map { parseTableRow(it) }
+        // Drop rows whose column count doesn't match the header — these
+        // are almost always misparsed prose with a stray `|`, not real
+        // table data.
+        .filter { it.size == headers.size }
+
+      if (bodyRows.isNotEmpty()) {
+        flushPlain(); flushFailed()
+        segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
+      } else {
+        // Single rule: "I tried to render a table and nothing came out."
+        // The original block (header + separator + every body line we
+        // scanned) goes into Failed, the renderer turns that into a
+        // muted placeholder.
+        flushPlain()
+        appendFailed(headerLine)
+        appendFailed(separatorLine ?: "")
+        bodyLines.forEach { appendFailed(it) }
+      }
+      lineIndex = bodyLineIndex
+      continue
     }
     appendPlain(headerLine); lineIndex++
   }
-  flushPlain(); return segments
+  flushPlain(); flushFailed()
+  return segments
 }
 
 /**
