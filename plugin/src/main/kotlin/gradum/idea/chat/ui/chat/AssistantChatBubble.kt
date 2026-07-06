@@ -10,6 +10,9 @@
 package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
@@ -20,7 +23,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
@@ -34,6 +39,7 @@ import gradum.idea.chat.ui.ScrollableTable
 import gradum.idea.chat.ui.splitMarkdownAtTables
 import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.icons.GradumIcons
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
@@ -44,6 +50,9 @@ import org.jetbrains.jewel.ui.typography
 
 private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_MS: Int = 100
+private const val PHASE_FADE_IN_MS: Int = 300
+private val RISE_DISTANCE_DP: Dp = 24.dp
+private const val RISE_DURATION_MS: Int = 300
 
 /**
  * Left-aligned assistant message bubble.
@@ -292,14 +301,47 @@ private fun TokenStatusRow(
   var displayText by remember { mutableStateOf(phase) }
   var previousText by remember { mutableStateOf(phase) }
   val fadeAlpha = remember { Animatable(1f) }
+  val verticalOffset = remember { Animatable(0f) }
+  val density = LocalDensity.current
+  val riseDistancePx: Float = with(density) { -RISE_DISTANCE_DP.toPx() }
 
   LaunchedEffect(phase, tokenText) {
     val newText = tokenText.ifEmpty { phase }
     if (newText != previousText) {
-      fadeAlpha.animateTo(0f, tween(PHASE_FADE_MS))
+      // Phase 1 — old text rises and fades out in parallel. The rise is a
+      // straight tween (no spring) so the lift feels intentional, not
+      // physics-y; the bounce is reserved for the drop.
+      launch {
+        verticalOffset.animateTo(
+          targetValue = riseDistancePx,
+          animationSpec = tween(
+            durationMillis = RISE_DURATION_MS,
+            easing = FastOutSlowInEasing,
+          ),
+        )
+      }
+      fadeAlpha.animateTo(0f, tween(durationMillis = PHASE_FADE_MS))
+      // Phase 2 — swap text at the apex. With alpha = 0 the swap is
+      // invisible; the new glyph is "revealed" by the fade-in below.
       displayText = newText
       previousText = newText
-      fadeAlpha.animateTo(1f, tween(PHASE_FADE_MS))
+      // Phase 3 — new text drops and bounces. A spring from above the
+      // resting line to 0 with medium-bouncy damping overshoots below 0
+      // (the "ground" the user described), bounces back, overshoots again,
+      // and settles — visible 2–3 oscillations. Medium-low stiffness slows
+      // the fall so the bounce reads as intentional, not snappy.
+      launch {
+        verticalOffset.animateTo(
+          targetValue = 0f,
+          animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+          ),
+        )
+      }
+      // Phase 4 — overlay a subtle fade-in during the drop so the new
+      // text "materialises" while it's still in the air.
+      fadeAlpha.animateTo(1f, tween(durationMillis = PHASE_FADE_IN_MS))
     }
   }
 
@@ -312,6 +354,7 @@ private fun TokenStatusRow(
       text = displayText,
       enabled = isLoading,
       modifier = Modifier.graphicsLayer {
+        translationY = verticalOffset.value
         this.alpha = fadeAlpha.value
       }
     )
