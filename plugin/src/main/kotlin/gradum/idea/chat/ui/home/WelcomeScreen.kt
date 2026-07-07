@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-03 00:17:31 Changed by gwy
+ * WelcomeScreen.kt  2026-07-07 16:13:30 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -14,6 +14,8 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -37,6 +39,28 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
+ * Linear gradient for the welcome heading text. Colours come from
+ * [GradumIcons.ColorLogo]'s `starGrad` `linearGradient`:
+ *
+ *   <stop offset="0%"   stop-color="#165DFF"/>
+ *   <stop offset="100%" stop-color="#7CB3FF"/>
+ *
+ * with the SVG's x1="100%" y1="0%" x2="0%" y2="100%" axis
+ * translated to Compose's [Offset] space: start at the top-right
+ * of the text bounds, end at the bottom-left. That mirrors the
+ * logo's diagonal sweep, so the heading reads as the same brand
+ * mark as the icon next to it.
+ */
+private val WelcomeGradient: Brush = Brush.linearGradient(
+  colors = listOf(
+    Color(0xFF165DFF),
+    Color(0xFF7CB3FF),
+  ),
+  start = Offset(Float.POSITIVE_INFINITY, 0f),
+  end = Offset(0f, Float.POSITIVE_INFINITY),
+)
+
+/**
  * Landing screen shown before the user has sent any message. Renders a
  * centered brand header and a single chat input section.
  */
@@ -45,7 +69,6 @@ fun WelcomeScreen(
   inputState: ChatInputState,
   inputActions: ChatInputActions,
   textState: TextFieldState,
-  onRefreshModels: () -> Unit,
   suggestionVariants: List<Int>,
   onRefreshSuggestions: () -> Unit,
   modifier: Modifier = Modifier
@@ -63,22 +86,24 @@ fun WelcomeScreen(
     contentAlignment = Alignment.Center
   ) {
     Column(
-      modifier = Modifier
-        .widthIn(max = 600.dp)
-        .padding(start = 6.dp)
+      modifier = Modifier.widthIn(max = 600.dp),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml),
     ) {
-      Column {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Icon(
-            key = GradumIcons.Hands,
+            key = GradumIcons.ColorLogo,
             contentDescription = null,
             modifier = Modifier.size(36.dp)
           )
           Spacer(modifier = Modifier.width(GradumSpacing.lg))
           Text(
-            text = message("gradum.user.name"),
-            style = JewelTheme.typography.h2TextStyle,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
+            text = message("gradum.welcome.text")
           )
         }
         Spacer(modifier = Modifier.height(GradumSpacing.xl))
@@ -89,14 +114,12 @@ fun WelcomeScreen(
           cursorColor = JewelTheme.globalColors.outlines.focused
         )
       }
-      Spacer(modifier = Modifier.height(20.dp))
       ChatInputSection(
         modifier = Modifier.widthIn(max = 600.dp),
         state = inputState,
         actions = inputActions,
         textState = textState
       )
-      Spacer(modifier = Modifier.height(20.dp))
       QuickStartSection(
         textState = textState,
         suggestionVariants = suggestionVariants,
