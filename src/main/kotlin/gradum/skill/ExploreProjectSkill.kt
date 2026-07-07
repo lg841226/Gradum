@@ -529,7 +529,7 @@ private fun applyFilters(files: List<String>, fileType: String, config: FilterCo
     }
   }
 
-  // Apply exclude pattern
+  // Apply to exclude pattern
   if (config.excludePatterns.isNotEmpty()) {
     filtered = filtered.filter { !matchesExcludePattern(it, config.excludePatterns) }
   }
@@ -562,7 +562,7 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
     }
   }
 
-  // Apply exclude pattern
+  // Apply to exclude pattern
   if (config.excludePatterns.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->
       val path = fileInfo["path"] as? String ?: ""
