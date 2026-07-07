@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-07 11:58:24 Changed by gwy
+ * UserChatBubble.kt  2026-07-07 12:29:08 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -17,14 +17,17 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
@@ -46,7 +49,17 @@ import org.jetbrains.jewel.ui.typography
  * Matches the project's other tween-based animations (rise, fade) so
  * transitions feel consistent across the chat panel.
  */
-private const val EXPAND_ANIMATION_MS: Int = 300
+private const val EXPAND_ANIMATION_MS: Int = 200
+
+/**
+ * Maximum height of the user bubble while expanded. Content past this
+ * point is reachable via the bubble's internal vertical scroll rather
+ * than letting the bubble grow to fill the entire chat panel. At the
+ * current typography (16sp regular × 1.5 line-height ≈ 24dp per line)
+ * 280dp fits roughly 7 lines of body text — enough to see context,
+ * short enough that the user can tell there's more by the scrollbar.
+ */
+private val EXPAND_MAX_HEIGHT: Dp = 280.dp
 
 /**
  * Right-aligned user message bubble with copy and reset buttons.
@@ -93,12 +106,20 @@ fun UserChatBubble(
         modifier = Modifier
           .clip(
             RoundedCornerShape(
-              topStart = 16.dp, topEnd = 16.dp,
-              bottomStart = 16.dp, bottomEnd = 0.dp
+              topStart = 14.dp, topEnd = 14.dp,
+              bottomStart = 14.dp, bottomEnd = 0.dp
             )
           )
           .background(color = JewelTheme.globalColors.borders.normal)
           .padding(10.dp)
+          // Cap the bubble's height once expanded so a 200-line paste
+          // doesn't push the bubble taller than the chat panel itself.
+          // Anything past [EXPAND_MAX_HEIGHT] stays reachable through
+          // the inner [verticalScroll] below. The collapsed 1-line
+          // state is unaffected — heightIn allows the layout to be
+          // smaller than its cap, so the bubble still snaps back to
+          // a single line when [isExpanded] flips to false.
+          .heightIn(max = EXPAND_MAX_HEIGHT)
           // Smoothly grow / shrink the bubble when the user toggles
           // the expand button. animateContentSize detects that the
           // inner Text's measured height changed (because maxLines
@@ -114,7 +135,9 @@ fun UserChatBubble(
             )
           )
       ) {
-        Row {
+        Row(
+          modifier = Modifier.verticalScroll(rememberScrollState())
+        ) {
           SelectionContainer {
             Text(
               text = content,
