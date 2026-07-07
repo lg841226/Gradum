@@ -39,22 +39,24 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Linear gradient for the welcome heading text. Colours come from
- * [GradumIcons.ColorLogo]'s `starGrad` `linearGradient`:
+ * Linear gradient for the welcome heading text. Anchored at
+ * [GradumIcons.ColorLogo]'s `starGrad` `linearGradient`
+ * (x1="100%" y1="0%" x2="0%" y2="100%"), which is translated to
+ * Compose's [Offset] space: start at the top-right of the text
+ * bounds, end at the bottom-left. That mirrors the logo's diagonal
+ * sweep, so the heading reads as the same brand mark as the icon
+ * next to it.
  *
- *   <stop offset="0%"   stop-color="#165DFF"/>
- *   <stop offset="100%" stop-color="#7CB3FF"/>
- *
- * with the SVG's x1="100%" y1="0%" x2="0%" y2="100%" axis
- * translated to Compose's [Offset] space: start at the top-right
- * of the text bounds, end at the bottom-left. That mirrors the
- * logo's diagonal sweep, so the heading reads as the same brand
- * mark as the icon next to it.
+ * The end colour is nudged away from the logo's pure light blue
+ * (`#7CB3FF`) toward a slightly deeper lavender-blue
+ * (`#7B86E0`): keeps the gradient from washing out at the
+ * light end and gives the heading a touch of purple so it doesn't
+ * read as a flat sky-blue band against the white background.
  */
 private val WelcomeGradient: Brush = Brush.linearGradient(
   colors = listOf(
     Color(0xFF165DFF),
-    Color(0xFF7CB3FF),
+    Color(0xFF7B86E0),
   ),
   start = Offset(Float.POSITIVE_INFINITY, 0f),
   end = Offset(0f, Float.POSITIVE_INFINITY),
