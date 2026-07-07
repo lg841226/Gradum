@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-07 12:29:08 Changed by gwy
+ * UserChatBubble.kt  2026-07-07 14:18:45 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -11,16 +11,12 @@ package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,26 +36,20 @@ import gradum.idea.editor.AttachedText
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-
-/**
- * Duration of the user-bubble expand / collapse size animation, in ms.
- * Matches the project's other tween-based animations (rise, fade) so
- * transitions feel consistent across the chat panel.
- */
-private const val EXPAND_ANIMATION_MS: Int = 200
 
 /**
  * Maximum height of the user bubble while expanded. Content past this
  * point is reachable via the bubble's internal vertical scroll rather
  * than letting the bubble grow to fill the entire chat panel. At the
  * current typography (16sp regular × 1.5 line-height ≈ 24dp per line)
- * 400dp fits roughly 10 lines of body text — enough to read a pasted
- * stack trace in context without scrolling the entire chat panel.
+ * 200dp fits roughly 5 lines of body text — a tight cap, with most
+ * longer pastes scrolling internally rather than growing the bubble.
  */
-private val EXPAND_MAX_HEIGHT: Dp = 400.dp
+private val EXPAND_MAX_HEIGHT: Dp = 200.dp
 
 /**
  * Right-aligned user message bubble with copy and reset buttons.
@@ -79,21 +69,22 @@ fun UserChatBubble(
   message: ChatMessage,
   onDeleteMessage: () -> Unit = {},
   onCopyAsContext: (String) -> Unit = {},
-  onAttachmentClick: (VirtualFile) -> Unit = {},
-  modifier: Modifier = Modifier
+  onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
   var isCopied by remember { mutableStateOf(false) }
   var showResetPopup by remember { mutableStateOf(false) }
   var isAttachmentsExpanded by remember { mutableStateOf(true) }
   var isExpanded by remember { mutableStateOf(false) }
   val content = message.content
+  val maxLines = if (isExpanded) Int.MAX_VALUE else 1
+  val panelBackground = globalColors.borders.normal.copy(alpha = 0.8f)
 
   val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
   val fileAttachments: List<AttachedContext> = message.attachments.filter {
     it is AttachedFile || it is AttachedText
   }
 
-  Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
     Column(horizontalAlignment = Alignment.End) {
       if (imageAttachments.isNotEmpty()) {
         MessageAttachmentPreview(
@@ -106,11 +97,11 @@ fun UserChatBubble(
         modifier = Modifier
           .clip(
             RoundedCornerShape(
-              topStart = 14.dp, topEnd = 14.dp,
-              bottomStart = 14.dp, bottomEnd = 0.dp
+              topStart = 16.dp, topEnd = 16.dp,
+              bottomStart = 16.dp, bottomEnd = 6.dp
             )
           )
-          .background(color = JewelTheme.globalColors.borders.normal)
+          .background(color = panelBackground)
           .padding(10.dp)
           // Cap the bubble's height once expanded so a 200-line paste
           // doesn't push the bubble taller than the chat panel itself.
@@ -129,9 +120,16 @@ fun UserChatBubble(
           // together with the content — otherwise the panel would
           // appear to "snap" outward.
           .animateContentSize(
-            animationSpec = tween(
-              durationMillis = EXPAND_ANIMATION_MS,
-              easing = FastOutSlowInEasing,
+            animationSpec = spring(
+              // DampingRatioMediumBouncy (0.5) gives a clearly visible
+              // 2-3 bounce — the bubble "overshoots" the target size
+              // then settles. StiffnessMediumLow keeps the oscillation
+              // slow enough that the bounce reads as a bounce, not a
+              // quick overshoot-then-stop. These are the same values
+              // the loading-phase text uses for its ball-drop, so the
+              // chat panel's spring feel is consistent.
+              dampingRatio = Spring.DampingRatioMediumBouncy,
+              stiffness = Spring.StiffnessMediumLow,
             )
           )
       ) {
@@ -141,10 +139,8 @@ fun UserChatBubble(
           SelectionContainer {
             Text(
               text = content,
-              maxLines = if (isExpanded) Int.MAX_VALUE else 1,
-              style = JewelTheme.typography.regular.copy(
-                lineHeight = JewelTheme.typography.regular.fontSize * 1.5f
-              ),
+              maxLines = maxLines,
+              lineHeight = JewelTheme.typography.labelTextStyle.fontSize * 1.5f,
               overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
             )
           }
@@ -167,7 +163,7 @@ fun UserChatBubble(
           Text(
             text = message("gradum.attachments"),
             fontWeight = FontWeight.Medium,
-            color = JewelTheme.globalColors.text.normal
+            color = globalColors.text.normal
           )
         }
         Spacer(Modifier.height(GradumSpacing.sm))
@@ -231,7 +227,7 @@ fun UserChatBubble(
                 ) {
                   Text(
                     text = message("gradum.delete.revert.warning"),
-                    color = JewelTheme.globalColors.text.info
+                    color = globalColors.text.info
                   )
                 }
               }
