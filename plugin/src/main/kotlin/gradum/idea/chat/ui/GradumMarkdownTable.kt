@@ -9,12 +9,10 @@
 
 package gradum.idea.chat.ui
 
-import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,6 +42,7 @@ import org.jetbrains.jewel.markdown.extensions.github.strikethrough.GitHubStrike
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
+import org.jetbrains.jewel.ui.component.HorizontalScrollbar
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
@@ -400,7 +399,7 @@ fun ScrollableTable(
         horizontalPaddingPx = horizontalPaddingPx
       )
     }
-    val scrollState: androidx.compose.foundation.ScrollState = rememberScrollState()
+    val scrollState = rememberScrollState()
 
     // Outer Box hosts both the scrollable table area and the
     // [HorizontalScrollbar] overlay. The inner Box (with the
@@ -465,10 +464,10 @@ fun ScrollableTable(
         }
       }
       HorizontalScrollbar(
+        scrollState = scrollState,
         modifier = Modifier
           .align(Alignment.BottomStart)
           .fillMaxWidth(),
-        adapter = rememberScrollbarAdapter(scrollState)
       )
     }
   }
