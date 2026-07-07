@@ -56,10 +56,10 @@ private const val EXPAND_ANIMATION_MS: Int = 200
  * point is reachable via the bubble's internal vertical scroll rather
  * than letting the bubble grow to fill the entire chat panel. At the
  * current typography (16sp regular × 1.5 line-height ≈ 24dp per line)
- * 280dp fits roughly 7 lines of body text — enough to see context,
- * short enough that the user can tell there's more by the scrollbar.
+ * 400dp fits roughly 10 lines of body text — enough to read a pasted
+ * stack trace in context without scrolling the entire chat panel.
  */
-private val EXPAND_MAX_HEIGHT: Dp = 280.dp
+private val EXPAND_MAX_HEIGHT: Dp = 400.dp
 
 /**
  * Right-aligned user message bubble with copy and reset buttons.
