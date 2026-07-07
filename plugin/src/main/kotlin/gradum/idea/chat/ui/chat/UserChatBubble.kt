@@ -121,14 +121,15 @@ fun UserChatBubble(
           // appear to "snap" outward.
           .animateContentSize(
             animationSpec = spring(
-              // DampingRatioMediumBouncy (0.5) gives a clearly visible
-              // 2-3 bounce — the bubble "overshoots" the target size
-              // then settles. StiffnessMediumLow keeps the oscillation
-              // slow enough that the bounce reads as a bounce, not a
-              // quick overshoot-then-stop. These are the same values
-              // the loading-phase text uses for its ball-drop, so the
-              // chat panel's spring feel is consistent.
-              dampingRatio = Spring.DampingRatioMediumBouncy,
+              // DampingRatioLowBouncy (0.75) gives a very subtle
+              // single overshoot — the bubble "lands" near its
+              // target with a small bounce, not a 2-3 oscillation.
+              // StiffnessMediumLow keeps the whole thing slow
+              // enough that the bounce reads as a bounce, not a
+              // quick snap. MediumBouncy (0.5) was too much: the
+              // bubble visibly oscillated three times and felt
+              // jittery on collapse.
+              dampingRatio = Spring.DampingRatioLowBouncy,
               stiffness = Spring.StiffnessMediumLow,
             )
           )
