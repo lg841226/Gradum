@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentList.kt  2026-07-02 18:02:35 Changed by gwy
+ * MessageAttachmentList.kt  2026-07-07 13:52:44 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -60,9 +60,9 @@ private fun AttachmentChip(attachment: AttachedContext) {
   Row(
     modifier = Modifier
       .clip(RoundedCornerShape(4.dp))
-      .background(color = JewelTheme.globalColors.borders.normal)
-      .clickable { /* open file in editor — wired by parent */ }
-      .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm),
+      .background(color = JewelTheme.globalColors.borders.normal.copy(alpha = 0.8f))
+      .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+      .clickable { /* open file in editor — wired by parent */ },
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
@@ -74,7 +74,8 @@ private fun AttachmentChip(attachment: AttachedContext) {
     Text(
       maxLines = 1,
       text = attachment.displayName,
-      overflow = TextOverflow.Ellipsis
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.widthIn(max = 100.dp)
     )
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCodeBlockRenderer.kt  2026-07-06 16:26:47 Changed by gwy
+ * GradumCodeBlockRenderer.kt  2026-07-07 15:19:07 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -22,15 +22,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.GlobalColors
-import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.DefaultMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
@@ -80,7 +78,7 @@ class GradumCodeBlockRenderer(
       .border(styling.borderWidth, styling.borderColor, CodeBlockShape)
       .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
-    var isSoftWrap by remember { mutableStateOf(true) }
+    var isSoftWrap by remember { mutableStateOf(false) }
 
     Column(modifier = containerModifier) {
       CodeBlockToolbar(
@@ -149,23 +147,19 @@ private fun CodeBlockToolbar(
   onInsertAsFile: (code: String, language: String) -> Unit,
   onSoftWrapToggle: () -> Unit
 ) {
-  val globalColors: GlobalColors = LocalGlobalColors.current
-  val editorTextStyle = JewelTheme.editorTextStyle
-  val mutedTextColor: androidx.compose.ui.graphics.Color = globalColors.text.disabled
-  val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
-  var isCopied: Boolean by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
+  var isCopied: Boolean by remember { mutableStateOf(false) }
+  val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 0.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
     Text(
       text = displayLanguage,
-      style = editorTextStyle.copy(color = mutedTextColor),
-      modifier = Modifier.padding(end = GradumSpacing.sm),
+      fontWeight = FontWeight.Medium
     )
     Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
       IconButton(

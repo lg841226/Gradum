@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-07-01 14:12:36 Changed by gwy
+ * ChatInputPanel.kt  2026-07-07 16:06:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -58,6 +58,7 @@ fun ChatInputPanel(
   var previousTextLength by remember { mutableStateOf(initialTextLength) }
   LaunchedEffect(textState.text) {
     delay(50.milliseconds)
+
     val currentInputText: String = textState.text.toString()
     val baselineTextLength: Int = previousTextLength
     val appendedTextLength: Int = currentInputText.length - baselineTextLength

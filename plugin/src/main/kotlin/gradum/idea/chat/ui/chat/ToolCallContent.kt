@@ -50,7 +50,7 @@ sealed class ToolCallContent {
    *
    * The wire payload from [gradum.skill.SaveFileSkill] always
    * includes a `bytesWritten` field (the file's length on disk
-   * after the write completes, see `SaveFileSkill.execute`), so
+   * after to write completes, see `SaveFileSkill.execute`), so
    * we surface the human-readable size on the tool call capsule
    * next to the file name. Older server builds that don't emit
    * `bytesWritten` (or any non-numeric value) fall through with

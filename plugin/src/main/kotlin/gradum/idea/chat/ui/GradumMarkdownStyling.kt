@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-07-06 14:55:35 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-07-07 15:22:39 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -28,6 +28,7 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
+import org.jetbrains.jewel.ui.typography
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createCodeStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createInlinesStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListStyling
@@ -43,12 +44,15 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
   val globalColors: GlobalColors = LocalGlobalColors.current
   val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
+  val inlineCodeTextStyle = editorTextStyle.copy(lineHeight = editorTextStyle.fontSize * 1.5f)
+  val regularTextStyle = JewelTheme.typography.regular
+
   return remember(globalColors, editorTextStyle, linkStyle) {
     val linkSpan = SpanStyle(color = linkStyle.colors.content)
-    val paragraphTextStyle = editorTextStyle.copy(lineHeight = editorTextStyle.fontSize * 1.5f)
+    val paragraphTextStyle = regularTextStyle.copy(lineHeight = regularTextStyle.fontSize * 1.5f)
     val paragraphInlines = InlinesStyling(
       textStyle = paragraphTextStyle,
-      inlineCode = paragraphTextStyle.toSpanStyle().copy(color = globalColors.text.info),
+      inlineCode = inlineCodeTextStyle.toSpanStyle().copy(color = globalColors.text.info),
       link = linkSpan,
       linkDisabled = SpanStyle(color = linkStyle.colors.contentDisabled),
       linkFocused = SpanStyle(color = linkStyle.colors.contentFocused, textDecoration = TextDecoration.Underline),
@@ -99,9 +103,9 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       )
     }
 
-    val h1Style: TextStyle = headingStyle(2.0f, FontWeight.Bold)
-    val h2Style: TextStyle = headingStyle(1.6f, FontWeight.Bold)
-    val h3Style: TextStyle = headingStyle(1.3f, FontWeight.SemiBold)
+    val h1Style: TextStyle = headingStyle(1.6f, FontWeight.Bold)
+    val h2Style: TextStyle = headingStyle(1.4f, FontWeight.Bold)
+    val h3Style: TextStyle = headingStyle(1.2f, FontWeight.SemiBold)
     val h4Style: TextStyle = headingStyle(1.1f, FontWeight.SemiBold)
     val h5Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
     val h6Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)

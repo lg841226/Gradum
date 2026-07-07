@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-07-06 12:15:42 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-07-07 16:07:35 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -34,9 +34,12 @@ import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
-import gradum.idea.chat.ui.*
+import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.GradumCodeBlockRenderer
+import gradum.idea.chat.ui.GradumMarkdownProcessor
 import gradum.idea.chat.ui.common.DiffViewer
 import gradum.idea.chat.ui.home.WelcomeScreen
+import gradum.idea.chat.ui.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
 import kotlinx.coroutines.*
 import org.jetbrains.jewel.bridge.addComposeTab
@@ -370,7 +373,6 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
   val onStop: () -> Unit = { coroutineScope.launch { session.stopSession() } }
 
-  val onRefreshModels: () -> Unit = { coroutineScope.launch { session.loadModels() } }
   val onOpenInEditor: (String) -> Unit = { target ->
     val project: Project? = toolWindow?.project
     if (project != null && target.isNotBlank()) {
@@ -510,13 +512,11 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     } else {
       WelcomeScreen(
         inputState = inputState,
-        inputActions = inputActions,
         textState = session.textState,
-        onRefreshModels = onRefreshModels,
         suggestionVariants = session.suggestionVariants,
-        onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
-        modifier = Modifier.fillMaxSize()
-      )
+        modifier = Modifier.fillMaxSize(),
+        inputActions = inputActions
+      ) { session.suggestionVariants = List(4) { Random.nextInt(5) } }
     }
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-07 14:18:45 Changed by gwy
+ * UserChatBubble.kt  2026-07-07 15:11:39 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -126,9 +126,7 @@ fun UserChatBubble(
               // target with a small bounce, not a 2-3 oscillation.
               // StiffnessMediumLow keeps the whole thing slow
               // enough that the bounce reads as a bounce, not a
-              // quick snap. MediumBouncy (0.5) was too much: the
-              // bubble visibly oscillated three times and felt
-              // jittery on collapse.
+              // quick snap.
               dampingRatio = Spring.DampingRatioLowBouncy,
               stiffness = Spring.StiffnessMediumLow,
             )

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-07 16:13:30 Changed by gwy
+ * WelcomeScreen.kt  2026-07-07 16:53:14 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -47,19 +47,16 @@ import kotlin.time.Duration.Companion.milliseconds
  * sweep, so the heading reads as the same brand mark as the icon
  * next to it.
  *
- * The end colour is nudged away from the logo's pure light blue
+ * The end color is nudged away from the logo's pure light blue
  * (`#7CB3FF`) toward a slightly deeper lavender-blue
  * (`#7B86E0`): keeps the gradient from washing out at the
  * light end and gives the heading a touch of purple so it doesn't
  * read as a flat sky-blue band against the white background.
  */
 private val WelcomeGradient: Brush = Brush.linearGradient(
-  colors = listOf(
-    Color(0xFF165DFF),
-    Color(0xFF7B86E0),
-  ),
-  start = Offset(Float.POSITIVE_INFINITY, 0f),
   end = Offset(0f, Float.POSITIVE_INFINITY),
+  start = Offset(Float.POSITIVE_INFINITY, 0f),
+  colors = listOf(Color(0xFF3070FD), Color(0xFF5C71F6))
 )
 
 /**
@@ -69,14 +66,16 @@ private val WelcomeGradient: Brush = Brush.linearGradient(
 @Composable
 fun WelcomeScreen(
   inputState: ChatInputState,
-  inputActions: ChatInputActions,
   textState: TextFieldState,
   suggestionVariants: List<Int>,
+  modifier: Modifier = Modifier,
+  inputActions: ChatInputActions,
   onRefreshSuggestions: () -> Unit,
-  modifier: Modifier = Modifier
 ) {
   val welcomeIndex = remember { Random.nextInt(16) }
-  val welcomeText = remember(welcomeIndex) { message("gradum.welcome.$welcomeIndex") }
+  val welcomeText = remember(welcomeIndex) {
+    message("gradum.welcome.$welcomeIndex")
+  }
   val editorFontFamily = JewelTheme.typography.editorTextStyle.fontFamily
   val normalStyle = JewelTheme.typography.regular
   val welcomeStyle = remember(welcomeIndex) {
@@ -89,7 +88,7 @@ fun WelcomeScreen(
   ) {
     Column(
       modifier = Modifier.widthIn(max = 600.dp),
-      verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
     ) {
       Column(
         modifier = Modifier.fillMaxWidth(),
@@ -97,15 +96,15 @@ fun WelcomeScreen(
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Icon(
-            key = GradumIcons.ColorLogo,
             contentDescription = null,
-            modifier = Modifier.size(36.dp)
+            key = GradumIcons.ColorLogo,
+            modifier = Modifier.size(28.dp)
           )
-          Spacer(modifier = Modifier.width(GradumSpacing.lg))
+          Spacer(modifier = Modifier.width(GradumSpacing.md))
           Text(
+            text = message("gradum.welcome.text"),
             fontWeight = FontWeight.Medium,
-            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
-            text = message("gradum.welcome.text")
+            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient)
           )
         }
         Spacer(modifier = Modifier.height(GradumSpacing.xl))
@@ -117,10 +116,10 @@ fun WelcomeScreen(
         )
       }
       ChatInputSection(
-        modifier = Modifier.widthIn(max = 600.dp),
         state = inputState,
+        textState = textState,
         actions = inputActions,
-        textState = textState
+        modifier = Modifier.widthIn(max = 600.dp)
       )
       QuickStartSection(
         textState = textState,
@@ -150,13 +149,13 @@ fun WelcomeScreen(
 @Composable
 private fun TypewriterText(
   text: String,
-  style: androidx.compose.ui.text.TextStyle,
-  modifier: Modifier = Modifier,
   play: Boolean = true,
   charDelayMs: Long = 20,
+  modifier: Modifier = Modifier,
   initialCursorBlinkCount: Int = 3,
   cursorBlinkDurationMs: Long = 300,
-  cursorColor: Color = Color.Unspecified
+  cursorColor: Color = Color.Unspecified,
+  style: androidx.compose.ui.text.TextStyle
 ) {
   var visibleCharacterCount by remember { mutableStateOf(0) }
   var isCursorVisible by remember { mutableStateOf(true) }
@@ -187,11 +186,10 @@ private fun TypewriterText(
   val displayText: AnnotatedString = when {
     visibleCharacterCount == 0 && play -> {
       buildAnnotatedString {
-        if (isCursorVisible) {
+        if (isCursorVisible)
           withStyle(SpanStyle(color = cursorColor)) { append("_") }
-        } else {
+        else
           append("\u00A0")
-        }
       }
     }
 
@@ -206,5 +204,9 @@ private fun TypewriterText(
 
     else -> AnnotatedString(text.take(visibleCharacterCount))
   }
-  Text(text = displayText, style = style, modifier = modifier)
+  Text(
+    style = style,
+    text = displayText,
+    modifier = modifier
+  )
 }

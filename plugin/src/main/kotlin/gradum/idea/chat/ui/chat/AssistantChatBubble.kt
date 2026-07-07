@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-06 17:22:42 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-07 15:54:43 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -56,8 +56,8 @@ private const val RISE_DURATION_MS: Int = 300
 @Composable
 fun AssistantChatBubble(
   message: ChatMessage,
-  modifier: Modifier = Modifier,
   sendingPhase: String = "",
+  modifier: Modifier = Modifier,
   isLoading: Boolean = false,
   actionsEnabled: Boolean = true,
   onRetry: () -> Unit = {},
@@ -69,7 +69,10 @@ fun AssistantChatBubble(
   val renderBlocks = message.renderBlocks
   val hasContent = renderBlocks.isNotEmpty()
 
-  Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+  Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.Start
+  ) {
     Column(horizontalAlignment = Alignment.Start) {
       if (message.modelName.isNotBlank()) {
         Row(
@@ -96,7 +99,7 @@ fun AssistantChatBubble(
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
             is RenderBlock.Error -> ErrorBlock(block)
           }
-          Spacer(modifier = Modifier.height(GradumSpacing.lg))
+          Spacer(modifier = Modifier.height(GradumSpacing.lrl))
         }
       }
 
@@ -160,7 +163,7 @@ private fun ResponseBlock(
     )
   }
   /**
-   * Pull GFM tables out of the raw markdown BEFORE handing the
+   * Pull GFM tables out of the raw Markdown BEFORE handing the
    * rest to `Markdown(...)`. Tables are rendered as plain Compose
    * inside a horizontally scrollable Box (see [ScrollableTable]),
    * which gives a wide table its own horizontal scrollbar without
@@ -183,23 +186,13 @@ private fun ResponseBlock(
             markdown = segment.text,
             modifier = Modifier.fillMaxWidth(),
             markdownStyling = rememberGradumMarkdownStyling(),
-            // The Jewel `Markdown` Composable's `blockRenderer` parameter
-            // defaults to `DefaultMarkdownBlockRenderer(markdownStyling)` —
-            // a hardcoded fresh instance, NOT `JewelTheme.markdownBlockRenderer`
-            // (the `processor` parameter does default to the Local, but
-            // `blockRenderer` does not). This means renderer extensions
-            // registered via `ProvideMarkdownStyling` would be silently
-            // ignored, and GFM Tables / Alerts / anything else would render
-            // blank. Reading from the Local explicitly fixes this.
+            // Jewel's Markdown defaults blockRenderer to a new instance, not the Local.
+            // Extensions like GFM Tables would be silently ignored. Read from Local explicitly.
             blockRenderer = JewelTheme.markdownBlockRenderer,
           )
 
           is MarkdownSegment.Table -> {
-            // Structural "did the table actually render?" gate: if the
-            // parser produced a Table with no renderable body content
-            // (header + separator but every body row mismatched, or all
-            // body rows are blank), we substitute the muted placeholder
-            // instead of letting ScrollableTable render an empty grid.
+            // Skip rendering if the table has no body content. Show placeholder instead.
             if (segment.isRenderable()) {
               ScrollableTable(segment, onUrlClick = onUrlClick)
             } else {
@@ -235,7 +228,8 @@ private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
 private fun ToolCallBlock(
   block: RenderBlock.ToolCall,
   onOpenInEditor: (String) -> Unit,
-  onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
+  onViewDiff:
+    (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
@@ -364,7 +358,10 @@ private fun TokenStatusRow(
       }
       // Phase 4 — overlay a subtle fade-in during the drop so the new
       // text "materializes" while it's still in the air.
-      fadeAlpha.animateTo(1f, tween(durationMillis = PHASE_FADE_IN_MS))
+      fadeAlpha.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = PHASE_FADE_IN_MS)
+      )
     }
   }
 
@@ -394,15 +391,15 @@ private fun MessageActionsRow(
 ) {
   var isCopied by remember { mutableStateOf(false) }
   var isSelectedLike by remember { mutableStateOf(false) }
+  var isSelectedDislike by remember { mutableStateOf(false) }
 
-  Row {
+  Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
     MessageCopyButton(
       message = message,
       isCopied = isCopied,
       onCopy = { isCopied = true },
       onReset = { isCopied = false }
     )
-    Spacer(modifier = Modifier.width(GradumSpacing.sm))
     Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
       IconButton(
         onClick = onRetry,
@@ -414,14 +411,28 @@ private fun MessageActionsRow(
         )
       }
     }
-    Spacer(modifier = Modifier.width(GradumSpacing.sm))
     IconButton(
       enabled = hasContent,
-      onClick = { isSelectedLike = !isSelectedLike }
+      onClick = {
+        isSelectedLike = !isSelectedLike
+        if (isSelectedLike) isSelectedDislike = false
+      }
     ) {
       Icon(
         contentDescription = message("gradum.like"),
         key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
+      )
+    }
+    IconButton(
+      enabled = hasContent,
+      onClick = {
+        isSelectedDislike = !isSelectedDislike
+        if (isSelectedDislike) isSelectedLike = false
+      }
+    ) {
+      Icon(
+        contentDescription = message("gradum.dislike"),
+        key = if (isSelectedDislike) GradumIcons.DislikeSelected else GradumIcons.Dislike
       )
     }
   }
@@ -448,8 +459,10 @@ private fun ErrorBlock(block: RenderBlock.Error) {
     Text(
       maxLines = 1,
       color = textColor,
-      style = JewelTheme.typography.regular,
-      text = block.message.ifBlank { friendlyErrorMessage(block.code) }
+      text = block.message.ifBlank { friendlyErrorMessage(block.code) },
+      style = JewelTheme.typography.editorTextStyle.copy(
+        color = textColor
+      )
     )
   }
 }

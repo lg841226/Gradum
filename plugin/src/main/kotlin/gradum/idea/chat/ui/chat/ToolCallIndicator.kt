@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-07-06 09:48:01 Changed by gwy
+ * ToolCallIndicator.kt  2026-07-07 15:56:33 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
@@ -28,6 +29,7 @@ import org.jetbrains.jewel.foundation.theme.LocalColorPalette
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 
 /**
@@ -38,7 +40,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * truncated with ellipsis and horizontally scrollable on hover /
  * focus.
  */
-private const val REASON_MAX_WIDTH_DP: Int = 240
+private val REASON_MAX_WIDTH_DP: Dp = 200.dp
 
 @Composable
 private fun ToolCallCapsule(
@@ -61,7 +63,7 @@ private fun ToolCallCapsule(
       .fillMaxWidth()
       .then(
         if (hasError) Modifier
-        .clickable { showErrorPopup = true } else Modifier),
+          .clickable { showErrorPopup = true } else Modifier),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
@@ -78,7 +80,10 @@ private fun ToolCallCapsule(
         text = trailingText,
         overflow = TextOverflow.Ellipsis,
         color = JewelTheme.globalColors.text.info,
-        modifier = Modifier.horizontalScroll(rememberScrollState())
+        style = JewelTheme.typography.editorTextStyle,
+        modifier = Modifier
+          .horizontalScroll(rememberScrollState())
+          .widthIn(max = REASON_MAX_WIDTH_DP)
       )
     }
 
@@ -133,47 +138,6 @@ private fun ToolCallCapsule(
         }
       }
     }
-  }
-}
-
-private fun aliasIconKey(alias: String): IconKey = when (alias) {
-  "Ran" -> GradumIcons.Ran
-  "Edited" -> GradumIcons.Edit
-  "Saved" -> GradumIcons.Save
-  "Read" -> AllIconsKeys.General.Show
-  "Explored" -> GradumIcons.Explore
-  "Planned" -> AllIconsKeys.Nodes.Folder
-  "Completed" -> AllIconsKeys.Actions.Checked
-  else -> AllIconsKeys.Nodes.Plugin
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun OpenInEditorButton(
-  target: String,
-  onOpenInEditor: (String) -> Unit
-) {
-  if (target.isNotBlank()) {
-    Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
-      Icon(
-        key = AllIconsKeys.General.Export,
-        contentDescription = null,
-        modifier = Modifier.clickable { onOpenInEditor(target) }
-      )
-    }
-  }
-}
-
-@Composable
-private fun ViewDiffButton(
-  onViewDiff: () -> Unit
-) {
-  Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
-    Icon(
-      key = AllIconsKeys.Actions.Diff,
-      contentDescription = null,
-      modifier = Modifier.clickable { onViewDiff() }
-    )
   }
 }
 
@@ -306,4 +270,45 @@ fun FileToolCallIndicator(
       }
     }
   )
+}
+
+private fun aliasIconKey(alias: String): IconKey = when (alias) {
+  "Ran" -> GradumIcons.Ran
+  "Edited" -> GradumIcons.Edit
+  "Saved" -> GradumIcons.Save
+  "Read" -> AllIconsKeys.General.Show
+  "Explored" -> GradumIcons.Explore
+  "Planned" -> AllIconsKeys.Nodes.Folder
+  "Completed" -> AllIconsKeys.Actions.Checked
+  else -> AllIconsKeys.Nodes.Plugin
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun OpenInEditorButton(
+  target: String,
+  onOpenInEditor: (String) -> Unit
+) {
+  if (target.isNotBlank()) {
+    Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
+      Icon(
+        key = AllIconsKeys.General.Export,
+        contentDescription = null,
+        modifier = Modifier.clickable { onOpenInEditor(target) }
+      )
+    }
+  }
+}
+
+@Composable
+private fun ViewDiffButton(
+  onViewDiff: () -> Unit
+) {
+  Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
+    Icon(
+      key = AllIconsKeys.Actions.Diff,
+      contentDescription = null,
+      modifier = Modifier.clickable { onViewDiff() }
+    )
+  }
 }
