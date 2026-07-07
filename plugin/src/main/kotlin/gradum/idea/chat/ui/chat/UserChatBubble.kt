@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-06 14:15:11 Changed by gwy
+ * UserChatBubble.kt  2026-07-07 11:58:24 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -10,6 +10,9 @@
 package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
@@ -35,6 +39,14 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
+
+/**
+ * Duration of the user-bubble expand / collapse size animation, in ms.
+ * Matches the project's other tween-based animations (rise, fade) so
+ * transitions feel consistent across the chat panel.
+ */
+private const val EXPAND_ANIMATION_MS: Int = 300
 
 /**
  * Right-aligned user message bubble with copy and reset buttons.
@@ -60,6 +72,8 @@ fun UserChatBubble(
   var isCopied by remember { mutableStateOf(false) }
   var showResetPopup by remember { mutableStateOf(false) }
   var isAttachmentsExpanded by remember { mutableStateOf(true) }
+  var isExpanded by remember { mutableStateOf(false) }
+  val content = message.content
 
   val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
   val fileAttachments: List<AttachedContext> = message.attachments.filter {
@@ -79,17 +93,38 @@ fun UserChatBubble(
         modifier = Modifier
           .clip(
             RoundedCornerShape(
-              topStart = 16.dp,
-              topEnd = 16.dp,
-              bottomStart = 16.dp,
-              bottomEnd = 0.dp
+              topStart = 16.dp, topEnd = 16.dp,
+              bottomStart = 16.dp, bottomEnd = 0.dp
             )
           )
           .background(color = JewelTheme.globalColors.borders.normal)
           .padding(10.dp)
+          // Smoothly grow / shrink the bubble when the user toggles
+          // the expand button. animateContentSize detects that the
+          // inner Text's measured height changed (because maxLines
+          // went from 1 to Int.MAX_VALUE, or back) and tweens the
+          // Box's outer size to match. Place it on the Box (not the
+          // inner Row) so the padding and rounded corners animate
+          // together with the content — otherwise the panel would
+          // appear to "snap" outward.
+          .animateContentSize(
+            animationSpec = tween(
+              durationMillis = EXPAND_ANIMATION_MS,
+              easing = FastOutSlowInEasing,
+            )
+          )
       ) {
-        SelectionContainer {
-          Text(text = message.content)
+        Row {
+          SelectionContainer {
+            Text(
+              text = content,
+              maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+              style = JewelTheme.typography.regular.copy(
+                lineHeight = JewelTheme.typography.regular.fontSize * 1.5f
+              ),
+              overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
+            )
+          }
         }
       }
       if (fileAttachments.isNotEmpty()) {
@@ -118,7 +153,7 @@ fun UserChatBubble(
         }
       }
       Spacer(modifier = Modifier.height(GradumSpacing.md))
-      Row {
+      Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
         MessageCopyButton(
           message = message,
           isCopied = isCopied,
@@ -126,11 +161,22 @@ fun UserChatBubble(
           onReset = { isCopied = false },
           onCopyAsContext = onCopyAsContext
         )
-        Spacer(modifier = Modifier.width(GradumSpacing.sm))
+        if (content.length >= 100 || content.lines().size > 1) {
+          Tooltip(tooltip = {
+            Text(text = if (isExpanded) message("gradum.collapse") else message("gradum.expand"))
+          }) {
+            IconButton(onClick = { isExpanded = !isExpanded }) {
+              Icon(
+                modifier = Modifier.size(16.dp),
+                contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
+                key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
+              )
+            }
+          }
+        }
         Tooltip(tooltip = {
           Text(text = message("gradum.reset.tooltip"))
-        }
-        ) {
+        }) {
           IconButton(onClick = { showResetPopup = true }) {
             Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
           }
@@ -150,8 +196,8 @@ fun UserChatBubble(
                 ) {
                   Icon(
                     key = GradumIcons.Warning,
-                    contentDescription = message("gradum.delete.confirm"),
-                    modifier = Modifier.padding(end = 6.dp)
+                    modifier = Modifier.padding(GradumSpacing.sml),
+                    contentDescription = message("gradum.delete.confirm")
                   )
                   Text(text = message("gradum.delete.confirm"))
                 }
@@ -170,21 +216,18 @@ fun UserChatBubble(
             separator()
             selectableItem(
               selected = false,
-              onClick = {
-                showResetPopup = false
-                onDeleteMessage()
-              }
+              onClick = { showResetPopup = false; onDeleteMessage() }
             ) {
               Row(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .padding(horizontal = 6.dp),
+                  .padding(horizontal = GradumSpacing.sml),
                 verticalAlignment = Alignment.CenterVertically
               ) {
                 Icon(
-                  key = AllIconsKeys.General.Reset,
                   contentDescription = message("gradum.delete.action"),
-                  modifier = Modifier.padding(end = 6.dp)
+                  key = AllIconsKeys.General.Reset,
+                  modifier = Modifier.padding(end = GradumSpacing.sml)
                 )
                 Text(text = message("gradum.delete.action"))
               }
