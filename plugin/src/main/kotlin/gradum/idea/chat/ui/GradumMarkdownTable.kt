@@ -2,20 +2,23 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-06 21:32:36 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-07 09:55:16 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui
 
+import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -54,7 +57,7 @@ import org.jetbrains.jewel.ui.typography
  *   plain URLs into clickable links.
  *
  * GFM table syntax is *not* registered here: the chat UI strips GFM
- * tables out at the call site in [AssistantChatBubble] and renders
+ * tables out at the call site in AssistantChatBubble and renders
  * them with [ScrollableTable]. There is no GFM-table input left for
  * the processor to see.
  */
@@ -62,14 +65,14 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
   MarkdownProcessor(
     extensions = listOf(
       AutolinkProcessorExtension,
-      GitHubStrikethroughProcessorExtension(),
+      GitHubStrikethroughProcessorExtension()
     )
   )
 }
 
 /**
  * A piece of Markdown content. Either a plain block of text, or a
- * parsed GFM table. The renderer (see [AssistantChatBubble]) decides
+ * parsed GFM table. The renderer (see AssistantChatBubble) decides
  * what to do with a [Table] that has no renderable content — it
  * substitutes a muted placeholder instead of letting the table
  * silently render as an empty grid.
@@ -77,7 +80,9 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
 sealed interface MarkdownSegment {
   data class Plain(val text: String) : MarkdownSegment
   data class Table(
-    val header: List<String>, val alignments: List<TextAlign>, val rows: List<List<String>>
+    val header: List<String>,
+    val alignments: List<TextAlign>,
+    val rows: List<List<String>>
   ) : MarkdownSegment
 }
 
@@ -179,11 +184,9 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
       val bodyRows: List<List<String>> = bodyLines
         .filter { it.length <= MAX_TABLE_LINE_LENGTH }
         .map { parseTableRow(it) }
-        // Drop rows whose column count doesn't match the header — these
-        // are almost always misparsed prose with a stray `|`, not real
-        // table data. The remaining rows are real table data; the
-        // caller will check [isRenderable] to decide whether to
-        // actually render this as a table.
+        // Drop rows with mismatched column count — these are usually misparsed
+        // prose with a stray `|`, not real table data. The caller will later
+        // check [isRenderable] to decide whether to render this as a table.
         .filter { it.size == headers.size }
 
       flushPlain()
@@ -288,7 +291,15 @@ private val CellVerticalPadding: Dp = 8.dp
  * column would stay pathologically narrow and look like a vertical
  * slice in the table.
  */
-private val MinCellWidthDp: Dp = 60.dp
+private val MinCellWidthDp: Dp = 70.dp
+
+/**
+ * Vertical space reserved at the bottom of the scrollable table area
+ * for the [HorizontalScrollbar] to live in. Pads the inner scrollable
+ * [Box] by this much so the bottom row of cells stays above the
+ * scrollbar instead of being partially covered by it.
+ */
+private val ScrollbarReservedSpace: Dp = 8.dp
 
 /**
  * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
@@ -333,13 +344,12 @@ fun ScrollableTable(
   onUrlClick: (String) -> Unit = {}
 ) {
   val globalColors: GlobalColors = LocalGlobalColors.current
-  val panelBackground: Color = globalColors.panelBackground
-  val stripeColor: Color = globalColors.borders.normal.copy(alpha = 0.08f)
+  val panelBackground: Color = globalColors.borders.normal.copy(alpha = 0.80f)
   val density: Density = LocalDensity.current
   val horizontalPaddingPx: Int = with(density) { CellHorizontalPadding.roundToPx() }
   val textMeasurer: TextMeasurer = rememberTextMeasurer()
   val baseStyle: TextStyle = JewelTheme.typography.regular
-  val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.SemiBold)
+  val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
 
@@ -387,16 +397,24 @@ fun ScrollableTable(
         naturalColumnWidthsPx = naturalColumnWidthsPx,
         containerWidthPx = containerWidthPx,
         minCellWidthPx = minCellWidthPx,
-        horizontalPaddingPx = horizontalPaddingPx,
+        horizontalPaddingPx = horizontalPaddingPx
       )
     }
+    val scrollState: androidx.compose.foundation.ScrollState = rememberScrollState()
 
-    Box(
-      modifier = Modifier
-        .width(with(density) { containerWidthPx.toDp() })
-        .horizontalScroll(rememberScrollState())
-    ) {
-      Column {
+    // Outer Box hosts both the scrollable table area and the
+    // [HorizontalScrollbar] overlay. The inner Box (with the
+    // horizontalScroll modifier) is the actual scroll target;
+    // the scrollbar sits in the reserved bottom padding and gets
+    // clipped to the rounded corners by the outer BoxWithConstraints.
+    Box(modifier = Modifier.fillMaxWidth()) {
+      Box(
+        modifier = Modifier
+          .width(with(density) { containerWidthPx.toDp() })
+          .horizontalScroll(scrollState)
+          .padding(bottom = ScrollbarReservedSpace)
+      ) {
+        Column {
         Row(modifier = Modifier.background(panelBackground)) {
           table.header.forEachIndexed { columnIndex, cell ->
             SafeMarkdownText(
@@ -420,10 +438,8 @@ fun ScrollableTable(
             )
           }
         }
-        table.rows.forEachIndexed { rowIndex, row ->
-          val rowBackground: Color =
-            if (rowIndex % 2 == 0) Color.Transparent else stripeColor
-          Row(modifier = Modifier.background(rowBackground)) {
+        table.rows.forEachIndexed { _, row ->
+          Row {
             row.forEachIndexed { columnIndex, cell ->
               SafeMarkdownText(
                 text = cell,
@@ -438,15 +454,22 @@ fun ScrollableTable(
                     horizontal = CellHorizontalPadding,
                     vertical = CellVerticalPadding
                   ),
-                textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
                 onUrlClick = onUrlClick,
                 blockRenderer = renderer,
                 paragraphStyling = paragraphStyling,
+                textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
               )
             }
           }
         }
+        }
       }
+      HorizontalScrollbar(
+        modifier = Modifier
+          .align(Alignment.BottomStart)
+          .fillMaxWidth(),
+        adapter = rememberScrollbarAdapter(scrollState)
+      )
     }
   }
 }
@@ -477,15 +500,15 @@ internal fun distributeTableWidth(
   val paddingPerColumn = horizontalPaddingPx * 2
   val columnCount = naturalColumnWidthsPx.size
 
-  val clamped = IntArray(columnCount) { i ->
-    maxOf(naturalColumnWidthsPx[i], minCellWidthPx)
+  val clamped = IntArray(columnCount) { index ->
+    maxOf(naturalColumnWidthsPx[index], minCellWidthPx)
   }
 
   val naturalTotal = clamped.sum() + paddingPerColumn * columnCount
   if (naturalTotal >= containerWidthPx) return clamped
 
   val scale = containerWidthPx.toFloat() / naturalTotal.toFloat()
-  val scaled = IntArray(columnCount) { i -> (clamped[i] * scale).toInt() }
+  val scaled = IntArray(columnCount) { index -> (clamped[index] * scale).toInt() }
 
   val scaledTotal = scaled.sum() + paddingPerColumn * columnCount
   val leftover = containerWidthPx - scaledTotal
@@ -529,9 +552,9 @@ fun SafeMarkdownText(
   onUrlClick: (String) -> Unit = {},
   fontWeight: FontWeight? = null,
   textAlign: TextAlign = TextAlign.Unspecified,
-  blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current,
-  paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph,
   processor: MarkdownProcessor = GradumMarkdownProcessor,
+  blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current,
+  paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
 ) {
   if (text.isBlank()) {
     // Whitespace-only input. Skip the dry-run; MarkdownText would
