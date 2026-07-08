@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-08 11:26:31 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-08 12:09:38 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -10,22 +10,24 @@
 package gradum.idea.chat.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
@@ -47,10 +49,18 @@ const val DURATION_MILLIS: Int = 150
  * has a consistent "floating action" pattern.
  *
  * Visibility is controlled by [isVisible]: when `false` the button
- * fades out (150 ms), when `true` it fades in (150 ms). The caller
- * derives [isVisible] from whether the message list is scrollable
- * and whether the user is currently within the "at bottom" tolerance
- * of the end of the list.
+ * fades out, when `true` it fades in (both transitions share
+ * [DURATION_MILLIS]). The caller derives [isVisible] from whether
+ * the message list is scrollable and whether the user is currently
+ * within the "at bottom" tolerance of the end of the list.
+ *
+ * The pill background is slightly translucent at rest (so the chat
+ * surface bleeds through in both light and dark themes) and animates
+ * to fully opaque on hover — a small affordance that confirms the
+ * pill is interactive without changing its silhouette. The
+ * [DURATION_MILLIS] tween applies to both the show/hide transition
+ * and the hover alpha transition so the two feel like a single
+ * animation system.
  *
  * [enabled] is forwarded to the underlying click handler. The
  * caller sets this to `false` while an animated scroll-to-bottom
@@ -73,25 +83,21 @@ fun JumpToBottomButton(
     ) {
         val buttonText: String = message("gradum.jump.to.latest")
         val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+        // Hover lift: at rest the pill is 90% opaque so the chat
+        // surface shows through; on hover it tweens to fully opaque
+        // (alpha 1f) over [DURATION_MILLIS], giving a quick "this
+        // thing reacts to me" confirmation without changing the
+        // shape or position.
+        val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
+        val backgroundAlpha: Float by animateFloatAsState(
+            targetValue = if (isHovered) 1f else 0.90f,
+            animationSpec = tween(durationMillis = DURATION_MILLIS),
+            label = "JumpToBottomButton.HoverAlpha"
+        )
         Row(
             modifier = Modifier
-                // Shadow goes first so it's drawn behind the pill
-                // outline. `clip = false` leaves the subsequent
-                // `.clip(...)` to handle content shaping; the
-                // shadow itself follows the same shape outline.
-                .shadow(
-                    elevation = 2.dp,
-                    shape = RoundedCornerShape(percent = 50),
-                    clip = false
-                )
                 .clip(RoundedCornerShape(percent = 50))
-                // 92% opacity on the panel background lets the chat
-                // surface bleed through a touch — the button reads as
-                // a translucent floating element rather than a solid
-                // block in both light and dark themes. Icon and text
-                // stay fully opaque above the clip so contrast against
-                // the chat content is unaffected.
-                .background(JewelTheme.globalColors.panelBackground.copy(alpha = 0.92f))
+                .background(JewelTheme.globalColors.panelBackground.copy(alpha = backgroundAlpha))
                 .clickable(
                     indication = null,
                     enabled = enabled,
