@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-07 23:22:57 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-08 12:55:56 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
@@ -305,10 +306,11 @@ private val ScrollbarReservedSpace: Dp = 8.dp
  * a "rule" rather than a separator block — it's there to signal
  * that the header has a different role, not to chunk the table.
  *
- * The colour is the theme's `borders.normal` at 35% alpha: subtle
- * enough to disappear into the panel in light mode and visible
- * enough to register as a rule in dark mode, without competing
- * with the row-stripe tint.
+ * The colour is `borders.normal` at 60% alpha. At full alpha the
+ * divider ended up matching the panel surface in the current IDE
+ * theme and disappeared; pulling the alpha back to 0.6f lets the
+ * panel show through a touch and gives a reliable visible rule in
+ * both light and dark themes.
  */
 private val HeaderBodyDividerThickness: Dp = 1.dp
 
@@ -426,9 +428,9 @@ fun ScrollableTable(
             Box(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
-                        .width(with(density) { containerWidthPx.toDp() })
                         .horizontalScroll(scrollState)
                         .padding(bottom = ScrollbarReservedSpace)
+                        .width(with(density) { containerWidthPx.toDp() })
                 ) {
                     Column {
                         Row {
@@ -447,26 +449,18 @@ fun ScrollableTable(
                                             vertical = CellVerticalPadding
                                         ),
                                     onUrlClick = onUrlClick,
-                                    fontWeight = FontWeight.SemiBold,
-                                    textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
                                     blockRenderer = renderer,
+                                    fontWeight = FontWeight.SemiBold,
                                     paragraphStyling = paragraphStyling,
+                                    textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
                                 )
                             }
                         }
-                        // Thin rule between the header row and the first
-                        // body row. Lives inside the same `Column` as
-                        // the cells, so it scrolls horizontally with
-                        // them and stretches the full width of the
-                        // table area (header + body + scroll gutter).
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(HeaderBodyDividerThickness)
-                                .background(
-                                    JewelTheme.globalColors.borders.normal
-                                        .copy(alpha = 0.35f)
-                                )
+                                .background(JewelTheme.globalColors.borders.normal)
                         )
                         table.rows.forEachIndexed { _, row ->
                             Row {
