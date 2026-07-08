@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-08 11:30:00 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-08 11:26:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -19,23 +19,25 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+
+const val DURATION_MILLIS: Int = 150
 
 /**
  * Pill-shaped "Jump to latest" button that floats above the chat
@@ -64,35 +66,51 @@ fun JumpToBottomButton(
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
+        modifier = modifier,
         visible = isVisible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 150)),
-        exit = fadeOut(animationSpec = tween(durationMillis = 150)),
-        modifier = modifier
+        enter = fadeIn(animationSpec = tween(DURATION_MILLIS)),
+        exit = fadeOut(animationSpec = tween(DURATION_MILLIS))
     ) {
-        val interactionSource: MutableInteractionSource =
-            remember { MutableInteractionSource() }
         val buttonText: String = message("gradum.jump.to.latest")
+        val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
         Row(
             modifier = Modifier
+                // Shadow goes first so it's drawn behind the pill
+                // outline. `clip = false` leaves the subsequent
+                // `.clip(...)` to handle content shaping; the
+                // shadow itself follows the same shape outline.
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(percent = 50),
+                    clip = false
+                )
                 .clip(RoundedCornerShape(percent = 50))
-                .background(JewelTheme.globalColors.panelBackground)
+                // 92% opacity on the panel background lets the chat
+                // surface bleed through a touch — the button reads as
+                // a translucent floating element rather than a solid
+                // block in both light and dark themes. Icon and text
+                // stay fully opaque above the clip so contrast against
+                // the chat content is unaffected.
+                .background(JewelTheme.globalColors.panelBackground.copy(alpha = 0.92f))
                 .clickable(
-                    interactionSource = interactionSource,
                     indication = null,
                     enabled = enabled,
-                    onClick = onClick
+                    onClick = onClick,
+                    interactionSource = interactionSource
                 )
                 .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 14.dp, vertical = GradumSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
             Icon(
-                key = AllIconsKeys.General.ChevronDown,
-                contentDescription = buttonText,
-                modifier = Modifier.size(16.dp)
+                key = GradumIcons.ScrollDown,
+                contentDescription = buttonText
             )
-            Text(text = buttonText, style = JewelTheme.typography.regular)
+            Text(
+                text = buttonText,
+                style = JewelTheme.typography.regular
+            )
         }
     }
 }
