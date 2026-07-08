@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-07 23:55:00 Changed by gwy
+ * ChatScreen.kt  2026-07-08 11:07:23 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -13,15 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -59,18 +51,18 @@ private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 24.dp
  * roughly 110–130 dp tall (input panel + spacer + model selector)
  * and the button needs another 12 dp of breathing room above it.
  */
-private val JumpToBottomBottomPadding: androidx.compose.ui.unit.Dp = 120.dp
+private val JumpToBottomBottomPadding: androidx.compose.ui.unit.Dp = 160.dp
 
 /**
  * The active conversation screen: scrollable history on top, input pinned
  * to the bottom. Shown after the user has sent at least one message.
  *
  * A [JumpToBottomButton] floats above the input section. It fades in
- * (150 ms) when new messages arrive while the user is scrolled away,
- * and fades out (150 ms) once the user returns to the bottom. When
- * the user is already at the bottom, new messages auto-scroll into
- * view and no badge is shown — preserving the read-the-latest flow
- * without pulling focus away from older history the user is reading.
+ * (150 ms) whenever the user is more than 24 dp away from the bottom
+ * of the message list, and fades out (150 ms) once they return to the
+ * bottom. When the user is already at the bottom, new messages
+ * auto-scroll into view — preserving the read-the-latest flow without
+ * pulling focus away from older history the user is reading.
  */
 @Composable
 fun ChatScreen(
@@ -107,9 +99,7 @@ fun ChatScreen(
         derivedStateOf {
             val tolerancePx: Float = with(density) { AtBottomToleranceDp.toPx() }
             val maxValue: Int = scrollState.maxValue
-            // A list that hasn't overflowed the viewport is always "at
-            // the bottom" — the button shouldn't appear on a tiny
-            // conversation that fits entirely on screen.
+
             maxValue == 0 || scrollState.value >= maxValue - tolerancePx
         }
     }
@@ -122,12 +112,11 @@ fun ChatScreen(
     LaunchedEffect(messages.size) {
         val delta: Int = messages.size - lastSeenMessageCount.intValue
         if (delta <= 0) return@LaunchedEffect
+
         if (isAtBottom) {
             scrollState.animateScrollTo(scrollState.maxValue)
             lastSeenMessageCount.intValue = messages.size
-        } else {
-            unreadCount += delta
-        }
+        } else unreadCount += delta
     }
 
     // When the user returns to the bottom (either manually, by
@@ -136,8 +125,7 @@ fun ChatScreen(
     // current message count.
     LaunchedEffect(isAtBottom) {
         if (isAtBottom) {
-            unreadCount = 0
-            lastSeenMessageCount.intValue = messages.size
+            unreadCount = 0; lastSeenMessageCount.intValue = messages.size
         }
     }
 
@@ -207,7 +195,6 @@ fun ChatScreen(
 
         JumpToBottomButton(
             isVisible = !isAtBottom,
-            unreadCount = unreadCount,
             enabled = !isJumpToBottomInFlight,
             onClick = {
                 if (isJumpToBottomInFlight) return@JumpToBottomButton
