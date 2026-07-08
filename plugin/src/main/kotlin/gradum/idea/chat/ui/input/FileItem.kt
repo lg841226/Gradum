@@ -28,27 +28,27 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun FileItem(
-  file: VirtualFile,
-  isSelected: Boolean,
-  modifier: Modifier = Modifier
+    file: VirtualFile,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier
 ) {
-  val iconKey = getLanguageIconKey(file.extension)
+    val iconKey = getLanguageIconKey(file.extension)
 
-  Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .padding(vertical = GradumSpacing.xs),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Icon(
-      key = iconKey ?: AllIconsKeys.FileTypes.Unknown,
-      contentDescription = file.fileType.name,
-      modifier = Modifier
-        .padding(end = GradumSpacing.md)
-        .size(14.dp)
-    )
-    Column {
-      Text(text = file.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = GradumSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            key = iconKey ?: AllIconsKeys.FileTypes.Unknown,
+            contentDescription = file.fileType.name,
+            modifier = Modifier
+                .padding(end = GradumSpacing.md)
+                .size(14.dp)
+        )
+        Column {
+            Text(text = file.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+        }
     }
-  }
 }

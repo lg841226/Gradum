@@ -54,9 +54,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * read as a flat sky-blue band against the white background.
  */
 private val WelcomeGradient: Brush = Brush.linearGradient(
-  end = Offset(0f, Float.POSITIVE_INFINITY),
-  start = Offset(Float.POSITIVE_INFINITY, 0f),
-  colors = listOf(Color(0xFF3070FD), Color(0xFF5C71F6))
+    end = Offset(0f, Float.POSITIVE_INFINITY),
+    start = Offset(Float.POSITIVE_INFINITY, 0f),
+    colors = listOf(Color(0xFF3070FD), Color(0xFF5C71F6))
 )
 
 /**
@@ -65,148 +65,148 @@ private val WelcomeGradient: Brush = Brush.linearGradient(
  */
 @Composable
 fun WelcomeScreen(
-  inputState: ChatInputState,
-  textState: TextFieldState,
-  suggestionVariants: List<Int>,
-  modifier: Modifier = Modifier,
-  inputActions: ChatInputActions,
-  onRefreshSuggestions: () -> Unit,
+    inputState: ChatInputState,
+    textState: TextFieldState,
+    suggestionVariants: List<Int>,
+    modifier: Modifier = Modifier,
+    inputActions: ChatInputActions,
+    onRefreshSuggestions: () -> Unit,
 ) {
-  val welcomeIndex = remember { Random.nextInt(16) }
-  val welcomeText = remember(welcomeIndex) {
-    message("gradum.welcome.$welcomeIndex")
-  }
-  val editorFontFamily = JewelTheme.typography.editorTextStyle.fontFamily
-  val normalStyle = JewelTheme.typography.regular
-  val welcomeStyle = remember(welcomeIndex) {
-    normalStyle.copy(fontFamily = editorFontFamily)
-  }
+    val welcomeIndex = remember { Random.nextInt(16) }
+    val welcomeText = remember(welcomeIndex) {
+        message("gradum.welcome.$welcomeIndex")
+    }
+    val editorFontFamily = JewelTheme.typography.editorTextStyle.fontFamily
+    val normalStyle = JewelTheme.typography.regular
+    val welcomeStyle = remember(welcomeIndex) {
+        normalStyle.copy(fontFamily = editorFontFamily)
+    }
 
-  Box(
-    modifier = modifier.fillMaxSize(),
-    contentAlignment = Alignment.Center
-  ) {
-    Column(
-      modifier = Modifier.widthIn(max = 600.dp),
-      verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-      Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-      ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Icon(
-            contentDescription = null,
-            key = GradumIcons.ColorLogo,
-            modifier = Modifier.size(28.dp)
-          )
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Text(
-            text = message("gradum.welcome.text"),
-            fontWeight = FontWeight.Medium,
-            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient)
-          )
+        Column(
+            modifier = Modifier.widthIn(max = 600.dp),
+            verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        contentDescription = null,
+                        key = GradumIcons.ColorLogo,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Text(
+                        text = message("gradum.welcome.text"),
+                        fontWeight = FontWeight.Medium,
+                        style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient)
+                    )
+                }
+                Spacer(modifier = Modifier.height(GradumSpacing.xl))
+                TypewriterText(
+                    text = welcomeText,
+                    style = welcomeStyle,
+                    play = inputState.modelsLoaded,
+                    cursorColor = JewelTheme.globalColors.outlines.focused
+                )
+            }
+            ChatInputSection(
+                state = inputState,
+                textState = textState,
+                actions = inputActions,
+                modifier = Modifier.widthIn(max = 600.dp)
+            )
+            QuickStartSection(
+                textState = textState,
+                suggestionVariants = suggestionVariants,
+                onRefreshSuggestions = onRefreshSuggestions
+            )
         }
-        Spacer(modifier = Modifier.height(GradumSpacing.xl))
-        TypewriterText(
-          text = welcomeText,
-          style = welcomeStyle,
-          play = inputState.modelsLoaded,
-          cursorColor = JewelTheme.globalColors.outlines.focused
-        )
-      }
-      ChatInputSection(
-        state = inputState,
-        textState = textState,
-        actions = inputActions,
-        modifier = Modifier.widthIn(max = 600.dp)
-      )
-      QuickStartSection(
-        textState = textState,
-        suggestionVariants = suggestionVariants,
-        onRefreshSuggestions = onRefreshSuggestions
-      )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp)
+                .align(Alignment.BottomCenter),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
+            Text(
+                text = message("gradum.disclaimer"),
+                style = JewelTheme.typography.small,
+                fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
+                color = JewelTheme.globalColors.text.info
+            )
+        }
     }
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(vertical = 14.dp)
-        .align(Alignment.BottomCenter),
-      horizontalArrangement = Arrangement.Center,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Spacer(modifier = Modifier.width(GradumSpacing.md))
-      Text(
-        text = message("gradum.disclaimer"),
-        style = JewelTheme.typography.small,
-        fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
-        color = JewelTheme.globalColors.text.info
-      )
-    }
-  }
 }
 
 @Composable
 private fun TypewriterText(
-  text: String,
-  play: Boolean = true,
-  charDelayMs: Long = 20,
-  modifier: Modifier = Modifier,
-  initialCursorBlinkCount: Int = 3,
-  cursorBlinkDurationMs: Long = 300,
-  cursorColor: Color = Color.Unspecified,
-  style: androidx.compose.ui.text.TextStyle
+    text: String,
+    play: Boolean = true,
+    charDelayMs: Long = 20,
+    modifier: Modifier = Modifier,
+    initialCursorBlinkCount: Int = 3,
+    cursorBlinkDurationMs: Long = 300,
+    cursorColor: Color = Color.Unspecified,
+    style: androidx.compose.ui.text.TextStyle
 ) {
-  var visibleCharacterCount by remember { mutableStateOf(0) }
-  var isCursorVisible by remember { mutableStateOf(true) }
+    var visibleCharacterCount by remember { mutableStateOf(0) }
+    var isCursorVisible by remember { mutableStateOf(true) }
 
-  LaunchedEffect(text, play) {
-    if (play) {
-      isCursorVisible = true
-      visibleCharacterCount = 0
+    LaunchedEffect(text, play) {
+        if (play) {
+            isCursorVisible = true
+            visibleCharacterCount = 0
 
-      repeat(initialCursorBlinkCount) {
-        isCursorVisible = !isCursorVisible
-        delay(cursorBlinkDurationMs.milliseconds)
-      }
-      isCursorVisible = true
+            repeat(initialCursorBlinkCount) {
+                isCursorVisible = !isCursorVisible
+                delay(cursorBlinkDurationMs.milliseconds)
+            }
+            isCursorVisible = true
 
-      for (index in text.indices) {
-        delay(charDelayMs.milliseconds)
-        visibleCharacterCount = index + 1
-      }
+            for (index in text.indices) {
+                delay(charDelayMs.milliseconds)
+                visibleCharacterCount = index + 1
+            }
 
-      isCursorVisible = false
-    } else {
-      visibleCharacterCount = text.length
-      isCursorVisible = false
-    }
-  }
-
-  val displayText: AnnotatedString = when {
-    visibleCharacterCount == 0 && play -> {
-      buildAnnotatedString {
-        if (isCursorVisible)
-          withStyle(SpanStyle(color = cursorColor)) { append("_") }
-        else
-          append("\u00A0")
-      }
+            isCursorVisible = false
+        } else {
+            visibleCharacterCount = text.length
+            isCursorVisible = false
+        }
     }
 
-    play && visibleCharacterCount < text.length -> {
-      buildAnnotatedString {
-        if (visibleCharacterCount > 0)
-          append(text.take(visibleCharacterCount))
-        if (isCursorVisible)
-          withStyle(SpanStyle(color = cursorColor)) { append("_") }
-      }
-    }
+    val displayText: AnnotatedString = when {
+        visibleCharacterCount == 0 && play -> {
+            buildAnnotatedString {
+                if (isCursorVisible)
+                    withStyle(SpanStyle(color = cursorColor)) { append("_") }
+                else
+                    append("\u00A0")
+            }
+        }
 
-    else -> AnnotatedString(text.take(visibleCharacterCount))
-  }
-  Text(
-    style = style,
-    text = displayText,
-    modifier = modifier
-  )
+        play && visibleCharacterCount < text.length -> {
+            buildAnnotatedString {
+                if (visibleCharacterCount > 0)
+                    append(text.take(visibleCharacterCount))
+                if (isCursorVisible)
+                    withStyle(SpanStyle(color = cursorColor)) { append("_") }
+            }
+        }
+
+        else -> AnnotatedString(text.take(visibleCharacterCount))
+    }
+    Text(
+        style = style,
+        text = displayText,
+        modifier = modifier
+    )
 }

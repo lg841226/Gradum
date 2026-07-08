@@ -38,34 +38,34 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @Composable
 fun MessageCopyButton(
-  message: ChatMessage,
-  isCopied: Boolean,
-  onCopy: () -> Unit,
-  onReset: () -> Unit,
-  onCopyAsContext: (String) -> Unit = {},
-  modifier: Modifier = Modifier
+    message: ChatMessage,
+    isCopied: Boolean,
+    onCopy: () -> Unit,
+    onReset: () -> Unit,
+    onCopyAsContext: (String) -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
-  val scope = rememberCoroutineScope()
-  val textToCopy = if (message.isUserMessage) message.content else message.fullContent
+    val scope = rememberCoroutineScope()
+    val textToCopy = if (message.isUserMessage) message.content else message.fullContent
 
-  Tooltip(modifier = modifier, tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
-    IconButton(
-      onClick = {
-        copyToClipboard(
-          text = textToCopy,
-          onCopied = onCopy,
-          onReset = onReset,
-          scope = scope
-        )
-      },
-      enabled = textToCopy.isNotBlank()
-    ) {
-      Icon(
-        key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
-        contentDescription = message("gradum.copy")
-      )
+    Tooltip(modifier = modifier, tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
+        IconButton(
+            onClick = {
+                copyToClipboard(
+                    text = textToCopy,
+                    onCopied = onCopy,
+                    onReset = onReset,
+                    scope = scope
+                )
+            },
+            enabled = textToCopy.isNotBlank()
+        ) {
+            Icon(
+                key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
+                contentDescription = message("gradum.copy")
+            )
+        }
     }
-  }
 }
 
 /**
@@ -75,19 +75,19 @@ fun MessageCopyButton(
  * @param onReset   Invoked after [delayMillis] to revert any visual state.
  */
 fun copyToClipboard(
-  text: String,
-  onCopied: () -> Unit,
-  onReset: () -> Unit,
-  scope: CoroutineScope,
-  delayMillis: Long = 1000
+    text: String,
+    onCopied: () -> Unit,
+    onReset: () -> Unit,
+    scope: CoroutineScope,
+    delayMillis: Long = 1000
 ) {
-  val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-  val stringSelection = StringSelection(text)
-  clipboard.setContents(stringSelection, null)
+    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+    val stringSelection = StringSelection(text)
+    clipboard.setContents(stringSelection, null)
 
-  onCopied()
+    onCopied()
 
-  scope.launch {
-    delay(delayMillis.milliseconds); onReset()
-  }
+    scope.launch {
+        delay(delayMillis.milliseconds); onReset()
+    }
 }

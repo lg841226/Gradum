@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-08 12:55:56 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-08 14:23:41 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -10,7 +10,6 @@
 package gradum.idea.chat.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -19,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
@@ -301,20 +299,6 @@ private val MinCellWidthDp: Dp = 70.dp
 private val ScrollbarReservedSpace: Dp = 8.dp
 
 /**
- * Thickness of the thin line that separates the table's header row
- * from its body rows. Kept to a single dp so the divider reads as
- * a "rule" rather than a separator block — it's there to signal
- * that the header has a different role, not to chunk the table.
- *
- * The colour is `borders.normal` at 60% alpha. At full alpha the
- * divider ended up matching the panel surface in the current IDE
- * theme and disappeared; pulling the alpha back to 0.6f lets the
- * panel show through a touch and gives a reliable visible rule in
- * both light and dark themes.
- */
-private val HeaderBodyDividerThickness: Dp = 1.dp
-
-/**
  * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
  * header row plus body rows, each row a horizontal `Row` of
  * [MarkdownText] cells with a fixed per-column width. The whole
@@ -428,9 +412,9 @@ fun ScrollableTable(
             Box(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
-                        .horizontalScroll(scrollState)
-                        .padding(bottom = ScrollbarReservedSpace)
                         .width(with(density) { containerWidthPx.toDp() })
+                        .padding(bottom = ScrollbarReservedSpace)
+                        .horizontalScroll(scrollState)
                 ) {
                     Column {
                         Row {
@@ -456,12 +440,6 @@ fun ScrollableTable(
                                 )
                             }
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(HeaderBodyDividerThickness)
-                                .background(JewelTheme.globalColors.borders.normal)
-                        )
                         table.rows.forEachIndexed { _, row ->
                             Row {
                                 row.forEachIndexed { columnIndex, cell ->

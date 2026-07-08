@@ -35,46 +35,46 @@ private val TimestampSpacing = GradumSpacing.xs
  */
 @Composable
 fun ChatMessageList(
-  messages: List<ChatMessage>,
-  modifier: Modifier = Modifier,
-  isLoading: Boolean = false,
-  sendingPhase: String = "",
-  onDeleteMessage: (Int) -> Unit = {},
-  onRetryMessage: (Int) -> Unit = {},
-  onCopyAsContext: (String) -> Unit = {},
-  onAttachmentClick: (VirtualFile) -> Unit = {}
+    messages: List<ChatMessage>,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    sendingPhase: String = "",
+    onDeleteMessage: (Int) -> Unit = {},
+    onRetryMessage: (Int) -> Unit = {},
+    onCopyAsContext: (String) -> Unit = {},
+    onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
-  val scrollState = rememberScrollState()
+    val scrollState = rememberScrollState()
 
-  Column(
-    modifier = modifier.verticalScroll(scrollState),
-    verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
-  ) {
-    messages.forEachIndexed { index, message ->
-      val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
-      val shouldShowTimestamp: Boolean = index == 0 ||
-        formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
-      if (shouldShowTimestamp) {
-        Spacer(modifier = Modifier.height(TimestampSpacing))
-        MessageTimestamp(timestamp = message.timestamp)
-        Spacer(modifier = Modifier.height(TimestampSpacing))
-      }
-      when {
-        message.isUserMessage -> UserChatBubble(
-          message = message,
-          onDeleteMessage = { onDeleteMessage(index) },
-          onCopyAsContext = onCopyAsContext,
-          onAttachmentClick = onAttachmentClick
-        )
+    Column(
+        modifier = modifier.verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+    ) {
+        messages.forEachIndexed { index, message ->
+            val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
+            val shouldShowTimestamp: Boolean = index == 0 ||
+                formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
+            if (shouldShowTimestamp) {
+                Spacer(modifier = Modifier.height(TimestampSpacing))
+                MessageTimestamp(timestamp = message.timestamp)
+                Spacer(modifier = Modifier.height(TimestampSpacing))
+            }
+            when {
+                message.isUserMessage -> UserChatBubble(
+                    message = message,
+                    onDeleteMessage = { onDeleteMessage(index) },
+                    onCopyAsContext = onCopyAsContext,
+                    onAttachmentClick = onAttachmentClick
+                )
 
-        else -> AssistantChatBubble(
-          message = message,
-          sendingPhase = if (isLastAssistant) sendingPhase else "",
-          isLoading = isLastAssistant,
-          onRetry = { onRetryMessage(index) }
-        )
-      }
+                else -> AssistantChatBubble(
+                    message = message,
+                    sendingPhase = if (isLastAssistant) sendingPhase else "",
+                    isLoading = isLastAssistant,
+                    onRetry = { onRetryMessage(index) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(GradumSpacing.lg))
     }
-    Spacer(modifier = Modifier.height(GradumSpacing.lg))
-  }
 }

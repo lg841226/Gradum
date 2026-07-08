@@ -30,9 +30,9 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * [PermissionSelector] can never disagree on spelling.
  */
 object PermissionMode {
-  const val READONLY = "read_only"
-  const val EDIT = "edit"
-  const val AGENT = "agent"
+    const val READONLY = "read_only"
+    const val EDIT = "edit"
+    const val AGENT = "agent"
 }
 
 /**
@@ -45,10 +45,10 @@ object PermissionMode {
  * never run — a silent default back to "write" on every fresh session.
  */
 fun permissionLabel(wire: String): String = when (wire) {
-  PermissionMode.READONLY -> message("gradum.read")
-  PermissionMode.EDIT -> message("gradum.edit")
-  PermissionMode.AGENT -> message("gradum.agent")
-  else -> wire
+    PermissionMode.READONLY -> message("gradum.read")
+    PermissionMode.EDIT -> message("gradum.edit")
+    PermissionMode.AGENT -> message("gradum.agent")
+    else -> wire
 }
 
 /**
@@ -60,97 +60,97 @@ fun permissionLabel(wire: String): String = when (wire) {
  */
 @Composable
 fun PermissionSelector(
-  selectedPermission: String,
-  isMenuVisible: Boolean,
-  onToggle: () -> Unit,
-  onSelect: (String) -> Unit,
-  onDismiss: () -> Unit,
-  modifier: Modifier = Modifier
+    selectedPermission: String,
+    isMenuVisible: Boolean,
+    onToggle: () -> Unit,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-  SelectorButton(
-    text = permissionLabel(selectedPermission),
-    onClick = onToggle,
-    contentDescription = message("gradum.select.permissions"),
-    color = JewelTheme.globalColors.text.normal
-  )
+    SelectorButton(
+        text = permissionLabel(selectedPermission),
+        onClick = onToggle,
+        contentDescription = message("gradum.select.permissions"),
+        color = JewelTheme.globalColors.text.normal
+    )
 
-  if (isMenuVisible) {
-    PopupMenu(
-      onDismissRequest = { onDismiss(); true },
-      horizontalAlignment = Alignment.Start
-    ) {
-      selectableItem(
-        selected = selectedPermission == PermissionMode.READONLY,
-        onClick = { onSelect(PermissionMode.READONLY) }
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
-            ),
-          verticalAlignment = Alignment.CenterVertically
+    if (isMenuVisible) {
+        PopupMenu(
+            onDismissRequest = { onDismiss(); true },
+            horizontalAlignment = Alignment.Start
         ) {
-          Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Column {
-            Text(text = message("gradum.read"))
-            Text(
-              text = message("gradum.read.info"),
-              color = JewelTheme.globalColors.text.info
-            )
-          }
+            selectableItem(
+                selected = selectedPermission == PermissionMode.READONLY,
+                onClick = { onSelect(PermissionMode.READONLY) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Column {
+                        Text(text = message("gradum.read"))
+                        Text(
+                            text = message("gradum.read.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
+                    }
+                }
+            }
+            selectableItem(
+                selected = selectedPermission == PermissionMode.EDIT,
+                onClick = { onSelect(PermissionMode.EDIT) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(key = GradumIcons.Edit, contentDescription = message("gradum.edit.mode"))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Column {
+                        Text(text = message("gradum.edit"))
+                        Text(
+                            text = message("gradum.edit.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
+                    }
+                }
+            }
+            selectableItem(
+                selected = selectedPermission == PermissionMode.AGENT,
+                onClick = { onSelect(PermissionMode.AGENT) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = GradumSpacing.md,
+                            vertical = GradumSpacing.xs
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(key = GradumIcons.Build, contentDescription = message("gradum.agent.mode"))
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Column {
+                        Text(text = message("gradum.agent"))
+                        Text(
+                            text = message("gradum.agent.info"),
+                            color = JewelTheme.globalColors.text.info
+                        )
+                    }
+                }
+            }
         }
-      }
-      selectableItem(
-        selected = selectedPermission == PermissionMode.EDIT,
-        onClick = { onSelect(PermissionMode.EDIT) }
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
-            ),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Icon(key = GradumIcons.Edit, contentDescription = message("gradum.edit.mode"))
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Column {
-            Text(text = message("gradum.edit"))
-            Text(
-              text = message("gradum.edit.info"),
-              color = JewelTheme.globalColors.text.info
-            )
-          }
-        }
-      }
-      selectableItem(
-        selected = selectedPermission == PermissionMode.AGENT,
-        onClick = { onSelect(PermissionMode.AGENT) }
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
-            ),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Icon(key = GradumIcons.Build, contentDescription = message("gradum.agent.mode"))
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Column {
-            Text(text = message("gradum.agent"))
-            Text(
-              text = message("gradum.agent.info"),
-              color = JewelTheme.globalColors.text.info
-            )
-          }
-        }
-      }
     }
-  }
 }

@@ -24,16 +24,16 @@ import org.jetbrains.jewel.ui.icon.IconKey
  */
 @Composable
 fun IconTooltipButton(
-  tooltip: String,
-  iconKey: IconKey,
-  contentDescription: String,
-  onClick: () -> Unit,
-  enabled: Boolean = true,
-  modifier: Modifier = Modifier
+    tooltip: String,
+    iconKey: IconKey,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
-  Tooltip(tooltip = { Text(text = tooltip) }) {
-    IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
-      Icon(key = iconKey, contentDescription = contentDescription)
+    Tooltip(tooltip = { Text(text = tooltip) }) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Icon(key = iconKey, contentDescription = contentDescription)
+        }
     }
-  }
 }

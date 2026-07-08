@@ -177,7 +177,8 @@ Text(
 Text(message, JewelTheme.globalColors.text.normal, maxLines = 1)
 ```
 
-Exception: Single-parameter invocations where the type is self-evident may omit the name, e.g., `Spacer(modifier = Modifier.height(8.dp))`.
+Exception: Single-parameter invocations where the type is self-evident may omit the name, e.g.,
+`Spacer(modifier = Modifier.height(8.dp))`.
 
 ## 5. Color Specifications
 

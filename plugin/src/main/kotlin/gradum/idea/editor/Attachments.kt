@@ -12,23 +12,23 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 sealed class AttachedContext {
-  abstract val iconKey: IconKey
-  abstract val displayName: String
+    abstract val iconKey: IconKey
+    abstract val displayName: String
 }
 
 data class AttachedFile(
-  val file: VirtualFile,
-  override val iconKey: IconKey
+    val file: VirtualFile,
+    override val iconKey: IconKey
 ) : AttachedContext() {
-  override val displayName: String get() = file.name
+    override val displayName: String get() = file.name
 }
 
 data class AttachedText(
-  val content: String,
-  val preview: String,
-  override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
+    val content: String,
+    val preview: String,
+    override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
 ) : AttachedContext() {
-  override val displayName: String get() = preview
+    override val displayName: String get() = preview
 }
 
 /**
@@ -83,18 +83,18 @@ data class AttachedText(
  *   rejected as too large.
  */
 @Suppress(
-  "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
-  "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
-  "SpellCheckingInspection", "SpellCheckingInspection"
+    "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
+    "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
+    "SpellCheckingInspection", "SpellCheckingInspection"
 )
 data class AttachedImage(
-  val id: String,
-  val mime: String,
-  val data: String,
-  val file: VirtualFile,
-  val originalName: String,
-  val originalSizeBytes: Long,
-  override val iconKey: IconKey = AllIconsKeys.FileTypes.Image
+    val id: String,
+    val mime: String,
+    val data: String,
+    val file: VirtualFile,
+    val originalName: String,
+    val originalSizeBytes: Long,
+    override val iconKey: IconKey = AllIconsKeys.FileTypes.Image
 ) : AttachedContext() {
-  override val displayName: String get() = originalName
+    override val displayName: String get() = originalName
 }

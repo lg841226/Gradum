@@ -8,6 +8,6 @@
 package gradum.server
 
 data class ServerConfiguration(
-  val hostAddress: String = "localhost",
-  val portNumber: Int = 8765,
+    val hostAddress: String = "localhost",
+    val portNumber: Int = 8765,
 )

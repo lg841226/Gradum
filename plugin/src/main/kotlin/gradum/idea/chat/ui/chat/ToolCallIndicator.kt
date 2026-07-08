@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallIndicator.kt  2026-07-07 15:56:33 Changed by gwy
+ * ToolCallIndicator.kt  2026-07-07 22:11:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -29,7 +29,6 @@ import org.jetbrains.jewel.foundation.theme.LocalColorPalette
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.typography
 
 
 /**
@@ -44,101 +43,101 @@ private val REASON_MAX_WIDTH_DP: Dp = 200.dp
 
 @Composable
 private fun ToolCallCapsule(
-  iconKey: IconKey,
-  label: String,
-  success: Boolean,
-  modifier: Modifier = Modifier,
-  errorMessage: String = "",
-  errorDetail: String = "",
-  trailingText: String = "",
-  trailingIcon: @Composable RowScope.() -> Unit = {}
+    iconKey: IconKey,
+    label: String,
+    success: Boolean,
+    modifier: Modifier = Modifier,
+    errorMessage: String = "",
+    errorDetail: String = "",
+    trailingText: String = "",
+    trailingIcon: @Composable RowScope.() -> Unit = {}
 ) {
-  val scope = rememberCoroutineScope()
-  var showErrorPopup by remember { mutableStateOf(false) }
-  var isCopied by remember { mutableStateOf(false) }
-  val hasError = !success && errorMessage.isNotBlank()
+    val scope = rememberCoroutineScope()
+    var showErrorPopup by remember { mutableStateOf(false) }
+    var isCopied by remember { mutableStateOf(false) }
+    val hasError = !success && errorMessage.isNotBlank()
 
-  Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .then(
-        if (hasError) Modifier
-          .clickable { showErrorPopup = true } else Modifier),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-  ) {
-    Icon(iconKey, contentDescription = null)
-    Text(
-      text = label,
-      fontWeight = FontWeight.Medium,
-      color = JewelTheme.globalColors.text.normal
-    )
-
-    if (trailingText.isNotBlank()) {
-      Text(
-        maxLines = 1,
-        text = trailingText,
-        overflow = TextOverflow.Ellipsis,
-        color = JewelTheme.globalColors.text.info,
-        style = JewelTheme.typography.editorTextStyle,
-        modifier = Modifier
-          .horizontalScroll(rememberScrollState())
-          .widthIn(max = REASON_MAX_WIDTH_DP)
-      )
-    }
-
-    trailingIcon()
-
-    if (!success) {
-      Icon(
-        key = AllIconsKeys.Status.FailedInProgress,
-        contentDescription = message("gradum.tool.failed")
-      )
-    }
-  }
-
-  if (hasError && showErrorPopup) {
-    PopupMenu(
-      onDismissRequest = { showErrorPopup = false; true },
-      horizontalAlignment = Alignment.Start
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (hasError) Modifier
+                    .clickable { showErrorPopup = true } else Modifier
+            ),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
     ) {
-      passiveItem {
-        Row(
-          modifier = Modifier
-            .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
-          verticalAlignment = Alignment.Top,
-          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-        ) {
-          Icon(
-            key = AllIconsKeys.Status.FailedInProgress,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-          )
-          Column {
+        Icon(iconKey, contentDescription = null)
+        Text(
+            text = label,
+            fontWeight = FontWeight.Medium,
+            color = JewelTheme.globalColors.text.normal
+        )
+
+        if (trailingText.isNotBlank()) {
             Text(
-              text = errorMessage,
-              color = JewelTheme.globalColors.text.normal
+                maxLines = 1,
+                text = trailingText,
+                overflow = TextOverflow.Ellipsis,
+                color = JewelTheme.globalColors.text.info,
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .widthIn(max = REASON_MAX_WIDTH_DP)
             )
-            Spacer(modifier = Modifier.height(GradumSpacing.xs))
-            Link(
-              text = if (isCopied) message("gradum.error.copied")
-              else message("gradum.error.copy.hint"),
-              onClick = {
-                if (!isCopied) {
-                  copyToClipboard(
-                    text = errorDetail,
-                    onCopied = { isCopied = true },
-                    onReset = { isCopied = false },
-                    scope = scope
-                  )
-                }
-              }
-            )
-          }
         }
-      }
+
+        trailingIcon()
+
+        if (!success) {
+            Icon(
+                key = AllIconsKeys.Status.FailedInProgress,
+                contentDescription = message("gradum.tool.failed")
+            )
+        }
     }
-  }
+
+    if (hasError && showErrorPopup) {
+        PopupMenu(
+            onDismissRequest = { showErrorPopup = false; true },
+            horizontalAlignment = Alignment.Start
+        ) {
+            passiveItem {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+                ) {
+                    Icon(
+                        key = AllIconsKeys.Status.FailedInProgress,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Column {
+                        Text(
+                            text = errorMessage,
+                            color = JewelTheme.globalColors.text.normal
+                        )
+                        Spacer(modifier = Modifier.height(GradumSpacing.xs))
+                        Link(
+                            text = if (isCopied) message("gradum.error.copied")
+                            else message("gradum.error.copy.hint"),
+                            onClick = {
+                                if (!isCopied) {
+                                    copyToClipboard(
+                                        scope = scope,
+                                        text = errorDetail,
+                                        onCopied = { isCopied = true },
+                                        onReset = { isCopied = false }
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -153,13 +152,13 @@ private fun ToolCallCapsule(
  *     4_500_000_000 -> "4.2 GB"
  */
 internal fun formatBytes(bytes: Long): String {
-  if (bytes < 1024L) return "$bytes B"
-  val kib: Double = bytes / 1024.0
-  if (kib < 1024.0) return "%.1f KB".format(kib)
-  val mib: Double = kib / 1024.0
-  if (mib < 1024.0) return "%.1f MB".format(mib)
-  val gib: Double = mib / 1024.0
-  return "%.1f GB".format(gib)
+    if (bytes < 1024L) return "$bytes B"
+    val kib: Double = bytes / 1024.0
+    if (kib < 1024.0) return "%.1f KB".format(kib)
+    val mib: Double = kib / 1024.0
+    if (mib < 1024.0) return "%.1f MB".format(mib)
+    val gib: Double = mib / 1024.0
+    return "%.1f GB".format(gib)
 }
 
 /**
@@ -170,145 +169,145 @@ internal fun formatBytes(bytes: Long): String {
  */
 @Composable
 fun ToolCallIndicator(
-  alias: String,
-  success: Boolean = true,
-  modifier: Modifier = Modifier,
-  errorMessage: String = "",
-  errorDetail: String = ""
+    alias: String,
+    success: Boolean = true,
+    modifier: Modifier = Modifier,
+    errorMessage: String = "",
+    errorDetail: String = ""
 ) {
-  ToolCallCapsule(
-    iconKey = aliasIconKey(alias),
-    label = alias,
-    success = success,
-    modifier = modifier,
-    errorMessage = errorMessage,
-    errorDetail = errorDetail
-  )
+    ToolCallCapsule(
+        iconKey = aliasIconKey(alias),
+        label = alias,
+        success = success,
+        modifier = modifier,
+        errorMessage = errorMessage,
+        errorDetail = errorDetail
+    )
 }
 
 @Composable
 fun RanToolCallIndicator(
-  alias: String,
-  reason: String,
-  command: String,
-  success: Boolean = true,
-  modifier: Modifier = Modifier,
-  errorMessage: String = "",
-  errorDetail: String = "",
-  onOpenInEditor: (String) -> Unit = {}
+    alias: String,
+    reason: String,
+    command: String,
+    success: Boolean = true,
+    modifier: Modifier = Modifier,
+    errorMessage: String = "",
+    errorDetail: String = "",
+    onOpenInEditor: (String) -> Unit = {}
 ) {
-  ToolCallCapsule(
-    iconKey = GradumIcons.Ran,
-    label = alias,
-    success = success,
-    modifier = modifier,
-    errorMessage = errorMessage,
-    errorDetail = errorDetail,
-    trailingText = reason,
-    trailingIcon = {
-      OpenInEditorButton(target = command, onOpenInEditor = onOpenInEditor)
-    }
-  )
+    ToolCallCapsule(
+        iconKey = GradumIcons.Ran,
+        label = alias,
+        success = success,
+        modifier = modifier,
+        errorMessage = errorMessage,
+        errorDetail = errorDetail,
+        trailingText = reason,
+        trailingIcon = {
+            OpenInEditorButton(target = command, onOpenInEditor = onOpenInEditor)
+        }
+    )
 }
 
 @Composable
 fun FileToolCallIndicator(
-  alias: String,
-  path: String,
-  sizeText: String? = null,
-  linesAdded: Int = 0,
-  linesRemoved: Int = 0,
-  success: Boolean = true,
-  modifier: Modifier = Modifier,
-  errorMessage: String = "",
-  errorDetail: String = "",
-  onOpenInEditor: (String) -> Unit = {},
-  onViewDiff: () -> Unit = {},
-  hasDiffPayload: Boolean = false,
+    alias: String,
+    path: String,
+    sizeText: String? = null,
+    linesAdded: Int = 0,
+    linesRemoved: Int = 0,
+    success: Boolean = true,
+    modifier: Modifier = Modifier,
+    errorMessage: String = "",
+    errorDetail: String = "",
+    onOpenInEditor: (String) -> Unit = {},
+    onViewDiff: () -> Unit = {},
+    hasDiffPayload: Boolean = false,
 ) {
-  val iconKey = if (alias == "Edited") GradumIcons.Edit else AllIconsKeys.General.Show
-  val fileName = path.substringAfterLast('/')
-  val displayText = if (sizeText != null) "$fileName · $sizeText" else fileName
+    val iconKey = if (alias == "Edited") GradumIcons.Edit else AllIconsKeys.General.Show
+    val fileName = path.substringAfterLast('/')
+    val displayText = if (sizeText != null) "$fileName · $sizeText" else fileName
 
-  ToolCallCapsule(
-    iconKey = iconKey,
-    label = alias,
-    success = success,
-    modifier = modifier,
-    errorMessage = errorMessage,
-    errorDetail = errorDetail,
-    trailingText = displayText,
-    trailingIcon = {
-      Row(
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        if (linesAdded > 0) {
-          // greenOrNull(5) returns the LaF's mid-saturation green,
-          // or null if the theme didn't ship a full palette. Falling
-          // back to text.info (a soft blue) keeps the row readable
-          // even on themes that don't define `green(5)` — the IDE
-          // ships a full palette so this branch is rare in practice.
-          val addedColor = LocalColorPalette.current.greenOrNull(5)
-            ?: JewelTheme.globalColors.text.info
-          Text(
-            text = "+$linesAdded",
-            color = addedColor
-          )
+    ToolCallCapsule(
+        iconKey = iconKey,
+        label = alias,
+        success = success,
+        modifier = modifier,
+        errorMessage = errorMessage,
+        errorDetail = errorDetail,
+        trailingText = displayText,
+        trailingIcon = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (linesAdded > 0) {
+                    // greenOrNull(5) returns the LaF's mid-saturation green,
+                    // or null if the theme didn't ship a full palette. Falling
+                    // back to text.info (a soft blue) keeps the row readable
+                    // even on themes that don't define `green(5)` — the IDE
+                    // ships a full palette so this branch is rare in practice.
+                    val addedColor = LocalColorPalette.current.greenOrNull(5)
+                        ?: JewelTheme.globalColors.text.info
+                    Text(
+                        text = "+$linesAdded",
+                        color = addedColor
+                    )
+                }
+                if (linesRemoved > 0) {
+                    Text(
+                        text = "-$linesRemoved",
+                        color = JewelTheme.globalColors.text.error
+                    )
+                }
+                if (alias == "Edited" && success && hasDiffPayload) {
+                    ViewDiffButton(onViewDiff = onViewDiff)
+                } else {
+                    OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
+                }
+            }
         }
-        if (linesRemoved > 0) {
-          Text(
-            text = "-$linesRemoved",
-            color = JewelTheme.globalColors.text.error
-          )
-        }
-        if (alias == "Edited" && success && hasDiffPayload) {
-          ViewDiffButton(onViewDiff = onViewDiff)
-        } else {
-          OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
-        }
-      }
-    }
-  )
+    )
 }
 
 private fun aliasIconKey(alias: String): IconKey = when (alias) {
-  "Ran" -> GradumIcons.Ran
-  "Edited" -> GradumIcons.Edit
-  "Saved" -> GradumIcons.Save
-  "Read" -> AllIconsKeys.General.Show
-  "Explored" -> GradumIcons.Explore
-  "Planned" -> AllIconsKeys.Nodes.Folder
-  "Completed" -> AllIconsKeys.Actions.Checked
-  else -> AllIconsKeys.Nodes.Plugin
+    "Ran" -> GradumIcons.Ran
+    "Edited" -> GradumIcons.Edit
+    "Saved" -> GradumIcons.Save
+    "Read" -> AllIconsKeys.General.Show
+    "Explored" -> GradumIcons.Explore
+    "Planned" -> AllIconsKeys.Nodes.Folder
+    "Completed" -> AllIconsKeys.Actions.Checked
+    else -> AllIconsKeys.Nodes.Plugin
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun OpenInEditorButton(
-  target: String,
-  onOpenInEditor: (String) -> Unit
+    target: String,
+    onOpenInEditor: (String) -> Unit
 ) {
-  if (target.isNotBlank()) {
-    Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
-      Icon(
-        key = AllIconsKeys.General.Export,
-        contentDescription = null,
-        modifier = Modifier.clickable { onOpenInEditor(target) }
-      )
+    if (target.isNotBlank()) {
+        Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
+            Icon(
+                key = AllIconsKeys.General.Export,
+                contentDescription = null,
+                modifier = Modifier.clickable { onOpenInEditor(target) }
+            )
+        }
     }
-  }
 }
 
 @Composable
 private fun ViewDiffButton(
-  onViewDiff: () -> Unit
+    onViewDiff: () -> Unit
 ) {
-  Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
-    Icon(
-      key = AllIconsKeys.Actions.Diff,
-      contentDescription = null,
-      modifier = Modifier.clickable { onViewDiff() }
-    )
-  }
+    Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
+        Icon(
+            key = AllIconsKeys.Actions.Diff,
+            contentDescription = null,
+            modifier = Modifier.clickable { onViewDiff() }
+        )
+    }
 }

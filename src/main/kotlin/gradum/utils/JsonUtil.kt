@@ -29,66 +29,66 @@ import kotlinx.serialization.json.*
  */
 object JsonUtil {
 
-  /** Public entry point: encode a heterogeneous [Map] to a compact JSON string. */
-  fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
-    val jsonFormatter = Json { this.prettyPrint = prettyPrint }
-    return jsonFormatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
-  }
+    /** Public entry point: encode a heterogeneous [Map] to a compact JSON string. */
+    fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
+        val jsonFormatter = Json { this.prettyPrint = prettyPrint }
+        return jsonFormatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
+    }
 
-  /** Recursively convert an `Any?` value to its [JsonElement] representation. */
-  fun toJsonElement(value: Any?): JsonElement = when (value) {
-    null -> JsonNull
-    is JsonElement -> value
-    is String -> JsonPrimitive(value)
-    is Boolean -> JsonPrimitive(value)
-    is Number -> JsonPrimitive(value)
-    is Map<*, *> -> {
-      buildJsonObject {
-        for ((rawKey, rawValue) in value) {
-          val key: String = rawKey?.toString() ?: continue
-          put(key, toJsonElement(rawValue))
+    /** Recursively convert an `Any?` value to its [JsonElement] representation. */
+    fun toJsonElement(value: Any?): JsonElement = when (value) {
+        null -> JsonNull
+        is JsonElement -> value
+        is String -> JsonPrimitive(value)
+        is Boolean -> JsonPrimitive(value)
+        is Number -> JsonPrimitive(value)
+        is Map<*, *> -> {
+            buildJsonObject {
+                for ((rawKey, rawValue) in value) {
+                    val key: String = rawKey?.toString() ?: continue
+                    put(key, toJsonElement(rawValue))
+                }
+            }
         }
-      }
+
+        is Iterable<*> -> buildJsonArray {
+            for (element: Any? in value) {
+                add(toJsonElement(element))
+            }
+        }
+
+        is Array<*> -> buildJsonArray {
+            for (element: Any? in value) {
+                add(toJsonElement(element))
+            }
+        }
+
+        else -> JsonPrimitive(value.toString())
     }
 
-    is Iterable<*> -> buildJsonArray {
-      for (element: Any? in value) {
-        add(toJsonElement(element))
-      }
+    /**
+     * Inverse of [toJsonElement]: convert a [JsonElement] tree back into plain
+     * Kotlin types so Skills can consume them without depending on the
+     * kotlinx-serialization types directly.
+     *
+     * Unlike calling `value.jsonPrimitive.content` (which throws on
+     * [JsonObject] / [JsonArray]), this handles every [JsonElement] subtype
+     * and unwraps the underlying scalar.
+     */
+    fun fromJsonElement(value: JsonElement): Any? = when (value) {
+        is JsonNull -> null
+        is JsonPrimitive -> when {
+            value.isString -> value.content
+            value.content.toBooleanStrictOrNull() != null -> value.content.toBooleanStrict()
+            value.content.toLongOrNull() != null -> value.content.toLong()
+            value.content.toDoubleOrNull() != null -> value.content.toDouble()
+            else -> value.content
+        }
+
+        is JsonObject -> value.entries.associate { (key: String, element: JsonElement) ->
+            key to fromJsonElement(element)
+        }
+
+        is JsonArray -> value.map { fromJsonElement(it) }
     }
-
-    is Array<*> -> buildJsonArray {
-      for (element: Any? in value) {
-        add(toJsonElement(element))
-      }
-    }
-
-    else -> JsonPrimitive(value.toString())
-  }
-
-  /**
-   * Inverse of [toJsonElement]: convert a [JsonElement] tree back into plain
-   * Kotlin types so Skills can consume them without depending on the
-   * kotlinx-serialization types directly.
-   *
-   * Unlike calling `value.jsonPrimitive.content` (which throws on
-   * [JsonObject] / [JsonArray]), this handles every [JsonElement] subtype
-   * and unwraps the underlying scalar.
-   */
-  fun fromJsonElement(value: JsonElement): Any? = when (value) {
-    is JsonNull -> null
-    is JsonPrimitive -> when {
-      value.isString -> value.content
-      value.content.toBooleanStrictOrNull() != null -> value.content.toBooleanStrict()
-      value.content.toLongOrNull() != null -> value.content.toLong()
-      value.content.toDoubleOrNull() != null -> value.content.toDouble()
-      else -> value.content
-    }
-
-    is JsonObject -> value.entries.associate { (key: String, element: JsonElement) ->
-      key to fromJsonElement(element)
-    }
-
-    is JsonArray -> value.map { fromJsonElement(it) }
-  }
 }

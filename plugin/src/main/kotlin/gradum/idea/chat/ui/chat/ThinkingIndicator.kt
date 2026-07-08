@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-07-06 09:48:01 Changed by gwy
+ * ThinkingIndicator.kt  2026-07-07 19:48:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -40,55 +40,56 @@ import org.jetbrains.jewel.ui.typography
  */
 @Composable
 fun ThinkingIndicator(
-  thinking: String,
-  modifier: Modifier = Modifier,
-  enterTransition: EnterTransition = fadeIn(tween(800)),
-  isTaskComplete: Boolean = false
+    thinking: String,
+    modifier: Modifier = Modifier,
+    enterTransition: EnterTransition = fadeIn(tween(800)),
+    isTaskComplete: Boolean = false
 ) {
-  if (thinking.isBlank()) return
+    if (thinking.isBlank()) return
 
-  var isExpanded by remember { mutableStateOf(true) }
+    var isExpanded by remember { mutableStateOf(true) }
 
-  LaunchedEffect(isTaskComplete) {
-    if (isTaskComplete) {
-      isExpanded = false
-    }
-  }
-
-  Column(modifier = modifier.fillMaxWidth()) {
-    Row(
-      modifier = Modifier
-        .clickable { isExpanded = !isExpanded },
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-    ) {
-      Icon(
-        contentDescription = null,
-        key = AllIconsKeys.Nodes.Related
-      )
-      Text(
-        fontWeight = FontWeight.Medium,
-        text = message("gradum.thinking"),
-      )
-      Icon(
-        key = if (isExpanded) AllIconsKeys.General.ChevronDown
-        else AllIconsKeys.General.ChevronRight,
-        contentDescription = null
-      )
+    LaunchedEffect(isTaskComplete) {
+        if (isTaskComplete) {
+            isExpanded = false
+        }
     }
 
-    if (isExpanded)
-      Spacer(modifier = Modifier.height(GradumSpacing.md))
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .clickable { isExpanded = !isExpanded },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+        ) {
+            Icon(
+                contentDescription = null,
+                key = AllIconsKeys.Nodes.Related
+            )
+            Text(
+                fontWeight = FontWeight.Medium,
+                text = message("gradum.thinking"),
+            )
+            Icon(
+                key = if (isExpanded) AllIconsKeys.General.ChevronDown
+                else AllIconsKeys.General.ChevronRight,
+                contentDescription = null
+            )
+        }
 
-    AnimatedVisibility(visible = isExpanded) {
+        if (isExpanded) {
+            Spacer(modifier = Modifier.height(GradumSpacing.md))
+        }
 
-      Text(
-        text = thinking,
-        color = JewelTheme.globalColors.text.info,
-        style = JewelTheme.typography.editorTextStyle
-          .copy(lineHeight = JewelTheme.typography.editorTextStyle.fontSize * 1.5f),
-        modifier = Modifier.fillMaxWidth()
-      )
+        AnimatedVisibility(visible = isExpanded) {
+
+            Text(
+                text = thinking,
+                color = JewelTheme.globalColors.text.info,
+                style = JewelTheme.typography.editorTextStyle
+                    .copy(lineHeight = JewelTheme.typography.editorTextStyle.fontSize * 1.5f),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
-  }
 }

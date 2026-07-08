@@ -22,31 +22,31 @@ import java.lang.management.ManagementFactory
  *   raw `getFreeMemorySize()` value.
  */
 data class RecommendationContext(val availableRamGB: Double) {
-  companion object {
-    /**
-     * Reserve 25% of free physical memory for the OS, IDE, and
-     * whatever else the developer has open. The remaining 75% is
-     * what a local model is realistically allowed to consume before
-     * we should stop recommending it.
-     */
-    private const val FREE_RAM_HEADROOM_FACTOR: Double = 0.75
+    companion object {
+        /**
+         * Reserve 25% of free physical memory for the OS, IDE, and
+         * whatever else the developer has open. The remaining 75% is
+         * what a local model is realistically allowed to consume before
+         * we should stop recommending it.
+         */
+        private const val FREE_RAM_HEADROOM_FACTOR: Double = 0.75
 
-    /**
-     * Snapshot the current machine's free memory and apply the
-     * headroom discount. Called per `/models` request so that a
-     * user who just opened IntelliJ on top of a previous Gradum
-     * session sees the smaller budget reflected in the next
-     * recommendation.
-     */
-    fun fromSystemMemory(): RecommendationContext {
-      val operatingSystemBean: OperatingSystemMXBean =
-        ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
-      val freeMemoryBytes: Long = operatingSystemBean.freeMemorySize
-      val usableMemoryGB: Double =
-        freeMemoryBytes.toDouble() / 1024.0 / 1024.0 / 1024.0 * FREE_RAM_HEADROOM_FACTOR
-      return RecommendationContext(usableMemoryGB)
+        /**
+         * Snapshot the current machine's free memory and apply the
+         * headroom discount. Called per `/models` request so that a
+         * user who just opened IntelliJ on top of a previous Gradum
+         * session sees the smaller budget reflected in the next
+         * recommendation.
+         */
+        fun fromSystemMemory(): RecommendationContext {
+            val operatingSystemBean: OperatingSystemMXBean =
+                ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+            val freeMemoryBytes: Long = operatingSystemBean.freeMemorySize
+            val usableMemoryGB: Double =
+                freeMemoryBytes.toDouble() / 1024.0 / 1024.0 / 1024.0 * FREE_RAM_HEADROOM_FACTOR
+            return RecommendationContext(usableMemoryGB)
+        }
     }
-  }
 }
 
 /**
@@ -68,11 +68,11 @@ private val localServerNames: Set<String> = setOf("Ollama", "LM Studio", "vLLM",
  * hold them.
  */
 fun recommend(
-  models: List<ModelEntry>,
-  context: RecommendationContext = RecommendationContext.fromSystemMemory()
+    models: List<ModelEntry>,
+    context: RecommendationContext = RecommendationContext.fromSystemMemory()
 ): ModelEntry? {
-  if (models.isEmpty()) return null
-  return models.maxByOrNull { score(it, context) }
+    if (models.isEmpty()) return null
+    return models.maxByOrNull { score(it, context) }
 }
 
 /**
@@ -87,27 +87,27 @@ fun recommend(
  * 5. Capability bonuses: +20 reasoning, +10 tool-call, +5 vision.
  */
 internal fun score(model: ModelEntry, context: RecommendationContext): Double {
-  var modelScore = 0.0
+    var modelScore = 0.0
 
-  modelScore += minOf(model.contextLimit, 200_000) / 2_000.0
+    modelScore += minOf(model.contextLimit, 200_000) / 2_000.0
 
-  if (isCloudModel(model)) {
-    modelScore += 200.0
-  } else {
-    val parameterCountInBillions: Double = parameterCountInBillions(model)
-    modelScore += parameterCountInBillions * 1.5
+    if (isCloudModel(model)) {
+        modelScore += 200.0
+    } else {
+        val parameterCountInBillions: Double = parameterCountInBillions(model)
+        modelScore += parameterCountInBillions * 1.5
 
-    // Local models that exceed available memory get -500, dropping them below all cloud and smaller local alternatives.
-    // A softer warning tier was tried but caused ambiguous rankings (e.g. 32B on 32GB) without preventing OOM.
-    val estimatedMemoryGB: Double = parameterCountInBillions * 0.8
-    if (estimatedMemoryGB > context.availableRamGB) modelScore -= 500.0
-  }
+        // Local models that exceed available memory get -500, dropping them below all cloud and smaller local alternatives.
+        // A softer warning tier was tried but caused ambiguous rankings (e.g. 32B on 32GB) without preventing OOM.
+        val estimatedMemoryGB: Double = parameterCountInBillions * 0.8
+        if (estimatedMemoryGB > context.availableRamGB) modelScore -= 500.0
+    }
 
-  if (model.reasoning) modelScore += 20.0
-  if (model.toolCall) modelScore += 10.0
-  if (model.attachment) modelScore += 5.0
+    if (model.reasoning) modelScore += 20.0
+    if (model.toolCall) modelScore += 10.0
+    if (model.attachment) modelScore += 5.0
 
-  return modelScore
+    return modelScore
 }
 
 /**
@@ -118,8 +118,8 @@ internal fun score(model: ModelEntry, context: RecommendationContext): Double {
  * don't follow the naming convention.
  */
 private fun isCloudModel(model: ModelEntry): Boolean {
-  if (model.modelName.contains("cloud", ignoreCase = true)) return true
-  return model.serverName !in localServerNames
+    if (model.modelName.contains("cloud", ignoreCase = true)) return true
+    return model.serverName !in localServerNames
 }
 
 /**
@@ -130,8 +130,8 @@ private fun isCloudModel(model: ModelEntry): Boolean {
  * local ranking by design).
  */
 fun parameterCountInBillions(model: ModelEntry): Double {
-  val parameterMatch: MatchResult? = Regex(pattern = """(\d+(?:\.\d+)?)b""", option = RegexOption.IGNORE_CASE)
-    .find(model.modelName)
+    val parameterMatch: MatchResult? = Regex(pattern = """(\d+(?:\.\d+)?)b""", option = RegexOption.IGNORE_CASE)
+        .find(model.modelName)
 
-  return parameterMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+    return parameterMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
 }

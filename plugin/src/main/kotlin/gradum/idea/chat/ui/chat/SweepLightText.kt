@@ -38,44 +38,44 @@ import org.jetbrains.jewel.ui.component.Text
  */
 @Composable
 fun SweepLightText(
-  text: String,
-  modifier: Modifier = Modifier,
-  enabled: Boolean = true,
-  durationMillis: Int = 1200
+    text: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    durationMillis: Int = 1200
 ) {
-  if (!enabled) {
-    Text(
-      text = text,
-      modifier = modifier,
-      style = TextStyle(color = JewelTheme.globalColors.text.info)
-    )
-    return
-  }
+    if (!enabled) {
+        Text(
+            text = text,
+            modifier = modifier,
+            style = TextStyle(color = JewelTheme.globalColors.text.info)
+        )
+        return
+    }
 
-  val transition = rememberInfiniteTransition(label = "sweep_light")
-  val offset: Float by transition.animateFloat(
-    initialValue = -1f,
-    targetValue = 2f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = durationMillis, easing = LinearEasing),
-      repeatMode = RepeatMode.Restart
-    ),
-    label = "sweep_offset"
-  )
-
-  Text(
-    text = text,
-    modifier = modifier,
-    style = TextStyle(
-      brush = Brush.linearGradient(
-        colors = listOf(
-          JewelTheme.globalColors.text.info.copy(alpha = 0.4f),
-          JewelTheme.globalColors.text.normal.copy(alpha = 0.9f),
-          JewelTheme.globalColors.text.info.copy(alpha = 0.4f)
+    val transition = rememberInfiniteTransition(label = "sweep_light")
+    val offset: Float by transition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = durationMillis, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
         ),
-        start = Offset(offset * 300f, 0f),
-        end = Offset(offset * 300f + 300f, 0f)
-      )
+        label = "sweep_offset"
     )
-  )
+
+    Text(
+        text = text,
+        modifier = modifier,
+        style = TextStyle(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    JewelTheme.globalColors.text.info.copy(alpha = 0.4f),
+                    JewelTheme.globalColors.text.normal.copy(alpha = 0.9f),
+                    JewelTheme.globalColors.text.info.copy(alpha = 0.4f)
+                ),
+                start = Offset(offset * 300f, 0f),
+                end = Offset(offset * 300f + 300f, 0f)
+            )
+        )
+    )
 }

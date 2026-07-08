@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-08 11:07:23 Changed by gwy
+ * ChatScreen.kt  2026-07-08 15:30:36 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -86,11 +86,6 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    // `lastSeenMessageCount` snapshots the message-list size the last
-    // time the user was confirmed to be at the bottom. Any delta
-    // above this snapshot is "unread" — counted into the badge while
-    // the user is scrolled away, or auto-scrolled into view (and
-    // therefore also cleared) when they're already at the bottom.
     val lastSeenMessageCount = remember { mutableIntStateOf(messages.size) }
     var unreadCount by remember { mutableIntStateOf(0) }
     var isJumpToBottomInFlight by remember { mutableStateOf(false) }
@@ -104,19 +99,49 @@ fun ChatScreen(
         }
     }
 
-    // When new messages arrive:
-    //  - if the user is at the bottom, smooth-scroll the list to keep
-    //    the latest message in view (no badge, no interruption)
-    //  - if the user has scrolled up, increment the unread badge so
-    //    the jump-to-bottom button shows up with a count
     LaunchedEffect(messages.size) {
         val delta: Int = messages.size - lastSeenMessageCount.intValue
         if (delta <= 0) return@LaunchedEffect
 
-        if (isAtBottom) {
+        // We can't use `messages.lastOrNull()?.isUserMessage` to detect
+        // a user send: the caller always appends a user message AND an
+        // empty assistant placeholder in the same frame, so
+        // `lastOrNull()` is the (non-user) assistant bubble and the
+        // "isUserSend" check is always false. Instead, scan the newly
+        // appended slice for any user-role message — that's the real
+        // "user just hit send" signal.
+        val newMessages: List<ChatMessage> =
+            messages.subList(lastSeenMessageCount.intValue, messages.size)
+        val hasUserSend: Boolean = newMessages.any { it.isUserMessage }
+
+        if (hasUserSend) {
+            // User just hit send — always follow to the bottom regardless
+            // of the current scroll position, so the user sees their own
+            // message and the assistant's response without having to
+            // manually click "jump to bottom".
+            //
+            // We must defer one frame before reading scrollState.maxValue:
+            // this effect runs in the same recomposition pass that adds
+            // the new message to the Column, but the Column's layout pass
+            // (which is what updates scrollState.maxValue) hasn't happened
+            // yet. Without this wait, maxValue is the *old* value and
+            // animateScrollTo lands short of the new bottom.
+            withFrameNanos { }
             scrollState.animateScrollTo(scrollState.maxValue)
             lastSeenMessageCount.intValue = messages.size
-        } else unreadCount += delta
+        } else if (isAtBottom) {
+            // Assistant message arrived while the user is already at the
+            // bottom — smooth-scroll to keep the latest message in view.
+            // Same one-frame defer as above: maxValue only catches up
+            // after the new bubble is laid out.
+            withFrameNanos { }
+            scrollState.animateScrollTo(scrollState.maxValue)
+            lastSeenMessageCount.intValue = messages.size
+        } else {
+            // Assistant message arrived while the user is reading history —
+            // bump the unread count and let the jump-to-bottom button show it.
+            unreadCount += delta
+        }
     }
 
     // When the user returns to the bottom (either manually, by
@@ -163,9 +188,11 @@ fun ChatScreen(
 
                         else -> AssistantChatBubble(
                             message = message,
-                            sendingPhase = if (isLastAssistant) sendingPhase else "",
+                            onViewDiff = onViewDiff,
                             isLoading = isLastAssistant,
+                            onOpenInEditor = onOpenInEditor,
                             actionsEnabled = !isWaitingForResponse,
+                            sendingPhase = if (isLastAssistant) sendingPhase else "",
                             onRetry = { onRetryMessage(index) },
                             onUrlClick = { url ->
                                 try {
@@ -174,18 +201,15 @@ fun ChatScreen(
                                     logger.warn("Failed to open URL: $url", exception)
                                 }
                             },
-                            onOpenInEditor = onOpenInEditor,
-                            onViewDiff = onViewDiff
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(500.dp))
             }
 
             ChatInputSection(
                 modifier = Modifier
-                    .widthIn(max = 600.dp)
                     .fillMaxWidth()
+                    .widthIn(max = 650.dp)
                     .padding(bottom = GradumSpacing.sml),
                 state = inputState,
                 actions = inputActions,
@@ -196,6 +220,9 @@ fun ChatScreen(
         JumpToBottomButton(
             isVisible = !isAtBottom,
             enabled = !isJumpToBottomInFlight,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = JumpToBottomBottomPadding),
             onClick = {
                 if (isJumpToBottomInFlight) return@JumpToBottomButton
                 isJumpToBottomInFlight = true
@@ -206,10 +233,7 @@ fun ChatScreen(
                         isJumpToBottomInFlight = false
                     }
                 }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = JumpToBottomBottomPadding)
+            }
         )
     }
 }

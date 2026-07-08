@@ -19,16 +19,16 @@ import java.util.*
  * `application/octet-stream` blob the vision model can't decode.
  */
 private val imageMimeByExtension: Map<String, String> = mapOf(
-  "jpg" to "image/jpeg",
-  "jpeg" to "image/jpeg",
-  "png" to "image/png",
-  "gif" to "image/gif",
-  "webp" to "image/webp",
-  "bmp" to "image/bmp",
-  "tiff" to "image/tiff",
-  "tif" to "image/tiff",
-  "heic" to "image/heic",
-  "heif" to "image/heif"
+    "jpg" to "image/jpeg",
+    "jpeg" to "image/jpeg",
+    "png" to "image/png",
+    "gif" to "image/gif",
+    "webp" to "image/webp",
+    "bmp" to "image/bmp",
+    "tiff" to "image/tiff",
+    "tif" to "image/tiff",
+    "heic" to "image/heic",
+    "heif" to "image/heif"
 )
 
 /**
@@ -37,8 +37,8 @@ private val imageMimeByExtension: Map<String, String> = mapOf(
  * "not an image we support" failure and bails out.
  */
 private fun getImageMimeType(file: VirtualFile): String? {
-  val extension: String = file.extension?.lowercase() ?: return null
-  return imageMimeByExtension[extension]
+    val extension: String = file.extension?.lowercase() ?: return null
+    return imageMimeByExtension[extension]
 }
 
 /**
@@ -62,15 +62,15 @@ private fun getImageMimeType(file: VirtualFile): String? {
  * the render path share the on-disk file but never re-encode.
  */
 internal fun encodeImageToAttachment(file: VirtualFile): AttachedImage? {
-  val mime: String = getImageMimeType(file) ?: return null
-  val bytes: ByteArray = file.contentsToByteArray()
+    val mime: String = getImageMimeType(file) ?: return null
+    val bytes: ByteArray = file.contentsToByteArray()
 
-  return AttachedImage(
-    file = file,
-    mime = mime,
-    originalName = file.name,
-    originalSizeBytes = file.length,
-    id = UUID.randomUUID().toString(),
-    data = Base64.getEncoder().encodeToString(bytes)
-  )
+    return AttachedImage(
+        file = file,
+        mime = mime,
+        originalName = file.name,
+        originalSizeBytes = file.length,
+        id = UUID.randomUUID().toString(),
+        data = Base64.getEncoder().encodeToString(bytes)
+    )
 }

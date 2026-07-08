@@ -27,27 +27,27 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
  */
 @Composable
 fun ChatInputSection(
-  state: ChatInputState,
-  actions: ChatInputActions,
-  textState: TextFieldState,
-  modifier: Modifier = Modifier
+    state: ChatInputState,
+    actions: ChatInputActions,
+    textState: TextFieldState,
+    modifier: Modifier = Modifier
 ) {
-  Column(modifier = modifier) {
-    ChatInputPanel(
-      state = state,
-      actions = actions,
-      roundedCornerShape = RoundedCornerShape(6.dp),
-      textState = textState
-    )
-    Spacer(modifier = Modifier.height(GradumSpacing.sml))
-    ModelSelectorBar(
-      models = state.models,
-      selectedModel = state.selectedModel,
-      pinnedModels = state.pinnedModels,
-      isAutoSelected = state.isAutoSelected,
-      onSelectModel = actions.onSelectModel,
-      onTogglePin = actions.onTogglePin,
-      onSelectAuto = actions.onSelectAuto
-    )
-  }
+    Column(modifier = modifier) {
+        ChatInputPanel(
+            state = state,
+            actions = actions,
+            roundedCornerShape = RoundedCornerShape(6.dp),
+            textState = textState
+        )
+        Spacer(modifier = Modifier.height(GradumSpacing.sml))
+        ModelSelectorBar(
+            models = state.models,
+            selectedModel = state.selectedModel,
+            pinnedModels = state.pinnedModels,
+            isAutoSelected = state.isAutoSelected,
+            onSelectModel = actions.onSelectModel,
+            onTogglePin = actions.onTogglePin,
+            onSelectAuto = actions.onSelectAuto
+        )
+    }
 }

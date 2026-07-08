@@ -44,65 +44,65 @@ import org.jetbrains.jewel.ui.typography
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuickStartSection(
-  textState: TextFieldState,
-  suggestionVariants: List<Int>,
-  onRefreshSuggestions: () -> Unit,
-  modifier: Modifier = Modifier
+    textState: TextFieldState,
+    suggestionVariants: List<Int>,
+    onRefreshSuggestions: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-  val featureIcons = remember {
-    listOf(GradumIcons.FeatChat, GradumIcons.FeatQuestion, GradumIcons.FeatCode, GradumIcons.FeatText)
-  }
+    val featureIcons = remember {
+        listOf(GradumIcons.FeatChat, GradumIcons.FeatQuestion, GradumIcons.FeatCode, GradumIcons.FeatText)
+    }
 
-  Column(modifier = modifier) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Text(
-        text = message("gradum.quick.start"),
-        style = JewelTheme.typography.h4TextStyle
-      )
-      Spacer(modifier = Modifier.width(GradumSpacing.md))
-      Tooltip(tooltip = { Text(text = message("gradum.refresh")) }) {
-        IconButton(
-          onClick = onRefreshSuggestions,
-        ) {
-          Icon(
-            key = AllIconsKeys.Actions.Refresh,
-            contentDescription = message("gradum.refresh")
-          )
-        }
-      }
-    }
-    Spacer(modifier = Modifier.height(GradumSpacing.lg))
-    Column(modifier = Modifier.widthIn(max = 300.dp)) {
-      repeat(4) { categoryIndex ->
-        val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
-        val interactionSource = remember { MutableInteractionSource() }
-        val isHovered by interactionSource.collectIsHoveredAsState()
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          modifier = Modifier
-            .padding(vertical = GradumSpacing.sm)
-            .hoverable(interactionSource)
-            .clickable { textState.edit { replace(0, length, suggestionText) } }
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-              if (isHovered) JewelTheme.globalColors.text.info
-                .copy(alpha = 0.08f) else Color.Transparent
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = message("gradum.quick.start"),
+                style = JewelTheme.typography.h4TextStyle
             )
-            .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
-        ) {
-          Icon(
-            key = featureIcons[categoryIndex],
-            contentDescription = null
-          )
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Text(text = suggestionText)
-          Spacer(modifier = Modifier.weight(1f))
-          Icon(
-            key = AllIconsKeys.General.ArrowRight,
-            contentDescription = message("gradum.use.suggestion")
-          )
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
+            Tooltip(tooltip = { Text(text = message("gradum.refresh")) }) {
+                IconButton(
+                    onClick = onRefreshSuggestions,
+                ) {
+                    Icon(
+                        key = AllIconsKeys.Actions.Refresh,
+                        contentDescription = message("gradum.refresh")
+                    )
+                }
+            }
         }
-      }
+        Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        Column(modifier = Modifier.widthIn(max = 300.dp)) {
+            repeat(4) { categoryIndex ->
+                val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
+                val interactionSource = remember { MutableInteractionSource() }
+                val isHovered by interactionSource.collectIsHoveredAsState()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = GradumSpacing.sm)
+                        .hoverable(interactionSource)
+                        .clickable { textState.edit { replace(0, length, suggestionText) } }
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (isHovered) JewelTheme.globalColors.text.info
+                                .copy(alpha = 0.08f) else Color.Transparent
+                        )
+                        .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
+                ) {
+                    Icon(
+                        key = featureIcons[categoryIndex],
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(GradumSpacing.md))
+                    Text(text = suggestionText)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(
+                        key = AllIconsKeys.General.ArrowRight,
+                        contentDescription = message("gradum.use.suggestion")
+                    )
+                }
+            }
+        }
     }
-  }
 }

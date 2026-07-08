@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AttachmentBar.kt  2026-07-01 21:56:07 Changed by gwy
+ * AttachmentBar.kt  2026-07-08 00:31:22 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -35,38 +35,41 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun AttachmentBar(
-  attachedFiles: List<AttachedContext>,
-  onRemoveFile: (AttachedContext) -> Unit,
-  modifier: Modifier = Modifier
+    attachedFiles: List<AttachedContext>,
+    onRemoveFile: (AttachedContext) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-  if (attachedFiles.isEmpty()) return
+    if (attachedFiles.isEmpty()) return
 
-  Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .horizontalScroll(rememberScrollState()),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    attachedFiles.forEach { attachedContext ->
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-        modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
-      ) {
-        Icon(
-          key = attachedContext.iconKey,
-          contentDescription = attachedContext.displayName,
-          modifier = Modifier.size(16.dp)
-        )
-        Text(text = attachedContext.displayName, color = JewelTheme.globalColors.text.normal)
-        IconTooltipButton(
-          tooltip = message("gradum.remove"),
-          iconKey = AllIconsKeys.Actions.Close,
-          contentDescription = message("gradum.remove"),
-          onClick = { onRemoveFile(attachedContext) },
-          modifier = Modifier.size(18.dp)
-        )
-      }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        attachedFiles.forEach { attachedContext ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+                modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+            ) {
+                Icon(
+                    key = attachedContext.iconKey,
+                    contentDescription = attachedContext.displayName,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = attachedContext.displayName,
+                    color = JewelTheme.globalColors.text.normal
+                )
+                IconTooltipButton(
+                    tooltip = message("gradum.remove"),
+                    iconKey = AllIconsKeys.Actions.Close,
+                    contentDescription = message("gradum.remove"),
+                    onClick = { onRemoveFile(attachedContext) },
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
-  }
 }

@@ -16,14 +16,14 @@ private const val MAX_PREVIEW_CODE_POINTS: Int = 30
  * would be visually wrong.
  */
 fun truncateToCodePoints(text: String, maxCodePoints: Int = MAX_PREVIEW_CODE_POINTS): String {
-  if (text.length <= maxCodePoints) return text
+    if (text.length <= maxCodePoints) return text
 
-  val buffer = StringBuilder()
+    val buffer = StringBuilder()
 
-  for ((index, codePoint) in text.codePoints().toArray().withIndex()) {
-    if (index >= maxCodePoints) break
-    buffer.appendCodePoint(codePoint)
-  }
+    for ((index, codePoint) in text.codePoints().toArray().withIndex()) {
+        if (index >= maxCodePoints) break
+        buffer.appendCodePoint(codePoint)
+    }
 
-  return buffer.append("...").toString()
+    return buffer.append("...").toString()
 }

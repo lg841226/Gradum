@@ -28,26 +28,26 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun SelectorButton(
-  text: String,
-  onClick: () -> Unit,
-  contentDescription: String,
-  color: Color = JewelTheme.globalColors.text.info
+    text: String,
+    onClick: () -> Unit,
+    contentDescription: String,
+    color: Color = JewelTheme.globalColors.text.info
 ) {
-  Tooltip(tooltip = { Text(text = contentDescription) }) {
-    IconButton(onClick = onClick) {
-      Row(
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = text,
-          color = color
-        )
-        Icon(
-          key = AllIconsKeys.General.ChevronDown,
-          contentDescription = contentDescription
-        )
-      }
+    Tooltip(tooltip = { Text(text = contentDescription) }) {
+        IconButton(onClick = onClick) {
+            Row(
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = text,
+                    color = color
+                )
+                Icon(
+                    key = AllIconsKeys.General.ChevronDown,
+                    contentDescription = contentDescription
+                )
+            }
+        }
     }
-  }
 }
