@@ -73,7 +73,7 @@ object DiffViewer {
         originalContent: String,
         modifiedContent: String,
     ) {
-        log.info(
+        log.debug(
             "showFileDiff invoked: project=${project?.name ?: "<null>"}, " +
                 "path='$path', original=${originalContent.length} chars, " +
                 "modified=${modifiedContent.length} chars"
@@ -100,37 +100,36 @@ object DiffViewer {
             val rightContent: DiffContent
             when (val resolution: ResolvedType = resolvedType) {
                 is ResolvedType.FromVirtualFile -> {
-                    val vf: VirtualFile = resolution.file
-                    leftContent = contentFactory.create(project, originalContent, vf)
-                    rightContent = contentFactory.create(project, modifiedContent, vf)
-                    log.info("Resolved source: VirtualFile path='${vf.path}', fileType='${vf.fileType.name}'")
+                    val virtualFile: VirtualFile = resolution.file
+                    leftContent = contentFactory.create(project, originalContent, virtualFile)
+                    rightContent = contentFactory.create(project, modifiedContent, virtualFile)
+                    log.debug("Resolved source: VirtualFile path='${virtualFile.path}', fileType='${virtualFile.fileType.name}'")
                 }
 
                 is ResolvedType.FromFileType -> {
-                    val ft: FileType = resolution.type
-                    leftContent = contentFactory.create(project, originalContent, ft)
-                    rightContent = contentFactory.create(project, modifiedContent, ft)
-                    log.info("Resolved source: FileType='${ft.name}' (no VirtualFile)")
+                    val fileType: FileType = resolution.type
+                    leftContent = contentFactory.create(project, originalContent, fileType)
+                    rightContent = contentFactory.create(project, modifiedContent, fileType)
+                    log.debug("Resolved source: FileType='${fileType.name}' (no VirtualFile)")
                 }
 
                 ResolvedType.PlainTextFallback -> {
-                    val ft: FileType = PlainTextFileType.INSTANCE
-                    leftContent = contentFactory.create(project, originalContent, ft)
-                    rightContent = contentFactory.create(project, modifiedContent, ft)
-                    log.info("Resolved source: PlainTextFileType fallback (no syntax highlighting)")
+                    val plainFileType: FileType = PlainTextFileType.INSTANCE
+                    leftContent = contentFactory.create(project, originalContent, plainFileType)
+                    rightContent = contentFactory.create(project, modifiedContent, plainFileType)
+                    log.debug("Resolved source: PlainTextFileType fallback (no syntax highlighting)")
                 }
             }
 
-            log.info(
+            log.debug(
                 "DiffContent ready: left=${leftContent.javaClass.simpleName}(${originalContent.length} chars), " +
                     "right=${rightContent.javaClass.simpleName}(${modifiedContent.length} chars)"
             )
 
             val request = SimpleDiffRequest(title, leftContent, rightContent, leftTitle, rightTitle)
 
-            log.info("Dispatching DiffManager.showDiff with DiffDialogHints.MODAL")
+            log.debug("Dispatching DiffManager.showDiff with DiffDialogHints.MODAL")
             DiffManager.getInstance().showDiff(project, request, DiffDialogHints.MODAL)
-            log.info("DiffManager.showDiff returned without throwing")
         } catch (exception: Exception) {
             log.warn("Failed to open diff viewer for $path", exception)
         }

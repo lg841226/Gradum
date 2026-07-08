@@ -27,8 +27,12 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.ui.*
-import gradum.idea.chat.ui.GradumSpacing.sml
+import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.ui.MarkdownSegment
+import gradum.idea.chat.ui.ScrollableTable
+import gradum.idea.chat.ui.isRenderable
+import gradum.idea.chat.ui.rememberGradumMarkdownStyling
+import gradum.idea.chat.ui.splitMarkdownAtTables
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.launch
@@ -77,7 +81,7 @@ fun AssistantChatBubble(
             if (message.modelName.isNotBlank()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(sml)
+                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
                 ) {
                     Icon(
                         contentDescription = null,
@@ -108,7 +112,7 @@ fun AssistantChatBubble(
                 TokenStatusRow(
                     isLoading = isLoading,
                     tokenCount = message.tokenUsage?.totalTokens ?: 0,
-                    phase = if (isLoading) sendingPhase else message("gradum.done")
+                    sendingPhase = if (isLoading) sendingPhase else message("gradum.done")
                 )
             }
 
@@ -256,7 +260,7 @@ private fun ToolCallBlock(
             val hasDiffPayload = toolContent.originalContent != null && toolContent.modifiedContent != null
             FileToolCallIndicator(
                 alias = block.alias,
-                path = toolContent.path,
+                filePath = toolContent.filePath,
                 success = block.success,
                 modifier = animModifier,
                 errorMessage = block.errorMessage,
@@ -266,7 +270,7 @@ private fun ToolCallBlock(
                 onOpenInEditor = onOpenInEditor,
                 onViewDiff = {
                     onViewDiff(
-                        toolContent.path,
+                        toolContent.filePath,
                         toolContent.originalContent!!,
                         toolContent.modifiedContent!!
                     )
@@ -277,7 +281,7 @@ private fun ToolCallBlock(
 
         is ToolCallContent.Read -> FileToolCallIndicator(
             alias = block.alias,
-            path = toolContent.path,
+            filePath = toolContent.filePath,
             success = block.success,
             modifier = animModifier,
             errorMessage = block.errorMessage,
@@ -287,7 +291,7 @@ private fun ToolCallBlock(
 
         is ToolCallContent.Saved -> FileToolCallIndicator(
             alias = block.alias,
-            path = toolContent.path,
+            filePath = toolContent.filePath,
             sizeText = if (toolContent.sizeBytes > 0L) formatBytes(toolContent.sizeBytes) else null,
             success = block.success,
             modifier = animModifier,
@@ -308,22 +312,22 @@ private fun ToolCallBlock(
 
 @Composable
 private fun TokenStatusRow(
-    isLoading: Boolean, phase: String, tokenCount: Int = 0
+    isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0
 ) {
     val tokenText = if (tokenCount > 0) {
-        "$phase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
+        "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
     } else {
-        phase.ifEmpty { "..." }
+        sendingPhase.ifEmpty { "..." }
     }
-    var displayText by remember { mutableStateOf(phase) }
-    var previousText by remember { mutableStateOf(phase) }
+    var displayText by remember { mutableStateOf(sendingPhase) }
+    var previousText by remember { mutableStateOf(sendingPhase) }
     val fadeAlpha = remember { Animatable(1f) }
     val verticalOffset = remember { Animatable(0f) }
     val density = LocalDensity.current
     val riseDistancePx: Float = with(density) { -RISE_DISTANCE_DP.toPx() }
 
-    LaunchedEffect(phase, tokenText) {
-        val newText = tokenText.ifEmpty { phase }
+    LaunchedEffect(sendingPhase, tokenText) {
+        val newText = tokenText.ifEmpty { sendingPhase }
         if (newText != previousText) {
             // Phase 1 — old text rises and fades out in parallel. The rise is a
             // straight tween (no spring) so the lift feels intentional, not
@@ -368,7 +372,7 @@ private fun TokenStatusRow(
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (isLoading) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(sml))
+            Spacer(modifier = Modifier.width(GradumSpacing.sml))
         }
         SweepLightText(
             text = displayText,

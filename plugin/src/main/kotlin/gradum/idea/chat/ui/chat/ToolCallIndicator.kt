@@ -153,12 +153,12 @@ private fun ToolCallCapsule(
  */
 internal fun formatBytes(bytes: Long): String {
     if (bytes < 1024L) return "$bytes B"
-    val kib: Double = bytes / 1024.0
-    if (kib < 1024.0) return "%.1f KB".format(kib)
-    val mib: Double = kib / 1024.0
-    if (mib < 1024.0) return "%.1f MB".format(mib)
-    val gib: Double = mib / 1024.0
-    return "%.1f GB".format(gib)
+    val kbValue: Double = bytes / 1024.0
+    if (kbValue < 1024.0) return "%.1f KB".format(kbValue)
+    val mbValue: Double = kbValue / 1024.0
+    if (mbValue < 1024.0) return "%.1f MB".format(mbValue)
+    val gbValue: Double = mbValue / 1024.0
+    return "%.1f GB".format(gbValue)
 }
 
 /**
@@ -213,7 +213,7 @@ fun RanToolCallIndicator(
 @Composable
 fun FileToolCallIndicator(
     alias: String,
-    path: String,
+    filePath: String,
     sizeText: String? = null,
     linesAdded: Int = 0,
     linesRemoved: Int = 0,
@@ -226,7 +226,7 @@ fun FileToolCallIndicator(
     hasDiffPayload: Boolean = false,
 ) {
     val iconKey = if (alias == "Edited") GradumIcons.Edit else AllIconsKeys.General.Show
-    val fileName = path.substringAfterLast('/')
+    val fileName = filePath.substringAfterLast('/')
     val displayText = if (sizeText != null) "$fileName · $sizeText" else fileName
 
     ToolCallCapsule(
@@ -264,7 +264,7 @@ fun FileToolCallIndicator(
                 if (alias == "Edited" && success && hasDiffPayload) {
                     ViewDiffButton(onViewDiff = onViewDiff)
                 } else {
-                    OpenInEditorButton(target = path, onOpenInEditor = onOpenInEditor)
+                    OpenInEditorButton(target = filePath, onOpenInEditor = onOpenInEditor)
                 }
             }
         }

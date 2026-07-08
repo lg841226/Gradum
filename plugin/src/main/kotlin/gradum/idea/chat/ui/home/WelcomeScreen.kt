@@ -130,7 +130,7 @@ fun WelcomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp)
+                .padding(vertical = GradumSpacing.lg)
                 .align(Alignment.BottomCenter),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically

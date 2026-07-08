@@ -506,7 +506,7 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 0.dp),
+            .padding(start = GradumSpacing.md, end = GradumSpacing.sm, top = GradumSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
     ) {

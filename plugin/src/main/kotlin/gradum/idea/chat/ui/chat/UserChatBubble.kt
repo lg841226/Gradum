@@ -102,7 +102,7 @@ fun UserChatBubble(
                         )
                     )
                     .background(color = panelBackground)
-                    .padding(10.dp)
+                    .padding(GradumSpacing.lg)
                     .heightIn(max = EXPAND_MAX_HEIGHT)
                     .animateContentSize(
                         animationSpec = spring(
@@ -131,7 +131,7 @@ fun UserChatBubble(
                 }
             }
             if (fileAttachments.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(GradumSpacing.lg))
                 Row(
                     modifier = Modifier
                         .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }

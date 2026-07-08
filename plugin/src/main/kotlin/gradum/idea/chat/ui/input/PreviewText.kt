@@ -10,17 +10,17 @@ package gradum.idea.chat.ui.input
 private const val MAX_PREVIEW_CODE_POINTS: Int = 30
 
 /**
- * Truncates [text] to at most [maxCodePoints] Unicode code points, appending
+ * Truncates [sourceText] to at most [maxCodePoints] Unicode code points, appending
  * an ellipsis if any characters were dropped. Used to render short previews
  * of message text where splitting a multibyte emoji or CJK glyph mid-string
  * would be visually wrong.
  */
-fun truncateToCodePoints(text: String, maxCodePoints: Int = MAX_PREVIEW_CODE_POINTS): String {
-    if (text.length <= maxCodePoints) return text
+fun truncateToCodePoints(sourceText: String, maxCodePoints: Int = MAX_PREVIEW_CODE_POINTS): String {
+    if (sourceText.length <= maxCodePoints) return sourceText
 
     val buffer = StringBuilder()
 
-    for ((index, codePoint) in text.codePoints().toArray().withIndex()) {
+    for ((index, codePoint) in sourceText.codePoints().toArray().withIndex()) {
         if (index >= maxCodePoints) break
         buffer.appendCodePoint(codePoint)
     }

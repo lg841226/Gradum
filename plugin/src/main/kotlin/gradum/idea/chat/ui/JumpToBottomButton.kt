@@ -105,7 +105,7 @@ fun JumpToBottomButton(
                     interactionSource = interactionSource
                 )
                 .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-                .padding(horizontal = 14.dp, vertical = GradumSpacing.md),
+                .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {

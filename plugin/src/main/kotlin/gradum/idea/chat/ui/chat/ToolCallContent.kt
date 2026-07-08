@@ -35,7 +35,7 @@ sealed class ToolCallContent {
      * when either is missing.
      */
     data class Edited(
-        val path: String,
+        val filePath: String,
         val linesAdded: Int = 0,
         val linesRemoved: Int = 0,
         val originalContent: String? = null,
@@ -43,7 +43,7 @@ sealed class ToolCallContent {
     ) : ToolCallContent()
 
     /** Content for the "Read" (read_file) tool. */
-    data class Read(val path: String) : ToolCallContent()
+    data class Read(val filePath: String) : ToolCallContent()
 
     /**
      * Content for the "Saved" (save_file) tool.
@@ -57,7 +57,7 @@ sealed class ToolCallContent {
      * [sizeBytes] = 0 and the UI just shows the file name.
      */
     data class Saved(
-        val path: String,
+        val filePath: String,
         val sizeBytes: Long = 0L,
     ) : ToolCallContent()
 
