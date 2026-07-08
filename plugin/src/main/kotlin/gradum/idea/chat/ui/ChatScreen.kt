@@ -61,14 +61,6 @@ private val logger = Logger.getInstance("ChatScreen"::class.java)
 private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 24.dp
 
 /**
- * Bottom-of-Box padding for the floating jump-to-bottom button.
- * Pushes the button up clear of [ChatInputSection]; the section is
- * roughly 110–130 dp tall (input panel + spacer + model selector)
- * and the button needs another 12 dp of breathing room above it.
- */
-private val JumpToBottomBottomPadding: androidx.compose.ui.unit.Dp = 160.dp
-
-/**
  * The active conversation screen: scrollable history on top, input pinned
  * to the bottom. Shown after the user has sent at least one message.
  *
@@ -78,6 +70,15 @@ private val JumpToBottomBottomPadding: androidx.compose.ui.unit.Dp = 160.dp
  * bottom. When the user is already at the bottom, new messages
  * auto-scroll into view — preserving the read-the-latest flow without
  * pulling focus away from older history the user is reading.
+ *
+ * Layout note — the message column and the input section are siblings
+ * inside a vertical Column. The messages column is wrapped in a Box
+ * that hosts the floating jump-to-bottom button as an overlay. The
+ * button's `Alignment.BottomCenter` anchor lives on that Box, so the
+ * button always sits right above the input section regardless of how
+ * tall the input grows (multi-line input, attachment chips, model
+ * selector row, etc.). A small `GradumSpacing.lg` (12 dp) bottom
+ * padding gives the pill breathing room from the input top edge.
  */
 @Composable
 fun ChatScreen(
@@ -169,16 +170,31 @@ fun ChatScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // The message column is wrapped in a Box so the jump-to-bottom
+        // button can overlay it without being measured into the
+        // verticalScroll's content height. The button's
+        // Alignment.BottomCenter anchor lives on THIS Box, not on
+        // the outer Column — which is what keeps the button pinned
+        // to the input section's top edge regardless of how tall the
+        // input grows (multi-line text, attachment chips, model
+        // selector row, etc.). A previous implementation anchored the
+        // button to the screen's BottomCenter and offset it by a
+        // hardcoded 160.dp, which broke the moment the input section
+        // exceeded that budget — the pill ended up *inside* the
+        // input box. The Box overlay pattern decouples the two.
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .width(680.dp)
+                .fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .width(680.dp)
-                    .fillMaxWidth()
+                    .fillMaxSize()
                     .verticalScroll(scrollState)
             ) {
                 messages.forEachIndexed { index, message ->
@@ -221,34 +237,34 @@ fun ChatScreen(
                 }
             }
 
-            ChatInputSection(
+            JumpToBottomButton(
+                isVisible = !isAtBottom,
+                enabled = !isJumpToBottomInFlight,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 650.dp)
-                    .padding(bottom = GradumSpacing.sml),
-                state = inputState,
-                actions = inputActions,
-                textState = textState
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = GradumSpacing.lg),
+                onClick = {
+                    if (isJumpToBottomInFlight) return@JumpToBottomButton
+                    isJumpToBottomInFlight = true
+                    scope.launch {
+                        try {
+                            scrollState.animateScrollTo(scrollState.maxValue)
+                        } finally {
+                            isJumpToBottomInFlight = false
+                        }
+                    }
+                }
             )
         }
 
-        JumpToBottomButton(
-            isVisible = !isAtBottom,
-            enabled = !isJumpToBottomInFlight,
+        ChatInputSection(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = JumpToBottomBottomPadding),
-            onClick = {
-                if (isJumpToBottomInFlight) return@JumpToBottomButton
-                isJumpToBottomInFlight = true
-                scope.launch {
-                    try {
-                        scrollState.animateScrollTo(scrollState.maxValue)
-                    } finally {
-                        isJumpToBottomInFlight = false
-                    }
-                }
-            }
+                .fillMaxWidth()
+                .widthIn(max = 650.dp)
+                .padding(bottom = GradumSpacing.sml),
+            state = inputState,
+            actions = inputActions,
+            textState = textState
         )
     }
 }
