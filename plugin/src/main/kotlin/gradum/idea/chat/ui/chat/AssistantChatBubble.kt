@@ -98,7 +98,7 @@ fun AssistantChatBubble(
             renderBlocks.forEachIndexed { index, block ->
                 key(block.key(index)) {
                     when (block) {
-                        is RenderBlock.Thinking -> ThinkingBlock(block, isLoading)
+                        is RenderBlock.Thinking -> ThinkingBlock(block, isLoading, onUrlClick)
                         is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
                         is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
                         is RenderBlock.Error -> ErrorBlock(block)
@@ -137,7 +137,7 @@ private fun RenderBlock.key(index: Int): String = when (this) {
 }
 
 @Composable
-private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean) {
+private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrlClick: (String) -> Unit) {
     val fadeAlpha = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         fadeAlpha.animateTo(
@@ -148,6 +148,7 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean) {
     ThinkingIndicator(
         thinking = block.content,
         isTaskComplete = !isLoading,
+        onUrlClick = onUrlClick,
         modifier = Modifier.graphicsLayer {
             this.alpha = fadeAlpha.value
         }

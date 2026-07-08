@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageCopyButton.kt  2026-06-30 23:35:47 Changed by gwy
+ * MessageCopyButton.kt  2026-07-08 23:13:40 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -52,10 +52,10 @@ fun MessageCopyButton(
         IconButton(
             onClick = {
                 copyToClipboard(
+                    scope = scope,
                     text = textToCopy,
                     onCopied = onCopy,
-                    onReset = onReset,
-                    scope = scope
+                    onReset = onReset
                 )
             },
             enabled = textToCopy.isNotBlank()

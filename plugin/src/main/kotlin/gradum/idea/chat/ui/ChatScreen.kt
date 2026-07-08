@@ -54,11 +54,16 @@ private val logger = Logger.getInstance("ChatScreen"::class.java)
  * "At bottom" tolerance in dp. The jump-to-bottom button is hidden
  * whenever the user is within this many dp of the list's max scroll
  * value, so a tiny 1-px jitter from a fresh bubble layout doesn't
- * keep the button visible. 24 dp roughly matches a single line of
- * the chat typography — generous enough to feel responsive, tight
- * enough that "really scrolled away" still shows the button.
+ * keep the button visible. 48 dp is generous — it lets the user
+ * scroll the list a couple of paragraphs up before the button
+ * shows, so a small "read the line just above" sweep doesn't pop
+ * the pill in. With 24 dp the button felt like it was almost
+ * always visible at the top of the input section whenever the
+ * user was reading anything except the very last bubble; the wider
+ * tolerance keeps the chat calm and reserves the button for the
+ * "really scrolled away" case.
  */
-private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 24.dp
+private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 48.dp
 
 /**
  * The active conversation screen: scrollable history on top, input pinned

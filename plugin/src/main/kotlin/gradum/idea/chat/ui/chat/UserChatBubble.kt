@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-08 12:22:39 Changed by gwy
+ * UserChatBubble.kt  2026-07-08 20:32:54 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -84,7 +84,10 @@ fun UserChatBubble(
         it is AttachedFile || it is AttachedText
     }
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End
+    ) {
         Column(horizontalAlignment = Alignment.End) {
             if (imageAttachments.isNotEmpty()) {
                 MessageAttachmentPreview(
@@ -102,7 +105,7 @@ fun UserChatBubble(
                         )
                     )
                     .background(color = panelBackground)
-                    .padding(GradumSpacing.lg)
+                    .padding(10.dp)
                     .heightIn(max = EXPAND_MAX_HEIGHT)
                     .animateContentSize(
                         animationSpec = spring(

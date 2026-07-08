@@ -71,6 +71,7 @@ private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(8.dp)
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
     styling: MarkdownStyling,
+    private val isSimplified: Boolean = false,
     private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> },
 ) : DefaultMarkdownBlockRenderer(styling) {
 
@@ -96,22 +97,16 @@ class GradumCodeBlockRenderer(
 
         var isSoftWrap by remember { mutableStateOf(false) }
 
-        Column(modifier = containerModifier) {
-            CodeBlockToolbar(
-                rawCode = block.content,
-                language = language,
-                isSoftWrap = isSoftWrap,
-                onInsertAsFile = onInsertAsFile,
-                onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
-            )
-            // The container choice must follow `isSoftWrap`:
-            //  - soft-wrap on → `Box` with a finite max width so `Text` actually wraps
-            //  - soft-wrap off → `HorizontallyScrollableContainer` so long lines stay
-            //    on a single line and the user can scroll them horizontally
-            // `Modifier.horizontalScroll` on a scrollable container removes the
-            // finite width constraint that `softWrap = true` needs to fold long
-            // lines, so wrapping a soft-wrap-enabled `Text` in a scrollable
-            // container is a silent no-op.
+        if (isSimplified) {
+            // Simplified mode (used by ThinkingIndicator) drops the
+            // top-row toolbar entirely — the surrounding grey text
+            // already signals "this is ephemeral context" and the
+            // copy / insert-as-file / soft-wrap affordances would
+            // compete with the rest of the reasoning block. The
+            // code area still scrolls horizontally when the styling
+            // asks for it, so a long line in a long reasoning
+            // paragraph doesn't try to wrap inside a 1-line-high
+            // parent and silently overflow.
             val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
             if (showHorizontalScroll) {
                 HorizontallyScrollableContainer {
@@ -120,6 +115,34 @@ class GradumCodeBlockRenderer(
             } else {
                 Box {
                     CodeBlockContent(annotatedCode, styling, isSoftWrap)
+                }
+            }
+        } else {
+            Column(modifier = containerModifier) {
+                CodeBlockToolbar(
+                    rawCode = block.content,
+                    language = language,
+                    isSoftWrap = isSoftWrap,
+                    onInsertAsFile = onInsertAsFile,
+                    onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
+                )
+                // The container choice must follow `isSoftWrap`:
+                //  - soft-wrap on → `Box` with a finite max width so `Text` actually wraps
+                //  - soft-wrap off → `HorizontallyScrollableContainer` so long lines stay
+                //    on a single line and the user can scroll them horizontally
+                // `Modifier.horizontalScroll` on a scrollable container removes the
+                // finite width constraint that `softWrap = true` needs to fold long
+                // lines, so wrapping a soft-wrap-enabled `Text` in a scrollable
+                // container is a silent no-op.
+                val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
+                if (showHorizontalScroll) {
+                    HorizontallyScrollableContainer {
+                        CodeBlockContent(annotatedCode, styling, isSoftWrap)
+                    }
+                } else {
+                    Box {
+                        CodeBlockContent(annotatedCode, styling, isSoftWrap)
+                    }
                 }
             }
         }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-08 12:09:38 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-08 23:10:38 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -30,16 +30,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
-const val DURATION_MILLIS: Int = 150
+const val DURATION_MILLIS: Int = 120
 
 /**
  * Pill-shaped "Jump to latest" button that floats above the chat
@@ -90,14 +90,14 @@ fun JumpToBottomButton(
         // shape or position.
         val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
         val backgroundAlpha: Float by animateFloatAsState(
-            targetValue = if (isHovered) 1f else 0.90f,
-            animationSpec = tween(durationMillis = DURATION_MILLIS),
+            targetValue = if (isHovered) 1f else 0.9f,
+            animationSpec = tween(durationMillis = 200),
             label = "JumpToBottomButton.HoverAlpha"
         )
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(percent = 50))
-                .background(JewelTheme.globalColors.panelBackground.copy(alpha = backgroundAlpha))
+                .background(globalColors.borders.normal.copy(alpha = backgroundAlpha))
                 .clickable(
                     indication = null,
                     enabled = enabled,
@@ -105,7 +105,10 @@ fun JumpToBottomButton(
                     interactionSource = interactionSource
                 )
                 .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-                .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md),
+                .padding(
+                    horizontal = GradumSpacing.lg,
+                    vertical = GradumSpacing.md
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {

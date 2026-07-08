@@ -18,6 +18,7 @@ import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.utils.takeLastTurns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -139,7 +140,12 @@ class Agent(
         loadPreviousContext: Boolean = false,
         attachments: List<AttachmentPayload> = emptyList(),
     ): Unit {
-        val startTimeMillis: Long = System.currentTimeMillis().also { sessionStartTimeMillis = it }
+        // D16: store start time in the field directly. The previous
+        // double-write (`val local = ...also { field = it }`) created
+        // two sources of truth and the callsites that used the local
+        // variable had to be kept in sync with the field readers. One
+        // field, one read.
+        sessionStartTimeMillis = System.currentTimeMillis()
 
         val contextLoaded: Boolean =
             if (loadPreviousContext) {
@@ -212,7 +218,7 @@ class Agent(
                             "keywords" to redLineHitKeywords.toList(),
                         )
                     )
-                    abortSession(startTimeMillis)
+                    abortSession()
                     break
                 }
             }
@@ -238,7 +244,7 @@ class Agent(
                             "responses" to repeatedResponseTracker.toList(),
                         )
                     )
-                    abortSession(startTimeMillis)
+                    abortSession()
                     break
                 }
             } else
@@ -258,7 +264,7 @@ class Agent(
             if (sessionAborted) break
         }
 
-        finishSession(startTimeMillis)
+        finishSession()
     }
 
     private fun loadSystemPrompt() {
@@ -605,7 +611,7 @@ class Agent(
                     "repeatedCount" to repeatedToolCallCount,
                 )
             )
-            abortSession(sessionStartTimeMillis)
+            abortSession()
         } else if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
             val commandText: String = convertedArguments["command"] as? String ?: ""
             val verdict: gradum.utils.CommandVerdict =
@@ -770,16 +776,50 @@ class Agent(
 
     /**
      * Truncates conversation history to [maxHistoryMessages] messages,
-     * keeping the system prompt (index 0) and the most recent messages.
-     * This prevents local LLMs from being overwhelmed by long histories.
+     * keeping the system prompt and the most recent messages. This
+     * prevents local LLMs from being overwhelmed by long histories.
+     *
+     * Truncation is **turn-aware**: a "turn" is a user message, OR an
+     * assistant message together with all its following `role=tool`
+     * results. Cuts only happen on turn boundaries, so the truncated
+     * list never contains an assistant message whose `tool_calls`
+     * reference tool-result messages that got dropped. The previous
+     * `takeLast(N)` cut messages by raw count, which on small-context
+     * (8K) models produced exactly that broken state — orphan
+     * tool_calls with no results, causing the LLM to either reject
+     * the request or hallucinate the missing tool outputs.
+     *
+     * If even one whole turn is larger than the budget (rare — a turn
+     * is normally 1-3 messages), the truncator falls back to a raw
+     * tail cut of the last [maxHistoryMessages] messages within the
+     * most recent turn and logs a warning so the operator can raise
+     * the budget or split the conversation.
      */
     private fun truncateHistory() {
-        if (conversationHistory.size <= maxHistoryMessages + 1) return
-        val systemPrompt = conversationHistory.first()
-        val recentMessages = conversationHistory.takeLast(maxHistoryMessages)
+        val systemPrompt: Map<String, Any>? =
+            conversationHistory.firstOrNull { (it["role"] as? String) == "system" }
+        val nonSystem: List<Map<String, Any>> =
+            conversationHistory.filter { (it["role"] as? String) != "system" }
+
+        if (nonSystem.size <= maxHistoryMessages) return
+
+        val preSize: Int = nonSystem.size
+        val keepFromEnd: List<Map<String, Any>> = takeLastTurns(nonSystem, maxHistoryMessages)
+        if (keepFromEnd.size < preSize && keepFromEnd.size > maxHistoryMessages) {
+            // We ended up with MORE than the budget — that means the
+            // truncator's last-resort path kicked in (a single turn
+            // is larger than the budget). Warn so the operator can
+            // raise the budget or split the conversation.
+            logger.warn(
+                "Cannot fit conversation in $maxHistoryMessages messages " +
+                    "without breaking a turn; falling back to raw tail cut " +
+                    "(non-system size = $preSize)"
+            )
+        }
+
         conversationHistory.clear()
-        conversationHistory.add(systemPrompt)
-        conversationHistory.addAll(recentMessages)
+        if (systemPrompt != null) conversationHistory.add(systemPrompt)
+        conversationHistory.addAll(keepFromEnd)
     }
 
     private fun loadRedLineKeywords(): List<String> {
@@ -830,9 +870,9 @@ class Agent(
         )
     }
 
-    private fun abortSession(startTimeMillis: Long): Unit {
+    private fun abortSession(): Unit {
         sessionAborted = true
-        val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
+        val elapsedSeconds: Long = (System.currentTimeMillis() - sessionStartTimeMillis) / 1000
         emitEvent(
             "session_end", mapOf(
                 "version" to Version.GRADUM_VERSION,
@@ -871,9 +911,9 @@ class Agent(
         }
     }
 
-    private fun finishSession(startTimeMillis: Long): Unit {
+    private fun finishSession(): Unit {
         if (!sessionAborted) {
-            val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
+            val elapsedSeconds: Long = (System.currentTimeMillis() - sessionStartTimeMillis) / 1000
 
             emitEvent(
                 "session_end", mapOf(
@@ -884,7 +924,7 @@ class Agent(
             )
         }
 
-        contextManager.saveContext(conversationHistory, configuration.modelName, emptySet())
+        contextManager.saveContext(conversationHistory, configuration.modelName)
     }
 
     private data class AgentTurnResult(

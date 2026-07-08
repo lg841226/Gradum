@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-07-07 19:48:11 Changed by gwy
+ * ThinkingIndicator.kt  2026-07-08 23:13:40 Changed by gwy
  */
 
-@file:OptIn(ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.chat
 
@@ -21,8 +21,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumCodeBlockRenderer
 import gradum.idea.chat.ui.GradumSpacing
-import org.jetbrains.jewel.foundation.theme.JewelTheme
+import gradum.idea.chat.ui.MarkdownSegment
+import gradum.idea.chat.ui.ScrollableTable
+import gradum.idea.chat.ui.isRenderable
+import gradum.idea.chat.ui.rememberGradumMarkdownStyling
+import gradum.idea.chat.ui.splitMarkdownAtTables
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.LocalGlobalColors
+import org.jetbrains.jewel.foundation.theme.LocalContentColor
+import org.jetbrains.jewel.markdown.Markdown
+import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -31,34 +41,53 @@ import org.jetbrains.jewel.ui.typography
 /**
  * Collapsible thinking indicator for assistant messages.
  *
+ * Renders the LLM's accumulated reasoning as Markdown inside a
+ * muted-gray palette so the whole block reads as ephemeral context
+ * rather than a finished reply. Fenced code blocks and GFM tables
+ * inside the thinking text are rendered without toolbars
+ * (`isSimplified = true`) — copy / insert-as-file affordances are
+ * only useful once the user has committed to the final answer.
+ *
  * Shows "思考" label when collapsed, full thinking content when expanded.
  * Uses animated visibility for expand/collapse transitions.
  *
  * @param thinking The accumulated thinking content from the LLM.
  * @param enterTransition Custom enter transition for the outer wrapper.
  * @param isTaskComplete When true, collapses the thinking content.
+ * @param onUrlClick Forwarded to the Markdown renderer for inline
+ *   links inside the reasoning block. Same signature as the
+ *   response-block renderer so the host (a chat bubble) only has
+ *   to wire one handler.
  */
 @Composable
 fun ThinkingIndicator(
     thinking: String,
     modifier: Modifier = Modifier,
     enterTransition: EnterTransition = fadeIn(tween(800)),
-    isTaskComplete: Boolean = false
+    isTaskComplete: Boolean = false,
+    onUrlClick: (String) -> Unit = {}
 ) {
     if (thinking.isBlank()) return
 
     var isExpanded by remember { mutableStateOf(true) }
 
     LaunchedEffect(isTaskComplete) {
-        if (isTaskComplete) {
-            isExpanded = false
-        }
+        if (isTaskComplete) isExpanded = false
+    }
+
+    val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
+    val simplifiedCodeRenderer = remember(thinkingStyling) {
+        // Use `DefaultMarkdownBlockRenderer` for everything that
+        // [GradumCodeBlockRenderer] doesn't override so the parent's
+        // table-of-contents renderer, blockquote, etc. all keep
+        // working. Only the fenced-code-block override flips into
+        // `isSimplified = true` to drop the toolbar.
+        GradumCodeBlockRenderer(styling = thinkingStyling, isSimplified = true)
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier
-                .clickable { isExpanded = !isExpanded },
+            modifier = Modifier.clickable { isExpanded = !isExpanded },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
@@ -82,14 +111,49 @@ fun ThinkingIndicator(
         }
 
         AnimatedVisibility(visible = isExpanded) {
+            val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
+            CompositionLocalProvider(LocalContentColor provides thinkingColor) {
+                CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
+                    // Same strategy as the assistant response block:
+                    // pull GFM tables out of the raw Markdown first so
+                    // wide tables get their own horizontal scrollbar
+                    // without making the surrounding prose scrollable.
+                    val segments = remember(thinking) { splitMarkdownAtTables(thinking) }
+                    Column {
+                        segments.forEach { segment ->
+                            when (segment) {
+                                is MarkdownSegment.Plain -> Markdown(
+                                    markdown = segment.text,
+                                    onUrlClick = onUrlClick,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    markdownStyling = thinkingStyling,
+                                    // Override the Jewel's default
+                                    // blockRenderer so our
+                                    // `isSimplified = true` instance
+                                    // (the one supplied via the
+                                    // CompositionLocal above) wins
+                                    // over the chat-wide one.
+                                    blockRenderer = simplifiedCodeRenderer,
+                                )
 
-            Text(
-                text = thinking,
-                color = JewelTheme.globalColors.text.info,
-                style = JewelTheme.typography.editorTextStyle
-                    .copy(lineHeight = JewelTheme.typography.editorTextStyle.fontSize * 1.5f),
-                modifier = Modifier.fillMaxWidth()
-            )
+                                is MarkdownSegment.Table -> {
+                                    // `isSimplified = true` drops the
+                                    // copy toolbar. Unrenderable
+                                    // (body-empty) tables are skipped
+                                    // outright — in the chat response
+                                    // they get a placeholder, but in
+                                    // the thinking block that would
+                                    // interrupt the greyed stream
+                                    // for no benefit.
+                                    if (segment.isRenderable()) {
+                                        ScrollableTable(segment, isSimplified = true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

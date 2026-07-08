@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-07-05 22:56:12 Changed by gwy
+ * ContextManager.kt  2026-07-08 18:30:20 Changed by gwy
  */
 
 package gradum.utils
@@ -10,13 +10,22 @@ package gradum.utils
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 
 private val logger: org.slf4j.Logger = LoggerFactory.getLogger("ContextManager")
 private val jsonFormatter: Json = Json { prettyPrint = true }
 
-/** Maximum number of messages to keep in context history. */
-private const val MAX_CONTEXT_MESSAGES: Int = 30
+/**
+ * Maximum number of messages to keep in persisted context history.
+ *
+ * Mirrors `Agent.maxHistoryMessages` so in-memory and persisted
+ * truncation use the same budget. If you change one, change the other
+ * — or refactor both to read from a single source of truth.
+ */
+const val MAX_CONTEXT_MESSAGES: Int = 30
 
 /**
  * Persists the agent's conversation history and the set of files that have
@@ -26,8 +35,19 @@ private const val MAX_CONTEXT_MESSAGES: Int = 30
 class ContextManager(private val outputDirectory: Path) {
 
     private val contextFilePath: Path = outputDirectory.resolve("context.json")
+    private val contextTempFilePath: Path = outputDirectory.resolve("context.json.tmp")
 
-    /** Cached decrypted messages to avoid re-reading and decrypting from disk on every call. */
+    /**
+     * Cached decrypted messages to avoid re-reading and decrypting from
+     * disk on every call.
+     *
+     * `@Volatile` because [loadContext] and [saveContext] can race
+     * across coroutines / threads (load reads the field, save writes
+     * `null` to invalidate it). Without the volatile, a load on
+     * another thread could see a stale non-null value after a save
+     * has invalidated it.
+     */
+    @Volatile
     private var cachedMessages: List<Map<String, Any>>? = null
 
     fun loadContext(): List<Map<String, Any>> {
@@ -52,9 +72,19 @@ class ContextManager(private val outputDirectory: Path) {
 
             logger.info("Found ${rawMessages.size} messages in context file")
 
-            val decryptedMessages: List<Map<String, Any>> = rawMessages.map { element ->
+            var decryptionFailures = 0
+            val decryptedMessages: List<Map<String, Any>> = rawMessages.mapNotNull { element ->
                 val messageMap: MutableMap<String, Any> = parseJsonObject(element.jsonObject)
-                decryptMessageIfNeeded(messageMap)
+                val decrypted: Map<String, Any>? = decryptMessageIfNeeded(messageMap)
+                if (decrypted == null) {
+                    decryptionFailures++; null
+                } else decrypted
+            }
+            if (decryptionFailures > 0) {
+                logger.warn(
+                    "Dropped $decryptionFailures message(s) that failed to decrypt — " +
+                        "they would have been fed to the LLM as base64 ciphertext otherwise"
+                )
             }
 
             logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
@@ -65,13 +95,13 @@ class ContextManager(private val outputDirectory: Path) {
         }
     }
 
-    fun saveContext(messages: List<Map<String, Any>>, modelName: String, fullyReadFiles: Set<String>): Boolean {
+    fun saveContext(messages: List<Map<String, Any>>, modelName: String): Boolean {
         outputDirectory.toFile().mkdirs()
         cachedMessages = null
 
         logger.info("Saving context: ${messages.size} messages, model=$modelName")
 
-        val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages, fullyReadFiles)
+        val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
 
         logger.info("After cleanup: ${cleanedMessages.size} messages (dropped ${messages.size - cleanedMessages.size})")
 
@@ -84,7 +114,19 @@ class ContextManager(private val outputDirectory: Path) {
         val contextJson: String = JsonUtil.encodeMap(contextMap)
 
         return try {
-            contextFilePath.toFile().writeText(contextJson, Charsets.UTF_8)
+            val tempFile: File = contextTempFilePath.toFile()
+            tempFile.writeText(contextJson, Charsets.UTF_8)
+            try {
+                Files.move(
+                    contextTempFilePath,
+                    contextFilePath,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back")
+                Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
+            }
             val writtenSize: Long = contextFilePath.toFile().length()
 
             logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted"); true
@@ -93,22 +135,17 @@ class ContextManager(private val outputDirectory: Path) {
         }
     }
 
-    private fun cleanMessageHistory(
-        messages: List<Map<String, Any>>,
-        fullyReadFiles: Set<String>
-    ): List<Map<String, Any>> {
+    private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
         val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
 
-        // Step 1: Identify tool calls from read_file and explore_project
         val preservedToolCallIds: MutableSet<String> = mutableSetOf()
         for (message in messages) {
             val role: String = message["role"] as? String ?: ""
             if (role != "assistant") continue
 
-            @Suppress("UNCHECKED_CAST")
-            val toolCalls: List<Map<String, Any>> = message["tool_calls"] as? List<Map<String, Any>> ?: continue
-            for (toolCall in toolCalls) {
-                val function: Map<String, Any> = toolCall["function"] as? Map<String, Any> ?: continue
+            for (toolCall: Map<String, Any> in readListOfMaps(message["tool_calls"])) {
+                val function: Map<String, Any> = readStringMap(toolCall["function"])
+                if (function.isEmpty()) continue
                 val functionName: String = function["name"] as? String ?: ""
                 val callId: String = toolCall["id"] as? String ?: ""
 
@@ -118,66 +155,98 @@ class ContextManager(private val outputDirectory: Path) {
             }
         }
 
-        // Step 2: Filter messages, preserving tool results from read_file/explore_project
         for (message in messages) {
             val role: String = message["role"] as? String ?: ""
             val content: String = message["content"] as? String ?: ""
-
             val isSystemOrEmptyAssistant: Boolean = (role == "system") || (role == "assistant" && content.isBlank())
 
             if (isSystemOrEmptyAssistant) continue
 
-            // Preserve tool messages from read_file and explore_project
             if (role == "tool") {
                 val callId: String = message["tool_call_id"] as? String ?: ""
-                if (callId in preservedToolCallIds) {
-                    cleanedMessages.add(message)
-                    continue
-                }
-                // Skip other tool messages
+                if (callId in preservedToolCallIds) cleanedMessages.add(message)
+
                 continue
             }
 
-            // Skip other fully-read file messages
-            val isFullyRead: Boolean = fullyReadFiles.any { filePath ->
-                content.startsWith("Success: Read $filePath") || content.startsWith("Success: Read '$filePath")
-            }
-            if (isFullyRead) continue
-
-            // For assistant messages, preserve tool_calls if they reference preserved tool results
             if (role == "assistant") {
-                @Suppress("UNCHECKED_CAST")
-                val toolCalls: List<Map<String, Any>>? = message["tool_calls"] as? List<Map<String, Any>>
-                if (toolCalls != null) {
+                val toolCalls: List<Map<String, Any>> = readListOfMaps(message["tool_calls"])
+                if (toolCalls.isNotEmpty()) {
                     val preservedCalls: List<Map<String, Any>> = toolCalls.filter { toolCall ->
                         val callId: String = toolCall["id"] as? String ?: ""
                         callId in preservedToolCallIds
                     }
+                    val trimmedContent: String = content.trim()
                     if (preservedCalls.isNotEmpty()) {
+                        val droppedCallCount: Int = toolCalls.size - preservedCalls.size
+                        val noticeContent: String = if (droppedCallCount > 0) {
+                            "$trimmedContent\n\n[Some tool results were trimmed to fit context]".trim()
+                        } else trimmedContent
+
                         cleanedMessages.add(
                             mapOf(
                                 "role" to role,
-                                "content" to content.trim().replace(Regex("\\s+"), " "),
+                                "content" to noticeContent,
                                 "tool_calls" to preservedCalls
                             )
                         )
                     } else {
-                        cleanedMessages.add(
-                            mapOf(
-                                "role" to role,
-                                "content" to content.trim().replace(Regex("\\s+"), " ")
+                        if (droppedCallCount(toolCalls, preservedToolCallIds) > 0) {
+                            cleanedMessages.add(
+                                mapOf(
+                                    "role" to role,
+                                    "content" to "$trimmedContent\n\n[All tool results trimmed to fit context]".trim()
+                                )
                             )
-                        )
+                        } else {
+                            cleanedMessages.add(
+                                mapOf("role" to role, "content" to trimmedContent)
+                            )
+                        }
                     }
-                } else {
-                    cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
-                }
-            } else {
-                cleanedMessages.add(mapOf("role" to role, "content" to content.trim().replace(Regex("\\s+"), " ")))
-            }
+                } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
+            } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
         }
+        return takeLastTurns(cleanedMessages, MAX_CONTEXT_MESSAGES)
+    }
 
-        return cleanedMessages.takeLast(MAX_CONTEXT_MESSAGES)
+    private fun droppedCallCount(
+        toolCalls: List<Map<String, Any>>, preservedToolCallIds: Set<String>
+    ): Int = toolCalls.count {
+        (it["id"] as? String ?: "") !in preservedToolCallIds
+    }
+
+    /**
+     * Runtime-safe coercion of a `Any?` value (typically read from a
+     * `Map<String, Any>` produced by [convertJsonElement]) into a
+     * `Map<String, Any>`. The previous `as? Map<String, Any>` shortcut
+     * compiled with an unchecked-cast warning at L149 because Kotlin
+     * can't prove the key/value types at the call site. This helper
+     * walks the map at runtime: non-`String` keys are dropped, null
+     * values become empty strings. Returns an empty map if the input
+     * is not a map at all, so callers can use `?.let { }` or a simple
+     * `isEmpty()` check rather than `?: continue`.
+     */
+    private fun readStringMap(rawMap: Any?): Map<String, Any> {
+        if (rawMap !is Map<*, *>) return emptyMap()
+
+        return rawMap
+            .filterKeys { it is String }
+            .mapKeys { it.key as String }
+            .mapValues { it.value ?: "" }
+            .toMap()
+    }
+
+    /** Runtime-safe coercion of a `Any?` into a `List<Map<String, Any>>`.
+     *  Non-map elements are dropped; see [readStringMap] for the per-map rules. */
+    private fun readListOfMaps(rawList: Any?): List<Map<String, Any>> {
+        if (rawList !is List<*>) return emptyList()
+        val parsedMaps: MutableList<Map<String, Any>> = mutableListOf()
+        for (rawItem: Any? in rawList) {
+            val stringMap: Map<String, Any> = readStringMap(rawItem)
+            if (stringMap.isNotEmpty()) parsedMaps.add(stringMap)
+        }
+        return parsedMaps
     }
 
     private fun parseJsonObject(jsonObject: JsonObject): MutableMap<String, Any> {
@@ -190,27 +259,24 @@ class ContextManager(private val outputDirectory: Path) {
     private fun convertJsonElement(element: JsonElement): Any {
         return when (element) {
             is JsonPrimitive if element.isString -> element.content
-            // Number/boolean primitives: try to parse as typed value, fall back to string
             is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-            // Nested objects/arrays: serialize back to string representation
             is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element).toString()
         }
     }
 
-    private fun decryptMessageIfNeeded(message: MutableMap<String, Any>): MutableMap<String, Any> {
+    private fun decryptMessageIfNeeded(message: MutableMap<String, Any>): MutableMap<String, Any>? {
         val isEncrypted: Boolean = message["_encrypted"]?.toString() == "true"
         val encryptedContent: String = message["content"] as? String ?: ""
 
         if (!isEncrypted) return message
 
-        try {
+        return try {
             message["content"] = decryptMessageContent(encryptedContent)
             message.remove("_encrypted")
+            message
         } catch (exception: Exception) {
-            logger.warn("Failed to decrypt message: ${exception.message}")
+            logger.warn("Failed to decrypt message: ${exception.message}"); null
         }
-
-        return message
     }
 
     private fun logMessageStats(messages: List<Map<String, Any>>) {

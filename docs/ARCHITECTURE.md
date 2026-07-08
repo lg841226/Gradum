@@ -454,7 +454,7 @@ flowchart TD
 3. **Session End**:
     - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by
       guardrail)
-    - `contextManager.saveContext(history, model, fullyReadFiles)` — **skipped** when `aborted: true` (revoked sessions
+    - `contextManager.saveContext(history, model)` — **skipped** when `aborted: true` (revoked sessions
       leave no trace)
         - Filter system/tool messages, simplify `user/assistant` messages
         - Encrypt the content field of each user/assistant message (set `_encrypted=true`)
@@ -588,10 +588,10 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    SAVE["saveContext(history, model, fullyReadFiles)"] --> FILTER["1. Filter: keep only user/assistant messages<br/>skip empty assistant content"]
-    FILTER --> OPTIMIZE["2. Optimize: discard 'Success: Read {path}' replies<br/>for already fully-read files"]
+    SAVE["saveContext(history, model)"] --> FILTER["1. Filter: keep only user/assistant messages<br/>skip empty assistant content"]
+    FILTER --> OPTIMIZE["2. Optimize: discard other tool results,<br/>keep only read_file/explore_project tool messages"]
     OPTIMIZE --> ENCRYPT["3. Encrypt: for each message content<br/>encryptMessageContent(content) → Base64<br/>mark _encrypted=true"]
-    ENCRYPT --> WRITE["4. Write output/context.json<br/>prettyPrint=true<br/>keep only most recent 60 messages"]
+    ENCRYPT --> WRITE["4. Write output/context.json (atomic)<br/>prettyPrint=true<br/>truncate turn-aware to last 30 messages"]
     LOAD["loadContext()"] --> FILE_EXISTS{file exists?}
     FILE_EXISTS -- No --> EMPTY[return empty List]
     FILE_EXISTS -- Yes --> DECRYPT["for each message<br/>if _encrypted=true<br/>decryptMessageContent(content)"]

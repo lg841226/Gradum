@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTable.kt  2026-07-08 14:23:41 Changed by gwy
+ * GradumMarkdownTable.kt  2026-07-08 21:10:14 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -338,6 +338,7 @@ private val ScrollbarReservedSpace: Dp = 8.dp
 fun ScrollableTable(
     table: MarkdownSegment.Table,
     modifier: Modifier = Modifier,
+    isSimplified: Boolean = false,
     onUrlClick: (String) -> Unit = {}
 ) {
     val density: Density = LocalDensity.current
@@ -401,9 +402,13 @@ fun ScrollableTable(
         // area. Both children live inside the BoxWithConstraints' clip,
         // so the toolbar's top corners follow the panel's rounded
         // shape — same as the code block's [CodeBlockToolbar] above its
-        // highlighted content.
+        // highlighted content. In `isSimplified` mode (used by the
+        // ThinkingIndicator) the toolbar is dropped: the surrounding
+        // reasoning text is already greyed and a copy button would
+        // duplicate the affordance, so the table renders as a
+        // bare panel.
         Column(modifier = Modifier.fillMaxWidth()) {
-            TableToolbar(table = table)
+            if (!isSimplified) TableToolbar(table = table)
             // Outer Box hosts both the scrollable table area and the
             // [HorizontalScrollbar] overlay. The inner Box (with the
             // horizontalScroll modifier) is the actual scroll target;
