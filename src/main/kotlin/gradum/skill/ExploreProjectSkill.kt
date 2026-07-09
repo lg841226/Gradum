@@ -8,9 +8,13 @@
 package gradum.skill
 
 import gradum.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+
+private val logger: Logger = LoggerFactory.getLogger("ExploreProjectSkill")
 
 private const val MINIMUM_DEPTH: Int = 5
 private const val MAXIMUM_DEPTH: Int = 12
@@ -239,7 +243,7 @@ class ExploreProjectSkill : Skill() {
             limit = limit
         )
 
-        val scanResult = ScanResult()
+        val scanResult = ScanResult(relativeRoot = resolvedPath)
         val visitedPaths: Set<Path> = setOf(resolvedPath)
         scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult, filterConfig)
 
@@ -251,7 +255,7 @@ class ExploreProjectSkill : Skill() {
         if (useSimpleOutput) {
             val codeFileDetails: List<String> = filteredCodeFiles
                 .sortedBy { (it["path"] as? String) ?: "" }
-                .map { "${it["path"]}:${it["lines"]}" }
+                .map { entry -> "${entry["path"]}:${entry["lines"]}" }
 
             return makeSuccess(
                 linkedMapOf(
@@ -261,6 +265,7 @@ class ExploreProjectSkill : Skill() {
                     "code_files" to filteredCodeFiles.size,
                     "other_files" to filteredOtherFiles.size,
                     "code_file_details" to codeFileDetails.take(limit),
+                    "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" },
                 )
             )
         }
@@ -272,6 +277,7 @@ class ExploreProjectSkill : Skill() {
                 "config_files" to filteredConfigFiles.sorted().take(limit),
                 "code_files" to filteredCodeFiles.sortedBy { (it["path"] as? String) ?: "" }.take(limit),
                 "other_files" to filteredOtherFiles.sorted().take(limit),
+                "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" }.take(limit),
                 "filter_applied" to linkedMapOf(
                     "filter_type" to filterType,
                     "filter_extension" to filterExtension,
@@ -286,6 +292,7 @@ class ExploreProjectSkill : Skill() {
                     "config_files" to filteredConfigFiles.size,
                     "code_files" to filteredCodeFiles.size,
                     "other_files" to filteredOtherFiles.size,
+                    "unreadable_paths" to scanResult.failedPaths.size,
                 )
             )
         )
@@ -408,9 +415,11 @@ private fun formatSize(sizeInBytes: Long): String {
 }
 
 private data class ScanResult(
+    val relativeRoot: Path,
     val configFiles: MutableList<String> = mutableListOf(),
     val codeFiles: MutableList<Map<String, Any>> = mutableListOf(),
     val otherFiles: MutableList<String> = mutableListOf(),
+    val failedPaths: MutableList<Map<String, Any>> = mutableListOf(),
     var totalSize: Long = 0
 )
 
@@ -436,7 +445,17 @@ private fun scanDirectory(
 
     val directoryEntries: List<File> = try {
         targetDirectory.toFile().listFiles()?.toList() ?: emptyList()
-    } catch (_: SecurityException) {
+    } catch (securityException: SecurityException) {
+        val reason: String = securityException.message
+            ?: securityException::class.simpleName
+            ?: "access denied"
+        logger.warn("SecurityException listing $targetDirectory: $reason", securityException)
+        val relativePath: String = try {
+            scanResult.relativeRoot.relativize(targetDirectory).toString()
+        } catch (_: IllegalArgumentException) {
+            targetDirectory.toString()
+        }
+        scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
         return
     }
 
@@ -485,7 +504,7 @@ private fun scanDirectory(
                 isConfigFile(directoryEntry.name) -> scanResult.configFiles.add(relativePath)
                 isCodeFile(directoryEntry.name) -> {
                     val lineCount = countLines(directoryEntry)
-                    scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lineCount))
+                    scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to (lineCount ?: "unknown")))
                 }
 
                 else -> scanResult.otherFiles.add(relativePath)

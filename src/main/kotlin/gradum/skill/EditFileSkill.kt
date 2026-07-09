@@ -176,7 +176,24 @@ class EditFileSkill : Skill() {
      */
     private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val filePath: String = arguments["path"] as? String ?: ""
-        val rawEdits: List<Map<String, Any>> = parseEdits(arguments["edits"])
+        val rawEdits: List<Map<String, Any>> = try {
+            parseEdits(arguments["edits"])
+        } catch (parseException: Exception) {
+            // parseEdits used to swallow JSON / type errors and silently
+            // fall through to an empty list, which the caller rendered as
+            // the same "No edits provided" message as a model that
+            // actually forgot to pass the parameter — the model then
+            // got misleading feedback and kept retrying with the same
+            // broken argument shape. Surface the parse failure with
+            // the underlying reason.
+            return makeFailure(
+                ErrorCode.INVALID_PARAMETER, buildXmlError(
+                    code = "INVALID_PARAMETER",
+                    message = "Failed to parse 'edits' parameter: ${parseException.message ?: parseException::class.simpleName ?: "unknown parse error"}",
+                    fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
+                ), mapOf("path" to filePath)
+            )
+        }
         val projectRoot: String = context.projectRoot
 
         if (filePath.isBlank())

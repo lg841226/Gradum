@@ -128,9 +128,18 @@ class RunCommandSkill : Skill() {
 
             val exitCode: Int = commandProcess.exitValue()
 
-            val stdoutText: String = readStreamOutput(commandProcess.inputStream)
-            val stderrText: String = readStreamOutput(commandProcess.errorStream)
-            val commandOutput: String = stdoutText.ifBlank { stderrText }
+            val stdoutText: String = readStreamOutput(commandProcess.inputStream, "stdout")
+            val stderrText: String = readStreamOutput(commandProcess.errorStream, "stderr")
+            // Prefer stdout when it actually has content; fall back to stderr
+            // when stdout is empty. Both fall through with an explicit failure
+            // marker if the read itself threw — never a blank string, because
+            // the LLM needs to know the I/O failed and not assume the command
+            // simply produced no output.
+            val commandOutput: String = when {
+                stdoutText.isNotBlank() -> stdoutText
+                stderrText.isNotBlank() -> stderrText
+                else -> "[no output — stdout and stderr were both empty]"
+            }
 
             if (useSimpleOutput) {
                 makeSuccess(
@@ -201,14 +210,24 @@ class RunCommandSkill : Skill() {
         }
     }
 
-    private fun readStreamOutput(inputStream: java.io.InputStream): String {
+    private fun readStreamOutput(inputStream: java.io.InputStream, label: String): String {
+        // The output of this function is rendered verbatim into the LLM's
+        // tool-result message, so a swallowed exception here turns into
+        // `output: ""` in the model prompt — the LLM then assumes the
+        // command produced nothing and may retry, re-architect the plan,
+        // or give up entirely (e.g. `ls -la .idea/` returning `""` to a
+        // model that can't see the underlying EACCES). Always surface the
+        // failure as a visible marker so the model can react.
         return try {
             BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
                 bufferedReader.readText()
             }
         } catch (streamReadException: Exception) {
-            logger.warn("Failed to read stream output: {}", streamReadException.message)
-            ""
+            val reason: String = streamReadException.message
+                ?: streamReadException::class.simpleName
+                ?: "unknown I/O error"
+            logger.warn("Failed to read $label stream: $reason", streamReadException)
+            "[stream read failed for $label: $reason]"
         }
     }
 }
