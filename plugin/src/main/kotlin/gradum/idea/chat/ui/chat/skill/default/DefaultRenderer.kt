@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DefaultRenderer.kt  2026-07-09 18:00:00 Changed by gwy
+ * DefaultRenderer.kt  2026-07-09 17:19:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -11,13 +11,12 @@ package gradum.idea.chat.ui.chat.skill.default
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
  * Default fallback renderer for any tool-call alias that has no
@@ -39,16 +38,13 @@ class DefaultRenderer : ToolCallRenderer {
 
     override fun labelKey(): String? = null
 
-    override fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
-    ): ToolCallContent {
+    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
         val alias: String = (arguments["alias"] as? String)
             ?: (result["alias"] as? String)
             ?: WILDCARD_ALIAS
         return ToolCallContent(
             alias = alias,
-            fields = emptyMap(),
+            fields = emptyMap()
         )
     }
 

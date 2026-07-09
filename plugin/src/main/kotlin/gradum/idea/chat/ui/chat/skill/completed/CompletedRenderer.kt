@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-07-09 18:00:00 Changed by gwy
+ * CompletedRenderer.kt  2026-07-09 17:19:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -16,8 +16,8 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
  * Default renderer for the server-side `to_do` skill when the LLM
@@ -32,10 +32,7 @@ class CompletedRenderer : ToolCallRenderer {
 
     override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
-    ): ToolCallContent {
+    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
         val task: String = (arguments["task"] as? String)
             ?: (result["task"] as? String)
             ?: (arguments["content"] as? String)

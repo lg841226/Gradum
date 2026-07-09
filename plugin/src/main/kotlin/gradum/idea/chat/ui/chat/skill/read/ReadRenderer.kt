@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-07-09 18:00:00 Changed by gwy
+ * ReadRenderer.kt  2026-07-09 17:19:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -19,8 +19,8 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
  * Default renderer for the server-side `read_file` skill (alias
@@ -37,10 +37,7 @@ class ReadRenderer : ToolCallRenderer {
 
     override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
-    ): ToolCallContent {
+    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
         val filePath: String = (arguments["path"] as? String).orEmpty()
         val startLine: Int? = (result["startLine"] as? Number)?.toInt()
             ?: parseLineRangeStart(result["lineRange"] as? String)
@@ -52,7 +49,7 @@ class ReadRenderer : ToolCallRenderer {
                 ToolCallAction.OpenInEditor(
                     path = filePath,
                     startLine = startLine ?: 0,
-                    endLine = endLine ?: 0,
+                    endLine = endLine ?: 0
                 )
             )
         }
@@ -76,6 +73,7 @@ class ReadRenderer : ToolCallRenderer {
         val lineText: String = when {
             startLine != null && endLine != null ->
                 message("gradum.tool.line.range", startLine, endLine)
+
             startLine != null -> message("gradum.tool.line.single", startLine)
             else -> ""
         }

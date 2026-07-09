@@ -171,17 +171,43 @@ A renderer is responsible for:
   which `ToolCallAction`s to expose (e.g. `OpenInEditor`,
   `CopyToClipboard`).
 
-Adding a new tool call UI is **fully SPI-driven** — no Gradum source
-change is required. A third-party IDE plugin can implement
-`ToolCallRenderer`, drop a folder next to its own source, and register
-the implementation in its own `plugin.xml`:
+Adding a new tool call UI is a **plain Kotlin registration** — one
+line in the registry, no plugin.xml change. The chat panel consults
+[`ToolCallRendererRegistry.RENDERERS`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
+(in a list-of-instances) and dispatches to the first renderer whose
+`alias()` matches. To add a new alias:
 
-```xml
-<extensions defaultExtensionNs="com.gradum.idea">
-    <toolCallRenderer
-        implementation="com.example.MyRenderer"/>
-</extensions>
-```
+1. Create a folder `chat/ui/chat/skill/<alias>/` containing a
+   `<Alias>Renderer.kt` that implements
+   [`ToolCallRenderer`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt).
+2. Append `MyRenderer()` to `RENDERERS` in
+   `ToolCallRendererRegistry.kt` (above the wildcard
+   `DefaultRenderer()` entry, which must remain last).
+3. (Optional) Drop a `META-INF/extensions/<alias>.xml` reference
+   manifest next to the other built-in reference manifests — it is
+   documentation only and is **not** loaded by the platform.
+
+**Why a plain list and not an IntelliJ Platform `ExtensionPoint`?**
+The Platform's `ExtensionPointName` lookup path has several practical
+drawbacks for this use case:
+
+- The `<extensionPoint>` element must be a direct child of
+  `<idea-plugin>`, which is fragile to refactors and easy to break
+  with a copy / paste of an `<extensions>` block.
+- EP resolution goes through the IDE's `Extensions` area, which
+  throws `IllegalArgumentException: Missing extension point` at the
+  first chat render if anything is misconfigured — a non-recoverable
+  runtime crash that takes down the entire chat panel.
+- The EP cannot be defined per-alias in a way that's easy to
+  discover: a developer has to read the EP interface + the Gradum
+  source to learn the convention.
+- Classloader isolation between Gradum and third-party plugins
+  means the EP lookup frequently fails with "Unable to resolve
+  extension point … in plugin dependencies" at parse time, even
+  when the source looks correct.
+
+A plain `val RENDERERS: List<ToolCallRenderer>` solves all four
+problems at the cost of one line of code per new alias.
 
 The standard payload shape the renderer receives on the wire (an
 NDJSON `tool_call` event) is `{tool, arguments, toolCallId, success, result}`.

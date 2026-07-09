@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploredRenderer.kt  2026-07-09 18:00:00 Changed by gwy
+ * ExploredRenderer.kt  2026-07-09 17:19:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -33,8 +33,7 @@ class ExploredRenderer : ToolCallRenderer {
     override fun labelKey(): String = LABEL_KEY
 
     override fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
+        arguments: Map<String, Any?>, result: Map<String, Any?>
     ): ToolCallContent {
         val projectRoot: String =
             (arguments["projectRoot"] as? String)

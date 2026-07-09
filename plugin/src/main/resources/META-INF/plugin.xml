@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-07-09 18:00:00 Changed by gwy
+  ~ plugin.xml  2026-07-09 Changed by gwy
   -->
 
 <idea-plugin>
@@ -45,75 +45,25 @@
             from `GradumToolWindowFactory`.
         -->
         <notificationGroup id="Gradum.Notifications" displayType="BALLOON" isLogByDefault="false"/>
-
-        <!--
-            ============================================================
-            EXTENSION POINTS
-            ============================================================
-
-            These are the SPI entry points that third-party IDE plugins
-            can implement to extend the Gradum chat panel without
-            modifying this plugin's source.
-
-            Each extension point is registered under the Gradum
-            namespace `com.gradum.idea` so the consumer's `plugin.xml`
-            uses `defaultExtensionNs="com.gradum.idea"`.
-
-            See `docs/PLUGIN_DEVELOPMENT.md` for full tutorials and
-            worked examples.
-        -->
-
-        <!--
-            Tool-call row renderer SPI. A renderer is responsible for
-            parsing a server `tool_call` event's `arguments` + `result`
-            fields into a UI view-model, choosing the row's icon and
-            localised label, and drawing the actual Compose row.
-
-            Add a renderer by implementing
-            `gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer`
-            and registering it like:
-
-                <toolCallRenderer
-                    implementation="com.example.MyRenderer"/>
-
-            Aliases are first-registered-wins; render an alias of `"*"`
-            to override the wildcard default fallback.
-        -->
-        <extensionPoint
-            name="toolCallRenderer"
-            interface="gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer"/>
     </extensions>
 
     <!--
-        Default tool-call renderers. Each skill alias a server-side
-        Gradum `Skill` can emit (Ran / Edited / Read / Saved / Explored
-        / Planned / Completed) has a built-in renderer registered here.
-        The wildcard DefaultRenderer is the catch-all for any alias
-        that has no dedicated renderer.
+        NOTE on tool-call renderer extensibility:
 
-        The reference XML for each renderer lives at
-        `META-INF/extensions/<alias>.xml`. Those files are kept in
-        sync with the `<toolCallRenderer>` lines below and serve as
-        the per-skill "registration manifest" so a third-party
-        developer can see exactly which class implements a given
-        alias without opening this file.
+        The Gradum chat panel's per-skill tool-call rows are
+        pluggable through a plain Kotlin interface
+        (`gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer`)
+        and an in-process registry
+        (`gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry`).
+        They are NOT registered as an IntelliJ Platform
+        `ExtensionPoint` — see the registry's KDoc for the
+        reasoning.
+
+        Each built-in renderer lives in its own folder under
+        `chat/ui/chat/skill/<alias>/` with a matching reference
+        manifest at `META-INF/extensions/<alias>.xml`. Adding
+        a new alias is a one-line append to the registry's
+        `RENDERERS` list. See `docs/PLUGIN_DEVELOPMENT.md`
+        section 16 for the full tutorial.
     -->
-    <extensions defaultExtensionNs="com.gradum.idea">
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.ran.RanRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.edited.EditedRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.read.ReadRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.saved.SavedRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.explored.ExploredRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.planned.PlannedRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.completed.CompletedRenderer"/>
-        <toolCallRenderer
-            implementation="gradum.idea.chat.ui.chat.skill.default.DefaultRenderer"/>
-    </extensions>
 </idea-plugin>

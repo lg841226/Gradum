@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PlannedRenderer.kt  2026-07-09 18:00:00 Changed by gwy
+ * PlannedRenderer.kt  2026-07-09 17:19:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -33,10 +33,7 @@ class PlannedRenderer : ToolCallRenderer {
 
     override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
-    ): ToolCallContent {
+    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
         @Suppress("UNCHECKED_CAST")
         val tasks: List<String> = (result["tasks"] as? List<String>)
             ?: (arguments["tasks"] as? List<String>)
