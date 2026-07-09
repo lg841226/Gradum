@@ -44,11 +44,9 @@ object ToolCallRendererRegistry {
      * The exhaustive list of renderers the chat panel will consult.
      *
      * To add a new tool-call row, append a new `Renderer()` instance
-     * here, place the file under
-     * `chat/ui/chat/skill/<alias>/<Alias>Renderer.kt`, and (if
-     * helpful) add a `META-INF/extensions/<alias>.xml` reference
-     * manifest. See `docs/PLUGIN_DEVELOPMENT.md` section 16 for
-     * the full tutorial.
+     * here and place the file under
+     * `chat/ui/chat/skill/<alias>/<Alias>Renderer.kt`. See
+     * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
      */
     private val RENDERERS: List<ToolCallRenderer> = listOf(
         // Skill-specific renderers. One per server-side `Skill.alias`

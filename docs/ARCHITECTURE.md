@@ -1671,14 +1671,14 @@ gradum.idea/
 │           └── skill/                        # Per-skill tool-call renderers (one folder per server alias)
 │               ├── spi/                      #   SPI: ToolCallRenderer + Registry + Content + Action + Context
 │               ├── internal/                 #   Shared capsule + action button helpers
-│               ├── ran/                      #   RanRenderer        + META-INF/extensions/ran.xml
-│               ├── edited/                   #   EditedRenderer     + META-INF/extensions/edited.xml
-│               ├── read/                     #   ReadRenderer       + META-INF/extensions/read.xml
-│               ├── saved/                    #   SavedRenderer      + META-INF/extensions/saved.xml
-│               ├── explored/                 #   ExploredRenderer   + META-INF/extensions/explored.xml
-│               ├── planned/                  #   PlannedRenderer    + META-INF/extensions/planned.xml
-│               ├── completed/                #   CompletedRenderer  + META-INF/extensions/completed.xml
-│               └── default/                  #   DefaultRenderer (alias "*") + META-INF/extensions/default.xml
+│               ├── ran/                      #   RanRenderer
+│               ├── edited/                   #   EditedRenderer
+│               ├── read/                     #   ReadRenderer
+│               ├── saved/                    #   SavedRenderer
+│               ├── explored/                 #   ExploredRenderer
+│               ├── planned/                  #   PlannedRenderer
+│               ├── completed/                #   CompletedRenderer
+│               └── default/                  #   DefaultRenderer (alias "*")
 ├── editor/
 │   ├── EditorContext.kt              # Editor state (attachments, pending)
 │   ├── AttachedFile.kt               # File attachment model

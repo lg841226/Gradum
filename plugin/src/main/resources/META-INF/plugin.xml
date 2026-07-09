@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-07-09 Changed by gwy
+  ~ plugin.xml  2026-07-09 17:47:10 Changed by gwy
   -->
 
 <idea-plugin>
@@ -46,24 +46,4 @@
         -->
         <notificationGroup id="Gradum.Notifications" displayType="BALLOON" isLogByDefault="false"/>
     </extensions>
-
-    <!--
-        NOTE on tool-call renderer extensibility:
-
-        The Gradum chat panel's per-skill tool-call rows are
-        pluggable through a plain Kotlin interface
-        (`gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer`)
-        and an in-process registry
-        (`gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry`).
-        They are NOT registered as an IntelliJ Platform
-        `ExtensionPoint` — see the registry's KDoc for the
-        reasoning.
-
-        Each built-in renderer lives in its own folder under
-        `chat/ui/chat/skill/<alias>/` with a matching reference
-        manifest at `META-INF/extensions/<alias>.xml`. Adding
-        a new alias is a one-line append to the registry's
-        `RENDERERS` list. See `docs/PLUGIN_DEVELOPMENT.md`
-        section 16 for the full tutorial.
-    -->
 </idea-plugin>

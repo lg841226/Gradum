@@ -1494,12 +1494,10 @@ Imagine a server-side `run_tests` skill that emits alias
 myplugin.tool.testsPassed=Tests Passed
 ```
 
-**Step 2 — implement the renderer.** One folder per alias, so
-the source mirrors the reference manifest:
+**Step 2 — implement the renderer.** One folder per alias:
 
 ```
 my-plugin/src/main/kotlin/com/example/myplugin/tests/TestsPassedRenderer.kt
-my-plugin/src/main/resources/META-INF/extensions/tests-passed.xml  (optional, doc reference)
 my-plugin/src/main/resources/messages/MyPluginBundle.properties
 ```
 
@@ -1591,41 +1589,12 @@ edit, no Platform EP, no classloader dance.
 > line). The Gradum maintainers are happy to accept such PRs as
 > long as the renderer follows the conventions in section 16.6.
 
-**Step 4 — drop the reference manifest (optional).** The Gradum
-plugin keeps a `META-INF/extensions/<alias>.xml` file next to
-each built-in renderer as a documentation reference. The Platform
-only reads `META-INF/plugin.xml`, not these per-skill files, but
-keeping them in sync gives third-party developers a one-glance
-answer to "which class implements the TestsPassed alias?". For
-your renderer:
-
-```xml
-<!-- META-INF/extensions/tests-passed.xml -->
-<renderer alias="TestsPassed"
-          class="com.example.myplugin.tests.TestsPassedRenderer"
-          labelKey="myplugin.tool.testsPassed"
-          folder="com/example/myplugin/tests/">
-    <description>
-        Default renderer for a server-side `run_tests` skill alias.
-        Shows the test pass / fail counts and the run duration.
-    </description>
-    <action-types>
-        <action>CopyToClipboard</action>
-    </action-types>
-</renderer>
-```
-
-> This `.xml` file is **not** loaded by the Platform — it is a
-> documentation reference, kept in sync with the `MyRenderer()`
-> line in `ToolCallRendererRegistry.RENDERERS`. The convention is
-> one manifest per alias, placed under `META-INF/extensions/`.
 
 ### 16.6 Conventions
 
 - **One folder per alias** — `chat/ui/chat/skill/ran/`,
   `chat/ui/chat/skill/edited/`, etc. The folder contains the
-  renderer class (`RanRenderer.kt`) and is the place to put the
-  matching `META-INF/extensions/<alias>.xml` reference manifest.
+  renderer class (`RanRenderer.kt`).
 - **Aliases are first-listed-wins.** The first renderer in
   `RENDERERS` whose `alias()` matches is used; the rest are
   ignored for that alias. Put more specific entries above

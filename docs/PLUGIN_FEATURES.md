@@ -183,9 +183,6 @@ line in the registry, no plugin.xml change. The chat panel consults
 2. Append `MyRenderer()` to `RENDERERS` in
    `ToolCallRendererRegistry.kt` (above the wildcard
    `DefaultRenderer()` entry, which must remain last).
-3. (Optional) Drop a `META-INF/extensions/<alias>.xml` reference
-   manifest next to the other built-in reference manifests — it is
-   documentation only and is **not** loaded by the platform.
 
 **Why a plain list and not an IntelliJ Platform `ExtensionPoint`?**
 The Platform's `ExtensionPointName` lookup path has several practical
@@ -713,7 +710,7 @@ Source: [`Spacing.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/Spacing.
 | `chat/ui/chat/ThinkingIndicator.kt`     | Pulsing dots during thinking.                                          |
 | `chat/ui/chat/skill/spi/`                | Tool-call renderer SPI: `ToolCallRenderer`, `ToolCallContent`, `ToolCallAction`, `ToolCallRenderContext`, `ToolCallRendererRegistry`, `ResultParser`. |
 | `chat/ui/chat/skill/internal/`           | Shared capsule (`ToolCallCapsule`) and action buttons (`OpenInEditorButton`, `ViewDiffButton`) used by all default renderers.                |
-| `chat/ui/chat/skill/{ran,edited,read,saved,explored,planned,completed,default}/` | One folder per server skill alias. Each folder contains the renderer class (e.g. `RanRenderer`) that owns that alias; the matching `META-INF/extensions/<alias>.xml` is the per-skill registration manifest. |
+| `chat/ui/chat/skill/{ran,edited,read,saved,explored,planned,completed,default}/` | One folder per server skill alias. Each folder contains the renderer class (e.g. `RanRenderer`) that owns that alias. |
 | `chat/ui/chat/UserChatBubble.kt`        | User message bubble.                                                   |
 | `chat/ui/common/IconTooltipButton.kt`   | Canonical icon button with tooltip.                                    |
 | `chat/ui/common/SelectorButton.kt`      | Canonical selector button (icon + label + chevron).                    |
