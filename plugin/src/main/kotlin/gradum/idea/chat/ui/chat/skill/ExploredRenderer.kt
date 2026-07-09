@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploredRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * ExploredRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.explored
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -35,26 +35,25 @@ class ExploredRenderer : ToolCallRenderer {
     override fun parseContent(
         arguments: Map<String, Any?>, result: Map<String, Any?>
     ): ToolCallContent {
-        val projectRoot: String =
-            (arguments["projectRoot"] as? String)
-                ?: (arguments["project_root"] as? String)
-                ?: ""
-        val depth: Int = (result["depth"] as? Number)?.toInt() ?: 0
+        val projectRoot: String = (arguments["projectRoot"] as? String)
+            ?: (arguments["project_root"] as? String)
+            ?: ""
+        val scanDepth: Int = (result["depth"] as? Number)?.toInt() ?: 0
         val projectName: String = projectRoot.substringAfterLast('/')
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf(
+            aliasName = ALIAS,
+            fieldMap = mapOf(
                 "projectRoot" to projectRoot,
-                "depth" to depth,
-                "projectName" to projectName,
-            ),
+                "depth" to scanDepth,
+                "projectName" to projectName
+            )
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val depth: Int = (content.fields["depth"] as? Number)?.toInt() ?: 0
-        val displayText: String = message("gradum.tool.depth", depth)
+        val scanDepth: Int = (content.fieldMap["depth"] as? Number)?.toInt() ?: 0
+        val displayText: String = message("gradum.tool.depth", scanDepth)
 
         ToolCallCapsule(
             success = !ctx.isError,
@@ -62,7 +61,7 @@ class ExploredRenderer : ToolCallRenderer {
             trailingText = displayText,
             errorMessage = ctx.errorDetail.orEmpty(),
             label = message(LABEL_KEY),
-            iconKey = GradumIcons.Explore,
+            iconKey = GradumIcons.Explore
         )
     }
 

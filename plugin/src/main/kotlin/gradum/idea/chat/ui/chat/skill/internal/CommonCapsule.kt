@@ -43,7 +43,7 @@ internal fun ToolCallCapsule(
     modifier: Modifier = Modifier,
     trailingIcon: @Composable RowScope.() -> Unit = {}
 ) {
-    val scope = rememberCoroutineScope()
+    val clipboardScope = rememberCoroutineScope()
     var showErrorPopup by remember { mutableStateOf(false) }
     var isCopied by remember { mutableStateOf(false) }
     val hasError = !success && errorMessage.isNotBlank()
@@ -113,7 +113,7 @@ internal fun ToolCallCapsule(
                             onClick = {
                                 if (!isCopied)
                                     copyToClipboard(
-                                        scope = scope,
+                                        scope = clipboardScope,
                                         text = errorDetail,
                                         onCopied = { isCopied = true },
                                         onReset = { isCopied = false }

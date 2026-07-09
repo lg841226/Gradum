@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SavedRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * SavedRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.saved
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -39,28 +39,26 @@ class SavedRenderer : ToolCallRenderer {
     override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
         val filePath: String = (arguments["path"] as? String).orEmpty()
         val sizeBytes: Long = (result["sizeBytes"] as? Number)?.toLong() ?: 0L
-        val actions: MutableList<ToolCallAction> = mutableListOf()
-        if (filePath.isNotBlank())
-            actions.add(ToolCallAction.OpenInEditor(path = filePath))
+        val actionList: MutableList<ToolCallAction> = mutableListOf()
+        if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
 
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf(
+            aliasName = ALIAS,
+            fieldMap = mapOf(
                 "filePath" to filePath,
-                "sizeBytes" to sizeBytes,
+                "sizeBytes" to sizeBytes
             ),
-            actions = actions,
+            actionList = actionList
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val filePath: String = (content.fields["filePath"] as? String).orEmpty()
-        val sizeBytes: Long = (content.fields["sizeBytes"] as? Number)?.toLong() ?: 0L
+        val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
+        val sizeBytes: Long = (content.fieldMap["sizeBytes"] as? Number)?.toLong() ?: 0L
         val fileName: String = filePath.substringAfterLast('/')
         val sizeText: String? = if (sizeBytes > 0L) formatBytes(sizeBytes) else null
-        val displayText: String =
-            if (sizeText != null) "$fileName $sizeText" else fileName
+        val displayText: String = if (sizeText != null) "$fileName $sizeText" else fileName
 
         ToolCallCapsule(
             iconKey = GradumIcons.Save,
@@ -71,7 +69,7 @@ class SavedRenderer : ToolCallRenderer {
             label = message(LABEL_KEY),
             trailingIcon = {
                 OpenInEditorButton(
-                    path = filePath,
+                    filePath = filePath,
                     onClick = {
                         ctx.onOpenInEditor?.invoke(filePath, 0, 0)
                     }

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ToolCallContent.kt  2026-07-09 17:55:26 Changed by gwy
+ */
+
 package gradum.idea.chat.ui.chat.skill.spi
 
 /**
@@ -25,9 +32,9 @@ package gradum.idea.chat.ui.chat.skill.spi
  */
 data class ToolCallContent(
     /** Server-side skill alias this content was parsed from, e.g. "Ran" / "Edited" / "Read". */
-    val alias: String,
+    val aliasName: String,
     /** Free-form payload that the originating [ToolCallRenderer] alone interprets. */
-    val fields: Map<String, Any?> = emptyMap(),
+    val fieldMap: Map<String, Any?> = emptyMap(),
     /** User-facing actions (open in editor, view diff, copy, etc.) attached to this call. */
-    val actions: List<ToolCallAction> = emptyList(),
+    val actionList: List<ToolCallAction> = emptyList()
 )

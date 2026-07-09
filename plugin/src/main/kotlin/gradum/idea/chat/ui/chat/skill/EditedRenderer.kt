@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditedRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * EditedRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.edited
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +16,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.chat.skill.internal.*
+import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.internal.ViewDiffButton
+import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
+import gradum.idea.chat.ui.chat.skill.internal.toolCallErrorColor
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
@@ -42,44 +46,41 @@ class EditedRenderer : ToolCallRenderer {
 
     override fun parseContent(
         arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
+        result: Map<String, Any?>
     ): ToolCallContent {
         val filePath: String = (arguments["path"] as? String).orEmpty()
         val linesAdded: Int = (result["linesAdded"] as? Number)?.toInt() ?: 0
         val linesRemoved: Int = (result["linesRemoved"] as? Number)?.toInt() ?: 0
         val originalContent: String? = result["originalContent"] as? String
         val modifiedContent: String? = result["modifiedContent"] as? String
-        val hasDiffPayload: Boolean =
-            originalContent != null && modifiedContent != null
-        val actions: MutableList<ToolCallAction> = mutableListOf()
-        if (filePath.isNotBlank())
-            actions.add(ToolCallAction.OpenInEditor(path = filePath))
-        if (hasDiffPayload)
-            actions.add(ToolCallAction.ViewDiff(path = filePath, diffType = "default"))
+        val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
+        val actionList: MutableList<ToolCallAction> = mutableListOf()
+        if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
+        if (hasDiffPayload) actionList.add(ToolCallAction.ViewDiff(filePath = filePath, diffType = "default"))
 
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf(
+            aliasName = ALIAS,
+            fieldMap = mapOf(
                 "filePath" to filePath,
                 "linesAdded" to linesAdded,
                 "linesRemoved" to linesRemoved,
                 "hasDiffPayload" to hasDiffPayload,
                 "originalContent" to originalContent,
-                "modifiedContent" to modifiedContent,
+                "modifiedContent" to modifiedContent
             ),
-            actions = actions,
+            actionList = actionList
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val filePath: String = (content.fields["filePath"] as? String).orEmpty()
+        val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
         val fileName: String = filePath.substringAfterLast('/')
-        val linesAdded: Int = (content.fields["linesAdded"] as? Number)?.toInt() ?: 0
-        val linesRemoved: Int = (content.fields["linesRemoved"] as? Number)?.toInt() ?: 0
-        val hasDiffPayload: Boolean = content.fields["hasDiffPayload"] == true
-        val originalContent: String? = content.fields["originalContent"] as? String
-        val modifiedContent: String? = content.fields["modifiedContent"] as? String
+        val linesAdded: Int = (content.fieldMap["linesAdded"] as? Number)?.toInt() ?: 0
+        val linesRemoved: Int = (content.fieldMap["linesRemoved"] as? Number)?.toInt() ?: 0
+        val hasDiffPayload: Boolean = content.fieldMap["hasDiffPayload"] == true
+        val originalContent: String? = content.fieldMap["originalContent"] as? String
+        val modifiedContent: String? = content.fieldMap["modifiedContent"] as? String
         val addedColor = linesAddedColor()
         val errorColor = toolCallErrorColor()
 
@@ -95,10 +96,8 @@ class EditedRenderer : ToolCallRenderer {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
                 ) {
-                    if (linesAdded > 0)
-                        Text(text = "+$linesAdded", color = addedColor)
-                    if (linesRemoved > 0)
-                        Text(text = "-$linesRemoved", color = errorColor)
+                    if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor)
+                    if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor)
                     if (!ctx.isError && hasDiffPayload && originalContent != null && modifiedContent != null) {
                         ViewDiffButton(
                             onClick = {
@@ -107,7 +106,7 @@ class EditedRenderer : ToolCallRenderer {
                         )
                     } else {
                         OpenInEditorButton(
-                            path = filePath,
+                            filePath = filePath,
                             onClick = {
                                 ctx.onOpenInEditor?.invoke(filePath, 0, 0)
                             }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-09 14:11:18 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-09 17:55:26 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -30,14 +29,9 @@ import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.*
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry
-import gradum.idea.chat.ui.chat.skill.spi.parseJsonResult
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -68,8 +62,8 @@ fun AssistantChatBubble(
     actionsEnabled: Boolean = true,
     onRetry: () -> Unit = {},
     onUrlClick: (String) -> Unit = {},
-    onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
-    onViewDiff: (path: String, originalContent: String, modifiedContent: String) ->
+    onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
+    onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) ->
     Unit = { _, _, _ -> }
 ) {
     val renderBlocks = message.renderBlocks
@@ -281,16 +275,6 @@ private fun ToolCallBlock(
             project = null,
             isError = !block.success,
             errorDetail = block.errorDetail,
-            onOpenInEditor = onOpenInEditor,
-            onViewDiff = { path, originalContent, modifiedContent ->
-                // Renderer's three-arg callback may have null content;
-                // the chat panel always supplies both strings.
-                onViewDiff(
-                    path,
-                    originalContent.orEmpty(),
-                    modifiedContent.orEmpty(),
-                )
-            },
             onCopy = { payload ->
                 // Renderers that surface a Copy action (e.g. RanRenderer
                 // copies the shell command) get this callback. The
@@ -304,7 +288,16 @@ private fun ToolCallBlock(
                     scope = clipboardScope,
                 )
             },
-        )
+            onOpenInEditor = onOpenInEditor,
+        ) { filePath, originalContent, modifiedContent ->
+            // Renderer's three-arg callback may have null content;
+            // the chat panel always supplies both strings.
+            onViewDiff(
+                filePath,
+                originalContent.orEmpty(),
+                modifiedContent.orEmpty(),
+            )
+        }
     Box(modifier = animModifier) {
         renderer.render(content, ctx)
     }

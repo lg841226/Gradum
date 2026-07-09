@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ToolCallRenderer.kt  2026-07-09 17:55:26 Changed by gwy
+ */
+
 package gradum.idea.chat.ui.chat.skill.spi
 
 import androidx.compose.runtime.Composable
@@ -45,10 +52,7 @@ interface ToolCallRenderer {
      * [ToolCallContent]. Returning an empty / minimal content is
      * valid; the registry will not retry with a different renderer.
      */
-    fun parseContent(
-        arguments: Map<String, Any?>,
-        result: Map<String, Any?>,
-    ): ToolCallContent
+    fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent
 
     /**
      * Icon key for the row's status indicator. Default returns

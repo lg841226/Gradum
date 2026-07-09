@@ -1,13 +1,20 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ToolCallRendererRegistry.kt  2026-07-09 18:30:00 Changed by gwy
+ */
+
 package gradum.idea.chat.ui.chat.skill.spi
 
-import gradum.idea.chat.ui.chat.skill.completed.CompletedRenderer
-import gradum.idea.chat.ui.chat.skill.default.DefaultRenderer
-import gradum.idea.chat.ui.chat.skill.edited.EditedRenderer
-import gradum.idea.chat.ui.chat.skill.explored.ExploredRenderer
-import gradum.idea.chat.ui.chat.skill.planned.PlannedRenderer
-import gradum.idea.chat.ui.chat.skill.ran.RanRenderer
-import gradum.idea.chat.ui.chat.skill.read.ReadRenderer
-import gradum.idea.chat.ui.chat.skill.saved.SavedRenderer
+import gradum.idea.chat.ui.chat.skill.CompletedRenderer
+import gradum.idea.chat.ui.chat.skill.DefaultRenderer
+import gradum.idea.chat.ui.chat.skill.EditedRenderer
+import gradum.idea.chat.ui.chat.skill.ExploredRenderer
+import gradum.idea.chat.ui.chat.skill.PlannedRenderer
+import gradum.idea.chat.ui.chat.skill.RanRenderer
+import gradum.idea.chat.ui.chat.skill.ReadRenderer
+import gradum.idea.chat.ui.chat.skill.SavedRenderer
 
 /**
  * In-process registry of [ToolCallRenderer]s. The Gradum chat panel
@@ -31,12 +38,13 @@ import gradum.idea.chat.ui.chat.skill.saved.SavedRenderer
  *
  * A plain `val RENDERERS: List<ToolCallRenderer>` solves all three
  * problems at the cost of one line of code per new alias. Each
- * renderer lives in its own folder (`chat/ui/chat/skill/<alias>/`)
- * and is added to [RENDERERS] with a single line.
+ * renderer is a single file under `chat/ui/chat/skill/` named
+ * `<Alias>Renderer.kt` and is added to [RENDERERS] with a single
+ * line.
  *
  * **Order matters.** The first renderer whose [ToolCallRenderer.alias]
  * matches is used. The default catch-all must be last and use the
- * alias `"*"` (see [gradum.idea.chat.ui.chat.skill.default.DefaultRenderer]).
+ * alias `"*"` (see [DefaultRenderer]).
  */
 object ToolCallRendererRegistry {
 
@@ -44,8 +52,8 @@ object ToolCallRendererRegistry {
      * The exhaustive list of renderers the chat panel will consult.
      *
      * To add a new tool-call row, append a new `Renderer()` instance
-     * here and place the file under
-     * `chat/ui/chat/skill/<alias>/<Alias>Renderer.kt`. See
+     * here and place the file at
+     * `chat/ui/chat/skill/<Alias>Renderer.kt`. See
      * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
      */
     private val RENDERERS: List<ToolCallRenderer> = listOf(
@@ -64,7 +72,7 @@ object ToolCallRendererRegistry {
         // Catch-all. Must use the literal alias "*" and be the
         // last entry in this list — it handles every alias that
         // has no specific renderer registered.
-        DefaultRenderer(),
+        DefaultRenderer()
     )
 
     /**
@@ -75,21 +83,21 @@ object ToolCallRendererRegistry {
     const val DEFAULT_ALIAS: String = "*"
 
     /**
-     * Look up the renderer registered for [alias]. Falls back to
-     * the renderer registered for [DEFAULT_ALIAS] (the catch-all)
-     * when no specific renderer matches.
+     * Look up the renderer registered for [aliasName]. Falls back
+     * to the renderer registered for [DEFAULT_ALIAS] (the
+     * catch-all) when no specific renderer matches.
      *
      * Returns `null` only if [RENDERERS] is empty AND no default
      * renderer is registered. In a normal Gradum build this is
      * unreachable because [DefaultRenderer] is always present.
      */
-    fun find(alias: String): ToolCallRenderer? {
-        var fallback: ToolCallRenderer? = null
-        for (renderer in RENDERERS) {
-            val rendererAlias = renderer.alias()
-            if (rendererAlias == alias) return renderer
-            if (rendererAlias == DEFAULT_ALIAS) fallback = renderer
+    fun find(aliasName: String): ToolCallRenderer? {
+        var fallbackRenderer: ToolCallRenderer? = null
+        for (currentRenderer in RENDERERS) {
+            val rendererAlias: String = currentRenderer.alias()
+            if (rendererAlias == aliasName) return currentRenderer
+            if (rendererAlias == DEFAULT_ALIAS) fallbackRenderer = currentRenderer
         }
-        return fallback
+        return fallbackRenderer
     }
 }

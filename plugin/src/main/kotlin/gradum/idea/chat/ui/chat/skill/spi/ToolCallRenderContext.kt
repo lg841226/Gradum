@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ToolCallRenderContext.kt  2026-07-09 17:55:26 Changed by gwy
+ */
+
 package gradum.idea.chat.ui.chat.skill.spi
 
 import com.intellij.openapi.project.Project
@@ -23,7 +30,7 @@ data class ToolCallRenderContext(
     val project: Project?,
     val isError: Boolean,
     val errorDetail: String?,
-    val onOpenInEditor: ((path: String, startLine: Int, endLine: Int) -> Unit)?,
-    val onViewDiff: ((path: String, originalContent: String?, modifiedContent: String?) -> Unit)?,
     val onCopy: ((payload: String) -> Unit)?,
+    val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
+    val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?
 )

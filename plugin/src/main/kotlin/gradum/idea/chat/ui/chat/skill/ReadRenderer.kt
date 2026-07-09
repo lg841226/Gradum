@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * ReadRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.read
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -43,42 +43,39 @@ class ReadRenderer : ToolCallRenderer {
             ?: parseLineRangeStart(result["lineRange"] as? String)
         val endLine: Int? = (result["endLine"] as? Number)?.toInt()
             ?: parseLineRangeEnd(result["lineRange"] as? String)
-        val actions: MutableList<ToolCallAction> = mutableListOf()
+        val actionList: MutableList<ToolCallAction> = mutableListOf()
         if (filePath.isNotBlank()) {
-            actions.add(
+            actionList.add(
                 ToolCallAction.OpenInEditor(
-                    path = filePath,
-                    startLine = startLine ?: 0,
-                    endLine = endLine ?: 0
+                    filePath = filePath,
+                    endLine = endLine ?: 0,
+                    startLine = startLine ?: 0
                 )
             )
         }
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf(
+            aliasName = ALIAS,
+            fieldMap = mapOf(
                 "filePath" to filePath,
                 "startLine" to startLine,
-                "endLine" to endLine,
+                "endLine" to endLine
             ),
-            actions = actions,
+            actionList = actionList
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val filePath: String = (content.fields["filePath"] as? String).orEmpty()
-        val startLine: Int? = (content.fields["startLine"] as? Number)?.toInt()
-        val endLine: Int? = (content.fields["endLine"] as? Number)?.toInt()
+        val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
+        val startLine: Int? = (content.fieldMap["startLine"] as? Number)?.toInt()
+        val endLine: Int? = (content.fieldMap["endLine"] as? Number)?.toInt()
         val fileName: String = filePath.substringAfterLast('/')
         val lineText: String = when {
-            startLine != null && endLine != null ->
-                message("gradum.tool.line.range", startLine, endLine)
-
+            startLine != null && endLine != null -> message("gradum.tool.line.range", startLine, endLine)
             startLine != null -> message("gradum.tool.line.single", startLine)
             else -> ""
         }
-        val displayText: String =
-            if (lineText.isNotEmpty()) "$fileName $lineText" else fileName
+        val displayText: String = if (lineText.isNotEmpty()) "$fileName $lineText" else fileName
 
         ToolCallCapsule(
             success = !ctx.isError,
@@ -90,14 +87,14 @@ class ReadRenderer : ToolCallRenderer {
             iconKey = AllIconsKeys.General.Show,
             trailingIcon = {
                 OpenInEditorButton(
-                    path = filePath,
+                    filePath = filePath,
                     startLine = startLine,
                     endLine = endLine,
                     onClick = {
                         ctx.onOpenInEditor?.invoke(
                             filePath,
                             (startLine ?: 0).coerceAtLeast(1),
-                            (endLine ?: 0).coerceAtLeast(1),
+                            (endLine ?: 0).coerceAtLeast(1)
                         )
                     }
                 )
@@ -113,10 +110,10 @@ class ReadRenderer : ToolCallRenderer {
 
     private fun parseLineRangePair(lineRange: String?): Pair<Int?, Int?> {
         if (lineRange.isNullOrBlank()) return null to null
-        val parts: List<String> = lineRange.split("-")
-        return when (parts.size) {
-            2 -> parts[0].toIntOrNull() to parts[1].toIntOrNull()
-            1 -> parts[0].toIntOrNull() to null
+        val rangeParts: List<String> = lineRange.split("-")
+        return when (rangeParts.size) {
+            2 -> rangeParts[0].toIntOrNull() to rangeParts[1].toIntOrNull()
+            1 -> rangeParts[0].toIntOrNull() to null
             else -> null to null
         }
     }

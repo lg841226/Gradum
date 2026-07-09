@@ -373,14 +373,14 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
     val onStop: () -> Unit = { coroutineScope.launch { session.stopSession() } }
 
-    val onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit = { path, startLine, _ ->
+    val onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { filePath, startLine, _ ->
         val project: Project? = toolWindow?.project
-        if (project != null && path.isNotBlank()) {
+        if (project != null && filePath.isNotBlank()) {
             coroutineScope.launch(Dispatchers.IO) {
                 try {
-                    val absolutePath = if (File(path).isAbsolute) {
-                        path
-                    } else project.basePath?.let { "$it/$path" } ?: path
+                    val absolutePath = if (File(filePath).isAbsolute) {
+                        filePath
+                    } else project.basePath?.let { "$it/$filePath" } ?: filePath
 
                     val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
                     if (virtualFile != null && virtualFile.exists()) {
@@ -396,7 +396,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                         }
                     } else {
                         val tempFile = File.createTempFile("gradum_cmd_", ".sh")
-                        tempFile.writeText(path)
+                        tempFile.writeText(filePath)
                         tempFile.deleteOnExit()
                         val tempVirtual: VirtualFile? =
                             LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
@@ -408,14 +408,14 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                     }
                 } catch (exception: Exception) {
                     com.intellij.openapi.diagnostic.Logger.getInstance(GradumToolWindowFactory::class.java)
-                        .warn("Failed to open target in editor: $path", exception)
+                        .warn("Failed to open target in editor: $filePath", exception)
                 }
             }
         }
     }
 
-    val onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit =
-        { path, original, modified ->
+    val onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit =
+        { filePath, originalContent, modifiedContent ->
             /**
              * DiffViewer.showFileDiff runs on the platform EDT internally,
              * so we can call it directly. The platform accepts null Project
@@ -423,9 +423,9 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
              */
             DiffViewer.showFileDiff(
                 project = toolWindow?.project,
-                path = path,
-                originalContent = original,
-                modifiedContent = modified,
+                path = filePath,
+                originalContent = originalContent,
+                modifiedContent = modifiedContent,
             )
         }
 

@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RanRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * RanRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.ran
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -40,38 +40,37 @@ class RanRenderer : ToolCallRenderer {
     override fun labelKey(): String = LABEL_KEY
 
     override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val command: String = (arguments["command"] as? String).orEmpty()
-        val reason: String = (arguments["reason"] as? String).orEmpty()
-        val actions: MutableList<ToolCallAction> = mutableListOf()
-        if (command.isNotBlank())
-            actions.add(ToolCallAction.CopyToClipboard(payload = command))
+        val shellCommand: String = (arguments["command"] as? String).orEmpty()
+        val reasonText: String = (arguments["reason"] as? String).orEmpty()
+        val actionList: MutableList<ToolCallAction> = mutableListOf()
+        if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf(
-                "command" to command,
-                "reason" to reason,
+            aliasName = ALIAS,
+            fieldMap = mapOf(
+                "command" to shellCommand,
+                "reason" to reasonText
             ),
-            actions = actions,
+            actionList = actionList
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val command: String = (content.fields["command"] as? String).orEmpty()
-        val reason: String = (content.fields["reason"] as? String).orEmpty()
+        val shellCommand: String = (content.fieldMap["command"] as? String).orEmpty()
+        val reasonText: String = (content.fieldMap["reason"] as? String).orEmpty()
         ToolCallCapsule(
             success = !ctx.isError,
             errorDetail = ctx.errorDetail.orEmpty(),
             errorMessage = ctx.errorDetail.orEmpty(),
-            trailingText = reason,
+            trailingText = reasonText,
             iconKey = GradumIcons.Ran,
             label = message(LABEL_KEY),
             trailingIcon = {
                 OpenInEditorButton(
-                    path = command,
+                    filePath = shellCommand,
                     onClick = {
-                        ctx.onOpenInEditor?.invoke(command, 0, 0)
+                        ctx.onOpenInEditor?.invoke(shellCommand, 0, 0)
                     }
                 )
             }

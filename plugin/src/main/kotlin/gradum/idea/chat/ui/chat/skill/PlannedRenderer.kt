@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-07-09 17:19:52 Changed by gwy
+ * PlannedRenderer.kt  2026-07-09 18:30:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui.chat.skill.completed
+package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -16,48 +16,55 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
  * Default renderer for the server-side `to_do` skill when the LLM
- * **marks a task done** (alias "Completed"). Single-line capsule
- * with the completed task name.
+ * is **adding** new tasks (alias "Planned"). Falls back to a
+ * single-line capsule with a `taskCount` summary; expanded task
+ * lists live in the chat's TodoSkill panel, not on the tool row.
  */
-class CompletedRenderer : ToolCallRenderer {
+class PlannedRenderer : ToolCallRenderer {
 
     override fun alias(): String = ALIAS
 
-    override fun iconKey(): IconKey = AllIconsKeys.Actions.Checked
+    override fun iconKey(): IconKey = GradumIcons.NumberList
 
     override fun labelKey(): String = LABEL_KEY
 
     override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val task: String = (arguments["task"] as? String)
-            ?: (result["task"] as? String)
-            ?: (arguments["content"] as? String)
-            ?: ""
+        @Suppress("UNCHECKED_CAST")
+        val taskList: List<String> = (result["tasks"] as? List<String>)
+            ?: (arguments["tasks"] as? List<String>)
+            ?: emptyList()
         return ToolCallContent(
-            alias = ALIAS,
-            fields = mapOf("task" to task),
+            aliasName = ALIAS,
+            fieldMap = mapOf(
+                "taskCount" to taskList.size,
+                "firstTask" to taskList.firstOrNull().orEmpty()
+            )
         )
     }
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val task: String = (content.fields["task"] as? String).orEmpty()
+        val taskCount: Int = (content.fieldMap["taskCount"] as? Number)?.toInt() ?: 0
+        val firstTask: String = (content.fieldMap["firstTask"] as? String).orEmpty()
+        val displayText: String = if (taskCount > 1) "$firstTask (+${taskCount - 1})" else firstTask
+
         ToolCallCapsule(
             success = !ctx.isError,
             errorDetail = ctx.errorDetail.orEmpty(),
-            trailingText = task,
+            trailingText = displayText,
             errorMessage = ctx.errorDetail.orEmpty(),
             label = message(LABEL_KEY),
-            iconKey = AllIconsKeys.Actions.Checked,
+            iconKey = GradumIcons.NumberList
         )
     }
 
     companion object {
-        const val ALIAS: String = "Completed"
-        const val LABEL_KEY: String = "gradum.tool.completed"
+        const val ALIAS: String = "Planned"
+        const val LABEL_KEY: String = "gradum.tool.planned"
     }
 }

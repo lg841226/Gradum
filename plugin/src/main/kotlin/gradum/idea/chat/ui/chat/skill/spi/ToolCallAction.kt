@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ToolCallAction.kt  2026-07-09 17:55:26 Changed by gwy
+ */
+
 package gradum.idea.chat.ui.chat.skill.spi
 
 /**
@@ -18,10 +25,10 @@ sealed class ToolCallAction {
      * means "no specific end line".
      */
     data class OpenInEditor(
-        val path: String,
-        val startLine: Int = 0,
+        val filePath: String,
         val endLine: Int = 0,
-        val displayLabel: String? = null,
+        val startLine: Int = 0,
+        val displayLabel: String? = null
     ) : ToolCallAction()
 
     /**
@@ -30,8 +37,8 @@ sealed class ToolCallAction {
      * `DiffViewer`, `MergeRequest` etc.
      */
     data class ViewDiff(
-        val path: String,
-        val diffType: String = "default",
+        val filePath: String,
+        val diffType: String = "default"
     ) : ToolCallAction()
 
     /**
@@ -40,7 +47,7 @@ sealed class ToolCallAction {
      */
     data class CopyToClipboard(
         val payload: String,
-        val displayLabel: String? = null,
+        val displayLabel: String? = null
     ) : ToolCallAction()
 
     /**
@@ -49,8 +56,8 @@ sealed class ToolCallAction {
      * built-in `DefaultRenderer` will ignore unknown custom actions.
      */
     data class Custom(
-        val id: String,
+        val customId: String,
         val displayLabel: String,
-        val data: Map<String, Any?> = emptyMap(),
+        val dataMap: Map<String, Any?> = emptyMap()
     ) : ToolCallAction()
 }
