@@ -179,30 +179,33 @@ class ContextManager(private val outputDirectory: Path) {
                     val trimmedContent: String = content.trim()
                     if (preservedCalls.isNotEmpty()) {
                         val droppedCallCount: Int = toolCalls.size - preservedCalls.size
-                        val noticeContent: String = if (droppedCallCount > 0) {
-                            "$trimmedContent\n\n[Some tool results were trimmed to fit context]".trim()
-                        } else trimmedContent
-
+                        if (droppedCallCount > 0) {
+                            logger.info(
+                                "Assistant message has $droppedCallCount tool call(s) trimmed " +
+                                    "(kept ${preservedCalls.size} of ${toolCalls.size} read_file / " +
+                                    "explore_project results); the model can still see the surviving " +
+                                    "tool_calls and their results, so the gap is inferable from history"
+                            )
+                        }
                         cleanedMessages.add(
                             mapOf(
                                 "role" to role,
-                                "content" to noticeContent,
+                                "content" to trimmedContent,
                                 "tool_calls" to preservedCalls
                             )
                         )
                     } else {
-                        if (droppedCallCount(toolCalls, preservedToolCallIds) > 0) {
-                            cleanedMessages.add(
-                                mapOf(
-                                    "role" to role,
-                                    "content" to "$trimmedContent\n\n[All tool results trimmed to fit context]".trim()
-                                )
-                            )
-                        } else {
-                            cleanedMessages.add(
-                                mapOf("role" to role, "content" to trimmedContent)
+                        val droppedCount: Int = droppedCallCount(toolCalls, preservedToolCallIds)
+                        if (droppedCount > 0) {
+                            logger.info(
+                                "Assistant message lost all $droppedCount tool call(s) during " +
+                                    "context cleanup (none were read_file / explore_project); the " +
+                                    "model can infer the gap from the missing tool result messages"
                             )
                         }
+                        cleanedMessages.add(
+                            mapOf("role" to role, "content" to trimmedContent)
+                        )
                     }
                 } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
             } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
