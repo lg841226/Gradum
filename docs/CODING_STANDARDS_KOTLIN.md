@@ -8,7 +8,6 @@ flowchart TD
     A["Start: Write or review Kotlin code"] --> B{New skill class?}
     B -->|Yes| C["Extend `Skill` abstract class<br/>Override: skillName, description, alias<br/>execute, getSchema"]
     B -->|No| D
-
     C --> D["Type annotations: explicit for all declarations<br/>`String`, `Path`, `Map<String, Any>`, etc.<br/>No inference of abbreviations"]
     D --> E["Imports: 3 groups (stdlib, third-party, project)<br/>Alphabetical within each group<br/>Blank line between groups"]
     E --> F["Null safety: `as?`, `?.let`, `?: default`"]

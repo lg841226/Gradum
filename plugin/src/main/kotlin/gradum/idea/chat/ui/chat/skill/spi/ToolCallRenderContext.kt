@@ -27,10 +27,10 @@ import com.intellij.openapi.project.Project
  * `DiffViewer` instead.
  */
 data class ToolCallRenderContext(
-    val project: Project?,
-    val isError: Boolean,
-    val errorDetail: String?,
-    val onCopy: ((payload: String) -> Unit)?,
-    val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
-    val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?
+  val project: Project?,
+  val isError: Boolean,
+  val errorDetail: String?,
+  val onCopy: ((payload: String) -> Unit)?,
+  val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
+  val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?
 )

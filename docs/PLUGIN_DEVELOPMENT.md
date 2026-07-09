@@ -1317,9 +1317,10 @@ localised label, its body, and the action buttons (`Open in editor`,
 This is the same mechanism the built-in `RanRenderer`, `EditedRenderer`,
 `ReadRenderer`, `SavedRenderer`, `ExploredRenderer`, `PlannedRenderer`,
 `CompletedRenderer`, and the wildcard `DefaultRenderer` use. Each
-renderer lives in its own folder under
-`chat/ui/chat/skill/<alias>/` and is registered in
-[`ToolCallRendererRegistry`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
+renderer is a single file at
+`chat/ui/chat/skill/<Alias>Renderer.kt` and is registered in
+[
+`ToolCallRendererRegistry`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
 by appending one line to the `RENDERERS` list.
 
 ### 16.1 Why a plain Kotlin list, not an IntelliJ `ExtensionPoint`?
@@ -1394,42 +1395,42 @@ interface ToolCallRenderer {
 }
 ```
 
-| Method         | Required | Returns                                                                                          |
-|----------------|----------|--------------------------------------------------------------------------------------------------|
-| `alias()`      | yes      | The server-side `Skill.alias` this renderer handles (e.g. `"Ran"`). First-listed wins.            |
-| `iconKey()`    | no       | The row's status icon. Defaults to `null`, in which case the chat panel uses a generic icon.     |
-| `labelKey()`   | no       | A `GradumBundle` resource-bundle key (e.g. `"gradum.tool.ran"`) for the localised label.        |
-| `parseContent` | yes      | Converts the server's `arguments: Map<String, Any?>` + `result: Map<String, Any?>` JSON into a `ToolCallContent` view-model. |
+| Method         | Required | Returns                                                                                                                                                                  |
+|----------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `alias()`      | yes      | The server-side `Skill.alias` this renderer handles (e.g. `"Ran"`). First-listed wins.                                                                                   |
+| `iconKey()`    | no       | The row's status icon. Defaults to `null`, in which case the chat panel uses a generic icon.                                                                             |
+| `labelKey()`   | no       | A `GradumBundle` resource-bundle key (e.g. `"gradum.tool.ran"`) for the localised label.                                                                                 |
+| `parseContent` | yes      | Converts the server's `arguments: Map<String, Any?>` + `result: Map<String, Any?>` JSON into a `ToolCallContent` view-model.                                             |
 | `render`       | yes      | The actual `@Composable` row. Receives the parsed `content` and a `ctx` with access to the project and the chat-level "open in editor" / "view diff" / "copy" callbacks. |
 
 ### 16.3 The `ToolCallContent` view-model
 
 ```kotlin
 data class ToolCallContent(
-    val alias: String,
-    val fields: Map<String, Any?> = emptyMap(),
-    val actions: List<ToolCallAction> = emptyList(),
+    val aliasName: String,
+    val fieldMap: Map<String, Any?> = emptyMap(),
+    val actionList: List<ToolCallAction> = emptyList(),
 )
 ```
 
-`fields` is an arbitrary `Map<String, Any?>` you read from inside
+`fieldMap` is an arbitrary `Map<String, Any?>` you read from inside
 `render`. The convention is to put the same string keys here that
 the server-side skill puts in its `SkillResult` payload — e.g.
 `"command"`, `"path"`, `"linesAdded"`, `"reason"`.
 
-`actions` is a list of `ToolCallAction`s the row exposes:
+`actionList` is a list of `ToolCallAction`s the row exposes:
 
 ```kotlin
 sealed class ToolCallAction {
     data class OpenInEditor(
-        val path: String,
+        val filePath: String,
         val startLine: Int = 0,
         val endLine: Int = 0,
         val displayLabel: String? = null,
     ) : ToolCallAction()
 
     data class ViewDiff(
-        val path: String,
+        val filePath: String,
         val diffType: String = "default",
     ) : ToolCallAction()
 
@@ -1439,9 +1440,9 @@ sealed class ToolCallAction {
     ) : ToolCallAction()
 
     data class Custom(
-        val id: String,
+        val customId: String,
         val displayLabel: String,
-        val data: Map<String, Any?> = emptyMap(),
+        val dataMap: Map<String, Any?> = emptyMap(),
     ) : ToolCallAction()
 }
 ```
@@ -1450,9 +1451,9 @@ sealed class ToolCallAction {
 renderer-specific button (e.g. "Run test in current file"). The
 chat panel does not auto-dispatch `Custom` actions for you — your
 renderer's `render` composable is responsible for matching the
-`id` and dispatching the click (typically by reading the active
-`Project` from `ctx.project` or by registering a callback during
-plugin initialisation).
+`customId` and dispatching the click (typically by reading the
+active `Project` from `ctx.project` or by registering a callback
+during plugin initialisation).
 
 ### 16.4 The render context
 
@@ -1461,15 +1462,15 @@ data class ToolCallRenderContext(
     val project: Project?,
     val isError: Boolean,
     val errorDetail: String?,
-    val onOpenInEditor: ((path: String, startLine: Int, endLine: Int) -> Unit)?,
-    val onViewDiff: ((path: String, originalContent: String?, modifiedContent: String?) -> Unit)?,
+    val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
+    val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?,
     val onCopy: ((payload: String) -> Unit)?,
 )
 ```
 
 `onOpenInEditor` and `onViewDiff` are the chat-level handlers —
-invoke them with the right `path` / line range and the chat panel
-will pop an editor tab (or diff viewer) at the right place.
+invoke them with the right `filePath` / line range and the chat
+panel will pop an editor tab (or diff viewer) at the right place.
 `onCopy` is wired to the chat-level "copied" snackbar (no-op in
 the current build, but stable).
 
@@ -1494,16 +1495,16 @@ Imagine a server-side `run_tests` skill that emits alias
 myplugin.tool.testsPassed=Tests Passed
 ```
 
-**Step 2 — implement the renderer.** One folder per alias:
+**Step 2 — implement the renderer.** One file per alias:
 
 ```
-my-plugin/src/main/kotlin/com/example/myplugin/tests/TestsPassedRenderer.kt
+my-plugin/src/main/kotlin/com/example/myplugin/chat/ui/chat/skill/TestsPassedRenderer.kt
 my-plugin/src/main/resources/messages/MyPluginBundle.properties
 ```
 
 ```kotlin
 // TestsPassedRenderer.kt
-package com.example.myplugin.tests
+package com.example.myplugin.chat.ui.chat.skill
 
 import androidx.compose.runtime.Composable
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
@@ -1523,8 +1524,8 @@ class TestsPassedRenderer : ToolCallRenderer {
         arguments: Map<String, Any?>,
         result: Map<String, Any?>,
     ): ToolCallContent = ToolCallContent(
-        alias = ALIAS,
-        fields = mapOf(
+        aliasName = ALIAS,
+        fieldMap = mapOf(
             "passed" to (result["passed"] as? Number)?.toInt(),
             "failed" to (result["failed"] as? Number)?.toInt(),
             "durationMs" to (result["durationMs"] as? Number)?.toLong(),
@@ -1533,9 +1534,9 @@ class TestsPassedRenderer : ToolCallRenderer {
 
     @Composable
     override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val passed = content.fields["passed"] as? Int ?: 0
-        val failed = content.fields["failed"] as? Int ?: 0
-        val durationMs = content.fields["durationMs"] as? Long ?: 0L
+        val passed = content.fieldMap["passed"] as? Int ?: 0
+        val failed = content.fieldMap["failed"] as? Int ?: 0
+        val durationMs = content.fieldMap["durationMs"] as? Long ?: 0L
         ToolCallCapsule(
             success = !ctx.isError,
             errorDetail = ctx.errorDetail.orEmpty(),
@@ -1588,7 +1589,6 @@ edit, no Platform EP, no classloader dance.
 > upstream the change to `ToolCallRendererRegistry.RENDERERS` (one
 > line). The Gradum maintainers are happy to accept such PRs as
 > long as the renderer follows the conventions in section 16.6.
-
 
 ### 16.6 Conventions
 

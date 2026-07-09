@@ -13,20 +13,9 @@ package gradum.idea.chat.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,11 +33,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.DefaultMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /** Shared shape used for the code block panel (and for the inner top row clip). */
@@ -70,100 +55,100 @@ private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(8.dp)
  */
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
-    styling: MarkdownStyling,
-    private val isSimplified: Boolean = false,
-    private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> },
+  styling: MarkdownStyling,
+  private val isSimplified: Boolean = false,
+  private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> },
 ) : DefaultMarkdownBlockRenderer(styling) {
 
-    @OptIn(ExperimentalJewelApi::class)
-    @Composable
-    override fun RenderFencedCodeBlock(
-        block: FencedCodeBlock,
-        styling: MarkdownStyling.Code.Fenced,
-        enabled: Boolean,
-        modifier: Modifier,
-    ) {
-        val language: String = block.language ?: "text"
+  @OptIn(ExperimentalJewelApi::class)
+  @Composable
+  override fun RenderFencedCodeBlock(
+    block: FencedCodeBlock,
+    styling: MarkdownStyling.Code.Fenced,
+    enabled: Boolean,
+    modifier: Modifier,
+  ) {
+    val language: String = block.language ?: "text"
 
-        val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
-            .highlight(block.content, language)
-            .collectAsState(AnnotatedString(block.content))
+    val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
+      .highlight(block.content, language)
+      .collectAsState(AnnotatedString(block.content))
 
-        val containerModifier: Modifier = modifier
-            .clip(CodeBlockShape)
-            .background(styling.background)
-            .border(styling.borderWidth, styling.borderColor, CodeBlockShape)
-            .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
+    val containerModifier: Modifier = modifier
+      .clip(CodeBlockShape)
+      .background(styling.background)
+      .border(styling.borderWidth, styling.borderColor, CodeBlockShape)
+      .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
-        var isSoftWrap by remember { mutableStateOf(false) }
+    var isSoftWrap by remember { mutableStateOf(false) }
 
-        if (isSimplified) {
-            // Simplified mode (used by ThinkingIndicator) drops the
-            // top-row toolbar entirely — the surrounding grey text
-            // already signals "this is ephemeral context" and the
-            // copy / insert-as-file / soft-wrap affordances would
-            // compete with the rest of the reasoning block. The
-            // code area still scrolls horizontally when the styling
-            // asks for it, so a long line in a long reasoning
-            // paragraph doesn't try to wrap inside a 1-line-high
-            // parent and silently overflow.
-            val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
-            if (showHorizontalScroll) {
-                HorizontallyScrollableContainer {
-                    CodeBlockContent(annotatedCode, styling, isSoftWrap)
-                }
-            } else {
-                Box {
-                    CodeBlockContent(annotatedCode, styling, isSoftWrap)
-                }
-            }
-        } else {
-            Column(modifier = containerModifier) {
-                CodeBlockToolbar(
-                    rawCode = block.content,
-                    language = language,
-                    isSoftWrap = isSoftWrap,
-                    onInsertAsFile = onInsertAsFile,
-                    onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
-                )
-                // The container choice must follow `isSoftWrap`:
-                //  - soft-wrap on → `Box` with a finite max width so `Text` actually wraps
-                //  - soft-wrap off → `HorizontallyScrollableContainer` so long lines stay
-                //    on a single line and the user can scroll them horizontally
-                // `Modifier.horizontalScroll` on a scrollable container removes the
-                // finite width constraint that `softWrap = true` needs to fold long
-                // lines, so wrapping a soft-wrap-enabled `Text` in a scrollable
-                // container is a silent no-op.
-                val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
-                if (showHorizontalScroll) {
-                    HorizontallyScrollableContainer {
-                        CodeBlockContent(annotatedCode, styling, isSoftWrap)
-                    }
-                } else {
-                    Box {
-                        CodeBlockContent(annotatedCode, styling, isSoftWrap)
-                    }
-                }
-            }
+    if (isSimplified) {
+      // Simplified mode (used by ThinkingIndicator) drops the
+      // top-row toolbar entirely — the surrounding grey text
+      // already signals "this is ephemeral context" and the
+      // copy / insert-as-file / soft-wrap affordances would
+      // compete with the rest of the reasoning block. The
+      // code area still scrolls horizontally when the styling
+      // asks for it, so a long line in a long reasoning
+      // paragraph doesn't try to wrap inside a 1-line-high
+      // parent and silently overflow.
+      val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
+      if (showHorizontalScroll) {
+        HorizontallyScrollableContainer {
+          CodeBlockContent(annotatedCode, styling, isSoftWrap)
         }
-    }
-
-    @Composable
-    private fun CodeBlockContent(
-        annotatedCode: AnnotatedString,
-        styling: MarkdownStyling.Code.Fenced,
-        softWrap: Boolean,
-    ) {
-        Text(
-            text = annotatedCode,
-            style = styling.editorTextStyle,
-            modifier = Modifier
-                .padding(styling.padding)
-                .fillMaxWidth()
-                .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true),
-            softWrap = softWrap
+      } else {
+        Box {
+          CodeBlockContent(annotatedCode, styling, isSoftWrap)
+        }
+      }
+    } else {
+      Column(modifier = containerModifier) {
+        CodeBlockToolbar(
+          rawCode = block.content,
+          language = language,
+          isSoftWrap = isSoftWrap,
+          onInsertAsFile = onInsertAsFile,
+          onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
         )
+        // The container choice must follow `isSoftWrap`:
+        //  - soft-wrap on → `Box` with a finite max width so `Text` actually wraps
+        //  - soft-wrap off → `HorizontallyScrollableContainer` so long lines stay
+        //    on a single line and the user can scroll them horizontally
+        // `Modifier.horizontalScroll` on a scrollable container removes the
+        // finite width constraint that `softWrap = true` needs to fold long
+        // lines, so wrapping a soft-wrap-enabled `Text` in a scrollable
+        // container is a silent no-op.
+        val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
+        if (showHorizontalScroll) {
+          HorizontallyScrollableContainer {
+            CodeBlockContent(annotatedCode, styling, isSoftWrap)
+          }
+        } else {
+          Box {
+            CodeBlockContent(annotatedCode, styling, isSoftWrap)
+          }
+        }
+      }
     }
+  }
+
+  @Composable
+  private fun CodeBlockContent(
+    annotatedCode: AnnotatedString,
+    styling: MarkdownStyling.Code.Fenced,
+    softWrap: Boolean,
+  ) {
+    Text(
+      text = annotatedCode,
+      style = styling.editorTextStyle,
+      modifier = Modifier
+        .padding(styling.padding)
+        .fillMaxWidth()
+        .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true),
+      softWrap = softWrap
+    )
+  }
 }
 
 /**
@@ -180,67 +165,67 @@ class GradumCodeBlockRenderer(
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun CodeBlockToolbar(
-    rawCode: String,
-    language: String,
-    isSoftWrap: Boolean,
-    onInsertAsFile: (code: String, language: String) -> Unit,
-    onSoftWrapToggle: () -> Unit
+  rawCode: String,
+  language: String,
+  isSoftWrap: Boolean,
+  onInsertAsFile: (code: String, language: String) -> Unit,
+  onSoftWrapToggle: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    var isCopied: Boolean by remember { mutableStateOf(false) }
-    val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = GradumSpacing.md, end = GradumSpacing.sm, top = GradumSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-    ) {
-        Text(
-            text = displayLanguage,
-            fontWeight = FontWeight.Medium,
-            style = JewelTheme.editorTextStyle
+  val scope = rememberCoroutineScope()
+  var isCopied: Boolean by remember { mutableStateOf(false) }
+  val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(start = GradumSpacing.md, end = GradumSpacing.sm, top = GradumSpacing.sm),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+  ) {
+    Text(
+      text = displayLanguage,
+      fontWeight = FontWeight.Medium,
+      style = JewelTheme.editorTextStyle
+    )
+    Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
+      IconButton(
+        onClick = {
+          copyToClipboard(
+            scope = scope,
+            text = rawCode,
+            onCopied = { isCopied = true },
+            onReset = { isCopied = false }
+          )
+        }
+      ) {
+        Icon(
+          contentDescription = message("gradum.copy.code"),
+          key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy
         )
-        Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
-            IconButton(
-                onClick = {
-                    copyToClipboard(
-                        scope = scope,
-                        text = rawCode,
-                        onCopied = { isCopied = true },
-                        onReset = { isCopied = false }
-                    )
-                }
-            ) {
-                Icon(
-                    contentDescription = message("gradum.copy.code"),
-                    key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy
-                )
-            }
-        }
-        Tooltip(tooltip = { Text(text = message("gradum.insert.file")) }) {
-            IconButton(
-                onClick = { onInsertAsFile(rawCode, language) }
-            ) {
-                Icon(
-                    key = AllIconsKeys.FileTypes.AddAny,
-                    contentDescription = message("gradum.new.file")
-                )
-            }
-        }
-        Tooltip(tooltip = {
-            Text(
-                text =
-                    if (isSoftWrap) message("gradum.soft.wrap.disable")
-                    else message("gradum.soft.wrap.enable")
-            )
-        }) {
-            IconButton(onClick = onSoftWrapToggle) {
-                Icon(
-                    key = GradumIcons.SoftWarp,
-                    contentDescription = message("gradum.soft.wrap")
-                )
-            }
-        }
+      }
     }
+    Tooltip(tooltip = { Text(text = message("gradum.insert.file")) }) {
+      IconButton(
+        onClick = { onInsertAsFile(rawCode, language) }
+      ) {
+        Icon(
+          key = AllIconsKeys.FileTypes.AddAny,
+          contentDescription = message("gradum.new.file")
+        )
+      }
+    }
+    Tooltip(tooltip = {
+      Text(
+        text =
+          if (isSoftWrap) message("gradum.soft.wrap.disable")
+          else message("gradum.soft.wrap.enable")
+      )
+    }) {
+      IconButton(onClick = onSoftWrapToggle) {
+        Icon(
+          key = GradumIcons.SoftWarp,
+          contentDescription = message("gradum.soft.wrap")
+        )
+      }
+    }
+  }
 }

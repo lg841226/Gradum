@@ -6,5 +6,5 @@
   -->
 
 <configuration>
-    <root level="ERROR"/>
+  <root level="ERROR"/>
 </configuration>

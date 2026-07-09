@@ -66,174 +66,174 @@ private val EXPAND_MAX_HEIGHT: Dp = 200.dp
  */
 @Composable
 fun UserChatBubble(
-    message: ChatMessage,
-    onDeleteMessage: () -> Unit = {},
-    onCopyAsContext: (String) -> Unit = {},
-    onAttachmentClick: (VirtualFile) -> Unit = {}
+  message: ChatMessage,
+  onDeleteMessage: () -> Unit = {},
+  onCopyAsContext: (String) -> Unit = {},
+  onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
-    var isCopied by remember { mutableStateOf(false) }
-    var showResetPopup by remember { mutableStateOf(false) }
-    var isAttachmentsExpanded by remember { mutableStateOf(true) }
-    var isExpanded by remember { mutableStateOf(false) }
-    val content = message.content
-    val maxLines = if (isExpanded) Int.MAX_VALUE else 1
-    val panelBackground = globalColors.borders.normal.copy(alpha = 0.8f)
+  var isCopied by remember { mutableStateOf(false) }
+  var showResetPopup by remember { mutableStateOf(false) }
+  var isAttachmentsExpanded by remember { mutableStateOf(true) }
+  var isExpanded by remember { mutableStateOf(false) }
+  val content = message.content
+  val maxLines = if (isExpanded) Int.MAX_VALUE else 1
+  val panelBackground = globalColors.borders.normal.copy(alpha = 0.8f)
 
-    val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
-    val fileAttachments: List<AttachedContext> = message.attachments.filter {
-        it is AttachedFile || it is AttachedText
-    }
+  val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
+  val fileAttachments: List<AttachedContext> = message.attachments.filter {
+    it is AttachedFile || it is AttachedText
+  }
 
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
-    ) {
-        Column(horizontalAlignment = Alignment.End) {
-            if (imageAttachments.isNotEmpty()) {
-                MessageAttachmentPreview(
-                    attachments = imageAttachments,
-                    onAttachmentClick = onAttachmentClick
-                )
-                Spacer(modifier = Modifier.height(GradumSpacing.md))
-            }
-            Box(
-                modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp, topEnd = 16.dp,
-                            bottomStart = 16.dp, bottomEnd = 6.dp
-                        )
-                    )
-                    .background(color = panelBackground)
-                    .padding(10.dp)
-                    .heightIn(max = EXPAND_MAX_HEIGHT)
-                    .animateContentSize(
-                        animationSpec = spring(
-                            // DampingRatioLowBouncy (0.75) gives a very subtle
-                            // single overshoot — the bubble "lands" near its
-                            // target with a small bounce, not a 2-3 oscillation.
-                            // StiffnessMediumLow keeps the whole thing slow
-                            // enough that the bounce reads as a bounce, not a
-                            // quick snap.
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        )
-                    )
-            ) {
-                Row(
-                    modifier = Modifier.verticalScroll(rememberScrollState())
-                ) {
-                    SelectionContainer {
-                        Text(
-                            text = content,
-                            maxLines = maxLines,
-                            lineHeight = JewelTheme.typography.labelTextStyle.fontSize * 1.5f,
-                            overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-            if (fileAttachments.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(GradumSpacing.lg))
-                Row(
-                    modifier = Modifier
-                        .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
-                        .padding(horizontal = GradumSpacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-                ) {
-                    Icon(
-                        contentDescription = null,
-                        key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
-                        else AllIconsKeys.General.ChevronRight
-                    )
-                    Text(
-                        text = message("gradum.attachments"),
-                        fontWeight = FontWeight.Medium,
-                        color = globalColors.text.normal
-                    )
-                }
-                Spacer(Modifier.height(GradumSpacing.sm))
-                AnimatedVisibility(visible = isAttachmentsExpanded) {
-                    MessageAttachmentList(attachments = fileAttachments)
-                }
-            }
-            Spacer(modifier = Modifier.height(GradumSpacing.md))
-            Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-                MessageCopyButton(
-                    message = message,
-                    isCopied = isCopied,
-                    onCopy = { isCopied = true },
-                    onReset = { isCopied = false },
-                    onCopyAsContext = onCopyAsContext
-                )
-                if (content.length >= 100 || content.lines().size > 1) {
-                    Tooltip(tooltip = {
-                        Text(text = if (isExpanded) message("gradum.collapse") else message("gradum.expand"))
-                    }) {
-                        IconButton(onClick = { isExpanded = !isExpanded }) {
-                            Icon(
-                                modifier = Modifier.size(16.dp),
-                                contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
-                                key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
-                            )
-                        }
-                    }
-                }
-                Tooltip(tooltip = {
-                    Text(text = message("gradum.reset.tooltip"))
-                }) {
-                    IconButton(onClick = { showResetPopup = true }) {
-                        Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
-                    }
-                }
-                if (showResetPopup) {
-                    PopupMenu(
-                        horizontalAlignment = Alignment.End,
-                        onDismissRequest = { showResetPopup = false; true }
-                    ) {
-                        passiveItem {
-                            Column {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(
-                                            horizontal = GradumSpacing.sml,
-                                            vertical = GradumSpacing.sm
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        key = GradumIcons.Warning,
-                                        modifier = Modifier.padding(end = GradumSpacing.sml),
-                                        contentDescription = message("gradum.delete.confirm")
-                                    )
-                                    Text(text = message("gradum.delete.confirm"))
-                                }
-                            }
-                        }
-                        separator()
-                        selectableItem(
-                            selected = false,
-                            onClick = { showResetPopup = false; onDeleteMessage() }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = GradumSpacing.sml),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    contentDescription = message("gradum.delete.action"),
-                                    key = AllIconsKeys.General.Reset,
-                                    modifier = Modifier.padding(end = GradumSpacing.sml)
-                                )
-                                Text(text = message("gradum.delete.action"))
-                            }
-                        }
-                    }
-                }
-            }
+  Row(
+    Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.End
+  ) {
+    Column(horizontalAlignment = Alignment.End) {
+      if (imageAttachments.isNotEmpty()) {
+        MessageAttachmentPreview(
+          attachments = imageAttachments,
+          onAttachmentClick = onAttachmentClick
+        )
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
+      }
+      Box(
+        modifier = Modifier
+          .clip(
+            RoundedCornerShape(
+              topStart = 16.dp, topEnd = 16.dp,
+              bottomStart = 16.dp, bottomEnd = 6.dp
+            )
+          )
+          .background(color = panelBackground)
+          .padding(10.dp)
+          .heightIn(max = EXPAND_MAX_HEIGHT)
+          .animateContentSize(
+            animationSpec = spring(
+              // DampingRatioLowBouncy (0.75) gives a very subtle
+              // single overshoot — the bubble "lands" near its
+              // target with a small bounce, not a 2-3 oscillation.
+              // StiffnessMediumLow keeps the whole thing slow
+              // enough that the bounce reads as a bounce, not a
+              // quick snap.
+              dampingRatio = Spring.DampingRatioLowBouncy,
+              stiffness = Spring.StiffnessMediumLow,
+            )
+          )
+      ) {
+        Row(
+          modifier = Modifier.verticalScroll(rememberScrollState())
+        ) {
+          SelectionContainer {
+            Text(
+              text = content,
+              maxLines = maxLines,
+              lineHeight = JewelTheme.typography.labelTextStyle.fontSize * 1.5f,
+              overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
+            )
+          }
         }
+      }
+      if (fileAttachments.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        Row(
+          modifier = Modifier
+            .clickable { isAttachmentsExpanded = !isAttachmentsExpanded }
+            .padding(horizontal = GradumSpacing.sm),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        ) {
+          Icon(
+            contentDescription = null,
+            key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
+            else AllIconsKeys.General.ChevronRight
+          )
+          Text(
+            text = message("gradum.attachments"),
+            fontWeight = FontWeight.Medium,
+            color = globalColors.text.normal
+          )
+        }
+        Spacer(Modifier.height(GradumSpacing.sm))
+        AnimatedVisibility(visible = isAttachmentsExpanded) {
+          MessageAttachmentList(attachments = fileAttachments)
+        }
+      }
+      Spacer(modifier = Modifier.height(GradumSpacing.md))
+      Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
+        MessageCopyButton(
+          message = message,
+          isCopied = isCopied,
+          onCopy = { isCopied = true },
+          onReset = { isCopied = false },
+          onCopyAsContext = onCopyAsContext
+        )
+        if (content.length >= 100 || content.lines().size > 1) {
+          Tooltip(tooltip = {
+            Text(text = if (isExpanded) message("gradum.collapse") else message("gradum.expand"))
+          }) {
+            IconButton(onClick = { isExpanded = !isExpanded }) {
+              Icon(
+                modifier = Modifier.size(16.dp),
+                contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
+                key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
+              )
+            }
+          }
+        }
+        Tooltip(tooltip = {
+          Text(text = message("gradum.reset.tooltip"))
+        }) {
+          IconButton(onClick = { showResetPopup = true }) {
+            Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
+          }
+        }
+        if (showResetPopup) {
+          PopupMenu(
+            horizontalAlignment = Alignment.End,
+            onDismissRequest = { showResetPopup = false; true }
+          ) {
+            passiveItem {
+              Column {
+                Row(
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                      horizontal = GradumSpacing.sml,
+                      vertical = GradumSpacing.sm
+                    ),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Icon(
+                    key = GradumIcons.Warning,
+                    modifier = Modifier.padding(end = GradumSpacing.sml),
+                    contentDescription = message("gradum.delete.confirm")
+                  )
+                  Text(text = message("gradum.delete.confirm"))
+                }
+              }
+            }
+            separator()
+            selectableItem(
+              selected = false,
+              onClick = { showResetPopup = false; onDeleteMessage() }
+            ) {
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = GradumSpacing.sml),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  contentDescription = message("gradum.delete.action"),
+                  key = AllIconsKeys.General.Reset,
+                  modifier = Modifier.padding(end = GradumSpacing.sml)
+                )
+                Text(text = message("gradum.delete.action"))
+              }
+            }
+          }
+        }
+      }
     }
+  }
 }

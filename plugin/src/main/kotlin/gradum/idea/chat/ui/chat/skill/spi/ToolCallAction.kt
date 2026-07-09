@@ -17,47 +17,47 @@ package gradum.idea.chat.ui.chat.skill.spi
  */
 sealed class ToolCallAction {
 
-    /**
-     * Open a file at the given absolute or project-relative path in the
-     * IDE editor. [startLine] is 1-based; `0` means "don't jump to a
-     * specific line". [endLine] is the inclusive end of a range (used
-     * by the Read renderer to highlight a multi-line excerpt); `0`
-     * means "no specific end line".
-     */
-    data class OpenInEditor(
-        val filePath: String,
-        val endLine: Int = 0,
-        val startLine: Int = 0,
-        val displayLabel: String? = null
-    ) : ToolCallAction()
+  /**
+   * Open a file at the given absolute or project-relative path in the
+   * IDE editor. [startLine] is 1-based; `0` means "don't jump to a
+   * specific line". [endLine] is the inclusive end of a range (used
+   * by the Read renderer to highlight a multi-line excerpt); `0`
+   * means "no specific end line".
+   */
+  data class OpenInEditor(
+    val filePath: String,
+    val endLine: Int = 0,
+    val startLine: Int = 0,
+    val displayLabel: String? = null
+  ) : ToolCallAction()
 
-    /**
-     * Open an inline diff view for a file the tool just modified. The
-     * [diffType] is a hint the renderer can use to choose between
-     * `DiffViewer`, `MergeRequest` etc.
-     */
-    data class ViewDiff(
-        val filePath: String,
-        val diffType: String = "default"
-    ) : ToolCallAction()
+  /**
+   * Open an inline diff view for a file the tool just modified. The
+   * [diffType] is a hint the renderer can use to choose between
+   * `DiffViewer`, `MergeRequest` etc.
+   */
+  data class ViewDiff(
+    val filePath: String,
+    val diffType: String = "default"
+  ) : ToolCallAction()
 
-    /**
-     * Copy a short string to the system clipboard (e.g. the shell
-     * command that was just run, or a URL the tool produced).
-     */
-    data class CopyToClipboard(
-        val payload: String,
-        val displayLabel: String? = null
-    ) : ToolCallAction()
+  /**
+   * Copy a short string to the system clipboard (e.g. the shell
+   * command that was just run, or a URL the tool produced).
+   */
+  data class CopyToClipboard(
+    val payload: String,
+    val displayLabel: String? = null
+  ) : ToolCallAction()
 
-    /**
-     * Free-form action a third-party renderer defines. Pair this with a
-     * matching branch in the renderer's `render` composable — the
-     * built-in `DefaultRenderer` will ignore unknown custom actions.
-     */
-    data class Custom(
-        val customId: String,
-        val displayLabel: String,
-        val dataMap: Map<String, Any?> = emptyMap()
-    ) : ToolCallAction()
+  /**
+   * Free-form action a third-party renderer defines. Pair this with a
+   * matching branch in the renderer's `render` composable — the
+   * built-in `DefaultRenderer` will ignore unknown custom actions.
+   */
+  data class Custom(
+    val customId: String,
+    val displayLabel: String,
+    val dataMap: Map<String, Any?> = emptyMap()
+  ) : ToolCallAction()
 }

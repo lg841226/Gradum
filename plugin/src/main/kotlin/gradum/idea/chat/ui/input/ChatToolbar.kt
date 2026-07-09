@@ -32,90 +32,90 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun ChatToolbar(
-    state: ChatInputState,
-    actions: ChatInputActions,
-    isTextNotEmpty: Boolean,
-    modifier: Modifier = Modifier
+  state: ChatInputState,
+  actions: ChatInputActions,
+  isTextNotEmpty: Boolean,
+  modifier: Modifier = Modifier
 ) {
-    val searchState = remember { TextFieldState() }
+  val searchState = remember { TextFieldState() }
 
-    val searchQuery: String = searchState.text.toString()
-    val filteredFiles = if (searchQuery.isBlank()) {
-        state.editorContext.allOpenFiles
-    } else {
-        state.editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
+  val searchQuery: String = searchState.text.toString()
+  val filteredFiles = if (searchQuery.isBlank()) {
+    state.editorContext.allOpenFiles
+  } else {
+    state.editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
+  }
+
+  Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    IconTooltipButton(
+      tooltip = if (state.isAttachmentLimitReached) message("gradum.add.context.disabled") else message("gradum.add.context"),
+      iconKey = AllIconsKeys.General.Add,
+      contentDescription = message("gradum.add"),
+      onClick = actions.onToggleAddMenu,
+      enabled = !state.isAttachmentLimitReached
+    )
+    if (state.showAddMenu) {
+      AddContextPopup(
+        searchState = searchState,
+        filteredFiles = filteredFiles,
+        state = state,
+        actions = actions
+      )
     }
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    PermissionSelector(
+      selectedPermission = state.selectedPermission,
+      isMenuVisible = state.isMenuVisible,
+      onToggle = actions.onToggleMenu,
+      onSelect = actions.onSelectPermission,
+      onDismiss = actions.onDismissMenu
+    )
+
+    Spacer(modifier = Modifier.weight(1f))
+
+    IconTooltipButton(
+      tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
+      iconKey = if (state.isExpanded) AllIconsKeys.Actions.Share else AllIconsKeys.Actions.Unshare,
+      contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
+      onClick = actions.onToggleExpanded,
+      enabled = state.editorContext.currentFile != null
+    )
+
+    IconTooltipButton(
+      tooltip = message("gradum.clear"),
+      iconKey = AllIconsKeys.General.Delete,
+      contentDescription = message("gradum.delete"),
+      onClick = actions.onClearText,
+      enabled = isTextNotEmpty
+    )
+
+    Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
+      if (state.isSending || state.pendingMessages.isNotEmpty()) {
         IconTooltipButton(
-            tooltip = if (state.isAttachmentLimitReached) message("gradum.add.context.disabled") else message("gradum.add.context"),
-            iconKey = AllIconsKeys.General.Add,
-            contentDescription = message("gradum.add"),
-            onClick = actions.onToggleAddMenu,
-            enabled = !state.isAttachmentLimitReached
+          tooltip = message("gradum.stop"),
+          iconKey = AllIconsKeys.Run.Stop,
+          contentDescription = message("gradum.stop.response"),
+          onClick = actions.onStop
         )
-        if (state.showAddMenu) {
-            AddContextPopup(
-                searchState = searchState,
-                filteredFiles = filteredFiles,
-                state = state,
-                actions = actions
-            )
-        }
-
-        PermissionSelector(
-            selectedPermission = state.selectedPermission,
-            isMenuVisible = state.isMenuVisible,
-            onToggle = actions.onToggleMenu,
-            onSelect = actions.onSelectPermission,
-            onDismiss = actions.onDismissMenu
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        IconTooltipButton(
-            tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
-            iconKey = if (state.isExpanded) AllIconsKeys.Actions.Share else AllIconsKeys.Actions.Unshare,
-            contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
-            onClick = actions.onToggleExpanded,
-            enabled = state.editorContext.currentFile != null
-        )
-
-        IconTooltipButton(
-            tooltip = message("gradum.clear"),
-            iconKey = AllIconsKeys.General.Delete,
-            contentDescription = message("gradum.delete"),
-            onClick = actions.onClearText,
-            enabled = isTextNotEmpty
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-            if (state.isSending || state.pendingMessages.isNotEmpty()) {
-                IconTooltipButton(
-                    tooltip = message("gradum.stop"),
-                    iconKey = AllIconsKeys.Run.Stop,
-                    contentDescription = message("gradum.stop.response"),
-                    onClick = actions.onStop
-                )
-            }
-            val hasModel = state.selectedModel != null || state.isAutoSelected
-            val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
-            val sendTooltip = when {
-                state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
-                !hasModel -> message("gradum.send.no.model")
-                else -> message("gradum.send")
-            }
-            IconTooltipButton(
-                tooltip = sendTooltip,
-                iconKey = GradumIcons.Send,
-                contentDescription = message("gradum.send"),
-                onClick = actions.onSend,
-                enabled = canSend
-            )
-        }
+      }
+      val hasModel = state.selectedModel != null || state.isAutoSelected
+      val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
+      val sendTooltip = when {
+        state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
+        !hasModel -> message("gradum.send.no.model")
+        else -> message("gradum.send")
+      }
+      IconTooltipButton(
+        tooltip = sendTooltip,
+        iconKey = GradumIcons.Send,
+        contentDescription = message("gradum.send"),
+        onClick = actions.onSend,
+        enabled = canSend
+      )
     }
+  }
 }

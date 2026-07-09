@@ -28,34 +28,34 @@ package gradum.utils
  * Callers should log a warning when they detect this case.
  */
 fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<String, Any>> {
-    if (messages.isEmpty()) return emptyList()
-    if (maxTurns <= 0) return emptyList()
-    if (messages.size <= maxTurns) return messages
+  if (messages.isEmpty()) return emptyList()
+  if (maxTurns <= 0) return emptyList()
+  if (messages.size <= maxTurns) return messages
 
-    val turnsReversed: MutableList<List<Map<String, Any>>> = mutableListOf()
-    var currentIndex: Int = messages.size
-    while (currentIndex > 0) {
-        val turnStartIndex: Int = findTurnStart(messages, currentIndex - 1)
-        turnsReversed.add(messages.subList(turnStartIndex, currentIndex))
-        currentIndex = turnStartIndex
+  val turnsReversed: MutableList<List<Map<String, Any>>> = mutableListOf()
+  var currentIndex: Int = messages.size
+  while (currentIndex > 0) {
+    val turnStartIndex: Int = findTurnStart(messages, currentIndex - 1)
+    turnsReversed.add(messages.subList(turnStartIndex, currentIndex))
+    currentIndex = turnStartIndex
+  }
+
+  val keptMessages: MutableList<Map<String, Any>> = mutableListOf()
+  var usedSlots = 0
+  var exhausted = false
+  for (turnMessages: List<Map<String, Any>> in turnsReversed) {
+    if (exhausted) break
+    if (usedSlots + turnMessages.size > maxTurns) {
+      exhausted = true
+    } else {
+      keptMessages.addAll(0, turnMessages)
+      usedSlots += turnMessages.size
     }
+  }
+  if (keptMessages.size < maxTurns)
+    return messages.subList(messages.size - maxTurns, messages.size)
 
-    val keptMessages: MutableList<Map<String, Any>> = mutableListOf()
-    var usedSlots = 0
-    var exhausted = false
-    for (turnMessages: List<Map<String, Any>> in turnsReversed) {
-        if (exhausted) break
-        if (usedSlots + turnMessages.size > maxTurns) {
-            exhausted = true
-        } else {
-            keptMessages.addAll(0, turnMessages)
-            usedSlots += turnMessages.size
-        }
-    }
-    if (keptMessages.size < maxTurns)
-        return messages.subList(messages.size - maxTurns, messages.size)
-
-    return keptMessages
+  return keptMessages
 }
 
 /**
@@ -71,31 +71,31 @@ fun takeLastTurns(messages: List<Map<String, Any>>, maxTurns: Int): List<Map<Str
  *    the orphan tool messages form their own turn).
  */
 private fun findTurnStart(messages: List<Map<String, Any>>, tailIndex: Int): Int {
-    val lastRole: String = roleOf(messages[tailIndex])
-    if (lastRole == "user") return tailIndex
-    if (lastRole == "assistant") return tailIndex
+  val lastRole: String = roleOf(messages[tailIndex])
+  if (lastRole == "user") return tailIndex
+  if (lastRole == "assistant") return tailIndex
 
-    if (lastRole == "tool") {
-        var toolRunStart: Int = tailIndex
-        var foundBoundary = true
+  if (lastRole == "tool") {
+    var toolRunStart: Int = tailIndex
+    var foundBoundary = true
 
-        while (foundBoundary) {
-            val previousIndex: Int = toolRunStart - 1
-            if (previousIndex < 0)
-                foundBoundary = false
-            else if (roleOf(messages[previousIndex]) == "tool")
-                toolRunStart = previousIndex
-            else foundBoundary = false
-        }
-
-        val assistantIndex: Int = toolRunStart - 1
-        if (assistantIndex >= 0 && roleOf(messages[assistantIndex]) == "assistant")
-            return assistantIndex
-
-        return toolRunStart
+    while (foundBoundary) {
+      val previousIndex: Int = toolRunStart - 1
+      if (previousIndex < 0)
+        foundBoundary = false
+      else if (roleOf(messages[previousIndex]) == "tool")
+        toolRunStart = previousIndex
+      else foundBoundary = false
     }
-    return tailIndex
+
+    val assistantIndex: Int = toolRunStart - 1
+    if (assistantIndex >= 0 && roleOf(messages[assistantIndex]) == "assistant")
+      return assistantIndex
+
+    return toolRunStart
+  }
+  return tailIndex
 }
 
 private fun roleOf(message: Map<String, Any>): String =
-    message["role"] as? String ?: ""
+  message["role"] as? String ?: ""

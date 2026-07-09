@@ -39,211 +39,211 @@ import kotlin.test.*
  */
 class ToolModeGateTest {
 
-    private val tempProjectRoot: Path by lazy {
-        Files.createTempDirectory("gradum-mode-gate-")
-    }
+  private val tempProjectRoot: Path by lazy {
+    Files.createTempDirectory("gradum-mode-gate-")
+  }
 
-    @Test
-    fun `read-only mode rejects edit_file call and does not touch the file`() {
-        val targetFile: Path = tempProjectRoot.resolve("victim.txt")
-        val originalContent = "original line one\noriginal line two\n"
-        Files.writeString(targetFile, originalContent)
+  @Test
+  fun `read-only mode rejects edit_file call and does not touch the file`() {
+    val targetFile: Path = tempProjectRoot.resolve("victim.txt")
+    val originalContent = "original line one\noriginal line two\n"
+    Files.writeString(targetFile, originalContent)
 
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "edit_file",
-            functionArguments = mapOf(
-                "path" to JsonPrimitive("victim.txt"),
-                "edits" to JsonPrimitive(
-                    """[{"search": "original line one", "replace": "HACKED"}]"""
-                ),
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "edit_file",
+      functionArguments = mapOf(
+        "path" to JsonPrimitive("victim.txt"),
+        "edits" to JsonPrimitive(
+          """[{"search": "original line one", "replace": "HACKED"}]"""
+        ),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
+    assertEquals(
+      ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"],
+      "edit_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
+    )
+    assertEquals("READ_ONLY", errorMap["toolMode"])
+    assertTrue(
+      ((errorMap["allowedModes"] as List<*>).contains("AGENT")),
+      "Error should list the actually-allowed modes",
+    )
+
+    // The whole point of the gate: the file on disk must be byte-for-byte
+    // identical to the original. If this assertion ever fails, we have
+    // a real-world security bug, not just a test problem.
+    assertEquals(originalContent, Files.readString(targetFile), "File must not be modified in READ_ONLY mode")
+  }
+
+  @Test
+  fun `read-only mode rejects save_file call and does not touch the file`() {
+    val targetFile: Path = tempProjectRoot.resolve("new-victim.txt")
+    assertFalse(Files.exists(targetFile), "Test precondition: file must not exist before save_file")
+
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "save_file",
+      functionArguments = mapOf(
+        "path" to JsonPrimitive("new-victim.txt"),
+        "content" to JsonPrimitive("HACKED CONTENT"),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
+    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
+    assertFalse(Files.exists(targetFile), "save_file must not create the file in READ_ONLY mode")
+  }
+
+  @Test
+  fun `read-only mode rejects to_do call`() {
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "to_do",
+      functionArguments = mapOf(
+        "tasks" to JsonPrimitive("""["steal data"]"""),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
+    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
+  }
+
+  @Test
+  fun `edit mode rejects to_do call`() {
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "to_do",
+      functionArguments = mapOf(
+        "tasks" to kotlinx.serialization.json.JsonArray(
+          listOf(JsonPrimitive("step 1"), JsonPrimitive("step 2")),
+        ),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.EDIT)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
+    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
+    assertEquals("EDIT", errorMap["toolMode"])
+  }
+
+  @Test
+  fun `agent mode allows edit_file to actually run`() {
+    val targetFile: Path = tempProjectRoot.resolve("legit.txt")
+    Files.writeString(targetFile, "hello world\n")
+
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "edit_file",
+      functionArguments = mapOf(
+        "path" to JsonPrimitive("legit.txt"),
+        "edits" to kotlinx.serialization.json.JsonArray(
+          listOf(
+            kotlinx.serialization.json.JsonObject(
+              mapOf(
+                "oldString" to JsonPrimitive("hello world"),
+                "newString" to JsonPrimitive("goodbye world"),
+              ),
             ),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+          ),
+        ),
+      ),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.AGENT)
 
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
 
-        @Suppress("UNCHECKED_CAST")
-        val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-        assertEquals(
-            ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"],
-            "edit_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
-        )
-        assertEquals("READ_ONLY", errorMap["toolMode"])
-        assertTrue(
-            ((errorMap["allowedModes"] as List<*>).contains("AGENT")),
-            "Error should list the actually-allowed modes",
-        )
+    @Suppress("UNCHECKED_CAST")
+    val result = toolCallEvent.second["result"] as Map<String, Any>
+    assertNotEquals(
+      (result["error"] as? Map<*, *>)?.get("code"),
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      "AGENT mode must NOT reject edit_file — only the mode gate should not fire, " +
+        "result was: $result"
+    )
+    assertEquals(
+      "goodbye world\n",
+      Files.readString(targetFile),
+      "edit_file should have applied the edit in AGENT mode"
+    )
+  }
 
-        // The whole point of the gate: the file on disk must be byte-for-byte
-        // identical to the original. If this assertion ever fails, we have
-        // a real-world security bug, not just a test problem.
-        assertEquals(originalContent, Files.readString(targetFile), "File must not be modified in READ_ONLY mode")
+  @Test
+  fun `read-only mode still allows read_file`() {
+    // Negative case for the read-only side: read_file / explore_project /
+    // run_cmd are the three tools that should still work. Pin one of them
+    // to make sure the gate is not over-broad.
+    val targetFile: Path = tempProjectRoot.resolve("observable.txt")
+    Files.writeString(targetFile, "inspect me\n")
+
+    val toolCall = ToolCallEntry(
+      callIdentifier = "call_1",
+      functionName = "read_file",
+      functionArguments = mapOf("path" to JsonPrimitive("observable.txt")),
+    )
+    val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
+
+    val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
+      ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
+
+    @Suppress("UNCHECKED_CAST")
+    val result = toolCallEvent.second["result"] as Map<String, Any>
+    assertNotEquals(
+      (result["error"] as? Map<*, *>)?.get("code"),
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      "read_file should be allowed in READ_ONLY mode"
+    )
+  }
+
+  /**
+   * Shared driver: build an Agent with a mocked LLM that emits exactly
+   * one tool call followed by a no-op text chunk (so the agent loop
+   * terminates), and return every event the agent emitted.
+   */
+  private fun runAgentWithToolCall(
+    toolCall: ToolCallEntry,
+    toolMode: ToolMode
+  ): List<Pair<String, Map<String, Any>>> {
+    val events = mutableListOf<Pair<String, Map<String, Any>>>()
+    val mockClient: LlmClient = mockk {
+      every { sendChat(any(), any()) } returns flowOf(
+        LLMResponseChunk.ToolCallBatch(listOf(toolCall)),
+        LLMResponseChunk.TextContent(""),
+      )
+      every { tokenUsage } returns TokenUsageSnapshot()
     }
 
-    @Test
-    fun `read-only mode rejects save_file call and does not touch the file`() {
-        val targetFile: Path = tempProjectRoot.resolve("new-victim.txt")
-        assertFalse(Files.exists(targetFile), "Test precondition: file must not exist before save_file")
-
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "save_file",
-            functionArguments = mapOf(
-                "path" to JsonPrimitive("new-victim.txt"),
-                "content" to JsonPrimitive("HACKED CONTENT"),
-            ),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
-
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
-
-        @Suppress("UNCHECKED_CAST")
-        val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-        assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-        assertFalse(Files.exists(targetFile), "save_file must not create the file in READ_ONLY mode")
-    }
-
-    @Test
-    fun `read-only mode rejects to_do call`() {
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "to_do",
-            functionArguments = mapOf(
-                "tasks" to JsonPrimitive("""["steal data"]"""),
-            ),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
-
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
-
-        @Suppress("UNCHECKED_CAST")
-        val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-        assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-    }
-
-    @Test
-    fun `edit mode rejects to_do call`() {
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "to_do",
-            functionArguments = mapOf(
-                "tasks" to kotlinx.serialization.json.JsonArray(
-                    listOf(JsonPrimitive("step 1"), JsonPrimitive("step 2")),
-                ),
-            ),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.EDIT)
-
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
-
-        @Suppress("UNCHECKED_CAST")
-        val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-        assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-        assertEquals("EDIT", errorMap["toolMode"])
-    }
-
-    @Test
-    fun `agent mode allows edit_file to actually run`() {
-        val targetFile: Path = tempProjectRoot.resolve("legit.txt")
-        Files.writeString(targetFile, "hello world\n")
-
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "edit_file",
-            functionArguments = mapOf(
-                "path" to JsonPrimitive("legit.txt"),
-                "edits" to kotlinx.serialization.json.JsonArray(
-                    listOf(
-                        kotlinx.serialization.json.JsonObject(
-                            mapOf(
-                                "search" to JsonPrimitive("hello world"),
-                                "replace" to JsonPrimitive("goodbye world"),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.AGENT)
-
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
-
-        @Suppress("UNCHECKED_CAST")
-        val result = toolCallEvent.second["result"] as Map<String, Any>
-        assertNotEquals(
-            (result["error"] as? Map<*, *>)?.get("code"),
-            ErrorCode.TOOL_NOT_PERMITTED.name,
-            "AGENT mode must NOT reject edit_file — only the mode gate should not fire, " +
-                "result was: $result"
-        )
-        assertEquals(
-            "goodbye world\n",
-            Files.readString(targetFile),
-            "edit_file should have applied the edit in AGENT mode"
-        )
-    }
-
-    @Test
-    fun `read-only mode still allows read_file`() {
-        // Negative case for the read-only side: read_file / explore_project /
-        // run_cmd are the three tools that should still work. Pin one of them
-        // to make sure the gate is not over-broad.
-        val targetFile: Path = tempProjectRoot.resolve("observable.txt")
-        Files.writeString(targetFile, "inspect me\n")
-
-        val toolCall = ToolCallEntry(
-            callIdentifier = "call_1",
-            functionName = "read_file",
-            functionArguments = mapOf("path" to JsonPrimitive("observable.txt")),
-        )
-        val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
-
-        val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
-            ?: error("Expected a tool_call event, got: ${events.map { it.first }}")
-
-        @Suppress("UNCHECKED_CAST")
-        val result = toolCallEvent.second["result"] as Map<String, Any>
-        assertNotEquals(
-            (result["error"] as? Map<*, *>)?.get("code"),
-            ErrorCode.TOOL_NOT_PERMITTED.name,
-            "read_file should be allowed in READ_ONLY mode"
-        )
-    }
-
-    /**
-     * Shared driver: build an Agent with a mocked LLM that emits exactly
-     * one tool call followed by a no-op text chunk (so the agent loop
-     * terminates), and return every event the agent emitted.
-     */
-    private fun runAgentWithToolCall(
-        toolCall: ToolCallEntry,
-        toolMode: ToolMode
-    ): List<Pair<String, Map<String, Any>>> {
-        val events = mutableListOf<Pair<String, Map<String, Any>>>()
-        val mockClient: LlmClient = mockk {
-            every { sendChat(any(), any()) } returns flowOf(
-                LLMResponseChunk.ToolCallBatch(listOf(toolCall)),
-                LLMResponseChunk.TextContent(""),
-            )
-            every { tokenUsage } returns TokenUsageSnapshot()
-        }
-
-        val agent = Agent(
-            configuration = AgentConfiguration(
-                provider = Provider.OPENAI,
-                toolMode = toolMode,
-                projectRoot = tempProjectRoot.toString(),
-            ),
-            emitEvent = { type, data -> events.add(type to data) },
-            llmClient = mockClient,
-        )
-        agent.executeTask("test prompt")
-        return events
-    }
+    val agent = Agent(
+      configuration = AgentConfiguration(
+        provider = Provider.OPENAI,
+        toolMode = toolMode,
+        projectRoot = tempProjectRoot.toString(),
+      ),
+      emitEvent = { type, data -> events.add(type to data) },
+      llmClient = mockClient,
+    )
+    agent.executeTask("test prompt")
+    return events
+  }
 }

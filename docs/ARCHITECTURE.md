@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.25                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-07-05                                                       |
+| **Last Updated**   | 2026-07-09                                                       |
 
 ---
 
@@ -1668,17 +1668,17 @@ gradum.idea/
 │           ├── GfmMarkdownProcessor.kt       # Custom GFM table parser + renderer
 │           ├── GradumMarkdownTable.kt        # GFM table parser internals (splitMarkdownAtTables)
 │           ├── ScrollableTable.kt            # GFM table render + horizontal scrollbar
-│           └── skill/                        # Per-skill tool-call renderers (one folder per server alias)
-│               ├── spi/                      #   SPI: ToolCallRenderer + Registry + Content + Action + Context
-│               ├── internal/                 #   Shared capsule + action button helpers
-│               ├── ran/                      #   RanRenderer
-│               ├── edited/                   #   EditedRenderer
-│               ├── read/                     #   ReadRenderer
-│               ├── saved/                    #   SavedRenderer
-│               ├── explored/                 #   ExploredRenderer
-│               ├── planned/                  #   PlannedRenderer
-│               ├── completed/                #   CompletedRenderer
-│               └── default/                  #   DefaultRenderer (alias "*")
+│           └── skill/                        # Per-skill tool-call renderers (one file per server alias)
+│               ├── spi/                      #   SPI: ToolCallRenderer, ToolCallRendererRegistry, ToolCallContent, ToolCallAction, ToolCallRenderContext, ResultParser
+│               ├── internal/                 #   Shared capsule (ToolCallCapsule) + action buttons (OpenInEditorButton, ViewDiffButton)
+│               ├── RanRenderer.kt            #   "Ran"      — server skill `run_cmd`
+│               ├── EditedRenderer.kt         #   "Edited"   — server skill `edit_file`
+│               ├── ReadRenderer.kt           #   "Read"     — server skill `read_file`
+│               ├── SavedRenderer.kt          #   "Saved"    — server skill `save_file`
+│               ├── ExploredRenderer.kt       #   "Explored" — server skill `explore_project`
+│               ├── PlannedRenderer.kt        #   "Planned"  — server skill `to_do` (add)
+│               ├── CompletedRenderer.kt      #   "Completed"— server skill `to_do` (done)
+│               └── DefaultRenderer.kt        #   "*"         — wildcard catch-all (any unrecognised alias)
 ├── editor/
 │   ├── EditorContext.kt              # Editor state (attachments, pending)
 │   ├── AttachedFile.kt               # File attachment model

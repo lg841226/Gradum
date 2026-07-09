@@ -7,14 +7,10 @@
 
 package gradum.idea.chat.ui.chat.skill.spi
 
-import gradum.idea.chat.ui.chat.skill.CompletedRenderer
-import gradum.idea.chat.ui.chat.skill.DefaultRenderer
-import gradum.idea.chat.ui.chat.skill.EditedRenderer
-import gradum.idea.chat.ui.chat.skill.ExploredRenderer
-import gradum.idea.chat.ui.chat.skill.PlannedRenderer
-import gradum.idea.chat.ui.chat.skill.RanRenderer
-import gradum.idea.chat.ui.chat.skill.ReadRenderer
-import gradum.idea.chat.ui.chat.skill.SavedRenderer
+import gradum.idea.chat.ui.chat.skill.*
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.DEFAULT_ALIAS
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.RENDERERS
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find
 
 /**
  * In-process registry of [ToolCallRenderer]s. The Gradum chat panel
@@ -48,56 +44,56 @@ import gradum.idea.chat.ui.chat.skill.SavedRenderer
  */
 object ToolCallRendererRegistry {
 
-    /**
-     * The exhaustive list of renderers the chat panel will consult.
-     *
-     * To add a new tool-call row, append a new `Renderer()` instance
-     * here and place the file at
-     * `chat/ui/chat/skill/<Alias>Renderer.kt`. See
-     * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
-     */
-    private val RENDERERS: List<ToolCallRenderer> = listOf(
-        // Skill-specific renderers. One per server-side `Skill.alias`
-        // the Gradum plugin can emit. Order does not matter between
-        // specific-alias entries; the wildcard `*` entry must be
-        // last because it is the catch-all.
-        RanRenderer(),
-        EditedRenderer(),
-        ReadRenderer(),
-        SavedRenderer(),
-        ExploredRenderer(),
-        PlannedRenderer(),
-        CompletedRenderer(),
+  /**
+   * The exhaustive list of renderers the chat panel will consult.
+   *
+   * To add a new tool-call row, append a new `Renderer()` instance
+   * here and place the file at
+   * `chat/ui/chat/skill/<Alias>Renderer.kt`. See
+   * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
+   */
+  private val RENDERERS: List<ToolCallRenderer> = listOf(
+    // Skill-specific renderers. One per server-side `Skill.alias`
+    // the Gradum plugin can emit. Order does not matter between
+    // specific-alias entries; the wildcard `*` entry must be
+    // last because it is the catch-all.
+    RanRenderer(),
+    EditedRenderer(),
+    ReadRenderer(),
+    SavedRenderer(),
+    ExploredRenderer(),
+    PlannedRenderer(),
+    CompletedRenderer(),
 
-        // Catch-all. Must use the literal alias "*" and be the
-        // last entry in this list — it handles every alias that
-        // has no specific renderer registered.
-        DefaultRenderer()
-    )
+    // Catch-all. Must use the literal alias "*" and be the
+    // last entry in this list — it handles every alias that
+    // has no specific renderer registered.
+    DefaultRenderer()
+  )
 
-    /**
-     * The alias reserved for the wildcard catch-all renderer.
-     * Lookups that miss every specific renderer fall back to the
-     * renderer whose [ToolCallRenderer.alias] returns this value.
-     */
-    const val DEFAULT_ALIAS: String = "*"
+  /**
+   * The alias reserved for the wildcard catch-all renderer.
+   * Lookups that miss every specific renderer fall back to the
+   * renderer whose [ToolCallRenderer.alias] returns this value.
+   */
+  const val DEFAULT_ALIAS: String = "*"
 
-    /**
-     * Look up the renderer registered for [aliasName]. Falls back
-     * to the renderer registered for [DEFAULT_ALIAS] (the
-     * catch-all) when no specific renderer matches.
-     *
-     * Returns `null` only if [RENDERERS] is empty AND no default
-     * renderer is registered. In a normal Gradum build this is
-     * unreachable because [DefaultRenderer] is always present.
-     */
-    fun find(aliasName: String): ToolCallRenderer? {
-        var fallbackRenderer: ToolCallRenderer? = null
-        for (currentRenderer in RENDERERS) {
-            val rendererAlias: String = currentRenderer.alias()
-            if (rendererAlias == aliasName) return currentRenderer
-            if (rendererAlias == DEFAULT_ALIAS) fallbackRenderer = currentRenderer
-        }
-        return fallbackRenderer
+  /**
+   * Look up the renderer registered for [aliasName]. Falls back
+   * to the renderer registered for [DEFAULT_ALIAS] (the
+   * catch-all) when no specific renderer matches.
+   *
+   * Returns `null` only if [RENDERERS] is empty AND no default
+   * renderer is registered. In a normal Gradum build this is
+   * unreachable because [DefaultRenderer] is always present.
+   */
+  fun find(aliasName: String): ToolCallRenderer? {
+    var fallbackRenderer: ToolCallRenderer? = null
+    for (currentRenderer in RENDERERS) {
+      val rendererAlias: String = currentRenderer.alias()
+      if (rendererAlias == aliasName) return currentRenderer
+      if (rendererAlias == DEFAULT_ALIAS) fallbackRenderer = currentRenderer
     }
+    return fallbackRenderer
+  }
 }

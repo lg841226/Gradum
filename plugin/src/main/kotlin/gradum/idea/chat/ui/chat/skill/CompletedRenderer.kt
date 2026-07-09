@@ -26,38 +26,38 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 class CompletedRenderer : ToolCallRenderer {
 
-    override fun alias(): String = ALIAS
+  override fun alias(): String = ALIAS
 
-    override fun iconKey(): IconKey = AllIconsKeys.Actions.Checked
+  override fun iconKey(): IconKey = AllIconsKeys.Actions.Checked
 
-    override fun labelKey(): String = LABEL_KEY
+  override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val taskName: String = (arguments["task"] as? String)
-            ?: (result["task"] as? String)
-            ?: (arguments["content"] as? String)
-            ?: ""
-        return ToolCallContent(
-            aliasName = ALIAS,
-            fieldMap = mapOf("task" to taskName)
-        )
-    }
+  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
+    val taskName: String = (arguments["task"] as? String)
+      ?: (result["task"] as? String)
+      ?: (arguments["content"] as? String)
+      ?: ""
+    return ToolCallContent(
+      aliasName = ALIAS,
+      fieldMap = mapOf("task" to taskName)
+    )
+  }
 
-    @Composable
-    override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val taskName: String = (content.fieldMap["task"] as? String).orEmpty()
-        ToolCallCapsule(
-            success = !ctx.isError,
-            errorDetail = ctx.errorDetail.orEmpty(),
-            trailingText = taskName,
-            errorMessage = ctx.errorDetail.orEmpty(),
-            label = message(LABEL_KEY),
-            iconKey = AllIconsKeys.Actions.Checked
-        )
-    }
+  @Composable
+  override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
+    val taskName: String = (content.fieldMap["task"] as? String).orEmpty()
+    ToolCallCapsule(
+      success = !ctx.isError,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      trailingText = taskName,
+      errorMessage = ctx.errorDetail.orEmpty(),
+      label = message(LABEL_KEY),
+      iconKey = AllIconsKeys.Actions.Checked
+    )
+  }
 
-    companion object {
-        const val ALIAS: String = "Completed"
-        const val LABEL_KEY: String = "gradum.tool.completed"
-    }
+  companion object {
+    const val ALIAS: String = "Completed"
+    const val LABEL_KEY: String = "gradum.tool.completed"
+  }
 }

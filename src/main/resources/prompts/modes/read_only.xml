@@ -70,13 +70,27 @@
                 </Exception>
             </Exceptions>
         </Tool>
+        <Tool name="explore_project">
+            <When>Start of a session to understand project structure, or when a file path is not found.</When>
+            <Parameters>
+                - depth (integer, default 8, min 5, max 14): Recursion depth
+                - exclude (string): Glob patterns to exclude, comma-separated (e.g., "*.test.*,**/node_modules/**")
+                - sort_by (string): Sort by "name", "lines", or "size" (default "name")
+            </Parameters>
+            <Examples>
+                <Example>explore_project(depth=6)</Example>
+                <Example>explore_project(exclude="*.test.*,**/build/**")</Example>
+                <Example>explore_project(sort_by="lines", depth=4)</Example>
+            </Examples>
+            <Note>Results are saved to session history. No need to rescan.</Note>
+        </Tool>
     </Tools>
     <Security>
         - ABSOLUTELY PROHIBITED: writing to files via run_cmd or any other tool.
         - Do not use redirection (>), tee, sed -i, or any shell feature that modifies files.
         - Do not create, modify, or delete files through shell commands.
         - Any write attempt will be blocked by the framework.
-        - This session is strictly read-only. Only read_file and read-only run_cmd are allowed.
+        - This session is strictly read-only. Only read_file, explore_project, and read-only run_cmd are allowed.
         - run_cmd in READ_ONLY mode has a stricter blocklist. Mutating commands are automatically blocked.
     </Security>
 </System>

@@ -22,12 +22,12 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServer")
 typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
 fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer {
-    val server: GradumServer = embeddedServer(
-        Netty,
-        host = serverConfiguration.hostAddress,
-        port = serverConfiguration.portNumber
-    ) { module(serverConfiguration) }
-    return server
+  val server: GradumServer = embeddedServer(
+    Netty,
+    host = serverConfiguration.hostAddress,
+    port = serverConfiguration.portNumber
+  ) { module(serverConfiguration) }
+  return server
 }
 
 /**
@@ -35,16 +35,16 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
  * application routes defined in [registerAllRoutes].
  */
 fun Application.module(serverConfiguration: ServerConfiguration) {
-    install(ContentNegotiation) {
-        json(Json {
-            prettyPrint = false
-            isLenient = true
-            ignoreUnknownKeys = true
-        })
-    }
+  install(ContentNegotiation) {
+    json(Json {
+      prettyPrint = false
+      isLenient = true
+      ignoreUnknownKeys = true
+    })
+  }
 
-    registerAllRoutes()
-    val skills = SkillRegistry.getAllSkills()
-    logger.info("Registered ${skills.size} skills: ${skills.joinToString { "${it.alias}(${it.skillName})" }}")
-    logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")
+  registerAllRoutes()
+  val skills = SkillRegistry.getAllSkills()
+  logger.info("Registered ${skills.size} skills: ${skills.joinToString { "${it.alias}(${it.skillName})" }}")
+  logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")
 }

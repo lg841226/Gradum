@@ -91,5 +91,17 @@
                       run_cmd(command="python server.py", reason="start dev server", detached=true)
             <!-- endif -->
             Errors: COMMAND_BLOCKED, TIMEOUT, NON_ZERO_EXIT
+
+        explore_project: View project structure and basic info. Use when a file path is not found.
+            Parameters:
+              - depth (integer, default 8, min 5, max 14): Recursion depth
+              - exclude (string): Glob patterns to exclude, comma-separated (e.g., "*.test.*,**/node_modules/**")
+              - sort_by (string): Sort by "name", "lines", or "size" (default "name")
+            Returns: project_root, depth, total_size, config_files, code_files (nested tree with line counts), other_files.
+            Note: Results are saved to session history. No need to rescan.
+            Examples:
+              - explore_project(depth=6)
+              - explore_project(exclude="*.test.*,**/build/**")
+              - explore_project(sort_by="lines", depth=4)
     </Tools>
 </System>

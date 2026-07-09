@@ -33,41 +33,41 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 class DefaultRenderer : ToolCallRenderer {
 
-    override fun alias(): String = WILDCARD_ALIAS
+  override fun alias(): String = WILDCARD_ALIAS
 
-    override fun iconKey(): IconKey = AllIconsKeys.Nodes.Plugin
+  override fun iconKey(): IconKey = AllIconsKeys.Nodes.Plugin
 
-    override fun labelKey(): String? = null
+  override fun labelKey(): String? = null
 
-    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val aliasName: String = (arguments["alias"] as? String)
-            ?: (result["alias"] as? String)
-            ?: WILDCARD_ALIAS
-        return ToolCallContent(
-            aliasName = aliasName,
-            fieldMap = emptyMap()
-        )
-    }
+  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
+    val aliasName: String = (arguments["alias"] as? String)
+      ?: (result["alias"] as? String)
+      ?: WILDCARD_ALIAS
+    return ToolCallContent(
+      aliasName = aliasName,
+      fieldMap = emptyMap()
+    )
+  }
 
-    @Composable
-    override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        ToolCallCapsule(
-            success = !ctx.isError,
-            modifier = Modifier,
-            errorDetail = ctx.errorDetail.orEmpty(),
-            errorMessage = ctx.errorDetail.orEmpty(),
-            iconKey = AllIconsKeys.Nodes.Plugin,
-            label = content.aliasName
-        )
-    }
+  @Composable
+  override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
+    ToolCallCapsule(
+      success = !ctx.isError,
+      modifier = Modifier,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty(),
+      iconKey = AllIconsKeys.Nodes.Plugin,
+      label = content.aliasName
+    )
+  }
 
-    companion object {
-        /**
-         * Wildcard alias matched by the registry's
-         * "no dedicated renderer" fallback. Documented so a
-         * third-party plugin author who is *also* implementing
-         * a catch-all can target the same constant.
-         */
-        const val WILDCARD_ALIAS: String = "*"
-    }
+  companion object {
+    /**
+     * Wildcard alias matched by the registry's
+     * "no dedicated renderer" fallback. Documented so a
+     * third-party plugin author who is *also* implementing
+     * a catch-all can target the same constant.
+     */
+    const val WILDCARD_ALIAS: String = "*"
+  }
 }

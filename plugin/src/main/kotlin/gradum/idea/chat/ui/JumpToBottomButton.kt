@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-08 23:10:38 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-09 19:44:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -70,56 +70,51 @@ const val DURATION_MILLIS: Int = 120
  */
 @Composable
 fun JumpToBottomButton(
-    isVisible: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+  isVisible: Boolean,
+  enabled: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier
 ) {
-    AnimatedVisibility(
-        modifier = modifier,
-        visible = isVisible,
-        enter = fadeIn(animationSpec = tween(DURATION_MILLIS)),
-        exit = fadeOut(animationSpec = tween(DURATION_MILLIS))
-    ) {
-        val buttonText: String = message("gradum.jump.to.latest")
-        val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
-        // Hover lift: at rest the pill is 90% opaque so the chat
-        // surface shows through; on hover it tweens to fully opaque
-        // (alpha 1f) over [DURATION_MILLIS], giving a quick "this
-        // thing reacts to me" confirmation without changing the
-        // shape or position.
-        val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
-        val backgroundAlpha: Float by animateFloatAsState(
-            targetValue = if (isHovered) 1f else 0.9f,
-            animationSpec = tween(durationMillis = 200),
-            label = "JumpToBottomButton.HoverAlpha"
+  AnimatedVisibility(
+    modifier = modifier,
+    visible = isVisible,
+    enter = fadeIn(animationSpec = tween(DURATION_MILLIS)),
+    exit = fadeOut(animationSpec = tween(DURATION_MILLIS))
+  ) {
+    val buttonText: String = message("gradum.jump.to.latest")
+    val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+    val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
+    val backgroundAlpha: Float by animateFloatAsState(
+      targetValue = if (isHovered) 1f else 0.8f,
+      animationSpec = tween(durationMillis = 200),
+      label = "JumpToBottomButton.HoverAlpha"
+    )
+    Row(
+      modifier = Modifier
+        .clip(RoundedCornerShape(percent = 50))
+        .background(globalColors.borders.normal.copy(alpha = backgroundAlpha))
+        .clickable(
+          indication = null,
+          enabled = enabled,
+          onClick = onClick,
+          interactionSource = interactionSource
         )
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(percent = 50))
-                .background(globalColors.borders.normal.copy(alpha = backgroundAlpha))
-                .clickable(
-                    indication = null,
-                    enabled = enabled,
-                    onClick = onClick,
-                    interactionSource = interactionSource
-                )
-                .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-                .padding(
-                    horizontal = GradumSpacing.lg,
-                    vertical = GradumSpacing.md
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-        ) {
-            Icon(
-                key = GradumIcons.ScrollDown,
-                contentDescription = buttonText
-            )
-            Text(
-                text = buttonText,
-                style = JewelTheme.typography.regular
-            )
-        }
+        .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
+        .padding(
+          horizontal = GradumSpacing.lg,
+          vertical = GradumSpacing.md
+        ),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Icon(
+        key = GradumIcons.ScrollDown,
+        contentDescription = buttonText
+      )
+      Text(
+        text = buttonText,
+        style = JewelTheme.typography.regular
+      )
     }
+  }
 }

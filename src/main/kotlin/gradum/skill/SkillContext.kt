@@ -30,8 +30,8 @@ import gradum.ToolMode
  * @param modelName Model name for capability inference.
  */
 data class SkillContext(
-    val toolMode: ToolMode,
-    val projectRoot: String,
-    val provider: Provider = Provider.OLLAMA,
-    val modelName: String = "",
+  val toolMode: ToolMode,
+  val projectRoot: String,
+  val provider: Provider = Provider.OLLAMA,
+  val modelName: String = "",
 )

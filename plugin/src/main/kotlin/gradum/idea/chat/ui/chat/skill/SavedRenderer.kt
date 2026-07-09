@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SavedRenderer.kt  2026-07-09 18:30:00 Changed by gwy
+ * SavedRenderer.kt  2026-07-09 18:40:20 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -30,56 +30,58 @@ import org.jetbrains.jewel.ui.icon.IconKey
  */
 class SavedRenderer : ToolCallRenderer {
 
-    override fun alias(): String = ALIAS
+  override fun alias(): String = ALIAS
 
-    override fun iconKey(): IconKey = GradumIcons.Save
+  override fun iconKey(): IconKey = GradumIcons.Save
 
-    override fun labelKey(): String = LABEL_KEY
+  override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val filePath: String = (arguments["path"] as? String).orEmpty()
-        val sizeBytes: Long = (result["sizeBytes"] as? Number)?.toLong() ?: 0L
-        val actionList: MutableList<ToolCallAction> = mutableListOf()
-        if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
+  override fun parseContent(
+    arguments: Map<String, Any?>, result: Map<String, Any?>
+  ): ToolCallContent {
+    val filePath: String = (arguments["path"] as? String).orEmpty()
+    val sizeBytes: Long = (result["sizeBytes"] as? Number)?.toLong() ?: 0L
+    val actionList: MutableList<ToolCallAction> = mutableListOf()
+    if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
 
-        return ToolCallContent(
-            aliasName = ALIAS,
-            fieldMap = mapOf(
-                "filePath" to filePath,
-                "sizeBytes" to sizeBytes
-            ),
-            actionList = actionList
+    return ToolCallContent(
+      aliasName = ALIAS,
+      fieldMap = mapOf(
+        "filePath" to filePath,
+        "sizeBytes" to sizeBytes
+      ),
+      actionList = actionList
+    )
+  }
+
+  @Composable
+  override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
+    val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
+    val sizeBytes: Long = (content.fieldMap["sizeBytes"] as? Number)?.toLong() ?: 0L
+    val fileName: String = filePath.substringAfterLast('/')
+    val sizeText: String? = if (sizeBytes > 0L) formatBytes(sizeBytes) else null
+    val displayText: String = if (sizeText != null) "$fileName $sizeText" else fileName
+
+    ToolCallCapsule(
+      iconKey = GradumIcons.Save,
+      success = !ctx.isError,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      trailingText = displayText,
+      errorMessage = ctx.errorDetail.orEmpty(),
+      label = message(LABEL_KEY),
+      trailingIcon = {
+        OpenInEditorButton(
+          filePath = filePath,
+          onClick = {
+            ctx.onOpenInEditor?.invoke(filePath, 0, 0)
+          }
         )
-    }
+      }
+    )
+  }
 
-    @Composable
-    override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
-        val sizeBytes: Long = (content.fieldMap["sizeBytes"] as? Number)?.toLong() ?: 0L
-        val fileName: String = filePath.substringAfterLast('/')
-        val sizeText: String? = if (sizeBytes > 0L) formatBytes(sizeBytes) else null
-        val displayText: String = if (sizeText != null) "$fileName $sizeText" else fileName
-
-        ToolCallCapsule(
-            iconKey = GradumIcons.Save,
-            success = !ctx.isError,
-            errorDetail = ctx.errorDetail.orEmpty(),
-            trailingText = displayText,
-            errorMessage = ctx.errorDetail.orEmpty(),
-            label = message(LABEL_KEY),
-            trailingIcon = {
-                OpenInEditorButton(
-                    filePath = filePath,
-                    onClick = {
-                        ctx.onOpenInEditor?.invoke(filePath, 0, 0)
-                    }
-                )
-            }
-        )
-    }
-
-    companion object {
-        const val ALIAS: String = "Saved"
-        const val LABEL_KEY: String = "gradum.tool.saved"
-    }
+  companion object {
+    const val ALIAS: String = "Saved"
+    const val LABEL_KEY: String = "gradum.tool.saved"
+  }
 }

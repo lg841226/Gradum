@@ -40,40 +40,40 @@ import org.jetbrains.jewel.ui.icon.IconKey
  */
 interface ToolCallRenderer {
 
-    /**
-     * Server-side skill alias this renderer handles. Multiple
-     * renderers for the same alias are unsupported — the registry
-     * uses first-registered wins.
-     */
-    fun alias(): String
+  /**
+   * Server-side skill alias this renderer handles. Multiple
+   * renderers for the same alias are unsupported — the registry
+   * uses first-registered wins.
+   */
+  fun alias(): String
 
-    /**
-     * Convert the server `arguments` + `result` JSON into a
-     * [ToolCallContent]. Returning an empty / minimal content is
-     * valid; the registry will not retry with a different renderer.
-     */
-    fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent
+  /**
+   * Convert the server `arguments` + `result` JSON into a
+   * [ToolCallContent]. Returning an empty / minimal content is
+   * valid; the registry will not retry with a different renderer.
+   */
+  fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent
 
-    /**
-     * Icon key for the row's status indicator. Default returns
-     * `null`, which lets the chat UI pick a generic `Nodes.Plugin`
-     * icon.
-     */
-    fun iconKey(): IconKey? = null
+  /**
+   * Icon key for the row's status indicator. Default returns
+   * `null`, which lets the chat UI pick a generic `Nodes.Plugin`
+   * icon.
+   */
+  fun iconKey(): IconKey? = null
 
-    /**
-     * Gradum resource-bundle key for the localised label (e.g.
-     * `"gradum.tool.ran"`). Default returns `null`, in which case
-     * the chat UI falls back to the literal alias string.
-     */
-    fun labelKey(): String? = null
+  /**
+   * Gradum resource-bundle key for the localised label (e.g.
+   * `"gradum.tool.ran"`). Default returns `null`, in which case
+   * the chat UI falls back to the literal alias string.
+   */
+  fun labelKey(): String? = null
 
-    /**
-     * Compose the actual row. Receives the parsed [content]
-     * (output of [parseContent]) and a [ctx] giving access to the
-     * active IDE project and the chat-level "open in editor" /
-     * "view diff" / "copy" callbacks.
-     */
-    @Composable
-    fun render(content: ToolCallContent, ctx: ToolCallRenderContext)
+  /**
+   * Compose the actual row. Receives the parsed [content]
+   * (output of [parseContent]) and a [ctx] giving access to the
+   * active IDE project and the chat-level "open in editor" /
+   * "view diff" / "copy" callbacks.
+   */
+  @Composable
+  fun render(content: ToolCallContent, ctx: ToolCallRenderContext)
 }

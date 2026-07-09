@@ -54,81 +54,81 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  */
 @Composable
 fun ThinkingIndicator(
-    thinking: String,
-    modifier: Modifier = Modifier,
-    enterTransition: EnterTransition = fadeIn(tween(800)),
-    isTaskComplete: Boolean = false,
-    onUrlClick: (String) -> Unit = {}
+  thinking: String,
+  modifier: Modifier = Modifier,
+  enterTransition: EnterTransition = fadeIn(tween(800)),
+  isTaskComplete: Boolean = false,
+  onUrlClick: (String) -> Unit = {}
 ) {
-    if (thinking.isBlank()) return
+  if (thinking.isBlank()) return
 
-    var isExpanded by remember { mutableStateOf(true) }
+  var isExpanded by remember { mutableStateOf(true) }
 
-    LaunchedEffect(isTaskComplete) {
-        if (isTaskComplete) isExpanded = false
+  LaunchedEffect(isTaskComplete) {
+    if (isTaskComplete) isExpanded = false
+  }
+
+  val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
+  val simplifiedCodeRenderer = remember(thinkingStyling) {
+    // Use `DefaultMarkdownBlockRenderer` for everything that
+    // [GradumCodeBlockRenderer] doesn't override so the parent's
+    // table-of-contents renderer, blockquote, etc. all keep
+    // working. Only the fenced-code-block override flips into
+    // `isSimplified = true` to drop the toolbar.
+    GradumCodeBlockRenderer(styling = thinkingStyling, isSimplified = true)
+  }
+
+  Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+      modifier = Modifier.clickable { isExpanded = !isExpanded },
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Icon(
+        contentDescription = null,
+        key = AllIconsKeys.Nodes.Related
+      )
+      Text(
+        fontWeight = FontWeight.Medium,
+        text = message("gradum.thinking"),
+      )
+      Icon(
+        key = if (isExpanded) AllIconsKeys.General.ChevronDown
+        else AllIconsKeys.General.ChevronRight,
+        contentDescription = null
+      )
     }
 
-    val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
-    val simplifiedCodeRenderer = remember(thinkingStyling) {
-        // Use `DefaultMarkdownBlockRenderer` for everything that
-        // [GradumCodeBlockRenderer] doesn't override so the parent's
-        // table-of-contents renderer, blockquote, etc. all keep
-        // working. Only the fenced-code-block override flips into
-        // `isSimplified = true` to drop the toolbar.
-        GradumCodeBlockRenderer(styling = thinkingStyling, isSimplified = true)
+    if (isExpanded) {
+      Spacer(modifier = Modifier.height(GradumSpacing.md))
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.clickable { isExpanded = !isExpanded },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-        ) {
-            Icon(
-                contentDescription = null,
-                key = AllIconsKeys.Nodes.Related
-            )
-            Text(
-                fontWeight = FontWeight.Medium,
-                text = message("gradum.thinking"),
-            )
-            Icon(
-                key = if (isExpanded) AllIconsKeys.General.ChevronDown
-                else AllIconsKeys.General.ChevronRight,
-                contentDescription = null
-            )
-        }
+    AnimatedVisibility(visible = isExpanded) {
+      val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
+      CompositionLocalProvider(LocalContentColor provides thinkingColor) {
+        CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
+          val segments = remember(thinking) { splitMarkdownAtTables(thinking) }
+          Column {
+            segments.forEach { segment ->
+              when (segment) {
+                is MarkdownSegment.Plain -> Markdown(
+                  markdown = segment.text,
+                  onUrlClick = onUrlClick,
+                  modifier = Modifier.fillMaxWidth(),
+                  markdownStyling = thinkingStyling,
+                  blockRenderer = simplifiedCodeRenderer,
+                )
 
-        if (isExpanded) {
-            Spacer(modifier = Modifier.height(GradumSpacing.md))
-        }
-
-        AnimatedVisibility(visible = isExpanded) {
-            val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
-            CompositionLocalProvider(LocalContentColor provides thinkingColor) {
-                CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
-                    val segments = remember(thinking) { splitMarkdownAtTables(thinking) }
-                    Column {
-                        segments.forEach { segment ->
-                            when (segment) {
-                                is MarkdownSegment.Plain -> Markdown(
-                                    markdown = segment.text,
-                                    onUrlClick = onUrlClick,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    markdownStyling = thinkingStyling,
-                                    blockRenderer = simplifiedCodeRenderer,
-                                )
-
-                                is MarkdownSegment.Table -> {
-                                    if (segment.isRenderable()) {
-                                        ScrollableTable(segment, isSimplified = true)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                is MarkdownSegment.Table -> {
+                  if (segment.isRenderable()) {
+                    ScrollableTable(segment, isSimplified = true)
+                  }
                 }
+              }
             }
+          }
         }
+      }
     }
+  }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RanRenderer.kt  2026-07-09 18:30:00 Changed by gwy
+ * RanRenderer.kt  2026-07-09 18:39:32 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -33,52 +33,54 @@ import org.jetbrains.jewel.ui.icon.IconKey
  */
 class RanRenderer : ToolCallRenderer {
 
-    override fun alias(): String = ALIAS
+  override fun alias(): String = ALIAS
 
-    override fun iconKey(): IconKey = GradumIcons.Ran
+  override fun iconKey(): IconKey = GradumIcons.Ran
 
-    override fun labelKey(): String = LABEL_KEY
+  override fun labelKey(): String = LABEL_KEY
 
-    override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-        val shellCommand: String = (arguments["command"] as? String).orEmpty()
-        val reasonText: String = (arguments["reason"] as? String).orEmpty()
-        val actionList: MutableList<ToolCallAction> = mutableListOf()
-        if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
+  override fun parseContent(
+    arguments: Map<String, Any?>, result: Map<String, Any?>
+  ): ToolCallContent {
+    val shellCommand: String = (arguments["command"] as? String).orEmpty()
+    val reasonText: String = (arguments["reason"] as? String).orEmpty()
+    val actionList: MutableList<ToolCallAction> = mutableListOf()
+    if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 
-        return ToolCallContent(
-            aliasName = ALIAS,
-            fieldMap = mapOf(
-                "command" to shellCommand,
-                "reason" to reasonText
-            ),
-            actionList = actionList
+    return ToolCallContent(
+      aliasName = ALIAS,
+      fieldMap = mapOf(
+        "command" to shellCommand,
+        "reason" to reasonText
+      ),
+      actionList = actionList
+    )
+  }
+
+  @Composable
+  override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
+    val shellCommand: String = (content.fieldMap["command"] as? String).orEmpty()
+    val reasonText: String = (content.fieldMap["reason"] as? String).orEmpty()
+    ToolCallCapsule(
+      success = !ctx.isError,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty(),
+      trailingText = reasonText,
+      iconKey = GradumIcons.Ran,
+      label = message(LABEL_KEY),
+      trailingIcon = {
+        OpenInEditorButton(
+          filePath = shellCommand,
+          onClick = {
+            ctx.onOpenInEditor?.invoke(shellCommand, 0, 0)
+          }
         )
-    }
+      }
+    )
+  }
 
-    @Composable
-    override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-        val shellCommand: String = (content.fieldMap["command"] as? String).orEmpty()
-        val reasonText: String = (content.fieldMap["reason"] as? String).orEmpty()
-        ToolCallCapsule(
-            success = !ctx.isError,
-            errorDetail = ctx.errorDetail.orEmpty(),
-            errorMessage = ctx.errorDetail.orEmpty(),
-            trailingText = reasonText,
-            iconKey = GradumIcons.Ran,
-            label = message(LABEL_KEY),
-            trailingIcon = {
-                OpenInEditorButton(
-                    filePath = shellCommand,
-                    onClick = {
-                        ctx.onOpenInEditor?.invoke(shellCommand, 0, 0)
-                    }
-                )
-            }
-        )
-    }
-
-    companion object {
-        const val ALIAS: String = "Ran"
-        const val LABEL_KEY: String = "gradum.tool.ran"
-    }
+  companion object {
+    const val ALIAS: String = "Ran"
+    const val LABEL_KEY: String = "gradum.tool.ran"
+  }
 }

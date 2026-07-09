@@ -20,29 +20,29 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OpenInEditorButton(
-    filePath: String,
-    startLine: Int? = null,
-    endLine: Int? = null,
-    onClick: () -> Unit
+  filePath: String,
+  startLine: Int? = null,
+  endLine: Int? = null,
+  onClick: () -> Unit
 ) {
-    if (filePath.isNotBlank()) {
-        Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
-            Icon(
-                contentDescription = null,
-                key = AllIconsKeys.General.Export,
-                modifier = Modifier.clickable { onClick() }
-            )
-        }
+  if (filePath.isNotBlank()) {
+    Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
+      Icon(
+        contentDescription = null,
+        key = AllIconsKeys.General.Export,
+        modifier = Modifier.clickable { onClick() }
+      )
     }
+  }
 }
 
 @Composable
 internal fun ViewDiffButton(onClick: () -> Unit) {
-    Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
-        Icon(
-            contentDescription = null,
-            key = AllIconsKeys.Actions.Diff,
-            modifier = Modifier.clickable { onClick() }
-        )
-    }
+  Tooltip(tooltip = { Text(text = message("gradum.tool.view.diff")) }) {
+    Icon(
+      contentDescription = null,
+      key = AllIconsKeys.Actions.Diff,
+      modifier = Modifier.clickable { onClick() }
+    )
+  }
 }

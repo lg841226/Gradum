@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputSection.kt  2026-07-03 00:17:31 Changed by gwy
+ * ChatInputSection.kt  2026-07-09 19:19:21 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -27,27 +27,27 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
  */
 @Composable
 fun ChatInputSection(
-    state: ChatInputState,
-    actions: ChatInputActions,
-    textState: TextFieldState,
-    modifier: Modifier = Modifier
+  state: ChatInputState,
+  actions: ChatInputActions,
+  textState: TextFieldState,
+  modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
-        ChatInputPanel(
-            state = state,
-            actions = actions,
-            roundedCornerShape = RoundedCornerShape(6.dp),
-            textState = textState
-        )
-        Spacer(modifier = Modifier.height(GradumSpacing.sml))
-        ModelSelectorBar(
-            models = state.models,
-            selectedModel = state.selectedModel,
-            pinnedModels = state.pinnedModels,
-            isAutoSelected = state.isAutoSelected,
-            onSelectModel = actions.onSelectModel,
-            onTogglePin = actions.onTogglePin,
-            onSelectAuto = actions.onSelectAuto
-        )
-    }
+  Column(modifier = modifier) {
+    ChatInputPanel(
+      state = state,
+      actions = actions,
+      roundedCornerShape = RoundedCornerShape(6.dp),
+      textState = textState
+    )
+    Spacer(modifier = Modifier.height(GradumSpacing.sml))
+    ModelSelectorBar(
+      selectedModel = state.selectedModel,
+      isAutoSelected = state.isAutoSelected,
+      models = state.models,
+      pinnedModels = state.pinnedModels,
+      onSelectAuto = actions.onSelectAuto,
+      onTogglePin = actions.onTogglePin,
+      onSelectModel = actions.onSelectModel
+    )
+  }
 }

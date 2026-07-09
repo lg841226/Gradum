@@ -18,132 +18,132 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 data class EditorContext(
-    val currentFile: VirtualFile?,
-    val allOpenFiles: List<VirtualFile>,
-    val projectDir: VirtualFile?
+  val currentFile: VirtualFile?,
+  val allOpenFiles: List<VirtualFile>,
+  val projectDir: VirtualFile?
 ) {
-    companion object {
-        val EMPTY = EditorContext(null, emptyList(), null)
-    }
+  companion object {
+    val EMPTY = EditorContext(null, emptyList(), null)
+  }
 }
 
 fun getLanguageIconKey(extension: String?): IconKey? {
-    return when (extension?.lowercase()) {
-        "java" -> AllIconsKeys.FileTypes.Java
-        "js" -> AllIconsKeys.FileTypes.JavaScript
-        "jsx" -> GradumIcons.Jsx
-        "ts" -> GradumIcons.TypeScript
-        "tsx" -> GradumIcons.Tsx
-        "html" -> AllIconsKeys.FileTypes.Html
-        "css" -> AllIconsKeys.FileTypes.Css
-        "xml" -> AllIconsKeys.FileTypes.Xml
-        "json" -> AllIconsKeys.FileTypes.Json
-        "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
-        "txt" -> AllIconsKeys.FileTypes.Text
-        "md" -> GradumIcons.Markdown
-        "kt", "kts" -> GradumIcons.Kotlin
-        "py" -> GradumIcons.Python
-        "http" -> AllIconsKeys.FileTypes.Http
-        "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
-        else -> AllIconsKeys.FileTypes.Text
-    }
+  return when (extension?.lowercase()) {
+    "java" -> AllIconsKeys.FileTypes.Java
+    "js" -> AllIconsKeys.FileTypes.JavaScript
+    "jsx" -> GradumIcons.Jsx
+    "ts" -> GradumIcons.TypeScript
+    "tsx" -> GradumIcons.Tsx
+    "html" -> AllIconsKeys.FileTypes.Html
+    "css" -> AllIconsKeys.FileTypes.Css
+    "xml" -> AllIconsKeys.FileTypes.Xml
+    "json" -> AllIconsKeys.FileTypes.Json
+    "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
+    "txt" -> AllIconsKeys.FileTypes.Text
+    "md" -> GradumIcons.Markdown
+    "kt", "kts" -> GradumIcons.Kotlin
+    "py" -> GradumIcons.Python
+    "http" -> AllIconsKeys.FileTypes.Http
+    "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
+    else -> AllIconsKeys.FileTypes.Text
+  }
 }
 
 object EditorUtils {
 
-    fun getEditorContext(project: Project): EditorContext {
-        return ApplicationManager.getApplication().runReadAction<EditorContext> {
-            val fileEditorManager = FileEditorManager.getInstance(project)
-            val allFiles = fileEditorManager.openFiles.toList()
-            val currentFile = fileEditorManager.selectedFiles.firstOrNull()
-            val projectDir = project.basePath?.let {
-                LocalFileSystem.getInstance().findFileByPath(it)
-            }
+  fun getEditorContext(project: Project): EditorContext {
+    return ApplicationManager.getApplication().runReadAction<EditorContext> {
+      val fileEditorManager = FileEditorManager.getInstance(project)
+      val allFiles = fileEditorManager.openFiles.toList()
+      val currentFile = fileEditorManager.selectedFiles.firstOrNull()
+      val projectDir = project.basePath?.let {
+        LocalFileSystem.getInstance().findFileByPath(it)
+      }
 
-            if (currentFile != null) {
-                EditorContext(
-                    currentFile = currentFile,
-                    allOpenFiles = allFiles,
-                    projectDir = projectDir
-                )
-            } else {
-                EditorContext(
-                    currentFile = null,
-                    allOpenFiles = allFiles,
-                    projectDir = projectDir
-                )
-            }
-        }
+      if (currentFile != null) {
+        EditorContext(
+          currentFile = currentFile,
+          allOpenFiles = allFiles,
+          projectDir = projectDir
+        )
+      } else {
+        EditorContext(
+          currentFile = null,
+          allOpenFiles = allFiles,
+          projectDir = projectDir
+        )
+      }
     }
+  }
 
-    /**
-     * Opens a fenced code block as a brand-new untitled editor tab.
-     *
-     * Creates a `LightVirtualFile` backed by a PSI file (so syntax highlighting
-     * kicks in immediately for the chosen language), then asks the
-     * [FileEditorManager] to open it. The file lives in memory until the user
-     * chooses `Save As` from the editor — we never write into the project root
-     * unprompted, since that would be a destructive side effect of just
-     * clicking a code-block toolbar button.
-     *
-     * Threading: this is invoked from the Swing EDT (toolbar click), so the
-     * PSI factory call is wrapped in [ApplicationManager.runReadAction] per
-     * the platform's "read action on EDT" requirement. [FileEditorManager.openFile]
-     * runs back on the EDT once the read action releases.
-     *
-     * @param project  current IntelliJ project.
-     * @param code     raw code block text (no fence markers).
-     * @param language fenced language tag (e.g. `"kotlin"`); pass `""` for
-     *                 unknown / unlabelled blocks — falls back to plain text.
-     */
-    fun openCodeAsNewFile(project: Project, code: String, language: String) {
-        val normalizedLanguage = language.trim().lowercase()
-        val extension = extensionForLanguage(normalizedLanguage)
-        val stem = normalizedLanguage.ifBlank { "untitled" }
-        val fileName = "gradum_$stem.$extension"
+  /**
+   * Opens a fenced code block as a brand-new untitled editor tab.
+   *
+   * Creates a `LightVirtualFile` backed by a PSI file (so syntax highlighting
+   * kicks in immediately for the chosen language), then asks the
+   * [FileEditorManager] to open it. The file lives in memory until the user
+   * chooses `Save As` from the editor — we never write into the project root
+   * unprompted, since that would be a destructive side effect of just
+   * clicking a code-block toolbar button.
+   *
+   * Threading: this is invoked from the Swing EDT (toolbar click), so the
+   * PSI factory call is wrapped in [ApplicationManager.runReadAction] per
+   * the platform's "read action on EDT" requirement. [FileEditorManager.openFile]
+   * runs back on the EDT once the read action releases.
+   *
+   * @param project  current IntelliJ project.
+   * @param code     raw code block text (no fence markers).
+   * @param language fenced language tag (e.g. `"kotlin"`); pass `""` for
+   *                 unknown / unlabelled blocks — falls back to plain text.
+   */
+  fun openCodeAsNewFile(project: Project, code: String, language: String) {
+    val normalizedLanguage = language.trim().lowercase()
+    val extension = extensionForLanguage(normalizedLanguage)
+    val stem = normalizedLanguage.ifBlank { "untitled" }
+    val fileName = "gradum_$stem.$extension"
 
-        val baseDir: VirtualFile = project.baseDir ?: return
+    val baseDir: VirtualFile = project.baseDir ?: return
 
-        val virtualFile = WriteCommandAction.writeCommandAction(project)
-            .compute<VirtualFile, Exception> {
-                val newFile = baseDir.createChildData(this, fileName)
-                newFile.setBinaryContent(code.toByteArray(Charsets.UTF_8))
-                newFile
-            }
+    val virtualFile = WriteCommandAction.writeCommandAction(project)
+      .compute<VirtualFile, Exception> {
+        val newFile = baseDir.createChildData(this, fileName)
+        newFile.setBinaryContent(code.toByteArray(Charsets.UTF_8))
+        newFile
+      }
 
-        ApplicationManager.getApplication().invokeLater {
-            FileEditorManager.getInstance(project).openFile(virtualFile, true)
-        }
+    ApplicationManager.getApplication().invokeLater {
+      FileEditorManager.getInstance(project).openFile(virtualFile, true)
     }
+  }
 
-    /**
-     * Maps a GFM fenced-code language tag to a conventional file extension.
-     * Unknown / blank tags fall back to `.txt`.
-     */
-    private fun extensionForLanguage(language: String): String = when (language) {
-        "kotlin", "kt" -> "kt"
-        "java" -> "java"
-        "javascript", "js" -> "js"
-        "typescript", "ts" -> "ts"
-        "python", "py" -> "py"
-        "go", "golang" -> "go"
-        "rust", "rs" -> "rs"
-        "c" -> "c"
-        "cpp", "c++" -> "cpp"
-        "csharp", "cs", "c#" -> "cs"
-        "html" -> "html"
-        "css" -> "css"
-        "scss" -> "scss"
-        "json" -> "json"
-        "yaml", "yml" -> "yaml"
-        "xml" -> "xml"
-        "shell", "bash", "sh", "zsh" -> "sh"
-        "ruby", "rb" -> "rb"
-        "php" -> "php"
-        "sql" -> "sql"
-        "markdown", "md" -> "md"
-        "swift" -> "swift"
-        "kotlin-script", "kts" -> "kts"
-        else -> "txt"
-    }
+  /**
+   * Maps a GFM fenced-code language tag to a conventional file extension.
+   * Unknown / blank tags fall back to `.txt`.
+   */
+  private fun extensionForLanguage(language: String): String = when (language) {
+    "kotlin", "kt" -> "kt"
+    "java" -> "java"
+    "javascript", "js" -> "js"
+    "typescript", "ts" -> "ts"
+    "python", "py" -> "py"
+    "go", "golang" -> "go"
+    "rust", "rs" -> "rs"
+    "c" -> "c"
+    "cpp", "c++" -> "cpp"
+    "csharp", "cs", "c#" -> "cs"
+    "html" -> "html"
+    "css" -> "css"
+    "scss" -> "scss"
+    "json" -> "json"
+    "yaml", "yml" -> "yaml"
+    "xml" -> "xml"
+    "shell", "bash", "sh", "zsh" -> "sh"
+    "ruby", "rb" -> "rb"
+    "php" -> "php"
+    "sql" -> "sql"
+    "markdown", "md" -> "md"
+    "swift" -> "swift"
+    "kotlin-script", "kts" -> "kts"
+    else -> "txt"
+  }
 }

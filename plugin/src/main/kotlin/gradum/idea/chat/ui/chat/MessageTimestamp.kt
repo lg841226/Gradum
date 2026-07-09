@@ -25,11 +25,11 @@ import org.jetbrains.jewel.ui.typography
  */
 @Composable
 fun MessageTimestamp(timestamp: Long, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Text(
-            text = formatTimestamp(timestamp),
-            style = JewelTheme.typography.medium,
-            color = JewelTheme.globalColors.text.info
-        )
-    }
+  Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Text(
+      text = formatTimestamp(timestamp),
+      style = JewelTheme.typography.medium,
+      color = JewelTheme.globalColors.text.info
+    )
+  }
 }

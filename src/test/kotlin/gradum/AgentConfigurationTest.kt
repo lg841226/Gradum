@@ -23,44 +23,44 @@ import kotlin.test.assertEquals
  */
 class AgentConfigurationTest {
 
-    @Test
-    fun `read_only wire value resolves to READ_ONLY`() {
-        assertEquals(ToolMode.READ_ONLY, ToolMode.fromStringOrDefault("read_only"))
-    }
+  @Test
+  fun `read_only wire value resolves to READ_ONLY`() {
+    assertEquals(ToolMode.READ_ONLY, ToolMode.fromStringOrDefault("read_only"))
+  }
 
-    @Test
-    fun `edit wire value resolves to EDIT`() {
-        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("edit"))
-    }
+  @Test
+  fun `edit wire value resolves to EDIT`() {
+    assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("edit"))
+  }
 
-    @Test
-    fun `agent wire value resolves to AGENT`() {
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("agent"))
-    }
+  @Test
+  fun `agent wire value resolves to AGENT`() {
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("agent"))
+  }
 
-    @Test
-    fun `uppercase wire value also resolves (case insensitive)`() {
-        assertEquals(ToolMode.READ_ONLY, ToolMode.fromStringOrDefault("READ_ONLY"))
-        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("EDIT"))
-    }
+  @Test
+  fun `uppercase wire value also resolves (case insensitive)`() {
+    assertEquals(ToolMode.READ_ONLY, ToolMode.fromStringOrDefault("READ_ONLY"))
+    assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("EDIT"))
+  }
 
-    @Test
-    fun `old wire values still resolve via aliases`() {
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("write"))
-        assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("single_step"))
-    }
+  @Test
+  fun `old wire values still resolve via aliases`() {
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("write"))
+    assertEquals(ToolMode.EDIT, ToolMode.fromStringOrDefault("single_step"))
+  }
 
-    @Test
-    fun `unknown wire value falls back to AGENT`() {
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("garbage"))
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("Read-only Permissions"))
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("只读权限"))
-    }
+  @Test
+  fun `unknown wire value falls back to AGENT`() {
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("garbage"))
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("Read-only Permissions"))
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("只读权限"))
+  }
 
-    @Test
-    fun `null and blank wire value falls back to AGENT`() {
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(null))
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(""))
-        assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("   "))
-    }
+  @Test
+  fun `null and blank wire value falls back to AGENT`() {
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(null))
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault(""))
+    assertEquals(ToolMode.AGENT, ToolMode.fromStringOrDefault("   "))
+  }
 }

@@ -31,10 +31,10 @@ package gradum.idea.chat.ui.chat.skill.spi
  * lives in each renderer's `render` composable.
  */
 data class ToolCallContent(
-    /** Server-side skill alias this content was parsed from, e.g. "Ran" / "Edited" / "Read". */
-    val aliasName: String,
-    /** Free-form payload that the originating [ToolCallRenderer] alone interprets. */
-    val fieldMap: Map<String, Any?> = emptyMap(),
-    /** User-facing actions (open in editor, view diff, copy, etc.) attached to this call. */
-    val actionList: List<ToolCallAction> = emptyList()
+  /** Server-side skill alias this content was parsed from, e.g. "Ran" / "Edited" / "Read". */
+  val aliasName: String,
+  /** Free-form payload that the originating [ToolCallRenderer] alone interprets. */
+  val fieldMap: Map<String, Any?> = emptyMap(),
+  /** User-facing actions (open in editor, view diff, copy, etc.) attached to this call. */
+  val actionList: List<ToolCallAction> = emptyList()
 )
