@@ -147,22 +147,67 @@ set` to patch a failed tool call's error message after the fact.
 
 ### 5.2 Per-tool call content
 
-`ToolCallContent` is a sealed class with seven subclasses, one per
-server-side skill alias. `fromArguments` switches on the alias name and
-parses the relevant fields; when a model emits a malformed argument
-shape the method falls back to `None` and writes a debug log so the
-offending payload is visible in `idea.log` instead of silently rendering
-as an empty capsule.
+Each server-side skill alias (`Ran`, `Edited`, `Read`, `Saved`, `Explored`,
+`Planned`, `Completed`) is rendered by a dedicated `ToolCallRenderer`
+implementation registered under the `com.gradum.idea.toolCallRenderer`
+IntelliJ Platform extension point. The chat panel calls
+`ToolCallRendererRegistry.find(alias)` once per tool invocation and routes
+the result to the matching renderer's `render` composable. Anything
+unknown falls through to a wildcard `DefaultRenderer` (alias `"*"`).
 
-| Subclass    | Server alias    | Skill             | Fields                                                 |
-|-------------|-----------------|-------------------|--------------------------------------------------------|
-| `None`      | (any malformed) | —                 | —                                                      |
-| `Ran`       | `Ran`           | `run_cmd`         | `reason: String`, `command: String`                    |
-| `Edited`    | `Edited`        | `edit_file`       | `path: String`, `linesAdded: Int`, `linesRemoved: Int` |
-| `Read`      | `Read`          | `read_file`       | `path: String`                                         |
-| `Explored`  | `Explored`      | `explore_project` | `projectRoot: String`, `depth: Int`                    |
-| `Planned`   | `Planned`       | `to_do` (add)     | `tasks: List<String>`                                  |
-| `Completed` | `Completed`     | `to_do` (done)    | `task: String`                                         |
+A renderer is responsible for:
+
+- Recognising a server-side skill alias via `alias()` (e.g. `"Ran"`,
+  `"Edited"`). Must match the value emitted by the server-side
+  `Skill.alias`.
+- Parsing the server `arguments` + `result` JSON into a `ToolCallContent`
+  view-model via `parseContent(arguments, result)`.
+- Choosing the row's icon (`iconKey()`) and localised label (`labelKey()`,
+  a Gradum resource-bundle key under `messages/gradum/`).
+- Drawing the actual row via `@Composable render(content, ctx)`. The
+  shared `ToolCallCapsule` composable in `chat/ui/chat/skill/internal/`
+  handles the standard icon + label + body + error-state layout, so most
+  renderers only need to compute which fields to show in the body and
+  which `ToolCallAction`s to expose (e.g. `OpenInEditor`,
+  `CopyToClipboard`).
+
+Adding a new tool call UI is **fully SPI-driven** — no Gradum source
+change is required. A third-party IDE plugin can implement
+`ToolCallRenderer`, drop a folder next to its own source, and register
+the implementation in its own `plugin.xml`:
+
+```xml
+<extensions defaultExtensionNs="com.gradum.idea">
+    <toolCallRenderer
+        implementation="com.example.MyRenderer"/>
+</extensions>
+```
+
+The standard payload shape the renderer receives on the wire (an
+NDJSON `tool_call` event) is `{tool, arguments, toolCallId, success, result}`.
+`parseContent` is given the `arguments: Map<String, Any?>` and the
+parsed `result: Map<String, Any?>` (see
+[`ResultParser.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ResultParser.kt)
+for the JSON-to-`Map` conversion that the server's `tool_call.result`
+JSON string goes through).
+
+The default `R` field rendering per alias (as the LLM sees it on the
+server side) is:
+
+| Renderer            | Server alias    | Skill             | Standard fields                                         |
+|---------------------|-----------------|-------------------|---------------------------------------------------------|
+| `RanRenderer`       | `Ran`           | `run_cmd`         | `reason: String`, `command: String`                     |
+| `EditedRenderer`    | `Edited`        | `edit_file`       | `path: String`, `linesAdded: Int`, `linesRemoved: Int`  |
+| `ReadRenderer`      | `Read`          | `read_file`       | `path: String`, `startLine: Int`, `endLine: Int`        |
+| `SavedRenderer`     | `Saved`         | `save_file`       | `path: String`, `bytesWritten: Int`, `mode: String`     |
+| `ExploredRenderer`  | `Explored`      | `explore_project` | `projectRoot: String`, `depth: Int`                     |
+| `PlannedRenderer`   | `Planned`       | `to_do` (add)     | `tasks: List<String>`                                   |
+| `CompletedRenderer` | `Completed`     | `to_do` (done)    | `task: String`                                          |
+
+See
+[`docs/PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) section 16
+"Extending the plugin's tool call UI" for the full tutorial and worked
+example.
 
 ### 5.3 Streaming indicators
 
@@ -640,8 +685,9 @@ Source: [`Spacing.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/Spacing.
 | `chat/ui/chat/MessageTimestamp.kt`      | Bubble timestamp footer.                                               |
 | `chat/ui/chat/SweepLightText.kt`        | Typewriter + shimmer animation.                                        |
 | `chat/ui/chat/ThinkingIndicator.kt`     | Pulsing dots during thinking.                                          |
-| `chat/ui/chat/ToolCallContent.kt`       | Tool-call row body (alias, args, result, error).                       |
-| `chat/ui/chat/ToolCallIndicator.kt`     | One-line tool-call status.                                             |
+| `chat/ui/chat/skill/spi/`                | Tool-call renderer SPI: `ToolCallRenderer`, `ToolCallContent`, `ToolCallAction`, `ToolCallRenderContext`, `ToolCallRendererRegistry`, `ResultParser`. |
+| `chat/ui/chat/skill/internal/`           | Shared capsule (`ToolCallCapsule`) and action buttons (`OpenInEditorButton`, `ViewDiffButton`) used by all default renderers.                |
+| `chat/ui/chat/skill/{ran,edited,read,saved,explored,planned,completed,default}/` | One folder per server skill alias. Each folder contains the renderer class (e.g. `RanRenderer`) that owns that alias; the matching `META-INF/extensions/<alias>.xml` is the per-skill registration manifest. |
 | `chat/ui/chat/UserChatBubble.kt`        | User message bubble.                                                   |
 | `chat/ui/common/IconTooltipButton.kt`   | Canonical icon button with tooltip.                                    |
 | `chat/ui/common/SelectorButton.kt`      | Canonical selector button (icon + label + chevron).                    |

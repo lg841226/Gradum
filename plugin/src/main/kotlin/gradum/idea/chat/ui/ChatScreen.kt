@@ -97,7 +97,7 @@ fun ChatScreen(
     onDeleteMessage: (Int) -> Unit,
     onRetryMessage: (Int) -> Unit,
     onCopyAsContext: (String) -> Unit,
-    onOpenInEditor: (String) -> Unit = {},
+    onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
     onViewDiff: (path: String, originalContent: String, modifiedContent: String)
     -> Unit = { _, _, _ -> },
     onAttachmentClick: (VirtualFile) -> Unit = {},

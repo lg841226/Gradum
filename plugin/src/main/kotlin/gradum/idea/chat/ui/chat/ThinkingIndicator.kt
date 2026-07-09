@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-07-08 23:13:40 Changed by gwy
+ * ThinkingIndicator.kt  2026-07-09 13:55:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
@@ -21,13 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumCodeBlockRenderer
-import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.MarkdownSegment
-import gradum.idea.chat.ui.ScrollableTable
-import gradum.idea.chat.ui.isRenderable
-import gradum.idea.chat.ui.rememberGradumMarkdownStyling
-import gradum.idea.chat.ui.splitMarkdownAtTables
+import gradum.idea.chat.ui.*
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
@@ -36,7 +30,6 @@ import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.typography
 
 /**
  * Collapsible thinking indicator for assistant messages.
@@ -114,10 +107,6 @@ fun ThinkingIndicator(
             val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
             CompositionLocalProvider(LocalContentColor provides thinkingColor) {
                 CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
-                    // Same strategy as the assistant response block:
-                    // pull GFM tables out of the raw Markdown first so
-                    // wide tables get their own horizontal scrollbar
-                    // without making the surrounding prose scrollable.
                     val segments = remember(thinking) { splitMarkdownAtTables(thinking) }
                     Column {
                         segments.forEach { segment ->
@@ -127,24 +116,10 @@ fun ThinkingIndicator(
                                     onUrlClick = onUrlClick,
                                     modifier = Modifier.fillMaxWidth(),
                                     markdownStyling = thinkingStyling,
-                                    // Override the Jewel's default
-                                    // blockRenderer so our
-                                    // `isSimplified = true` instance
-                                    // (the one supplied via the
-                                    // CompositionLocal above) wins
-                                    // over the chat-wide one.
                                     blockRenderer = simplifiedCodeRenderer,
                                 )
 
                                 is MarkdownSegment.Table -> {
-                                    // `isSimplified = true` drops the
-                                    // copy toolbar. Unrenderable
-                                    // (body-empty) tables are skipped
-                                    // outright — in the chat response
-                                    // they get a placeholder, but in
-                                    // the thinking block that would
-                                    // interrupt the greyed stream
-                                    // for no benefit.
                                     if (segment.isRenderable()) {
                                         ScrollableTable(segment, isSimplified = true)
                                     }

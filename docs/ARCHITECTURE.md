@@ -1655,9 +1655,30 @@ gradum.idea/
 │   └── ui/
 │       ├── ChatScreen.kt             # Main chat layout
 │       ├── MessageComponents.kt      # Message bubbles, code blocks
-│       └── input/
-│           ├── ModelNameFormatter.kt # Model name display formatting
-│           └── ...
+│       ├── input/
+│       │   ├── ModelNameFormatter.kt # Model name display formatting
+│       │   └── ...
+│       └── chat/
+│           ├── AssistantChatBubble.kt        # Renders the event timeline (thinking / tool_call / response / error)
+│           ├── UserChatBubble.kt             # User message bubble
+│           ├── MessageCopyButton.kt          # Copy button + tooltip semantics
+│           ├── MessageTimestamp.kt           # Bubble timestamp footer
+│           ├── ThinkingIndicator.kt          # Pulsing dots during thinking
+│           ├── SweepLightText.kt             # Typewriter + shimmer animation
+│           ├── GfmMarkdownProcessor.kt       # Custom GFM table parser + renderer
+│           ├── GradumMarkdownTable.kt        # GFM table parser internals (splitMarkdownAtTables)
+│           ├── ScrollableTable.kt            # GFM table render + horizontal scrollbar
+│           └── skill/                        # Per-skill tool-call renderers (one folder per server alias)
+│               ├── spi/                      #   SPI: ToolCallRenderer + Registry + Content + Action + Context
+│               ├── internal/                 #   Shared capsule + action button helpers
+│               ├── ran/                      #   RanRenderer        + META-INF/extensions/ran.xml
+│               ├── edited/                   #   EditedRenderer     + META-INF/extensions/edited.xml
+│               ├── read/                     #   ReadRenderer       + META-INF/extensions/read.xml
+│               ├── saved/                    #   SavedRenderer      + META-INF/extensions/saved.xml
+│               ├── explored/                 #   ExploredRenderer   + META-INF/extensions/explored.xml
+│               ├── planned/                  #   PlannedRenderer    + META-INF/extensions/planned.xml
+│               ├── completed/                #   CompletedRenderer  + META-INF/extensions/completed.xml
+│               └── default/                  #   DefaultRenderer (alias "*") + META-INF/extensions/default.xml
 ├── editor/
 │   ├── EditorContext.kt              # Editor state (attachments, pending)
 │   ├── AttachedFile.kt               # File attachment model
@@ -1667,6 +1688,14 @@ gradum.idea/
 └── icons/
     └── GradumIcons.kt                # Custom SVG icon registry
 ```
+
+> **Tool-call rendering is an SPI.** Any third-party IDE plugin can
+> implement `gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer` and
+> register it under the `com.gradum.idea.toolCallRenderer` extension
+> point. The chat panel will dispatch server `tool_call` events to the
+> matching renderer by `alias()`. See
+> [`docs/PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) section 16
+> for the full tutorial.
 
 ### 8.5 Key Dependencies Summary
 

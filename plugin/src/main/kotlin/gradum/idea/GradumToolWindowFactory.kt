@@ -373,23 +373,30 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
     val onStop: () -> Unit = { coroutineScope.launch { session.stopSession() } }
 
-    val onOpenInEditor: (String) -> Unit = { target ->
+    val onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit = { path, startLine, _ ->
         val project: Project? = toolWindow?.project
-        if (project != null && target.isNotBlank()) {
+        if (project != null && path.isNotBlank()) {
             coroutineScope.launch(Dispatchers.IO) {
                 try {
-                    val absolutePath = if (File(target).isAbsolute) {
-                        target
-                    } else project.basePath?.let { "$it/$target" } ?: target
+                    val absolutePath = if (File(path).isAbsolute) {
+                        path
+                    } else project.basePath?.let { "$it/$path" } ?: path
 
                     val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
                     if (virtualFile != null && virtualFile.exists()) {
                         withContext(Dispatchers.Main) {
-                            FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                            val fileEditor = FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                            // startLine is 1-based; 0 means "no specific line" so we skip the caret jump.
+                            if (startLine > 0 && fileEditor is com.intellij.openapi.fileEditor.TextEditor) {
+                                val editor = fileEditor.editor
+                                val offset = editor.document.getLineStartOffset((startLine - 1).coerceAtLeast(0))
+                                editor.caretModel.moveToOffset(offset)
+                                editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)
+                            }
                         }
                     } else {
                         val tempFile = File.createTempFile("gradum_cmd_", ".sh")
-                        tempFile.writeText(target)
+                        tempFile.writeText(path)
                         tempFile.deleteOnExit()
                         val tempVirtual: VirtualFile? =
                             LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
@@ -401,7 +408,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
                     }
                 } catch (exception: Exception) {
                     com.intellij.openapi.diagnostic.Logger.getInstance(GradumToolWindowFactory::class.java)
-                        .warn("Failed to open target in editor: $target", exception)
+                        .warn("Failed to open target in editor: $path", exception)
                 }
             }
         }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-07 15:54:43 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-09 14:11:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -27,15 +28,16 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.MarkdownSegment
-import gradum.idea.chat.ui.ScrollableTable
-import gradum.idea.chat.ui.isRenderable
-import gradum.idea.chat.ui.rememberGradumMarkdownStyling
-import gradum.idea.chat.ui.splitMarkdownAtTables
+import gradum.idea.chat.ui.*
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry
+import gradum.idea.chat.ui.chat.skill.spi.parseJsonResult
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -66,7 +68,7 @@ fun AssistantChatBubble(
     actionsEnabled: Boolean = true,
     onRetry: () -> Unit = {},
     onUrlClick: (String) -> Unit = {},
-    onOpenInEditor: (String) -> Unit = {},
+    onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
     onViewDiff: (path: String, originalContent: String, modifiedContent: String) ->
     Unit = { _, _, _ -> }
 ) {
@@ -232,7 +234,7 @@ private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
 @Composable
 private fun ToolCallBlock(
     block: RenderBlock.ToolCall,
-    onOpenInEditor: (String) -> Unit,
+    onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
     onViewDiff:
         (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {
@@ -244,70 +246,67 @@ private fun ToolCallBlock(
         )
     }
     val animModifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
-    val toolContent = ToolCallContent.fromArguments(block.alias, block.arguments, block.result)
-    when (toolContent) {
-        is ToolCallContent.Ran -> RanToolCallIndicator(
-            alias = block.alias,
-            reason = toolContent.reason,
-            command = toolContent.command,
+    // Scope used by renderer Copy actions (e.g. RanRenderer copies the
+    // shell command). Captured at composable entry so the lambda passed
+    // through ToolCallRenderContext can `scope.launch { ... }` without
+    // re-allocating per render.
+    val clipboardScope = rememberCoroutineScope()
+    // Look up the renderer registered for this server alias. Every alias
+    // a model can emit (Ran / Edited / Read / Saved / Explored / Planned /
+    // Completed) has a built-in renderer; anything unknown falls through
+    // to the wildcard DefaultRenderer registered under alias "*".
+    val renderer = gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find(block.alias)
+    if (renderer == null) {
+        // Defensive: should be impossible because DefaultRenderer is
+        // always registered by the Gradum plugin. If we still end up
+        // here (e.g. a third-party plugin replaced the registry), fall
+        // back to a minimal alias-only capsule.
+        ToolCallCapsule(
             success = block.success,
-            modifier = animModifier,
-            errorMessage = block.errorMessage,
             errorDetail = block.errorDetail,
-            onOpenInEditor = onOpenInEditor
-        )
-
-        is ToolCallContent.Edited -> {
-            val hasDiffPayload = toolContent.originalContent != null && toolContent.modifiedContent != null
-            FileToolCallIndicator(
-                alias = block.alias,
-                filePath = toolContent.filePath,
-                success = block.success,
-                modifier = animModifier,
-                errorMessage = block.errorMessage,
-                errorDetail = block.errorDetail,
-                linesAdded = toolContent.linesAdded,
-                linesRemoved = toolContent.linesRemoved,
-                onOpenInEditor = onOpenInEditor,
-                onViewDiff = {
-                    onViewDiff(
-                        toolContent.filePath,
-                        toolContent.originalContent!!,
-                        toolContent.modifiedContent!!
-                    )
-                },
-                hasDiffPayload = hasDiffPayload
-            )
-        }
-
-        is ToolCallContent.Read -> FileToolCallIndicator(
-            alias = block.alias,
-            filePath = toolContent.filePath,
-            success = block.success,
-            modifier = animModifier,
             errorMessage = block.errorMessage,
+            iconKey = org.jetbrains.jewel.ui.icons.AllIconsKeys.Nodes.Plugin,
+            label = block.alias,
+            modifier = animModifier,
+        )
+        return
+    }
+    val content: gradum.idea.chat.ui.chat.skill.spi.ToolCallContent =
+        renderer.parseContent(
+            arguments = block.arguments,
+            result = gradum.idea.chat.ui.chat.skill.spi.parseJsonResult(block.result),
+        )
+    val ctx: gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext =
+        gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext(
+            project = null,
+            isError = !block.success,
             errorDetail = block.errorDetail,
-            onOpenInEditor = onOpenInEditor
+            onOpenInEditor = onOpenInEditor,
+            onViewDiff = { path, originalContent, modifiedContent ->
+                // Renderer's three-arg callback may have null content;
+                // the chat panel always supplies both strings.
+                onViewDiff(
+                    path,
+                    originalContent.orEmpty(),
+                    modifiedContent.orEmpty(),
+                )
+            },
+            onCopy = { payload ->
+                // Renderers that surface a Copy action (e.g. RanRenderer
+                // copies the shell command) get this callback. The
+                // visual "copied" confirmation is a no-op in the chat
+                // panel today; if you add a toast later, wire it in
+                // here via `onCopied` and `onReset`.
+                copyToClipboard(
+                    text = payload,
+                    onCopied = {},
+                    onReset = {},
+                    scope = clipboardScope,
+                )
+            },
         )
-
-        is ToolCallContent.Saved -> FileToolCallIndicator(
-            alias = block.alias,
-            filePath = toolContent.filePath,
-            sizeText = if (toolContent.sizeBytes > 0L) formatBytes(toolContent.sizeBytes) else null,
-            success = block.success,
-            modifier = animModifier,
-            errorMessage = block.errorMessage,
-            errorDetail = block.errorDetail,
-            onOpenInEditor = onOpenInEditor
-        )
-
-        else -> ToolCallIndicator(
-            alias = block.alias,
-            success = block.success,
-            modifier = animModifier,
-            errorMessage = block.errorMessage,
-            errorDetail = block.errorDetail
-        )
+    Box(modifier = animModifier) {
+        renderer.render(content, ctx)
     }
 }
 
@@ -315,16 +314,16 @@ private fun ToolCallBlock(
 private fun TokenStatusRow(
     isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0
 ) {
-    val tokenText = if (tokenCount > 0) {
+    val tokenText = if (tokenCount > 0)
         "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
-    } else {
+    else
         sendingPhase.ifEmpty { "..." }
-    }
+
+    val density = LocalDensity.current
     var displayText by remember { mutableStateOf(sendingPhase) }
     var previousText by remember { mutableStateOf(sendingPhase) }
     val fadeAlpha = remember { Animatable(1f) }
     val verticalOffset = remember { Animatable(0f) }
-    val density = LocalDensity.current
     val riseDistancePx: Float = with(density) { -RISE_DISTANCE_DP.toPx() }
 
     LaunchedEffect(sendingPhase, tokenText) {
@@ -343,15 +342,8 @@ private fun TokenStatusRow(
                 )
             }
             fadeAlpha.animateTo(0f, tween(durationMillis = PHASE_FADE_MS))
-            // Phase 2 — swap text at the apex. With alpha = 0 the swap is
-            // invisible; the new glyph is "revealed" by the fade-in below.
             displayText = newText
             previousText = newText
-            // Phase 3 — new text drops and bounces. A spring from above the
-            // resting line to 0 with medium-bouncy damping overshoots below 0
-            // (the "ground" the user described), bounces back, overshoots again,
-            // and settles — visible 2–3 oscillations. Medium-low stiffness slows
-            // the fall so the bounce reads as intentional, not snappy.
             launch {
                 verticalOffset.animateTo(
                     targetValue = 0f,
@@ -361,8 +353,6 @@ private fun TokenStatusRow(
                     ),
                 )
             }
-            // Phase 4 — overlay a subtle fade-in during the drop so the new
-            // text "materializes" while it's still in the air.
             fadeAlpha.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = PHASE_FADE_IN_MS)

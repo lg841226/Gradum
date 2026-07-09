@@ -1,0 +1,20 @@
+<!--
+  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ completed.xml — registration manifest for the Completed
+  ~ tool-call renderer. See `ran.xml` for the manifest format.
+  -->
+
+<renderer alias="Completed"
+          class="gradum.idea.chat.ui.chat.skill.completed.CompletedRenderer"
+          labelKey="gradum.tool.completed"
+          folder="gradum/idea/chat/ui/chat/skill/completed/">
+    <description>
+        Default renderer for the server-side `to_do` skill when
+        the LLM MARKS a task done. Single-line capsule with the
+        completed task name.
+    </description>
+    <depends-on skill="gradum.skill.TodoSkill"/>
+    <action-types/>
+</renderer>

@@ -1298,3 +1298,305 @@ class AdaptiveFileWriterSkill : Skill() {
     }
 }
 ```
+
+---
+
+## 16. Extending the plugin's tool call UI
+
+> **Audience:** IDE plugin authors who want to add a new tool call row
+> type to the Gradum chat panel without modifying Gradum's source.
+
+The Gradum IntelliJ plugin exposes one Service Provider Interface (SPI)
+for the chat UI: **`ToolCallRenderer`**. A renderer is responsible for
+turning a server-side `tool_call` event into the row the user sees in
+the chat timeline — its icon, its localised label, its body, and the
+action buttons (`Open in editor`, `View diff`, `Copy`, etc.) it offers.
+
+This is the same mechanism the built-in `RanRenderer`,
+`EditedRenderer`, `ReadRenderer`, `SavedRenderer`, `ExploredRenderer`,
+`PlannedRenderer`, `CompletedRenderer`, and the wildcard
+`DefaultRenderer` use. Third-party plugins can register their own
+renderers and Gradum's chat panel will dispatch to them automatically.
+
+### 16.1 The extension point
+
+Declared in
+[`plugin.xml`](../../plugin/src/main/resources/META-INF/plugin.xml):
+
+```xml
+<extensionPoint
+    name="toolCallRenderer"
+    interface="gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer"/>
+```
+
+Implement it in your plugin's `plugin.xml` like this:
+
+```xml
+<idea-plugin>
+    <id>com.example.myplugin</id>
+    <depends>com.gradum.idea</depends>
+
+    <extensions defaultExtensionNs="com.gradum.idea">
+        <toolCallRenderer
+            implementation="com.example.myplugin.MyRenderer"/>
+    </extensions>
+</idea-plugin>
+```
+
+The `defaultExtensionNs="com.gradum.idea"` is required — it scopes the
+registration to the Gradum namespace.
+
+### 16.2 The `ToolCallRenderer` interface
+
+```kotlin
+package gradum.idea.chat.ui.chat.skill.spi
+
+import androidx.compose.runtime.Composable
+import org.jetbrains.jewel.ui.icon.IconKey
+
+interface ToolCallRenderer {
+    fun alias(): String
+    fun iconKey(): IconKey? = null
+    fun labelKey(): String? = null
+    fun parseContent(
+        arguments: Map<String, Any?>,
+        result: Map<String, Any?>,
+    ): ToolCallContent
+
+    @Composable
+    fun render(content: ToolCallContent, ctx: ToolCallRenderContext)
+
+    companion object {
+        val EP_NAME: ExtensionPointName<ToolCallRenderer> =
+            ExtensionPointName("com.gradum.idea.toolCallRenderer")
+    }
+}
+```
+
+| Method        | Required | Returns                                                                                          |
+|---------------|----------|--------------------------------------------------------------------------------------------------|
+| `alias()`     | yes      | The server-side `Skill.alias` this renderer handles (e.g. `"Ran"`). First-registered-wins per alias. |
+| `iconKey()`   | no       | The row's status icon. Defaults to `null`, in which case the chat panel uses `Nodes.Plugin`.     |
+| `labelKey()`  | no       | A Gradum `GradumBundle` resource-bundle key (e.g. `"gradum.tool.ran"`) for the localised label.  |
+| `parseContent` | yes     | Converts the server's `arguments: Map<String, Any?>` + `result: Map<String, Any?>` JSON into a `ToolCallContent` view-model. |
+| `render`      | yes      | The actual `@Composable` row. Receives the parsed `content` and a `ctx` with access to the project and the chat-level "open in editor" / "view diff" / "copy" callbacks. |
+
+### 16.3 The `ToolCallContent` view-model
+
+```kotlin
+data class ToolCallContent(
+    val alias: String,
+    val fields: Map<String, Any?> = emptyMap(),
+    val actions: List<ToolCallAction> = emptyList(),
+)
+```
+
+`fields` is an arbitrary `Map<String, Any?>` you read from inside
+`render`. The convention is to put the same string keys here that the
+server-side skill puts in its `SkillResult` payload — e.g.
+`"command"`, `"path"`, `"linesAdded"`, `"reason"`.
+
+`actions` is a list of `ToolCallAction`s the row exposes:
+
+```kotlin
+sealed class ToolCallAction {
+    data class OpenInEditor(
+        val path: String,
+        val startLine: Int = 0,
+        val endLine: Int = 0,
+        val displayLabel: String? = null,
+    ) : ToolCallAction()
+
+    data class ViewDiff(
+        val path: String,
+        val diffType: String = "default",
+    ) : ToolCallAction()
+
+    data class CopyToClipboard(
+        val payload: String,
+        val displayLabel: String? = null,
+    ) : ToolCallAction()
+
+    data class Custom(
+        val id: String,
+        val displayLabel: String,
+        val data: Map<String, Any?> = emptyMap(),
+    ) : ToolCallAction()
+}
+```
+
+`Custom` is reserved for renderers that want to surface a custom IDE
+action (e.g. "Run test in current file") and look it up in
+`ctx.onCustomAction` — present in the context object so the chat
+panel can wire the click back to your plugin.
+
+### 16.4 The render context
+
+```kotlin
+data class ToolCallRenderContext(
+    val project: Project?,
+    val isError: Boolean,
+    val errorDetail: String?,
+    val onOpenInEditor: ((path: String, startLine: Int, endLine: Int) -> Unit)?,
+    val onViewDiff: ((path: String, originalContent: String?, modifiedContent: String?) -> Unit)?,
+    val onCopy: ((payload: String) -> Unit)?,
+)
+```
+
+`onOpenInEditor` and `onViewDiff` are the chat-level handlers — invoke
+them with the right `path` / line range and the chat panel will pop an
+editor tab (or diff viewer) at the right place. `onCopy` is wired to
+the chat-level "copied" snackbar (no-op in the current build, but
+stable).
+
+`project` is the active IntelliJ `Project`, or `null` if the chat panel
+is detached (e.g. rendering in a preview); renderers that need an
+IDE service should null-check it. `isError` / `errorDetail` mirror the
+`success: false` and `errorDetail` fields of the wire `tool_call`
+event — pass them to `ToolCallCapsule` (or your custom row) so the row
+renders in its error state.
+
+### 16.5 Worked example: a "tests passed" renderer
+
+Imagine a server-side `run_tests` skill that emits alias `"TestsPassed"`
+and a `SkillResult` of `{"passed": 12, "failed": 0, "durationMs": 4321}`.
+
+**Step 1 — add a resource-bundle key.** In your plugin's
+`messages/MyPluginBundle.properties`:
+
+```properties
+myplugin.tool.testsPassed=Tests Passed
+```
+
+**Step 2 — implement the renderer.** We recommend one folder per alias
+so the source mirrors the registration manifest:
+
+```
+my-plugin/src/main/kotlin/com/example/myplugin/tests/TestsPassedRenderer.kt
+my-plugin/src/main/resources/META-INF/extensions/tests-passed.xml
+my-plugin/src/main/resources/messages/MyPluginBundle.properties
+```
+
+```kotlin
+// TestsPassedRenderer.kt
+package com.example.myplugin.tests
+
+import androidx.compose.runtime.Composable
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
+import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import com.example.myplugin.icons.MyPluginIcons
+
+class TestsPassedRenderer : ToolCallRenderer {
+    override fun alias(): String = ALIAS
+
+    override fun iconKey() = MyPluginIcons.TestsPassed
+
+    override fun labelKey(): String = LABEL_KEY
+
+    override fun parseContent(
+        arguments: Map<String, Any?>,
+        result: Map<String, Any?>,
+    ): ToolCallContent = ToolCallContent(
+        alias = ALIAS,
+        fields = mapOf(
+            "passed" to (result["passed"] as? Number)?.toInt(),
+            "failed" to (result["failed"] as? Number)?.toInt(),
+            "durationMs" to (result["durationMs"] as? Number)?.toLong(),
+        ),
+    )
+
+    @Composable
+    override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
+        val passed = content.fields["passed"] as? Int ?: 0
+        val failed = content.fields["failed"] as? Int ?: 0
+        val durationMs = content.fields["durationMs"] as? Long ?: 0L
+        ToolCallCapsule(
+            success = !ctx.isError,
+            errorDetail = ctx.errorDetail.orEmpty(),
+            errorMessage = ctx.errorDetail.orEmpty(),
+            iconKey = MyPluginIcons.TestsPassed,
+            label = message(LABEL_KEY),
+            trailingText = "$passed passed / $failed failed in ${durationMs}ms",
+        )
+    }
+
+    companion object {
+        const val ALIAS: String = "TestsPassed"
+        const val LABEL_KEY: String = "myplugin.tool.testsPassed"
+    }
+}
+```
+
+`ToolCallCapsule` is the shared composable in
+`gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule` that all
+built-in renderers use. It handles the row layout (icon + label + body
++ error state + trailing text) for you. Import it directly — it is
+`internal` to the Gradum plugin module, but the SPI is `public`, so a
+plugin that depends on the Gradum plugin's classes at runtime (via
+`com.gradum.idea` `<depends>`) can call it.
+
+**Step 3 — register it.** In your `plugin.xml`:
+
+```xml
+<extensions defaultExtensionNs="com.gradum.idea">
+    <toolCallRenderer
+        implementation="com.example.myplugin.tests.TestsPassedRenderer"/>
+</extensions>
+```
+
+**Step 4 — drop the reference manifest.** The Gradum plugin keeps a
+`META-INF/extensions/<alias>.xml` file next to each default renderer as
+a documentation reference. The IntelliJ Platform only reads
+`META-INF/plugin.xml` (not the per-skill XML), but keeping these
+manifests in sync gives third-party developers a one-glance answer to
+"which class implements the TestsPassed alias?". For your renderer:
+
+```xml
+<!-- META-INF/extensions/tests-passed.xml -->
+<renderer alias="TestsPassed"
+          class="com.example.myplugin.tests.TestsPassedRenderer"
+          labelKey="myplugin.tool.testsPassed"
+          folder="com/example/myplugin/tests/">
+    <description>
+        Default renderer for a server-side `run_tests` skill alias.
+        Shows the test pass / fail counts and the run duration.
+    </description>
+    <action-types>
+        <action>CopyToClipboard</action>
+    </action-types>
+</renderer>
+```
+
+> This `.xml` file is **not** loaded by the platform — it is a
+> documentation reference, kept in sync with the `<toolCallRenderer>`
+> line in your `plugin.xml`. The convention is one manifest per
+> alias, placed under `META-INF/extensions/`.
+
+### 16.6 Conventions
+
+- **One folder per alias** — `chat/ui/chat/skill/ran/`,
+  `chat/ui/chat/skill/edited/`, etc. The folder contains the renderer
+  class (`RanRenderer.kt`) and is the place to put the matching
+  `META-INF/extensions/<alias>.xml` reference manifest.
+- **Aliases are first-registered-wins.** Two renderers for the same
+  `alias()` will silently drop the second one in the registry. To
+  override a built-in, register your renderer with the same alias
+  *before* Gradum's. The recommended way to add a *fallback* row for
+  unknown aliases is to use the literal alias `"*"` (this is the
+  `DefaultRenderer`'s alias).
+- **Don't swallow exceptions in `parseContent`.** If a field is missing
+  or has the wrong type, surface it via `errorDetail` on the context so
+  the model can react. The same rule applies to the server-side
+  `SkillResult` payloads — see `RunCommandSkill.readStreamOutput` for
+  the canonical example.
+- **Reuse `ToolCallCapsule` and the action button helpers in
+  `chat/ui/chat/skill/internal/`.** They are `internal` to the plugin
+  module, so a third-party plugin depending on `com.gradum.idea` can
+  still call them. Re-implementing the row layout from scratch will
+  drift from the rest of the chat panel.
+- **Localisation goes through the `labelKey()` resource bundle.** A
+  renderer that hard-codes an English string will not localise. Use a
+  Gradum bundle key (or your own plugin's bundle) and look it up via
+  `message("myplugin.tool.testsPassed")` inside `render`.
