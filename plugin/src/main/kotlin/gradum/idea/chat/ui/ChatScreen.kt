@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-08 15:30:36 Changed by gwy
+ * ChatScreen.kt  2026-07-11 10:15:42 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -28,7 +28,6 @@ import gradum.idea.chat.ui.chat.AssistantChatBubble
 import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.UserChatBubble
 import gradum.idea.chat.ui.input.ChatInputSection
-import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import java.awt.Desktop
 import java.net.URI
@@ -36,41 +35,42 @@ import java.net.URI
 private val logger = Logger.getInstance("ChatScreen"::class.java)
 
 /**
- * "At bottom" tolerance in dp. The jump-to-bottom button is hidden
- * whenever the user is within this many dp of the list's max scroll
- * value, so a tiny 1-px jitter from a fresh bubble layout doesn't
- * keep the button visible. 48 dp is generous — it lets the user
- * scroll the list a couple of paragraphs up before the button
- * shows, so a small "read the line just above" sweep doesn't pop
- * the pill in. With 24 dp the button felt like it was almost
- * always visible at the top of the input section whenever the
- * user was reading anything except the very last bubble; the wider
- * tolerance keeps the chat calm and reserves the button for the
- * "really scrolled away" case.
+ * Drag distance (in dp) the user has to pull up before the chat
+ * "unlocks" from the bottom. Set deliberately high (64 dp ≈ 2.5
+ * lines of body text) so a small read-up gesture — a quick glance
+ * at the previous bubble — does not accidentally break the lock,
+ * while a clear "I want to read history" pull does.
  */
-private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 48.dp
+private val LockThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
 
 /**
  * The active conversation screen: scrollable history on top, input pinned
  * to the bottom. Shown after the user has sent at least one message.
  *
  * A [JumpToBottomButton] floats above the input section. It fades in
- * (150 ms) whenever the user is more than 24 dp away from the bottom
- * of the message list, and fades out (150 ms) once they return to the
- * bottom. When the user is already at the bottom, new messages AND
- * new streaming blocks auto-scroll into view — preserving the
- * read-the-latest flow without pulling focus away from older history
- * the user is reading.
+ * (150 ms) whenever the chat is in the *unlocked* state — i.e. the
+ * user has actively pulled away from the bottom — and fades out
+ * (150 ms) once the user re-engages the lock.
  *
- * "New block" matters because a streaming assistant turn can grow by
- * adding new render blocks (e.g. a `<think>…</think>` block, then a
- * tool call, then the answer) without the message count changing. The
- * previous implementation only watched `messages.size` and therefore
- * stopped following the moment the LLM started emitting blocks into
- * an existing assistant message — the user would have to manually
- * click "jump to bottom" to keep up. The
- * [LaunchedEffect] below now watches both signals in a single
- * `(messageCount, lastBlockCount)` snapshot.
+ * Auto-scroll strategy — the chat is "locked" to the bottom by
+ * default. Any new content (a new message, or a new render block
+ * appended to the streaming last message) is followed automatically
+ * with a smooth `animateScrollTo(scrollState.maxValue)`. The user
+ * breaks the lock by dragging up by more than [LockThresholdDp]
+ * (64 dp); from that point on, the chat stops following new content
+ * and the jump-to-bottom button shows. Clicking the button re-engages
+ * the lock and scrolls to the bottom on the next frame.
+ *
+ * Why "always scroll" instead of "only when at bottom":
+ *   the at-bottom check (`scrollState.value >= maxValue - tolerancePx`)
+ *   is observed AFTER the new content is in the layout, at which
+ *   point `maxValue` has already grown and `value` has not. Even
+ *   though the user did not actively scroll, the formula reads
+ *   "not at bottom" and the chat would refuse to follow. Tracking
+ *   the user's drag direction via the `scrollState.value` delta
+ *   sidesteps this race entirely — `animateScrollTo` only ever
+ *   increases `value`, so a strictly negative delta is unambiguous
+ *   user intent to leave the lock.
  *
  * Layout note — the message column and the input section are siblings
  * inside a vertical Column. The messages column is wrapped in a Box
@@ -100,93 +100,43 @@ fun ChatScreen(
   modifier: Modifier = Modifier
 ) {
   val scrollState = rememberScrollState()
-  val scope = rememberCoroutineScope()
   val density = LocalDensity.current
 
   val lastMessage: ChatMessage? = messages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
-  // The deepest position we've already auto-scrolled past. A Pair
-  // rather than just a message count because streaming blocks land
-  // on the *last* message and don't change `messages.size`. The
-  // initial value mirrors the current state so a recompose on first
-  // display never triggers a phantom scroll.
-  val lastSeenSnapshot = remember {
-    mutableStateOf(messages.size to lastBlockCount)
-  }
-  var unreadCount by remember { mutableIntStateOf(0) }
-  var isJumpToBottomInFlight by remember { mutableStateOf(false) }
+  // "Locked" = the chat auto-follows new content. Default true so
+  // the moment the screen mounts, the user sees the latest messages
+  // (and any subsequent streaming block). The user breaks the lock
+  // by dragging up past [LockThresholdDp]; clicking the
+  // jump-to-bottom button re-engages it.
+  var isLockedToBottom by remember { mutableStateOf(true) }
+  val lockThresholdPx: Float = with(density) { LockThresholdDp.toPx() }
 
-  val isAtBottom: Boolean by remember(scrollState, density) {
-    derivedStateOf {
-      val tolerancePx: Float = with(density) { AtBottomToleranceDp.toPx() }
-      val maxValue: Int = scrollState.maxValue
+  // The last `scrollState.value` we observed. `animateScrollTo` only
+  // ever INCREASES `value`, so a strictly negative delta between
+  // successive observations is unambiguous user drag-up — exactly
+  // the signal we need to break the lock. Layout-driven `maxValue`
+  // changes do not move `value`, so they cannot produce a false
+  // positive.
+  var lastObservedValue by remember { mutableIntStateOf(scrollState.value) }
 
-      maxValue == 0 || scrollState.value >= maxValue - tolerancePx
-    }
-  }
-
-  LaunchedEffect(messages.size, lastBlockCount) {
-    val current: Pair<Int, Int> = messages.size to lastBlockCount
-    if (current == lastSeenSnapshot.value) return@LaunchedEffect
-
-    val (seenMsgCount, seenBlockCount) = lastSeenSnapshot.value
-    val (currentMsgCount, currentBlockCount) = current
-
-    when {
-      currentMsgCount > seenMsgCount -> {
-        // Whole message(s) appended. Same one-frame defer as the
-        // block case below: `maxValue` only catches up after the
-        // new bubble is laid out, so reading it before `withFrameNanos`
-        // returns the *old* bottom and `animateScrollTo` lands short.
-        val newMessages: List<ChatMessage> =
-          messages.subList(seenMsgCount, currentMsgCount)
-        val hasUserSend: Boolean = newMessages.any { it.isUserMessage }
-
-        if (hasUserSend) {
-          withFrameNanos { }
-          scrollState.animateScrollTo(scrollState.maxValue)
-        } else if (isAtBottom) {
-          withFrameNanos { }
-          scrollState.animateScrollTo(scrollState.maxValue)
-        } else {
-          unreadCount += currentMsgCount - seenMsgCount
-        }
-      }
-
-      currentBlockCount > seenBlockCount -> {
-        // New render block(s) appended to the streaming last message.
-        // The most common shapes this catches:
-        //   - thinking block finishes, response block starts
-        //   - response block finishes, tool-call block starts
-        //   - tool-call block finishes, response block resumes
-        // In all three cases the previous code stopped following
-        // because `messages.size` was unchanged.
-        if (isAtBottom) {
-          withFrameNanos { }
-          scrollState.animateScrollTo(scrollState.maxValue)
-        } else {
-          unreadCount += currentBlockCount - seenBlockCount
-        }
-      }
-      // The other two cases (`currentMsgCount < seenMsgCount` /
-      // `currentBlockCount < seenBlockCount`) only happen when the
-      // user retries a message and the session rebuilds the
-      // messages list. The snapshot is reset by the very next
-      // recompose, so we don't need a branch here.
-    }
-    lastSeenSnapshot.value = current
+  // Auto-scroll on new content while the lock is engaged.
+  LaunchedEffect(messages.size, lastBlockCount, isLockedToBottom) {
+    if (!isLockedToBottom) return@LaunchedEffect
+    withFrameNanos { }
+    scrollState.animateScrollTo(scrollState.maxValue)
   }
 
-  // When the user returns to the bottom (either manually, by
-  // clicking the button, or by a new message/block arriving while
-  // they were already there), reset the unread badge and snapshot
-  // the current position so the next block doesn't re-fire the
-  // "scroll to bottom" branch from a stale position.
-  LaunchedEffect(isAtBottom) {
-    if (isAtBottom) {
-      unreadCount = 0
-      lastSeenSnapshot.value = messages.size to lastBlockCount
+  // Detect user drag-up: any negative delta in `scrollState.value`
+  // that exceeds the lock threshold flips the lock off.
+  LaunchedEffect(scrollState.value) {
+    val currentValue: Int = scrollState.value
+    val delta: Int = currentValue - lastObservedValue
+    lastObservedValue = currentValue
+
+    if (isLockedToBottom && delta < -lockThresholdPx) {
+      isLockedToBottom = false
     }
   }
 
@@ -194,18 +144,6 @@ fun ChatScreen(
     modifier = modifier.fillMaxSize(),
     horizontalAlignment = Alignment.CenterHorizontally
   ) {
-    // The message column is wrapped in a Box so the jump-to-bottom
-    // button can overlay it without being measured into the
-    // verticalScroll's content height. The button's
-    // Alignment.BottomCenter anchor lives on THIS Box, not on
-    // the outer Column — which is what keeps the button pinned
-    // to the input section's top edge regardless of how tall the
-    // input grows (multi-line text, attachment chips, model
-    // selector row, etc.). A previous implementation anchored the
-    // button to the screen's BottomCenter and offset it by a
-    // hardcoded 160.dp, which broke the moment the input section
-    // exceeded that budget — the pill ended up *inside* the
-    // input box. The Box overlay pattern decouples the two.
     Box(
       modifier = Modifier
         .weight(1f)
@@ -258,21 +196,15 @@ fun ChatScreen(
       }
 
       JumpToBottomButton(
-        isVisible = !isAtBottom,
-        enabled = !isJumpToBottomInFlight,
+        isVisible = !isLockedToBottom,
         modifier = Modifier
           .align(Alignment.BottomCenter)
           .padding(bottom = GradumSpacing.lg),
         onClick = {
-          if (isJumpToBottomInFlight) return@JumpToBottomButton
-          isJumpToBottomInFlight = true
-          scope.launch {
-            try {
-              scrollState.animateScrollTo(scrollState.maxValue)
-            } finally {
-              isJumpToBottomInFlight = false
-            }
-          }
+          // Re-engage the lock; the auto-scroll LaunchedEffect above
+          // is keyed on `isLockedToBottom` and will animate the
+          // scroll to the bottom on the next frame.
+          isLockedToBottom = true
         }
       )
     }

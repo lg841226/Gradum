@@ -71,9 +71,9 @@ const val DURATION_MILLIS: Int = 120
 @Composable
 fun JumpToBottomButton(
   isVisible: Boolean,
-  enabled: Boolean,
   onClick: () -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true
 ) {
   AnimatedVisibility(
     modifier = modifier,
