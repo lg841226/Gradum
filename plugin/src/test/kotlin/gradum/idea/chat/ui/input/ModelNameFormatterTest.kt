@@ -232,8 +232,8 @@ class ModelNameFormatterTest {
       "gpt-4.1" to "GPT-4.1",
       "gpt-4.1-nano" to "GPT-4.1 Nano",
       "gpt-5" to "GPT-5",
-      "gpt-oss:20b" to "GPT-OSS",
-      "gpt-oss-120b" to "GPT-OSS"
+      "gpt-oss:20b" to "ChatGPT 4 Nano",
+      "gpt-oss-120b" to "ChatGPT 4"
     )
     cases.forEach { (input, expected) ->
       assertEquals("Failed for $input", expected, parseModelName(input).displayName)

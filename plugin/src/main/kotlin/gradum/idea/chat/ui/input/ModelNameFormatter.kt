@@ -297,9 +297,20 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("o3-pro", "o3 Pro")
   put("o4-mini", "o4 Mini")
   put("chatgpt-4o-latest", "ChatGPT-4o")
-  put("gpt-oss", "GPT-OSS")
-  put("gpt-oss-20b", "GPT-OSS 20B")
-  put("gpt-oss-120b", "GPT-OSS 120B")
+  // GPT-OSS — OpenAI's open-weights distilled line, both
+  // sizes are distilled from ChatGPT 4. Naming follows the
+  // model's own self-identification (per its system prompt),
+  // not the OpenAI product hierarchy: 20b presents itself
+  // as "ChatGPT 4 Nano" because it is the small distilled
+  // tier; 120b presents itself as "ChatGPT 4" because it
+  // is the full-size distilled tier (the actual closed-source
+  // "ChatGPT 4" flagship is a much larger 100B+ model that
+  // is not released as open weights). The bare `gpt-oss`
+  // entry is the fallthrough when no size suffix is present
+  // in the raw name.
+  put("gpt-oss", "ChatGPT 4")
+  put("gpt-oss-20b", "ChatGPT 4 Nano")
+  put("gpt-oss-120b", "ChatGPT 4")
   put("text-embedding-3-small", "Embedding 3 Small")
   put("text-embedding-3-large", "Embedding 3 Large")
   put("text-embedding-nomic-embed-text-v1.5", "Nomic Embed V1.5")
@@ -574,7 +585,7 @@ fun parseModelName(raw: String): FormattedModelName {
   // 7. Try the key and progressively shorter prefixes against
   // the family map. Misses fall through to a Title-Case
   // fallback of the key itself.
-  val resolvedDisplay: String = lookupDisplayName(lookupKey)
+  val resolvedDisplay: String = lookupDisplayNameWithSize(lookupKey, parameterSize)
     ?: if (lookupKey.isEmpty()) rawTrimmed else fallbackDisplay(lookupKey)
 
   // 8 + 9. Provider + catalog flag.
@@ -701,6 +712,47 @@ private fun lookupDisplayName(key: String): String? {
     modelDisplayNames[current]?.let { return it }
   }
   return null
+}
+
+/**
+ * Variant of [lookupDisplayName] that ALSO tries a
+ * size-qualified key (e.g. `gpt-oss-20b`) before falling
+ * through to the bare key. This is needed because Ollama
+ * names carry the size in the colon tag (`gpt-oss:20b`),
+ * and [buildLookupKey] only operates on the base name —
+ * so the bare lookupKey `gpt-oss` would hit the
+ * size-less `ChatGPT 4` entry instead of the
+ * size-specific `ChatGPT 4 Nano` entry.
+ *
+ * Adoption rule: the size-qualified entry is used only
+ * when the bare entry ALSO exists AND the size-specific
+ * displayName is NOT simply `bareDisplay + " " + size`.
+ * This rejects the common case where the size-specific
+ * entry just appends the parameter count to the family
+ * name (`mistral-7b` → "Mistral 7B" would duplicate the
+ * 7B parameterSize badge, so the bare `Mistral` entry
+ * wins) and accepts the case where the size suffix
+ * carries independent semantic content — typically a
+ * distillation tier name (`gpt-oss-20b` → "ChatGPT 4
+ * Nano" — "Nano" is the tier, not the size, so the
+ * parameterSize badge is still distinct).
+ *
+ * parameterSize is the already-canonicalized form
+ * (`20B`, `120B`, `8x7B`); the lookup key is built in
+ * lowercase to match the map convention.
+ */
+private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): String? {
+  if (parameterSize != null) {
+    val sizeQualified: String = "$key-${parameterSize.lowercase()}"
+    val sizeQualifiedDisplay: String? = modelDisplayNames[sizeQualified]
+    val bareDisplay: String? = modelDisplayNames[key]
+    if (sizeQualifiedDisplay != null && bareDisplay != null &&
+      sizeQualifiedDisplay != "$bareDisplay $parameterSize"
+    ) {
+      return sizeQualifiedDisplay
+    }
+  }
+  return lookupDisplayName(key)
 }
 
 /**
