@@ -57,9 +57,20 @@ private val AtBottomToleranceDp: androidx.compose.ui.unit.Dp = 48.dp
  * A [JumpToBottomButton] floats above the input section. It fades in
  * (150 ms) whenever the user is more than 24 dp away from the bottom
  * of the message list, and fades out (150 ms) once they return to the
- * bottom. When the user is already at the bottom, new messages
- * auto-scroll into view — preserving the read-the-latest flow without
- * pulling focus away from older history the user is reading.
+ * bottom. When the user is already at the bottom, new messages AND
+ * new streaming blocks auto-scroll into view — preserving the
+ * read-the-latest flow without pulling focus away from older history
+ * the user is reading.
+ *
+ * "New block" matters because a streaming assistant turn can grow by
+ * adding new render blocks (e.g. a `<think>…</think>` block, then a
+ * tool call, then the answer) without the message count changing. The
+ * previous implementation only watched `messages.size` and therefore
+ * stopped following the moment the LLM started emitting blocks into
+ * an existing assistant message — the user would have to manually
+ * click "jump to bottom" to keep up. The
+ * [LaunchedEffect] below now watches both signals in a single
+ * `(messageCount, lastBlockCount)` snapshot.
  *
  * Layout note — the message column and the input section are siblings
  * inside a vertical Column. The messages column is wrapped in a Box
@@ -92,7 +103,17 @@ fun ChatScreen(
   val scope = rememberCoroutineScope()
   val density = LocalDensity.current
 
-  val lastSeenMessageCount = remember { mutableIntStateOf(messages.size) }
+  val lastMessage: ChatMessage? = messages.lastOrNull()
+  val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
+
+  // The deepest position we've already auto-scrolled past. A Pair
+  // rather than just a message count because streaming blocks land
+  // on the *last* message and don't change `messages.size`. The
+  // initial value mirrors the current state so a recompose on first
+  // display never triggers a phantom scroll.
+  val lastSeenSnapshot = remember {
+    mutableStateOf(messages.size to lastBlockCount)
+  }
   var unreadCount by remember { mutableIntStateOf(0) }
   var isJumpToBottomInFlight by remember { mutableStateOf(false) }
 
@@ -105,58 +126,67 @@ fun ChatScreen(
     }
   }
 
-  LaunchedEffect(messages.size) {
-    val delta: Int = messages.size - lastSeenMessageCount.intValue
-    if (delta <= 0) return@LaunchedEffect
+  LaunchedEffect(messages.size, lastBlockCount) {
+    val current: Pair<Int, Int> = messages.size to lastBlockCount
+    if (current == lastSeenSnapshot.value) return@LaunchedEffect
 
-    // We can't use `messages.lastOrNull()?.isUserMessage` to detect
-    // a user send: the caller always appends a user message AND an
-    // empty assistant placeholder in the same frame, so
-    // `lastOrNull()` is the (non-user) assistant bubble and the
-    // "isUserSend" check is always false. Instead, scan the newly
-    // appended slice for any user-role message — that's the real
-    // "user just hit send" signal.
-    val newMessages: List<ChatMessage> =
-      messages.subList(lastSeenMessageCount.intValue, messages.size)
-    val hasUserSend: Boolean = newMessages.any { it.isUserMessage }
+    val (seenMsgCount, seenBlockCount) = lastSeenSnapshot.value
+    val (currentMsgCount, currentBlockCount) = current
 
-    if (hasUserSend) {
-      // User just hit send — always follow to the bottom regardless
-      // of the current scroll position, so the user sees their own
-      // message and the assistant's response without having to
-      // manually click "jump to bottom".
-      //
-      // We must defer one frame before reading scrollState.maxValue:
-      // this effect runs in the same recomposition pass that adds
-      // the new message to the Column, but the Column's layout pass
-      // (which is what updates scrollState.maxValue) hasn't happened
-      // yet. Without this wait, maxValue is the *old* value and
-      // animateScrollTo lands short of the new bottom.
-      withFrameNanos { }
-      scrollState.animateScrollTo(scrollState.maxValue)
-      lastSeenMessageCount.intValue = messages.size
-    } else if (isAtBottom) {
-      // Assistant message arrived while the user is already at the
-      // bottom — smooth-scroll to keep the latest message in view.
-      // Same one-frame defer as above: maxValue only catches up
-      // after the new bubble is laid out.
-      withFrameNanos { }
-      scrollState.animateScrollTo(scrollState.maxValue)
-      lastSeenMessageCount.intValue = messages.size
-    } else {
-      // Assistant message arrived while the user is reading history —
-      // bump the unread count and let the jump-to-bottom button show it.
-      unreadCount += delta
+    when {
+      currentMsgCount > seenMsgCount -> {
+        // Whole message(s) appended. Same one-frame defer as the
+        // block case below: `maxValue` only catches up after the
+        // new bubble is laid out, so reading it before `withFrameNanos`
+        // returns the *old* bottom and `animateScrollTo` lands short.
+        val newMessages: List<ChatMessage> =
+          messages.subList(seenMsgCount, currentMsgCount)
+        val hasUserSend: Boolean = newMessages.any { it.isUserMessage }
+
+        if (hasUserSend) {
+          withFrameNanos { }
+          scrollState.animateScrollTo(scrollState.maxValue)
+        } else if (isAtBottom) {
+          withFrameNanos { }
+          scrollState.animateScrollTo(scrollState.maxValue)
+        } else {
+          unreadCount += currentMsgCount - seenMsgCount
+        }
+      }
+
+      currentBlockCount > seenBlockCount -> {
+        // New render block(s) appended to the streaming last message.
+        // The most common shapes this catches:
+        //   - thinking block finishes, response block starts
+        //   - response block finishes, tool-call block starts
+        //   - tool-call block finishes, response block resumes
+        // In all three cases the previous code stopped following
+        // because `messages.size` was unchanged.
+        if (isAtBottom) {
+          withFrameNanos { }
+          scrollState.animateScrollTo(scrollState.maxValue)
+        } else {
+          unreadCount += currentBlockCount - seenBlockCount
+        }
+      }
+      // The other two cases (`currentMsgCount < seenMsgCount` /
+      // `currentBlockCount < seenBlockCount`) only happen when the
+      // user retries a message and the session rebuilds the
+      // messages list. The snapshot is reset by the very next
+      // recompose, so we don't need a branch here.
     }
+    lastSeenSnapshot.value = current
   }
 
   // When the user returns to the bottom (either manually, by
-  // clicking the button, or by a new message arriving while they
-  // were already there), reset the unread badge and snapshot the
-  // current message count.
+  // clicking the button, or by a new message/block arriving while
+  // they were already there), reset the unread badge and snapshot
+  // the current position so the next block doesn't re-fire the
+  // "scroll to bottom" branch from a stale position.
   LaunchedEffect(isAtBottom) {
     if (isAtBottom) {
-      unreadCount = 0; lastSeenMessageCount.intValue = messages.size
+      unreadCount = 0
+      lastSeenSnapshot.value = messages.size to lastBlockCount
     }
   }
 
