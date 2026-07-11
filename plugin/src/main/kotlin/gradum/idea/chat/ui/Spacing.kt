@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Spacing.kt  2026-06-30 23:35:47 Changed by gwy
+ * Spacing.kt  2026-07-11 14:05:00 Changed by gwy
  */
 
 package gradum.idea.chat.ui
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Centralized spacing constants for the Gradum UI.
@@ -45,4 +46,14 @@ object GradumSpacing {
 
   /** Extra extra extra large — hero spacers. */
   val xxxl = 32.dp
+
+  /**
+   * Letter spacing for the model name text in the selector
+   * dropdown rows. Slightly looser than the default tracking
+   * (0.5sp instead of 0sp) so long family labels — e.g. "CodeLlama
+   * 70B Instruct" — breathe a bit before the size badge lands.
+   * The badge sits immediately to the right, and tight tracking
+   * makes the gap feel cramped.
+   */
+  val modelNameTracking = 0.5.sp
 }

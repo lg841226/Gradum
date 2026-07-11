@@ -2,19 +2,23 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-07-09 19:19:21 Changed by gwy
+ * ModelSelectorBar.kt  2026-07-11 14:05:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ModelInfo
@@ -201,6 +205,7 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
   val iconKey: IconKey? = resolveProviderIcon(model)
   val pinIcon: IconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin
   val pinTip: String = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin")
+  val formatted: FormattedModelName = parseModelName(model.name)
 
   Row(
     modifier = Modifier
@@ -218,10 +223,19 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
           )
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
+        // The display name carries slight letter-spacing so
+        // long family labels (e.g. "CodeLlama 70B Instruct")
+        // breathe a little — without it, the tighter tracking
+        // makes the badge right after the name feel cramped.
         Text(
-          text = formatModelName(model.name),
-          color = JewelTheme.globalColors.text.normal
+          text = formatted.displayName,
+          color = JewelTheme.globalColors.text.normal,
+          letterSpacing = GradumSpacing.modelNameTracking
         )
+        if (formatted.parameterSize != null) {
+          Spacer(modifier = Modifier.width(GradumSpacing.sm))
+          SizeBadge(formatted.parameterSize)
+        }
       }
       Row(verticalAlignment = Alignment.CenterVertically) {
         CapabilityIcons(model)
@@ -246,6 +260,37 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
       iconKey = pinIcon,
       contentDescription = pinTip,
       onClick = onTogglePin
+    )
+  }
+}
+
+/**
+ * "Ghost" pill that surfaces the parameter size next to the
+ * display name. Background is the same blue as `text.info` at
+ * ~12% alpha, text is the full-strength blue. The intent is a
+ * subtle tint that doesn't compete with the family label but
+ * is still scannable at a glance — heavier fills tend to make
+ * the row look like it has two equal-weight titles.
+ *
+ * Renders nothing for cloud / size-less models because the
+ * caller already gates on `parameterSize != null`.
+ */
+@Composable
+private fun SizeBadge(size: String) {
+  val infoColor: Color = JewelTheme.globalColors.text.info
+  Box(
+    modifier = Modifier
+      .background(
+        color = infoColor.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(GradumSpacing.sm)
+      )
+      .padding(horizontal = GradumSpacing.sml, vertical = 2.dp)
+  ) {
+    Text(
+      text = size,
+      color = infoColor,
+      style = JewelTheme.typography.small,
+      fontWeight = FontWeight.Medium
     )
   }
 }
