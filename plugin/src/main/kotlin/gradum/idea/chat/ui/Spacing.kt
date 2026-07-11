@@ -48,12 +48,13 @@ object GradumSpacing {
   val xxxl = 32.dp
 
   /**
-   * Letter spacing for the model name text in the selector
-   * dropdown rows. Slightly looser than the default tracking
-   * (0.5sp instead of 0sp) so long family labels — e.g. "CodeLlama
-   * 70B Instruct" — breathe a bit before the size badge lands.
-   * The badge sits immediately to the right, and tight tracking
-   * makes the gap feel cramped.
+   * Letter spacing for the welcome heading on the home
+   * screen. Slightly looser than the default tracking
+   * (0.5sp instead of 0sp) so the gradient-swept brand
+   * title — currently "Hi, I'm Gradum" — reads as airy
+   * and brand-distinct, not as just another default
+   * h2 heading. Keep this name in sync with the actual
+   * label rendered by [gradum.welcome.text].
    */
-  val modelNameTracking = 0.5.sp
+  val welcomeTitleTracking = 0.5.sp
 }

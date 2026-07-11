@@ -55,6 +55,57 @@ class ModelNameFormatterTest {
     assertEquals("DeepSeek V3", formatModelName("DeepSeek-V3"))
   }
 
+  // ---------------------------------------------------------------------
+  // Zhipu AI (GLM) — common open-weights names from THUDM
+  // ---------------------------------------------------------------------
+
+  @Test
+  fun `parseModelName resolves GLM family variants`() {
+    val cases: List<Pair<String, String>> = listOf(
+      "glm-4-9b" to "GLM 4",
+      "glm-4-9b-chat" to "GLM 4",
+      "THUDM/glm-4-9b-chat" to "GLM 4",
+      "glm-4.5" to "GLM 4.5",
+      "glm-4-9b-chat-128k" to "GLM 4",
+      "chatglm-6b" to "ChatGLM",
+      "chatglm3-6b" to "ChatGLM 3"
+    )
+    for ((input, expected) in cases)
+      assertEquals("input=$input", expected, formatModelName(input))
+  }
+
+  @Test
+  fun `parseModelName detects Zhipu provider for GLM and ChatGLM`() {
+    assertEquals("Zhipu AI", parseModelName("glm-4-9b-chat").provider)
+    assertEquals("Zhipu AI", parseModelName("chatglm-6b").provider)
+  }
+
+  @Test
+  fun `parseModelName extracts 9B size from glm-4-9b`() {
+    val parsed: FormattedModelName = parseModelName("glm-4-9b-chat")
+    assertEquals("9B", parsed.parameterSize)
+    assertEquals("GLM 4", parsed.displayName)
+  }
+
+  // ---------------------------------------------------------------------
+  // Dashless family roots — users sometimes type `glm4` instead
+  // of `glm-4` (Ollama tags especially). The dash-inserted lookup
+  // step in lookupDisplayName should bridge these.
+  // ---------------------------------------------------------------------
+
+  @Test
+  fun `parseModelName inserts dash for dashless family roots`() {
+    val cases: List<Pair<String, String>> = listOf(
+      "glm4:latest" to "GLM 4",
+      "gpt4:latest" to "GPT-4",
+      "phi3:medium" to "Phi 3",
+      "llama3:8b-instruct-q4_0" to "Llama 3",
+      "mistral7b:latest" to "Mistral 7B"
+    )
+    for ((input, expected) in cases)
+      assertEquals("input=$input", expected, formatModelName(input))
+  }
+
   @Test
   fun `formatModelName normalizes MiniMax family`() {
     assertEquals("MiniMax M2", formatModelName("MiniMax-M2"))

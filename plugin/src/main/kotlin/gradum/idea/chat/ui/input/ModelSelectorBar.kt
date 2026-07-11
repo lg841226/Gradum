@@ -223,14 +223,9 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
           )
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
-        // The display name carries slight letter-spacing so
-        // long family labels (e.g. "CodeLlama 70B Instruct")
-        // breathe a little — without it, the tighter tracking
-        // makes the badge right after the name feel cramped.
         Text(
           text = formatted.displayName,
-          color = JewelTheme.globalColors.text.normal,
-          letterSpacing = GradumSpacing.modelNameTracking
+          color = JewelTheme.globalColors.text.normal
         )
         if (formatted.parameterSize != null) {
           Spacer(modifier = Modifier.width(GradumSpacing.sm))

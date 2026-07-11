@@ -606,40 +606,95 @@ fun parseModelName(raw: String): FormattedModelName {
 fun formatModelName(raw: String): String = parseModelName(raw).displayName
 
 /**
- * Try the no-dash form + the key + progressively shorter
- * prefixes against the family map. Returns the first hit, or
- * `null` if nothing matches.
+ * Try the key, the no-dash form, the dash-inserted form, and
+ * progressively shorter prefixes against the family map.
+ * Returns the first hit, or `null` if nothing matches.
  *
- * Order matters and is the most subtle bit of this function:
- * we try the no-dash form **first** because it's the most
- * specific — `llama3` is more specific than `llama-3` (which
- * is more specific than `llama`). The first hit wins, so
- * getting this order right is the difference between
- * `Llama 3.1` (correct) and `Llama` (the bare fallback hit).
+ * Order is the most subtle bit of this function. The intent
+ * is "first specific, then general":
+ *
+ *  1. **Literal key** — respects the user's exact spelling.
+ *  2. **No-dash form** — for keys that are themselves dashed
+ *     (`llama-3`), this collapses to `llama3`, which is the
+ *     more-specific map entry when both exist. We skip this
+ *     step when the key has no dashes to avoid a wasted
+ *     self-lookup.
+ *  3. **Dash-inserted form** — for keys without dashes that
+ *     actually want the dashed family (`glm4` → `glm-4`).
+ *     This is the common case where users write a colon-tagged
+ *     Ollama name like `glm4:latest` instead of the
+ *     HuggingFace-style `glm-4`. We insert a dash on the
+ *     alpha↔digit boundary in both directions so `gpt4` →
+ *     `gpt-4`, `phi3` → `phi-3`, `qwen25` → `qwen2-5`.
+ *  4. **Drop the last segment** — keeps `phi-3-mini-4k`
+ *     findable as `phi-3-mini` when no shorter prefix hits.
  *
  * Examples for key `llama-3`:
- *   - `llama3`           (no-dash first, hit → "Llama 3")
- *   - `llama-3`          (skipped)
- *   - `llama`            (skipped)
+ *   - `llama-3`          (literal, miss)
+ *   - `llama3`           (no-dash, hit → "Llama 3")
+ *   - `llama-3`          (dash-inserted, same as literal)
+ *   - `llama`            (drop suffix, skipped — noDash already won)
  *
  * Examples for key `phi-3-mini-4k`:
- *   - `phi3mini4k`       (no-dash first, miss)
- *   - `phi-3-mini-4k`    (full key, miss)
+ *   - `phi-3-mini-4k`    (literal, miss)
+ *   - `phi3mini4k`       (no-dash, miss)
+ *   - `phi-3-mini-4k`    (dash-inserted, same as literal)
  *   - `phi-3-mini`       (drop suffix, hit → "Phi 3 Mini")
  *   - `phi-3`            (skipped)
  *   - `phi`              (skipped)
+ *
+ * Examples for key `glm4` (the bug case that motivated step 3):
+ *   - `glm4`             (literal, miss)
+ *   - (no-dash skipped — key has no dashes)
+ *   - `glm-4`            (dash-inserted, hit → "GLM 4")
+ *   - `glm`              (drop suffix, skipped)
  */
 private fun lookupDisplayName(key: String): String? {
   if (key.isEmpty()) return null
-  // First try the no-dash form (most specific: `llama3` over
-  // `llama-3` and `llama`).
-  val noDash: String = key.replace("-", "")
-  if (noDash != key) {
-    modelDisplayNames[noDash]?.let { return it }
-  }
-  // Then the full key.
+  // 1. Literal key.
   modelDisplayNames[key]?.let { return it }
-  // Then progressively drop the last segment.
+  // 2. No-dash form. Only when the key itself has dashes —
+  // otherwise we'd be re-asking the same key in step 1.
+  if ("-" in key) {
+    val noDash: String = key.replace("-", "")
+    if (noDash != key) {
+      modelDisplayNames[noDash]?.let { return it }
+    }
+  }
+  // 3. Dash-inserted form, but ONLY when the key has no
+  // dashes at all. The intent is to bridge dashless spellings
+  // like `glm4` (Ollama's `glm4:latest`) and `mistral7b` to
+  // their dashed family entries (`glm-4`, `mistral-7b`).
+  //
+  // We must NOT run this on already-dashed keys: a key like
+  // `deepseek-r1-distill-llama` contains `r1` as a single
+  // token (R1 = family generation), and inserting a dash on
+  // the alpha↔digit boundary would split it into `r-1`,
+  // turning the lookup into a miss. Already-dashed keys
+  // already place dashes on the right boundaries (the user
+  // typed them in), so the dashInserted step is a no-op for
+  // them anyway.
+  if ("-" !in key) {
+    val dashInserted: String = key
+      .replace(Regex("(?<=[a-z])(?=\\d)"), "-")
+    if (dashInserted != key) {
+      modelDisplayNames[dashInserted]?.let { return it }
+    }
+    // 4. Drop the last segment one at a time. We start from
+    // dashInserted (not the original key) so a dashless key
+    // like `mistral7b` can still find `mistral` via the
+    // `mistral-7-b` → `mistral-7` → `mistral` chain. Starting
+    // from the raw key would never enter the loop because the
+    // key has no `-` to drop.
+    var current: String = dashInserted
+    while (current.contains('-')) {
+      current = current.substringBeforeLast('-')
+      modelDisplayNames[current]?.let { return it }
+    }
+    return null
+  }
+  // 5. Already-dashed key: drop the last segment one at a
+  // time. No dashInserted step here (see the rationale above).
   var current: String = key
   while (current.contains('-')) {
     current = current.substringBeforeLast('-')

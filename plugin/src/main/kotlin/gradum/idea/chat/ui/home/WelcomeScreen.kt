@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-07 16:53:14 Changed by gwy
+ * WelcomeScreen.kt  2026-07-11 22:02:47 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -20,7 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
@@ -81,6 +83,8 @@ fun WelcomeScreen(
   val welcomeStyle = remember(welcomeIndex) {
     normalStyle.copy(fontFamily = editorFontFamily)
   }
+  val myCustomFont = Font("/font/GoogleSans.ttf")
+  val myFontFamily = FontFamily(myCustomFont)
 
   Box(
     modifier = modifier.fillMaxSize(),
@@ -102,9 +106,11 @@ fun WelcomeScreen(
           )
           Spacer(modifier = Modifier.width(GradumSpacing.md))
           Text(
-            text = message("gradum.welcome.text"),
             fontWeight = FontWeight.Medium,
-            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient)
+            fontFamily = myFontFamily,
+            text = message("gradum.welcome.text"),
+            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
+            letterSpacing = GradumSpacing.welcomeTitleTracking
           )
         }
         Spacer(modifier = Modifier.height(GradumSpacing.xl))
