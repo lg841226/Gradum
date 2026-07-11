@@ -398,10 +398,10 @@ fun ScrollableTable(
     }
     val scrollState = rememberScrollState()
 
-    // Column stack: [TableToolbar] sits above the scrollable table
+    // Column stack: `TableToolbar` sits above the scrollable table
     // area. Both children live inside the BoxWithConstraints' clip,
     // so the toolbar's top corners follow the panel's rounded
-    // shape — same as the code block's [CodeBlockToolbar] above its
+    // shape — same as the code block's `CodeBlockToolbar` above its
     // highlighted content. In `isSimplified` mode (used by the
     // ThinkingIndicator) the toolbar is dropped: the surrounding
     // reasoning text is already greyed and a copy button would
@@ -410,7 +410,7 @@ fun ScrollableTable(
     Column(modifier = Modifier.fillMaxWidth()) {
       if (!isSimplified) TableToolbar(table = table)
       // Outer Box hosts both the scrollable table area and the
-      // [HorizontalScrollbar] overlay. The inner Box (with the
+      // `HorizontalScrollbar` overlay. The inner Box (with the
       // horizontalScroll modifier) is the actual scroll target;
       // the scrollbar sits in the reserved bottom padding and gets
       // clipped to the rounded corners by the outer BoxWithConstraints.
@@ -637,7 +637,9 @@ internal fun distributeTableWidth(
  * from inside Composable functions escape the try block and land in
  * the coroutine exception handler. So we dry-run the parse
  * ourselves, with [runCatching] around it, and fall back to a plain
- * [Text] when the parse isn't going to play nicely with MarkdownText.
+ * `Text` (from `org.jetbrains.jewel.ui.component.Text`, already in
+ * scope via the wildcard import above) when the parse isn't going
+ * to play nicely with MarkdownText.
  *
  * Trade-off: the dry-run doubles the Markdown parsing work for the
  * common case (where MarkdownText is happy). For short cell-sized

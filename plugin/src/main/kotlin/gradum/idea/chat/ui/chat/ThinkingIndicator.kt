@@ -71,7 +71,7 @@ fun ThinkingIndicator(
   val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
   val simplifiedCodeRenderer = remember(thinkingStyling) {
     // Use `DefaultMarkdownBlockRenderer` for everything that
-    // [GradumCodeBlockRenderer] doesn't override so the parent's
+    // `GradumCodeBlockRenderer` doesn't override so the parent's
     // table-of-contents renderer, blockquote, etc. all keep
     // working. Only the fenced-code-block override flips into
     // `isSimplified = true` to drop the toolbar.

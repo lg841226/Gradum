@@ -61,6 +61,13 @@ private val LockThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
  * and the jump-to-bottom button shows. Clicking the button re-engages
  * the lock and scrolls to the bottom on the next frame.
  *
+ * One exception to the lock — a fresh user message always re-engages
+ * the lock and forces the scroll to the bottom, even if the user had
+ * been 50 bubbles up reading history. Hitting Enter is unambiguous
+ * "I want to see this conversation from now on" intent, and the
+ * alternative (jumping back to the user's just-sent message, then
+ * back to wherever they were reading) is much more disorienting.
+ *
  * Why "always scroll" instead of "only when at bottom":
  *   the at-bottom check (`scrollState.value >= maxValue - tolerancePx`)
  *   is observed AFTER the new content is in the layout, at which
@@ -108,7 +115,7 @@ fun ChatScreen(
   // "Locked" = the chat auto-follows new content. Default true so
   // the moment the screen mounts, the user sees the latest messages
   // (and any subsequent streaming block). The user breaks the lock
-  // by dragging up past [LockThresholdDp]; clicking the
+  // by dragging up past `LockThresholdDp`; clicking the
   // jump-to-bottom button re-engages it.
   var isLockedToBottom by remember { mutableStateOf(true) }
   val lockThresholdPx: Float = with(density) { LockThresholdDp.toPx() }
@@ -121,9 +128,38 @@ fun ChatScreen(
   // positive.
   var lastObservedValue by remember { mutableIntStateOf(scrollState.value) }
 
-  // Auto-scroll on new content while the lock is engaged.
+  // Snapshot of `messages.size` for the "user just hit send" branch
+  // of the auto-scroll effect below. Tracked separately from the
+  // drag-distance logic so the user can always see their own message
+  // + the response, even if they had been scrolled away reading
+  // history.
+  var lastSeenMessageCount by remember { mutableIntStateOf(messages.size) }
+
+  // Auto-scroll on new content while the lock is engaged. The
+  // "user just hit send" branch is the one exception: a fresh user
+  // message is an unambiguous "I want to see this" intent, so we
+  // re-engage the lock and scroll regardless of where the user was
+  // before — even if they were 50 bubbles up reading history.
   LaunchedEffect(messages.size, lastBlockCount, isLockedToBottom) {
+    if (messages.size > lastSeenMessageCount) {
+      val newMessages: List<ChatMessage> =
+        messages.subList(lastSeenMessageCount, messages.size)
+      if (newMessages.any { it.isUserMessage }) {
+        // Re-engage the lock so the user-send branch always lands
+        // at the bottom, regardless of the previous scroll position.
+        // The state change re-keys this effect: the new coroutine
+        // sees `isLockedToBottom == true` and animates below.
+        isLockedToBottom = true
+      }
+    }
+    lastSeenMessageCount = messages.size
+
     if (!isLockedToBottom) return@LaunchedEffect
+    // Defer one frame: the LaunchedEffect runs after composition but
+    // before the new content's layout pass, so reading
+    // `scrollState.maxValue` now would return the *old* value and
+    // `animateScrollTo` would land short of the new bottom. After
+    // `withFrameNanos` the layout has caught up.
     withFrameNanos { }
     scrollState.animateScrollTo(scrollState.maxValue)
   }
