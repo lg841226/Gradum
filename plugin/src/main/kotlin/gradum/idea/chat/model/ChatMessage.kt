@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-07-03 15:44:14 Changed by gwy
+ * ChatMessage.kt  2026-07-10 14:28:57 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -134,18 +134,21 @@ data class ChatMessage(
             } else ""
             contentBuilder.append(
               "<tool_call>${event.info.alias}${
-                if (argumentString.isNotBlank()) "($argumentString)" else ""
+                if (argumentString.isNotBlank())
+                  "($argumentString)" else ""
               }</tool_call>"
             )
           }
 
           is ChatEvent.Response -> {
-            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            if (contentBuilder.isNotEmpty())
+              contentBuilder.append("\n\n")
             contentBuilder.append(event.content)
           }
 
           is ChatEvent.Error -> {
-            if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
+            if (contentBuilder.isNotEmpty())
+              contentBuilder.append("\n\n")
             contentBuilder.append("Error: ${event.message}")
           }
         }
@@ -164,30 +167,28 @@ data class ChatMessage(
     val newRenderBlocks = when (event) {
       is ChatEvent.Response -> {
         val last = renderBlocks.lastOrNull()
-        if (last is RenderBlock.Response) {
+        if (last is RenderBlock.Response)
           renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)
-        } else {
+        else
           renderBlocks + RenderBlock.Response(event.content)
-        }
       }
 
       is ChatEvent.Thinking -> {
         val last = renderBlocks.lastOrNull()
-        if (last is RenderBlock.Thinking) {
+        if (last is RenderBlock.Thinking)
           renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)
-        } else {
+        else
           renderBlocks + RenderBlock.Thinking(event.content)
-        }
       }
 
       is ChatEvent.ToolCall -> {
         renderBlocks + RenderBlock.ToolCall(
           alias = event.info.alias,
+          result = event.info.result,
           success = event.info.success,
           arguments = event.info.arguments,
-          result = event.info.result,
-          errorMessage = event.info.errorMessage,
-          errorDetail = event.info.errorDetail
+          errorDetail = event.info.errorDetail,
+          errorMessage = event.info.errorMessage
         )
       }
 

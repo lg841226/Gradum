@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistrySchemaTest.kt  2026-06-30 23:35:47 Changed by gwy
+ * SkillRegistrySchemaTest.kt  2026-07-10 18:35:41 Changed by gwy
  */
 
 package gradum.skill
@@ -65,7 +65,7 @@ class SkillRegistrySchemaTest {
 
   @Test
   fun `allowedToolModes and getSchemas are the same source of truth`() {
-    // The key invariant this refactor was about: every Skill that
+    // The key invariant this refactors was about: every Skill that
     // appears in getSchemas(X) must declare X in its allowedToolModes,
     // and every Skill that does NOT declare X must not appear. If
     // this test ever fails, somebody has split the two views again
@@ -98,10 +98,6 @@ class SkillRegistrySchemaTest {
   }
 
   private companion object {
-    // Pinned to whatever the registry actually has today. If a new
-    // Skill is added, both this list and the Skill's
-    // allowedToolModes get updated together — there is no second
-    // mapping to keep in sync.
     val EXPECTED_ALL: Set<String> = setOf(
       "read_file",
       "explore_project",
@@ -110,11 +106,15 @@ class SkillRegistrySchemaTest {
       "save_file",
       "to_do",
       "finish_to_do_item",
+      "grep",
+      "glob",
     )
     val EXPECTED_READ_ONLY: Set<String> = setOf(
       "read_file",
       "explore_project",
       "run_cmd",
+      "grep",
+      "glob",
     )
     val EXPECTED_EDIT: Set<String> = setOf(
       "read_file",
@@ -122,6 +122,8 @@ class SkillRegistrySchemaTest {
       "run_cmd",
       "edit_file",
       "save_file",
+      "grep",
+      "glob",
     )
   }
 }

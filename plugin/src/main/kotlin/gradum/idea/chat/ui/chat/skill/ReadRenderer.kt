@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-07-09 19:36:33 Changed by gwy
+ * ReadRenderer.kt  2026-07-11 09:57:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -10,15 +10,26 @@
 package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
-import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -77,31 +88,49 @@ class ReadRenderer : ToolCallRenderer {
       startLine != null -> message("gradum.tool.line.single", startLine)
       else -> ""
     }
-    val displayText: String = if (lineText.isNotEmpty()) "$fileName $lineText" else fileName
+    val textColor = JewelTheme.globalColors.text.normal
+    val infoColor = JewelTheme.globalColors.text.info
+    val disabledColor = JewelTheme.globalColors.text.disabled
 
-    ToolCallCapsule(
-      modifier = Modifier,
-      success = !ctx.isError,
-      label = message(LABEL_KEY),
-      trailingText = displayText,
-      iconKey = AllIconsKeys.General.Show,
-      errorDetail = ctx.errorDetail.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
-      trailingIcon = {
-        OpenInEditorButton(
-          filePath = filePath,
-          startLine = startLine,
-          endLine = endLine,
-          onClick = {
-            ctx.onOpenInEditor?.invoke(
-              filePath,
-              (startLine ?: 0).coerceAtLeast(1),
-              (endLine ?: 0).coerceAtLeast(1)
-            )
-          }
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Icon(AllIconsKeys.General.Show, contentDescription = null)
+      Text(
+        color = textColor,
+        text = message(LABEL_KEY),
+        fontWeight = FontWeight.Medium
+      )
+      Text(
+        maxLines = 1,
+        text = fileName,
+        color = infoColor,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.horizontalScroll(rememberScrollState())
+      )
+      if (lineText.isNotEmpty()) {
+        Text(
+          maxLines = 1,
+          text = lineText,
+          color = disabledColor,
+          overflow = TextOverflow.Ellipsis
         )
       }
-    )
+      OpenInEditorButton(
+        filePath = filePath,
+        startLine = startLine,
+        endLine = endLine,
+        onClick = {
+          ctx.onOpenInEditor?.invoke(
+            filePath,
+            (startLine ?: 0).coerceAtLeast(1),
+            (endLine ?: 0).coerceAtLeast(1)
+          )
+        }
+      )
+    }
   }
 
   private fun parseLineRangeStart(lineRange: String?): Int? =

@@ -53,6 +53,15 @@
     - Use environment variables for sensitive data
     - Never read files outside the project root unless the user asks
   </Security>
+  <Tools>
+    - Use grep for content search. Pattern must be >= 3 characters.
+    - Supports regex patterns and glob file filters (e.g. '*.kt', '*.{kt,java}').
+    - Returns file path, line number, and matched line content.
+    - Supports caseSensitive and limit parameters.
+    - Use glob to find files by name pattern (e.g. '*.kt', '**/*.test.*').
+    - Returns matching file paths with limit parameter.
+    - Do NOT use shell grep or find commands. Use the grep/glob tools instead.
+  </Tools>
   <ContextAwareness>
     - The messages array contains the full conversation history in order
     - The last user message is the current input. All earlier messages are history.

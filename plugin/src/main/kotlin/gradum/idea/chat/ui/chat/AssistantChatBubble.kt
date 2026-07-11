@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-09 17:55:26 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-10 15:12:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -41,10 +41,10 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
+private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
-private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val RISE_DURATION_MS: Int = 300
 
 /**
@@ -240,26 +240,14 @@ private fun ToolCallBlock(
     )
   }
   val animModifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
-  // Scope used by renderer Copy actions (e.g. RanRenderer copies the
-  // shell command). Captured at composable entry so the lambda passed
-  // through ToolCallRenderContext can `scope.launch { ... }` without
-  // re-allocating per render.
   val clipboardScope = rememberCoroutineScope()
-  // Look up the renderer registered for this server alias. Every alias
-  // a model can emit (Ran / Edited / Read / Saved / Explored / Planned /
-  // Completed) has a built-in renderer; anything unknown falls through
-  // to the wildcard DefaultRenderer registered under alias "*".
   val renderer = gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find(block.alias)
   if (renderer == null) {
-    // Defensive: should be impossible because DefaultRenderer is
-    // always registered by the Gradum plugin. If we still end up
-    // here (e.g. a third-party plugin replaced the registry), fall
-    // back to a minimal alias-only capsule.
     ToolCallCapsule(
       success = block.success,
       errorDetail = block.errorDetail,
       errorMessage = block.errorMessage,
-      iconKey = org.jetbrains.jewel.ui.icons.AllIconsKeys.Nodes.Plugin,
+      iconKey = AllIconsKeys.Nodes.Plugin,
       label = block.alias,
       modifier = animModifier,
     )
@@ -276,11 +264,6 @@ private fun ToolCallBlock(
       isError = !block.success,
       errorDetail = block.errorDetail,
       onCopy = { payload ->
-        // Renderers that surface a Copy action (e.g. RanRenderer
-        // copies the shell command) get this callback. The
-        // visual "copied" confirmation is a no-op in the chat
-        // panel today; if you add a toast later, wire it in
-        // here via `onCopied` and `onReset`.
         copyToClipboard(
           text = payload,
           onCopied = {},
@@ -290,8 +273,6 @@ private fun ToolCallBlock(
       },
       onOpenInEditor = onOpenInEditor,
     ) { filePath, originalContent, modifiedContent ->
-      // Renderer's three-arg callback may have null content;
-      // the chat panel always supplies both strings.
       onViewDiff(
         filePath,
         originalContent.orEmpty(),
@@ -322,9 +303,6 @@ private fun TokenStatusRow(
   LaunchedEffect(sendingPhase, tokenText) {
     val newText = tokenText.ifEmpty { sendingPhase }
     if (newText != previousText) {
-      // Phase 1 — old text rises and fades out in parallel. The rise is a
-      // straight tween (no spring) so the lift feels intentional, not
-      // physics-y; the bounce is reserved for the drop.
       launch {
         verticalOffset.animateTo(
           targetValue = riseDistancePx,
@@ -431,7 +409,7 @@ private fun ErrorBlock(block: RenderBlock.Error) {
   val isInterrupted = block.code == ErrorCode.INTERRUPTED.code
   if (isInterrupted) return
 
-  val textColor = JewelTheme.globalColors.text.error
+  val textErrorColor = JewelTheme.globalColors.text.error
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -446,10 +424,10 @@ private fun ErrorBlock(block: RenderBlock.Error) {
     )
     Text(
       maxLines = 1,
-      color = textColor,
+      color = textErrorColor,
       text = block.message.ifBlank { friendlyErrorMessage(block.code) },
       style = JewelTheme.typography.editorTextStyle.copy(
-        color = textColor
+        color = textErrorColor
       )
     )
   }

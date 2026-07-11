@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownStyling.kt  2026-07-09 19:20:05 Changed by gwy
+ * GradumMarkdownStyling.kt  2026-07-10 04:35:39 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -145,7 +145,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     )
 
     // Vertical padding between list items
-    val listItemPadding = PaddingValues(vertical = GradumSpacing.sml)
+    val listItemPadding = PaddingValues(vertical = GradumSpacing.md)
 
     // Blockquote: left indent only, no border/background
     val blockQuoteTextColor: Color =

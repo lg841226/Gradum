@@ -33,6 +33,14 @@
   <Mode>
     {{MODE}}
   </Mode>
+  <Tools>
+    - Use grep for content search. Pattern must be >= 3 characters.
+    - Supports regex patterns and glob file filters (e.g. '*.kt').
+    - Returns file path, line number, and matched line content.
+    - Use glob to find files by name pattern (e.g. '*.kt', '**/*.test.*').
+    - Returns matching file paths.
+    - Do NOT use shell grep or find commands. Use the grep/glob tools instead.
+  </Tools>
   <ErrorHandling>
     Common errors and how to fix them:
     - FILE_NOT_FOUND: The file path does not exist. Use explore_project to find the correct path.
