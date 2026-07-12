@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,6 +38,15 @@ import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+
+/**
+ * Hard cap on the inline errors panel's vertical height. Around
+ * twelve single-line rows before the panel starts to scroll
+ * internally — enough that "5 unresolved references" shows in
+ * full without a scrollbar, while "50 unresolved references"
+ * stays inside the chat column.
+ */
+private val PANEL_MAX_HEIGHT = 240.dp
 
 /**
  * A single error / warning entry to render inside [ErrorsPanelContent].
@@ -144,10 +156,10 @@ internal fun ErrorsToggleButton(
         .clickable(onClick = onToggle)
         .padding(GradumSpacing.xs)
     ) {
-      Icon(
-        contentDescription = tooltipText,
-        key = AllIconsKeys.General.Error,
-      )
+      // No error icon next to the chevron — the panel is the
+      // visual signal, the toggle is just a fold/unfold control.
+      // Mirrors the thinking-mode toggle exactly, only the
+      // tooltip text differs.
       Icon(
         contentDescription = null,
         key = if (isExpanded) AllIconsKeys.General.ChevronDown
@@ -182,7 +194,14 @@ internal fun ErrorsPanelContent(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(start = GradumSpacing.lg, top = GradumSpacing.xs, bottom = GradumSpacing.xs),
+      .padding(start = GradumSpacing.lg, top = GradumSpacing.xs, bottom = GradumSpacing.xs)
+      // Cap the panel height and scroll internally so a file
+      // with 50 "unresolved reference" issues doesn't push the
+      // chat column off the screen. The user (and the LLM) can
+      // scroll within the panel to see the rest; the toggle
+      // tooltip already says how many there are.
+      .heightIn(max = PANEL_MAX_HEIGHT)
+      .verticalScroll(rememberScrollState()),
     // Larger gap between error rows so a long list of compiler
     // issues reads as discrete lines instead of one dense block.
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
