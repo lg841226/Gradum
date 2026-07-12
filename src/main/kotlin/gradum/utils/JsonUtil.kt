@@ -10,6 +10,9 @@ package gradum.utils
 import gradum.utils.JsonUtil.toJsonElement
 import kotlinx.serialization.json.*
 
+/** JSON parser used by [JsonUtil.decodeMap]. Not a global. */
+private val jsonParser: Json = Json { ignoreUnknownKeys = true }
+
 /**
  * Helpers for serializing heterogeneous [Map] / [List] payloads where the
  * element type is [Any] (i.e. the value type is not statically known).
@@ -33,6 +36,28 @@ object JsonUtil {
   fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
     val jsonFormatter = Json { this.prettyPrint = prettyPrint }
     return jsonFormatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
+  }
+
+  /**
+   * Inverse of [encodeMap]: parse a JSON string back into a plain
+   * `Map<String, Any?>` (and recursively nested `Map` / `List`
+   * values). Used by [gradum.skill.Skill.compactHistory] to
+   * rewrite the `content` of older tool messages so that volatile
+   * keys can be stripped from prior call results while leaving the
+   * current call intact.
+   *
+   * Throws [kotlinx.serialization.SerializationException] if the
+   * input is not a JSON object — callers that pass an unknown
+   * shape (e.g. a plain string tool result) should catch and
+   * skip, leaving the message untouched.
+   */
+  fun decodeMap(input: String): Map<String, Any?> {
+    val jsonElement: JsonElement = Json.parseToJsonElement(input)
+    require(jsonElement is JsonObject) {
+      "Expected JSON object at the top level, got: ${jsonElement::class.simpleName}"
+    }
+    @Suppress("UNCHECKED_CAST")
+    return fromJsonElement(jsonElement) as Map<String, Any?>
   }
 
   /** Recursively convert an `Any?` value to its [JsonElement] representation. */

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-07-05 22:56:12 Changed by gwy
+ * Agent.kt  2026-07-11 11:53:14 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -96,15 +96,15 @@ class Agent(
    */
   private val skillContext: SkillContext = SkillContext(
     toolMode = configuration.toolMode,
-    projectRoot = configuration.projectRoot,
     provider = configuration.provider,
     modelName = configuration.modelName,
+    projectRoot = configuration.projectRoot
   )
 
-  private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
-  private val repeatedResponseTracker: MutableList<String> = mutableListOf()
-  private val redLineHitKeywords: MutableList<String> = mutableListOf()
   private var redLineKeywords: List<String> = emptyList()
+  private val redLineHitKeywords: MutableList<String> = mutableListOf()
+  private val repeatedResponseTracker: MutableList<String> = mutableListOf()
+  private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
 
   private var lastToolCallKey: String? = null
 
@@ -138,13 +138,8 @@ class Agent(
   fun executeTask(
     userInput: String,
     loadPreviousContext: Boolean = false,
-    attachments: List<AttachmentPayload> = emptyList(),
+    attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
-    // D16: store start time in the field directly. The previous
-    // double-write (`val local = ...also { field = it }`) created
-    // two sources of truth and the callsites that used the local
-    // variable had to be kept in sync with the field readers. One
-    // field, one read.
     sessionStartTimeMillis = System.currentTimeMillis()
 
     val contextLoaded: Boolean =
@@ -247,8 +242,7 @@ class Agent(
           abortSession()
           break
         }
-      } else
-        repeatedResponseTracker.clear()
+      } else repeatedResponseTracker.clear()
 
       if (result.toolCalls.isNullOrEmpty()) {
         result.responseText?.let { text -> appendAssistantMessage(text, null) }
@@ -374,9 +368,8 @@ class Agent(
 
         // Inside conditional block
         insideConditional -> {
-          if (!skipUntilEndif) {
+          if (!skipUntilEndif)
             outputBuffer.appendLine(currentLine)
-          }
           lineIndex++
         }
 
@@ -437,12 +430,12 @@ class Agent(
         when (chunk) {
           is LLMResponseChunk.TextContent -> {
             contentParts.add(chunk.text)
-            flushThinking()           // thinking block ended
+            flushThinking()
             responseBuffer.append(chunk.text)
           }
 
           is LLMResponseChunk.ReasoningContent -> {
-            flushResponse()           // response block ended
+            flushResponse()
             thinkingBuffer.append(chunk.text)
           }
 
@@ -566,9 +559,7 @@ class Agent(
       }
 
       mapOf("role" to "assistant", "content" to content, "tool_calls" to toolCallsList)
-    } else {
-      mapOf("role" to "assistant", "content" to content)
-    }
+    } else mapOf("role" to "assistant", "content" to content)
 
     conversationHistory.add(assistantMessage)
   }
@@ -582,8 +573,9 @@ class Agent(
     val convertedArguments: MutableMap<String, Any> = mutableMapOf()
     for ((key: String, value: JsonElement) in rawArguments) {
       val converted: Any? = JsonUtil.fromJsonElement(value)
-      if (converted != null)
+      if (converted != null) {
         convertedArguments[key] = converted
+      }
     }
 
     // Remove any project root keys the LLM might have injected.
@@ -595,8 +587,8 @@ class Agent(
     // Routes guarantee this is non-empty.
     convertedArguments["projectRoot"] = configuration.projectRoot
 
-    logger.info("Skill : $functionName")
-    logger.info("Args  : ${JsonUtil.encodeMap(convertedArguments, prettyPrint = true)}")
+    logger.info("Skill: $functionName")
+    logger.info("Args: ${JsonUtil.encodeMap(convertedArguments, prettyPrint = true)}")
 
     val executionResult: Map<String, Any>
     val skillInstance: Skill?
@@ -724,6 +716,15 @@ class Agent(
    * `error`) and append the result to [conversationHistory] so the LLM
    * sees it on the next turn. Shared by the normal skill path and the
    * Read-only guard so both produce an identical agent-loop trace.
+   *
+   * The result is routed through [Skill.recordAndCompactHistory] which
+   * (a) strips [Skill.historyVolatileKeys] from OLDER tool messages
+   * this skill has already produced — those are the entries in
+   * [conversationHistory] whose `alias` matches this skill's
+   * [Skill.alias] — and (b) returns the current call's
+   * history-stamped version to add to history and to return to the
+   * LLM this turn. The current call's primary payload is never
+   * silently stripped.
    */
   private fun emitToolResult(
     processedCall: ProcessedToolCall,
@@ -733,9 +734,17 @@ class Agent(
     executionResult: Map<String, Any>,
     isLastToolCall: Boolean = true,
   ) {
-    val historyResult: Map<String, Any> = skillInstance?.prepareHistoryResult(executionResult) ?: executionResult
-    val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
     val toolAlias: String = skillInstance?.alias ?: functionName
+    val ownMessageIndices: List<Int> = if (skillInstance == null) emptyList()
+    else conversationHistory.withIndex()
+      .filter { (_, entry: Map<String, Any>) ->
+        (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == toolAlias
+      }.map { (index: Int, _: Map<String, Any>) -> index }
+
+    val historyResult: Map<String, Any> = skillInstance?.recordAndCompactHistory(
+      executionResult, conversationHistory, ownMessageIndices
+    ) ?: executionResult
+    val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
 
     emitEvent(
       "tool_call", mapOf(
@@ -766,10 +775,16 @@ class Agent(
     val todoReminder: String? = if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
     val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
-    val toolMessage: Map<String, Any> = if (configuration.provider == Provider.OPENAI) {
-      mapOf("role" to "tool", "tool_call_id" to processedCall.callIdentifier, "content" to finalResult)
-    } else
-      mapOf("role" to "tool", "content" to finalResult)
+    // Tag tool messages with `alias` so subsequent calls can identify
+    // this skill's prior messages for [Skill.compactHistory] filtering.
+    val toolMessage: Map<String, Any> = buildMap {
+      put("role", "tool")
+      put("alias", toolAlias)
+      put("content", finalResult)
+      if (configuration.provider == Provider.OPENAI) {
+        put("tool_call_id", processedCall.callIdentifier)
+      }
+    }
 
     conversationHistory.add(toolMessage)
   }
@@ -805,7 +820,7 @@ class Agent(
 
     val preSize: Int = nonSystem.size
     val keepFromEnd: List<Map<String, Any>> = takeLastTurns(nonSystem, maxHistoryMessages)
-    if (keepFromEnd.size < preSize && keepFromEnd.size > maxHistoryMessages) {
+    if (keepFromEnd.size in (maxHistoryMessages + 1)..<preSize) {
       // We ended up with MORE than the budget — that means the
       // truncator's last-resort path kicked in (a single turn
       // is larger than the budget). Warn so the operator can
@@ -873,6 +888,7 @@ class Agent(
   private fun abortSession(): Unit {
     sessionAborted = true
     val elapsedSeconds: Long = (System.currentTimeMillis() - sessionStartTimeMillis) / 1000
+
     emitEvent(
       "session_end", mapOf(
         "version" to Version.GRADUM_VERSION,

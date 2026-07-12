@@ -36,14 +36,29 @@ class EditFileSkill : Skill() {
 
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
-  override val historyKeepCount: Int = 2
+  /**
+   * Keep the last [historyKeepCount] edits' full metadata in
+   * history. Strip [historyVolatileKeys] (the diff payloads)
+   * from older edits. The diff payloads are too large to
+   * retain across long sessions and the LLM can always
+   * re-read the file at `path` if it needs the pre/post
+   * content of an old edit.
+   */
+  override val historyKeepCount: Int = 5
   override val historyVolatileKeys: List<String> =
-    listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")
+    listOf("originalContent", "modifiedContent")
 
+  /**
+   * Strip the diff payloads from the CURRENT call's result
+   * as well — they are too large for the LLM's view of this
+   * turn even when the call is the most recent. The LLM only
+   * needs `path`, `linesAdded`, `linesRemoved`, `totalEdits`,
+   * and any `syntaxErrors` to understand "an edit happened at
+   * path X with N added M removed"; the pre/post text would
+   * just bloat the response.
+   */
   override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
-    val withoutDiffPayload: Map<String, Any> = result
-      .filterKeys { it != "originalContent" && it != "modifiedContent" }
-    return super.prepareHistoryResult(withoutDiffPayload)
+    return result.filterKeys { it != "originalContent" && it != "modifiedContent" }
   }
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {

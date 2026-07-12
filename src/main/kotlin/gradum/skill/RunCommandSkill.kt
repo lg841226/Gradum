@@ -34,7 +34,7 @@ class RunCommandSkill : Skill() {
   override val alias: String = "Ran"
   override val description: String = "Execute a shell command. Use detached=true to run in the background."
 
-  override val historyKeepCount: Int = 1
+  override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("output")
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {

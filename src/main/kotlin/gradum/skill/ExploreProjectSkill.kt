@@ -43,26 +43,61 @@ class ExploreProjectSkill : Skill() {
 
   override val historyKeepCount: Int = 3
 
-  override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
-    prepareHistoryCallCount++
-    if (prepareHistoryCallCount <= historyKeepCount) return result
+  /**
+   * For OLDER explore_project calls, collapse the file lists down to
+   * counts so a long session doesn't have to re-send thousands of
+   * paths every time. The LLM's working set (the last
+   * [historyKeepCount] calls) keeps the full lists because the model
+   * may still refer back to them when planning a follow-up read.
+   *
+   * The current call's full lists are returned by [execute] as-is —
+   * they are not collapsed here, since the LLM needs them in full
+   * to decide what to read next.
+   */
+  override fun compactHistory(
+    conversationHistory: MutableList<Map<String, Any>>,
+    ownMessageIndices: List<Int>,
+    callCount: Int
+  ) {
+    if (ownMessageIndices.isEmpty()) return
+    val dropCount: Int = (callCount - historyKeepCount).coerceAtLeast(0)
+    val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
+    if (dropEndIndex == 0) return
+    for (i in 0 until dropEndIndex) {
+      val historyIndex: Int = ownMessageIndices[i]
+      if (historyIndex in conversationHistory.indices) {
+        conversationHistory[historyIndex] =
+          compactMessageContent(conversationHistory[historyIndex])
+      }
+    }
+  }
+
+  private fun compactMessageContent(message: Map<String, Any>): Map<String, Any> {
+    val content: String = message["content"] as? String ?: return message
+    val parsed: Map<String, Any?> = try {
+      gradum.utils.JsonUtil.decodeMap(content)
+    } catch (_: Exception) {
+      // Not a JSON object (plain string, error marker, etc.) — leave alone.
+      return message
+    }
 
     @Suppress("UNCHECKED_CAST")
-    val configCount = (result["config_files"] as? List<*>)?.size ?: 0
-
+    val configCount: Int = (parsed["config_files"] as? List<*>)?.size ?: 0
     @Suppress("UNCHECKED_CAST")
-    val codeCount = (result["code_files"] as? List<*>)?.size ?: 0
-
+    val codeCount: Int = (parsed["code_files"] as? List<*>)?.size ?: 0
     @Suppress("UNCHECKED_CAST")
-    val otherCount = (result["other_files"] as? List<*>)?.size ?: 0
+    val otherCount: Int = (parsed["other_files"] as? List<*>)?.size ?: 0
 
-    return linkedMapOf(
-      "project_root" to (result["project_root"] ?: ""),
-      "total_size" to (result["total_size"] ?: "0 B"),
+    val compacted: Map<String, Any?> = linkedMapOf(
+      "project_root" to (parsed["project_root"] ?: ""),
+      "depth" to (parsed["depth"] ?: 0),
+      "total_size" to (parsed["total_size"] ?: "0 B"),
       "config_files" to configCount,
       "code_files" to codeCount,
       "other_files" to otherCount
     )
+    val reencoded: String = gradum.utils.JsonUtil.encodeMap(compacted)
+    return message + ("content" to reencoded)
   }
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {

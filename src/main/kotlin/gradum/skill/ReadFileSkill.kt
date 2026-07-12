@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-05 23:13:14 Changed by gwy
+ * ReadFileSkill.kt  2026-07-12 12:29:03 Changed by gwy
  */
 
 package gradum.skill
@@ -22,20 +22,20 @@ private const val MAXIMUM_LINES: Int = 10000
  * Files exceeding [MAXIMUM_FILE_SIZE] or [MAXIMUM_LINES] return
  * `FILE_TOO_LARGE` to keep conversation context bounded.
  *
- * **History retention is INT_MAX, not the default-strip pattern.**
- * `prepareHistoryResult` is allowed to drop `historyVolatileKeys`
- * from results beyond `historyKeepCount`, so stripping `content`
- * here would blind the agent from the third read onward in a
- * session — the result map would carry `path` (and maybe a few
- * metadata fields) but no body, so the LLM would have no way to
- * plan or verify subsequent edits against the file it had just
- * opened. The fix that set `historyKeepCount = Int.MAX_VALUE`
- * and `historyVolatileKeys = emptyList()` is locked in by
- * [gradum.skill.ReadFileSkillPrepareHistoryTest]. Do not
- * re-introduce a low `historyKeepCount` or add `content` to
- * `historyVolatileKeys` — context-window bloat is a separate
- * problem (truncation, summarization) and is not solved by
- * silently stripping the data the LLM needs.
+ * **History retention: `Int.MAX_VALUE` + `emptyList()` (never
+ * strip).** Even though [gradum.skill.Skill.compactHistory] only
+ * strips OLDER history (the current call's result is always
+ * returned to the LLM in full), `read_file` is the one skill
+ * whose `content` field the LLM routinely needs to refer back
+ * to in subsequent turns — when planning an edit, when
+ * verifying a previous edit, when answering questions about
+ * the file. Stripping even a deeply-old `content` from a long
+ * session can force the model to re-read the file from disk
+ * and burn the same context the strip was trying to save.
+ * Locked in by [gradum.skill.ReadFileSkillPrepareHistoryTest].
+ * Context-bloat control lives in [MAXIMUM_FILE_SIZE] /
+ * [MAXIMUM_LINES] and in `lineRange`, not in history
+ * stripping.
  */
 class ReadFileSkill : Skill() {
 
@@ -96,17 +96,7 @@ class ReadFileSkill : Skill() {
       .ifBlank { arguments["line_range"] as? String ?: "" }
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    // NOTE: historyKeepCount is Int.MAX_VALUE and
-    // historyVolatileKeys is empty so `prepareHistoryResult`
-    // never strips the `content` field. Stripping content
-    // would defeat the entire purpose of read_file — after
-    // two reads the LLM would see a result with `path` but
-    // no body, lose access to anything it had just opened,
-    // and be unable to plan or verify edits against it. The
-    // session-level `resetHistoryCount()` call in Agent keeps
-    // the counter from leaking across sessions, so the
-    // singleton skill instance is safe to reuse.
-
+    
     if (filePath.isBlank())
       return makeFailure(
         ErrorCode.INVALID_PARAMETER, buildXmlError(

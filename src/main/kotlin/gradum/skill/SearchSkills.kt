@@ -191,6 +191,13 @@ class GrepSkill : Skill() {
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 
+  /**
+   * Keep the last 5 grep results' full `matches` in history.
+   * Older results have their `matches` array stripped by
+   * [gradum.skill.Skill.compactHistory]'s default impl; the
+   * LLM can re-run the grep to get the matches back. Current
+   * call always returns in full.
+   */
   override val historyKeepCount: Int = 5
 
   override val historyVolatileKeys: List<String> = listOf("matches")
@@ -469,6 +476,13 @@ class GlobSkill : Skill() {
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 
+  /**
+   * Keep the last 3 glob results' full `files` list in history.
+   * Older results have `files` stripped by
+   * [gradum.skill.Skill.compactHistory]'s default impl. The
+   * LLM can re-run the glob to recover the path list. Current
+   * call always returns in full.
+   */
   override val historyKeepCount: Int = 3
 
   override val historyVolatileKeys: List<String> = listOf("files")

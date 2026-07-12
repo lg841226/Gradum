@@ -41,6 +41,17 @@ class SaveFileSkill : Skill() {
     ToolMode.AGENT, ToolMode.EDIT
   )
 
+  /**
+   * Keep only the current call's `content` in history. After the
+   * first `save_file`, the model knows what it wrote (the call's
+   * arguments are still in the preceding assistant message) and
+   * can re-`read_file` the path on disk if it later needs the
+   * bytes back — so the `content` field of older `save_file`
+   * results is purely context bloat. Stripped from older tool
+   * messages by [gradum.skill.Skill.compactHistory]'s default
+   * implementation; the current call's `content` is always
+   * returned to the LLM in full.
+   */
   override val historyKeepCount: Int = 1
   override val historyVolatileKeys: List<String> = listOf("content")
 
