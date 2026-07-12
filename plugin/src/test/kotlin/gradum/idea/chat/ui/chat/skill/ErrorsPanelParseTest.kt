@@ -7,6 +7,7 @@
 
 package gradum.idea.chat.ui.chat.skill
 
+import gradum.idea.chat.ui.chat.skill.internal.capitalizeErrorMessage
 import gradum.idea.chat.ui.chat.skill.internal.parseSyntaxErrors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -256,5 +257,44 @@ class ErrorsPanelParseTest {
     val errors = parseSyntaxErrors(raw)
     assertEquals(1, errors.size)
     assertEquals("real", errors[0].message)
+  }
+
+  // ---- capitalizeErrorMessage coverage ----
+
+  @Test
+  fun `capitalizeErrorMessage lowercases the first char of lowercase input`() {
+    assertEquals(
+      "Redundant SAM constructor",
+      capitalizeErrorMessage("redundant SAM constructor")
+    )
+  }
+
+  @Test
+  fun `capitalizeErrorMessage leaves already-capitalized input unchanged`() {
+    assertEquals(
+      "Unresolved reference: foo",
+      capitalizeErrorMessage("Unresolved reference: foo")
+    )
+  }
+
+  @Test
+  fun `capitalizeErrorMessage returns empty for empty input`() {
+    assertEquals("", capitalizeErrorMessage(""))
+  }
+
+  @Test
+  fun `capitalizeErrorMessage capitalizes first char after leading whitespace`() {
+    assertEquals(
+      "  Bad indent",
+      capitalizeErrorMessage("  bad indent")
+    )
+  }
+
+  @Test
+  fun `capitalizeErrorMessage works on the typical unresolved reference message`() {
+    assertEquals(
+      "Unresolved reference: com.example.Foo",
+      capitalizeErrorMessage("unresolved reference: com.example.Foo")
+    )
   }
 }

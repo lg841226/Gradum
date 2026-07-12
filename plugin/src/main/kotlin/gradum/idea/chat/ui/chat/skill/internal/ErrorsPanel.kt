@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
@@ -65,7 +66,7 @@ data class SyntaxErrorEntry(
  *
  * Skips entries with a blank `message` because the panel can't
  * render an empty line meaningfully and a blank message is almost
- * always a parser artefact.
+ * always a parser artifact.
  */
 fun parseSyntaxErrors(resultMap: Map<String, Any?>): List<SyntaxErrorEntry> {
   val entries: MutableList<SyntaxErrorEntry> = mutableListOf()
@@ -78,6 +79,7 @@ fun parseSyntaxErrors(resultMap: Map<String, Any?>): List<SyntaxErrorEntry> {
       val entryMap: Map<String, Any?> = raw as? Map<String, Any?> ?: continue
       val message: String = entryMap["message"] as? String ?: continue
       if (message.isBlank()) continue
+
       val line: Int? = (entryMap["line"] as? Number)?.toInt()
       val column: Int? = (entryMap["column"] as? Number)?.toInt()
       val errorCode: String? = entryMap["errorCode"] as? String
@@ -123,17 +125,17 @@ fun parseSyntaxErrors(resultMap: Map<String, Any?>): List<SyntaxErrorEntry> {
  */
 @Composable
 internal fun ErrorsToggleButton(
-  errors: List<SyntaxErrorEntry>,
   isExpanded: Boolean,
   onToggle: () -> Unit,
+  errors: List<SyntaxErrorEntry>
 ) {
   if (errors.isEmpty()) return
 
-  val tooltipText: String = if (isExpanded) {
+  val tooltipText: String = if (isExpanded)
     message("gradum.tool.hide.errors")
-  } else {
+  else
     message("gradum.tool.errors.count", errors.size)
-  }
+
 
   Tooltip(tooltip = { Text(text = tooltipText) }) {
     Row(
@@ -170,22 +172,27 @@ internal fun ErrorsToggleButton(
 @Composable
 internal fun ErrorsPanelContent(
   errors: List<SyntaxErrorEntry>,
-  filePath: String,
-  onLineClick: (line: Int) -> Unit,
+  onLineClick: (line: Int) -> Unit
 ) {
   if (errors.isEmpty()) return
 
   val textColor = JewelTheme.globalColors.text.normal
   val infoColor = JewelTheme.globalColors.text.info
-  val errorColor = JewelTheme.globalColors.text.error
 
   Column(
     modifier = Modifier
       .fillMaxWidth()
       .padding(start = GradumSpacing.lg, top = GradumSpacing.xs, bottom = GradumSpacing.xs),
-    verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
+    // Larger gap between error rows so a long list of compiler
+    // issues reads as discrete lines instead of one dense block.
+    verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
     for (entry in errors) {
+      // Capitalize the first character so the panel matches the
+      // convention of editor error tooltips (which are sentence-
+      // cased) — Kotlin compiler messages arrive in mixed case
+      // ("redundant SAM constructor", "unresolved reference: foo").
+      val displayMessage: String = capitalizeErrorMessage(entry.message)
       Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
@@ -197,8 +204,17 @@ internal fun ErrorsPanelContent(
           modifier = Modifier.padding(top = 2.dp)
         )
         Text(
-          text = entry.message,
+          text = displayMessage,
           color = textColor,
+          // Truncate long messages to two lines and ellipsize so
+          // a single multi-hundred-char "unresolved reference"
+          // entry doesn't push other rows off-screen. The Text
+          // shares width with `:line` via `weight(1f, fill=false)`
+          // so the column adapts to whatever the chat panel
+          // happens to allocate.
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.weight(1f, fill = false)
         )
         val lineLabel: String = entry.line?.let { ":$it" } ?: "—"
         if (entry.line != null) {
@@ -225,7 +241,6 @@ internal fun ErrorsPanelContent(
 internal fun ErrorsPanel(
   errors: List<SyntaxErrorEntry>,
   isExpanded: Boolean,
-  filePath: String,
   onLineClick: (line: Int) -> Unit,
 ) {
   AnimatedVisibility(
@@ -235,7 +250,6 @@ internal fun ErrorsPanel(
   ) {
     ErrorsPanelContent(
       errors = errors,
-      filePath = filePath,
       onLineClick = onLineClick,
     )
   }
@@ -249,3 +263,27 @@ internal fun ErrorsPanel(
 @Composable
 internal fun rememberSyntaxErrors(resultMap: Map<String, Any?>): List<SyntaxErrorEntry> =
   remember(resultMap) { parseSyntaxErrors(resultMap) }
+
+/**
+ * Capitalize the first non-whitespace character of a compiler
+ * error message so the panel reads as sentence-cased prose
+ * (matching the convention of editor tooltips). Idempotent for
+ * already-cased strings and blank strings; skips any leading
+ * whitespace so messages that begin with a quote or tag still
+ * surface their first content character.
+ *
+ * Examples:
+ *  - `"redundant SAM constructor"` → `"Redundant SAM constructor"`
+ *  - `"Unresolved reference: foo"` → `"Unresolved reference: foo"` (unchanged)
+ *  - `""` → `""`
+ *  - `"  bad indent"` → `"  Bad indent"`
+ */
+internal fun capitalizeErrorMessage(message: String): String {
+  val firstNonWs: Int = message.indexOfFirst { !it.isWhitespace() }
+  if (firstNonWs == -1) return message
+  val firstChar: Char = message[firstNonWs]
+  if (!firstChar.isLowerCase()) return message
+  return message.substring(0, firstNonWs) +
+    firstChar.titlecase() +
+    message.substring(firstNonWs + 1)
+}
