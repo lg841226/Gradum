@@ -206,13 +206,14 @@ internal fun ErrorsPanelContent(
         Text(
           text = displayMessage,
           color = textColor,
-          // Truncate long messages to two lines and ellipsize so
-          // a single multi-hundred-char "unresolved reference"
-          // entry doesn't push other rows off-screen. The Text
-          // shares width with `:line` via `weight(1f, fill=false)`
-          // so the column adapts to whatever the chat panel
-          // happens to allocate.
-          maxLines = 2,
+          // Hard-cap each error to a single ellipsized line so a
+          // long list of compiler issues reads as a clean column
+          // instead of a wall of wrapped text. `weight(1f, fill
+          // = false)` shares the row's remaining width with
+          // `:line`, which sits outside the weight block so the
+          // line number is always visible even when the message
+          // gets truncated.
+          maxLines = 1,
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.weight(1f, fill = false)
         )
