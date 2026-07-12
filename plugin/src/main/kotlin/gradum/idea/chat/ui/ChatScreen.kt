@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-11 10:15:42 Changed by gwy
+ * ChatScreen.kt  2026-07-12 18:41:13 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -101,8 +101,7 @@ fun ChatScreen(
   onRetryMessage: (Int) -> Unit,
   onCopyAsContext: (String) -> Unit,
   onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
-  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String)
-  -> Unit = { _, _, _ -> },
+  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
   onAttachmentClick: (VirtualFile) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
@@ -112,68 +111,37 @@ fun ChatScreen(
   val lastMessage: ChatMessage? = messages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
-  // "Locked" = the chat auto-follows new content. Default true so
-  // the moment the screen mounts, the user sees the latest messages
-  // (and any subsequent streaming block). The user breaks the lock
-  // by dragging up past `LockThresholdDp`; clicking the
-  // jump-to-bottom button re-engages it.
   var isLockedToBottom by remember { mutableStateOf(true) }
-  val lockThresholdPx: Float = with(density) { LockThresholdDp.toPx() }
-
-  // The last `scrollState.value` we observed. `animateScrollTo` only
-  // ever INCREASES `value`, so a strictly negative delta between
-  // successive observations is unambiguous user drag-up — exactly
-  // the signal we need to break the lock. Layout-driven `maxValue`
-  // changes do not move `value`, so they cannot produce a false
-  // positive.
   var lastObservedValue by remember { mutableIntStateOf(scrollState.value) }
-
-  // Snapshot of `messages.size` for the "user just hit send" branch
-  // of the auto-scroll effect below. Tracked separately from the
-  // drag-distance logic so the user can always see their own message
-  // + the response, even if they had been scrolled away reading
-  // history.
   var lastSeenMessageCount by remember { mutableIntStateOf(messages.size) }
 
-  // Auto-scroll on new content while the lock is engaged. The
-  // "user just hit send" branch is the one exception: a fresh user
-  // message is an unambiguous "I want to see this" intent, so we
-  // re-engage the lock and scroll regardless of where the user was
-  // before — even if they were 50 bubbles up reading history.
+  val lockThresholdPx: Float = with(density) { LockThresholdDp.toPx() }
+
   LaunchedEffect(messages.size, lastBlockCount, isLockedToBottom) {
     if (messages.size > lastSeenMessageCount) {
       val newMessages: List<ChatMessage> =
         messages.subList(lastSeenMessageCount, messages.size)
-      if (newMessages.any { it.isUserMessage }) {
-        // Re-engage the lock so the user-send branch always lands
-        // at the bottom, regardless of the previous scroll position.
-        // The state change re-keys this effect: the new coroutine
-        // sees `isLockedToBottom == true` and animates below.
+      if (newMessages.any { it.isUserMessage })
         isLockedToBottom = true
-      }
     }
+
     lastSeenMessageCount = messages.size
 
     if (!isLockedToBottom) return@LaunchedEffect
-    // Defer one frame: the LaunchedEffect runs after composition but
-    // before the new content's layout pass, so reading
-    // `scrollState.maxValue` now would return the *old* value and
-    // `animateScrollTo` would land short of the new bottom. After
-    // `withFrameNanos` the layout has caught up.
+
     withFrameNanos { }
     scrollState.animateScrollTo(scrollState.maxValue)
   }
 
-  // Detect user drag-up: any negative delta in `scrollState.value`
-  // that exceeds the lock threshold flips the lock off.
   LaunchedEffect(scrollState.value) {
-    val currentValue: Int = scrollState.value
-    val delta: Int = currentValue - lastObservedValue
-    lastObservedValue = currentValue
-
-    if (isLockedToBottom && delta < -lockThresholdPx) {
+    if (!isLockedToBottom) return@LaunchedEffect
+    val maxValue: Int = scrollState.maxValue
+    if (scrollState.value < lastObservedValue && maxValue > 0 &&
+      maxValue - scrollState.value > lockThresholdPx
+    ) {
       isLockedToBottom = false
     }
+    lastObservedValue = scrollState.value
   }
 
   Column(
@@ -183,8 +151,8 @@ fun ChatScreen(
     Box(
       modifier = Modifier
         .weight(1f)
-        .width(680.dp)
         .fillMaxWidth()
+        .widthIn(max = 680.dp)
     ) {
       Column(
         modifier = Modifier
@@ -232,14 +200,11 @@ fun ChatScreen(
       }
 
       JumpToBottomButton(
-        isVisible = !isLockedToBottom,
         modifier = Modifier
           .align(Alignment.BottomCenter)
           .padding(bottom = GradumSpacing.lg),
+        isVisible = !isLockedToBottom,
         onClick = {
-          // Re-engage the lock; the auto-scroll LaunchedEffect above
-          // is keyed on `isLockedToBottom` and will animate the
-          // scroll to the bottom on the next frame.
           isLockedToBottom = true
         }
       )
@@ -251,8 +216,8 @@ fun ChatScreen(
         .widthIn(max = 650.dp)
         .padding(bottom = GradumSpacing.sml),
       state = inputState,
-      actions = inputActions,
-      textState = textState
+      textState = textState,
+      actions = inputActions
     )
   }
 }
