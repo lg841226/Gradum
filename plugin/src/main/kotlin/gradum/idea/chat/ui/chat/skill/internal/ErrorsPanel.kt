@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -46,14 +45,19 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
+/** Reserve this much right-side whitespace after `:line` so the
+ *  line number doesn't visually stick to the chat column's right
+ *  edge. Visual breathing room, not layout-driven — the spacer
+ *  is inside the row, not the container, so it scales with the
+ *  font size of the line number. */
+private val LINE_LABEL_TRAILING_GAP = 20.dp
+
 /**
- * Hard cap on the inline errors panel's vertical height. Around
- * twelve single-line rows before the panel starts to scroll
- * internally — enough that "5 unresolved references" shows in
- * full without a scrollbar, while "50 unresolved references"
- * stays inside the chat column.
+ * Trailing gap between the row's leftmost `Error` icon and the
+ * message body, so a long list of issues scans as "icon · msg"
+ *  pairs rather than as one dense run of glyphs.
  */
-private val PANEL_MAX_HEIGHT = 240.dp
+private val ICON_TO_MESSAGE_GAP = GradumSpacing.sml
 
 /**
  * A single error / warning entry to render inside [ErrorsPanelContent].
@@ -200,23 +204,20 @@ internal fun ErrorsPanelContent(
   val scrollState = rememberScrollState()
 
   // Box hosts the scrolling Column + a native `VerticalScrollbar`
-  // anchored to the right edge. The Box's `heightIn` is the cap
-  // shared by both children; the scrollbar is what makes the
-  // truncation visible when the content overflows.
+  // anchored to the right edge. The Box has no intrinsic height
+  // cap — the panel grows to fit its content, and the scrollbar
+  // is the affordance that lets the user know when a long list
+  // exceeds the chat column's own available height. We do not
+  // impose a hard pixel cap because a hard cap made the panel
+  // look artificially short for small lists and visually
+  // disconnected from the capsule above.
   Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .heightIn(max = PANEL_MAX_HEIGHT)
+    modifier = Modifier.fillMaxWidth()
   ) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(
-          start = GradumSpacing.lg,
-          top = GradumSpacing.xs,
-          end = GradumSpacing.md,
-          bottom = GradumSpacing.xs
-        )
+        .padding(top = GradumSpacing.xs, bottom = GradumSpacing.xs)
         .verticalScroll(scrollState),
       // Larger gap between error rows so a long list of compiler
       // issues reads as discrete lines instead of one dense block.
@@ -237,7 +238,7 @@ internal fun ErrorsPanelContent(
             key = AllIconsKeys.General.Error,
             modifier = Modifier.padding(top = 2.dp)
           )
-          Spacer(modifier = Modifier.width(GradumSpacing.sml))
+          Spacer(modifier = Modifier.width(ICON_TO_MESSAGE_GAP))
           Text(
             text = displayMessage,
             color = textColor,
@@ -261,6 +262,12 @@ internal fun ErrorsPanelContent(
           } else {
             Text(text = lineLabel, color = infoColor)
           }
+          // Visual breathing room on the right of `:line` so the
+          // number doesn't pin to the chat column's right edge.
+          // 20dp is a rough visual rule of thumb — enough to
+          // register as deliberate whitespace without looking
+          // like a separate column.
+          Spacer(modifier = Modifier.width(LINE_LABEL_TRAILING_GAP))
         }
       }
     }
