@@ -15,14 +15,21 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollbarAdapter
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -190,64 +197,82 @@ internal fun ErrorsPanelContent(
 
   val textColor = JewelTheme.globalColors.text.normal
   val infoColor = JewelTheme.globalColors.text.info
+  val scrollState = rememberScrollState()
 
-  Column(
+  // Box hosts the scrolling Column + a native `VerticalScrollbar`
+  // anchored to the right edge. The Box's `heightIn` is the cap
+  // shared by both children; the scrollbar is what makes the
+  // truncation visible when the content overflows.
+  Box(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(start = GradumSpacing.lg, top = GradumSpacing.xs, bottom = GradumSpacing.xs)
-      // Cap the panel height and scroll internally so a file
-      // with 50 "unresolved reference" issues doesn't push the
-      // chat column off the screen. The user (and the LLM) can
-      // scroll within the panel to see the rest; the toggle
-      // tooltip already says how many there are.
       .heightIn(max = PANEL_MAX_HEIGHT)
-      .verticalScroll(rememberScrollState()),
-    // Larger gap between error rows so a long list of compiler
-    // issues reads as discrete lines instead of one dense block.
-    verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
-    for (entry in errors) {
-      // Capitalize the first character so the panel matches the
-      // convention of editor error tooltips (which are sentence-
-      // cased) — Kotlin compiler messages arrive in mixed case
-      // ("redundant SAM constructor", "unresolved reference: foo").
-      val displayMessage: String = capitalizeErrorMessage(entry.message)
-      Row(
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Icon(
-          contentDescription = null,
-          key = AllIconsKeys.General.Error,
-          modifier = Modifier.padding(top = 2.dp)
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(
+          start = GradumSpacing.lg,
+          top = GradumSpacing.xs,
+          end = GradumSpacing.md,
+          bottom = GradumSpacing.xs
         )
-        Text(
-          text = displayMessage,
-          color = textColor,
-          // Hard-cap each error to a single ellipsized line so a
-          // long list of compiler issues reads as a clean column
-          // instead of a wall of wrapped text. `weight(1f, fill
-          // = false)` shares the row's remaining width with
-          // `:line`, which sits outside the weight block so the
-          // line number is always visible even when the message
-          // gets truncated.
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.weight(1f, fill = false)
-        )
-        val lineLabel: String = entry.line?.let { ":$it" } ?: "—"
-        if (entry.line != null) {
-          Text(
-            text = lineLabel,
-            color = infoColor,
-            modifier = Modifier.clickable { onLineClick(entry.line) }
+        .verticalScroll(scrollState),
+      // Larger gap between error rows so a long list of compiler
+      // issues reads as discrete lines instead of one dense block.
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      for (entry in errors) {
+        // Capitalize the first character so the panel matches the
+        // convention of editor error tooltips (which are sentence-
+        // cased) — Kotlin compiler messages arrive in mixed case
+        // ("redundant SAM constructor", "unresolved reference: foo").
+        val displayMessage: String = capitalizeErrorMessage(entry.message)
+        Row(
+          verticalAlignment = Alignment.Top,
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Icon(
+            contentDescription = null,
+            key = AllIconsKeys.General.Error,
+            modifier = Modifier.padding(top = 2.dp)
           )
-        } else {
-          Text(text = lineLabel, color = infoColor)
+          Spacer(modifier = Modifier.width(GradumSpacing.sml))
+          Text(
+            text = displayMessage,
+            color = textColor,
+            // Hard-cap each error to a single ellipsized line so a
+            // long list of compiler issues reads as a clean column
+            // instead of a wall of wrapped text. `weight(1f, fill
+            // = false)` shares the row's remaining width with
+            // `:line`, which sits flush against the message so the
+            // two read as a single "msg:line" unit.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
+          )
+          val lineLabel: String = entry.line?.let { ":$it" } ?: "—"
+          if (entry.line != null) {
+            Text(
+              text = lineLabel,
+              color = infoColor,
+              modifier = Modifier.clickable { onLineClick(entry.line) }
+            )
+          } else {
+            Text(text = lineLabel, color = infoColor)
+          }
         }
       }
     }
+
+    // Native `VerticalScrollbar` so the user can see at a glance
+    // how much of the error list is hidden, not just on hover.
+    VerticalScrollbar(
+      modifier = Modifier
+        .align(Alignment.CenterEnd)
+        .fillMaxHeight(),
+      adapter = rememberScrollbarAdapter(scrollState = scrollState)
+    )
   }
 }
 
