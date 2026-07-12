@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +59,28 @@ private val LINE_LABEL_TRAILING_GAP = 20.dp
  *  pairs rather than as one dense run of glyphs.
  */
 private val ICON_TO_MESSAGE_GAP = GradumSpacing.sml
+
+/**
+ * Soft ceiling on the inline errors panel's vertical height.
+ *
+ * The ceiling is required by Compose: a `Modifier.verticalScroll`
+ * child must be measured against finite `maxHeight` constraints,
+ * which the chat column's outer `Column` (wrap-content) cannot
+ * provide. Without this bound the runtime throws
+ * `Vertically scrollable component was measured with an infinity
+ * maximum height constraints`. The 480dp figure was picked
+ * deliberately loose: short lists (≤ 24 single-line rows) expand
+ * to their natural height and never trigger the scrollbar; only
+ * the long-tail "50 unresolved references" cases actually scroll
+ * inside the panel, and then the `VerticalScrollbar` on the right
+ * is the user-visible signal that there is more to read.
+ *
+ * The number itself is not a hard product cap — it is the size
+ * the chat column's parent (the wrapping layout) would have
+ * had to hand us for verticalScroll to be possible. Set higher
+ * if a 24-row error list becomes plausible.
+ */
+private val PANEL_MAX_HEIGHT = 480.dp
 
 /**
  * A single error / warning entry to render inside [ErrorsPanelContent].
@@ -204,15 +227,18 @@ internal fun ErrorsPanelContent(
   val scrollState = rememberScrollState()
 
   // Box hosts the scrolling Column + a native `VerticalScrollbar`
-  // anchored to the right edge. The Box has no intrinsic height
-  // cap — the panel grows to fit its content, and the scrollbar
-  // is the affordance that lets the user know when a long list
-  // exceeds the chat column's own available height. We do not
-  // impose a hard pixel cap because a hard cap made the panel
-  // look artificially short for small lists and visually
-  // disconnected from the capsule above.
+  // anchored to the right edge. The Box carries a `heightIn(max)`
+  // because Compose's `verticalScroll` cannot be measured against
+  // infinite max-height constraints — the chat column's outer
+  // `Column` is wrap-content and would hand us infinity otherwise.
+  // 480dp is deliberately loose: short lists expand to their
+  // natural height (well under the cap, no scroll); only the
+  // long-tail "50 unresolved references" case actually scrolls,
+  // and the scrollbar makes that visible.
   Box(
-    modifier = Modifier.fillMaxWidth()
+    modifier = Modifier
+      .fillMaxWidth()
+      .heightIn(max = PANEL_MAX_HEIGHT)
   ) {
     Column(
       modifier = Modifier
