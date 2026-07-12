@@ -21,6 +21,21 @@ private const val MAXIMUM_LINES: Int = 10000
  *
  * Files exceeding [MAXIMUM_FILE_SIZE] or [MAXIMUM_LINES] return
  * `FILE_TOO_LARGE` to keep conversation context bounded.
+ *
+ * **History retention is INT_MAX, not the default-strip pattern.**
+ * `prepareHistoryResult` is allowed to drop `historyVolatileKeys`
+ * from results beyond `historyKeepCount`, so stripping `content`
+ * here would blind the agent from the third read onward in a
+ * session — the result map would carry `path` (and maybe a few
+ * metadata fields) but no body, so the LLM would have no way to
+ * plan or verify subsequent edits against the file it had just
+ * opened. The fix that set `historyKeepCount = Int.MAX_VALUE`
+ * and `historyVolatileKeys = emptyList()` is locked in by
+ * [gradum.skill.ReadFileSkillPrepareHistoryTest]. Do not
+ * re-introduce a low `historyKeepCount` or add `content` to
+ * `historyVolatileKeys` — context-window bloat is a separate
+ * problem (truncation, summarization) and is not solved by
+ * silently stripping the data the LLM needs.
  */
 class ReadFileSkill : Skill() {
 
@@ -28,8 +43,8 @@ class ReadFileSkill : Skill() {
   override val skillName: String = "read_file"
   override val description: String = "Read file content. Use line_range to read a section."
 
-  override val historyKeepCount: Int = 2
-  override val historyVolatileKeys: List<String> = listOf("content")
+  override val historyKeepCount: Int = Int.MAX_VALUE
+  override val historyVolatileKeys: List<String> = emptyList()
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     val useSimpleSchema =
@@ -81,6 +96,16 @@ class ReadFileSkill : Skill() {
       .ifBlank { arguments["line_range"] as? String ?: "" }
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    // NOTE: historyKeepCount is Int.MAX_VALUE and
+    // historyVolatileKeys is empty so `prepareHistoryResult`
+    // never strips the `content` field. Stripping content
+    // would defeat the entire purpose of read_file — after
+    // two reads the LLM would see a result with `path` but
+    // no body, lose access to anything it had just opened,
+    // and be unable to plan or verify edits against it. The
+    // session-level `resetHistoryCount()` call in Agent keeps
+    // the counter from leaking across sessions, so the
+    // singleton skill instance is safe to reuse.
 
     if (filePath.isBlank())
       return makeFailure(
