@@ -51,6 +51,7 @@ class CompletedRenderer : ToolCallRenderer {
       errorDetail = ctx.errorDetail.orEmpty(),
       trailingText = taskName,
       errorMessage = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
       label = message(LABEL_KEY),
       iconKey = AllIconsKeys.Actions.Checked
     )

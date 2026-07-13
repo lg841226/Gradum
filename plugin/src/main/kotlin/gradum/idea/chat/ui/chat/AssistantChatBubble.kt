@@ -243,10 +243,20 @@ private fun ToolCallBlock(
   val clipboardScope = rememberCoroutineScope()
   val renderer = gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find(block.alias)
   if (renderer == null) {
+    val fallbackToolDetails: String = if (!block.success) {
+      gradum.idea.chat.ui.chat.skill.internal.formatToolDetails(
+        alias = block.alias,
+        arguments = block.arguments,
+        result = block.result,
+        errorMessage = block.errorMessage,
+        errorDetail = block.errorDetail
+      )
+    } else ""
     ToolCallCapsule(
       success = block.success,
       errorDetail = block.errorDetail,
       errorMessage = block.errorMessage,
+      toolDetails = fallbackToolDetails,
       iconKey = AllIconsKeys.Nodes.Plugin,
       label = block.alias,
       modifier = animModifier,
@@ -258,11 +268,21 @@ private fun ToolCallBlock(
       arguments = block.arguments,
       result = gradum.idea.chat.ui.chat.skill.spi.parseJsonResult(block.result),
     )
+  val toolDetails: String? = if (!block.success) {
+    gradum.idea.chat.ui.chat.skill.internal.formatToolDetails(
+      alias = block.alias,
+      arguments = block.arguments,
+      result = block.result,
+      errorMessage = block.errorMessage,
+      errorDetail = block.errorDetail
+    )
+  } else null
   val ctx: gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext =
     gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext(
       project = null,
       isError = !block.success,
       errorDetail = block.errorDetail,
+      toolDetails = toolDetails,
       onCopy = { payload ->
         copyToClipboard(
           text = payload,

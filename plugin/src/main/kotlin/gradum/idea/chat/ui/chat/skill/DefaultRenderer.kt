@@ -56,6 +56,7 @@ class DefaultRenderer : ToolCallRenderer {
       modifier = Modifier,
       errorDetail = ctx.errorDetail.orEmpty(),
       errorMessage = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
       iconKey = AllIconsKeys.Nodes.Plugin,
       label = content.aliasName
     )

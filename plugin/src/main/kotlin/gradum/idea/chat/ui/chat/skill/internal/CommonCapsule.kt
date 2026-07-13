@@ -19,13 +19,14 @@ import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.Link
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.separator
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private val REASON_MAX_WIDTH_DP: Dp = 200.dp
+private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
 
 /**
  * Shared one-line "capsule" used by every built-in default renderer
@@ -34,6 +35,21 @@ private val REASON_MAX_WIDTH_DP: Dp = 200.dp
  * composables. Only the Gradum plugin's bundled renderers (Ran,
  * Edited, Read, Saved, Explored, Planned, Completed, Default) and
  * tests depend on this composable.
+ *
+ * Error display — when [success] is `false` and [errorMessage] is
+ * non-blank, the trailing status icon (`Status.FailedInProgress`)
+ * becomes clickable and opens a generic `PopupMenu`:
+ *
+ *   [error icon]  <error message>            ← passiveItem
+ *   ─────────────────────────────────────
+ *   [copy icon]   Copy details / Copied       ← selectableItem
+ *
+ * "Copy details" copies [toolDetails] to the clipboard, defaulting
+ * to [errorDetail] when no richer info is available. [toolDetails]
+ * is built by [formatToolDetails] in `ToolCallBlock` from the
+ * underlying `RenderBlock.ToolCall` (alias + arguments + result +
+ * error message + error detail) so the user can paste a full debug
+ * snapshot without us hand-curating per-renderer error strings.
  */
 @Composable
 internal fun ToolCallCapsule(
@@ -44,19 +60,19 @@ internal fun ToolCallCapsule(
   errorMessage: String = "",
   trailingText: String = "",
   modifier: Modifier = Modifier,
-  trailingIcon: @Composable RowScope.() -> Unit = {}
+  trailingIcon: @Composable RowScope.() -> Unit = {},
+  toolDetails: String = ""
 ) {
   val clipboardScope = rememberCoroutineScope()
   var showErrorPopup by remember { mutableStateOf(false) }
   var isCopied by remember { mutableStateOf(false) }
   val hasError = !success && errorMessage.isNotBlank()
+  val copyPayload: String = toolDetails.ifBlank { errorDetail }
   val textColor = JewelTheme.globalColors.text.normal
   val infoColor = JewelTheme.globalColors.text.info
 
   Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .then(if (hasError) Modifier.clickable { showErrorPopup = true } else Modifier),
+    modifier = modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
@@ -81,11 +97,13 @@ internal fun ToolCallCapsule(
 
     trailingIcon()
 
-    if (!success)
+    if (hasError) {
       Icon(
         key = AllIconsKeys.Status.FailedInProgress,
-        contentDescription = message("gradum.tool.failed")
+        contentDescription = message("gradum.tool.error.open"),
+        modifier = Modifier.clickable { showErrorPopup = true }
       )
+    }
   }
 
   if (hasError && showErrorPopup) {
@@ -95,11 +113,10 @@ internal fun ToolCallCapsule(
     ) {
       passiveItem {
         Row(
-          modifier = Modifier
-            .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
-            ),
+          modifier = Modifier.padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.xs
+          ),
           verticalAlignment = Alignment.Top,
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
@@ -108,20 +125,44 @@ internal fun ToolCallCapsule(
             contentDescription = null,
             modifier = Modifier.size(16.dp)
           )
-          Column {
-            Text(text = errorMessage, color = textColor)
-            Spacer(modifier = Modifier.height(GradumSpacing.xs))
-            Link(
-              text = if (isCopied) message("gradum.error.copied") else message("gradum.error.copy.hint"),
-              onClick = {
-                if (!isCopied)
-                  copyToClipboard(
-                    scope = clipboardScope,
-                    text = errorDetail,
-                    onCopied = { isCopied = true },
-                    onReset = { isCopied = false }
-                  )
-              }
+          Text(
+            text = errorMessage,
+            color = textColor,
+            modifier = Modifier.widthIn(max = 360.dp)
+          )
+        }
+      }
+      if (copyPayload.isNotBlank()) {
+        separator()
+        selectableItem(
+          selected = false,
+          onClick = {
+            showErrorPopup = false
+            if (!isCopied) {
+              copyToClipboard(
+                scope = clipboardScope,
+                text = copyPayload,
+                onCopied = { isCopied = true },
+                onReset = { isCopied = false }
+              )
+            }
+          }
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+          ) {
+            Icon(
+              key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
+              contentDescription = null,
+              modifier = Modifier.size(16.dp)
+            )
+            Text(
+              text = if (isCopied) message("gradum.error.copied")
+              else message("gradum.tool.copy.details")
             )
           }
         }
@@ -138,6 +179,62 @@ internal fun toolCallErrorColor(): androidx.compose.ui.graphics.Color =
 internal fun linesAddedColor(): androidx.compose.ui.graphics.Color =
   org.jetbrains.jewel.foundation.theme.LocalColorPalette.current.greenOrNull(5)
     ?: JewelTheme.globalColors.text.info
+
+/**
+ * Format a tool call's full debug info as a human-readable,
+ * copy-friendly string. Used by the error popup's "Copy details"
+ * action so the user can paste a complete snapshot of what the
+ * model asked the tool to do, what the tool returned, and what went
+ * wrong — without us hand-curating per-renderer error strings.
+ *
+ * Sections are emitted in this order, each one omitted when its
+ * source is blank:
+ *
+ *   Tool: <alias>
+ *   Arguments:
+ *     <key>: <value>
+ *     ...
+ *   Result: <truncated to TOOL_DETAILS_RESULT_MAX_CHARS chars>
+ *   Error: <errorMessage>
+ *   Detail:
+ *     <errorDetail>
+ *
+ * `arguments` values are rendered via `toString()` — the map's value
+ * type is `Any?` (kotlinx-serialization round-trip), and we don't
+ * pull `kotlinx-serialization-json` into the renderer layer to
+ * pretty-print them. The output is still copyable into a chat /
+ * issue / log for triage.
+ */
+internal fun formatToolDetails(
+  alias: String,
+  arguments: Map<String, Any?>,
+  result: String,
+  errorMessage: String,
+  errorDetail: String
+): String {
+  val sb = StringBuilder()
+  sb.append("Tool: ").appendLine(alias)
+  if (arguments.isNotEmpty()) {
+    sb.appendLine("Arguments:")
+    for ((key, value) in arguments) {
+      sb.append("  ").append(key).append(": ").appendLine(value)
+    }
+  }
+  if (result.isNotBlank()) {
+    val truncated: String = if (result.length > TOOL_DETAILS_RESULT_MAX_CHARS) {
+      result.take(TOOL_DETAILS_RESULT_MAX_CHARS) + "... (truncated)"
+    } else result
+    sb.append("Result: ").appendLine(truncated)
+  }
+  if (errorMessage.isNotBlank()) {
+    sb.append("Error: ").appendLine(errorMessage)
+  }
+  if (errorDetail.isNotBlank()) {
+    sb.appendLine("Detail:")
+    sb.appendLine(errorDetail)
+  }
+  return sb.toString().trimEnd()
+}
 
 /**
  * Format a byte count into a human-readable string. Picks the

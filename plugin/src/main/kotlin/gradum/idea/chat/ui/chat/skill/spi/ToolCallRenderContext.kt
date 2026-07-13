@@ -30,6 +30,17 @@ data class ToolCallRenderContext(
   val project: Project?,
   val isError: Boolean,
   val errorDetail: String?,
+  /**
+   * Pre-formatted, copy-friendly snapshot of the tool call (alias
+   * + arguments + result + error message + error detail). Built by
+   * `ToolCallBlock` from the underlying `RenderBlock.ToolCall` and
+   * surfaced through the error popup's "Copy details" action so the
+   * user can paste a full debug snapshot without us hand-curating
+   * per-renderer error strings. `null` when the call has no error
+   * (renderers that pre-format the details themselves can ignore
+   * this and fall back to [errorDetail]).
+   */
+  val toolDetails: String? = null,
   val onCopy: ((payload: String) -> Unit)?,
   val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
   val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?

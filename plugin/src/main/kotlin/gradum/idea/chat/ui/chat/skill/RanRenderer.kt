@@ -65,6 +65,7 @@ class RanRenderer : ToolCallRenderer {
       success = !ctx.isError,
       errorDetail = ctx.errorDetail.orEmpty(),
       errorMessage = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
       trailingText = reasonText,
       iconKey = GradumIcons.Ran,
       label = message(LABEL_KEY),

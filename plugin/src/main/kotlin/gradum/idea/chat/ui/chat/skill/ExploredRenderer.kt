@@ -59,6 +59,7 @@ class ExploredRenderer : ToolCallRenderer {
       errorDetail = ctx.errorDetail.orEmpty(),
       trailingText = displayText,
       errorMessage = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Explore
     )

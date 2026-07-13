@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditedRenderer.kt  2026-07-09 18:40:20 Changed by gwy
+ * EditedRenderer.kt  2026-07-12 15:47:23 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -11,17 +11,16 @@ package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.chat.skill.internal.*
+import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.internal.ViewDiffButton
+import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
+import gradum.idea.chat.ui.chat.skill.internal.toolCallErrorColor
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
@@ -64,6 +63,7 @@ class EditedRenderer : ToolCallRenderer {
     val modifiedContent: String? = result["modifiedContent"] as? String
     val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
     val isSuccess: Boolean = (result["success"] as? Boolean) ?: true
+
     @Suppress("UNCHECKED_CAST")
     val syntaxErrors: List<Map<String, Any?>> =
       (result["syntaxErrors"] as? List<Map<String, Any?>>) ?: emptyList()
@@ -102,66 +102,38 @@ class EditedRenderer : ToolCallRenderer {
     val errorColor = toolCallErrorColor()
     val isError: Boolean = !isSuccess || ctx.isError
 
-    val errors: List<SyntaxErrorEntry> = rememberSyntaxErrors(
-      mapOf(
-        "success" to isSuccess,
-        "syntaxErrors" to content.fieldMap["syntaxErrors"],
-        "error" to content.fieldMap["error"],
-      )
-    )
-
-    // Auto-expand when the tool call failed so the model and the
-    // user see the error without a second click; collapse by
-    // default for a clean successful edit row.
-    var errorsExpanded: Boolean by remember { mutableStateOf(isError) }
-
-    Column {
-      ToolCallCapsule(
-        iconKey = GradumIcons.Edit,
-        success = !isError,
-        errorDetail = ctx.errorDetail.orEmpty(),
-        errorMessage = ctx.errorDetail.orEmpty(),
-        trailingText = fileName,
-        label = message(LABEL_KEY),
-        trailingIcon = {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-          ) {
-            if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor)
-            if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor)
-            if (!isError && hasDiffPayload && originalContent != null && modifiedContent != null) {
-              ViewDiffButton(
-                onClick = {
-                  ctx.onViewDiff?.invoke(filePath, originalContent, modifiedContent)
-                }
-              )
-            } else {
-              OpenInEditorButton(
-                filePath = filePath,
-                onClick = {
-                  ctx.onOpenInEditor?.invoke(filePath, 0, 0)
-                }
-              )
-            }
-            if (errors.isNotEmpty()) {
-              ErrorsToggleButton(
-                errors = errors,
-                isExpanded = errorsExpanded,
-                onToggle = { errorsExpanded = !errorsExpanded }
-              )
-            }
+    ToolCallCapsule(
+      iconKey = GradumIcons.Edit,
+      success = !isError,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
+      trailingText = fileName,
+      label = message(LABEL_KEY),
+      trailingIcon = {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        ) {
+          if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor)
+          if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor)
+          if (!isError && hasDiffPayload && originalContent != null && modifiedContent != null) {
+            ViewDiffButton(
+              onClick = {
+                ctx.onViewDiff?.invoke(filePath, originalContent, modifiedContent)
+              }
+            )
+          } else {
+            OpenInEditorButton(
+              filePath = filePath,
+              onClick = {
+                ctx.onOpenInEditor?.invoke(filePath, 0, 0)
+              }
+            )
           }
         }
-      )
-
-      ErrorsPanel(
-        errors = errors,
-        isExpanded = errorsExpanded,
-        filePath = filePath,
-        onLineClick = { line -> ctx.onOpenInEditor?.invoke(filePath, line, 0) }
-      )
-    }
+      }
+    )
   }
 
   companion object {
