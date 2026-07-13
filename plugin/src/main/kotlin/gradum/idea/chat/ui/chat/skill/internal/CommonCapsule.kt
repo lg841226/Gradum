@@ -21,7 +21,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.separator
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -38,11 +37,10 @@ private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
  *
  * Error display — when [success] is `false` and [errorMessage] is
  * non-blank, the trailing status icon (`Status.FailedInProgress`)
- * becomes clickable and opens a generic `PopupMenu`:
+ * becomes clickable and opens a minimal `PopupMenu` with a single
+ * `selectableItem`:
  *
- *   [error icon]  <error message>            ← passiveItem
- *   ─────────────────────────────────────
- *   [copy icon]   Copy details / Copied       ← selectableItem
+ *   [error icon]  Copy details / Copied
  *
  * "Copy details" copies [toolDetails] to the clipboard, defaulting
  * to [errorDetail] when no richer info is available. [toolDetails]
@@ -50,6 +48,9 @@ private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
  * underlying `RenderBlock.ToolCall` (alias + arguments + result +
  * error message + error detail) so the user can paste a full debug
  * snapshot without us hand-curating per-renderer error strings.
+ * The error message itself is NOT shown in the popup — keep the
+ * popup to one clickable row so it reads as a single "copy this
+ * failure" action.
  */
 @Composable
 internal fun ToolCallCapsule(
@@ -111,29 +112,7 @@ internal fun ToolCallCapsule(
       onDismissRequest = { showErrorPopup = false; true },
       horizontalAlignment = Alignment.Start
     ) {
-      passiveItem {
-        Row(
-          modifier = Modifier.padding(
-            horizontal = GradumSpacing.md,
-            vertical = GradumSpacing.xs
-          ),
-          verticalAlignment = Alignment.Top,
-          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-        ) {
-          Icon(
-            key = AllIconsKeys.Status.FailedInProgress,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-          )
-          Text(
-            text = errorMessage,
-            color = textColor,
-            modifier = Modifier.widthIn(max = 360.dp)
-          )
-        }
-      }
       if (copyPayload.isNotBlank()) {
-        separator()
         selectableItem(
           selected = false,
           onClick = {
@@ -156,7 +135,7 @@ internal fun ToolCallCapsule(
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
           ) {
             Icon(
-              key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
+              key = AllIconsKeys.Status.FailedInProgress,
               contentDescription = null,
               modifier = Modifier.size(16.dp)
             )
