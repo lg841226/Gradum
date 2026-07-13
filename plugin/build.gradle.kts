@@ -14,6 +14,7 @@ plugins {
   id("org.jetbrains.intellij.platform") version "2.16.0"
   id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
   id("org.jetbrains.changelog") version "2.3.0"
+  id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
 group = "com.gradum.idea"
@@ -117,4 +118,28 @@ tasks.named("composedJar", ComposedJarTask::class.java) {
   ).map { jarName: String -> file("libs/$jarName") }
 
   from(bundledJars)
+}
+
+// --- Lint configuration --------------------------------------------------
+//
+// detekt is applied here (in addition to the root `build.gradle.kts`)
+// so the IntelliJ plugin module is linted as part of `gradlew detekt`.
+// ktlint is applied via the root's `subprojects {}` block.
+//
+// Both linters share the same rule files at the repository root:
+//   - `config/detekt/detekt.yml`
+//   - `config/detekt/baseline.xml`
+//   - `config/ktlint/baseline.xml`
+//   - `.editorconfig` (ktlint reads this)
+
+dependencies {
+  detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
+}
+
+detekt {
+  buildUponDefaultConfig = true
+  allRules = false
+  config.setFrom(file("../config/detekt/detekt.yml"))
+  baseline = file("../config/detekt/baseline.xml")
+  autoCorrect = false
 }

@@ -62,8 +62,9 @@ dependencies {
 
   // Logging
   implementation("ch.qos.logback:logback-classic:1.5.25")
+    testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
 
-  // Detekt
+    // Detekt
   detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
 
   // Test
@@ -81,6 +82,14 @@ detekt {
   buildUponDefaultConfig = true
   allRules = false
   config.setFrom(file("config/detekt/detekt.yml"))
+  // Baseline tracks the pre-existing violations so the build doesn't
+  // fail on day 1. New code (post-baseline) must produce zero issues.
+  baseline = file("config/detekt/baseline.xml")
+  // Auto-correction is **off** during the regular `detekt` run —
+  // untracked source changes are too easy to lose in a review.
+  // Run `gradlew detektFormat` explicitly when you want detekt to
+  // rewrite the codebase to match the formatting rules.
+  autoCorrect = false
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {

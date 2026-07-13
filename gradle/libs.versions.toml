@@ -18,3 +18,7 @@ intelliJPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "inte
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+# detekt + ktlint are declared with literal IDs in the root
+# `build.gradle.kts` because the `libs` extension is not registered
+# inside the `subprojects {}` evaluation context. Add them here only
+# if you start using `alias(libs.plugins.xxx)` directly.

@@ -87,6 +87,69 @@ val list: List<String> = collectEdits()
 val str: String = arguments["name"] as? String ?: ""
 ```
 
+### 2.3 Two-Word Minimum for Variable Names
+
+Every local variable, property, parameter, and function name must contain
+**at least two English words** (camelCase). Single-word or single-letter
+names are forbidden — they are not self-documenting and cost the next
+reader a context switch.
+
+**Correct:**
+
+```kotlin
+val retryCount: Int = 3
+val messageId: String = "msg-42"
+val filePath: String = "/tmp/output.log"
+fun loadConfig(): AgentConfiguration = ...
+catch (ioException: IOException) {
+    logger.error("Failed to load file", ioException)
+}
+```
+
+**Incorrect:**
+
+```kotlin
+val retry: Int = 3           // too short — "retry" of what?
+val id: String = "msg-42"     // id of what?
+val path: String = "..."      // path of what?
+fun load(): AgentConfiguration = ...   // load what?
+catch (e: IOException) { ... }         // 'e' / 'ex' are forbidden
+```
+
+**Allowed exceptions** (linted via `NamingRules.allowShortNames`):
+
+- Loop indices in tight `for (i in 0..n)` numeric iteration: `i`, `j`, `k`
+- Lambda receiver parameters in Jetpack Compose Modifier chains: `it`
+- `it` in `?.let { ... }` / `.map { ... }` when the type is obvious from context
+
+### 2.4 Boolean Variables Require a Predicate Prefix
+
+Boolean properties, locals, parameters, and function names must begin
+with a predicate: `is`, `has`, `can`, `should`, `will`, `must`, or `need`.
+Bare adjectives or verbs (`enabled`, `valid`, `ok`, `active`) are
+forbidden — they don't read as questions.
+
+**Correct:**
+
+```kotlin
+var isLoading: Boolean = false
+val hasError: Boolean = errorMessage.isNotBlank()
+fun canRetry(): Boolean = retryCount < MAX_RETRY
+val shouldAutoScroll: Boolean = isNearBottom
+```
+
+**Incorrect:**
+
+```kotlin
+var loading: Boolean = false
+val error: Boolean = errorMessage.isNotBlank()
+fun retry(): Boolean = retryCount < MAX_RETRY
+val autoScroll: Boolean = isNearBottom
+```
+
+Linted by detekt's `BooleanPropertyNaming` /
+`TopLevelPropertyNaming` rules (`allowedPattern = "^(is|has|can|should|will|must|need)"`).
+
 ---
 
 ## 3. Imports
@@ -177,6 +240,35 @@ when (val result: SkillResult = skill.execute(arguments)) {
 
 **Rule:** Only `throw` on "programmer errors" (e.g. impossible states). Business
 failures must return `SkillResult.Failure`.
+
+### 5.1 LLM-Visible vs User-Visible Errors
+
+Tool failure payloads are routed to **two distinct audiences**, and they
+must be kept separate. Conflating them leaks stack traces into the chat
+or strips the technical detail the LLM needs to self-correct.
+
+- **LLM-visible (`errorMessage` / `errorDetail`)** — the technical cause
+  the model reads to decide its next action. Includes exception class,
+  the failing line / argument, the raw reason string. Goes into the
+  tool result body the LLM will see on the next turn.
+- **User-visible** — the *short* localized message shown in the IDE
+  toast / popup / status bar. Always goes through `GradumBundle.message`
+  (see `plugin/src/main/resources/messages/`). Never contains stack
+  traces, raw class names, or file paths the user did not open.
+
+```kotlin
+// correct — split between the two audiences
+val errorMessage: String = "ReadFile failed: ${ioException.message}"  // → LLM
+val userMessage: String = message("gradum.error.read.failed")          // → user
+
+// incorrect — user sees the stack trace
+val userMessage: String = "ReadFile failed: ${ioException.message}"
+```
+
+The boundary layer (e.g. `AssistantChatBubble.ToolCallBlock`,
+`formatToolDetails`) is the **only** place where these two are joined
+into the rendered chat bubble. Domain code never composes a "user-facing
+error string" — it always returns both halves, and the renderer picks.
 
 ---
 
@@ -643,18 +735,34 @@ Use Gradle:
 ## 20. Try-Catch
 
 In important error handling locations, **always** add logging in `catch` blocks.
-The exception variable **must** be named `exception`, not `e`:
+The exception variable **must** be named after the exception type — never the
+generic `e` / `ex` / `exception` / `throwable`. The name itself documents the
+failure mode at the call site.
 
 ```kotlin
-// correct
+// correct — name derived from the exception type
 try {
-    val result: String = riskyOperation()
-} catch (exception: Exception) {
-    logger.error("Operation failed", exception)
-    return makeFailure("OPERATION_FAILED", exception.message ?: "Unknown error")
+    val configBytes: ByteArray = configPath.readBytes()
+} catch (ioException: IOException) {
+    logger.error("Failed to read config from $configPath", ioException)
+    return makeFailure("CONFIG_READ_FAILED", ioException.message ?: "Unknown I/O error")
 }
 
-// incorrect - using 'e' instead of 'exception'
+try {
+    val state: LoadState = parseState(rawText)
+} catch (stateException: IllegalStateException) {
+    logger.error("Invalid state in $statePath", stateException)
+    return makeFailure("INVALID_STATE", stateException.message ?: "Invalid state")
+}
+
+try {
+    val response: HttpResponse = client.get(url)
+} catch (connectException: ConnectException) {
+    logger.warn("Server unreachable at $url, retrying", connectException)
+    return retryWithBackoff(url)
+}
+
+// incorrect — generic 'e' / 'ex' names tell the reader nothing
 try {
     val result: String = riskyOperation()
 } catch (e: Exception) {
@@ -662,13 +770,17 @@ try {
     return makeFailure("OPERATION_FAILED", e.message ?: "Unknown error")
 }
 
-// incorrect - missing logger in important catch block
+// incorrect — missing logger in important catch block
 try {
     val result: String = riskyOperation()
-} catch (exception: Exception) {
-    return makeFailure("OPERATION_FAILED", exception.message ?: "Unknown error")
+} catch (ioException: IOException) {
+    return makeFailure("OPERATION_FAILED", ioException.message ?: "Unknown error")
 }
 ```
+
+**Rule:** Every `catch` block in domain code MUST log via `logger.warn` /
+`logger.error` / `logger.info`. Bare `return makeFailure(...)` without
+logging silently swallows the cause and is a lint violation.
 
 ---
 
@@ -699,3 +811,68 @@ fun processItem(item: Item): Result {
     return Result.Success(transformed)
 }
 ```
+
+---
+
+## 22. Class Public-Method Count
+
+A single class exposes **at most 20 public methods / properties** (detekt
+`TooManyFunctions.thresholdInClasses = 20`, restrict to public visibility
+via `@Suppress("MemberVisibilityCanBePrivate")` carve-outs only).
+
+When a class grows beyond 20 public surface members, the cause is almost
+always one of:
+
+- **Mixed responsibilities** — extract a `FooFormatter` / `FooValidator`
+  collaborator.
+- **Wide parameter lists** — group related parameters into a
+  `FooRequest` data class.
+- **`object` used as a namespace** — promote to a top-level file with
+  private internal helpers.
+
+Lint-enforced by detekt `TooManyFunctions`. A class that legitimately
+needs more (e.g. a sealed-class hierarchy of 30 narrow `when` cases)
+should annotate the class with `@Suppress("TooManyFunctions")` and a
+KDoc explaining why.
+
+---
+
+## 23. Lint Enforcement
+
+The rules in this document are enforced automatically by **detekt**
+(via the `detekt-formatting` plugin), running in `gradlew detekt` and
+`gradlew check`. Configured by `config/detekt/detekt.yml`.
+
+- **detekt (core)** — naming (`BooleanPropertyNaming` /
+  `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`),
+  complexity (cyclomatic / nested depth / function count via
+  `TooManyFunctions`), error-handling anti-patterns
+  (`SwallowedException` / `TooGenericExceptionCaught` /
+  `PrintStackTrace`), style (`MagicNumber` / `WildcardImport` /
+  `UnusedImports`), comments (`UndocumentedPublicClass` /
+  `UndocumentedPublicFunction`).
+- **detekt-formatting** — formatting subset equivalent to ktlint
+  standard rules: indent, import order, line length, brace placement
+  on single-line `if` / `for` / `while` (we disable the
+  `BracesOnIfStatements` rule, see §9), trailing comma, etc.
+
+**Why not ktlint as a separate tool?** ktlint's bundled parser does
+not understand Kotlin 2.1+ syntax (guarded `when` patterns), so
+running it produces hard parse errors against our existing code
+(`utils/ContextManager.kt`). detekt-formatting covers the same
+ground with a much wider rule set and our chosen detekt baseline
+format, so the second tool is redundant.
+
+CI must run `gradlew detekt`. New code must produce **zero** new
+violations; legacy violations are recorded in
+`config/detekt/baseline.xml` and tracked down by `// detekt:ignore` /
+`@Suppress` only when there is a real reason.
+
+Adding a new lint rule is a **two-step change**:
+
+1. Add the rule + a recommended-fix section to this document.
+2. Update `config/detekt/detekt.yml` with the rule, regenerate the
+   baseline (`gradlew detektBaseline`) if the codebase has many
+   pre-existing violations, and add a unit test under
+   `src/test/kotlin/.../lint/` that exercises the new rule on a
+   positive and negative example.

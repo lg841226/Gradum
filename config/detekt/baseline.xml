@@ -1,0 +1,882 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ArgumentListWrapping:ChatToolbar.kt$("gradum.add.context")</ID>
+    <ID>ArgumentListWrapping:ChatToolbar.kt$("gradum.add.context.disabled")</ID>
+    <ID>ArgumentListWrapping:GradumMarkdownTable.kt$( naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, horizontalPaddingPx )</ID>
+    <ID>ArgumentListWrapping:GradumToolWindowFactory.kt$( userMessage.content, focusedPath, openFiles )</ID>
+    <ID>ArgumentListWrapping:UserChatBubble.kt$( topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 6.dp )</ID>
+    <ID>ChainWrapping:GradumMarkdownTable.kt$&amp;&amp;</ID>
+    <ID>ChainWrapping:ModelSelectorBar.kt$&amp;&amp;</ID>
+    <ID>ComplexCondition:EditedRenderer.kt$EditedRenderer$!isError &amp;&amp; hasDiffPayload &amp;&amp; originalContent != null &amp;&amp; modifiedContent != null</ID>
+    <ID>CyclomaticComplexMethod:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit, onCopyAsContext: (String) -> Unit, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>CyclomaticComplexMethod:ChatToolbar.kt$@Composable fun ChatToolbar( state: ChatInputState, actions: ChatInputActions, isTextNotEmpty: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>CyclomaticComplexMethod:EditorContext.kt$EditorUtils$private fun extensionForLanguage(language: String): String</ID>
+    <ID>CyclomaticComplexMethod:EditorContext.kt$fun getLanguageIconKey(extension: String?): IconKey?</ID>
+    <ID>CyclomaticComplexMethod:ErrorMessages.kt$fun friendlyErrorMessage(code: String): String</ID>
+    <ID>CyclomaticComplexMethod:GradumChatSession.kt$GradumChatSession$suspend fun sendMessage( userMessage: String, attachments: List&lt;AttachedContext> = emptyList(), contextPath: String = "" )</ID>
+    <ID>CyclomaticComplexMethod:GradumMarkdownTable.kt$fun splitMarkdownAtTables(markdown: String): List&lt;MarkdownSegment></ID>
+    <ID>CyclomaticComplexMethod:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)</ID>
+    <ID>EmptyElseBlock:ErrorMessages.kt$if (tool.isNotBlank()) if (isNotEmpty()) append("\n")</ID>
+    <ID>Filename:Spacing.kt$gradum.idea.chat.ui.Spacing.kt</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `a line ending in the middle of a malformed table stops collection cleanly`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `a pathologically long line is dropped, not promoted to a single cell`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `a table past the row cap is truncated and the rest falls through to plain`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `a table where every body row mismatches the header becomes an empty-rows Table`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `a table with zero body rows becomes a Table segment with empty rows`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `alignment markers are decoded from the separator row`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `an unrenderable Table keeps the surrounding prose on both sides`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `blank cells parse into a Table segment - the renderer decides how to render them`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `body row with mismatched column count is dropped, not the whole table`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `consecutive tables with no prose between them stay separate`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `distributeTableWidth - narrow column gets clamped to the minimum width`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `distributeTableWidth - scaled widths sum to the container width`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `distributeTableWidth - short table scales up to fill the container`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `distributeTableWidth - table wider than container is left untouched`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `every body-row failure mode becomes an empty-rows Table`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `header line with no pipe and a valid separator falls back to plain`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `isRenderable is false for a Table with no body rows`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `isRenderable is false when every body cell is blank`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `isRenderable is true even if the header is entirely blank, as long as body has data`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `isRenderable is true when at least one body cell is non-blank`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `plain text without pipes passes through unchanged`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `prose with stray pipes is not mis-parsed as a table`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `separator row without a header line is not a table`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `surrounding prose yields alternating Plain and Table segments`()</ID>
+    <ID>FunctionMaxLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$@Test fun `table without leading or trailing pipe still parses`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `formatModelName drops HF org prefix in LM Studio names`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `formatModelName falls back to title-case for unknown families`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `formatModelName returns bare family name for Ollama colon-tagged name`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `formatModelName title-cases PascalCase slash input`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName canonicalizes MoE with uppercase B to uppercase B`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName canonicalizes MoE with uppercase X to lowercase x`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Alibaba provider from Qwen family`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Anthropic provider from Claude family`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Cohere provider for Command family`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Google provider from Gemini and Gemma`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Meta provider from Llama family`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Mistral AI provider with specific keyword first`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects OpenAI provider from GPT family`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects OpenAI provider from gpt-oss`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName detects Zhipu provider for GLM and ChatGLM`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName extracts MoE sizes with lowercase x`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName extracts file-format quant from HF-style name`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName extracts long-form GGUF quant tags`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName extracts size from combined afterColon-with-quant`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName fuzzy-lookup falls back from phi-3-mini-4k to phi-3-mini`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName fuzzy-lookup tries no-dash form for llama-3`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName handles model name with only a size`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName handles model name with trailing dash`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName handles multiple org path segments`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName inserts dash for dashless family roots`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName is case-insensitive for family lookup`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName marks unknown models as not in catalog`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName prefers long-form GGUF over bare Q4`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName preserves single-digit model generations in Claude name`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName resolves Microsoft Phi family variants`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName resolves o-series reasoning models`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName returns null parameter size for cloud models`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName returns null provider for unknown families`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName returns null quant when no quant tag present`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName still extracts size and quant for unknown models`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips 8-digit YYYYMMDD date suffix`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips all trailing metadata in mixed order`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips base suffix from family key`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips chat suffix from family key`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips instruct suffix from family key`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName strips multiple stacked variant suffixes`()</ID>
+    <ID>FunctionMaxLength:ModelNameFormatterTest.kt$ModelNameFormatterTest$@Test fun `parseModelName title-cases unknown model for fallback display`()</ID>
+    <ID>FunctionNaming:AddContextPopup.kt$@Composable fun AddContextPopup( searchState: TextFieldState, filteredFiles: List&lt;VirtualFile>, state: ChatInputState, actions: ChatInputActions, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable fun AssistantChatBubble( message: ChatMessage, sendingPhase: String = "", modifier: Modifier = Modifier, isLoading: Boolean = false, actionsEnabled: Boolean = true, onRetry: () -> Unit = {}, onUrlClick: (String) -> Unit = {}, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun ErrorBlock(block: RenderBlock.Error)</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun MessageActionsRow( onRetry: () -> Unit, message: ChatMessage, isLoading: Boolean, hasContent: Boolean, actionsEnabled: Boolean )</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun ResponseBlock( block: RenderBlock.Response, onUrlClick: (String) -> Unit )</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrlClick: (String) -> Unit)</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun TokenStatusRow( isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0 )</ID>
+    <ID>FunctionNaming:AssistantChatBubble.kt$@Composable private fun ToolCallBlock( block: RenderBlock.ToolCall, onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit, onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>FunctionNaming:AttachmentBar.kt$@Composable fun AttachmentBar( attachedFiles: List&lt;AttachedContext>, onRemoveFile: (AttachedContext) -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ChatInputPanel.kt$@Composable fun ChatInputPanel( state: ChatInputState, actions: ChatInputActions, roundedCornerShape: RoundedCornerShape, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ChatInputSection.kt$@Composable fun ChatInputSection( state: ChatInputState, actions: ChatInputActions, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ChatMessageList.kt$@Composable fun ChatMessageList( messages: List&lt;ChatMessage>, modifier: Modifier = Modifier, isLoading: Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit = {}, onRetryMessage: (Int) -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionNaming:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit, onCopyAsContext: (String) -> Unit, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ChatToolbar.kt$@Composable fun ChatToolbar( state: ChatInputState, actions: ChatInputActions, isTextNotEmpty: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:CommonActionButtons.kt$@Composable internal fun ViewDiffButton(onClick: () -> Unit)</ID>
+    <ID>FunctionNaming:CommonActionButtons.kt$@OptIn(ExperimentalFoundationApi::class) @Composable internal fun OpenInEditorButton( filePath: String, startLine: Int? = null, endLine: Int? = null, onClick: () -> Unit )</ID>
+    <ID>FunctionNaming:CommonCapsule.kt$@Composable internal fun ToolCallCapsule( label: String, iconKey: IconKey, success: Boolean, errorDetail: String = "", errorMessage: String = "", trailingText: String = "", modifier: Modifier = Modifier, trailingIcon: @Composable RowScope.() -> Unit = {}, toolDetails: String = "" )</ID>
+    <ID>FunctionNaming:ErrorsPanel.kt$@Composable internal fun ErrorsPanel( errors: List&lt;SyntaxErrorEntry>, isExpanded: Boolean, onLineClick: (line: Int) -> Unit, )</ID>
+    <ID>FunctionNaming:ErrorsPanel.kt$@Composable internal fun ErrorsPanelContent( errors: List&lt;SyntaxErrorEntry>, onLineClick: (line: Int) -> Unit )</ID>
+    <ID>FunctionNaming:ErrorsPanel.kt$@Composable internal fun ErrorsToggleButton( isExpanded: Boolean, onToggle: () -> Unit, errors: List&lt;SyntaxErrorEntry> )</ID>
+    <ID>FunctionNaming:FileItem.kt$@Composable fun FileItem( file: VirtualFile, isSelected: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:GradumCodeBlockRenderer.kt$@OptIn(ExperimentalJewelApi::class) @Composable private fun CodeBlockToolbar( rawCode: String, language: String, isSoftWrap: Boolean, onInsertAsFile: (code: String, language: String) -> Unit, onSoftWrapToggle: () -> Unit )</ID>
+    <ID>FunctionNaming:GradumCodeBlockRenderer.kt$GradumCodeBlockRenderer$@Composable private fun CodeBlockContent( annotatedCode: AnnotatedString, styling: MarkdownStyling.Code.Fenced, softWrap: Boolean, )</ID>
+    <ID>FunctionNaming:GradumMarkdownTable.kt$@Composable fun SafeMarkdownText( text: String, modifier: Modifier = Modifier, onUrlClick: (String) -> Unit = {}, fontWeight: FontWeight? = null, textAlign: TextAlign = TextAlign.Unspecified, processor: MarkdownProcessor = GradumMarkdownProcessor, blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current, paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph )</ID>
+    <ID>FunctionNaming:GradumMarkdownTable.kt$@Composable fun ScrollableTable( table: MarkdownSegment.Table, modifier: Modifier = Modifier, isSimplified: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>FunctionNaming:GradumMarkdownTable.kt$@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class) @Composable private fun TableToolbar(table: MarkdownSegment.Table)</ID>
+    <ID>FunctionNaming:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)</ID>
+    <ID>FunctionNaming:IconTooltipButton.kt$@Composable fun IconTooltipButton( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isVisible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true )</ID>
+    <ID>FunctionNaming:MessageAttachmentList.kt$@Composable private fun AttachmentChip(attachment: AttachedContext)</ID>
+    <ID>FunctionNaming:MessageAttachmentList.kt$@OptIn(ExperimentalLayoutApi::class) @Composable fun MessageAttachmentList( attachments: List&lt;AttachedContext>, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:MessageAttachmentPreview.kt$@Composable fun MessageAttachmentPreview( attachments: List&lt;AttachedContext>, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:MessageAttachmentPreview.kt$@Composable private fun ImageThumbnailChip( imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:MessageCopyButton.kt$@Composable fun MessageCopyButton( message: ChatMessage, isCopied: Boolean, onCopy: () -> Unit, onReset: () -> Unit, onCopyAsContext: (String) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:MessageTimestamp.kt$@Composable fun MessageTimestamp(timestamp: Long, modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? = null, isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo> = emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel: (ModelInfo?) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun AutoModelItem()</ID>
+    <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun CapabilityIcons(model: ModelInfo, alpha: Float = 1f)</ID>
+    <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit)</ID>
+    <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun SizeBadge(size: String)</ID>
+    <ID>FunctionNaming:PermissionSelector.kt$@Composable fun PermissionSelector( selectedPermission: String, isMenuVisible: Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:QuickStartSection.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun QuickStartSection( textState: TextFieldState, suggestionVariants: List&lt;Int>, onRefreshSuggestions: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:SelectorButton.kt$@Composable fun SelectorButton( text: String, onClick: () -> Unit, contentDescription: String, color: Color = JewelTheme.globalColors.text.info )</ID>
+    <ID>FunctionNaming:SweepLightText.kt$@Composable fun SweepLightText( text: String, modifier: Modifier = Modifier, enabled: Boolean = true, durationMillis: Int = 1200 )</ID>
+    <ID>FunctionNaming:ThinkingIndicator.kt$@Composable fun ThinkingIndicator( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>FunctionNaming:UserChatBubble.kt$@Composable fun UserChatBubble( message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionNaming:WelcomeScreen.kt$@Composable fun WelcomeScreen( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
+    <ID>FunctionNaming:WelcomeScreen.kt$@Composable private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
+    <ID>FunctionSignature:AddContextPopup.kt$@Composable fun AddContextPopup( searchState: TextFieldState, filteredFiles: List&lt;VirtualFile>, state: ChatInputState, actions: ChatInputActions, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:AssistantChatBubble.kt$@Composable fun AssistantChatBubble( message: ChatMessage, sendingPhase: String = "", modifier: Modifier = Modifier, isLoading: Boolean = false, actionsEnabled: Boolean = true, onRetry: () -> Unit = {}, onUrlClick: (String) -> Unit = {}, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>FunctionSignature:AssistantChatBubble.kt$@Composable private fun MessageActionsRow( onRetry: () -> Unit, message: ChatMessage, isLoading: Boolean, hasContent: Boolean, actionsEnabled: Boolean )</ID>
+    <ID>FunctionSignature:AssistantChatBubble.kt$@Composable private fun ResponseBlock( block: RenderBlock.Response, onUrlClick: (String) -> Unit )</ID>
+    <ID>FunctionSignature:AssistantChatBubble.kt$@Composable private fun TokenStatusRow( isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0 )</ID>
+    <ID>FunctionSignature:AssistantChatBubble.kt$@Composable private fun ToolCallBlock( block: RenderBlock.ToolCall, onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit, onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>FunctionSignature:AttachmentBar.kt$@Composable fun AttachmentBar( attachedFiles: List&lt;AttachedContext>, onRemoveFile: (AttachedContext) -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:ChatInputPanel.kt$@Composable fun ChatInputPanel( state: ChatInputState, actions: ChatInputActions, roundedCornerShape: RoundedCornerShape, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:ChatInputSection.kt$@Composable fun ChatInputSection( state: ChatInputState, actions: ChatInputActions, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:ChatMessageList.kt$@Composable fun ChatMessageList( messages: List&lt;ChatMessage>, modifier: Modifier = Modifier, isLoading: Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit = {}, onRetryMessage: (Int) -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionSignature:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit, onCopyAsContext: (String) -> Unit, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:ChatToolbar.kt$@Composable fun ChatToolbar( state: ChatInputState, actions: ChatInputActions, isTextNotEmpty: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:CommonActionButtons.kt$@OptIn(ExperimentalFoundationApi::class) @Composable internal fun OpenInEditorButton( filePath: String, startLine: Int? = null, endLine: Int? = null, onClick: () -> Unit )</ID>
+    <ID>FunctionSignature:CommonCapsule.kt$@Composable internal fun ToolCallCapsule( label: String, iconKey: IconKey, success: Boolean, errorDetail: String = "", errorMessage: String = "", trailingText: String = "", modifier: Modifier = Modifier, trailingIcon: @Composable RowScope.() -> Unit = {}, toolDetails: String = "" )</ID>
+    <ID>FunctionSignature:CommonCapsule.kt$@Composable internal fun toolCallErrorColor(): androidx.compose.ui.graphics.Color</ID>
+    <ID>FunctionSignature:CommonCapsule.kt$internal fun formatToolDetails( alias: String, arguments: Map&lt;String, Any?>, result: String, errorMessage: String, errorDetail: String ): String</ID>
+    <ID>FunctionSignature:DiffViewer.kt$DiffViewer$fun showFileDiff( project: Project?, path: String, originalContent: String, modifiedContent: String, )</ID>
+    <ID>FunctionSignature:EditedRenderer.kt$EditedRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:ErrorsPanel.kt$@Composable internal fun ErrorsPanel( errors: List&lt;SyntaxErrorEntry>, isExpanded: Boolean, onLineClick: (line: Int) -> Unit, )</ID>
+    <ID>FunctionSignature:ErrorsPanel.kt$@Composable internal fun ErrorsPanelContent( errors: List&lt;SyntaxErrorEntry>, onLineClick: (line: Int) -> Unit )</ID>
+    <ID>FunctionSignature:ErrorsPanel.kt$@Composable internal fun ErrorsToggleButton( isExpanded: Boolean, onToggle: () -> Unit, errors: List&lt;SyntaxErrorEntry> )</ID>
+    <ID>FunctionSignature:ExploredRenderer.kt$ExploredRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:FileItem.kt$@Composable fun FileItem( file: VirtualFile, isSelected: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:GlobRenderer.kt$GlobRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:GradumApiClient.kt$GradumApiClient$fun sendMessage( message: String, modelName: String? = null, modelParams: Map&lt;String, String>? = null, loadContext: Boolean = true, toolMode: String? = null, promptVariant: String? = null, projectRoot: String? = null, imageAttachments: List&lt;ApiImageAttachment> = emptyList() ): Flow&lt;JsonObject></ID>
+    <ID>FunctionSignature:GradumChatSession.kt$GradumChatSession$suspend fun sendMessage( userMessage: String, attachments: List&lt;AttachedContext> = emptyList(), contextPath: String = "" )</ID>
+    <ID>FunctionSignature:GradumChatSession.kt$GradumChatSession.Companion$fun resolveInlineTags( text: String, focusedFilePath: String, openFiles: List&lt;VirtualFile> ): Pair&lt;String, Boolean></ID>
+    <ID>FunctionSignature:GradumCodeBlockRenderer.kt$@OptIn(ExperimentalJewelApi::class) @Composable private fun CodeBlockToolbar( rawCode: String, language: String, isSoftWrap: Boolean, onInsertAsFile: (code: String, language: String) -> Unit, onSoftWrapToggle: () -> Unit )</ID>
+    <ID>FunctionSignature:GradumCodeBlockRenderer.kt$GradumCodeBlockRenderer$@Composable private fun CodeBlockContent( annotatedCode: AnnotatedString, styling: MarkdownStyling.Code.Fenced, softWrap: Boolean, )</ID>
+    <ID>FunctionSignature:GradumCodeBlockRenderer.kt$GradumCodeBlockRenderer$@OptIn(ExperimentalJewelApi::class) @Composable override fun RenderFencedCodeBlock( block: FencedCodeBlock, styling: MarkdownStyling.Code.Fenced, enabled: Boolean, modifier: Modifier, )</ID>
+    <ID>FunctionSignature:GradumMarkdownTable.kt$@Composable fun SafeMarkdownText( text: String, modifier: Modifier = Modifier, onUrlClick: (String) -> Unit = {}, fontWeight: FontWeight? = null, textAlign: TextAlign = TextAlign.Unspecified, processor: MarkdownProcessor = GradumMarkdownProcessor, blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current, paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph )</ID>
+    <ID>FunctionSignature:GradumMarkdownTable.kt$@Composable fun ScrollableTable( table: MarkdownSegment.Table, modifier: Modifier = Modifier, isSimplified: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>FunctionSignature:GradumMarkdownTable.kt$fun MarkdownSegment.Table.isRenderable(): Boolean</ID>
+    <ID>FunctionSignature:GradumMarkdownTable.kt$internal fun distributeTableWidth( naturalColumnWidthsPx: IntArray, containerWidthPx: Int, minCellWidthPx: Int, horizontalPaddingPx: Int ): IntArray</ID>
+    <ID>FunctionSignature:GrepRenderer.kt$GrepRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:IconTooltipButton.kt$@Composable fun IconTooltipButton( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isVisible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true )</ID>
+    <ID>FunctionSignature:MessageAttachmentList.kt$@OptIn(ExperimentalLayoutApi::class) @Composable fun MessageAttachmentList( attachments: List&lt;AttachedContext>, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:MessageAttachmentPreview.kt$@Composable fun MessageAttachmentPreview( attachments: List&lt;AttachedContext>, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:MessageAttachmentPreview.kt$@Composable private fun ImageThumbnailChip( imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:MessageCopyButton.kt$@Composable fun MessageCopyButton( message: ChatMessage, isCopied: Boolean, onCopy: () -> Unit, onReset: () -> Unit, onCopyAsContext: (String) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:MessageCopyButton.kt$fun copyToClipboard( text: String, onCopied: () -> Unit, onReset: () -> Unit, scope: CoroutineScope, delayMillis: Long = 1000 )</ID>
+    <ID>FunctionSignature:ModelNameFormatter.kt$private fun fallbackDisplay(key: String): String</ID>
+    <ID>FunctionSignature:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? = null, isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo> = emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel: (ModelInfo?) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:ModelSelectorBar.kt$private fun MenuScope.buildMenu( isAutoSelected: Boolean, selectedModel: ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit, onTogglePin: (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )</ID>
+    <ID>FunctionSignature:PermissionSelector.kt$@Composable fun PermissionSelector( selectedPermission: String, isMenuVisible: Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:PlannedRenderer.kt$PlannedRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:QuickStartSection.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun QuickStartSection( textState: TextFieldState, suggestionVariants: List&lt;Int>, onRefreshSuggestions: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionSignature:RanRenderer.kt$RanRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:ReadRenderer.kt$ReadRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:ReadRenderer.kt$ReadRenderer$private fun parseLineRangeEnd(lineRange: String?): Int?</ID>
+    <ID>FunctionSignature:ReadRenderer.kt$ReadRenderer$private fun parseLineRangeStart(lineRange: String?): Int?</ID>
+    <ID>FunctionSignature:SavedRenderer.kt$SavedRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
+    <ID>FunctionSignature:SelectorButton.kt$@Composable fun SelectorButton( text: String, onClick: () -> Unit, contentDescription: String, color: Color = JewelTheme.globalColors.text.info )</ID>
+    <ID>FunctionSignature:SweepLightText.kt$@Composable fun SweepLightText( text: String, modifier: Modifier = Modifier, enabled: Boolean = true, durationMillis: Int = 1200 )</ID>
+    <ID>FunctionSignature:ThinkingIndicator.kt$@Composable fun ThinkingIndicator( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>FunctionSignature:UserChatBubble.kt$@Composable fun UserChatBubble( message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionSignature:WelcomeScreen.kt$@Composable fun WelcomeScreen( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
+    <ID>FunctionSignature:WelcomeScreen.kt$@Composable private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
+    <ID>IfElseBracing:AddContextPopup.kt$if (isLimitReached) { message("gradum.image.limit.reached", MAX_ATTACHMENTS) } else null</ID>
+    <ID>IfElseBracing:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else ""</ID>
+    <ID>IfElseBracing:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else null</ID>
+    <ID>IfElseBracing:ChatMessage.kt$ChatMessage$if (event.info.arguments.isNotEmpty()) { event.info.arguments.entries.joinToString(", ") { "${it.key}=${it.value}" } } else ""</ID>
+    <ID>IfElseBracing:CommonCapsule.kt$if (result.length > TOOL_DETAILS_RESULT_MAX_CHARS) { result.take(TOOL_DETAILS_RESULT_MAX_CHARS) + "... (truncated)" } else result</ID>
+    <ID>IfElseBracing:GradumToolWindowFactory.kt$if (File(filePath).isAbsolute) { filePath } else project.basePath?.let { "$it/$filePath" } ?: filePath</ID>
+    <ID>IfElseBracing:GradumToolWindowFactory.kt$if (session.hasSentMessage) { message("gradum.toolwindow.newchat") } else message("gradum.toolwindow.welcome")</ID>
+    <ID>IfElseBracing:GradumToolWindowFactory.kt$if (session.isExpanded &amp;&amp; !anyReplaced) { focusedPath } else ""</ID>
+    <ID>IfElseWrapping:AddContextPopup.kt$if (isLimitReached) { message("gradum.image.limit.reached", MAX_ATTACHMENTS) } else null</ID>
+    <ID>IfElseWrapping:AddContextPopup.kt$if (isUploadEnabled) JewelTheme.globalColors.text.normal else JewelTheme.globalColors.text.normal.copy(alpha = 0.5f)</ID>
+    <ID>IfElseWrapping:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else ""</ID>
+    <ID>IfElseWrapping:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else null</ID>
+    <ID>IfElseWrapping:ChatMessage.kt$ChatMessage$if (argumentString.isNotBlank()) "($argumentString)" else ""</ID>
+    <ID>IfElseWrapping:ChatMessage.kt$ChatMessage$if (event.info.arguments.isNotEmpty()) { event.info.arguments.entries.joinToString(", ") { "${it.key}=${it.value}" } } else ""</ID>
+    <ID>IfElseWrapping:CommonCapsule.kt$if (isCopied) message("gradum.error.copied") else message("gradum.tool.copy.details")</ID>
+    <ID>IfElseWrapping:CommonCapsule.kt$if (result.length > TOOL_DETAILS_RESULT_MAX_CHARS) { result.take(TOOL_DETAILS_RESULT_MAX_CHARS) + "... (truncated)" } else result</ID>
+    <ID>IfElseWrapping:DiffViewer.kt$DiffViewer$if (inferred is PlainTextFileType) ResolvedType.PlainTextFallback else ResolvedType.FromFileType( inferred )</ID>
+    <ID>IfElseWrapping:ErrorMessages.kt$if (isNotEmpty()) append("\n")</ID>
+    <ID>IfElseWrapping:ErrorsPanel.kt$if (isExpanded) AllIconsKeys.General.ChevronDown else AllIconsKeys.General.ChevronRight</ID>
+    <ID>IfElseWrapping:GradumCodeBlockRenderer.kt$if (isSoftWrap) message("gradum.soft.wrap.disable") else message("gradum.soft.wrap.enable")</ID>
+    <ID>IfElseWrapping:GradumMarkdownTable.kt$if (withoutLeading.endsWith("|") &amp;&amp; !withoutLeading.endsWith("\\|")) withoutLeading.substring(0, withoutLeading.length - 1) else withoutLeading</ID>
+    <ID>IfElseWrapping:GradumToolWindowFactory.kt$if (File(filePath).isAbsolute) { filePath } else project.basePath?.let { "$it/$filePath" } ?: filePath</ID>
+    <ID>IfElseWrapping:GradumToolWindowFactory.kt$if (assistantResponseIndex &lt; session.messages.size &amp;&amp; !session.messages[assistantResponseIndex].isUserMessage ) session.messages.removeAt(assistantResponseIndex)</ID>
+    <ID>IfElseWrapping:GradumToolWindowFactory.kt$if (session.hasSentMessage) message("gradum.toolwindow.newchat") else message("gradum.toolwindow.welcome")</ID>
+    <ID>IfElseWrapping:GradumToolWindowFactory.kt$if (session.hasSentMessage) { message("gradum.toolwindow.newchat") } else message("gradum.toolwindow.welcome")</ID>
+    <ID>IfElseWrapping:GradumToolWindowFactory.kt$if (session.isExpanded &amp;&amp; !anyReplaced) { focusedPath } else ""</ID>
+    <ID>IfElseWrapping:QuickStartSection.kt$if (isHovered) JewelTheme.globalColors.text.info .copy(alpha = 0.08f) else Color.Transparent</ID>
+    <ID>IfElseWrapping:ThinkingIndicator.kt$if (isExpanded) AllIconsKeys.General.ChevronDown else AllIconsKeys.General.ChevronRight</ID>
+    <ID>IfElseWrapping:UserChatBubble.kt$if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown else AllIconsKeys.General.ChevronRight</ID>
+    <ID>ImplicitDefaultLocale:AssistantChatBubble.kt$String.format("%.1fK", count / 1_000.0)</ID>
+    <ID>ImplicitDefaultLocale:AssistantChatBubble.kt$String.format("%.1fM", count / 1_000_000.0)</ID>
+    <ID>Indentation:AddContextPopup.kt$ </ID>
+    <ID>Indentation:AssistantChatBubble.kt$ </ID>
+    <ID>Indentation:AttachmentBar.kt$ </ID>
+    <ID>Indentation:Attachments.kt$AttachedContext$ </ID>
+    <ID>Indentation:Attachments.kt$AttachedFile$ </ID>
+    <ID>Indentation:Attachments.kt$AttachedImage$ </ID>
+    <ID>Indentation:Attachments.kt$AttachedText$ </ID>
+    <ID>Indentation:ChatInputPanel.kt$ </ID>
+    <ID>Indentation:ChatInputSection.kt$ </ID>
+    <ID>Indentation:ChatInputState.kt$ChatInputActions$ </ID>
+    <ID>Indentation:ChatInputState.kt$ChatInputState$ </ID>
+    <ID>Indentation:ChatMessage.kt$ </ID>
+    <ID>Indentation:ChatMessage.kt$ChatEvent$ </ID>
+    <ID>Indentation:ChatMessage.kt$ChatEvent.Error$ </ID>
+    <ID>Indentation:ChatMessage.kt$ChatMessage$ </ID>
+    <ID>Indentation:ChatMessage.kt$RenderBlock$ </ID>
+    <ID>Indentation:ChatMessage.kt$RenderBlock.ToolCall$ </ID>
+    <ID>Indentation:ChatMessage.kt$TokenUsage$ </ID>
+    <ID>Indentation:ChatMessage.kt$ToolCallInfo$ </ID>
+    <ID>Indentation:ChatMessageList.kt$ </ID>
+    <ID>Indentation:ChatScreen.kt$ </ID>
+    <ID>Indentation:ChatToolbar.kt$ </ID>
+    <ID>Indentation:CommonActionButtons.kt$ </ID>
+    <ID>Indentation:CommonCapsule.kt$ </ID>
+    <ID>Indentation:CompletedRenderer.kt$CompletedRenderer$ </ID>
+    <ID>Indentation:CompletedRenderer.kt$CompletedRenderer.Companion$ </ID>
+    <ID>Indentation:DefaultRenderer.kt$DefaultRenderer$ </ID>
+    <ID>Indentation:DefaultRenderer.kt$DefaultRenderer.Companion$ </ID>
+    <ID>Indentation:DiffViewer.kt$DiffViewer$ </ID>
+    <ID>Indentation:DiffViewer.kt$DiffViewer.ResolvedType$ </ID>
+    <ID>Indentation:EditedRenderer.kt$EditedRenderer$ </ID>
+    <ID>Indentation:EditedRenderer.kt$EditedRenderer.Companion$ </ID>
+    <ID>Indentation:EditorContext.kt$ </ID>
+    <ID>Indentation:EditorContext.kt$EditorContext$ </ID>
+    <ID>Indentation:EditorContext.kt$EditorContext.Companion$ </ID>
+    <ID>Indentation:EditorContext.kt$EditorUtils$ </ID>
+    <ID>Indentation:ErrorCode.kt$ErrorCode$ </ID>
+    <ID>Indentation:ErrorMessages.kt$ </ID>
+    <ID>Indentation:ErrorsPanel.kt$ </ID>
+    <ID>Indentation:ErrorsPanel.kt$SyntaxErrorEntry$ </ID>
+    <ID>Indentation:ExploredRenderer.kt$ExploredRenderer$ </ID>
+    <ID>Indentation:ExploredRenderer.kt$ExploredRenderer.Companion$ </ID>
+    <ID>Indentation:FileItem.kt$ </ID>
+    <ID>Indentation:GlobRenderer.kt$GlobRenderer$ </ID>
+    <ID>Indentation:GlobRenderer.kt$GlobRenderer.Companion$ </ID>
+    <ID>Indentation:GradumApiClient.kt$GradumApiClient$ </ID>
+    <ID>Indentation:GradumApiClient.kt$GradumApiClient.ApiImageAttachment$ </ID>
+    <ID>Indentation:GradumApiClient.kt$GradumApiClient.Companion$ </ID>
+    <ID>Indentation:GradumBundle.kt$GradumBundle$ </ID>
+    <ID>Indentation:GradumChatSession.kt$GradumChatSession$ </ID>
+    <ID>Indentation:GradumChatSession.kt$GradumChatSession.Companion$ </ID>
+    <ID>Indentation:GradumChatSession.kt$ModelsListResponse$ </ID>
+    <ID>Indentation:GradumCodeBlockRenderer.kt$ </ID>
+    <ID>Indentation:GradumCodeBlockRenderer.kt$GradumCodeBlockRenderer$ </ID>
+    <ID>Indentation:GradumIcons.kt$GradumIcons$ </ID>
+    <ID>Indentation:GradumMarkdownStyling.kt$ </ID>
+    <ID>Indentation:GradumMarkdownTable.kt$ </ID>
+    <ID>Indentation:GradumMarkdownTable.kt$MarkdownSegment$ </ID>
+    <ID>Indentation:GradumMarkdownTable.kt$MarkdownSegment.Table$ </ID>
+    <ID>Indentation:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$ </ID>
+    <ID>Indentation:GradumToolWindowFactory.kt$ </ID>
+    <ID>Indentation:GradumToolWindowFactory.kt$&lt;no name provided>$ </ID>
+    <ID>Indentation:GradumToolWindowFactory.kt$GradumToolWindowFactory$ </ID>
+    <ID>Indentation:GradumToolWindowFactory.kt$GradumToolWindowFactory.&lt;no name provided>$ </ID>
+    <ID>Indentation:GrepRenderer.kt$GrepRenderer$ </ID>
+    <ID>Indentation:GrepRenderer.kt$GrepRenderer.Companion$ </ID>
+    <ID>Indentation:IconTooltipButton.kt$ </ID>
+    <ID>Indentation:ImageUpload.kt$ </ID>
+    <ID>Indentation:JumpToBottomButton.kt$ </ID>
+    <ID>Indentation:MessageAttachmentList.kt$ </ID>
+    <ID>Indentation:MessageAttachmentPreview.kt$ </ID>
+    <ID>Indentation:MessageCopyButton.kt$ </ID>
+    <ID>Indentation:MessageTimestamp.kt$ </ID>
+    <ID>Indentation:ModelInfo.kt$ModelInfo$ </ID>
+    <ID>Indentation:ModelNameFormatter.kt$ </ID>
+    <ID>Indentation:ModelNameFormatter.kt$FormattedModelName$ </ID>
+    <ID>Indentation:ModelNameFormatterTest.kt$ModelNameFormatterTest$ </ID>
+    <ID>Indentation:ModelSelectorBar.kt$ </ID>
+    <ID>Indentation:PendingMessage.kt$PendingMessage$ </ID>
+    <ID>Indentation:PermissionSelector.kt$ </ID>
+    <ID>Indentation:PermissionSelector.kt$PermissionMode$ </ID>
+    <ID>Indentation:PlannedRenderer.kt$PlannedRenderer$ </ID>
+    <ID>Indentation:PlannedRenderer.kt$PlannedRenderer.Companion$ </ID>
+    <ID>Indentation:PreviewText.kt$ </ID>
+    <ID>Indentation:QuickStartSection.kt$ </ID>
+    <ID>Indentation:RanRenderer.kt$RanRenderer$ </ID>
+    <ID>Indentation:RanRenderer.kt$RanRenderer.Companion$ </ID>
+    <ID>Indentation:ReadRenderer.kt$ReadRenderer$ </ID>
+    <ID>Indentation:ReadRenderer.kt$ReadRenderer.Companion$ </ID>
+    <ID>Indentation:ResultParser.kt$ </ID>
+    <ID>Indentation:SavedRenderer.kt$SavedRenderer$ </ID>
+    <ID>Indentation:SavedRenderer.kt$SavedRenderer.Companion$ </ID>
+    <ID>Indentation:SelectorButton.kt$ </ID>
+    <ID>Indentation:Spacing.kt$GradumSpacing$ </ID>
+    <ID>Indentation:SweepLightText.kt$ </ID>
+    <ID>Indentation:ThinkingIndicator.kt$ </ID>
+    <ID>Indentation:ToolCallAction.kt$ToolCallAction$ </ID>
+    <ID>Indentation:ToolCallAction.kt$ToolCallAction.CopyToClipboard$ </ID>
+    <ID>Indentation:ToolCallAction.kt$ToolCallAction.Custom$ </ID>
+    <ID>Indentation:ToolCallAction.kt$ToolCallAction.OpenInEditor$ </ID>
+    <ID>Indentation:ToolCallAction.kt$ToolCallAction.ViewDiff$ </ID>
+    <ID>Indentation:ToolCallContent.kt$ToolCallContent$ </ID>
+    <ID>Indentation:ToolCallRenderContext.kt$ToolCallRenderContext$ </ID>
+    <ID>Indentation:ToolCallRenderer.kt$ToolCallRenderer$ </ID>
+    <ID>Indentation:ToolCallRendererRegistry.kt$ToolCallRendererRegistry$ </ID>
+    <ID>Indentation:UserChatBubble.kt$ </ID>
+    <ID>Indentation:WelcomeScreen.kt$ </ID>
+    <ID>InstanceOfCheckForException:GradumChatSession.kt$GradumChatSession$exception is CancellationException</ID>
+    <ID>LongMethod:AddContextPopup.kt$@Composable fun AddContextPopup( searchState: TextFieldState, filteredFiles: List&lt;VirtualFile>, state: ChatInputState, actions: ChatInputActions, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:AssistantChatBubble.kt$@Composable fun AssistantChatBubble( message: ChatMessage, sendingPhase: String = "", modifier: Modifier = Modifier, isLoading: Boolean = false, actionsEnabled: Boolean = true, onRetry: () -> Unit = {}, onUrlClick: (String) -> Unit = {}, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>LongMethod:AssistantChatBubble.kt$@Composable private fun TokenStatusRow( isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0 )</ID>
+    <ID>LongMethod:AssistantChatBubble.kt$@Composable private fun ToolCallBlock( block: RenderBlock.ToolCall, onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit, onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>LongMethod:ChatInputPanel.kt$@Composable fun ChatInputPanel( state: ChatInputState, actions: ChatInputActions, roundedCornerShape: RoundedCornerShape, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit, onCopyAsContext: (String) -> Unit, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:ChatToolbar.kt$@Composable fun ChatToolbar( state: ChatInputState, actions: ChatInputActions, isTextNotEmpty: Boolean, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:CommonCapsule.kt$@Composable internal fun ToolCallCapsule( label: String, iconKey: IconKey, success: Boolean, errorDetail: String = "", errorMessage: String = "", trailingText: String = "", modifier: Modifier = Modifier, trailingIcon: @Composable RowScope.() -> Unit = {}, toolDetails: String = "" )</ID>
+    <ID>LongMethod:DiffViewer.kt$DiffViewer$fun showFileDiff( project: Project?, path: String, originalContent: String, modifiedContent: String, )</ID>
+    <ID>LongMethod:ErrorsPanel.kt$@Composable internal fun ErrorsPanelContent( errors: List&lt;SyntaxErrorEntry>, onLineClick: (line: Int) -> Unit )</ID>
+    <ID>LongMethod:GradumChatSession.kt$GradumChatSession$suspend fun sendMessage( userMessage: String, attachments: List&lt;AttachedContext> = emptyList(), contextPath: String = "" )</ID>
+    <ID>LongMethod:GradumCodeBlockRenderer.kt$@OptIn(ExperimentalJewelApi::class) @Composable private fun CodeBlockToolbar( rawCode: String, language: String, isSoftWrap: Boolean, onInsertAsFile: (code: String, language: String) -> Unit, onSoftWrapToggle: () -> Unit )</ID>
+    <ID>LongMethod:GradumMarkdownStyling.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStyling</ID>
+    <ID>LongMethod:GradumMarkdownTable.kt$@Composable fun ScrollableTable( table: MarkdownSegment.Table, modifier: Modifier = Modifier, isSimplified: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>LongMethod:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)</ID>
+    <ID>LongMethod:ModelSelectorBar.kt$@Composable private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit)</ID>
+    <ID>LongMethod:ModelSelectorBar.kt$private fun MenuScope.buildMenu( isAutoSelected: Boolean, selectedModel: ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit, onTogglePin: (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )</ID>
+    <ID>LongMethod:PermissionSelector.kt$@Composable fun PermissionSelector( selectedPermission: String, isMenuVisible: Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:QuickStartSection.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun QuickStartSection( textState: TextFieldState, suggestionVariants: List&lt;Int>, onRefreshSuggestions: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:ReadRenderer.kt$ReadRenderer$@Composable override fun render(content: ToolCallContent, ctx: ToolCallRenderContext)</ID>
+    <ID>LongMethod:ThinkingIndicator.kt$@Composable fun ThinkingIndicator( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>LongMethod:UserChatBubble.kt$@Composable fun UserChatBubble( message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>LongMethod:WelcomeScreen.kt$@Composable fun WelcomeScreen( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
+    <ID>LongParameterList:AddContextPopup.kt$( searchState: TextFieldState, filteredFiles: List&lt;VirtualFile>, state: ChatInputState, actions: ChatInputActions, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:AssistantChatBubble.kt$( message: ChatMessage, sendingPhase: String = "", modifier: Modifier = Modifier, isLoading: Boolean = false, actionsEnabled: Boolean = true, onRetry: () -> Unit = {}, onUrlClick: (String) -> Unit = {}, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>LongParameterList:AssistantChatBubble.kt$( onRetry: () -> Unit, message: ChatMessage, isLoading: Boolean, hasContent: Boolean, actionsEnabled: Boolean )</ID>
+    <ID>LongParameterList:ChatInputPanel.kt$( state: ChatInputState, actions: ChatInputActions, roundedCornerShape: RoundedCornerShape, textState: TextFieldState, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:ChatMessageList.kt$( messages: List&lt;ChatMessage>, modifier: Modifier = Modifier, isLoading: Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit = {}, onRetryMessage: (Int) -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>LongParameterList:ChatScreen.kt$( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit, onCopyAsContext: (String) -> Unit, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:CommonCapsule.kt$( alias: String, arguments: Map&lt;String, Any?>, result: String, errorMessage: String, errorDetail: String )</ID>
+    <ID>LongParameterList:CommonCapsule.kt$( label: String, iconKey: IconKey, success: Boolean, errorDetail: String = "", errorMessage: String = "", trailingText: String = "", modifier: Modifier = Modifier, trailingIcon: @Composable RowScope.() -> Unit = {}, toolDetails: String = "" )</ID>
+    <ID>LongParameterList:GradumApiClient.kt$GradumApiClient$( message: String, modelName: String? = null, modelParams: Map&lt;String, String>? = null, loadContext: Boolean = true, toolMode: String? = null, promptVariant: String? = null, projectRoot: String? = null, imageAttachments: List&lt;ApiImageAttachment> = emptyList() )</ID>
+    <ID>LongParameterList:GradumCodeBlockRenderer.kt$( rawCode: String, language: String, isSoftWrap: Boolean, onInsertAsFile: (code: String, language: String) -> Unit, onSoftWrapToggle: () -> Unit )</ID>
+    <ID>LongParameterList:GradumMarkdownTable.kt$( text: String, modifier: Modifier = Modifier, onUrlClick: (String) -> Unit = {}, fontWeight: FontWeight? = null, textAlign: TextAlign = TextAlign.Unspecified, processor: MarkdownProcessor = GradumMarkdownProcessor, blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current, paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph )</ID>
+    <ID>LongParameterList:IconTooltipButton.kt$( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:MessageCopyButton.kt$( message: ChatMessage, isCopied: Boolean, onCopy: () -> Unit, onReset: () -> Unit, onCopyAsContext: (String) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:MessageCopyButton.kt$( text: String, onCopied: () -> Unit, onReset: () -> Unit, scope: CoroutineScope, delayMillis: Long = 1000 )</ID>
+    <ID>LongParameterList:ModelSelectorBar.kt$( isAutoSelected: Boolean, selectedModel: ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit, onTogglePin: (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )</ID>
+    <ID>LongParameterList:ModelSelectorBar.kt$( selectedModel: ModelInfo? = null, isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo> = emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel: (ModelInfo?) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:PermissionSelector.kt$( selectedPermission: String, isMenuVisible: Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:ThinkingIndicator.kt$( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
+    <ID>LongParameterList:WelcomeScreen.kt$( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
+    <ID>LongParameterList:WelcomeScreen.kt$( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
+    <ID>LoopWithTooManyJumpStatements:ErrorsPanel.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:ModelNameFormatter.kt$while</ID>
+    <ID>MagicNumber:AssistantChatBubble.kt$1_000_000</ID>
+    <ID>MagicNumber:AssistantChatBubble.kt$1_000_000.0</ID>
+    <ID>MagicNumber:ChatInputPanel.kt$200</ID>
+    <ID>MagicNumber:CommonCapsule.kt$1024.0</ID>
+    <ID>MagicNumber:CommonCapsule.kt$1024L</ID>
+    <ID>MagicNumber:CommonCapsule.kt$5</ID>
+    <ID>MagicNumber:GradumMarkdownStyling.kt$1.1f</ID>
+    <ID>MagicNumber:GradumMarkdownStyling.kt$1.2f</ID>
+    <ID>MagicNumber:GradumMarkdownStyling.kt$1.4f</ID>
+    <ID>MagicNumber:GradumMarkdownStyling.kt$1.6f</ID>
+    <ID>MagicNumber:GradumToolWindowFactory.kt$4</ID>
+    <ID>MagicNumber:GradumToolWindowFactory.kt$5</ID>
+    <ID>MagicNumber:GradumToolWindowFactory.kt$&lt;no name provided>$30</ID>
+    <ID>MagicNumber:ModelNameFormatter.kt$3</ID>
+    <ID>MagicNumber:QuickStartSection.kt$4</ID>
+    <ID>MagicNumber:SweepLightText.kt$300f</ID>
+    <ID>MagicNumber:ThinkingIndicator.kt$800</ID>
+    <ID>MagicNumber:WelcomeScreen.kt$16</ID>
+    <ID>MandatoryBracesLoops:ModelNameFormatterTest.kt$ModelNameFormatterTest$assertEquals("input=$input", expected, formatModelName(input))</ID>
+    <ID>MatchingDeclarationName:ModelNameFormatter.kt$FormattedModelName</ID>
+    <ID>MatchingDeclarationName:PermissionSelector.kt$PermissionMode</ID>
+    <ID>MatchingDeclarationName:Spacing.kt$GradumSpacing</ID>
+    <ID>MaximumLineLength:ChatToolbar.kt$ </ID>
+    <ID>MaximumLineLength:GradumChatSession.kt$GradumChatSession$ </ID>
+    <ID>MultiLineIfElse:AddContextPopup.kt$JewelTheme.globalColors.text.normal</ID>
+    <ID>MultiLineIfElse:AddContextPopup.kt$JewelTheme.globalColors.text.normal.copy(alpha = 0.5f)</ID>
+    <ID>MultiLineIfElse:AddContextPopup.kt$null</ID>
+    <ID>MultiLineIfElse:AssistantChatBubble.kt$""</ID>
+    <ID>MultiLineIfElse:AssistantChatBubble.kt$"$sendingPhase &amp; ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"</ID>
+    <ID>MultiLineIfElse:AssistantChatBubble.kt$null</ID>
+    <ID>MultiLineIfElse:AssistantChatBubble.kt$sendingPhase.ifEmpty { "..." }</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$""</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$"($argumentString)"</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$contentBuilder.append("\n\n")</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$renderBlocks + RenderBlock.Response(event.content)</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$renderBlocks + RenderBlock.Thinking(event.content)</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)</ID>
+    <ID>MultiLineIfElse:ChatMessage.kt$ChatMessage$renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)</ID>
+    <ID>MultiLineIfElse:CommonCapsule.kt$message("gradum.error.copied")</ID>
+    <ID>MultiLineIfElse:CommonCapsule.kt$message("gradum.tool.copy.details")</ID>
+    <ID>MultiLineIfElse:CommonCapsule.kt$result</ID>
+    <ID>MultiLineIfElse:DiffViewer.kt$DiffViewer$ResolvedType.FromFileType( inferred )</ID>
+    <ID>MultiLineIfElse:DiffViewer.kt$DiffViewer$ResolvedType.PlainTextFallback</ID>
+    <ID>MultiLineIfElse:ErrorMessages.kt$if (isNotEmpty()) append("\n")</ID>
+    <ID>MultiLineIfElse:ErrorsPanel.kt$AllIconsKeys.General.ChevronDown</ID>
+    <ID>MultiLineIfElse:ErrorsPanel.kt$AllIconsKeys.General.ChevronRight</ID>
+    <ID>MultiLineIfElse:ErrorsPanel.kt$message("gradum.tool.errors.count", errors.size)</ID>
+    <ID>MultiLineIfElse:ErrorsPanel.kt$message("gradum.tool.hide.errors")</ID>
+    <ID>MultiLineIfElse:GradumChatSession.kt$GradumChatSession$messages.removeAt(userIndex)</ID>
+    <ID>MultiLineIfElse:GradumChatSession.kt$GradumChatSession$messages[assistantIndex] = messages[assistantIndex].appendEvent( ChatEvent.Error(rawMessage, errorCode, errorToolName) )</ID>
+    <ID>MultiLineIfElse:GradumChatSession.kt$GradumChatSession$messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))</ID>
+    <ID>MultiLineIfElse:GradumChatSession.kt$GradumChatSession$messages[assistantIndex] = updatedMessage</ID>
+    <ID>MultiLineIfElse:GradumChatSession.kt$GradumChatSession$return</ID>
+    <ID>MultiLineIfElse:GradumCodeBlockRenderer.kt$message("gradum.soft.wrap.disable")</ID>
+    <ID>MultiLineIfElse:GradumCodeBlockRenderer.kt$message("gradum.soft.wrap.enable")</ID>
+    <ID>MultiLineIfElse:GradumMarkdownStyling.kt$bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER)</ID>
+    <ID>MultiLineIfElse:GradumMarkdownStyling.kt$bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER, color = thinkingGray)</ID>
+    <ID>MultiLineIfElse:GradumMarkdownTable.kt$withoutLeading</ID>
+    <ID>MultiLineIfElse:GradumMarkdownTable.kt$withoutLeading.substring(0, withoutLeading.length - 1)</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$""</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$&lt;no name provided>$AllIconsKeys.Actions.ProjectDirectory</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$&lt;no name provided>$getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$coroutineScope.launch { session.loadModels() }</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$message("gradum.toolwindow.newchat")</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$message("gradum.toolwindow.welcome")</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$project.basePath?.let { "$it/$filePath" } ?: filePath</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$session.messages.removeAt(assistantResponseIndex)</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$session.pinnedModels.add(model)</ID>
+    <ID>MultiLineIfElse:GradumToolWindowFactory.kt$session.pinnedModels.removeAll { it.name == model.name &amp;&amp; it.serverName == model.serverName }</ID>
+    <ID>MultiLineIfElse:ModelSelectorBar.kt$Icon( key = GradumIcons.ModelTools, contentDescription = message("gradum.tools"), modifier = Modifier.alpha(alpha) )</ID>
+    <ID>MultiLineIfElse:ModelSelectorBar.kt$Icon( key = GradumIcons.ModelVision, contentDescription = message("gradum.vision"), modifier = Modifier.alpha(alpha) )</ID>
+    <ID>MultiLineIfElse:ModelSelectorBar.kt$Text( text = model.serverName, style = JewelTheme.typography.small, color = JewelTheme.globalColors.text.info )</ID>
+    <ID>MultiLineIfElse:QuickStartSection.kt$Color.Transparent</ID>
+    <ID>MultiLineIfElse:QuickStartSection.kt$JewelTheme.globalColors.text.info .copy(alpha = 0.08f)</ID>
+    <ID>MultiLineIfElse:ThinkingIndicator.kt$AllIconsKeys.General.ChevronDown</ID>
+    <ID>MultiLineIfElse:ThinkingIndicator.kt$AllIconsKeys.General.ChevronRight</ID>
+    <ID>MultiLineIfElse:UserChatBubble.kt$AllIconsKeys.General.ChevronDown</ID>
+    <ID>MultiLineIfElse:UserChatBubble.kt$AllIconsKeys.General.ChevronRight</ID>
+    <ID>MultiLineIfElse:WelcomeScreen.kt$append("\u00A0")</ID>
+    <ID>MultiLineIfElse:WelcomeScreen.kt$append(text.take(visibleCharacterCount))</ID>
+    <ID>MultiLineIfElse:WelcomeScreen.kt$withStyle(SpanStyle(color = cursorColor)) { append("_") }</ID>
+    <ID>NestedBlockDepth:GradumMarkdownTable.kt$fun splitMarkdownAtTables(markdown: String): List&lt;MarkdownSegment></ID>
+    <ID>NestedBlockDepth:ModelNameFormatter.kt$private fun extractParameterSize(name: String): String?</ID>
+    <ID>NoConsecutiveBlankLines:ErrorsPanel.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:GradumMarkdownStyling.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:GradumToolWindowFactory.kt$ </ID>
+    <ID>NoConsecutiveBlankLines:ModelSelectorBar.kt$ </ID>
+    <ID>NoSemicolons:ErrorCode.kt$ErrorCode.TOOL_NOT_PERMITTED$;</ID>
+    <ID>NoUnusedImports:ErrorsPanel.kt$gradum.idea.chat.ui.chat.skill.internal.ErrorsPanel.kt</ID>
+    <ID>NoWildcardImports:AddContextPopup.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:AddContextPopup.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:AssistantChatBubble.kt$import androidx.compose.animation.core.*</ID>
+    <ID>NoWildcardImports:AssistantChatBubble.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:AssistantChatBubble.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:AssistantChatBubble.kt$import gradum.idea.chat.ui.*</ID>
+    <ID>NoWildcardImports:AssistantChatBubble.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:AttachmentBar.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ChatInputPanel.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ChatInputPanel.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:ChatInputPanel.kt$import androidx.compose.ui.input.key.*</ID>
+    <ID>NoWildcardImports:ChatScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ChatScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:CommonCapsule.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:CommonCapsule.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:FileItem.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:GradumApiClient.kt$import kotlinx.serialization.json.*</ID>
+    <ID>NoWildcardImports:GradumChatSession.kt$import gradum.idea.chat.model.*</ID>
+    <ID>NoWildcardImports:GradumChatSession.kt$import gradum.idea.editor.*</ID>
+    <ID>NoWildcardImports:GradumChatSession.kt$import kotlinx.coroutines.*</ID>
+    <ID>NoWildcardImports:GradumChatSession.kt$import kotlinx.serialization.json.*</ID>
+    <ID>NoWildcardImports:GradumCodeBlockRenderer.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:GradumCodeBlockRenderer.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:GradumCodeBlockRenderer.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:GradumMarkdownStyling.kt$import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*</ID>
+    <ID>NoWildcardImports:GradumMarkdownTable.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:GradumMarkdownTable.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:GradumMarkdownTable.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:GradumToolWindowFactory.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:GradumToolWindowFactory.kt$import gradum.idea.editor.*</ID>
+    <ID>NoWildcardImports:GradumToolWindowFactory.kt$import kotlinx.coroutines.*</ID>
+    <ID>NoWildcardImports:MessageAttachmentList.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ModelSelectorBar.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ModelSelectorBar.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:ModelSelectorBar.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:PermissionSelector.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:QuickStartSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ResultParser.kt$import kotlinx.serialization.json.*</ID>
+    <ID>NoWildcardImports:SweepLightText.kt$import androidx.compose.animation.core.*</ID>
+    <ID>NoWildcardImports:ThinkingIndicator.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:ThinkingIndicator.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:ThinkingIndicator.kt$import gradum.idea.chat.ui.*</ID>
+    <ID>NoWildcardImports:ToolCallRendererRegistry.kt$import gradum.idea.chat.ui.chat.skill.*</ID>
+    <ID>NoWildcardImports:UserChatBubble.kt$import androidx.compose.foundation.*</ID>
+    <ID>NoWildcardImports:UserChatBubble.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:UserChatBubble.kt$import androidx.compose.runtime.*</ID>
+    <ID>NoWildcardImports:UserChatBubble.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>NoWildcardImports:WelcomeScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>NoWildcardImports:WelcomeScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>ParameterListSpacing:AssistantChatBubble.kt$( block: RenderBlock.ToolCall, onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit, onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
+    <ID>ParameterListWrapping:AssistantChatBubble.kt$( isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0 )</ID>
+    <ID>ParameterListWrapping:EditedRenderer.kt$EditedRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:ExploredRenderer.kt$ExploredRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:GlobRenderer.kt$GlobRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:GradumApiClient.kt$GradumApiClient$( message: String, modelName: String? = null, modelParams: Map&lt;String, String>? = null, loadContext: Boolean = true, toolMode: String? = null, promptVariant: String? = null, projectRoot: String? = null, imageAttachments: List&lt;ApiImageAttachment> = emptyList() )</ID>
+    <ID>ParameterListWrapping:GradumChatSession.kt$GradumChatSession$( userMessage: String, attachments: List&lt;AttachedContext> = emptyList(), contextPath: String = "" )</ID>
+    <ID>ParameterListWrapping:GradumChatSession.kt$GradumChatSession.Companion$( text: String, focusedFilePath: String, openFiles: List&lt;VirtualFile> )</ID>
+    <ID>ParameterListWrapping:GradumMarkdownTable.kt$( naturalColumnWidthsPx: IntArray, containerWidthPx: Int, minCellWidthPx: Int, horizontalPaddingPx: Int )</ID>
+    <ID>ParameterListWrapping:GrepRenderer.kt$GrepRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:MessageAttachmentPreview.kt$( imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier )</ID>
+    <ID>ParameterListWrapping:PlannedRenderer.kt$PlannedRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:RanRenderer.kt$RanRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:ReadRenderer.kt$ReadRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ParameterListWrapping:SavedRenderer.kt$SavedRenderer$( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> )</ID>
+    <ID>ReturnCount:ModelNameFormatter.kt$private fun lookupDisplayName(key: String): String?</ID>
+    <ID>StringTemplate:GradumChatSession.kt$GradumChatSession$${userMessage}</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" First sentence with a | in the middle. Second sentence with | another | pipe. Third sentence | final. """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" H1 | H2 -- | -- a | b """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" Intro paragraph. | H1 | H2 | | -- | -- | | a | b | | c | d | Outro paragraph. """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | A | B | | - | - | | 1 | 2 | | C | D | | - | - | | 3 | 4 | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | b | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | b | not a table row | c | d | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | b | | $longLine | $longLine | | c | d | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | b | | only-one-cell | | c | d | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | x\|y | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | a | | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | H2 | | -- | -- | | only-one-cell | | another-one | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | H1 | | -- | $rows """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | Left | Center | Right | | :--- | :----: | ----: | | a | b | c | """</ID>
+    <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | | H2 | | -- | -- | | a | b | """</ID>
+    <ID>TooGenericExceptionCaught:ChatScreen.kt$exception: Exception</ID>
+    <ID>TooGenericExceptionCaught:DiffViewer.kt$DiffViewer$exception: Exception</ID>
+    <ID>TooGenericExceptionCaught:GradumApiClient.kt$GradumApiClient$exception: Exception</ID>
+    <ID>TooGenericExceptionCaught:GradumChatSession.kt$GradumChatSession$exception: Exception</ID>
+    <ID>TooGenericExceptionCaught:GradumToolWindowFactory.kt$exception: Exception</ID>
+    <ID>TopLevelPropertyNaming:MessageAttachmentPreview.kt$private const val bubbleThumbnailCornerRadiusDp: Int = 6</ID>
+    <ID>TopLevelPropertyNaming:MessageAttachmentPreview.kt$private const val bubbleThumbnailEdgeDp: Int = 100</ID>
+    <ID>UndocumentedPublicClass:Attachments.kt$AttachedContext</ID>
+    <ID>UndocumentedPublicClass:Attachments.kt$AttachedFile : AttachedContext</ID>
+    <ID>UndocumentedPublicClass:Attachments.kt$AttachedText : AttachedContext</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$ChatEvent$Error : ChatEvent</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$ChatEvent$Response : ChatEvent</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$ChatEvent$Thinking : ChatEvent</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$ChatEvent$ToolCall : ChatEvent</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$RenderBlock$Error : RenderBlock</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$RenderBlock$Response : RenderBlock</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$RenderBlock$Thinking : RenderBlock</ID>
+    <ID>UndocumentedPublicClass:ChatMessage.kt$RenderBlock$ToolCall : RenderBlock</ID>
+    <ID>UndocumentedPublicClass:CompletedRenderer.kt$CompletedRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:DefaultRenderer.kt$DefaultRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:EditedRenderer.kt$EditedRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:EditorContext.kt$EditorContext</ID>
+    <ID>UndocumentedPublicClass:EditorContext.kt$EditorContext$Companion</ID>
+    <ID>UndocumentedPublicClass:EditorContext.kt$EditorUtils</ID>
+    <ID>UndocumentedPublicClass:ErrorCode.kt$ErrorCode</ID>
+    <ID>UndocumentedPublicClass:ExploredRenderer.kt$ExploredRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:GlobRenderer.kt$GlobRenderer : ToolCallRenderer</ID>
+    <ID>UndocumentedPublicClass:GlobRenderer.kt$GlobRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:GradumChatSession.kt$GradumChatSession$Companion</ID>
+    <ID>UndocumentedPublicClass:GradumIcons.kt$GradumIcons</ID>
+    <ID>UndocumentedPublicClass:GradumMarkdownTable.kt$MarkdownSegment$Plain : MarkdownSegment</ID>
+    <ID>UndocumentedPublicClass:GradumMarkdownTable.kt$MarkdownSegment$Table : MarkdownSegment</ID>
+    <ID>UndocumentedPublicClass:GradumToolWindowFactory.kt$GradumToolWindowFactory : ToolWindowFactory</ID>
+    <ID>UndocumentedPublicClass:GrepRenderer.kt$GrepRenderer : ToolCallRenderer</ID>
+    <ID>UndocumentedPublicClass:GrepRenderer.kt$GrepRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:ModelInfo.kt$ModelInfo</ID>
+    <ID>UndocumentedPublicClass:PendingMessage.kt$PendingMessage</ID>
+    <ID>UndocumentedPublicClass:PlannedRenderer.kt$PlannedRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:RanRenderer.kt$RanRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:ReadRenderer.kt$ReadRenderer$Companion</ID>
+    <ID>UndocumentedPublicClass:SavedRenderer.kt$SavedRenderer$Companion</ID>
+    <ID>UndocumentedPublicFunction:EditorContext.kt$EditorUtils$fun getEditorContext(project: Project): EditorContext</ID>
+    <ID>UndocumentedPublicFunction:EditorContext.kt$fun getLanguageIconKey(extension: String?): IconKey?</ID>
+    <ID>UndocumentedPublicFunction:GradumIcons.kt$GradumIcons$fun resolveModelIcon(modelName: String): IconKey?</ID>
+    <ID>UndocumentedPublicFunction:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)</ID>
+    <ID>UndocumentedPublicFunction:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? = null, isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo> = emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel: (ModelInfo?) -> Unit = {}, modifier: Modifier = Modifier )</ID>
+    <ID>UndocumentedPublicProperty:Attachments.kt$AttachedContext$abstract val displayName: String</ID>
+    <ID>UndocumentedPublicProperty:Attachments.kt$AttachedContext$abstract val iconKey: IconKey</ID>
+    <ID>UndocumentedPublicProperty:Attachments.kt$AttachedFile$val file: VirtualFile</ID>
+    <ID>UndocumentedPublicProperty:Attachments.kt$AttachedText$val content: String</ID>
+    <ID>UndocumentedPublicProperty:Attachments.kt$AttachedText$val preview: String</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onClearText: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onDismissAddMenu: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onDismissMenu: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onFocusChange: (Boolean) -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onPasteAsContext: (String) -> Unit = {}</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onRemoveFile: (AttachedContext) -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onRemovePending: (PendingMessage) -> Unit = {}</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectAuto: () -> Unit = {}</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectFile: (VirtualFile) -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectModel: (ModelInfo?) -> Unit = {}</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectPermission: (String) -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSend: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onStop: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onToggleAddMenu: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onToggleExpanded: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onToggleMenu: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onTogglePin: (ModelInfo) -> Unit = {}</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onUploadImage: () -> Unit</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val attachedFiles: List&lt;AttachedContext></ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val editorContext: EditorContext</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isAttachmentLimitReached: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isAutoSelected: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isExpanded: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isFocused: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isMenuVisible: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isPendingQueueFull: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isSending: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val models: List&lt;ModelInfo> = emptyList()</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val modelsLoaded: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val pendingMessages: List&lt;PendingMessage></ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val pinnedModels: List&lt;ModelInfo> = emptyList()</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val selectedModel: ModelInfo? = null</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val selectedPermission: String</ID>
+    <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val showAddMenu: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.Error$val code: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.Error$val message: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.Error$val tool: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.Response$val content: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.Thinking$val content: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatEvent.ToolCall$val info: ToolCallInfo</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val isUserMessage: Boolean get() = role == "user"</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val modelName: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val provider: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val serverName: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val timestamp: Long = System.currentTimeMillis()</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ChatMessage$val tokenUsage: TokenUsage? = null</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.Error$val code: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.Error$val message: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.Response$val content: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.Thinking$val content: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val alias: String</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val arguments: Map&lt;String, Any> = emptyMap()</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val errorDetail: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val errorMessage: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val result: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$RenderBlock.ToolCall$val success: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ToolCallInfo$val arguments: Map&lt;String, Any> = emptyMap()</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ToolCallInfo$val errorDetail: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ChatMessage.kt$ToolCallInfo$val errorMessage: String = ""</ID>
+    <ID>UndocumentedPublicProperty:CompletedRenderer.kt$CompletedRenderer.Companion$const val ALIAS: String = "Completed"</ID>
+    <ID>UndocumentedPublicProperty:CompletedRenderer.kt$CompletedRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.completed"</ID>
+    <ID>UndocumentedPublicProperty:EditedRenderer.kt$EditedRenderer.Companion$const val ALIAS: String = "Edited"</ID>
+    <ID>UndocumentedPublicProperty:EditedRenderer.kt$EditedRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.edited"</ID>
+    <ID>UndocumentedPublicProperty:EditorContext.kt$EditorContext$val allOpenFiles: List&lt;VirtualFile></ID>
+    <ID>UndocumentedPublicProperty:EditorContext.kt$EditorContext$val currentFile: VirtualFile?</ID>
+    <ID>UndocumentedPublicProperty:EditorContext.kt$EditorContext$val projectDir: VirtualFile?</ID>
+    <ID>UndocumentedPublicProperty:EditorContext.kt$EditorContext.Companion$val EMPTY = EditorContext(null, emptyList(), null)</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$ALL_COMPLETED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$ALREADY_INITIALIZED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$CLIENT_ERROR : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$CODE_NOT_FOUND : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$COMMAND_BLOCKED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$EMPTY_RESULT : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$FILE_NOT_FOUND : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$FILE_TOO_LARGE : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$INTERRUPTED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$INVALID_PARAMETER : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$IO_ERROR : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$MULTIPLE_MATCHES : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$NOT_INITIALIZED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$PERMISSION_DENIED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$TIMEOUT : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$TOOL_NOT_PERMITTED : ErrorCode</ID>
+    <ID>UndocumentedPublicProperty:ErrorCode.kt$ErrorCode$val code: String</ID>
+    <ID>UndocumentedPublicProperty:ErrorsPanel.kt$SyntaxErrorEntry$val column: Int? = null</ID>
+    <ID>UndocumentedPublicProperty:ErrorsPanel.kt$SyntaxErrorEntry$val errorCode: String? = null</ID>
+    <ID>UndocumentedPublicProperty:ErrorsPanel.kt$SyntaxErrorEntry$val line: Int? = null</ID>
+    <ID>UndocumentedPublicProperty:ErrorsPanel.kt$SyntaxErrorEntry$val message: String</ID>
+    <ID>UndocumentedPublicProperty:ExploredRenderer.kt$ExploredRenderer.Companion$const val ALIAS: String = "Explored"</ID>
+    <ID>UndocumentedPublicProperty:ExploredRenderer.kt$ExploredRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.explored"</ID>
+    <ID>UndocumentedPublicProperty:GlobRenderer.kt$GlobRenderer.Companion$const val ALIAS: String = "Glob"</ID>
+    <ID>UndocumentedPublicProperty:GlobRenderer.kt$GlobRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.glob"</ID>
+    <ID>UndocumentedPublicProperty:GlobRenderer.kt$GlobRenderer.Companion$const val LABEL_KEY_DISPLAY: String = "gradum.tool.search.display"</ID>
+    <ID>UndocumentedPublicProperty:GradumApiClient.kt$GradumApiClient.ApiImageAttachment$val filename: String</ID>
+    <ID>UndocumentedPublicProperty:GradumChatSession.kt$GradumChatSession.Companion$const val MAX_ATTACHMENTS: Int = 10</ID>
+    <ID>UndocumentedPublicProperty:GradumChatSession.kt$GradumChatSession.Companion$const val MAX_PENDING_MESSAGES: Int = 2</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Auto = PathIconKey("/icons/auto/auto.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Build = PathIconKey("/icons/build/build.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Cloud = PathIconKey("/icons/cloud/cloud.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val CollapseAll = PathIconKey("/icons/collapse-all/collapse-all.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ColorLogo = PathIconKey("/icons/logo/color_logo.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Dislike = PathIconKey("/icons/dislike/dislike.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val DislikeSelected = PathIconKey("/icons/dislike-selected/dislike-selected.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Edit = PathIconKey("/icons/edit/edit.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ExpandAll = PathIconKey("/icons/expand-all/expand-all.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Explore = PathIconKey("/icons/explore/explore.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val FeatChat = PathIconKey("/icons/feat/chat/chat.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val FeatCode = PathIconKey("/icons/feat/code/code.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val FeatQuestion = PathIconKey("/icons/feat/question/question.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val FeatText = PathIconKey("/icons/feat/text/text.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Image = PathIconKey("/icons/image/image.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Jsx = PathIconKey("/icons/file-type/jsx/jsx.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Kotlin = PathIconKey("/icons/file-type/kotlin/kotlin.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Like = PathIconKey("/icons/like/like.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val LikeSelected = PathIconKey("/icons/like-selected/like-selected.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Markdown = PathIconKey("/icons/markdown/markdown.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ModelTools = PathIconKey("/icons/tools/tool.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ModelVision = PathIconKey("/icons/vison/vison.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val NumberList = PathIconKey("/icons/numbered-list/numbered-list.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Png = PathIconKey("/icons/file-type/image/image.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderAnthropic = PathIconKey("/icons/model-provider/anthropic.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderDeepseek = PathIconKey("/icons/model-provider/deepseek.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderGoogle = PathIconKey("/icons/model-provider/google.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderMeta = PathIconKey("/icons/model-provider/meta.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderMinimax = PathIconKey("/icons/model-provider/minimax.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderMistral = PathIconKey("/icons/model-provider/mistral.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderOpenai = PathIconKey("/icons/model-provider/openai.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderXai = PathIconKey("/icons/model-provider/xai.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderXiaomi = PathIconKey("/icons/model-provider/xiaomi.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ProviderZhipuai = PathIconKey("/icons/model-provider/zhipuai.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Python = PathIconKey("/icons/file-type/python/python.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Ran = PathIconKey("/icons/cmd/cmd.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Save = PathIconKey("/icons/save/save.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Search = PathIconKey("/icons/search/search.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Send = PathIconKey("/icons/send/send.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val SoftWarp = PathIconKey("/icons/soft-wrap/softwrap.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Tsx = PathIconKey("/icons/file-type/tsx/tsx.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val TypeScript = PathIconKey("/icons/file-type/typescript/typescript.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Warning = PathIconKey("/icons/warning/warning.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumMarkdownTable.kt$MarkdownSegment.Plain$val text: String</ID>
+    <ID>UndocumentedPublicProperty:GradumMarkdownTable.kt$MarkdownSegment.Table$val alignments: List&lt;TextAlign></ID>
+    <ID>UndocumentedPublicProperty:GradumMarkdownTable.kt$MarkdownSegment.Table$val header: List&lt;String></ID>
+    <ID>UndocumentedPublicProperty:GradumMarkdownTable.kt$MarkdownSegment.Table$val rows: List&lt;List&lt;String>></ID>
+    <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val ALIAS: String = "Grep"</ID>
+    <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.grep"</ID>
+    <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val LABEL_KEY_DISPLAY: String = "gradum.tool.search.display"</ID>
+    <ID>UndocumentedPublicProperty:JumpToBottomButton.kt$const val DURATION_MILLIS: Int = 120</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val attachment: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val contextLimit: Int = 0</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val name: String</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val openWeights: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val provider: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val reasoning: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val server: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val serverName: String = ""</ID>
+    <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val toolCall: Boolean = false</ID>
+    <ID>UndocumentedPublicProperty:PendingMessage.kt$PendingMessage$val attachments: List&lt;AttachedContext></ID>
+    <ID>UndocumentedPublicProperty:PendingMessage.kt$PendingMessage$val content: String</ID>
+    <ID>UndocumentedPublicProperty:PermissionSelector.kt$PermissionMode$const val AGENT = "agent"</ID>
+    <ID>UndocumentedPublicProperty:PermissionSelector.kt$PermissionMode$const val EDIT = "edit"</ID>
+    <ID>UndocumentedPublicProperty:PermissionSelector.kt$PermissionMode$const val READONLY = "read_only"</ID>
+    <ID>UndocumentedPublicProperty:PlannedRenderer.kt$PlannedRenderer.Companion$const val ALIAS: String = "Planned"</ID>
+    <ID>UndocumentedPublicProperty:PlannedRenderer.kt$PlannedRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.planned"</ID>
+    <ID>UndocumentedPublicProperty:RanRenderer.kt$RanRenderer.Companion$const val ALIAS: String = "Ran"</ID>
+    <ID>UndocumentedPublicProperty:RanRenderer.kt$RanRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.ran"</ID>
+    <ID>UndocumentedPublicProperty:ReadRenderer.kt$ReadRenderer.Companion$const val ALIAS: String = "Read"</ID>
+    <ID>UndocumentedPublicProperty:ReadRenderer.kt$ReadRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.read"</ID>
+    <ID>UndocumentedPublicProperty:SavedRenderer.kt$SavedRenderer.Companion$const val ALIAS: String = "Saved"</ID>
+    <ID>UndocumentedPublicProperty:SavedRenderer.kt$SavedRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.saved"</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.CopyToClipboard$val displayLabel: String? = null</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.CopyToClipboard$val payload: String</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.Custom$val customId: String</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.Custom$val dataMap: Map&lt;String, Any?> = emptyMap()</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.Custom$val displayLabel: String</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.OpenInEditor$val displayLabel: String? = null</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.OpenInEditor$val filePath: String</ID>
+    <ID>UndocumentedPublicProperty:ToolCallAction.kt$ToolCallAction.ViewDiff$val filePath: String</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val errorDetail: String?</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val isError: Boolean</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val onCopy: ((payload: String) -> Unit)?</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?</ID>
+    <ID>UndocumentedPublicProperty:ToolCallRenderContext.kt$ToolCallRenderContext$val project: Project?</ID>
+    <ID>UnusedImports:ErrorsPanel.kt$import androidx.compose.foundation.ScrollbarAdapter</ID>
+    <ID>UnusedParameter:CommonActionButtons.kt$endLine: Int? = null</ID>
+    <ID>UnusedParameter:CommonActionButtons.kt$startLine: Int? = null</ID>
+    <ID>UnusedParameter:MessageCopyButton.kt$onCopyAsContext: (String) -> Unit = {}</ID>
+    <ID>UnusedParameter:PermissionSelector.kt$modifier: Modifier = Modifier</ID>
+    <ID>UnusedParameter:ThinkingIndicator.kt$enterTransition: EnterTransition = fadeIn(tween(800))</ID>
+    <ID>VariableMinLength:CommonCapsule.kt$val sb = StringBuilder()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ First sentence with a | in the middle. Second sentence with | another | pipe. Third sentence | final. """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ H1 | H2 -- | -- a | b """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ Intro paragraph. | H1 | H2 | | -- | -- | | a | b | | c | d | Outro paragraph. """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | A | B | | - | - | | 1 | 2 | | C | D | | - | - | | 3 | 4 | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | a | b | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | a | b | not a table row | c | d | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | a | b | | $longLine | $longLine | | c | d | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | a | b | | only-one-cell | | c | d | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | a | x\|y | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | H2 | | -- | -- | | only-one-cell | | another-one | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | H1 | | -- | $rows """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = """ | Left | Center | Right | | :--- | :----: | ----: | | a | b | c | """.trimIndent()</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = "Hello world.\nThis is prose."</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = "Prose line.\n| -- | -- |\nMore prose."</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."</ID>
+    <ID>VariableMinLength:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$val md = "Some intro prose.\n| --- | --- |\nMore prose."</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Extra large — page-level horizontal padding. */ val xl = 16.dp</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Large — block-to-block gaps, section separators. */ val lg = 12.dp</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Medium — block inner padding, row content spacing. */ val md = 8.dp</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Medium-large — between xl and xxl, e.g. card inner padding. */ val ml = 20.dp</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Small — element-to-element gaps, inline separators. */ val sm = 4.dp</ID>
+    <ID>VariableMinLength:Spacing.kt$GradumSpacing$/** Tiny — icon inner padding, tiny gaps. */ val xs = 2.dp</ID>
+    <ID>WildcardImport:AddContextPopup.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AddContextPopup.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:AssistantChatBubble.kt$import androidx.compose.animation.core.*</ID>
+    <ID>WildcardImport:AssistantChatBubble.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AssistantChatBubble.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AssistantChatBubble.kt$import gradum.idea.chat.ui.*</ID>
+    <ID>WildcardImport:AssistantChatBubble.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:AttachmentBar.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ChatInputPanel.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ChatInputPanel.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ChatInputPanel.kt$import androidx.compose.ui.input.key.*</ID>
+    <ID>WildcardImport:ChatScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ChatScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:CommonCapsule.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:CommonCapsule.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:FileItem.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GradumApiClient.kt$import kotlinx.serialization.json.*</ID>
+    <ID>WildcardImport:GradumChatSession.kt$import gradum.idea.chat.model.*</ID>
+    <ID>WildcardImport:GradumChatSession.kt$import gradum.idea.editor.*</ID>
+    <ID>WildcardImport:GradumChatSession.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:GradumChatSession.kt$import kotlinx.serialization.json.*</ID>
+    <ID>WildcardImport:GradumCodeBlockRenderer.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GradumCodeBlockRenderer.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GradumCodeBlockRenderer.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:GradumMarkdownStyling.kt$import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*</ID>
+    <ID>WildcardImport:GradumMarkdownTable.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GradumMarkdownTable.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GradumMarkdownTable.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:GradumToolWindowFactory.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GradumToolWindowFactory.kt$import gradum.idea.editor.*</ID>
+    <ID>WildcardImport:GradumToolWindowFactory.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:MessageAttachmentList.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ModelSelectorBar.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ModelSelectorBar.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ModelSelectorBar.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:PermissionSelector.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:QuickStartSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ResultParser.kt$import kotlinx.serialization.json.*</ID>
+    <ID>WildcardImport:SweepLightText.kt$import androidx.compose.animation.core.*</ID>
+    <ID>WildcardImport:ThinkingIndicator.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ThinkingIndicator.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ThinkingIndicator.kt$import gradum.idea.chat.ui.*</ID>
+    <ID>WildcardImport:ToolCallRendererRegistry.kt$import gradum.idea.chat.ui.chat.skill.*</ID>
+    <ID>WildcardImport:UserChatBubble.kt$import androidx.compose.foundation.*</ID>
+    <ID>WildcardImport:UserChatBubble.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:UserChatBubble.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:UserChatBubble.kt$import org.jetbrains.jewel.ui.component.*</ID>
+    <ID>WildcardImport:WelcomeScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WelcomeScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>Wrapping:AddContextPopup.kt$;</ID>
+    <ID>Wrapping:CommonCapsule.kt$;</ID>
+    <ID>Wrapping:ErrorMessages.kt$;</ID>
+    <ID>Wrapping:GradumApiClient.kt$GradumApiClient$(</ID>
+    <ID>Wrapping:GradumApiClient.kt$GradumApiClient$("config", JsonObject(modelParams.mapValues { (_, value) -> JsonPrimitive(value) }))</ID>
+    <ID>Wrapping:GradumApiClient.kt$GradumApiClient$;</ID>
+    <ID>Wrapping:GradumChatSession.kt$GradumChatSession$;</ID>
+    <ID>Wrapping:GradumChatSession.kt$GradumChatSession.Companion$;</ID>
+    <ID>Wrapping:GradumMarkdownTable.kt$;</ID>
+    <ID>Wrapping:GradumToolWindowFactory.kt$;</ID>
+    <ID>Wrapping:GradumToolWindowFactory.kt$&lt;no name provided>$-></ID>
+    <ID>Wrapping:MessageCopyButton.kt$;</ID>
+    <ID>Wrapping:ModelSelectorBar.kt$;</ID>
+    <ID>Wrapping:PermissionSelector.kt$;</ID>
+    <ID>Wrapping:UserChatBubble.kt$;</ID>
+  </CurrentIssues>
+</SmellBaseline>
