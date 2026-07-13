@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-11 22:02:47 Changed by gwy
+ * WelcomeScreen.kt  2026-07-13 20:29:50 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
@@ -38,7 +37,6 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -75,34 +73,11 @@ fun WelcomeScreen(
   inputActions: ChatInputActions,
   onRefreshSuggestions: () -> Unit,
 ) {
-  val welcomeIndex = remember { Random.nextInt(16) }
-  val welcomeText = remember(welcomeIndex) {
-    message("gradum.welcome.$welcomeIndex")
-  }
-  // MiSans Medium (16sp) for the typewriter text. MiSans covers
-  // both Simplified Chinese and Latin glyphs in a single face, so
-  // we no longer need the editor monospace fallback here — the
-  // welcome messages are short, conversational, and read better in
-  // a proportional sans than in a monospaced one.
-  //
-  // The file at `/font/MiSans.ttf` is the static Medium weight
-  // (usWeightClass = Medium per the `name` table) and is
-  // intentionally loaded as the only entry in the FontFamily:
-  // Compose will fall back through the system stack if a glyph
-  // is missing. See `plugin/src/main/resources/font/MiSans.ttf`.
-  val miSansMediumFont = remember { Font("/font/MiSans.ttf", weight = FontWeight.Medium) }
-  val miSansFontFamily = remember { FontFamily(miSansMediumFont) }
-  val normalStyle = JewelTheme.typography.regular
-  val welcomeStyle = remember(welcomeIndex) {
-    normalStyle.copy(
-      fontFamily = miSansFontFamily,
-      fontWeight = FontWeight.Medium,
-      fontSize = 16.sp,
-    )
-  }
-  // Title still uses GoogleSans (untouched per the design call).
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
+  // (Typewriter text and the MiSans family that powered it are kept
+  // in [TypewriterText] below as a `@Suppress("unused")` private
+  // composable — re-enable when we want the welcome line back.)
 
   Box(
     modifier = modifier.fillMaxSize(),
@@ -132,12 +107,6 @@ fun WelcomeScreen(
           )
         }
         Spacer(modifier = Modifier.height(GradumSpacing.xl))
-        TypewriterText(
-          text = welcomeText,
-          style = welcomeStyle,
-          play = inputState.modelsLoaded,
-          cursorColor = JewelTheme.globalColors.outlines.focused
-        )
       }
       ChatInputSection(
         state = inputState,
@@ -171,6 +140,7 @@ fun WelcomeScreen(
 }
 
 @Composable
+@Suppress("unused")
 private fun TypewriterText(
   text: String,
   play: Boolean = true,
