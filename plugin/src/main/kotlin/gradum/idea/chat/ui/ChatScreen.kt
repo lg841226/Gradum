@@ -267,6 +267,11 @@ fun ChatScreen(
           coroutineScope.launch {
             scrollState.animateScrollTo(scrollState.maxValue)
           }
+        },
+        onJumpToTop = {
+          coroutineScope.launch {
+            scrollState.animateScrollTo(0)
+          }
         }
       )
     }
