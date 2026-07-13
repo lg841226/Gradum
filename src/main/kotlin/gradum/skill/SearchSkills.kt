@@ -89,15 +89,17 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
   val projectRoot = context.projectRoot
   if (projectRoot.isBlank()) return null
 
-  val searchDir = if (relativePath.isNullOrBlank()) projectRoot
-  else {
-    val trimmed = relativePath.trim()
-    if (Paths.get(trimmed).isAbsolute) trimmed
-    else Paths.get(projectRoot, trimmed).toString()
+  if (relativePath.isNullOrBlank()) {
+    return try {
+      Paths.get(projectRoot).toAbsolutePath().normalize()
+    } catch (_: Exception) {
+      null
+    }
   }
 
+  val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
   return try {
-    Paths.get(searchDir).toAbsolutePath().normalize()
+    resolved.resolved
   } catch (_: Exception) {
     null
   }

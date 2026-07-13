@@ -40,10 +40,10 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
 /**
@@ -88,11 +88,13 @@ private val BackgroundBlurRadiusDp = 20.dp
  *
  * ## Visual stack
  *
- *  1. Translucent `panelBackground` fill at rest, full alpha on
- *     hover. Carries the frosted tint.
+ *  1. Translucent `borders.normal` fill at 80% alpha (same
+ *     colour as the user chat bubble) carries the frosted
+ *     tint — the pill reads as a small "user" chip floating
+ *     above the input.
  *  2. `Modifier.blur(20.dp)` on that background layer. Real
- *     backdrop blur on Skia and Android 12+; a soft translucent
- *     fall-back on older Android.
+ *     backdrop blur on Skia and Android 12+; a soft
+ *     translucent fall-back on older Android.
  *  3. The icon + label sit on top, **not blurred** — they stay
  *     sharp regardless of platform. Mode swap is instant (no
  *     Crossfade / AnimatedContent) so there's no animation
@@ -149,7 +151,7 @@ fun JumpToBottomButton(
         modifier = Modifier
           .matchParentSize()
           .clip(RoundedCornerShape(percent = 50))
-          .background(JewelTheme.globalColors.panelBackground.copy(alpha = 0.92f))
+          .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.8f))
           .blur(BackgroundBlurRadiusDp)
       )
       Row(
@@ -168,7 +170,7 @@ fun JumpToBottomButton(
         horizontalArrangement = Arrangement.spacedBy(6.dp)
       ) {
         Icon(
-          key = if (isAlternativeMode) AllIconsKeys.General.ArrowUp else AllIconsKeys.General.ArrowDown,
+          key = if (isAlternativeMode) GradumIcons.ScrollUp else GradumIcons.ScrollDown,
           contentDescription = buttonText,
           modifier = Modifier.size(16.dp)
         )

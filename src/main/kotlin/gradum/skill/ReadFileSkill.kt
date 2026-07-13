@@ -106,12 +106,8 @@ class ReadFileSkill : Skill() {
         )
       )
 
-    val resolvedPath: Path =
-      if (projectRoot.isNotBlank() && !filePath.startsWith("/")) {
-        Path.of(projectRoot, filePath).toAbsolutePath().normalize()
-      } else
-        Path.of(filePath).toAbsolutePath().normalize()
-
+    val resolved: ResolvedProjectPath = resolveProjectPath(filePath, projectRoot)
+    val resolvedPath: Path = resolved.resolved
     val targetFile: File = resolvedPath.toFile()
 
     return try {

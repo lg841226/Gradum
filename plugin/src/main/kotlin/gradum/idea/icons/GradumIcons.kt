@@ -40,6 +40,7 @@ object GradumIcons {
   val ModelTools = PathIconKey("/icons/tools/tool.svg", GradumIcons::class.java)
   val ModelVision = PathIconKey("/icons/vison/vison.svg", GradumIcons::class.java)
   val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)
+  val ScrollUp = PathIconKey("icons/scroll-up/scroll-up.svg", GradumIcons::class.java)
 
   val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)
   val ProviderAnthropic = PathIconKey("/icons/model-provider/anthropic.svg", GradumIcons::class.java)
