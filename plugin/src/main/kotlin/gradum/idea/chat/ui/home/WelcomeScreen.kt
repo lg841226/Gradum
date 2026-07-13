@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
@@ -78,13 +79,30 @@ fun WelcomeScreen(
   val welcomeText = remember(welcomeIndex) {
     message("gradum.welcome.$welcomeIndex")
   }
-  val editorFontFamily = JewelTheme.typography.editorTextStyle.fontFamily
+  // MiSans Medium (16sp) for the typewriter text. MiSans covers
+  // both Simplified Chinese and Latin glyphs in a single face, so
+  // we no longer need the editor monospace fallback here — the
+  // welcome messages are short, conversational, and read better in
+  // a proportional sans than in a monospaced one.
+  //
+  // The file at `/font/MiSans.ttf` is the static Medium weight
+  // (usWeightClass = Medium per the `name` table) and is
+  // intentionally loaded as the only entry in the FontFamily:
+  // Compose will fall back through the system stack if a glyph
+  // is missing. See `plugin/src/main/resources/font/MiSans.ttf`.
+  val miSansMediumFont = remember { Font("/font/MiSans.ttf", weight = FontWeight.Medium) }
+  val miSansFontFamily = remember { FontFamily(miSansMediumFont) }
   val normalStyle = JewelTheme.typography.regular
   val welcomeStyle = remember(welcomeIndex) {
-    normalStyle.copy(fontFamily = editorFontFamily)
+    normalStyle.copy(
+      fontFamily = miSansFontFamily,
+      fontWeight = FontWeight.Medium,
+      fontSize = 16.sp,
+    )
   }
-  val myCustomFont = Font("/font/GoogleSans.ttf")
-  val myFontFamily = FontFamily(myCustomFont)
+  // Title still uses GoogleSans (untouched per the design call).
+  val titleFont = remember { Font("/font/GoogleSans.ttf") }
+  val titleFontFamily = remember { FontFamily(titleFont) }
 
   Box(
     modifier = modifier.fillMaxSize(),
@@ -107,7 +125,7 @@ fun WelcomeScreen(
           Spacer(modifier = Modifier.width(GradumSpacing.md))
           Text(
             fontWeight = FontWeight.Medium,
-            fontFamily = myFontFamily,
+            fontFamily = titleFontFamily,
             text = message("gradum.welcome.text"),
             style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
             letterSpacing = GradumSpacing.welcomeTitleTracking
