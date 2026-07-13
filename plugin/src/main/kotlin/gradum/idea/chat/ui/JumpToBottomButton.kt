@@ -10,9 +10,12 @@
 package gradum.idea.chat.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,6 +59,16 @@ import org.jetbrains.jewel.ui.typography
 private val BackgroundBlurRadiusDp = 20.dp
 
 /**
+ * Show / hide timing. The enter is intentionally a touch
+ * slower than the exit — the user gets to see the slide + fade
+ * as the button rises from the input edge, but on dismissal we
+ * want it gone immediately so it doesn't linger over the input
+ * as the user starts typing.
+ */
+private const val ENTER_DURATION_MS = 140
+private const val EXIT_DURATION_MS = 80
+
+/**
  * Pill-shaped "Jump to latest" / "Jump to top" button that floats
  * above the chat input. Mirrors the original (commit `c5430f5`)
  * layout — a single [Row] with `clip` + `background` +
@@ -83,8 +96,12 @@ private val BackgroundBlurRadiusDp = 20.dp
  * sees events while the mouse is moving; that's why "press
  * Option while hovering" was unreliable.
  *
- * Show / hide is a plain fade (no slide — the slide-up animation
- * felt laggy on top of the mode swap).
+ * Show / hide is fade + slide: enter rises one full height
+ * (the input box's top edge) over 140ms with
+ * `FastOutSlowInEasing`, exit mirrors to the same offset
+ * over 80ms linear. The slower enter lets the user see the
+ * motion; the faster linear exit makes sure the pill is
+ * gone by the time the user is about to type.
  *
  * ## Visual stack
  *
@@ -133,8 +150,16 @@ fun JumpToBottomButton(
 
   AnimatedVisibility(
     visible = isVisible,
-    enter = fadeIn(animationSpec = tween(durationMillis = 150)),
-    exit = fadeOut(animationSpec = tween(durationMillis = 150)),
+    enter = fadeIn(animationSpec = tween(ENTER_DURATION_MS, easing = FastOutSlowInEasing)) +
+      slideInVertically(
+        animationSpec = tween(ENTER_DURATION_MS, easing = FastOutSlowInEasing),
+        initialOffsetY = { fullHeight: Int -> fullHeight }
+      ),
+    exit = fadeOut(animationSpec = tween(EXIT_DURATION_MS)) +
+      slideOutVertically(
+        animationSpec = tween(EXIT_DURATION_MS),
+        targetOffsetY = { fullHeight: Int -> fullHeight }
+      ),
     modifier = modifier
   ) {
     val interactionSource: MutableInteractionSource =
