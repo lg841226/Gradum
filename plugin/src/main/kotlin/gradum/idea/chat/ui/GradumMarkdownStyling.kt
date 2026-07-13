@@ -42,8 +42,23 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrdered
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
 private const val DEFAULT_LINE_HEIGHT_MULTIPLIER = 1.5f
-private const val TITLE_LINE_HEIGHT_MULTIPLIER = 1.5f
+private const val TITLE_LINE_HEIGHT_MULTIPLIER = 1.25f
 private const val THINKING_LINE_HEIGHT_MULTIPLIER = 1.5f
+
+/**
+ * Padding applied to every heading block (H1–H6).
+ *
+ * Jewel's default is `PaddingValues(top = 24.dp, bottom = 16.dp)`,
+ * which is GitHub-flavoured spacing designed for a documentation
+ * page. In a chat bubble that stack of 24 dp + the heading's own
+ * line-height slack + the markdown `blockVerticalSpacing` (16 dp)
+ * creates a ~40 sp gap between an H1 and the body text that follows
+ * it — roughly 2½ lines of empty space, which reads as a layout
+ * bug. Override to 0 so the block-level `blockVerticalSpacing` is
+ * the single source of truth for inter-block gaps, matching the
+ * spacing between any two regular paragraphs.
+ */
+private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 
 /**
  * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
@@ -167,12 +182,36 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       ),
       heading = MarkdownStyling.Heading.createInlinesStyling(
         paragraphTextStyle,
-        H1.createInlinesStyling(h1Style, headingInlines(h1Style)),
-        H2.createInlinesStyling(h2Style, headingInlines(h2Style)),
-        H3.createInlinesStyling(h3Style, headingInlines(h3Style)),
-        H4.createInlinesStyling(h4Style, headingInlines(h4Style)),
-        H5.createInlinesStyling(h5Style, headingInlines(h5Style)),
-        H6.createInlinesStyling(h6Style, headingInlines(h6Style))
+        H1.createInlinesStyling(
+          baseTextStyle = h1Style,
+          inlinesStyling = headingInlines(h1Style),
+          padding = HeadingBlockPadding
+        ),
+        H2.createInlinesStyling(
+          baseTextStyle = h2Style,
+          inlinesStyling = headingInlines(h2Style),
+          padding = HeadingBlockPadding
+        ),
+        H3.createInlinesStyling(
+          baseTextStyle = h3Style,
+          inlinesStyling = headingInlines(h3Style),
+          padding = HeadingBlockPadding
+        ),
+        H4.createInlinesStyling(
+          baseTextStyle = h4Style,
+          inlinesStyling = headingInlines(h4Style),
+          padding = HeadingBlockPadding
+        ),
+        H5.createInlinesStyling(
+          baseTextStyle = h5Style,
+          inlinesStyling = headingInlines(h5Style),
+          padding = HeadingBlockPadding
+        ),
+        H6.createInlinesStyling(
+          baseTextStyle = h6Style,
+          inlinesStyling = headingInlines(h6Style),
+          padding = HeadingBlockPadding
+        )
       ),
       code = MarkdownStyling.Code.createCodeStyling(
         fenced = MarkdownStyling.Code.Fenced.createCodeStyling(
