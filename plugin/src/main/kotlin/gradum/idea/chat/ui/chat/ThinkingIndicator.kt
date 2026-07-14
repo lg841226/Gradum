@@ -22,6 +22,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.*
+import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
+import gradum.idea.chat.ui.markdown.MarkdownSegment
+import gradum.idea.chat.ui.markdown.ScrollableTable
+import gradum.idea.chat.ui.markdown.isRenderable
+import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
+import gradum.idea.chat.ui.markdown.splitMarkdown
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
@@ -107,7 +113,7 @@ fun ThinkingIndicator(
       val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
       CompositionLocalProvider(LocalContentColor provides thinkingColor) {
         CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
-          val segments = remember(thinking) { splitMarkdownAtTables(thinking) }
+          val segments = remember(thinking) { splitMarkdown(thinking) }
           Column {
             segments.forEach { segment ->
               when (segment) {
@@ -124,6 +130,14 @@ fun ThinkingIndicator(
                     ScrollableTable(segment, isSimplified = true)
                   }
                 }
+
+                is MarkdownSegment.NonProseBlock -> Markdown(
+                  markdown = segment.text,
+                  onUrlClick = onUrlClick,
+                  modifier = Modifier.fillMaxWidth(),
+                  markdownStyling = thinkingStyling,
+                  blockRenderer = simplifiedCodeRenderer,
+                )
               }
             }
           }

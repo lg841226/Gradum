@@ -1,13 +1,17 @@
-/*
- * Copyright (c) 2026 Gradum team, some rights reserved.
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumMarkdownStyling.kt  2026-07-10 04:35:39 Changed by gwy
- */
+// Detekt defaults disagree with project standards (2-space indent, 200-char
+// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
+@file:Suppress(
+  "MaximumLineLength",
+  "Indentation",
+  "FunctionNaming",
+  "SpacingBetweenPackageAndImports",
+  "NoConsecutiveBlankLines",
+  "NoMultipleSpaces",
+  "ArgumentListWrapping",
+  "UnstableApiUsage",
+)
 
-@file:Suppress("UnstableApiUsage")
-
-package gradum.idea.chat.ui
+package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
@@ -21,13 +25,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.rendering.InlinesStyling
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H1
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H2
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H3
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H4
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H5
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H6
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
@@ -41,9 +52,17 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListSty
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
-private const val DEFAULT_LINE_HEIGHT_MULTIPLIER = 1.5f
-private const val TITLE_LINE_HEIGHT_MULTIPLIER = 1.25f
-private const val THINKING_LINE_HEIGHT_MULTIPLIER = 1.5f
+private const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
+private const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
+private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
+private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
+private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
+private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
+private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
+private const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f
+private const val HEADING_H4_SIZE_MULTIPLIER: Float = 1.1f
+private const val HEADING_H5_SIZE_MULTIPLIER: Float = 1.0f
+private const val HEADING_H6_SIZE_MULTIPLIER: Float = 1.0f
 
 /**
  * Padding applied to every heading block (H1–H6).
@@ -59,6 +78,24 @@ private const val THINKING_LINE_HEIGHT_MULTIPLIER = 1.5f
  * spacing between any two regular paragraphs.
  */
 private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
+
+/**
+ * The chat panel's body text style. Slightly tighter than the LaF default
+ * (line-height 1.5×). Returned as a [TextStyle] so the inline chip parser
+ * can read the font size for its placeholder width / height.
+ */
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+fun rememberGradumParagraphTextStyle(): TextStyle {
+  val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
+  val fontSizeValue: Float = labelTextStyle.fontSize.value.takeIf { it > 0f }
+    ?: BODY_FONT_SIZE_FALLBACK_SP
+  val resolvedTextStyle: TextStyle = labelTextStyle.copy(
+    fontSize = fontSizeValue.sp,
+    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp,
+  )
+  return resolvedTextStyle
+}
 
 /**
  * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
@@ -78,7 +115,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
 
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
-  val inlineCodeTextStyle = editorTextStyle.copy(
+  val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER,
     color = inlineTint,
     background = inlineTint.copy(alpha = 0.12f)
@@ -90,11 +127,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   else
     bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER)
 
-
   return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode) {
     val activeLinkColor: Color = if (thinkingMode) thinkingGray else linkStyle.colors.content
-    val linkSpan = SpanStyle(color = activeLinkColor)
-    val paragraphInlines = InlinesStyling(
+    val linkSpan: SpanStyle = SpanStyle(color = activeLinkColor)
+    val paragraphInlines: InlinesStyling = InlinesStyling(
       textStyle = paragraphTextStyle,
       inlineCode = inlineCodeTextStyle.toSpanStyle(),
       link = linkSpan,
@@ -108,18 +144,19 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       inlineHtml = SpanStyle()
     )
 
-    fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight): TextStyle {
+    fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight, italic: Boolean = false): TextStyle {
       val headingFontSize: TextUnit = paragraphTextStyle.fontSize * fontSizeMultiplier
       val headingLineHeight: TextUnit = headingFontSize * TITLE_LINE_HEIGHT_MULTIPLIER
       return paragraphTextStyle.copy(
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
-        fontWeight = fontWeight
+        fontWeight = fontWeight,
+        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
       )
     }
 
     fun headingInlines(textStyle: TextStyle): InlinesStyling {
-      val headingInlineCode = textStyle.toSpanStyle().copy(
+      val headingInlineCode: SpanStyle = textStyle.toSpanStyle().copy(
         background = inlineTint.copy(alpha = 0.12f)
       )
       return InlinesStyling(
@@ -146,30 +183,31 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       )
     }
 
-    val h1Style: TextStyle = headingStyle(1.6f, FontWeight.Bold)
-    val h2Style: TextStyle = headingStyle(1.4f, FontWeight.Bold)
-    val h3Style: TextStyle = headingStyle(1.2f, FontWeight.SemiBold)
-    val h4Style: TextStyle = headingStyle(1.1f, FontWeight.SemiBold)
-    val h5Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
-    val h6Style: TextStyle = headingStyle(1.0f, FontWeight.Medium)
+    val h1Style: TextStyle = headingStyle(HEADING_H1_SIZE_MULTIPLIER, FontWeight.Bold)
+    val h2Style: TextStyle = headingStyle(HEADING_H2_SIZE_MULTIPLIER, FontWeight.Bold)
+    val h3Style: TextStyle = headingStyle(HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h4Style: TextStyle = headingStyle(HEADING_H4_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h5Style: TextStyle = headingStyle(HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
+    val h6Style: TextStyle = headingStyle(HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 
-    // Use editor's monospace family for ordered-list markers to align digits vertically
     val numberStyle: TextStyle = paragraphTextStyle.copy(
       fontFamily = editorTextStyle.fontFamily,
       color = if (thinkingMode) thinkingGray else globalColors.text.info
     )
 
-    // Vertical padding between list items
-    val listItemPadding = PaddingValues(vertical = GradumSpacing.md)
+    val listItemPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.md)
 
-    // Blockquote: left indent only, no border/background
+    // Blockquote: muted (disabled) text color + a 3dp link-colored left
+    // bar, no inner padding. 2026-07-14: italic was tried but the user
+    // reverted it — quotes should read as regular prose, just visually
+    // de-emphasized. Padding was tried then dropped the same day — the
+    // user wants the quote text flush with the surrounding content.
     val blockQuoteTextColor: Color =
-      if (thinkingMode) thinkingGray else globalColors.text.info
+      if (thinkingMode) thinkingGray else globalColors.text.disabled
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
-      lineWidth = 0.dp,
-      lineColor = Color.Transparent,
+      lineWidth = BLOCKQUOTE_LINE_WIDTH_DP.dp,
+      lineColor = activeLinkColor,
       textColor = blockQuoteTextColor,
-      padding = PaddingValues(start = GradumSpacing.xl)
     )
 
     MarkdownStyling.createCodeStyling(

@@ -143,3 +143,30 @@ detekt {
   baseline = file("../config/detekt/baseline.xml")
   autoCorrect = false
 }
+
+/**
+ * Mirror the root module's quality-gate wiring. The IntelliJ
+ * plugin compiles through `compileKotlin` (single-target JVM
+ * module, no `-jvm` variant) and runs `check` during
+ * `gradlew build`. Both must run detekt — see the long-form
+ * rationale in the root `build.gradle.kts`; the short version
+ * is "code cleanliness: no path through Gradle produces a
+ * class file without detekt passing first".
+ *
+ * Same `-Pgradum.skipDetektGate=true` opt-out as the root
+ * module. The `check.dependsOn(detekt)` wiring is unconditional.
+ */
+val gradumSkipDetektGate: String =
+  (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
+
+if (gradumSkipDetektGate != "true") {
+  tasks.matching {
+    it.name == "compileKotlin" || it.name == "compileKotlinJvm"
+  }.configureEach {
+    dependsOn("detekt")
+  }
+}
+
+tasks.named("check") {
+  dependsOn("detekt")
+}

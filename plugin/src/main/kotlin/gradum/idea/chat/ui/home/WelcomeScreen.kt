@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-13 20:29:50 Changed by gwy
+ * WelcomeScreen.kt  2026-07-13 23:19:33 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -75,10 +75,6 @@ fun WelcomeScreen(
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
-  // (Typewriter text and the MiSans family that powered it are kept
-  // in [TypewriterText] below as a `@Suppress("unused")` private
-  // composable — re-enable when we want the welcome line back.)
-
   Box(
     modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
@@ -106,7 +102,7 @@ fun WelcomeScreen(
             letterSpacing = GradumSpacing.welcomeTitleTracking
           )
         }
-        Spacer(modifier = Modifier.height(GradumSpacing.xl))
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
       }
       ChatInputSection(
         state = inputState,

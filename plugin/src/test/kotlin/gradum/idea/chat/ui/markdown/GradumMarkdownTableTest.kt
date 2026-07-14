@@ -5,7 +5,7 @@
  * GradumMarkdownTableTest.kt  2026-07-06 Changed by gwy
  */
 
-package gradum.idea.chat.ui
+package gradum.idea.chat.ui.markdown
 
 import androidx.compose.ui.text.style.TextAlign
 import org.junit.Assert.assertEquals

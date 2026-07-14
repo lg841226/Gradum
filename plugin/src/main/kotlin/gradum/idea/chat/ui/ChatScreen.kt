@@ -60,17 +60,27 @@ private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
  * tolerance prevents the button from flickering on tiny overscroll
  * at the very end of the chat.
  *
- * ### Show / hide rules (position-based)
+ * ### Show / hide rules (mode-aware, position-based)
  *
- *  - User is within 64 dp of the end of the chat → **hidden**.
- *  - User is more than 64 dp away from the end → **visible**.
- *  - Initial state at startup → **hidden** (the chat auto-scrolls
- *    to the end on first composition, and once the user is at the
- *    end the button stays hidden).
+ * The pill's current action depends on the Option-toggled mode, so
+ * the hide rule depends on the mode:
+ *  - **Default mode** ("Jump to latest"): user is within 64 dp of
+ *    the end of the chat → **hidden**. Visible when the user has
+ *    scrolled up past the tolerance.
+ *  - **Alternative mode** ("Jump to top"): user is within 64 dp
+ *    of the start of the chat → **hidden**. Visible when the user
+ *    has scrolled down past the tolerance.
+ *  - **Initial state at startup** → **hidden** in default mode
+ *    (the chat auto-scrolls to the end on first composition, and
+ *    once the user is at the end the button stays hidden).
  *
- * The "near the bottom" check is a `derivedStateOf` of the live
- * `scrollState.value` vs. `scrollState.maxValue` — see
- * [isNearBottom] below.
+ * Mode toggling happens on Option-key rising edges captured by
+ * [LocalWindowInfo.keyboardModifiers]; see [JumpToBottomButton].
+ *
+ * The "near the bottom" / "near the top" checks are
+ * `derivedStateOf` of the live `scrollState.value` vs.
+ * `scrollState.maxValue` — see [isNearBottom] / [isNearTop]
+ * below.
  *
  * ### Auto-scroll strategy — "force scroll to bottom" wins
  *
@@ -142,11 +152,6 @@ fun ChatScreen(
   val lastMessage: ChatMessage? = messages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
-  // Live "is the user currently within 64 dp of the end of the chat?"
-  // check. Recomputed by `derivedStateOf` only when the scroll
-  // position or the content height changes. `maxValue == 0` (empty
-  // chat) is treated as "at the bottom" so the button never appears
-  // for a fresh empty screen.
   val isNearBottom: Boolean by remember(scrollState) {
     derivedStateOf {
       val maxValue: Int = scrollState.maxValue
@@ -154,40 +159,19 @@ fun ChatScreen(
     }
   }
 
-  // Snapshot of `isNearBottom` taken at the moment of the user's
-  // last scroll. The auto-scroll effect reads this snapshot, not
-  // the live value, so it can correctly answer "was the user at
-  // the bottom when this new content arrived?" — using the live
-  // value would race with the layout update that grows `maxValue`
-  // and flips the live check to false the instant new content
-  // lands. The snapshot is updated only when `scrollState.value`
-  // changes (i.e. user drag or animated scroll), NOT when
-  // `maxValue` changes (i.e. content grows), so the snapshot
-  // preserves the user's pre-content position. Initialized to
-  // `true` so the very first content update auto-scrolls to the
-  // bottom of a freshly opened chat (standard chat-UI behavior:
-  // show the most recent message on open).
+  val isNearTop: Boolean by remember(scrollState) {
+    derivedStateOf {
+      scrollState.value <= nearBottomThresholdPx
+    }
+  }
+
   var wasAtBottom by remember { mutableStateOf(true) }
   LaunchedEffect(scrollState.value) {
     wasAtBottom = isNearBottom
   }
 
-  // Snapshot of `messages.size` to detect a freshly-sent user
-  // message, so the user-send branch can force-scroll to the
-  // bottom regardless of where the user was reading.
   var lastSeenMessageCount by remember { mutableIntStateOf(messages.size) }
 
-  // Auto-scroll on new content.
-  //  1. Fresh user message: always force-scroll to the bottom
-  //     (Hitting Enter is unambiguous "I want to see this
-  //     conversation from now on" intent.)
-  //  2. Otherwise: auto-scroll only if the user was at the bottom
-  //     when the content arrived. The user can read history
-  //     without being yanked back; the button appears so they
-  //     can return at their own pace.
-  // The `withFrameNanos { }` defers the `animateScrollTo` to the
-  // next frame so the new content's layout pass has committed and
-  // `scrollState.maxValue` reflects the new content height.
   LaunchedEffect(messages.size, lastBlockCount) {
     if (messages.size > lastSeenMessageCount) {
       val newMessages: List<ChatMessage> = messages.subList(lastSeenMessageCount, messages.size)
@@ -262,7 +246,8 @@ fun ChatScreen(
         modifier = Modifier
           .align(Alignment.BottomCenter)
           .padding(bottom = GradumSpacing.lg),
-        isVisible = !isNearBottom,
+        isAtBottom = isNearBottom,
+        isAtTop = isNearTop,
         onClick = {
           coroutineScope.launch {
             scrollState.animateScrollTo(scrollState.maxValue)

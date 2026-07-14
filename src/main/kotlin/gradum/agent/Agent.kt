@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-07-11 11:53:14 Changed by gwy
+ * Agent.kt  2026-07-14 08:58:21 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -173,7 +173,7 @@ class Agent(
     val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
       toolMode = configuration.toolMode,
       provider = configuration.provider,
-      modelName = configuration.modelName,
+      modelName = configuration.modelName
     )
 
     while (true) {
@@ -389,10 +389,6 @@ class Agent(
     var toolCallsResult: List<ToolCallEntry>? = null
     var errorMessage: String? = null
 
-    // Buffers for accumulating complete blocks before emitting.
-    // Each buffer collects consecutive chunks of the same type;
-    // when the chunk type changes, the buffer is flushed as a
-    // single complete event.
     val thinkingBuffer = StringBuilder()
     val responseBuffer = StringBuilder()
 
@@ -454,7 +450,6 @@ class Agent(
       }
     }
 
-    // Flush any remaining buffered content at stream end.
     flushThinking(); flushResponse()
 
     return AgentTurnResult(
@@ -511,8 +506,6 @@ class Agent(
       mapOf("type" to "text", "text" to text)
     )
     for (attachment in attachments) {
-      // Non-image attachments are ignored (generic envelope for future types).
-      // Logged once per request to surface unknown kinds.
       if (attachment.type != "image") {
         logger.warn("Ignoring unsupported attachment type '${attachment.type}' (filename=${attachment.filename})")
         continue
@@ -821,10 +814,6 @@ class Agent(
     val preSize: Int = nonSystem.size
     val keepFromEnd: List<Map<String, Any>> = takeLastTurns(nonSystem, maxHistoryMessages)
     if (keepFromEnd.size in (maxHistoryMessages + 1)..<preSize) {
-      // We ended up with MORE than the budget — that means the
-      // truncator's last-resort path kicked in (a single turn
-      // is larger than the budget). Warn so the operator can
-      // raise the budget or split the conversation.
       logger.warn(
         "Cannot fit conversation in $maxHistoryMessages messages " +
           "without breaking a turn; falling back to raw tail cut " +

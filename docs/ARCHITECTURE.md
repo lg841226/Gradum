@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.25                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-07-09                                                       |
+| **Last Updated**   | 2026-07-14                                                       |
 
 ---
 
@@ -1626,7 +1626,7 @@ plugin (IntelliJ Plugin)
 │                     │                                 │  (Ktor + Netty)     │
 │  ChatInputSection   │   POST /events (NDJSON stream)  │                     │
 │  ModelSelectorBar   │ <══════════════════════════════>│  Agent + Skills     │
-│  MessageComponents  │   GET /models                   │  LLM Client         │
+│  AssistantChatBubble │   GET /models                   │  LLM Client         │
 │  GradumApiClient    │ <───────────────────────────────│  CommandFilter      │
 │                     │                                 │                     │
 └─────────────────────┘                                 └─────────────────────┘
@@ -1641,47 +1641,74 @@ plugin (IntelliJ Plugin)
 ```
 gradum.idea/
 ├── GradumToolWindowFactory.kt        # Entry point, registers tool window
+├── ImageUpload.kt                    # Image-attachment upload helper (paste / drop → file on disk)
 ├── chat/
 │   ├── api/
 │   │   └── GradumApiClient.kt        # HTTP client for server communication
 │   ├── input/
 │   │   ├── ChatInputPanel.kt         # Text input + send/stop buttons
 │   │   ├── ChatInputSection.kt       # Input panel + model selector
+│   │   ├── ChatInputState.kt         # ChatInputState + ChatInputActions data classes
 │   │   └── ModelSelectorBar.kt       # Model dropdown with pin/auto
 │   ├── model/
+│   │   ├── ChatMessage.kt            # ChatEvent / RenderBlock / ChatMessage + formatTimestamp
+│   │   ├── ErrorCode.kt              # Shared 16-code error enum
 │   │   └── ModelInfo.kt              # Model data class (name, serverName)
 │   ├── state/
 │   │   └── GradumChatSession.kt      # Project-level service, holds chat state
 │   └── ui/
 │       ├── ChatScreen.kt             # Main chat layout
-│       ├── MessageComponents.kt      # Message bubbles, code blocks
+│       ├── Spacing.kt                # GradumSpacing token object
+│       ├── GradumCodeBlockRenderer.kt  # Markdown fenced code renderer (Layer 1 of the rendering pipeline)
+│       ├── GradumInlineMarkdown.kt     # Custom CommonMark inline parser + chip renderer (Layer 3; ~520 lines)
+│       ├── GradumMarkdownStyling.kt    # Markdown styling + rememberGradumParagraphTextStyle()
+│       ├── GradumMarkdownTable.kt      # GFM table parser + ScrollableTable Compose (Layer 2)
+│       ├── JumpToBottomButton.kt       # Solid-background jump-to-bottom button with 0.5dp border
+│       ├── chat/
+│       │   ├── AssistantChatBubble.kt        # Renders the event timeline (thinking / tool_call / response / error); drives the four-layer Markdown pipeline in ResponseBlock
+│       │   ├── UserChatBubble.kt             # User message bubble
+│       │   ├── MessageAttachmentList.kt      # Collapsible attachment list inside the user bubble
+│       │   ├── MessageAttachmentPreview.kt   # Inline thumbnail preview for image attachments
+│       │   ├── MessageCopyButton.kt          # Copy button + tooltip semantics
+│       │   ├── MessageTimestamp.kt           # Bubble timestamp footer
+│       │   ├── ThinkingIndicator.kt          # Pulsing dots during thinking
+│       │   ├── SweepLightText.kt             # Typewriter + shimmer animation
+│       │   ├── ErrorMessages.kt              # Localised, code-driven error messages
+│       │   ├── ChatMessageList.kt            # Scrollable list + day-change separators
+│       │   └── skill/                        # Per-skill tool-call renderers (one file per server alias)
+│       │       ├── spi/                      #   SPI: ToolCallRenderer, ToolCallRendererRegistry, ToolCallContent, ToolCallAction, ToolCallRenderContext, ResultParser
+│       │       ├── internal/                 #   Shared internals: CommonCapsule (icon+label+body), CommonActionButtons (OpenInEditor / ViewDiff / CopyToClipboard), ErrorsPanel
+│       │       ├── RanRenderer.kt            #   "Ran"      — server skill `run_cmd`
+│       │       ├── EditedRenderer.kt         #   "Edited"   — server skill `edit_file`
+│       │       ├── ReadRenderer.kt           #   "Read"     — server skill `read_file`
+│       │       ├── SavedRenderer.kt          #   "Saved"    — server skill `save_file`
+│       │       ├── ExploredRenderer.kt       #   "Explored" — server skill `explore_project`
+│       │       ├── GrepRenderer.kt           #   "Grep"     — server skill `search_text` / grep
+│       │       ├── GlobRenderer.kt           #   "Glob"     — server skill `search_files` / glob
+│       │       ├── PlannedRenderer.kt        #   "Planned"  — server skill `to_do` (add)
+│       │       ├── CompletedRenderer.kt      #   "Completed"— server skill `to_do` (done)
+│       │       └── DefaultRenderer.kt        #   "*"         — wildcard catch-all (any unrecognised alias)
+│       ├── home/
+│       │   ├── QuickStartSection.kt   # Welcome quick-start tiles (4 × 5 variants)
+│       │   └── WelcomeScreen.kt       # Welcome screen composable
 │       ├── input/
-│       │   ├── ModelNameFormatter.kt # Model name display formatting
-│       │   └── ...
-│       └── chat/
-│           ├── AssistantChatBubble.kt        # Renders the event timeline (thinking / tool_call / response / error)
-│           ├── UserChatBubble.kt             # User message bubble
-│           ├── MessageCopyButton.kt          # Copy button + tooltip semantics
-│           ├── MessageTimestamp.kt           # Bubble timestamp footer
-│           ├── ThinkingIndicator.kt          # Pulsing dots during thinking
-│           ├── SweepLightText.kt             # Typewriter + shimmer animation
-│           ├── GfmMarkdownProcessor.kt       # Custom GFM table parser + renderer
-│           ├── GradumMarkdownTable.kt        # GFM table parser internals (splitMarkdownAtTables)
-│           ├── ScrollableTable.kt            # GFM table render + horizontal scrollbar
-│           └── skill/                        # Per-skill tool-call renderers (one file per server alias)
-│               ├── spi/                      #   SPI: ToolCallRenderer, ToolCallRendererRegistry, ToolCallContent, ToolCallAction, ToolCallRenderContext, ResultParser
-│               ├── internal/                 #   Shared capsule (ToolCallCapsule) + action buttons (OpenInEditorButton, ViewDiffButton)
-│               ├── RanRenderer.kt            #   "Ran"      — server skill `run_cmd`
-│               ├── EditedRenderer.kt         #   "Edited"   — server skill `edit_file`
-│               ├── ReadRenderer.kt           #   "Read"     — server skill `read_file`
-│               ├── SavedRenderer.kt          #   "Saved"    — server skill `save_file`
-│               ├── ExploredRenderer.kt       #   "Explored" — server skill `explore_project`
-│               ├── PlannedRenderer.kt        #   "Planned"  — server skill `to_do` (add)
-│               ├── CompletedRenderer.kt      #   "Completed"— server skill `to_do` (done)
-│               └── DefaultRenderer.kt        #   "*"         — wildcard catch-all (any unrecognised alias)
+│       │   ├── AddContextPopup.kt
+│       │   ├── AttachmentBar.kt
+│       │   ├── ChatInputPanel.kt
+│       │   ├── ChatInputSection.kt
+│       │   ├── ChatToolbar.kt
+│       │   ├── FileItem.kt
+│       │   ├── ModelNameFormatter.kt
+│       │   ├── ModelSelectorBar.kt
+│       │   ├── PermissionSelector.kt
+│       │   └── PreviewText.kt
+│       └── common/
+│           ├── DiffViewer.kt          # Side-by-side / unified diff viewer used by ViewDiffButton
+│           ├── IconTooltipButton.kt
+│           └── SelectorButton.kt
 ├── editor/
 │   ├── EditorContext.kt              # Editor state (attachments, pending)
-│   ├── AttachedFile.kt               # File attachment model
+│   ├── Attachments.kt                # AttachedContext model + file/dir freezing
 │   └── PendingMessage.kt             # Queued message model
 ├── bundle/
 │   └── GradumBundle.properties       # i18n (en, zh_CN)
@@ -1696,6 +1723,19 @@ gradum.idea/
 > matching renderer by `alias()`. See
 > [`docs/PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) section 16
 > for the full tutorial.
+
+> **Markdown rendering is a four-layer pipeline.** The chat does not
+> call `Markdown(...)` on the raw response text. It first splits GFM
+> tables out via `GradumMarkdownTable.splitMarkdownAtTables`; for each
+> `Plain` segment it then attempts the custom CommonMark inline parser
+> in `GradumInlineMarkdown` (using `commonmark-java` from Jewel's
+> `intellij.platform.jewel.markdown.core` — zero new dependency);
+> segments that contain lists / headings / blockquotes / fenced code,
+> or that fail to parse, fall through to Jewel's native `Markdown(...)`.
+> Fenced code blocks reach the `GradumCodeBlockRenderer` either way.
+> See [`docs/PLUGIN_FEATURES.md`](../PLUGIN_FEATURES.md) section 6 for
+> the full pipeline description, bail-out conditions, chip visual spec,
+> and the 28 pinned unit tests in `GradumInlineMarkdownTest.kt`.
 
 ### 8.5 Key Dependencies Summary
 

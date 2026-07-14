@@ -116,7 +116,11 @@
     <ID>FunctionNaming:GradumMarkdownTable.kt$@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class) @Composable private fun TableToolbar(table: MarkdownSegment.Table)</ID>
     <ID>FunctionNaming:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)</ID>
     <ID>FunctionNaming:IconTooltipButton.kt$@Composable fun IconTooltipButton( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
-    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isVisible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true )</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isAtBottom: Boolean, isAtTop: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, onJumpToTop: () -> Unit = {}, )</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable private fun AltKeyModeEffect( isVisible: Boolean, onToggle: () -> Unit, )</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable private fun JumpToBottomPill( isVisible: Boolean, isAlternativeMode: Boolean, onClick: () -> Unit, onJumpToTop: () -> Unit, textAlpha: Float, modifier: Modifier, )</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable private fun PillBackground(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:JumpToBottomButton.kt$@Composable private fun PillForeground( isAlternativeMode: Boolean, textAlpha: Float, onClick: () -> Unit, onJumpToTop: () -> Unit, )</ID>
     <ID>FunctionNaming:MessageAttachmentList.kt$@Composable private fun AttachmentChip(attachment: AttachedContext)</ID>
     <ID>FunctionNaming:MessageAttachmentList.kt$@OptIn(ExperimentalLayoutApi::class) @Composable fun MessageAttachmentList( attachments: List&lt;AttachedContext>, modifier: Modifier = Modifier )</ID>
     <ID>FunctionNaming:MessageAttachmentPreview.kt$@Composable fun MessageAttachmentPreview( attachments: List&lt;AttachedContext>, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
@@ -134,8 +138,8 @@
     <ID>FunctionNaming:SweepLightText.kt$@Composable fun SweepLightText( text: String, modifier: Modifier = Modifier, enabled: Boolean = true, durationMillis: Int = 1200 )</ID>
     <ID>FunctionNaming:ThinkingIndicator.kt$@Composable fun ThinkingIndicator( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
     <ID>FunctionNaming:UserChatBubble.kt$@Composable fun UserChatBubble( message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionNaming:WelcomeScreen.kt$@Composable @Suppress("unused") private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
     <ID>FunctionNaming:WelcomeScreen.kt$@Composable fun WelcomeScreen( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
-    <ID>FunctionNaming:WelcomeScreen.kt$@Composable private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
     <ID>FunctionSignature:AddContextPopup.kt$@Composable fun AddContextPopup( searchState: TextFieldState, filteredFiles: List&lt;VirtualFile>, state: ChatInputState, actions: ChatInputActions, modifier: Modifier = Modifier )</ID>
     <ID>FunctionSignature:AssistantChatBubble.kt$@Composable fun AssistantChatBubble( message: ChatMessage, sendingPhase: String = "", modifier: Modifier = Modifier, isLoading: Boolean = false, actionsEnabled: Boolean = true, onRetry: () -> Unit = {}, onUrlClick: (String) -> Unit = {}, onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> }, onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> } )</ID>
     <ID>FunctionSignature:AssistantChatBubble.kt$@Composable private fun MessageActionsRow( onRetry: () -> Unit, message: ChatMessage, isLoading: Boolean, hasContent: Boolean, actionsEnabled: Boolean )</ID>
@@ -172,7 +176,10 @@
     <ID>FunctionSignature:GradumMarkdownTable.kt$internal fun distributeTableWidth( naturalColumnWidthsPx: IntArray, containerWidthPx: Int, minCellWidthPx: Int, horizontalPaddingPx: Int ): IntArray</ID>
     <ID>FunctionSignature:GrepRenderer.kt$GrepRenderer$override fun parseContent( arguments: Map&lt;String, Any?>, result: Map&lt;String, Any?> ): ToolCallContent</ID>
     <ID>FunctionSignature:IconTooltipButton.kt$@Composable fun IconTooltipButton( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
-    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isVisible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true )</ID>
+    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable fun JumpToBottomButton( isAtBottom: Boolean, isAtTop: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, onJumpToTop: () -> Unit = {}, )</ID>
+    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable private fun AltKeyModeEffect( isVisible: Boolean, onToggle: () -> Unit, )</ID>
+    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable private fun JumpToBottomPill( isVisible: Boolean, isAlternativeMode: Boolean, onClick: () -> Unit, onJumpToTop: () -> Unit, textAlpha: Float, modifier: Modifier, )</ID>
+    <ID>FunctionSignature:JumpToBottomButton.kt$@Composable private fun PillForeground( isAlternativeMode: Boolean, textAlpha: Float, onClick: () -> Unit, onJumpToTop: () -> Unit, )</ID>
     <ID>FunctionSignature:MessageAttachmentList.kt$@OptIn(ExperimentalLayoutApi::class) @Composable fun MessageAttachmentList( attachments: List&lt;AttachedContext>, modifier: Modifier = Modifier )</ID>
     <ID>FunctionSignature:MessageAttachmentPreview.kt$@Composable fun MessageAttachmentPreview( attachments: List&lt;AttachedContext>, onAttachmentClick: (VirtualFile) -> Unit = {}, modifier: Modifier = Modifier )</ID>
     <ID>FunctionSignature:MessageAttachmentPreview.kt$@Composable private fun ImageThumbnailChip( imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier )</ID>
@@ -193,8 +200,8 @@
     <ID>FunctionSignature:SweepLightText.kt$@Composable fun SweepLightText( text: String, modifier: Modifier = Modifier, enabled: Boolean = true, durationMillis: Int = 1200 )</ID>
     <ID>FunctionSignature:ThinkingIndicator.kt$@Composable fun ThinkingIndicator( thinking: String, modifier: Modifier = Modifier, enterTransition: EnterTransition = fadeIn(tween(800)), isTaskComplete: Boolean = false, onUrlClick: (String) -> Unit = {} )</ID>
     <ID>FunctionSignature:UserChatBubble.kt$@Composable fun UserChatBubble( message: ChatMessage, onDeleteMessage: () -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )</ID>
+    <ID>FunctionSignature:WelcomeScreen.kt$@Composable @Suppress("unused") private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
     <ID>FunctionSignature:WelcomeScreen.kt$@Composable fun WelcomeScreen( inputState: ChatInputState, textState: TextFieldState, suggestionVariants: List&lt;Int>, modifier: Modifier = Modifier, inputActions: ChatInputActions, onRefreshSuggestions: () -> Unit, )</ID>
-    <ID>FunctionSignature:WelcomeScreen.kt$@Composable private fun TypewriterText( text: String, play: Boolean = true, charDelayMs: Long = 20, modifier: Modifier = Modifier, initialCursorBlinkCount: Int = 3, cursorBlinkDurationMs: Long = 300, cursorColor: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle )</ID>
     <ID>IfElseBracing:AddContextPopup.kt$if (isLimitReached) { message("gradum.image.limit.reached", MAX_ATTACHMENTS) } else null</ID>
     <ID>IfElseBracing:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else ""</ID>
     <ID>IfElseBracing:AssistantChatBubble.kt$if (!block.success) { gradum.idea.chat.ui.chat.skill.internal.formatToolDetails( alias = block.alias, arguments = block.arguments, result = block.result, errorMessage = block.errorMessage, errorDetail = block.errorDetail ) } else null</ID>
@@ -369,6 +376,8 @@
     <ID>LongParameterList:GradumCodeBlockRenderer.kt$( rawCode: String, language: String, isSoftWrap: Boolean, onInsertAsFile: (code: String, language: String) -> Unit, onSoftWrapToggle: () -> Unit )</ID>
     <ID>LongParameterList:GradumMarkdownTable.kt$( text: String, modifier: Modifier = Modifier, onUrlClick: (String) -> Unit = {}, fontWeight: FontWeight? = null, textAlign: TextAlign = TextAlign.Unspecified, processor: MarkdownProcessor = GradumMarkdownProcessor, blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current, paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph )</ID>
     <ID>LongParameterList:IconTooltipButton.kt$( tooltip: String, iconKey: IconKey, contentDescription: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:JumpToBottomButton.kt$( isAtBottom: Boolean, isAtTop: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, onJumpToTop: () -> Unit = {}, )</ID>
+    <ID>LongParameterList:JumpToBottomButton.kt$( isVisible: Boolean, isAlternativeMode: Boolean, onClick: () -> Unit, onJumpToTop: () -> Unit, textAlpha: Float, modifier: Modifier, )</ID>
     <ID>LongParameterList:MessageCopyButton.kt$( message: ChatMessage, isCopied: Boolean, onCopy: () -> Unit, onReset: () -> Unit, onCopyAsContext: (String) -> Unit = {}, modifier: Modifier = Modifier )</ID>
     <ID>LongParameterList:MessageCopyButton.kt$( text: String, onCopied: () -> Unit, onReset: () -> Unit, scope: CoroutineScope, delayMillis: Long = 1000 )</ID>
     <ID>LongParameterList:ModelSelectorBar.kt$( isAutoSelected: Boolean, selectedModel: ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit, onTogglePin: (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )</ID>
@@ -396,7 +405,6 @@
     <ID>MagicNumber:QuickStartSection.kt$4</ID>
     <ID>MagicNumber:SweepLightText.kt$300f</ID>
     <ID>MagicNumber:ThinkingIndicator.kt$800</ID>
-    <ID>MagicNumber:WelcomeScreen.kt$16</ID>
     <ID>MandatoryBracesLoops:ModelNameFormatterTest.kt$ModelNameFormatterTest$assertEquals("input=$input", expected, formatModelName(input))</ID>
     <ID>MatchingDeclarationName:ModelNameFormatter.kt$FormattedModelName</ID>
     <ID>MatchingDeclarationName:PermissionSelector.kt$PermissionMode</ID>
@@ -734,6 +742,7 @@
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Ran = PathIconKey("/icons/cmd/cmd.svg", GradumIcons::class.java)</ID>
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Save = PathIconKey("/icons/save/save.svg", GradumIcons::class.java)</ID>
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)</ID>
+    <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val ScrollUp = PathIconKey("icons/scroll-up/scroll-up.svg", GradumIcons::class.java)</ID>
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Search = PathIconKey("/icons/search/search.svg", GradumIcons::class.java)</ID>
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Send = PathIconKey("/icons/send/send.svg", GradumIcons::class.java)</ID>
     <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val SoftWarp = PathIconKey("/icons/soft-wrap/softwrap.svg", GradumIcons::class.java)</ID>
@@ -747,7 +756,6 @@
     <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val ALIAS: String = "Grep"</ID>
     <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val LABEL_KEY: String = "gradum.tool.grep"</ID>
     <ID>UndocumentedPublicProperty:GrepRenderer.kt$GrepRenderer.Companion$const val LABEL_KEY_DISPLAY: String = "gradum.tool.search.display"</ID>
-    <ID>UndocumentedPublicProperty:JumpToBottomButton.kt$const val DURATION_MILLIS: Int = 120</ID>
     <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val attachment: Boolean = false</ID>
     <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val contextLimit: Int = 0</ID>
     <ID>UndocumentedPublicProperty:ModelInfo.kt$ModelInfo$val name: String</ID>

@@ -35,11 +35,11 @@ import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.ChatScreen
-import gradum.idea.chat.ui.GradumCodeBlockRenderer
-import gradum.idea.chat.ui.GradumMarkdownProcessor
 import gradum.idea.chat.ui.common.DiffViewer
 import gradum.idea.chat.ui.home.WelcomeScreen
-import gradum.idea.chat.ui.rememberGradumMarkdownStyling
+import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
+import gradum.idea.chat.ui.markdown.GradumMarkdownProcessor
+import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
 import gradum.idea.editor.*
 import kotlinx.coroutines.*
 import org.jetbrains.jewel.bridge.addComposeTab

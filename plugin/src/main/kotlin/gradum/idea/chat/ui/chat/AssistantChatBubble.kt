@@ -27,16 +27,24 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
-import gradum.idea.chat.ui.*
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.input.formatModelName
+import gradum.idea.chat.ui.markdown.InlineMarkdownRender
+import gradum.idea.chat.ui.markdown.InlineMarkdownRenderResult
+import gradum.idea.chat.ui.markdown.MarkdownSegment
+import gradum.idea.chat.ui.markdown.RenderNonProseBlock
+import gradum.idea.chat.ui.markdown.ScrollableTable
+import gradum.idea.chat.ui.markdown.TableParseFailurePlaceholder
+import gradum.idea.chat.ui.markdown.isRenderable
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
+import gradum.idea.chat.ui.markdown.rememberInlineMarkdownRender
+import gradum.idea.chat.ui.markdown.splitMarkdown
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
-import org.jetbrains.jewel.markdown.extensions.markdownBlockRenderer
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
@@ -118,7 +126,7 @@ fun AssistantChatBubble(
         isLoading = isLoading,
         hasContent = hasContent,
         actionsEnabled = actionsEnabled,
-        onRetry = onRetry
+        onRetry = onRetry,
       )
       Spacer(Modifier.height(GradumSpacing.xxl))
     }
@@ -154,7 +162,7 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrl
 @Composable
 private fun ResponseBlock(
   block: RenderBlock.Response,
-  onUrlClick: (String) -> Unit
+  onUrlClick: (String) -> Unit,
 ) {
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
@@ -172,8 +180,23 @@ private fun ResponseBlock(
    * whole `Markdown(...)` in `Box.horizontalScroll(...)` instead
    * had the side effect of making long inline code / URLs
    * horizontally scrollable too — undesirable in a chat panel.
+   *
+   * Then each Plain segment is split further on top-level block
+   * boundaries via [splitMarkdown] → [splitPlainAtBlocks]. The
+   * result is a flat list of [MarkdownSegment.Plain] (paragraph
+   * prose — routed to the inline chip parser) /
+   * [MarkdownSegment.NonProseBlock] (heading / list / blockquote /
+   * fenced code / thematic break — routed to `Markdown(...)` so
+   * the block renders normally, just not with custom chip
+   * styling) / [MarkdownSegment.Table] (existing scrollable
+   * table). Without the block-boundary split, a message that
+   * contains a fenced code block (very common) would either bail
+   * the whole segment to `Markdown(...)` (no chips anywhere) or
+   * — the bug fixed 2026-07-14 — silently drop the non-paragraph
+   * blocks, rendering only 20 chars of an 804-char message.
    */
-  val segments = remember(block.content) { splitMarkdownAtTables(block.content) }
+  val segments = remember(block.content) { splitMarkdown(block.content) }
+  val paragraphStyle = rememberGradumParagraphTextStyle()
   SelectionContainer(
     modifier = Modifier.graphicsLayer {
       this.alpha = fadeAlpha.value
@@ -182,15 +205,47 @@ private fun ResponseBlock(
     Column {
       segments.forEach { segment ->
         when (segment) {
-          is MarkdownSegment.Plain -> Markdown(
-            onUrlClick = onUrlClick,
-            markdown = segment.text,
-            modifier = Modifier.fillMaxWidth(),
-            markdownStyling = rememberGradumMarkdownStyling(),
-            // Jewel's Markdown defaults blockRenderer to a new instance, not the Local.
-            // Extensions like GFM Tables would be silently ignored. Read from Local explicitly.
-            blockRenderer = JewelTheme.markdownBlockRenderer,
-          )
+          is MarkdownSegment.Plain -> {
+            // The Plain sub-segment is guaranteed by
+            // [splitPlainAtBlocks] to contain only `Paragraph`
+            // blocks. The inline chip parser handles those.
+            val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
+            if (outcome.render != null) {
+              val render: InlineMarkdownRender = outcome.render
+              Text(
+                text = render.annotated,
+                inlineContent = render.inlineContent,
+                modifier = Modifier.fillMaxWidth(),
+                style = paragraphStyle,
+              )
+            } else {
+              Markdown(
+                onUrlClick = onUrlClick,
+                markdown = segment.text,
+                modifier = Modifier.fillMaxWidth(),
+              )
+            }
+          }
+
+          is MarkdownSegment.NonProseBlock -> {
+            // Non-prose block (heading / list / blockquote / fenced
+            // code / thematic break / html). We can't use
+            // `Markdown(...)` here because Jewel's `markdownStyling`
+            // renders inline code as a `SpanStyle` (monospace text
+            // with a background) — not as the rounded
+            // `InlineCodeChip` that the inline parser produces. The
+            // user wants the chip EVERYWHERE inline code appears, so
+            // we use [RenderNonProseBlock] (BlockRenderer.kt)
+            // which walks the CommonMark AST, extracts the inline
+            // content of each block, and runs it through the chip
+            // parser ([parseInlineMarkdown]). Block-level styling
+            // (heading size / weight, list bullet / number,
+            // blockquote indent + border) comes from the same
+            // [rememberGradumMarkdownStyling] that `Markdown(...)`
+            // would have used, so the visual look matches except
+            // that inline code now renders as chips.
+            RenderNonProseBlock(segment, onUrlClick = onUrlClick)
+          }
 
           is MarkdownSegment.Table -> {
             // Skip rendering if the table has no body content. Show placeholder instead.
@@ -214,17 +269,6 @@ private fun ResponseBlock(
  * raw pipe syntax of the original Markdown block is not surfaced
  * here, since it's visually noisy and uninformative.
  */
-@Composable
-private fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
-  val globalColors = LocalGlobalColors.current
-  Text(
-    text = message("gradum.markdown.table.parse.failed"),
-    style = JewelTheme.typography.regular,
-    color = globalColors.text.disabled,
-    modifier = modifier.padding(vertical = GradumSpacing.sm)
-  )
-}
-
 @Composable
 private fun ToolCallBlock(
   block: RenderBlock.ToolCall,
@@ -373,7 +417,7 @@ private fun MessageActionsRow(
   message: ChatMessage,
   isLoading: Boolean,
   hasContent: Boolean,
-  actionsEnabled: Boolean
+  actionsEnabled: Boolean,
 ) {
   var isCopied by remember { mutableStateOf(false) }
   var isSelectedLike by remember { mutableStateOf(false) }

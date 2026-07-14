@@ -1,20 +1,37 @@
-/*
- * Copyright (c) 2026 Gradum team, some rights reserved.
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumMarkdownTable.kt  2026-07-08 21:10:14 Changed by gwy
- */
+// Detekt defaults disagree with project standards (2-space indent, 200-char
+// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
+@file:Suppress(
+  "MaximumLineLength",
+  "Indentation",
+  "FunctionNaming",
+  "SpacingBetweenPackageAndImports",
+  "NoConsecutiveBlankLines",
+  "NoMultipleSpaces",
+  "ArgumentListWrapping",
+)
 
 @file:OptIn(ExperimentalJewelApi::class)
 
-package gradum.idea.chat.ui
+package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,10 +46,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.markdown.MarkdownBlock
 import org.jetbrains.jewel.markdown.MarkdownText
 import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.extensions.autolink.AutolinkProcessorExtension
@@ -40,23 +57,22 @@ import org.jetbrains.jewel.markdown.extensions.github.strikethrough.GitHubStrike
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.component.HorizontalScrollbar
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.IconButton
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
 /**
- * The [MarkdownProcessor] used across the chat UI. Registers two
- * extensions on top of stock CommonMark:
- * - `GitHubStrikethroughProcessorExtension` — adds `~~strike~~` support
- *   both inside table cells (rendered by [MarkdownText]) and in the
- *   surrounding prose.
- * - `AutolinkProcessorExtension` — turns bare `<https://...>` and
- *   plain URLs into clickable links.
+ * [MarkdownProcessor] used across the chat UI. Adds two extensions on top of
+ * stock CommonMark:
+ * - `GitHubStrikethroughProcessorExtension` — `~~strike~~` support.
+ * - `AutolinkProcessorExtension` — `<https://...>` and bare URLs.
  *
- * GFM table syntax is *not* registered here: the chat UI strips GFM
- * tables out at the call site in AssistantChatBubble and renders
- * them with [ScrollableTable]. There is no GFM-table input left for
- * the processor to see.
+ * GFM table syntax is *not* registered here: the chat UI strips GFM tables out
+ * at the call site in AssistantChatBubble and renders them with [ScrollableTable].
  */
 val GradumMarkdownProcessor: MarkdownProcessor by lazy {
   MarkdownProcessor(
@@ -68,11 +84,16 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
 }
 
 /**
- * A piece of Markdown content. Either a plain block of text, or a
- * parsed GFM table. The renderer (see AssistantChatBubble) decides
- * what to do with a [Table] that has no renderable content — it
- * substitutes a muted placeholder instead of letting the table
- * silently render as an empty grid.
+ * A piece of Markdown content. The three variants are produced by [splitMarkdown]:
+ * - [Plain] — `Paragraph` blocks. Routed to the custom inline chip parser
+ *   ([InlineMarkdown]) so backticks render as rounded chips. The text is the
+ *   original markdown source (re-serialized from the commonmark AST).
+ * - [Table] — a parsed GFM table. Routed to [ScrollableTable] (or the
+ *   placeholder if the body is empty).
+ * - [NonProseBlock] — a non-`Paragraph` block (heading, list, blockquote,
+ *   fenced code, thematic break, html). The caller routes this to
+ *   [RenderNonProseBlock] so the block renders normally. The split between
+ *   [Plain] and [NonProseBlock] is done by [splitPlainAtBlocks].
  */
 sealed interface MarkdownSegment {
   data class Plain(val text: String) : MarkdownSegment
@@ -81,55 +102,38 @@ sealed interface MarkdownSegment {
     val alignments: List<TextAlign>,
     val rows: List<List<String>>
   ) : MarkdownSegment
+  data class NonProseBlock(val text: String) : MarkdownSegment
 }
 
 /**
- * Does this [MarkdownSegment.Table] have any visible body content?
- * The chat bubble uses this as the gate: a `Table` that fails the
- * check is replaced with the parse-failure placeholder instead of
- * being rendered as a header-only / empty grid.
- *
- * Concretely: there must be at least one non-blank cell in at least
- * one body row. The header alone is not enough — a header without
- * any data underneath is just a row of labels, not a table.
+ * Does this [MarkdownSegment.Table] have any visible body content? A
+ * `Table` that fails the check is replaced with the parse-failure placeholder
+ * instead of being rendered as a header-only / empty grid. There must be
+ * at least one non-blank cell in at least one body row.
  */
 fun MarkdownSegment.Table.isRenderable(): Boolean =
   rows.any { row -> row.any { it.isNotBlank() } }
 
-/**
- * Per-line length cap. Lines longer than this are not considered as
- * possible table rows — they are always treated as plain prose. A
- * single huge URL, an embedded code dump, or a misformatted cell can
- * otherwise blow the cell-width measurement up to thousands of pixels
- * and visibly shove adjacent cells off-screen.
- */
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
+private val CellHorizontalPadding: Dp = 10.dp
+private val CellVerticalPadding: Dp = 8.dp
+private val MinCellWidthDp: Dp = 70.dp
+private val ScrollbarReservedSpace: Dp = 8.dp
+
 /**
- * Splits a Markdown string into alternating [MarkdownSegment.Plain]
- * and [MarkdownSegment.Table] segments. GFM tables are detected line
- * by line: a header line immediately followed by a separator line
- * (`| --- | :---: |`) starts a table; subsequent `|`-delimited lines
- * are body rows until the first non-table line.
+ * Splits a Markdown string into alternating [MarkdownSegment.Plain] and
+ * [MarkdownSegment.Table] segments. GFM tables are detected line by line: a
+ * header line immediately followed by a separator line (`| --- | :---: |`)
+ * starts a table; subsequent `|`-delimited lines are body rows until the
+ * first non-table line.
  *
- * Every header+separator block becomes a [MarkdownSegment.Table].
- * Whether it ends up rendered as a table or as a parse-failure
- * placeholder is the caller's decision (see
- * [MarkdownSegment.Table.isRenderable]); the parser's only job is
- * structural — it does not pass judgment on whether the data is
- * meaningful. A header+separator with no usable body rows still
- * becomes a `Table` with an empty `rows` list, and the chat bubble
- * will substitute the placeholder for it.
- *
- * The parser handles:
- * - optional leading / trailing `|`
- * - escaped pipes (`\|`) inside cells
- * - alignment markers in the separator row (`:---`, `---:`, `:---:`)
- *
- * It does NOT handle:
- * - tables nested inside list items (would require a real Markdown parser)
- * - pipes inside inline code spans
- * - alignment applied to header cells (we trust the separator row)
+ * A header+separator with no usable body rows still becomes a `Table` with an
+ * empty `rows` list; the chat bubble substitutes the placeholder for it
+ * via [isRenderable]. The parser handles optional leading / trailing `|`,
+ * escaped pipes (`\|`) inside cells, and alignment markers in the separator
+ * row. It does NOT handle tables nested inside list items, pipes inside
+ * inline code spans, or alignment applied to header cells.
  */
 fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
   val lines: List<String> = markdown.split('\n')
@@ -164,10 +168,6 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         parseAlignments(separatorLine, headers.size)
           ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
 
-      // Collect body lines greedily until the first blank or `|`-free
-      // line. Whatever the column-count outcome below, the whole block
-      // has to be consumed together — partial output would let stray
-      // `|` characters leak into the surrounding prose.
       val bodyLines: MutableList<String> = mutableListOf()
       var bodyLineIndex: Int = lineIndex + 2
       while (bodyLineIndex < lines.size) {
@@ -181,9 +181,8 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
       val bodyRows: List<List<String>> = bodyLines
         .filter { it.length <= MAX_TABLE_LINE_LENGTH }
         .map { parseTableRow(it) }
-        // Drop rows with mismatched column count — these are usually misparsed
-        // prose with a stray `|`, not real table data. The caller will later
-        // check [isRenderable] to decide whether to render this as a table.
+        // Drop rows with mismatched column count — these are usually
+        // misparsed prose with a stray `|`, not real table data.
         .filter { it.size == headers.size }
 
       flushPlain()
@@ -198,17 +197,33 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 }
 
 /**
- * Parses a single pipe-delimited row into cells. The caller is expected
- * to have already established that the line is non-empty and contains
- * `|`, so this function does not return `null`. Leading and trailing
- * `|` are optional; escaped `\|` becomes a literal `|` inside the cell.
+ * Splits a Markdown string into [MarkdownSegment.Plain] /
+ * [MarkdownSegment.Table] / [MarkdownSegment.NonProseBlock] segments. Two-step:
+ * 1. [splitMarkdownAtTables] extracts GFM tables (fast and accurate for pipes).
+ * 2. Each [Plain] is re-parsed with commonmark and split on top-level block
+ *    boundaries via [splitPlainAtBlocks] (heading / list / blockquote / fenced
+ *    code / thematic break / html → [NonProseBlock], everything else → [Plain]).
+ */
+fun splitMarkdown(markdown: String): List<MarkdownSegment> =
+  splitMarkdownAtTables(markdown).flatMap { segment: MarkdownSegment ->
+    when (segment) {
+      is MarkdownSegment.Plain -> splitPlainAtBlocks(segment.text)
+      is MarkdownSegment.Table -> listOf(segment)
+      // [splitMarkdownAtTables] never emits NonProseBlock (only
+      // [splitPlainAtBlocks] does), so this branch is dead code —
+      // included only to satisfy the sealed-interface exhaustive `when` check.
+      is MarkdownSegment.NonProseBlock -> listOf(segment)
+    }
+  }
+
+/**
+ * Parses a single pipe-delimited row into cells. Leading and trailing `|`
+ * are optional; escaped `\|` becomes a literal `|` inside the cell.
  */
 private fun parseTableRow(line: String): List<String> {
   val trimmed: String = line.trim()
-  // Optional leading `|`.
   val withoutLeading: String =
     if (trimmed.startsWith("|")) trimmed.substring(1) else trimmed
-  // Optional trailing `|`, but not when it's part of an escaped `\|`.
   val withoutTrailing: String =
     if (withoutLeading.endsWith("|") && !withoutLeading.endsWith("\\|"))
       withoutLeading.substring(0, withoutLeading.length - 1)
@@ -252,10 +267,7 @@ private fun isTableSeparator(line: String): Boolean {
   }
 }
 
-/**
- * Reads the alignment markers from a separator row. Returns `null` if
- * the row is not a valid separator for the expected column count.
- */
+/** Reads the alignment markers from a separator row. Returns `null` if invalid. */
 private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>? {
   if (line == null || expectedCount <= 0) return null
   val cells: List<String> = parseTableRow(line)
@@ -272,67 +284,25 @@ private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>?
 }
 
 /**
- * Total horizontal cell padding (8.dp on each side).
- */
-private val CellHorizontalPadding: Dp = 10.dp
-
-/**
- * Total vertical cell padding (4.dp on each side).
- */
-private val CellVerticalPadding: Dp = 8.dp
-
-/**
- * Floor on a column's content width. A column whose widest cell
- * measures narrower than this gets clamped up to it before we
- * start distributing leftover space — without it, a single-character
- * column would stay pathologically narrow and look like a vertical
- * slice in the table.
- */
-private val MinCellWidthDp: Dp = 70.dp
-
-/**
- * Vertical space reserved at the bottom of the scrollable table area
- * for the [HorizontalScrollbar] to live in. Pads the inner scrollable
- * [Box] by this much so the bottom row of cells stays above the
- * scrollbar instead of being partially covered by it.
- */
-private val ScrollbarReservedSpace: Dp = 8.dp
-
-/**
- * Renders a [MarkdownSegment.Table] as a plain Compose layout: one
- * header row plus body rows, each row a horizontal `Row` of
- * [MarkdownText] cells with a fixed per-column width. The whole
- * table is wrapped in a horizontally scrollable [Box] so a wide
- * table shows a horizontal scrollbar instead of being squeezed.
+ * Renders a [MarkdownSegment.Table] as a plain Compose layout: one header row
+ * plus body rows, each row a horizontal `Row` of [MarkdownText] cells with
+ * a fixed per-column width. The whole table is wrapped in a horizontally
+ * scrollable [Box] so a wide table shows a horizontal scrollbar instead of
+ * being squeezed.
  *
- * **Caller contract**: the caller is expected to have already
- * checked [MarkdownSegment.Table.isRenderable] and substituted a
- * placeholder for any non-renderable `Table`. This function does not
- * bail out for empty / degenerate input — if you give it a header
- * with nobody, you'll get a header row with nothing underneath it.
- * That visible header-only state is exactly what [isRenderable] is
- * designed to filter out before reaching here.
+ * **Caller contract**: the caller is expected to have already checked
+ * [isRenderable] and substituted a placeholder for any non-renderable
+ * `Table`. This function does not bail out for empty / degenerate input.
  *
- * Cell content is fed through [MarkdownText] so inline Markdown
- * (`**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[link](url)`,
- * `<br>` hard breaks, bare URLs) renders the same way it does in
- * the surrounding prose. Widths are measured up-front via
- * [rememberTextMeasurer] using the stripped plain text (markdown
- * markers like `**` are dropped by the parser, so the rendered
- * width ≈ the measured plain-text width), and the widest cell in
- * each column sets the column width, so all rows stay vertically
- * aligned.
+ * Cell content is fed through [MarkdownText] so inline Markdown renders
+ * the same way it does in the surrounding prose. Widths are measured
+ * up-front via [rememberTextMeasurer] using the stripped plain text, and
+ * the widest cell in each column sets the column width.
  *
- * Background scheme:
- * - Outer `Box` → `panelBackground` (so the table is a visible panel)
- * - Header row → `panelBackground` (same as outer, so it blends)
- * - Even body rows → `Color.Transparent` (shows the outer panel)
- * - Odd body rows → `borders.normal @ 8% alpha` (subtle stripe that
- *   shows up in both light and dark mode; just repainting
- *   `panelBackground` on the cell would make odd rows visually
- *   identical to even rows since the outer Box is also panel)
- *
- * Padding: 8.dp horizontal × 4.dp vertical, on every cell.
+ * Background scheme: outer `Box` → `panelBackground`; header row →
+ * `panelBackground` (blends with outer); even body rows → `Color.Transparent`;
+ * odd body rows → `borders.normal @ 8% alpha` (subtle stripe in both
+ * light and dark mode).
  */
 @Composable
 fun ScrollableTable(
@@ -374,15 +344,12 @@ fun ScrollableTable(
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .clip(RoundedCornerShape(8.dp))
-    // horizontalScroll goes on the *inner* Box below, not here.
-    // If it were on this modifier chain, BoxWithConstraints would
-    // read the post-scroll maxWidth — which is Constraints.Infinity
-    // — and feed it to distributeTableWidth as a sane-looking
-    // pixel count. That would then propagate into Modifier.width()
-    // on every cell, and Layout would refuse to pack a billion-pixel constraint into the constraint record. Keeping the
-    // scrollable modifier on the inner Box leaves the outer
-    // BoxWithConstraints' maxWidth pinned to the chat panel's real
-    // available width.
+    // horizontalScroll goes on the *inner* Box below, not here. If it were
+    // on this modifier chain, BoxWithConstraints would read the post-scroll
+    // maxWidth — Constraints.Infinity — and feed it to distributeTableWidth
+    // as a sane-looking pixel count, which would then propagate into
+    // Modifier.width() on every cell. Layout would refuse to pack a
+    // billion-pixel constraint into the constraint record.
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { MinCellWidthDp.roundToPx() }
@@ -398,22 +365,8 @@ fun ScrollableTable(
     }
     val scrollState = rememberScrollState()
 
-    // Column stack: `TableToolbar` sits above the scrollable table
-    // area. Both children live inside the BoxWithConstraints' clip,
-    // so the toolbar's top corners follow the panel's rounded
-    // shape — same as the code block's `CodeBlockToolbar` above its
-    // highlighted content. In `isSimplified` mode (used by the
-    // ThinkingIndicator) the toolbar is dropped: the surrounding
-    // reasoning text is already greyed and a copy button would
-    // duplicate the affordance, so the table renders as a
-    // bare panel.
     Column(modifier = Modifier.fillMaxWidth()) {
       if (!isSimplified) TableToolbar(table = table)
-      // Outer Box hosts both the scrollable table area and the
-      // `HorizontalScrollbar` overlay. The inner Box (with the
-      // horizontalScroll modifier) is the actual scroll target;
-      // the scrollbar sits in the reserved bottom padding and gets
-      // clipped to the rounded corners by the outer BoxWithConstraints.
       Box(modifier = Modifier.fillMaxWidth()) {
         Box(
           modifier = Modifier
@@ -482,26 +435,7 @@ fun ScrollableTable(
   }
 }
 
-/**
- * Top-row toolbar above the rendered table. Mirrors
- * [gradum.idea.chat.ui.GradumCodeBlockRenderer.CodeBlockToolbar] so
- * the table's action area reads as a sibling of the code block's:
- *
- *  1. **Table label** — small muted editor-style text on the left
- *     (the code block shows a `kotlin`/`text` language tag in the
- *     same slot; a table has no language, so a static "Table" label
- *     stands in).
- *  2. **Copy button** — serializes the table back to a GFM-flavored
- *     Markdown source string (header row, `---` separator, body
- *     rows) and pushes it to the system clipboard. Briefly swaps
- *     icon to `Checked` for 1 s as click feedback, same as the code
- *     block's copy button.
- *
- * The toolbar is laid out with the same padding/arrangement/alignment
- * as [CodeBlockToolbar] (8/4/4/0 horizontal-end-top-bottom, items
- * spaced by [GradumSpacing.sm], vertically centred) so the two read
- * as the same component family.
- */
+/** Top-row toolbar: "Table" label + copy button. Mirrors the code block toolbar. */
 @OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun TableToolbar(table: MarkdownSegment.Table) {
@@ -541,20 +475,9 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
 }
 
 /**
- * Serializes a [MarkdownSegment.Table] back to a GFM-flavored
- * Markdown source string suitable for pasting into another
- * Markdown-aware editor:
- *
- *     | H1 | H2 |
- *     | --- | --- |
- *     | a | b |
- *
- * Pipes (`|`) inside cell content are re-escaped to `\|` so the
- * output round-trips through [parseTableRow] unchanged. Alignment
- * markers are dropped — a plain `---` separator is emitted for
- * every column. The header cell strings come back from
- * [splitMarkdownAtTables] as their visible form (escapes resolved),
- * so escaping on the way out is required for fidelity.
+ * Serializes a [MarkdownSegment.Table] back to a GFM-flavored Markdown string.
+ * Pipes inside cell content are re-escaped to `\|` so the output round-trips
+ * through [parseTableRow]. Alignment markers are dropped.
  */
 private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
   val escapeCell: (String) -> String = { it.replace("|", "\\|") }
@@ -574,21 +497,12 @@ private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
 }
 
 /**
- * Picks the final column widths for a table.
- *
- * Three steps:
- * 1. Clamp every column to at least [minCellWidthPx]. A 2-character
- *    cell shouldn't render as a 24.dp sliver.
- * 2. Compute the natural total (`Σ clamped + Σ padding`). If the
- *    natural total is wider than the container, the table would
- *    overflow — but [Modifier.horizontalScroll] on the outer Box
- *    handles that case, so we just return the clamped natural widths
- *    and let the user scroll.
- * 3. Otherwise, scale every column up by the same factor so the new
- *    total exactly matches the container width. The last column
- *    absorbs the round-down residue so the widths sum precisely.
- *
- * Pure arithmetic, no Compose / no density — easy to unit-test.
+ * Picks the final column widths for a table. Clamps every column to at
+ * least [minCellWidthPx], then if the natural total is wider than the
+ * container, returns the clamped natural widths and lets `horizontalScroll`
+ * take over. Otherwise scales every column up by the same factor so the
+ * new total exactly matches the container width; the last column absorbs
+ * the round-down residue.
  */
 internal fun distributeTableWidth(
   naturalColumnWidthsPx: IntArray, containerWidthPx: Int,
@@ -619,32 +533,14 @@ internal fun distributeTableWidth(
 /**
  * MarkdownText that can't crash the chat panel.
  *
- * Jewel 0.37's [MarkdownText] internally does
- *
- *     val block = processor.processMarkdown(text).first()
- *     block as MarkdownBlock.Paragraph
- *
- * (we confirmed this by decompiling MarkdownTextKt.class around
- * line 86-88 with javap). That throws NoSuchElementException for
- * any input the processor parses to zero blocks — in practice `""`,
- * `" "`, `"\t"`, `"\n"`, any whitespace-only string — and
- * ClassCastException for inputs that parse to a non-Paragraph block
- * type (heading, list, code block, ...). Either of those propagates
- * out as an unhandled Compose exception and takes the whole chat
- * panel down.
- *
- * We can't try/catch a Composable call directly — exceptions thrown
- * from inside Composable functions escape the try block and land in
- * the coroutine exception handler. So we dry-run the parse
- * ourselves, with [runCatching] around it, and fall back to a plain
- * `Text` (from `org.jetbrains.jewel.ui.component.Text`, already in
- * scope via the wildcard import above) when the parse isn't going
- * to play nicely with MarkdownText.
- *
- * Trade-off: the dry-run doubles the Markdown parsing work for the
- * common case (where MarkdownText is happy). For short cell-sized
- * strings that's negligible. We cache the result in [remember] so it
- * only fires once per `text` value.
+ * Jewel 0.37's [MarkdownText] internally does `block as MarkdownBlock.Paragraph`,
+ * which throws `NoSuchElementException` for empty / whitespace-only input and
+ * `ClassCastException` for non-`Paragraph` parsed blocks — both propagate as
+ * unhandled Compose exceptions and take the chat panel down. Composable calls
+ * can't be wrapped in try/catch (exceptions escape the try block and land in
+ * the coroutine exception handler), so we use [RenderInlineTextWithChips]
+ * (which already handles the empty-text case and never crashes on non-`Paragraph`
+ * input) instead.
  */
 @Composable
 fun SafeMarkdownText(
@@ -653,15 +549,22 @@ fun SafeMarkdownText(
   onUrlClick: (String) -> Unit = {},
   fontWeight: FontWeight? = null,
   textAlign: TextAlign = TextAlign.Unspecified,
-  processor: MarkdownProcessor = GradumMarkdownProcessor,
-  blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current,
-  paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
+  @Suppress("UNUSED_PARAMETER") processor: MarkdownProcessor = GradumMarkdownProcessor,
+  @Suppress("UNUSED_PARAMETER") blockRenderer: MarkdownBlockRenderer =
+    LocalMarkdownBlockRenderer.current,
+  @Suppress("UNUSED_PARAMETER") paragraphStyling: MarkdownStyling.Paragraph =
+    rememberGradumMarkdownStyling().paragraph,
 ) {
+  // Cell rendering now goes through the chip-aware inline text renderer
+  // ([RenderInlineTextWithChips]) so inline code (`` `update()` `` etc.)
+  // renders as a rounded `InlineCodeChip` — the same chip used in the
+  // message body. The previous `MarkdownText` path used Jewel's
+  // `SpanStyle` for inline code (monospace text + background) which the
+  // user reported as "default styling" in 2026-07-14. The
+  // `processor` / `blockRenderer` / `paragraphStyling` parameters are
+  // kept for source-compat (the call site in ScrollableTable passes
+  // them) but are no longer used.
   if (text.isBlank()) {
-    // Whitespace-only input. Skip the dry-run; MarkdownText would
-    // crash on this, and rendering as an empty Text in the caller's
-    // style is the closest thing to "show nothing" we can do without
-    // losing the cell.
     Text(
       text = "",
       modifier = modifier,
@@ -670,34 +573,31 @@ fun SafeMarkdownText(
     )
     return
   }
+  val baseStyle: TextStyle = rememberGradumMarkdownStyling().paragraph.inlinesStyling.textStyle
+    .copy(fontWeight = fontWeight)
+  RenderInlineTextWithChips(
+    text = text,
+    style = baseStyle,
+    modifier = modifier,
+    onUrlClick = onUrlClick,
+  )
+}
 
-  val canRenderAsMarkdown: Boolean = remember(text) {
-    runCatching { processor.processMarkdownDocument(text) }
-      .map { blocks -> blocks.isNotEmpty() && blocks.first() is MarkdownBlock.Paragraph }
-      .getOrDefault(false)
-  }
-
-  if (canRenderAsMarkdown) {
-    MarkdownText(
-      text = text,
-      modifier = modifier,
-      onUrlClick = onUrlClick,
-      blockRenderer = blockRenderer,
-      styling = paragraphStyling,
-      processor = processor,
-      fontWeight = fontWeight,
-      textAlign = textAlign
-    )
-  } else {
-    // MarkdownText can't render this safely (rare, but real: hostile
-    // Markdown input that the processor can't produce a single
-    // Paragraph block for). Fall back to plain Text so the user still
-    // sees the cell's content as raw text instead of a crash dialog.
-    Text(
-      text = text,
-      modifier = modifier,
-      textAlign = textAlign,
-      style = JewelTheme.typography.regular.copy(fontWeight = fontWeight)
-    )
-  }
+/**
+ * Renders the parse-failure placeholder for a [MarkdownSegment.Table] that
+ * the caller has determined to be unrenderable
+ * ([MarkdownSegment.Table.isRenderable] is `false`). The chat bubble
+ * substitutes this for any `Table` whose body is empty / blank — the raw
+ * pipe syntax of the original Markdown block is not surfaced here, since
+ * it's visually noisy and uninformative.
+ */
+@Composable
+fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
+  val globalColors = org.jetbrains.jewel.foundation.LocalGlobalColors.current
+  Text(
+    text = message("gradum.markdown.table.parse.failed"),
+    style = JewelTheme.typography.regular,
+    color = globalColors.text.disabled,
+    modifier = modifier.padding(vertical = GradumSpacing.sm)
+  )
 }

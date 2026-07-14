@@ -1,21 +1,38 @@
-/*
- * Copyright (c) 2026 Gradum team, some rights reserved.
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumCodeBlockRenderer.kt  2026-07-07 23:17:54 Changed by gwy
- */
-
-@file:Suppress("UnstableApiUsage")
+// Detekt defaults disagree with project standards (2-space indent, 200-char
+// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
+@file:Suppress(
+  "MaximumLineLength",
+  "Indentation",
+  "FunctionNaming",
+  "SpacingBetweenPackageAndImports",
+  "NoConsecutiveBlankLines",
+  "NoMultipleSpaces",
+  "ArgumentListWrapping",
+  "UnstableApiUsage",
+)
 
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 
-package gradum.idea.chat.ui
+package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +42,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
@@ -33,25 +51,21 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.DefaultMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.component.HorizontalScrollbar
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.IconButton
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/** Shared shape used for the code block panel (and for the inner top row clip). */
 private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(8.dp)
 
 /**
- * Custom Markdown code block renderer that applies Gradum styling to fenced code blocks.
- *
- * Layout: a vertically-stacked panel — a thin top row holding a copy button
- * aligned to the start, then the highlighted code below. The top row reserves
- * its own vertical space so the button never overlaps the first line of code.
- * The outer [Column] owns the rounded shape, background, and border, so the
- * top row + code area read as one continuous panel.
- *
- * The top row also shows the fenced language tag (e.g. `kotlin`, `text`) on
- * the left as muted editor-style text, and a second toolbar button that
- * forwards `(rawCode, language)` to [onInsertAsFile] so the caller can open
- * the snippet as a new untitled editor tab.
+ * Custom Markdown code block renderer. Renders a fenced code block as a
+ * vertically-stacked panel — a thin toolbar (language tag + copy / insert-as-file /
+ * soft-wrap buttons) above the highlighted code. The outer [Column] owns the
+ * rounded shape, background, and border so the toolbar + code area read as one
+ * continuous panel.
  */
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
@@ -68,7 +82,7 @@ class GradumCodeBlockRenderer(
     enabled: Boolean,
     modifier: Modifier,
   ) {
-    val language: String = block.language ?: "text"
+    val language: String = block.language?.takeUnless { it.isBlank() } ?: DEFAULT_CODE_LANGUAGE
 
     val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
       .highlight(block.content, language)
@@ -83,24 +97,11 @@ class GradumCodeBlockRenderer(
     var isSoftWrap by remember { mutableStateOf(false) }
 
     if (isSimplified) {
-      // Simplified mode (used by ThinkingIndicator) drops the
-      // top-row toolbar entirely — the surrounding grey text
-      // already signals "this is ephemeral context" and the
-      // copy / insert-as-file / soft-wrap affordances would
-      // compete with the rest of the reasoning block. The
-      // code area still scrolls horizontally when the styling
-      // asks for it, so a long line in a long reasoning
-      // paragraph doesn't try to wrap inside a 1-line-high
-      // parent and silently overflow.
-      val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
-      if (showHorizontalScroll) {
-        HorizontallyScrollableContainer {
-          CodeBlockContent(annotatedCode, styling, isSoftWrap)
-        }
-      } else {
-        Box {
-          CodeBlockContent(annotatedCode, styling, isSoftWrap)
-        }
+      // Simplified mode (used by ThinkingIndicator) drops the toolbar entirely;
+      // the surrounding reasoning text is already greyed and the affordances
+      // would compete with the rest of the reasoning block.
+      ContainerOrScrollable(isSoftWrap, styling) {
+        CodeBlockContent(annotatedCode, styling, isSoftWrap)
       }
     } else {
       Column(modifier = containerModifier) {
@@ -111,23 +112,13 @@ class GradumCodeBlockRenderer(
           onInsertAsFile = onInsertAsFile,
           onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
         )
-        // The container choice must follow `isSoftWrap`:
-        //  - soft-wrap on → `Box` with a finite max width so `Text` actually wraps
-        //  - soft-wrap off → `HorizontallyScrollableContainer` so long lines stay
-        //    on a single line and the user can scroll them horizontally
-        // `Modifier.horizontalScroll` on a scrollable container removes the
-        // finite width constraint that `softWrap = true` needs to fold long
-        // lines, so wrapping a soft-wrap-enabled `Text` in a scrollable
-        // container is a silent no-op.
-        val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
-        if (showHorizontalScroll) {
-          HorizontallyScrollableContainer {
-            CodeBlockContent(annotatedCode, styling, isSoftWrap)
-          }
-        } else {
-          Box {
-            CodeBlockContent(annotatedCode, styling, isSoftWrap)
-          }
+        // soft-wrap on → `Box` (finite max width so `Text` wraps)
+        // soft-wrap off → `HorizontalScrollContainer` (long lines scroll horizontally)
+        // A `horizontalScroll` modifier would also strip the finite width
+        // that `softWrap = true` needs, so wrapping a soft-wrap-enabled
+        // `Text` in a scrollable container is a silent no-op.
+        ContainerOrScrollable(isSoftWrap, styling) {
+          CodeBlockContent(annotatedCode, styling, isSoftWrap)
         }
       }
     }
@@ -151,16 +142,36 @@ class GradumCodeBlockRenderer(
   }
 }
 
+@Composable
+private fun ContainerOrScrollable(
+  isSoftWrap: Boolean,
+  styling: MarkdownStyling.Code.Fenced,
+  content: @Composable () -> Unit,
+) {
+  val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
+  if (showHorizontalScroll) {
+    HorizontalScrollContainer { content() }
+  } else {
+    Box { content() }
+  }
+}
+
+@Composable
+private fun HorizontalScrollContainer(content: @Composable () -> Unit) {
+  val scrollState = rememberScrollState()
+  Row(modifier = Modifier.horizontalScroll(scrollState)) {
+    content()
+  }
+  HorizontalScrollbar(
+    scrollState = scrollState,
+    modifier = Modifier.fillMaxWidth()
+  )
+}
+
 /**
- * Top-row toolbar above the highlighted code.
- *
- * Layout from left to right:
- *  1. **Language tag** — small muted editor-style text (`kotlin`, `python`, …).
- *  2. **Copy button** — copies [rawCode] to the system clipboard, briefly
- *     swaps icon to `Checked` for 1.5 s as click feedback.
- *  3. **Insert-as-file button** — forwards `(rawCode, language)` to
- *     [onInsertAsFile] so the host (which has `Project` access) can open
- *     the snippet as a new untitled editor tab.
+ * Toolbar above the highlighted code: language tag + copy + insert-as-file +
+ * soft-wrap toggle. Same padding/arrangement as the table toolbar so the two
+ * read as siblings.
  */
 @OptIn(ExperimentalJewelApi::class)
 @Composable

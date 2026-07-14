@@ -92,6 +92,53 @@ detekt {
   autoCorrect = false
 }
 
+/**
+ * Force the quality gate into every code path that produces a
+ * Gradle artifact. Two wirings, both belt-and-suspenders:
+ *
+ * 1. `compileKotlin.dependsOn(detekt)` — any explicit
+ *    `gradlew compileKotlin` (root or JVM variant) and the IDE
+ *    background compile that flows through it runs detekt first.
+ *    Lint failures block the compile: no half-built class files,
+ *    no `--no-detekt` escape hatch. This is the "code cleanliness"
+ *    gate — by the time `compileKotlin` finishes, every line of
+ *    new code is detekt-clean.
+ * 2. `check.dependsOn(detekt)` — the standard `gradlew build`
+ *    (which runs `assemble + check`) also enforces detekt. The
+ *    detekt 1.23.x plugin *usually* auto-wires this, but pinning
+ *    it explicitly in the build file means a future plugin update
+ *    can't silently drop the wiring.
+ *
+ * The real cost is small: Gradle's task-up-to-date cache skips
+ * `detekt` when no tracked source file changed, so an unchanged
+ * file pays zero. When a source file *does* change, detekt runs
+ * once on the changed file set (~3-8s for this module), then
+ * the cache marks it up-to-date until the next change. The IDE
+ * background compile that runs on every save also benefits from
+ * the cache — only the first save after an edit pays the cost.
+ *
+ * Emergency opt-out (don't use it for code review, only for
+ * unblocking a local repro): pass `-Pgradum.skipDetektGate=true`
+ * to bypass the `compileKotlin` wiring. The `check.dependsOn`
+ * wiring is unconditional — drop it here if you really need to
+ * ship a half-clean build, and add a `// detekt:disable-next-line`
+ * with a justification on the offending lines.
+ */
+val gradumSkipDetektGate: String =
+  (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
+
+if (gradumSkipDetektGate != "true") {
+  tasks.matching {
+    it.name == "compileKotlin" || it.name == "compileKotlinJvm"
+  }.configureEach {
+    dependsOn("detekt")
+  }
+}
+
+tasks.named("check") {
+  dependsOn("detekt")
+}
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
   compilerOptions {
     jvmTarget.set(JvmTarget.JVM_21)
