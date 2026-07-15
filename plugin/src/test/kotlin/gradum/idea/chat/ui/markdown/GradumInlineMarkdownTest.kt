@@ -13,6 +13,11 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import org.commonmark.node.BlockQuote
+import org.commonmark.node.Heading
+import org.commonmark.node.Paragraph
+import org.commonmark.node.Text
+import org.commonmark.parser.Parser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -500,5 +505,154 @@ class GradumInlineMarkdownTest {
     val render: InlineMarkdownRender = inlineRender("use `中文测试` here")
     assertEquals(1, render.inlineContent.size)
     assertEquals(1, countPua(render.annotated))
+  }
+
+  // parseInlineNodes — the AST-walking entry point used by
+  // RenderHeading to avoid the serialize-then-re-parse round-trip that
+  // would change block structure for headings starting with a list
+  // marker (e.g. `### 2. **bold**` → `2. **bold**` → OrderedList,
+  // which bails the inline parser).
+
+  @Test
+  fun `parseInlineNodes on a heading walks its inline children directly`() {
+    // Build the heading AST by parsing the original markdown source
+    // once with commonmark — this is what RenderNonProseBlock does
+    // before dispatching to RenderHeading.
+    val parser: Parser = Parser.builder().build()
+    val headingNode: Heading =
+      parser.parse("### 2. **游戏速度不一致**").firstChild as Heading
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = headingNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    val visible: String = visibleText(render.annotated)
+    // The list-marker-looking "2. " prefix is preserved as text and
+    // the strong-emphasis renders as a bold span — neither was
+    // possible through the old serialize-then-re-parse flow.
+    assertEquals("2. 游戏速度不一致", visible)
+    val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+    assertEquals(1, boldSpans.size)
+    val boldText: String =
+      visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end))
+    assertEquals("游戏速度不一致", boldText)
+  }
+
+  @Test
+  fun `parseInlineNodes on a heading without a list marker also renders bold`() {
+    val parser: Parser = Parser.builder().build()
+    val headingNode: Heading =
+      parser.parse("## **bold heading**").firstChild as Heading
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = headingNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+    assertEquals(1, boldSpans.size)
+    assertEquals(
+      "bold heading",
+      visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),
+    )
+  }
+
+  @Test
+  fun `parseInlineNodes on a heading with a link renders the link span`() {
+    val parser: Parser = Parser.builder().build()
+    val headingNode: Heading =
+      parser.parse("### see [docs](https://example.com) please").firstChild as Heading
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = headingNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://example.com", render.urlAnnotations[0].url)
+  }
+
+  @Test
+  fun `parseInlineNodes on a manually-built heading with only text returns the text`() {
+    // Empty / synthetic AST — proves the walker handles a fresh
+    // Heading that wasn't produced by commonmark (e.g. constructed
+    // by a future caller).
+    val headingNode: Heading = Heading().apply { level = 3 }
+    headingNode.appendChild(Text("just text"))
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = headingNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    assertEquals("just text", visibleText(render.annotated))
+  }
+
+  @Test
+  fun `parseInlineNodes on a paragraph that starts with a list marker renders bold`() {
+    // The list-item / blockquote cases share the same root cause as
+    // the heading case: a Paragraph's inline content starting with
+    // a list marker (e.g. `1. `) gets re-parsed as an OrderedList
+    // by `parseInlineMarkdown`, which bails on non-Paragraph blocks.
+    // Walking the AST directly preserves the formatting. Here we
+    // build the Paragraph manually (the way RenderListItem /
+    // RenderBlockQuoteChild do) and verify bold survives.
+    // AST: Document → OrderedList → ListItem → Paragraph → StrongEmphasis.
+    // The `1. ` is the ListItem's marker (rendered separately by the
+    // list renderer), NOT a Text child of the Paragraph — so the
+    // Paragraph's children are just `**bold item**`.
+    val parser: Parser = Parser.builder().build()
+    val paragraphNode: Paragraph = parser.parse("1. **bold item**")
+      .firstChild.firstChild.firstChild as Paragraph
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = paragraphNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    val visible: String = visibleText(render.annotated)
+    assertEquals("bold item", visible)
+    val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+    assertEquals(1, boldSpans.size)
+    assertEquals(
+      "bold item",
+      visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),
+    )
+  }
+
+  @Test
+  fun `parseInlineNodes on a paragraph inside a blockquote renders bold`() {
+    // A blockquote containing a list-marker-shaped paragraph is the
+    // same lossy round-trip as the heading case — commonmark
+    // re-interpreted the leading `1. ` as an OrderedList, the inline
+    // parser bailed, the bold was lost. Walking the AST keeps it.
+    // AST: Document → BlockQuote → OrderedList → ListItem → Paragraph → StrongEmphasis
+    val parser: Parser = Parser.builder().build()
+    val blockQuote: BlockQuote = parser.parse("> 1. **bold quote**").firstChild as BlockQuote
+    val paragraphNode: Paragraph =
+      blockQuote.firstChild.firstChild.firstChild as Paragraph
+    val result: InlineMarkdownRenderResult = parseInlineNodes(
+      parentNode = paragraphNode,
+      fontSizeSp = testFontSizeSp,
+      chipTint = testTint,
+      linkColor = testLinkColor,
+    )
+    val render: InlineMarkdownRender = requireNotNull(result.render)
+    val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+    assertEquals(1, boldSpans.size)
+    assertEquals(
+      "bold quote",
+      visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),
+    )
   }
 }

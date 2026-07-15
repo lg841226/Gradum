@@ -150,6 +150,34 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
 }
 
 
+/**
+ * Walk a parent node's inline children directly into an
+ * [InlineMarkdownRenderResult]. Used for blocks whose
+ * serialize-then-re-parse round-trip changes the block structure —
+ * the canonical example is a heading whose inline content starts
+ * with a list marker, e.g. `### 2. **bold**`. Serializing strips
+ * the `### ` prefix, leaving `"2. **bold**"`, and the re-parse in
+ * [parseInlineMarkdown] then produces an `OrderedList` (not a
+ * `Paragraph`), which bails and falls back to plain text — losing
+ * the bold. Walking the original AST skips that round-trip and
+ * keeps the formatting. Bail cases: walker exception.
+ */
+@Composable
+fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRenderResult {
+  val chipTint: Color = resolveInlineCodeTint()
+  val linkColor: Color = resolveLinkColor()
+  val fontSizeSp: Float = resolveEditorFontSizeSp()
+  return remember(parentNode) {
+    parseInlineNodes(
+      parentNode = parentNode,
+      fontSizeSp = fontSizeSp,
+      chipTint = chipTint,
+      linkColor = linkColor,
+    )
+  }
+}
+
+
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
   plainText: String,
@@ -191,6 +219,46 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
     val preview: String = plainText.take(PARSE_FAILURE_LOG_PREVIEW_CHARS).replace("\n", " ")
     log.warn("Inline markdown parse failed for text: $preview", parseException)
     null
+  }
+}
+
+
+/**
+ * Walk a parent node's inline children directly into an
+ * [InlineMarkdownRenderResult]. Companion to [parseInlineMarkdown] for
+ * blocks where the serialize-then-re-parse round-trip is lossy
+ * (see [rememberInlineMarkdownRenderFromNode] for the rationale).
+ */
+@Suppress("LongParameterList", "TooGenericExceptionCaught")
+internal fun parseInlineNodes(
+  parentNode: Node,
+  fontSizeSp: Float,
+  chipTint: Color,
+  linkColor: Color,
+): InlineMarkdownRenderResult {
+  return try {
+    val renderState: RenderState = RenderState(
+      fontSizeSp = fontSizeSp,
+      chipTint = chipTint,
+      linkColor = linkColor,
+    )
+    val annotatedString: AnnotatedString = buildAnnotatedString {
+      val annotatedBuilder: AnnotatedString.Builder = this
+      renderInlineChildren(parentNode, annotatedBuilder, renderState)
+    }
+    InlineMarkdownRenderResult(
+      render = InlineMarkdownRender(
+        annotated = annotatedString,
+        inlineContent = renderState.inlineContent.toMap(),
+        paragraphCount = 1,
+        urlAnnotations = renderState.urlAnnotations.toList(),
+      ),
+      bailReason = null,
+    )
+  } catch (walkException: Exception) {
+    val reason: String = "AST walker 异常: ${walkException.javaClass.simpleName}: ${walkException.message}"
+    log.warn("Inline markdown AST walk failed for node: ${parentNode.javaClass.simpleName}", walkException)
+    InlineMarkdownRenderResult(render = null, bailReason = reason)
   }
 }
 

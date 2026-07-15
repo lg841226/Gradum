@@ -138,15 +138,21 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
     5 -> styling.heading.h5
     else -> styling.heading.h6
   }
-  val inlineText: String = serializeInlineChildren(heading)
-  RenderInlineTextWithChips(
-    text = inlineText,
+  // Walk the heading's inline children directly. The previous
+  // flow serialized `### 2. **bold**` to `"2. **bold**"` and
+  // re-parsed it; commonmark re-interpreted `"2. "` as an
+  // OrderedList, the inline parser bailed, and the bold was lost.
+  // Walking the AST skips the lossy round-trip.
+  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(heading)
+  RenderInlineRender(
+    parseOutcome = parseOutcome,
     style = headingStyle.inlinesStyling.textStyle,
     modifier = Modifier
       .fillMaxWidth()
       .padding(headingStyle.padding)
       .padding(headingExtraPadding),
-    onUrlClick = onUrlClick
+    onUrlClick = onUrlClick,
+    fallbackText = serializeInlineChildren(heading),
   )
 }
 
@@ -265,40 +271,28 @@ private fun RenderListItem(
   val first: Node? = children.first
 
   if (first is Paragraph && children.rest.isEmpty()) {
-    val inlineText: String = serializeInlineChildren(first)
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-      MarkerColumn(
+    RenderInlineTextInListRow(
+      paragraph = first,
+      contentStyle = contentStyle,
+      onUrlClick = onUrlClick,
+      prefixText = prefixText,
+      prefixStyle = prefixStyle,
+      prefixColumnMinWidth = prefixColumnMinWidth,
+      prefixContentGap = prefixContentGap,
+    )
+    return
+  }
+  Column(modifier = Modifier.fillMaxWidth()) {
+    if (first is Paragraph) {
+      RenderInlineTextInListRow(
+        paragraph = first,
+        contentStyle = contentStyle,
+        onUrlClick = onUrlClick,
         prefixText = prefixText,
         prefixStyle = prefixStyle,
         prefixColumnMinWidth = prefixColumnMinWidth,
         prefixContentGap = prefixContentGap,
       )
-      RenderInlineTextWithChips(
-        text = inlineText,
-        style = contentStyle,
-        modifier = Modifier.weight(1f),
-        onUrlClick = onUrlClick,
-      )
-    }
-    return
-  }
-  Column(modifier = Modifier.fillMaxWidth()) {
-    if (first is Paragraph) {
-      val inlineText: String = serializeInlineChildren(first)
-      Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        MarkerColumn(
-          prefixText = prefixText,
-          prefixStyle = prefixStyle,
-          prefixColumnMinWidth = prefixColumnMinWidth,
-          prefixContentGap = prefixContentGap,
-        )
-        RenderInlineTextWithChips(
-          text = inlineText,
-          style = contentStyle,
-          modifier = Modifier.weight(1f),
-          onUrlClick = onUrlClick,
-        )
-      }
     } else {
       Text(
         maxLines = 1,
@@ -312,6 +306,43 @@ private fun RenderListItem(
     for (childNode in children.rest) {
       RenderBlockNode(childNode, indentDepth + 1, onUrlClick)
     }
+  }
+}
+
+/**
+ * Shared list-item row layout: marker column on the left, paragraph
+ * inline children on the right. The paragraph is walked via
+ * [rememberInlineMarkdownRenderFromNode] so list-marker-shaped content
+ * (e.g. `- 1. **bold**`) keeps its formatting — the previous
+ * serialize-then-re-parse flow would re-interpret the leading `1. `
+ * as an `OrderedList` and bail.
+ */
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+private fun RenderInlineTextInListRow(
+  paragraph: Paragraph,
+  contentStyle: TextStyle,
+  onUrlClick: (String) -> Unit,
+  prefixText: String,
+  prefixStyle: TextStyle,
+  prefixColumnMinWidth: Dp,
+  prefixContentGap: Dp,
+) {
+  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+    MarkerColumn(
+      prefixText = prefixText,
+      prefixStyle = prefixStyle,
+      prefixColumnMinWidth = prefixColumnMinWidth,
+      prefixContentGap = prefixContentGap,
+    )
+    RenderInlineRender(
+      parseOutcome = parseOutcome,
+      style = contentStyle,
+      modifier = Modifier.weight(1f),
+      onUrlClick = onUrlClick,
+      fallbackText = serializeInlineChildren(paragraph),
+    )
   }
 }
 
@@ -391,12 +422,13 @@ private fun RenderBlockQuoteChild(
 ) {
   when (node) {
     is Paragraph -> {
-      val inlineText: String = serializeInlineChildren(node)
-      RenderInlineTextWithChips(
-        text = inlineText,
+      val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(node)
+      RenderInlineRender(
+        parseOutcome = parseOutcome,
         style = quoteTextStyle,
         onUrlClick = onUrlClick,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        fallbackText = serializeInlineChildren(node),
       )
     }
 
@@ -486,13 +518,13 @@ private fun RenderThematicBreak() {
 private fun RenderParagraphWithChips(paragraph: Paragraph, onUrlClick: (String) -> Unit) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val baseStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-  val inlineText: String = serializeInlineChildren(paragraph)
-
-  RenderInlineTextWithChips(
-    text = inlineText,
+  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
+  RenderInlineRender(
+    parseOutcome = parseOutcome,
     style = baseStyle,
     onUrlClick = onUrlClick,
-    modifier = Modifier.fillMaxWidth()
+    modifier = Modifier.fillMaxWidth(),
+    fallbackText = serializeInlineChildren(paragraph),
   )
 }
 
@@ -538,6 +570,29 @@ fun RenderInlineTextWithChips(
       linkColor = linkColor,
     )
   }
+  RenderInlineRender(
+    parseOutcome = parseOutcome,
+    style = style,
+    modifier = modifier,
+    onUrlClick = onUrlClick,
+    fallbackText = text,
+  )
+}
+
+/**
+ * Shared render path for both [RenderInlineTextWithChips] (text-source)
+ * and [RenderHeading] (node-source). The `parseOutcome.render == null`
+ * branch paints [fallbackText] in the same style so callers don't
+ * drop formatting on a bail.
+ */
+@Composable
+private fun RenderInlineRender(
+  parseOutcome: InlineMarkdownRenderResult,
+  style: TextStyle,
+  modifier: Modifier,
+  onUrlClick: (String) -> Unit,
+  fallbackText: String,
+) {
   val resolvedStyle: TextStyle = style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
   if (parseOutcome.render != null) {
     val inlineRender: InlineMarkdownRender = parseOutcome.render
@@ -580,7 +635,7 @@ fun RenderInlineTextWithChips(
     }
   } else {
     Text(
-      text = text,
+      text = fallbackText,
       style = resolvedStyle,
       modifier = modifier
     )
