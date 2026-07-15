@@ -75,8 +75,8 @@ class GradumMarkdownBlockSplitTest {
   fun `thematic break becomes a single NonProseBlock`() {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("---")
     assertEquals(1, segments.size)
-    val hr: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
-    assertEquals("---", hr.text)
+    val horizontalRule: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
+    assertEquals("---", horizontalRule.text)
   }
 
   @Test
@@ -218,10 +218,6 @@ class GradumMarkdownBlockSplitTest {
       text.contains("\n    ```"),
     )
   }
-
-  // -----------------------------------------------------------------
-  // GFM Strikethrough (~~struck~~) round-trip — added 2026-07-14
-  // -----------------------------------------------------------------
 
   @Test
   fun `paragraph with strikethrough round-trips tildens`() {

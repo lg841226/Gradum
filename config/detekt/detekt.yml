@@ -637,7 +637,12 @@ formatting:
   FunctionExpressionBody:
     active: true
   FunctionSignature:
-    active: true
+    # §21: Single-statement function bodies go on the same line as
+    # the signature. detekt-formatting's `FunctionSignature` rule
+    # enforces the opposite ("body on new line unless it doesn't
+    # fit"), so we disable it here and rely on the Kotlin
+    # formatter / IntelliJ default to handle it.
+    active: false
   FunctionTypeReferenceSpacing:
     active: true
   IfElseBracing:
@@ -650,11 +655,21 @@ formatting:
   ImportOrdering:
     active: true
   Indentation:
+    # §2.2: The project uses 2-space indent (see .editorconfig).
+    # detekt-formatting's Indentation rule defaults to 4 spaces, so
+    # without this override every Kotlin file trips a cascade of
+    # "should be 4" false positives.
     active: true
+    indentSize: 2
+    continuationIndentSize: 4
   KdocWrapping:
     active: true
   MaximumLineLength:
+    # §2.1: The project line width is 200 (see .editorconfig). The
+    # detekt-formatting rule defaults to 120 and doesn't read
+    # .editorconfig reliably, so we mirror the value here.
     active: true
+    maxLineLength: 200
   ModifierListSpacing:
     active: true
   MultiLineIfElse:
@@ -732,7 +747,11 @@ formatting:
   StringTemplate:
     active: true
   StringTemplateIndent:
-    active: true
+    # The codebase uses indented raw strings with `.trimIndent()`
+    # (the `| column 0` convention for test fixtures). detekt's
+    # StringTemplateIndent rule expects flush-left content, so it
+    # fires on every indented raw string in tests. Disable it.
+    active: false
   TrailingCommaOnCallSite:
     # Disabled in detekt-formatting 1.23.7: the rule crashes with
     # `Sequence contains no element matching the predicate` on

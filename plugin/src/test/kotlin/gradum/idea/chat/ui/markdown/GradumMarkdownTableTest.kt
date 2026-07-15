@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTableTest.kt  2026-07-06 Changed by gwy
+ * GradumMarkdownTableTest.kt  2026-07-15 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -16,20 +16,20 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `plain text without pipes passes through unchanged`() {
-    val md = "Hello world.\nThis is prose."
-    val segments = splitMarkdownAtTables(md)
+    val markdown: String = "Hello world.\nThis is prose."
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
-    assertEquals(MarkdownSegment.Plain(md), segments[0])
+    assertEquals(MarkdownSegment.Plain(markdown), segments[0])
   }
 
   @Test
   fun `minimal table splits into one Table segment`() {
-    val md = """
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | a  | b  |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     val table = segments[0] as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
@@ -39,7 +39,7 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `surrounding prose yields alternating Plain and Table segments`() {
-    val md = """
+    val markdown: String = """
       Intro paragraph.
 
       | H1 | H2 |
@@ -49,7 +49,7 @@ class GradumMarkdownTableTest {
 
       Outro paragraph.
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
     assertTrue(segments[1] is MarkdownSegment.Table)
@@ -61,12 +61,12 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `alignment markers are decoded from the separator row`() {
-    val md = """
+    val markdown: String = """
       | Left | Center | Right |
       | :--- | :----: | ----: |
       | a    | b      | c     |
     """.trimIndent()
-    val table = splitMarkdownAtTables(md).single() as MarkdownSegment.Table
+    val table = splitMarkdownAtTables(markdown).single() as MarkdownSegment.Table
     assertEquals(
       listOf(TextAlign.Start, TextAlign.Center, TextAlign.End),
       table.alignments
@@ -75,23 +75,23 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `escaped pipe inside a cell is preserved`() {
-    val md = """
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | a  | x\|y |
     """.trimIndent()
-    val table = splitMarkdownAtTables(md).single() as MarkdownSegment.Table
+    val table = splitMarkdownAtTables(markdown).single() as MarkdownSegment.Table
     assertEquals(listOf("a", "x|y"), table.rows.single())
   }
 
   @Test
   fun `table without leading or trailing pipe still parses`() {
-    val md = """
+    val markdown: String = """
       H1 | H2
       -- | --
       a  | b
     """.trimIndent()
-    val table = splitMarkdownAtTables(md).single() as MarkdownSegment.Table
+    val table = splitMarkdownAtTables(markdown).single() as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
     assertEquals(listOf(listOf("a", "b")), table.rows)
   }
@@ -99,15 +99,15 @@ class GradumMarkdownTableTest {
   @Test
   fun `separator row without a header line is not a table`() {
     // `| -- | -- |` alone (no preceding header line) is prose, not a table.
-    val md = "Prose line.\n| -- | -- |\nMore prose."
-    val segments = splitMarkdownAtTables(md)
+    val markdown: String = "Prose line.\n| -- | -- |\nMore prose."
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
   }
 
   @Test
   fun `consecutive tables with no prose between them stay separate`() {
-    val md = """
+    val markdown: String = """
       | A | B |
       | - | - |
       | 1 | 2 |
@@ -116,34 +116,36 @@ class GradumMarkdownTableTest {
       | - | - |
       | 3 | 4 |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     val tables = segments.filterIsInstance<MarkdownSegment.Table>()
     assertEquals(2, tables.size)
     assertEquals(listOf("A", "B"), tables[0].header)
     assertEquals(listOf("C", "D"), tables[1].header)
   }
 
-  // ----- Robustness: a malformed table must not eat surrounding prose. -----
+  // A malformed table must not eat surrounding prose — these tests pin
+  // that the parser never promotes a mis-shaped block into a Table that
+  // would replace the surrounding Plain segments.
 
   @Test
   fun `header line with no pipe and a valid separator falls back to plain`() {
     // Looks like a separator on its own but no real header above it.
-    val md = "Some intro prose.\n| --- | --- |\nMore prose."
-    val segments = splitMarkdownAtTables(md)
+    val markdown: String = "Some intro prose.\n| --- | --- |\nMore prose."
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
   }
 
   @Test
   fun `body row with mismatched column count is dropped, not the whole table`() {
-    val md = """
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | a  | b  |
       | only-one-cell |
       | c  | d  |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     val table = segments[0] as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
@@ -151,13 +153,13 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table with zero body rows becomes a Table segment with empty rows`() {
+  fun `a table with zero body rows becomes a Table with empty rows`() {
     // The header + separator look like a real table, but no body
     // row follows. The parser still emits a Table segment (with an
     // empty rows list); the call site in AssistantChatBubble checks
     // isRenderable() and substitutes the placeholder.
-    val md = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
-    val segments = splitMarkdownAtTables(md)
+    val markdown: String = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
     assertEquals("Prose.", (segments[0] as MarkdownSegment.Plain).text)
@@ -168,18 +170,18 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a table where every body row mismatches the header becomes an empty-rows Table`() {
+  fun `every body row mismatching the header becomes an empty-rows Table`() {
     // The header has 2 columns, every body row is 1 column. The
     // column-count filter drops all body rows, so the Table comes
     // out with an empty rows list. The placeholder is the caller's
     // problem, not the parser's.
-    val md = """
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | only-one-cell |
       | another-one  |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     val table = segments[0] as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
@@ -193,8 +195,8 @@ class GradumMarkdownTableTest {
     // leak into the surrounding prose. The malformed block itself
     // is a Table (with empty rows) that the caller will replace
     // with a placeholder.
-    val md = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
-    val segments = splitMarkdownAtTables(md)
+    val markdown: String = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
     assertEquals("Lead.", (segments[0] as MarkdownSegment.Plain).text)
@@ -213,52 +215,49 @@ class GradumMarkdownTableTest {
     // happened to contain a `|` — any of these is "Table with
     // empty rows" from the parser's perspective. The caller
     // decides what to do with that.
-    val noBody = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
-    val allMismatched = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
-    val separatorButTrailingProse = "| H1 | H2 |\n| -- | -- |\nstray line"
+    val noBody: String = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
+    val allMismatched: String = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
+    val separatorButTrailingProse: String = "| H1 | H2 |\n| -- | -- |\nstray line"
 
-    listOf(noBody, allMismatched, separatorButTrailingProse).forEach { md ->
-      val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
-      assertEquals("expected exactly one Table in: $md", 1, tables.size)
-      assertEquals("expected empty rows in: $md", 0, tables[0].rows.size)
+    listOf(noBody, allMismatched, separatorButTrailingProse).forEach { markdown ->
+      val tables = splitMarkdownAtTables(markdown).filterIsInstance<MarkdownSegment.Table>()
+      assertEquals("expected exactly one Table in: $markdown", 1, tables.size)
+      assertEquals("expected empty rows in: $markdown", 0, tables[0].rows.size)
     }
   }
 
   @Test
-  fun `blank cells parse into a Table segment - the renderer decides how to render them`() {
-    // Responsibility split: the parser's only job is structural
-    // validity (did we get a header + separator + at least one body
-    // row that lines up?). Whether an individual cell is empty or
-    // whitespace-only is the renderer's problem — SafeMarkdownText
-    // handles that case at the Composable layer, falling back to a
-    // plain Text instead of letting MarkdownText crash the chat
-    // panel. So blank cells still produce a Table segment, they
-    // just render as empty cells in the UI.
-    val emptyHeaderCell = """
+  fun `blank cells still parse into a Table segment`() {
+    // The parser's only job is structural validity (header +
+    // separator + at least one body row that lines up?). Whether
+    // an individual cell is empty is the renderer's problem —
+    // SafeMarkdownText handles that at the Composable layer,
+    // falling back to a plain Text instead of letting MarkdownText
+    // crash the chat panel. So blank cells still produce a Table
+    // segment, they just render as empty cells in the UI.
+    val emptyHeaderCell: String = """
       |    | H2 |
       | -- | -- |
       | a  | b  |
     """.trimIndent()
-    val emptyBodyCell = """
+    val emptyBodyCell: String = """
       | H1 | H2 |
       | -- | -- |
       | a  |    |
     """.trimIndent()
 
-    listOf(emptyHeaderCell, emptyBodyCell).forEach { md ->
-      val tables = splitMarkdownAtTables(md).filterIsInstance<MarkdownSegment.Table>()
-      assertEquals("expected exactly one Table in: $md", 1, tables.size)
+    listOf(emptyHeaderCell, emptyBodyCell).forEach { markdown ->
+      val tables = splitMarkdownAtTables(markdown).filterIsInstance<MarkdownSegment.Table>()
+      assertEquals("expected exactly one Table in: $markdown", 1, tables.size)
       assertEquals(1, tables[0].rows.size)
     }
   }
 
-  // ── MarkdownSegment.Table.isRenderable ──────────────────────────
-  //
-  // The call-site gate that decides between ScrollableTable and
-  // TableParseFailurePlaceholder. The parser doesn't know about
-  // this — it always emits a Table. The chat bubble asks
-  // isRenderable() to know whether the Table will actually paint
-  // visible content.
+  // MarkdownSegment.Table.isRenderable — the call-site gate that
+  // decides between ScrollableTable and TableParseFailurePlaceholder.
+  // The parser doesn't know about this; it always emits a Table. The
+  // chat bubble asks isRenderable() to know whether the Table will
+  // actually paint visible content.
 
   @Test
   fun `isRenderable is false for a Table with no body rows`() {
@@ -291,7 +290,7 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `isRenderable is true even if the header is entirely blank, as long as body has data`() {
+  fun `isRenderable is true with blank header but real body data`() {
     // The header is a separate concern — isRenderable only checks
     // the body, because the structural question is "is there
     // something to draw underneath the column labels?"
@@ -303,17 +302,16 @@ class GradumMarkdownTableTest {
     assertEquals(true, table.isRenderable())
   }
 
-  // ── distributeTableWidth ──────────────────────────────────────────
-  //
-  // Pure-arithmetic helper that decides each column's final width.
-  // 1. clamp every column to >= minCellWidthPx,
-  // 2. if the natural total already fills the container, leave it,
-  // 3. otherwise scale all columns up by the same factor so the
-  //    total exactly matches the container.
+  // distributeTableWidth — pure-arithmetic helper that decides each
+  // column's final width.
+  //   1. clamp every column to >= minCellWidthPx,
+  //   2. if the natural total already fills the container, leave it,
+  //   3. otherwise scale all columns up by the same factor so the
+  //      total exactly matches the container.
   // The last column absorbs the rounding residue.
 
   @Test
-  fun `distributeTableWidth - short table scales up to fill the container`() {
+  fun `distributeTableWidth - short table scales up to container`() {
     // 3 columns, each natural 100px wide, container 600px. After
     // scaling every column should be 200px (plus padding from the
     // caller — we test the content widths only).
@@ -328,13 +326,14 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `distributeTableWidth - narrow column gets clamped to the minimum width`() {
-    // Clamp only matters when the table isn't being scaled up — once
-    // we hit the "scale all columns proportionally" path, the clamp
-    // is just a floor on the natural width, and the final width is
-    // whatever the proportional scale gives. So the test needs the
-    // natural total to already meet or exceed the container, which
-    // means we can compare the clamped result directly.
+  fun `distributeTableWidth - narrow column clamps to minimum width`() {
+    // Clamp only matters when the table isn't being scaled up —
+    // once we hit the "scale all columns proportionally" path, the
+    // clamp is just a floor on the natural width, and the final
+    // width is whatever the proportional scale gives. So the test
+    // needs the natural total to already meet or exceed the
+    // container, which means we can compare the clamped result
+    // directly.
     val out = distributeTableWidth(
       naturalColumnWidthsPx = intArrayOf(80, 30, 80),
       containerWidthPx = 200,
@@ -347,7 +346,7 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `distributeTableWidth - table wider than container is left untouched`() {
+  fun `distributeTableWidth - wide table left untouched`() {
     // Natural total (3 × 200) already exceeds the container; the
     // caller will get a horizontal scrollbar instead of squashed
     // columns.
@@ -363,13 +362,13 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `distributeTableWidth - scaled widths sum to the container width`() {
+  fun `distributeTableWidth - scaled widths sum to container width`() {
     // The whole point: after scaling, the sum of all column widths
     // (plus per-column padding accounted for by the caller) should
     // exactly equal the container width, with the round-down
     // residue absorbed by the last column.
-    val containerWidthPx = 1000
-    val horizontalPaddingPx = 16
+    val containerWidthPx: Int = 1000
+    val horizontalPaddingPx: Int = 16
     val out = distributeTableWidth(
       naturalColumnWidthsPx = intArrayOf(150, 200, 90, 110),
       containerWidthPx = containerWidthPx,
@@ -392,30 +391,30 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `a pathologically long line is dropped, not promoted to a single cell`() {
-    val longLine = "x".repeat(10_000)
-    val md = """
+  fun `a pathologically long line is dropped, not a single cell`() {
+    val longLine: String = "x".repeat(10_000)
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | a  | b  |
       | $longLine | $longLine |
       | c  | d  |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     val table = segments.single() as MarkdownSegment.Table
     // The two well-formed short rows stay; the over-length row is skipped.
     assertEquals(listOf(listOf("a", "b"), listOf("c", "d")), table.rows)
   }
 
   @Test
-  fun `a table past the row cap is truncated and the rest falls through to plain`() {
-    val rows = (1..600).joinToString("\n") { "| r$it |" }
-    val md = """
+  fun `a very long table keeps all rows, no defensive cap`() {
+    val rows: String = (1..600).joinToString("\n") { "| r$it |" }
+    val markdown: String = """
       | H1 |
       | -- |
       $rows
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     val tables: List<MarkdownSegment.Table> = segments.filterIsInstance<MarkdownSegment.Table>()
     val plains: List<MarkdownSegment.Plain> = segments.filterIsInstance<MarkdownSegment.Plain>()
     // All 600 rows survive — no row cap anymore. The chat panel
@@ -429,28 +428,28 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `prose with stray pipes is not mis-parsed as a table`() {
-    val md = """
+    val markdown: String = """
       First sentence with a | in the middle.
       Second sentence with | another | pipe.
       Third sentence | final.
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
+    val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
   }
 
   @Test
-  fun `a line ending in the middle of a malformed table stops collection cleanly`() {
-    val md = """
+  fun `a malformed line mid-table stops collection cleanly`() {
+    val markdown: String = """
       | H1 | H2 |
       | -- | -- |
       | a  | b  |
       not a table row
       | c  | d  |
     """.trimIndent()
-    val segments = splitMarkdownAtTables(md)
-    // The first table picks up `a | b`, the prose "not a table row" goes to
-    // plain, and `c | d` becomes a new table.
+    val segments = splitMarkdownAtTables(markdown)
+    // The first table picks up `a | b`, the prose "not a table row"
+    // goes to plain, and `c | d` becomes a new table.
     val tables = segments.filterIsInstance<MarkdownSegment.Table>()
     assertEquals(1, tables.size)
     assertEquals(listOf(listOf("a", "b")), tables[0].rows)
