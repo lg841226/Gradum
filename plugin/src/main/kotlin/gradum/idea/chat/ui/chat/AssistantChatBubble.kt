@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-14 21:27:12 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -229,7 +229,7 @@ private fun ResponseBlock(
 
           is MarkdownSegment.NonProseBlock -> {
             // Non-prose block (heading / list / blockquote / fenced
-            // code / thematic break / html). We can't use
+            // code / thematic break / HTML). We can't use
             // `Markdown(...)` here because Jewel's `markdownStyling`
             // renders inline code as a `SpanStyle` (monospace text
             // with a background) — not as the rounded

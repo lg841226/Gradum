@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallRenderer.kt  2026-07-14 21:27:12 Changed by gwy
+ * ToolCallRenderer.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi
@@ -18,13 +18,13 @@ import org.jetbrains.jewel.ui.icon.IconKey
  * routes the result to the matching renderer's `render` composable.
  * The renderer is responsible for:
  *
- * - Recognising a server-side skill alias via [alias] (e.g. `"Ran"`,
+ * - Recognizing a server-side skill alias via [alias] (e.g. `"Ran"`,
  *   `"Edited"`, `"Read"`, `"Saved"`, `"Explored"`, `"Planned"`,
  *   `"Completed"`). The alias must match the value emitted by the
  *   server-side `Skill.alias`.
  * - Parsing the server `arguments` + `result` JSON into a
  *   [ToolCallContent] view-model via [parseContent].
- * - Choosing the row's icon ([iconKey]) and localised label
+ * - Choosing the row's icon ([iconKey]) and localized label
  *   ([labelKey], a Gradum resource-bundle key under
  *   `messages/GradumBundle*.properties`).
  * - Drawing the actual row via [render]. The default `DefaultRenderer`
@@ -62,7 +62,7 @@ interface ToolCallRenderer {
   fun iconKey(): IconKey? = null
 
   /**
-   * Gradum resource-bundle key for the localised label (e.g.
+   * Gradum resource-bundle key for the localized label (e.g.
    * `"gradum.tool.ran"`). Default returns `null`, in which case
    * the chat UI falls back to the literal alias string.
    */

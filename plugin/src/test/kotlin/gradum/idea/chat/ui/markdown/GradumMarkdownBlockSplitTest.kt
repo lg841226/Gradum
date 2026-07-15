@@ -231,4 +231,65 @@ class GradumMarkdownBlockSplitTest {
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     assertEquals("a ~~struck~~ word", plain.text)
   }
+
+  @Test
+  fun `HtmlBlock with inner text is reclassified as a Plain segment with tags stripped`() {
+    // The chat's `<thinking>...</thinking>` trace. Tags are stripped
+    // and the inner text is routed through the inline path so the
+    // user sees the thinking content, not a code block of raw HTML.
+    val segments: List<MarkdownSegment> =
+      splitPlainAtBlocks("<thinking>step by step plan</thinking>")
+    assertEquals(1, segments.size)
+    val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
+    assertEquals("step by step plan", plain.text)
+  }
+
+  @Test
+  fun `HtmlBlock with multi-line inner text preserves whitespace`() {
+    val segments: List<MarkdownSegment> = splitPlainAtBlocks(
+      "<thinking>The user wants X.\nThen Y.\n</thinking>"
+    )
+    assertEquals(1, segments.size)
+    val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
+    assertTrue(
+      "inner newline must be preserved: <${plain.text}>",
+      plain.text.contains("\nThen Y."),
+    )
+    assertTrue(plain.text.startsWith("The user wants X."))
+  }
+
+  @Test
+  fun `HtmlBlock with no inner text falls back to NonProseBlock`() {
+    // `<br>` and other self-closing tags have no text content — the
+    // stripper returns null, so the splitter emits a NonProseBlock
+    // and falls through to Jewel's native Markdown(...) path.
+    val segments: List<MarkdownSegment> = splitPlainAtBlocks("<br>")
+    assertEquals(1, segments.size)
+    assertTrue(segments[0] is MarkdownSegment.NonProseBlock)
+  }
+
+  @Test
+  fun `HtmlBlock mixed with plain prose splits at both boundaries`() {
+    val segments: List<MarkdownSegment> = splitPlainAtBlocks(
+      "before\n\n<thinking>trace content</thinking>\n\nafter"
+    )
+    assertEquals(3, segments.size)
+    assertTrue("segment 0 should be Plain (prose)", segments[0] is MarkdownSegment.Plain)
+    assertEquals("before", (segments[0] as MarkdownSegment.Plain).text)
+    assertTrue("segment 1 should be Plain (HtmlBlock → strip)", segments[1] is MarkdownSegment.Plain)
+    assertEquals("trace content", (segments[1] as MarkdownSegment.Plain).text)
+    assertTrue("segment 2 should be Plain (prose)", segments[2] is MarkdownSegment.Plain)
+    assertEquals("after", (segments[2] as MarkdownSegment.Plain).text)
+  }
+
+  @Test
+  fun `inline HTML tags inside a paragraph are stripped from the round-tripped text`() {
+    // The serializer in `serializeInto` no longer emits the raw
+    // `<b>` / `</b>` markers, so a paragraph with inline HTML tags
+    // round-trips to the inner text only.
+    val segments: List<MarkdownSegment> = splitPlainAtBlocks("plain <b>bold</b> text")
+    assertEquals(1, segments.size)
+    val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
+    assertEquals("plain bold text", plain.text)
+  }
 }

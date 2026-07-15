@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-14 21:27:13 Changed by gwy
+ * build.gradle.kts  2026-07-15 20:29:53 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -72,6 +72,12 @@ dependencies {
   testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.1.0")
   testImplementation("io.mockk:mockk:1.13.13")
+
+  constraints {
+    implementation("io.netty:netty-codec-http2:4.2.15.Final") {
+      because("CVE-2025-55163 / CVE-2025-58057 / CVE-2026-33871 — HTTP/2 DoS and decompression OOM")
+    }
+  }
 }
 
 tasks.test {
@@ -82,13 +88,7 @@ detekt {
   buildUponDefaultConfig = true
   allRules = false
   config.setFrom(file("config/detekt/detekt.yml"))
-  // Baseline tracks the pre-existing violations so the build doesn't
-  // fail on day 1. New code (post-baseline) must produce zero issues.
   baseline = file("config/detekt/baseline.xml")
-  // Auto-correction is **off** during the regular `detekt` run —
-  // untracked source changes are too easy to lose in a review.
-  // Run `gradlew detektFormat` explicitly when you want detekt to
-  // rewrite the codebase to match the formatting rules.
   autoCorrect = false
 }
 

@@ -246,7 +246,7 @@ naming:
     # Test names are deliberately descriptive (e.g. "strikethrough
     # accumulates with bold — both styles apply"). 50 chars is too
     # tight for the chat test fixtures, and these names document
-    # edge cases that have bit us before — we'd rather read the
+    # edge cases that have bitten us before — we'd rather read the
     # long name than guess from a 47-char abbreviation.
     active: true
     maximumFunctionNameLength: 60
@@ -563,7 +563,7 @@ style:
   UseEmptyCounterpart:
     active: true
   UseIfEmptyOrIfBlank:
-    active: false
+    active: true
   UseIfInsteadOfWhen:
     active: false
   UseIsNullOrEmpty:

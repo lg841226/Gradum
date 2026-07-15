@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineMarkdownTest.kt  2026-07-15 Changed by gwy
+ * GradumInlineMarkdownTest.kt  2026-07-15 18:47:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -18,15 +18,13 @@ import org.commonmark.node.Heading
 import org.commonmark.node.Paragraph
 import org.commonmark.node.Text
 import org.commonmark.parser.Parser
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 class GradumInlineMarkdownTest {
   private val testTint: Color = Color(0xFF60A5FA)
   private val testLinkColor: Color = Color(0xFF3B82F6)
+  private val testImageAltColor: Color = Color(0xFF888888)
   private val testFontSizeSp: Float = 14f
 
   /** Build a render for [text] with the standard test theme values. */
@@ -36,6 +34,7 @@ class GradumInlineMarkdownTest {
       fontSizeSp = testFontSizeSp,
       chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
 
   /**
@@ -291,12 +290,86 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `link renders with link color and underline span`() {
+  fun `link renders with link color and permanent underline span`() {
+    // The chat's link rule is "blue text + permanent underline",
+    // not "blue text + underline on hover" — see `linkStateStyles`
+    // KDoc for why. The walker emits a `SpanStyle` with
+    // `TextDecoration.Underline` for the link's text range so
+    // the `Markdown(...)` fallback path (and the legacy
+    // `UrlAnnotation` + `pointerInput` path on the prose
+    // `Text`) paint a stable underline, even when the IDE LaF
+    // hover state is unreliable. The hover-affordance is added
+    // by the `ExternalLink` path via `LinkUnderlineBehavior`,
+    // not by the inline span. The walker's contribution here is
+    // color + underline.
     val render: InlineMarkdownRender = inlineRender("see [the docs](https://example.com)")
-    val linkSpans: List<AnnotatedString.Range<SpanStyle>> =
+    val linkUnderlineSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.textDecoration == TextDecoration.Underline }
-    assertEquals(1, linkSpans.size)
-    assertEquals(testLinkColor, linkSpans[0].item.color)
+    assertTrue(
+      "link range must carry an Underline SpanStyle for stability",
+      linkUnderlineSpans.isNotEmpty(),
+    )
+    // The link's color is applied to the link text range.
+    val linkColorSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.color == testLinkColor }
+    assertTrue(
+      "link range must carry the link color",
+      linkColorSpans.isNotEmpty(),
+    )
+  }
+
+  @Test
+  fun `link inside strikethrough composes strike and underline`() {
+    // A [Strikethrough] wrapping a [Link] should produce a span
+    // that has BOTH `LineThrough` (from the strike) and
+    // `Underline` (from the new color-only / always-underline
+    // link rule). `combineDecoration` composes the two so the
+    // decoration is `Underline + LineThrough` rather than
+    // dropping the strike or sneaking the underline back in.
+    val render: InlineMarkdownRender = inlineRender("~~[old docs](https://example.com)~~")
+    val composedSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span ->
+        val dec: TextDecoration? = span.item.textDecoration
+        dec != null &&
+          dec.contains(TextDecoration.Underline) &&
+          dec.contains(TextDecoration.LineThrough)
+      }
+    assertTrue(
+      "strikethrough-wrapped link should carry Underline + LineThrough",
+      composedSpans.isNotEmpty(),
+    )
+  }
+
+  @Test
+  fun `inline image renders alt text as italic placeholder and does NOT register a URL annotation`() {
+    // The chat doesn't render the binary, so `![alt](imageUrl)` is a
+    // *placeholder*, not a link — see the KDoc on `renderImageInline`.
+    // The previous v1.5 path registered the image's URL as a
+    // UrlAnnotation and applied the link color, which made the alt
+    // text visually indistinguishable from a link and surprised the
+    // user when a message mixed images and autolinks (the feedback
+    // case: `![alt](imageUrl) <https://example.com> <email@example.com>`,
+    // where the alt text and the autolinks all read as one blue
+    // link). Pinning here: image is italic + imageAltColor, and
+    // emits zero URL annotations.
+    val render: InlineMarkdownRender = inlineRender("see ![diagram](https://example.com/diagram.png)")
+    assertEquals(
+      "image must not register a URL annotation — it is a placeholder, not a link",
+      0,
+      render.urlAnnotations.size,
+    )
+    val italicSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.fontStyle == FontStyle.Italic }
+    assertTrue(
+      "image alt text must render as italic",
+      italicSpans.isNotEmpty(),
+    )
+    val imageAltSpans: List<AnnotatedString.Range<SpanStyle>> =
+      render.annotated.spanStyles.filter { span -> span.item.color == testImageAltColor }
+    assertTrue(
+      "image alt text must use the dedicated imageAltColor, not the link color",
+      imageAltSpans.isNotEmpty(),
+    )
   }
 
   @Test
@@ -524,8 +597,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val visible: String = visibleText(render.annotated)
@@ -549,8 +622,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
@@ -570,8 +643,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     assertEquals(1, render.urlAnnotations.size)
@@ -588,8 +661,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     assertEquals("just text", visibleText(render.annotated))
@@ -614,8 +687,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = paragraphNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val visible: String = visibleText(render.annotated)
@@ -643,8 +716,8 @@ class GradumInlineMarkdownTest {
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = paragraphNode,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
       linkColor = testLinkColor,
+      imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =

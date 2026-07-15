@@ -2,10 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-07-14 21:27:12 Changed by gwy
+ * EditFileSkill.kt  2026-07-15 22:41:33 Changed by gwy
  */
-
-@file:Suppress("RedundantExplicitType")
 
 package gradum.skill
 

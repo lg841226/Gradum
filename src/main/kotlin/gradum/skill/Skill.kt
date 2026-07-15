@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-07-14 21:27:12 Changed by gwy
+ * Skill.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 package gradum.skill
@@ -175,7 +175,7 @@ abstract class Skill {
    * Override ONLY when the current result carries data too
    * large for the LLM's view of THIS turn — `EditFileSkill`
    * strips `originalContent` / `modifiedContent` diff payloads
-   * because the LLM does not need the full pre/post strings to
+   * because the LLM does not need the full pre- / post-strings to
    * understand "an edit happened at path X with N added M
    * removed" and those blobs blow the response context.
    *

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-14 21:27:12 Changed by gwy
+ * BlockRenderer.kt  2026-07-15 21:29:12 Changed by gwy
  */
 
 @file:Suppress(
@@ -18,17 +18,14 @@
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -44,7 +41,10 @@ import org.jetbrains.jewel.markdown.MarkdownBlock
 import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
+import org.jetbrains.jewel.ui.component.CheckboxRow
+import org.jetbrains.jewel.ui.component.ExternalLink
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 
 private val commonmarkParser: Parser = Parser.builder().build()
@@ -52,9 +52,9 @@ private val commonmarkParser: Parser = Parser.builder().build()
 private val orderedMarkerColumnMinWidth: Dp = 24.dp
 private val unorderedMarkerColumnMinWidth: Dp = 20.dp
 private val markerContentGap: Dp = GradumSpacing.sm
-private val nestedListIndentStep: Dp = GradumSpacing.lg
-private val listItemVerticalSpacing: Dp = GradumSpacing.xs
-private val listOuterPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.xs)
+private val nestedListIndentStep: Dp = GradumSpacing.xl
+private val listItemVerticalSpacing: Dp = GradumSpacing.sm
+private val listOuterPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.sm)
 private val headingExtraPadding: PaddingValues =
   PaddingValues(top = GradumSpacing.lg, bottom = GradumSpacing.sm)
 private val thematicBreakVerticalSpacing: Dp = GradumSpacing.lg
@@ -67,7 +67,7 @@ internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
 
 /**
  * Render a [MarkdownSegment.NonProseBlock] using the non-prose block renderer.
- * Re-parses the segment's text with commonmark to recover the AST (the
+ * Reparses the segment's text with commonmark to recover the AST (the
  * segment was originally produced by [splitPlainAtBlocks] which serialized
  * each block to text).
  */
@@ -83,7 +83,7 @@ fun RenderNonProseBlock(
   val children: NodeChildren = NodeChildren.of(document)
   val first: Node? = children.first
   if (first != null) RenderBlockNode(first, onUrlClick = onUrlClick)
-  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick)
+  for (child in children.rest) RenderBlockNode(child, onUrlClick = onUrlClick)
 }
 
 /**
@@ -112,13 +112,13 @@ fun RenderBlockNode(
     is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
     is ThematicBreak -> RenderThematicBreak()
     is TableBlock -> Text(
-      text = serializeMarkdownNode(block),
-      modifier = Modifier.fillMaxWidth()
+      modifier = Modifier.fillMaxWidth(),
+      text = serializeMarkdownNode(block)
     )
 
     else -> Text(
-      text = serializeMarkdownNode(block),
-      modifier = Modifier.fillMaxWidth()
+      modifier = Modifier.fillMaxWidth(),
+      text = serializeMarkdownNode(block)
     )
   }
 }
@@ -140,7 +140,7 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
   }
   // Walk the heading's inline children directly. The previous
   // flow serialized `### 2. **bold**` to `"2. **bold**"` and
-  // re-parsed it; commonmark re-interpreted `"2. "` as an
+  // reparsed it; commonmark re-interpreted `"2. "` as an
   // OrderedList, the inline parser bailed, and the bold was lost.
   // Walking the AST skips the lossy round-trip.
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(heading)
@@ -185,16 +185,27 @@ private fun RenderBulletList(
     verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
   ) {
     listItems.forEach { listItem: ListItem ->
-      RenderListItem(
-        item = listItem,
-        prefixText = unorderedList.bullet?.toString() ?: "•",
-        prefixStyle = bulletStyle,
-        prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
-        prefixContentGap = markerContentGap,
-        contentStyle = styling.paragraph.inlinesStyling.textStyle,
-        onUrlClick = onUrlClick,
-        indentDepth = indentDepth,
-      )
+      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(::extractTaskListMarker)
+      if (taskMarker != null) {
+        RenderTaskListItem(
+          item = listItem,
+          isChecked = taskMarker.checked,
+          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+          onUrlClick = onUrlClick,
+          indentDepth = indentDepth,
+        )
+      } else {
+        RenderListItem(
+          item = listItem,
+          onUrlClick = onUrlClick,
+          indentDepth = indentDepth,
+          prefixStyle = bulletStyle,
+          prefixText = unorderedList.bullet.toString(),
+          prefixContentGap = markerContentGap,
+          prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
+          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+        )
+      }
     }
   }
 }
@@ -226,23 +237,189 @@ private fun RenderOrderedList(
     verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
   ) {
     listItems.forEachIndexed { index, listItem: ListItem ->
+      @Suppress("DEPRECATION")
       val number: Int = list.startNumber + index
-      RenderListItem(
-        item = listItem,
-        prefixText = "$number.",
-        prefixStyle = orderedList.numberStyle,
-        prefixColumnMinWidth = orderedMarkerColumnMinWidth,
-        prefixContentGap = markerContentGap,
-        contentStyle = contentStyle,
-        onUrlClick = onUrlClick,
-        indentDepth = indentDepth,
-      )
+      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(::extractTaskListMarker)
+      if (taskMarker != null) {
+        RenderTaskListItem(
+          item = listItem,
+          isChecked = taskMarker.checked,
+          contentStyle = contentStyle,
+          onUrlClick = onUrlClick,
+          indentDepth = indentDepth,
+        )
+      } else {
+        RenderListItem(
+          item = listItem,
+          prefixText = "$number.",
+          prefixStyle = orderedList.numberStyle,
+          prefixColumnMinWidth = orderedMarkerColumnMinWidth,
+          prefixContentGap = markerContentGap,
+          contentStyle = contentStyle,
+          onUrlClick = onUrlClick,
+          indentDepth = indentDepth,
+        )
+      }
     }
   }
 }
 
-private fun collectListItems(listNode: Node): List<ListItem> =
+internal fun collectListItems(listNode: Node): List<ListItem> =
   generateSequence(listNode.firstChild) { it.next }.filterIsInstance<ListItem>().toList()
+
+
+/** A `ListItem` that starts with a GFM task-list marker. */
+internal data class TaskListMarker(val checked: Boolean)
+
+/**
+ * Returns the task-list marker if [paragraph] starts with `[ ] ` /
+ * `[x] ` / `[x] ` (the only forms GFM recognizes), or `null` if it's
+ * a normal paragraph. The check looks at the first `Text` child only
+ * — commonmark emits the marker as a single Text literal, so a split
+ * (e.g. an `Emphasis` node before the marker) would already be a
+ * non-task-list paragraph.
+ */
+internal fun extractTaskListMarker(paragraph: Paragraph): TaskListMarker? {
+  val firstText: Text = paragraph.firstChild as? Text ?: return null
+  val literal: String = firstText.literal ?: return null
+
+  return when {
+    literal == "[ ]" || literal.startsWith("[ ] ") -> TaskListMarker(checked = false)
+    literal == "[x]" || literal.startsWith("[x] ") -> TaskListMarker(checked = true)
+    literal == "[X]" || literal.startsWith("[X] ") -> TaskListMarker(checked = true)
+    else -> null
+  }
+}
+
+/**
+ * Returns a copy of [paragraph] with the `[ ] ` / `[x] ` / `[X] `
+ * prefix removed from the first `Text` child. Other children are
+ * appended to the copy unchanged. Returns `null` if [paragraph] is
+ * not a task-list paragraph.
+ */
+internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
+  val firstText: Text = paragraph.firstChild as? Text ?: return null
+  val literal: String = firstText.literal ?: return null
+  // Same "no trailing space when content is empty" quirk as in
+  // [extractTaskListMarker] — see comment there.
+  val stripped: String = when {
+    literal == "[ ]" -> ""
+    literal.startsWith("[ ] ") -> literal.removePrefix("[ ] ")
+    literal == "[x]" -> ""
+    literal.startsWith("[x] ") -> literal.removePrefix("[x] ")
+    literal == "[X]" -> ""
+    literal.startsWith("[X] ") -> literal.removePrefix("[X] ")
+    else -> return null
+  }
+  val strippedParagraph = Paragraph()
+  strippedParagraph.appendChild(org.commonmark.node.Text(stripped))
+
+  var current: Node? = firstText.next
+  while (current != null) {
+    val next: Node? = current.next
+    strippedParagraph.appendChild(current)
+    current = next
+  }
+  return strippedParagraph
+}
+
+
+/**
+ * Render a single GFM task-list item as `Row { CheckboxRow(text) }`. The
+ * checkbox is `enabled = false` — task lists in chat messages are
+ * informational, not interactive (the user copies the list out to a
+ * todo app if they want to track it). The `[ ]` / `[x]` marker is
+ * stripped from a synthetic copy of the first `Paragraph` before
+ * the inline walker runs, so the rest of the paragraph (bold, code,
+ * links, …) renders through the same path as a normal list item.
+ * Subsequent children (nested list, second paragraph, …) recurse
+ * through [RenderBlockNode] at `indentDepth + 1`, same as
+ * [RenderListItem].
+ */
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+private fun RenderTaskListItem(
+  item: ListItem,
+  isChecked: Boolean,
+  indentDepth: Int = 0,
+  contentStyle: TextStyle,
+  onUrlClick: (String) -> Unit
+) {
+  val children: NodeChildren = NodeChildren.of(item)
+  if (children.isEmpty) return
+  val first: Node? = children.first
+
+  if (first is Paragraph && children.rest.isEmpty()) {
+    RenderTaskListItemRow(
+      paragraph = first,
+      isChecked = isChecked,
+      contentStyle = contentStyle,
+      onUrlClick = onUrlClick,
+    )
+    return
+  }
+  Column(modifier = Modifier.fillMaxWidth()) {
+    if (first is Paragraph) {
+      RenderTaskListItemRow(
+        paragraph = first,
+        isChecked = isChecked,
+        onUrlClick = onUrlClick,
+        contentStyle = contentStyle
+      )
+    } else if (first != null) {
+      Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        CheckboxRow(
+          enabled = false,
+          checked = isChecked,
+          onCheckedChange = {}
+        ) {}
+      }
+      RenderBlockNode(first, indentDepth + 1, onUrlClick)
+    }
+    for (child in children.rest) {
+      RenderBlockNode(child, indentDepth + 1, onUrlClick)
+    }
+  }
+}
+
+/**
+ * Stripped-paragraph → CheckboxRow helper. The marker is removed
+ * from a synthetic `Paragraph` (so the original AST is untouched and
+ * the serializer's round-trip is preserved) and the inline children
+ * walk through [rememberInlineMarkdownRenderFromNode] — same path
+ * the non-task-list `RenderInlineTextInListRow` uses, minus the
+ * marker prefix.
+ */
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+private fun RenderTaskListItemRow(
+  paragraph: Paragraph,
+  isChecked: Boolean,
+  contentStyle: TextStyle,
+  onUrlClick: (String) -> Unit,
+) {
+  val strippedParagraph: Paragraph = stripTaskListMarker(paragraph) ?: paragraph
+  val parseOutcome: InlineMarkdownRenderResult =
+    rememberInlineMarkdownRenderFromNode(strippedParagraph)
+  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+    CheckboxRow(
+      enabled = false,
+      checked = isChecked,
+      onCheckedChange = {}
+    ) {
+      RenderInlineRender(
+        style = contentStyle,
+        onUrlClick = onUrlClick,
+        parseOutcome = parseOutcome,
+        modifier = Modifier.weight(1f),
+        fallbackText = serializeInlineChildren(strippedParagraph)
+      )
+    }
+  }
+}
 
 
 /**
@@ -303,8 +480,8 @@ private fun RenderListItem(
       if (first != null)
         RenderBlockNode(first, indentDepth + 1, onUrlClick)
     }
-    for (childNode in children.rest) {
-      RenderBlockNode(childNode, indentDepth + 1, onUrlClick)
+    for (child in children.rest) {
+      RenderBlockNode(child, indentDepth + 1, onUrlClick)
     }
   }
 }
@@ -372,29 +549,37 @@ private fun MarkerColumn(
 
 
 /**
- * Render a block quote as a `Row { border; padded Column { children } }`. The
- * border is drawn as a vertical `Box` of width [lineWidth] in [lineColor]
- * (a non-zero width and a non-transparent color are required to draw the
- * line). The text color is the blockquote color rendered in italic so quotes
- * are visually distinct from body prose.
+ * Render a block quote as a `Row { pill-shaped rule; padded Column { children } }`.
+ *
+ * The left rule is a 4-dp-wide `Box` filled with the quote's gray line
+ * color and clipped to a `RoundedCornerShape(percent = 50)`. Compose
+ * resolves the percent to `min(width, height) / 2` at layout time, so a
+ * 4-dp-wide rule becomes a perfect capsule (radius = 2 dp) regardless
+ * of how tall the quote runs — no hand-rolled `drawLine` / `StrokeCap`
+ * math, no inset coordinates. Same width as
+ * `styling.blockQuote.lineWidth` (4 dp / `GradumSpacing.sm`) and same
+ * gray as `styling.blockQuote.lineColor` (`globalColors.text.disabled`),
+ * so the rule matches the chat's muted-text tone in every theme.
  */
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val quoteTextColor = styling.blockQuote.textColor
-  val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-    .copy(color = quoteTextColor)
+  val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(color = quoteTextColor)
   val quotePadding: PaddingValues = styling.blockQuote.padding
   val borderColor = styling.blockQuote.lineColor
   val borderWidth: Dp = styling.blockQuote.lineWidth
   val indentStart: Dp = quotePadding.calculateStartPadding(LayoutDirection.Ltr)
   val children: NodeChildren = NodeChildren.of(quote)
+
   Row(modifier = Modifier.fillMaxWidth()) {
     if (borderWidth.value > 0f && borderColor.alpha > 0f) {
       Box(
         modifier = Modifier
           .width(borderWidth)
+          .fillMaxHeight()
+          .clip(RoundedCornerShape(percent = 50))
           .background(borderColor)
       )
     }
@@ -405,8 +590,8 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
     ) {
       val first: Node? = children.first
       if (first != null) RenderBlockQuoteChild(first, contentStyle, onUrlClick)
-      for (childNode in children.rest) {
-        RenderBlockQuoteChild(childNode, contentStyle, onUrlClick)
+      for (child in children.rest) {
+        RenderBlockQuoteChild(child, contentStyle, onUrlClick)
       }
     }
   }
@@ -418,7 +603,7 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
 private fun RenderBlockQuoteChild(
   node: Node,
   quoteTextStyle: TextStyle,
-  onUrlClick: (String) -> Unit,
+  onUrlClick: (String) -> Unit
 ) {
   when (node) {
     is Paragraph -> {
@@ -530,13 +715,13 @@ private fun RenderParagraphWithChips(paragraph: Paragraph, onUrlClick: (String) 
 
 
 /**
- * Re-parse the given inline text with the chip parser and render it as
+ * Reparse the given inline text with the chip parser and render it as
  * `Text(annotated, inlineContent = ...)`. The fontSize is derived from
  * `style.fontSize` so the chip's `Placeholder` width / height matches the
  * surrounding text.
  *
  * [onUrlClick] is invoked when the user taps a [UrlAnnotation] range. Tap
- * position is mapped to a text offset via [TextLayoutResult.getOffsetForPosition]
+ * position is mapped to a text offset via `TextLayoutResult.getOffsetForPosition`
  * and the first covering [UrlAnnotation] is matched (LayoutCoordinates
  * doesn't have `getOffsetForPosition` on this Compose version).
  *
@@ -562,12 +747,14 @@ fun RenderInlineTextWithChips(
   }
   val chipTintColor: Color = textColor
   val linkColor: Color = JewelTheme.linkStyle.colors.content
+  val imageAltColor: Color = textColor.copy(alpha = 0.6f)
   val parseOutcome: InlineMarkdownRenderResult = remember(text) {
     parseInlineMarkdown(
       plainText = text,
       fontSizeSp = fontSizeSp,
       chipTint = chipTintColor,
       linkColor = linkColor,
+      imageAltColor = imageAltColor,
     )
   }
   RenderInlineRender(
@@ -587,60 +774,48 @@ fun RenderInlineTextWithChips(
  */
 @Composable
 private fun RenderInlineRender(
-  parseOutcome: InlineMarkdownRenderResult,
   style: TextStyle,
   modifier: Modifier,
-  onUrlClick: (String) -> Unit,
   fallbackText: String,
+  onUrlClick: (String) -> Unit,
+  parseOutcome: InlineMarkdownRenderResult
 ) {
   val resolvedStyle: TextStyle = style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
-  if (parseOutcome.render != null) {
-    val inlineRender: InlineMarkdownRender = parseOutcome.render
-    val urlAnnotations: List<UrlAnnotation> = inlineRender.urlAnnotations
+  if (parseOutcome.render == null) {
+    Text(text = fallbackText, style = resolvedStyle, modifier = modifier)
+    return
+  }
+  val inlineRender: InlineMarkdownRender = parseOutcome.render
+  val segments: List<InlineSegment> = splitIntoInlineSegments(
+    annotated = inlineRender.annotated,
+    inlineContent = inlineRender.inlineContent,
+    urlAnnotations = inlineRender.urlAnnotations,
+  )
+  val gradumLinkStyle: LinkStyle = rememberGradumLinkStyle()
+  // Anchor by first baseline so `Text` and `ExternalLink` line up
+  // across wrap boundaries — using `FirstBaseline` would force
+  // ExternalLink's icon row to bottom-align with the text glyphs,
+  // which reads as "links hang below" on multi-line wraps.
+  FlowRow(
+    modifier = modifier,
+    horizontalArrangement = Arrangement.Start,
+    verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs, Alignment.Top),
+  ) {
+    segments.forEach { segment: InlineSegment ->
+      when (segment) {
+        is InlineSegment.TextSegment -> Text(
+          style = resolvedStyle,
+          text = segment.annotated,
+          inlineContent = segment.inlineContent
+        )
 
-    if (urlAnnotations.isNotEmpty() && onUrlClick !== NoOpUrlClick) {
-      val layoutResultRef: androidx.compose.runtime.MutableState<androidx.compose.ui.text.TextLayoutResult?> =
-        remember(urlAnnotations) { mutableStateOf(null) }
-
-      val gestureModifier: Modifier = Modifier.pointerHoverIcon(
-        icon = PointerIcon.Hand,
-        overrideDescendants = true,
-      ).pointerInput(urlAnnotations) {
-        detectTapGestures { offset ->
-          val layout: androidx.compose.ui.text.TextLayoutResult? = layoutResultRef.value
-          if (layout != null) {
-            val textOffset: Int = layout.getOffsetForPosition(offset)
-            val match: UrlAnnotation? = urlAnnotations.firstOrNull { ann ->
-              textOffset >= ann.start && textOffset < ann.end
-            }
-            if (match != null) onUrlClick(match.url)
-          }
-        }
+        is InlineSegment.LinkSegment -> ExternalLink(
+          text = segment.text,
+          textStyle = resolvedStyle,
+          style = gradumLinkStyle,
+          onClick = { onUrlClick(segment.url) }
+        )
       }
-
-      Text(
-        text = inlineRender.annotated,
-        inlineContent = inlineRender.inlineContent,
-        style = resolvedStyle,
-        modifier = modifier.then(gestureModifier),
-        onTextLayout = { layoutResultRef.value = it },
-      )
-    } else {
-      Text(
-        text = inlineRender.annotated,
-        inlineContent = inlineRender.inlineContent,
-        style = resolvedStyle,
-        modifier = modifier
-      )
     }
-  } else {
-    Text(
-      text = fallbackText,
-      style = resolvedStyle,
-      modifier = modifier
-    )
   }
 }
-
-/** Sentinel default for [RenderInlineTextWithChips.onUrlClick] — lets `!==` distinguish a real handler. */
-private val NoOpUrlClick: (String) -> Unit = {}

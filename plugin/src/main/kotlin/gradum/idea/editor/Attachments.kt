@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Attachments.kt  2026-07-14 21:27:12 Changed by gwy
+ * Attachments.kt  2026-07-15 20:21:09 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -83,7 +83,7 @@ data class AttachedText(
  *   rejected as too large.
  */
 @Suppress(
-  "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
+  "SpellCheckingInspection", "SpellCheckingInspection",
   "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
   "SpellCheckingInspection", "SpellCheckingInspection"
 )

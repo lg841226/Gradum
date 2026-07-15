@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTableTest.kt  2026-07-15 Changed by gwy
+ * GradumMarkdownTableTest.kt  2026-07-15 21:34:01 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -263,8 +263,8 @@ class GradumMarkdownTableTest {
   fun `isRenderable is false for a Table with no body rows`() {
     val table = MarkdownSegment.Table(
       header = listOf("H1", "H2"),
-      alignments = listOf(TextAlign.Start, TextAlign.Start),
       rows = emptyList(),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
     )
     assertEquals(false, table.isRenderable())
   }
@@ -273,8 +273,8 @@ class GradumMarkdownTableTest {
   fun `isRenderable is false when every body cell is blank`() {
     val table = MarkdownSegment.Table(
       header = listOf("H1", "H2"),
-      alignments = listOf(TextAlign.Start, TextAlign.Start),
       rows = listOf(listOf("", ""), listOf("   ", "\t")),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
     )
     assertEquals(false, table.isRenderable())
   }
@@ -283,8 +283,8 @@ class GradumMarkdownTableTest {
   fun `isRenderable is true when at least one body cell is non-blank`() {
     val table = MarkdownSegment.Table(
       header = listOf("H1", "H2"),
-      alignments = listOf(TextAlign.Start, TextAlign.Start),
       rows = listOf(listOf("", ""), listOf("", "actual data")),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
     )
     assertEquals(true, table.isRenderable())
   }
@@ -296,8 +296,8 @@ class GradumMarkdownTableTest {
     // something to draw underneath the column labels?"
     val table = MarkdownSegment.Table(
       header = listOf("", ""),
-      alignments = listOf(TextAlign.Start, TextAlign.Start),
       rows = listOf(listOf("a", "b")),
+      alignments = listOf(TextAlign.Start, TextAlign.Start),
     )
     assertEquals(true, table.isRenderable())
   }

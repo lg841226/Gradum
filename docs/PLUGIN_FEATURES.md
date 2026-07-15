@@ -158,12 +158,12 @@ composable. Anything unknown falls through to a wildcard
 
 A renderer is responsible for:
 
-- Recognising a server-side skill alias via `alias()` (e.g. `"Ran"`,
+- Recognizing a server-side skill alias via `alias()` (e.g. `"Ran"`,
   `"Edited"`). Must match the value emitted by the server-side
   `Skill.alias`.
 - Parsing the server `arguments` + `result` JSON into a `ToolCallContent`
   view-model via `parseContent(arguments, result)`.
-- Choosing the row's icon (`iconKey()`) and localised label (`labelKey()`,
+- Choosing the row's icon (`iconKey()`) and localized label (`labelKey()`,
   a Gradum resource-bundle key under `messages/gradum/`).
 - Drawing the actual row via `@Composable render(content, ctx)`. The
   shared `CommonCapsule` composable in `chat/ui/chat/skill/internal/`
@@ -325,7 +325,7 @@ we attempt a custom inline parse:
 
 1. `commonmark-java` (already on the classpath via Jewel's
    `intellij.platform.jewel.markdown.core`, **zero new dependency**)
-   re-parses the segment and returns a `Document` AST.
+   reparses the segment and returns a `Document` AST.
 2. We walk the AST. If the segment contains a list, heading, blockquote,
    fenced code block, `LinkReferenceDefinition`, or anything other than
    plain `Paragraph` blocks, the layer **bails out** and returns `null`
@@ -333,12 +333,12 @@ we attempt a custom inline parse:
    Lists in chat are rare; re-implementing list / heading / blockquote
    rendering is not worth it.
 3. For accepted segments, we build:
-   - one `AnnotatedString` with `SpanStyle` overlays (bold, italic, link)
-     + `StringAnnotation` tags (URL) + **Private-Use-Area placeholder
-     substrings** for inline code spans
-   - one `inlineContent: Map<String, InlineTextContent>` keyed by the
-     PUA placeholder, where each value renders one rounded chip via
-     `InlineCodeChip`
+    - one `AnnotatedString` with `SpanStyle` overlays (bold, italic, link)
+        + `StringAnnotation` tags (URL) + **Private-Use-Area placeholder
+          substrings** for inline code spans
+    - one `inlineContent: Map<String, InlineTextContent>` keyed by the
+      PUA placeholder, where each value renders one rounded chip via
+      `InlineCodeChip`
 4. The caller renders the whole segment with a single
    `Text(annotated, inlineContent = …)`, so line wrapping survives
    across bold / italic / link / code boundaries.
@@ -817,61 +817,61 @@ Source: [`Spacing.kt`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/Spacing.
 
 ## 18. File-by-file index
 
-| Path                                       | Role                                                                                                                                                  |
-|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GradumToolWindowFactory.kt`               | Tool-window factory, "New Chat" action, top-level Compose tab.                                                                                        |
-| `ImageUpload.kt`                           | Image-attachment upload helper (paste / drop → file on disk → `AttachedContext`).                                                                     |
-| `bundle/GradumBundle.kt`                   | i18n bundle with startup probe and per-key fallback.                                                                                                  |
-| `chat/api/GradumApiClient.kt`              | HTTP client (`/events`, `/models`, `/stop`).                                                                                                          |
-| `chat/input/ChatInputState.kt`             | `ChatInputState` + `ChatInputActions` data classes.                                                                                                   |
-| `chat/model/ChatMessage.kt`                | `ChatEvent` / `RenderBlock` / `ChatMessage` model + `formatTimestamp`.                                                                                |
-| `chat/model/ErrorCode.kt`                  | Shared 16-code error enum.                                                                                                                            |
-| `chat/model/ModelInfo.kt`                  | Wire shape for a single model from `/models`.                                                                                                         |
-| `chat/state/GradumChatSession.kt`          | Project-level service, state owner, model poller.                                                                                                     |
-| `chat/ui/ChatScreen.kt`                    | Top-level chat screen composable.                                                                                                                     |
-| `chat/ui/GradumCodeBlockRenderer.kt`       | Markdown fenced code block renderer (Layer 1 of the pipeline).                                                                                        |
-| `chat/ui/GradumInlineMarkdown.kt`          | Custom CommonMark inline parser + chip renderer (Layer 3 of the pipeline; ~520 lines main + 27 unit tests).                                          |
-| `chat/ui/GradumMarkdownStyling.kt`         | Markdown styling config from `JewelTheme` + `rememberGradumParagraphTextStyle()`.                                                                      |
-| `chat/ui/GradumMarkdownTable.kt`           | GFM table parser + `ScrollableTable` Compose (Layer 2 of the pipeline).                                                                                |
-| `chat/ui/JumpToBottomButton.kt`            | Solid-background jump-to-bottom button with 0.5dp border (auto-shows when the list is scrolled away from the latest message).                        |
-| `chat/ui/Spacing.kt`                       | `GradumSpacing` token object.                                                                                                                         |
-| `chat/ui/chat/AssistantChatBubble.kt`      | Assistant message bubble; the `ResponseBlock` here drives the four-layer Markdown pipeline.                                                          |
-| `chat/ui/chat/ChatMessageList.kt`          | Scrollable list + day-change separators.                                                                                                              |
-| `chat/ui/chat/ErrorMessages.kt`            | Localised, code-driven error messages.                                                                                                                |
-| `chat/ui/chat/MessageAttachmentList.kt`    | Collapsible attachment list inside the user bubble.                                                                                                   |
-| `chat/ui/chat/MessageAttachmentPreview.kt` | Inline thumbnail preview for image attachments inside the user bubble.                                                                                 |
-| `chat/ui/chat/MessageCopyButton.kt`        | Copy button + tooltip semantics.                                                                                                                      |
-| `chat/ui/chat/MessageTimestamp.kt`         | Bubble timestamp footer.                                                                                                                              |
-| `chat/ui/chat/SweepLightText.kt`           | Typewriter + shimmer animation.                                                                                                                       |
-| `chat/ui/chat/ThinkingIndicator.kt`        | Pulsing dots during thinking.                                                                                                                         |
-| `chat/ui/chat/skill/spi/`                  | Tool-call renderer SPI: `ToolCallRenderer`, `ToolCallContent`, `ToolCallAction`, `ToolCallRenderContext`, `ToolCallRendererRegistry`, `ResultParser`. |
+| Path                                       | Role                                                                                                                                                                                              |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `GradumToolWindowFactory.kt`               | Tool-window factory, "New Chat" action, top-level Compose tab.                                                                                                                                    |
+| `ImageUpload.kt`                           | Image-attachment upload helper (paste / drop → file on disk → `AttachedContext`).                                                                                                                 |
+| `bundle/GradumBundle.kt`                   | i18n bundle with startup probe and per-key fallback.                                                                                                                                              |
+| `chat/api/GradumApiClient.kt`              | HTTP client (`/events`, `/models`, `/stop`).                                                                                                                                                      |
+| `chat/input/ChatInputState.kt`             | `ChatInputState` + `ChatInputActions` data classes.                                                                                                                                               |
+| `chat/model/ChatMessage.kt`                | `ChatEvent` / `RenderBlock` / `ChatMessage` model + `formatTimestamp`.                                                                                                                            |
+| `chat/model/ErrorCode.kt`                  | Shared 16-code error enum.                                                                                                                                                                        |
+| `chat/model/ModelInfo.kt`                  | Wire shape for a single model from `/models`.                                                                                                                                                     |
+| `chat/state/GradumChatSession.kt`          | Project-level service, state owner, model poller.                                                                                                                                                 |
+| `chat/ui/ChatScreen.kt`                    | Top-level chat screen composable.                                                                                                                                                                 |
+| `chat/ui/GradumCodeBlockRenderer.kt`       | Markdown fenced code block renderer (Layer 1 of the pipeline).                                                                                                                                    |
+| `chat/ui/GradumInlineMarkdown.kt`          | Custom CommonMark inline parser + chip renderer (Layer 3 of the pipeline; ~520 lines main + 27 unit tests).                                                                                       |
+| `chat/ui/GradumMarkdownStyling.kt`         | Markdown styling config from `JewelTheme` + `rememberGradumParagraphTextStyle()`.                                                                                                                 |
+| `chat/ui/GradumMarkdownTable.kt`           | GFM table parser + `ScrollableTable` Compose (Layer 2 of the pipeline).                                                                                                                           |
+| `chat/ui/JumpToBottomButton.kt`            | Solid-background jump-to-bottom button with 0.5dp border (auto-shows when the list is scrolled away from the latest message).                                                                     |
+| `chat/ui/Spacing.kt`                       | `GradumSpacing` token object.                                                                                                                                                                     |
+| `chat/ui/chat/AssistantChatBubble.kt`      | Assistant message bubble; the `ResponseBlock` here drives the four-layer Markdown pipeline.                                                                                                       |
+| `chat/ui/chat/ChatMessageList.kt`          | Scrollable list + day-change separators.                                                                                                                                                          |
+| `chat/ui/chat/ErrorMessages.kt`            | Localised, code-driven error messages.                                                                                                                                                            |
+| `chat/ui/chat/MessageAttachmentList.kt`    | Collapsible attachment list inside the user bubble.                                                                                                                                               |
+| `chat/ui/chat/MessageAttachmentPreview.kt` | Inline thumbnail preview for image attachments inside the user bubble.                                                                                                                            |
+| `chat/ui/chat/MessageCopyButton.kt`        | Copy button + tooltip semantics.                                                                                                                                                                  |
+| `chat/ui/chat/MessageTimestamp.kt`         | Bubble timestamp footer.                                                                                                                                                                          |
+| `chat/ui/chat/SweepLightText.kt`           | Typewriter + shimmer animation.                                                                                                                                                                   |
+| `chat/ui/chat/ThinkingIndicator.kt`        | Pulsing dots during thinking.                                                                                                                                                                     |
+| `chat/ui/chat/skill/spi/`                  | Tool-call renderer SPI: `ToolCallRenderer`, `ToolCallContent`, `ToolCallAction`, `ToolCallRenderContext`, `ToolCallRendererRegistry`, `ResultParser`.                                             |
 | `chat/ui/chat/skill/internal/`             | Shared internals used by all renderers: `CommonCapsule` (icon + label + body), `CommonActionButtons` (`OpenInEditor`, `ViewDiff`, `CopyToClipboard`), `ErrorsPanel` (failed-skill error display). |
-| `chat/ui/chat/skill/<Alias>Renderer.kt`    | One file per server skill alias: `Ran`, `Edited`, `Read`, `Saved`, `Explored`, `Planned`, `Completed`, `Grep`, `Glob`, plus the wildcard `DefaultRenderer` for `*`. |
-| `chat/ui/chat/UserChatBubble.kt`           | User message bubble.                                                                                                                                  |
-| `chat/ui/common/DiffViewer.kt`             | Side-by-side / unified diff viewer used by `ViewDiffButton` for `edit_file` results.                                                                  |
-| `chat/ui/common/IconTooltipButton.kt`      | Canonical icon button with tooltip.                                                                                                                   |
-| `chat/ui/common/SelectorButton.kt`         | Canonical selector button (icon + label + chevron).                                                                                                   |
-| `chat/ui/home/QuickStartSection.kt`        | Welcome quick-start tiles (4 × 5 variants).                                                                                                           |
-| `chat/ui/home/WelcomeScreen.kt`            | Welcome screen composable.                                                                                                                            |
-| `chat/ui/input/AddContextPopup.kt`         | File / directory add menu.                                                                                                                            |
-| `chat/ui/input/AttachmentBar.kt`           | Pending attachments row.                                                                                                                              |
-| `chat/ui/input/ChatInputPanel.kt`          | Composes toolbar + textarea + bar.                                                                                                                    |
-| `chat/ui/input/ChatInputSection.kt`        | Top-level chat input section.                                                                                                                         |
-| `chat/ui/input/ChatToolbar.kt`             | Add menu, permission selector, send/stop.                                                                                                             |
-| `chat/ui/input/FileItem.kt`                | Single attachment chip.                                                                                                                               |
-| `chat/ui/input/ModelNameFormatter.kt`      | Raw-name → display-name lookup.                                                                                                                       |
-| `chat/ui/input/ModelSelectorBar.kt`        | Model selector with Auto / Pinned / All.                                                                                                              |
-| `chat/ui/input/PermissionSelector.kt`      | Three-tier permission dropdown.                                                                                                                       |
-| `chat/ui/input/PreviewText.kt`             | Text-field preview / hint composable.                                                                                                                 |
-| `editor/Attachments.kt`                    | `AttachedContext` model + file/dir freezing.                                                                                                          |
-| `editor/EditorContext.kt`                  | Current editor selection / file snapshot.                                                                                                             |
-| `editor/PendingMessage.kt`                 | In-flight message queue.                                                                                                                              |
-| `icons/GradumIcons.kt`                     | Icon registry + provider / model lookups.                                                                                                             |
+| `chat/ui/chat/skill/<Alias>Renderer.kt`    | One file per server skill alias: `Ran`, `Edited`, `Read`, `Saved`, `Explored`, `Planned`, `Completed`, `Grep`, `Glob`, plus the wildcard `DefaultRenderer` for `*`.                               |
+| `chat/ui/chat/UserChatBubble.kt`           | User message bubble.                                                                                                                                                                              |
+| `chat/ui/common/DiffViewer.kt`             | Side-by-side / unified diff viewer used by `ViewDiffButton` for `edit_file` results.                                                                                                              |
+| `chat/ui/common/IconTooltipButton.kt`      | Canonical icon button with tooltip.                                                                                                                                                               |
+| `chat/ui/common/SelectorButton.kt`         | Canonical selector button (icon + label + chevron).                                                                                                                                               |
+| `chat/ui/home/QuickStartSection.kt`        | Welcome quick-start tiles (4 × 5 variants).                                                                                                                                                       |
+| `chat/ui/home/WelcomeScreen.kt`            | Welcome screen composable.                                                                                                                                                                        |
+| `chat/ui/input/AddContextPopup.kt`         | File / directory add menu.                                                                                                                                                                        |
+| `chat/ui/input/AttachmentBar.kt`           | Pending attachments row.                                                                                                                                                                          |
+| `chat/ui/input/ChatInputPanel.kt`          | Composes toolbar + textarea + bar.                                                                                                                                                                |
+| `chat/ui/input/ChatInputSection.kt`        | Top-level chat input section.                                                                                                                                                                     |
+| `chat/ui/input/ChatToolbar.kt`             | Add menu, permission selector, send/stop.                                                                                                                                                         |
+| `chat/ui/input/FileItem.kt`                | Single attachment chip.                                                                                                                                                                           |
+| `chat/ui/input/ModelNameFormatter.kt`      | Raw-name → display-name lookup.                                                                                                                                                                   |
+| `chat/ui/input/ModelSelectorBar.kt`        | Model selector with Auto / Pinned / All.                                                                                                                                                          |
+| `chat/ui/input/PermissionSelector.kt`      | Three-tier permission dropdown.                                                                                                                                                                   |
+| `chat/ui/input/PreviewText.kt`             | Text-field preview / hint composable.                                                                                                                                                             |
+| `editor/Attachments.kt`                    | `AttachedContext` model + file/dir freezing.                                                                                                                                                      |
+| `editor/EditorContext.kt`                  | Current editor selection / file snapshot.                                                                                                                                                         |
+| `editor/PendingMessage.kt`                 | In-flight message queue.                                                                                                                                                                          |
+| `icons/GradumIcons.kt`                     | Icon registry + provider / model lookups.                                                                                                                                                         |
 
 ### 18.1 Test files (plugin module)
 
-| Path                                                         | Role                                                                       |
-|--------------------------------------------------------------|----------------------------------------------------------------------------|
-| `chat/ui/GradumInlineMarkdownTest.kt`                        | 27 cases pinning the bail-out / parse / chip / link behaviour of Layer 3. |
-| `chat/ui/GradumMarkdownTableTest.kt`                         | Pinned tests for `splitMarkdownAtTables` + `ScrollableTable` of Layer 2.    |
-| `chat/ui/input/ModelNameFormatterTest.kt`                    | Pinned cases for the wire-name → display-name lookup.                       |
+| Path                                      | Role                                                                      |
+|-------------------------------------------|---------------------------------------------------------------------------|
+| `chat/ui/GradumInlineMarkdownTest.kt`     | 27 cases pinning the bail-out / parse / chip / link behaviour of Layer 3. |
+| `chat/ui/GradumMarkdownTableTest.kt`      | Pinned tests for `splitMarkdownAtTables` + `ScrollableTable` of Layer 2.  |
+| `chat/ui/input/ModelNameFormatterTest.kt` | Pinned cases for the wire-name → display-name lookup.                     |

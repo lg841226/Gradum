@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-14 21:27:12 Changed by gwy
+ * InlineMarkdown.kt  2026-07-15 18:47:26 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -22,6 +22,7 @@ package gradum.idea.chat.ui.markdown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
@@ -29,34 +30,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.ui.GradumSpacing
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
-import org.commonmark.node.Code
-import org.commonmark.node.Document
-import org.commonmark.node.Emphasis
-import org.commonmark.node.HardLineBreak
-import org.commonmark.node.HtmlInline
-import org.commonmark.node.Image
-import org.commonmark.node.Link
-import org.commonmark.node.Node
+import org.commonmark.node.*
 import org.commonmark.node.Paragraph
-import org.commonmark.node.SoftLineBreak
-import org.commonmark.node.StrongEmphasis
-import org.commonmark.node.Text
 import org.commonmark.parser.Parser
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
@@ -73,8 +59,16 @@ private const val INLINE_CODE_TEXT_TAG: String = "INLINE_CODE_TEXT"
 internal const val INLINE_CONTENT_TAG: String = "androidx.compose.foundation.text.inlineContent"
 
 private const val INLINE_URL_TAG: String = "INLINE_URL"
-private val InlineCodePaddingHorizontal = 2.dp
-private val InlineCodePaddingVertical = 0.dp
+private const val IMAGE_ALT_PLACEHOLDER_BASE: Char = '\uE001'
+
+// Em-based scale for the inline image icon's placeholder box.
+// Jewel SVG icons draw at their intrinsic (usually 16dp) size;
+// 1.4em at 14sp ≈ 19.6dp, so the icon fills the box with a tiny
+// breathing margin and aligns its visual mass with the cap
+// height of the surrounding text.
+private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
+private val InlineCodePaddingHorizontal: Dp = GradumSpacing.xs
+private val InlineCodePaddingVertical: Dp = 0.dp
 private const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.12f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
@@ -122,6 +116,29 @@ data class InlineMarkdownRender(
 /** A (text-offset range, URL) pair attached to a link's text range. */
 data class UrlAnnotation(val start: Int, val end: Int, val url: String)
 
+/**
+ * One chunk of a rendered inline line — either prose (rendered via
+ * `androidx.compose.foundation.text.Text` with `inlineContent` for
+ * code chips) or a clickable link (rendered via Jewel's
+ * [org.jetbrains.jewel.ui.component.ExternalLink]). [splitIntoInlineSegments]
+ * slices the walker output at link boundaries so the link can be a
+ * standalone `Composable` (with the external-link icon) instead of a
+ * `UrlAnnotation` tapped via `pointerInput` on the surrounding text.
+ */
+sealed interface InlineSegment {
+  /** A prose chunk. May contain PUA placeholders for code chips. */
+  data class TextSegment(
+    val annotated: AnnotatedString,
+    val inlineContent: Map<String, InlineTextContent>,
+  ) : InlineSegment
+
+  /** A link chunk. [text] is the visible label, [url] the click target. */
+  data class LinkSegment(
+    val text: String,
+    val url: String,
+  ) : InlineSegment
+}
+
 /** Outcome of an inline parse. `render == null` → caller falls back to native `Markdown(...)`. */
 data class InlineMarkdownRenderResult(
   val render: InlineMarkdownRender?,
@@ -137,7 +154,8 @@ data class InlineMarkdownRenderResult(
 fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
   val chipTint: Color = resolveInlineCodeTint()
-  val linkColor: Color = resolveLinkColor()
+  val linkColor: Color = JewelTheme.linkStyle.colors.content
+  val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
   return remember(plainText) {
     parseInlineMarkdown(
@@ -145,6 +163,7 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
       fontSizeSp = fontSizeSp,
       chipTint = chipTint,
       linkColor = linkColor,
+      imageAltColor = imageAltColor,
     )
   }
 }
@@ -156,7 +175,7 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
  * serialize-then-re-parse round-trip changes the block structure —
  * the canonical example is a heading whose inline content starts
  * with a list marker, e.g. `### 2. **bold**`. Serializing strips
- * the `### ` prefix, leaving `"2. **bold**"`, and the re-parse in
+ * the `### ` prefix, leaving `"2. **bold**"`, and the reparse in
  * [parseInlineMarkdown] then produces an `OrderedList` (not a
  * `Paragraph`), which bails and falls back to plain text — losing
  * the bold. Walking the original AST skips that round-trip and
@@ -164,15 +183,15 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
  */
 @Composable
 fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRenderResult {
-  val chipTint: Color = resolveInlineCodeTint()
-  val linkColor: Color = resolveLinkColor()
+  val linkColor: Color = JewelTheme.linkStyle.colors.content
+  val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
   return remember(parentNode) {
     parseInlineNodes(
       parentNode = parentNode,
       fontSizeSp = fontSizeSp,
-      chipTint = chipTint,
       linkColor = linkColor,
+      imageAltColor = imageAltColor,
     )
   }
 }
@@ -184,8 +203,9 @@ internal fun parseInlineMarkdown(
   fontSizeSp: Float,
   chipTint: Color,
   linkColor: Color,
+  imageAltColor: Color,
 ): InlineMarkdownRenderResult {
-  if (plainText.isBlank()) return bailNoRender()
+  if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
   val document: Document = parseCommonmarkDocument(plainText) ?: return bailWithReason(
     reason = "commonmark 解析异常: 详见 IDE log",
@@ -193,7 +213,7 @@ internal fun parseInlineMarkdown(
   )
   val children: NodeChildren = NodeChildren.of(document)
   val topBlocks: List<Node> = buildList {
-    if (children.first != null) add(children.first!!)
+    if (children.first != null) add(children.first)
     addAll(children.rest)
   }
   if (topBlocks.isEmpty()) return bailWithReason("段落为空 (no blocks)", plainText)
@@ -207,6 +227,7 @@ internal fun parseInlineMarkdown(
     fontSizeSp = fontSizeSp,
     chipTint = chipTint,
     linkColor = linkColor,
+    imageAltColor = imageAltColor,
   )
 }
 
@@ -233,18 +254,18 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
 internal fun parseInlineNodes(
   parentNode: Node,
   fontSizeSp: Float,
-  chipTint: Color,
   linkColor: Color,
+  imageAltColor: Color,
 ): InlineMarkdownRenderResult {
   return try {
-    val renderState: RenderState = RenderState(
+    val renderState = RenderState(
       fontSizeSp = fontSizeSp,
-      chipTint = chipTint,
       linkColor = linkColor,
+      imageAltColor = imageAltColor,
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
-      val annotatedBuilder: AnnotatedString.Builder = this
-      renderInlineChildren(parentNode, annotatedBuilder, renderState)
+      val builder: AnnotatedString.Builder = this
+      renderInlineChildren(parentNode, builder, renderState)
     }
     InlineMarkdownRenderResult(
       render = InlineMarkdownRender(
@@ -255,9 +276,9 @@ internal fun parseInlineNodes(
       ),
       bailReason = null,
     )
-  } catch (walkException: Exception) {
-    val reason: String = "AST walker 异常: ${walkException.javaClass.simpleName}: ${walkException.message}"
-    log.warn("Inline markdown AST walk failed for node: ${parentNode.javaClass.simpleName}", walkException)
+  } catch (exception: Exception) {
+    val reason = "AST walker 异常: ${exception.javaClass.simpleName}: ${exception.message}"
+    log.warn("Inline markdown AST walk failed for node: ${parentNode.javaClass.simpleName}", exception)
     InlineMarkdownRenderResult(render = null, bailReason = reason)
   }
 }
@@ -275,10 +296,6 @@ private fun collectNonParagraphTypes(topBlocks: List<Node>): String? {
 }
 
 
-private fun bailNoRender(): InlineMarkdownRenderResult =
-  InlineMarkdownRenderResult(render = null, bailReason = null)
-
-
 private fun bailWithReason(
   reason: String,
   plainText: String,
@@ -289,7 +306,7 @@ private fun bailWithReason(
 }
 
 
-/** Walk the paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail. */
+/** Walk a paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail. */
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 private fun buildInlineRender(
   plainText: String,
@@ -297,20 +314,21 @@ private fun buildInlineRender(
   fontSizeSp: Float,
   chipTint: Color,
   linkColor: Color,
+  imageAltColor: Color,
 ): InlineMarkdownRenderResult {
   return try {
-    val renderState: RenderState = RenderState(
+    val renderState = RenderState(
       fontSizeSp = fontSizeSp,
-      chipTint = chipTint,
       linkColor = linkColor,
+      imageAltColor = imageAltColor,
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
     log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, chipTint=$chipTint, text=$preview")
     val annotatedString: AnnotatedString = buildAnnotatedString {
-      val annotatedBuilder: AnnotatedString.Builder = this
+      val builder: AnnotatedString.Builder = this
       topBlocks.forEachIndexed { blockIndex, blockNode ->
-        if (blockIndex > 0) annotatedBuilder.append("\n\n")
-        renderInlineChildren(blockNode as Paragraph, annotatedBuilder, renderState)
+        if (blockIndex > 0) builder.append("\n\n")
+        renderInlineChildren(blockNode as Paragraph, builder, renderState)
       }
     }
     log.debug("InlineMarkdown: parse done — chipCounter=${renderState.chipCounter}, inlineContent.keys=${renderState.inlineContent.keys}")
@@ -323,10 +341,10 @@ private fun buildInlineRender(
       ),
       bailReason = null,
     )
-  } catch (walkException: Exception) {
-    val reason: String = "AST walker 异常: ${walkException.javaClass.simpleName}: ${walkException.message}"
+  } catch (exception: Exception) {
+    val reason = "AST walker 异常: ${exception.javaClass.simpleName}: ${exception.message}"
     val preview: String = plainText.take(WALK_FAILURE_LOG_PREVIEW_CHARS).replace("\n", " ")
-    log.warn("Inline markdown AST walk failed for text: $preview", walkException)
+    log.warn("Inline markdown AST walk failed for text: $preview", exception)
     InlineMarkdownRenderResult(render = null, bailReason = reason)
   }
 }
@@ -336,12 +354,13 @@ private fun buildInlineRender(
 @Suppress("LongParameterList")
 private class RenderState(
   val fontSizeSp: Float,
-  val chipTint: Color,
   val linkColor: Color,
+  val imageAltColor: Color,
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   var currentStyle: SpanStyle = SpanStyle(),
   var chipCounter: Int = 0,
+  var imageAltCounter: Int = 0,
 ) {
   /** Snapshot + restore helper for the recursive walker. */
   fun <T> withStyle(replacementStyle: SpanStyle, lambdaBlock: () -> T): T {
@@ -356,18 +375,47 @@ private class RenderState(
 
   /** Consume a fresh chip placeholder + register the chip in `inlineContent`. */
   fun allocateChip(codeText: String) {
-    val chipPlaceholder: String = makePlaceholder(chipCounter)
+    val placeholderKey: String = makePlaceholder(chipCounter)
     chipCounter += 1
-    val chipWidthSp: Float = fontSizeSp * cjkAwareWidthRatio(codeText) + PLACEHOLDER_WIDTH_PADDING_SP
-    val chipHeightSp: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
-    val placeholderShape: Placeholder = Placeholder(
-      width = chipWidthSp.sp,
-      height = chipHeightSp.sp,
+    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(codeText) + PLACEHOLDER_WIDTH_PADDING_SP
+    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
+    val placeholderShape = Placeholder(
+      width = chipWidth.sp,
+      height = chipHeight.sp,
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
     )
-    inlineContent[chipPlaceholder] = InlineTextContent(placeholder = placeholderShape) {
+    inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
       InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp)
     }
+  }
+
+  /**
+   * Consume a fresh image-alt placeholder + register the `GradumIcons.Image`
+   * icon in `inlineContent`. The placeholder is a PUA glyph that lives
+   * at the start of the alt-text range; the caller appends it
+   * followed by a space and the alt text, and the icon paints
+   * inline via the surrounding `Text(annotated, inlineContent = ...)`.
+   * The base codepoint [IMAGE_ALT_PLACEHOLDER_BASE] is distinct
+   * from [INLINE_CODE_PLACEHOLDER] so adjacent image + code
+   * spans never collide in the placeholder table.
+   */
+  fun allocateImageAlt(): String {
+    val placeholder: String = IMAGE_ALT_PLACEHOLDER_BASE.toString().repeat(imageAltCounter + 1)
+    imageAltCounter += 1
+    val iconSize: Float = fontSizeSp * IMAGE_ALT_ICON_EM_SCALE
+    val placeholderShape = Placeholder(
+      width = iconSize.sp,
+      height = iconSize.sp,
+      placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
+    )
+    inlineContent[placeholder] = InlineTextContent(placeholder = placeholderShape) {
+      org.jetbrains.jewel.ui.component.Icon(
+        key = gradum.idea.icons.GradumIcons.Image,
+        contentDescription = null,
+        modifier = Modifier.size(iconSize.dp),
+      )
+    }
+    return placeholder
   }
 }
 
@@ -375,108 +423,121 @@ private class RenderState(
 /** Per-character width sum: [MONOSPACE_CJK_RATIO] for CJK, [MONOSPACE_LATIN_RATIO] for everything else. */
 internal fun cjkAwareWidthRatio(codeText: String): Float {
   if (codeText.isEmpty()) return 0f
-  var ratioSum: Float = 0f
-  for (char in codeText) ratioSum += if (isCjkChar(char)) MONOSPACE_CJK_RATIO else MONOSPACE_LATIN_RATIO
-  return ratioSum
+  var totalRatio = 0f
+  for (char in codeText) totalRatio += if (isCjkChar(char)) MONOSPACE_CJK_RATIO else MONOSPACE_LATIN_RATIO
+  return totalRatio
 }
 
 
 private fun renderInlineChildren(
   parentNode: Node,
-  annotatedBuilder: AnnotatedString.Builder,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
   val children: NodeChildren = NodeChildren.of(parentNode)
   val first: Node? = children.first
-  if (first != null) renderInlineNode(first, annotatedBuilder, renderState)
-  for (childNode in children.rest) renderInlineNode(childNode, annotatedBuilder, renderState)
+  if (first != null) renderInlineNode(first, builder, renderState)
+  for (childNode in children.rest) renderInlineNode(childNode, builder, renderState)
 }
 
 
 /** Dispatch a single inline node. Unknown / extension nodes recurse into children. */
 private fun renderInlineNode(
-  currentNode: Node,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Node,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  when (currentNode) {
-    is Text -> renderTextInline(currentNode, annotatedBuilder, renderState)
-    is Emphasis -> renderEmphasisInline(currentNode, annotatedBuilder, renderState)
-    is StrongEmphasis -> renderStrongEmphasisInline(currentNode, annotatedBuilder, renderState)
-    is Code -> renderCodeInline(currentNode, annotatedBuilder, renderState)
-    is Link -> renderLinkInline(currentNode, annotatedBuilder, renderState)
-    is Image -> renderImageInline(currentNode, annotatedBuilder, renderState)
-    is SoftLineBreak -> renderSoftLineBreakInline(annotatedBuilder, renderState)
-    is HardLineBreak -> renderHardLineBreakInline(annotatedBuilder, renderState)
-    is HtmlInline -> renderHtmlInlineInline(currentNode, annotatedBuilder, renderState)
-    is Strikethrough -> renderStrikethroughInline(currentNode, annotatedBuilder, renderState)
-    else -> renderUnknownInline(currentNode, annotatedBuilder, renderState)
+  when (node) {
+    is Text -> renderTextInline(node, builder, renderState)
+    is Emphasis -> renderEmphasisInline(node, builder, renderState)
+    is StrongEmphasis -> renderStrongEmphasisInline(node, builder, renderState)
+    is Code -> renderCodeInline(node, builder, renderState)
+    is Link -> renderLinkInline(node, builder, renderState)
+    is Image -> renderImageInline(node, builder, renderState)
+    is SoftLineBreak -> builder.withStyle(renderState.currentStyle) { append(' ') }
+    is HardLineBreak -> builder.withStyle(renderState.currentStyle) { append('\n') }
+    is Strikethrough -> renderStrikethroughInline(node, builder, renderState)
+    else -> {
+      if (node.firstChild != null) renderInlineChildren(node, builder, renderState)
+    }
   }
 }
 
 
 private fun renderTextInline(
-  currentNode: Text,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Text,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  val literalText: String = currentNode.literal.orEmpty()
-  if (literalText.isEmpty()) return
+  val literal: String = node.literal.orEmpty()
+  if (literal.isEmpty()) return
   if (renderState.currentStyle == SpanStyle()) {
-    annotatedBuilder.append(literalText)
+    builder.append(literal)
   } else {
-    annotatedBuilder.withStyle(renderState.currentStyle) { append(literalText) }
+    builder.withStyle(renderState.currentStyle) { append(literal) }
   }
 }
 
 private fun renderEmphasisInline(
-  currentNode: Emphasis,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Emphasis,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
   val italicStyle: SpanStyle = renderState.currentStyle.copy(fontStyle = FontStyle.Italic)
-  renderState.withStyle(italicStyle) { renderInlineChildren(currentNode, annotatedBuilder, renderState) }
+  renderState.withStyle(italicStyle) { renderInlineChildren(node, builder, renderState) }
 }
 
 private fun renderStrongEmphasisInline(
-  currentNode: StrongEmphasis,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: StrongEmphasis,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
   val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.Bold)
-  renderState.withStyle(boldStyle) { renderInlineChildren(currentNode, annotatedBuilder, renderState) }
+  renderState.withStyle(boldStyle) { renderInlineChildren(node, builder, renderState) }
 }
 
 private fun renderCodeInline(
-  currentNode: Code,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Code,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  val codeText: String = currentNode.literal.orEmpty()
+  val codeText: String = node.literal.orEmpty()
   if (codeText.isEmpty()) return
-  val chipPlaceholder: String = makePlaceholder(renderState.chipCounter)
-  val placeholderStart: Int = annotatedBuilder.length
+  val placeholderKey: String = makePlaceholder(renderState.chipCounter)
+  val placeholderStart: Int = builder.length
 
-  annotatedBuilder.pushStringAnnotation(tag = INLINE_CODE_TEXT_TAG, annotation = codeText)
-  annotatedBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = chipPlaceholder)
-  annotatedBuilder.pushStyle(SpanStyle())
-  annotatedBuilder.append(chipPlaceholder)
-  annotatedBuilder.pop()
-  annotatedBuilder.pop()
-  annotatedBuilder.pop()
-  val placeholderEnd: Int = annotatedBuilder.length
-  check(placeholderEnd - placeholderStart == chipPlaceholder.length) {
+  builder.pushStringAnnotation(tag = INLINE_CODE_TEXT_TAG, annotation = codeText)
+  builder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+  builder.pushStyle(SpanStyle())
+  builder.append(placeholderKey)
+  builder.pop()
+  builder.pop()
+  builder.pop()
+  val placeholderEnd: Int = builder.length
+  check(placeholderEnd - placeholderStart == placeholderKey.length) {
     "Inline-code placeholder length changed under inline-content push; " +
-      "expected ${chipPlaceholder.length} chars, got ${placeholderEnd - placeholderStart}"
+      "expected ${placeholderKey.length} chars, got ${placeholderEnd - placeholderStart}"
   }
   renderState.allocateChip(codeText)
 }
 
 private fun renderLinkInline(
-  currentNode: Link,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Link,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
+  // The chat's link rule is "color + permanent underline" — see
+  // [linkStateStyles] KDoc for why we abandoned the v1
+  // "color-only at rest, underline on hover" rule. The walker
+  // emits an `Underline` SpanStyle here so the link paints
+  // stable even on code paths that don't go through
+  // [ExternalLink] (e.g. the legacy `UrlAnnotation` +
+  // `pointerInput` path on a plain `Text`, or the
+  // `Markdown(...)` fallback when the upstream split bails).
+  // The parent [SpanStyle.textDecoration] is COMPOSED with the
+  // link's underline via [combineDecoration] so a [Strikethrough]
+  // wrapper still paints both: `~~[text](url)~~` →
+  // `Underline + LineThrough`, not just one or the other.
   val linkStyle: SpanStyle = renderState.currentStyle.copy(
     color = renderState.linkColor,
     textDecoration = combineDecoration(
@@ -484,93 +545,74 @@ private fun renderLinkInline(
       TextDecoration.Underline,
     ),
   )
-  val linkUrl: String = currentNode.destination.orEmpty()
-  val linkStart: Int = annotatedBuilder.length
-  annotatedBuilder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = linkUrl)
-  renderState.withStyle(linkStyle) { renderInlineChildren(currentNode, annotatedBuilder, renderState) }
-  annotatedBuilder.pop()
-  val linkEnd: Int = annotatedBuilder.length
-  if (linkUrl.isNotEmpty() && linkEnd > linkStart) {
-    renderState.urlAnnotations += UrlAnnotation(start = linkStart, end = linkEnd, url = linkUrl)
+  val linkUrl: String = node.destination.orEmpty()
+  val linkTextStart: Int = builder.length
+  builder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = linkUrl)
+  renderState.withStyle(linkStyle) { renderInlineChildren(node, builder, renderState) }
+  builder.pop()
+  val linkTextEnd: Int = builder.length
+  if (linkUrl.isNotEmpty() && linkTextEnd > linkTextStart) {
+    renderState.urlAnnotations += UrlAnnotation(start = linkTextStart, end = linkTextEnd, url = linkUrl)
   }
 }
 
 private fun renderImageInline(
-  currentNode: Image,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Image,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  val linkUrl: String = currentNode.destination.orEmpty()
-  val imageLinkStyle: SpanStyle = renderState.currentStyle.copy(
-    color = renderState.linkColor,
-    textDecoration = combineDecoration(
-      renderState.currentStyle.textDecoration ?: TextDecoration.None,
-      TextDecoration.Underline,
-    ),
+  // An inline `![alt](url)` image in a chat message is a *placeholder*,
+  // not a clickable target — the chat doesn't render the binary, so
+  // the alt text is a description ("there's a picture here"), not a
+  // link to a destination. The previous v1.5 path registered the
+  // image's URL as a `UrlAnnotation`, which made the alt text render
+  // as `ExternalLink("Image alt text", url=imageUrl)` — visually
+  // indistinguishable from a regular link, which surprised the user
+  // when their message mixed images and links (e.g. the
+  // `![alt](imageUrl) <https://example.com> <email@example.com>`
+  // case in the feedback, where the whole thing read as one blue
+  // link). Render the alt text as italic muted-gray with a "🖼"
+  // prefix so it's clearly a placeholder, NOT a link. The image's
+  // `destination` is dropped (we have nowhere to send the user for
+  // a binary that isn't shown).
+  val imageAltStyle: SpanStyle = renderState.currentStyle.copy(
+    fontStyle = FontStyle.Italic,
+    color = renderState.imageAltColor,
+    textDecoration = renderState.currentStyle.textDecoration ?: TextDecoration.None,
   )
-  val imageStart: Int = annotatedBuilder.length
-  annotatedBuilder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = linkUrl)
-  renderState.withStyle(imageLinkStyle) { renderInlineChildren(currentNode, annotatedBuilder, renderState) }
-  annotatedBuilder.pop()
-  val imageEnd: Int = annotatedBuilder.length
-  if (linkUrl.isNotEmpty() && imageEnd > imageStart) {
-    renderState.urlAnnotations += UrlAnnotation(start = imageStart, end = imageEnd, url = linkUrl)
+  val iconPlaceholder: String = renderState.allocateImageAlt()
+  renderState.withStyle(imageAltStyle) {
+    builder.append(iconPlaceholder)
+    builder.append(' ')
+    renderInlineChildren(node, builder, renderState)
   }
 }
 
-private fun renderSoftLineBreakInline(
-  annotatedBuilder: AnnotatedString.Builder,
-  renderState: RenderState,
-) = annotatedBuilder.withStyle(renderState.currentStyle) { append(' ') }
-
-private fun renderHardLineBreakInline(
-  annotatedBuilder: AnnotatedString.Builder,
-  renderState: RenderState,
-) = annotatedBuilder.withStyle(renderState.currentStyle) { append('\n') }
-
-private fun renderHtmlInlineInline(
-  currentNode: HtmlInline,
-  annotatedBuilder: AnnotatedString.Builder,
-  renderState: RenderState,
-) {
-  val literalText: String = currentNode.literal.orEmpty()
-  if (literalText.isNotEmpty()) annotatedBuilder.withStyle(renderState.currentStyle) { append(literalText) }
-}
-
 private fun renderStrikethroughInline(
-  currentNode: Strikethrough,
-  annotatedBuilder: AnnotatedString.Builder,
+  node: Strikethrough,
+  builder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
   val strikethroughStyle: SpanStyle = renderState.currentStyle.copy(
-    textDecoration = (renderState.currentStyle.textDecoration ?: TextDecoration.None)
-      .let { existingDecoration -> combineDecoration(existingDecoration, TextDecoration.LineThrough) }
+    textDecoration = combineDecoration((renderState.currentStyle.textDecoration ?: TextDecoration.None), TextDecoration.LineThrough)
   )
-  renderState.withStyle(strikethroughStyle) { renderInlineChildren(currentNode, annotatedBuilder, renderState) }
+  renderState.withStyle(strikethroughStyle) { renderInlineChildren(node, builder, renderState) }
 }
 
 
 /** Compose two [TextDecoration] values: underline + line-through can both paint. Other: new wins. */
 private fun combineDecoration(
-  existingDecoration: TextDecoration,
-  addedDecoration: TextDecoration,
+  existing: TextDecoration,
+  added: TextDecoration,
 ): TextDecoration {
-  val hasUnderline: Boolean = existingDecoration.contains(TextDecoration.Underline) || addedDecoration.contains(TextDecoration.Underline)
-  val hasLineThrough: Boolean = existingDecoration.contains(TextDecoration.LineThrough) || addedDecoration.contains(TextDecoration.LineThrough)
+  val hasUnderline: Boolean = existing.contains(TextDecoration.Underline) || added.contains(TextDecoration.Underline)
+  val hasLineThrough: Boolean = existing.contains(TextDecoration.LineThrough) || added.contains(TextDecoration.LineThrough)
   return when {
     hasUnderline && hasLineThrough -> TextDecoration.Underline + TextDecoration.LineThrough
     hasUnderline -> TextDecoration.Underline
     hasLineThrough -> TextDecoration.LineThrough
     else -> TextDecoration.None
   }
-}
-
-private fun renderUnknownInline(
-  currentNode: Node,
-  annotatedBuilder: AnnotatedString.Builder,
-  renderState: RenderState,
-) {
-  if (currentNode.firstChild != null) renderInlineChildren(currentNode, annotatedBuilder, renderState)
 }
 
 
@@ -580,7 +622,74 @@ private fun makePlaceholder(chipIndex: Int): String =
 
 
 /**
- * The actual chip composable. Uses [JewelTheme.linkStyle]'s `content` color for a
+ * Slice the walker output at link boundaries so the prose path can
+ * stay on `Text(annotated, inlineContent = ...)` (for code chips) and
+ * the link path can use [org.jetbrains.jewel.ui.component.ExternalLink]
+ * (a standalone `Composable` with the external-link icon). Without
+ * this split, links would have to be inlined into the `AnnotatedString`
+ * — which can't host a `Composable` icon.
+ *
+ * [inlineContent] is shared across every emitted [InlineSegment.TextSegment]
+ * because PUA placeholders in the sub-`AnnotatedString` ranges are
+ * looked up against the same map by `Text(..., inlineContent = ...)`.
+ *
+ * The link text is de-styled (Punctuation / SpanStyles stripped) so
+ * the `ExternalLink` picks up its own theme styling. PUA placeholders
+ * inside the link range (e.g. `[\`code\`](url)`) are dropped — the
+ * chip rendering lives in the prose path, not the link path.
+ */
+internal fun splitIntoInlineSegments(
+  annotated: AnnotatedString,
+  inlineContent: Map<String, InlineTextContent>,
+  urlAnnotations: List<UrlAnnotation>,
+): List<InlineSegment> {
+  if (urlAnnotations.isEmpty()) {
+    return listOf(InlineSegment.TextSegment(annotated, inlineContent))
+  }
+  val sortedUrls: List<UrlAnnotation> = urlAnnotations.sortedBy { it.start }
+  val segments: MutableList<InlineSegment> = mutableListOf()
+  var cursor = 0
+  for (urlAnnotation in sortedUrls) {
+    if (urlAnnotation.start > cursor) {
+      segments += InlineSegment.TextSegment(
+        annotated = annotated.subSequence(cursor, urlAnnotation.start),
+        inlineContent = inlineContent,
+      )
+    }
+    val linkTextContent: CharSequence = annotated.subSequence(urlAnnotation.start, urlAnnotation.end)
+    val linkText: String = stripInlineLinkText(linkTextContent)
+    segments += InlineSegment.LinkSegment(text = linkText, url = urlAnnotation.url)
+    cursor = urlAnnotation.end
+  }
+  if (cursor < annotated.length) {
+    segments += InlineSegment.TextSegment(
+      annotated = annotated.subSequence(cursor, annotated.length),
+      inlineContent = inlineContent,
+    )
+  }
+  return segments
+}
+
+/**
+ * Drop PUA placeholders from a link's text range — code chips that
+ * happen to be inside a link's label are rendered through the prose
+ * path, not the link path. `AnnotatedString.toString()` already
+ * preserves plain text content; we just need to filter out the PUA
+ * chars. The link range was wrapped in a `pushStringAnnotation` for
+ * the link's URL, but that's metadata, not visible text.
+ */
+private fun stripInlineLinkText(range: CharSequence): String {
+  if (range.none { it == INLINE_CODE_PLACEHOLDER }) return range.toString()
+  val output: StringBuilder = StringBuilder(range.length)
+  for (char in range) {
+    if (char != INLINE_CODE_PLACEHOLDER) output.append(char)
+  }
+  return output.toString()
+}
+
+
+/**
+ * The actual chip composable. Uses `JewelTheme.linkStyle`'s `content` color for a
  * vivid tint across themes; the chip's internal `Text` sets `lineHeight = fontSizeSp.sp`
  * (1.0x) so the editor's 1.5x line height doesn't clip the glyphs.
  */
@@ -590,12 +699,11 @@ private fun InlineCodeChip(
   fontSizeSp: Float,
 ) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val chipFontSizeSp: Float = fontSizeSp
   val badgeColor: Color = JewelTheme.linkStyle.colors.content
-  val chipStyle: TextStyle = TextStyle(
+  val chipStyle = TextStyle(
     fontFamily = editorStyle.fontFamily,
-    fontSize = chipFontSizeSp.sp,
-    lineHeight = chipFontSizeSp.sp,
+    fontSize = fontSizeSp.sp,
+    lineHeight = fontSizeSp.sp,
     fontWeight = FontWeight.Medium,
     color = badgeColor,
   )
@@ -620,7 +728,7 @@ private fun InlineCodeChip(
 
 
 /**
- * Chip tint from [JewelTheme.linkStyle] (solid `Color` — not the badge's transparent
+ * Chip tint from `JewelTheme.linkStyle` (solid `Color` — not the badge's transparent
  * `background`). The first resolution is logged to the IDE log for sanity check.
  */
 @Composable
@@ -632,9 +740,22 @@ private fun resolveInlineCodeTint(): Color {
   return resolvedTint
 }
 
-/** Link color from Jewel theme. */
+/**
+ * Color for the alt text of an inline `![alt](url)` image. The chat
+ * doesn't render the binary, so the alt text is a placeholder /
+ * description, not a link. Using the body text's color at 60% alpha
+ * reads as "secondary / decorative" — visually subordinate to the
+ * link blue and the body black, but still readable in both light
+ * and dark themes. (The previous v1.5 path made the alt text use
+ * the link color, which confused the user when the message mixed
+ * images and links — see the feedback case
+ * `![alt](imageUrl) <https://example.com> <email@example.com>`.)
+ */
 @Composable
-private fun resolveLinkColor(): Color = JewelTheme.linkStyle.colors.content
+private fun resolveImageAltColor(): Color {
+  val base: Color = JewelTheme.contentColor
+  return base.copy(alpha = 0.6f)
+}
 
 /** Editor font size in sp; falls back when the theme's `fontSize` is unspecified. */
 @Composable

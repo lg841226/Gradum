@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-07-14 21:27:12 Changed by gwy
+ * PathResolver.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 package gradum.skill
@@ -16,13 +16,13 @@ import java.nio.file.Paths
  * root.
  *
  * @property resolved The final on-disk path the tool should
- *   operate on. Always non-null, always normalised. When
+ *   operate on. Always non-null, always normalized. When
  *   [shifted] is `true` this is the corrected form, not the
  *   path the LLM originally passed.
  * @property original The exact string the LLM passed in
  *   (relative, after `.trim()`). Surface this in error
  *   messages so the LLM sees what it asked for.
- * @property shifted `true` if the resolver auto-corrected
+ * @property shifted `true` if the resolver autocorrected
  *   [original] by stripping a redundant project-basename
  *   segment; `false` if the path resolved as-is (including
  *   the case where the original path was a hit and the
@@ -41,7 +41,7 @@ data class ResolvedProjectPath(
 
 /**
  * Resolve a tool-path argument against [projectRoot] with
- * auto-correction for the LLM's "redundant project-basename"
+ * autocorrection for the LLM's "redundant project-basename"
  * mistake.
  *
  * ## Why

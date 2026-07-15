@@ -2,22 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-14 21:27:12 Changed by gwy
+ * Styling.kt  2026-07-15 22:00:12 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
-@file:Suppress(
-  "MaximumLineLength",
-  "Indentation",
-  "FunctionNaming",
-  "SpacingBetweenPackageAndImports",
-  "NoConsecutiveBlankLines",
-  "NoMultipleSpaces",
-  "ArgumentListWrapping",
-  "UnstableApiUsage",
-)
-
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,11 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +32,9 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
+import org.jetbrains.jewel.ui.component.styling.LinkColors
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
+import org.jetbrains.jewel.ui.component.styling.LinkUnderlineBehavior
 import org.jetbrains.jewel.ui.theme.badgeStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
@@ -57,7 +48,12 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorder
 private const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
 private const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
 private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
-private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
+
+// 4 dp = GradumSpacing.sm — chat's small scale. Picked over `md` (8 dp) to
+// keep the quote rule visually slim (a 2-em blockquote shouldn't look like
+// a section divider) and over `xs` (2 dp) so the rounded end-caps still
+// register against the quote's gray text.
+private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 4f
 private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
 private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
@@ -70,7 +66,7 @@ private const val HEADING_H6_SIZE_MULTIPLIER: Float = 1.0f
  * Padding applied to every heading block (H1–H6).
  *
  * Jewel's default is `PaddingValues(top = 24.dp, bottom = 16.dp)`,
- * which is GitHub-flavoured spacing designed for a documentation
+ * which is GitHub-flavored spacing designed for a documentation
  * page. In a chat bubble that stack of 24 dp + the heading's own
  * line-height slack + the markdown `blockVerticalSpacing` (16 dp)
  * creates a ~40 sp gap between an H1 and the body text that follows
@@ -94,9 +90,80 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
     ?: BODY_FONT_SIZE_FALLBACK_SP
   val resolvedTextStyle: TextStyle = labelTextStyle.copy(
     fontSize = fontSizeValue.sp,
-    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp,
+    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
   )
   return resolvedTextStyle
+}
+
+/**
+ * Returns a `LinkColors` with `content` overridden and the other 5
+ * state colors (disabled / focused / hovered / pressed / visited)
+ * carried through unchanged. `LinkColors` is a plain class (not
+ * a data class) so it has no `copy(...)` — we hand-roll a small
+ * `withContent` for the chat's "thinking-mode link color"
+ * override. Used by [rememberGradumMarkdownStyling].
+ */
+@OptIn(ExperimentalJewelApi::class)
+internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
+  content = newContent,
+  contentFocused = contentFocused,
+  contentHovered = contentHovered,
+  contentPressed = contentPressed,
+  contentVisited = contentVisited,
+  contentDisabled = contentDisabled,
+)
+
+/**
+ * Build an [InlinesStyling] for the chat's `Markdown(...)` fallback
+ * path. Link colors are pulled directly from [linkColors] — the
+ * official Jewel API already provides 6 state-aware Color fields
+ * (`content` / `contentDisabled` / `contentFocused` /
+ * `contentHovered` / `contentPressed` / `contentVisited`), and
+ * there is no need to re-implement them in the chat. Centralized
+ * here so the paragraph and heading configurations stay in sync.
+ */
+@OptIn(ExperimentalJewelApi::class)
+internal fun gradumInlinesStyling(
+  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors,
+): InlinesStyling {
+  fun linkSpan(content: Color): SpanStyle = SpanStyle(color = content)
+  return InlinesStyling(
+    textStyle = textStyle,
+    inlineHtml = SpanStyle(),
+    inlineCode = inlineCodeStyle,
+    link = linkSpan(linkColors.content),
+    emphasis = SpanStyle(fontStyle = FontStyle.Italic),
+    strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
+    linkFocused = linkSpan(linkColors.contentFocused),
+    linkHovered = linkSpan(linkColors.contentHovered),
+    linkPressed = linkSpan(linkColors.contentPressed),
+    linkVisited = linkSpan(linkColors.contentVisited),
+    linkDisabled = linkSpan(linkColors.contentDisabled)
+  )
+}
+
+/**
+ * Chat-panel `LinkStyle` for `ExternalLink`. Same colors / metrics /
+ * icons as `JewelTheme.linkStyle`, but with the underline behavior
+ * set to [LinkUnderlineBehavior.ShowAlways] so the underline paints
+ * at all times — not just on hover. The v1 `ShowOnHover` rule was
+ * unreliable in chat-bubble context (Compose `FlowRow` re-layouts
+ * and the IDE LaF's hover state sometimes don't fire predictably,
+ * leaving the link looking like plain blue text). Permanent
+ * underline gives the link a stable visual affordance.
+ */
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+fun rememberGradumLinkStyle(): LinkStyle {
+  val base: LinkStyle = JewelTheme.linkStyle
+  return remember(base) {
+    LinkStyle(
+      icons = base.icons,
+      colors = base.colors,
+      metrics = base.metrics,
+      underlineBehavior = LinkUnderlineBehavior.ShowAlways
+    )
+  }
 }
 
 /**
@@ -118,42 +185,38 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
-    lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER,
     color = inlineTint,
-    background = inlineTint.copy(alpha = 0.12f)
+    background = inlineTint.copy(alpha = 0.12f),
+    lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
   val bodyTextStyle: TextStyle = labelTextStyle
 
-  val paragraphTextStyle: TextStyle = if (thinkingMode)
+  val paragraphTextStyle: TextStyle = if (thinkingMode) {
     bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER, color = thinkingGray)
-  else
+  } else {
     bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER)
+  }
 
   return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode) {
-    val activeLinkColor: Color = if (thinkingMode) thinkingGray else linkStyle.colors.content
-    val linkSpan: SpanStyle = SpanStyle(color = activeLinkColor)
-    val paragraphInlines: InlinesStyling = InlinesStyling(
+    val chatLinkColors: LinkColors = if (thinkingMode)
+      linkStyle.colors.withContent(thinkingGray)
+    else
+      linkStyle.colors
+
+    val paragraphInlines: InlinesStyling = gradumInlinesStyling(
+      linkColors = chatLinkColors,
       textStyle = paragraphTextStyle,
-      inlineCode = inlineCodeTextStyle.toSpanStyle(),
-      link = linkSpan,
-      linkDisabled = SpanStyle(color = activeLinkColor),
-      linkFocused = SpanStyle(color = activeLinkColor, textDecoration = TextDecoration.Underline),
-      linkHovered = SpanStyle(color = activeLinkColor, textDecoration = TextDecoration.Underline),
-      linkPressed = SpanStyle(color = activeLinkColor, textDecoration = TextDecoration.Underline),
-      linkVisited = SpanStyle(color = activeLinkColor),
-      emphasis = SpanStyle(fontStyle = FontStyle.Italic),
-      strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
-      inlineHtml = SpanStyle()
+      inlineCodeStyle = inlineCodeTextStyle.toSpanStyle()
     )
 
     fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight, italic: Boolean = false): TextStyle {
       val headingFontSize: TextUnit = paragraphTextStyle.fontSize * fontSizeMultiplier
       val headingLineHeight: TextUnit = headingFontSize * TITLE_LINE_HEIGHT_MULTIPLIER
       return paragraphTextStyle.copy(
+        fontWeight = fontWeight,
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
-        fontWeight = fontWeight,
-        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal
       )
     }
 
@@ -161,27 +224,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       val headingInlineCode: SpanStyle = textStyle.toSpanStyle().copy(
         background = inlineTint.copy(alpha = 0.12f)
       )
-      return InlinesStyling(
+      return gradumInlinesStyling(
         textStyle = textStyle,
-        inlineCode = headingInlineCode,
-        link = linkSpan,
-        linkDisabled = SpanStyle(color = activeLinkColor),
-        linkFocused = SpanStyle(
-          color = activeLinkColor,
-          textDecoration = TextDecoration.Underline
-        ),
-        linkHovered = SpanStyle(
-          color = activeLinkColor,
-          textDecoration = TextDecoration.Underline
-        ),
-        linkPressed = SpanStyle(
-          color = activeLinkColor,
-          textDecoration = TextDecoration.Underline
-        ),
-        linkVisited = SpanStyle(color = activeLinkColor),
-        emphasis = SpanStyle(fontStyle = FontStyle.Italic),
-        strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
-        inlineHtml = SpanStyle()
+        linkColors = chatLinkColors,
+        inlineCodeStyle = headingInlineCode
       )
     }
 
@@ -197,14 +243,21 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       color = if (thinkingMode) thinkingGray else globalColors.text.info
     )
 
-    val listItemPadding = PaddingValues(vertical = GradumSpacing.md)
+    val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
 
-    val blockQuoteTextColor: Color =
-      if (thinkingMode) thinkingGray else globalColors.text.disabled
+    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.disabled
+    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.borders.normal
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
-      lineWidth = BLOCKQUOTE_LINE_WIDTH_DP.dp,
-      lineColor = activeLinkColor,
+      padding = PaddingValues(
+        start = GradumSpacing.xl,
+        top = GradumSpacing.sm,
+        end = GradumSpacing.md,
+        bottom = GradumSpacing.sm
+      ),
+      strokeCap = StrokeCap.Round,
+      lineColor = blockQuoteLineColor,
       textColor = blockQuoteTextColor,
+      lineWidth = BLOCKQUOTE_LINE_WIDTH_DP.dp
     )
 
     MarkdownStyling.createCodeStyling(
@@ -212,9 +265,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       paragraphTextStyle,
       paragraphInlines,
       GradumSpacing.xl,
-      paragraph = MarkdownStyling.Paragraph.createInlinesStyling(
-        paragraphInlines
-      ),
+      paragraph = MarkdownStyling.Paragraph.createInlinesStyling(paragraphInlines),
       heading = MarkdownStyling.Heading.createInlinesStyling(
         paragraphTextStyle,
         H1.createInlinesStyling(
@@ -263,6 +314,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         Unordered.createUnorderedListStyling(
           bullet = '\u2022',
           padding = listItemPadding,
+          bulletStyle = TextStyle(
+            color = globalColors.text.info,
+            fontFamily = editorTextStyle.fontFamily
+          )
         )
       )
     )

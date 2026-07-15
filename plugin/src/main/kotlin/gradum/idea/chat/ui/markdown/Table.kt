@@ -2,20 +2,9 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-14 21:28:49 Changed by gwy
+ * Table.kt  2026-07-15 22:00:55 Changed by gwy
  */
 
-// Detekt defaults disagree with project standards (2-space indent, 200-char
-// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
-@file:Suppress(
-  "MaximumLineLength",
-  "Indentation",
-  "FunctionNaming",
-  "SpacingBetweenPackageAndImports",
-  "NoConsecutiveBlankLines",
-  "NoMultipleSpaces",
-  "ArgumentListWrapping",
-)
 
 @file:OptIn(ExperimentalJewelApi::class)
 
@@ -77,12 +66,12 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
 /**
  * A piece of Markdown content. The three variants are produced by [splitMarkdown]:
  * - [Plain] — `Paragraph` blocks. Routed to the custom inline chip parser
- *   ([InlineMarkdown]) so backticks render as rounded chips. The text is the
- *   original markdown source (re-serialized from the commonmark AST).
+ *   (`InlineMarkdown`) so backticks render as rounded chips. The text is the
+ *   original Markdown source (re-serialized from the commonmark AST).
  * - [Table] — a parsed GFM table. Routed to [ScrollableTable] (or the
  *   placeholder if the body is empty).
  * - [NonProseBlock] — a non-`Paragraph` block (heading, list, blockquote,
- *   fenced code, thematic break, html). The caller routes this to
+ *   fenced code, thematic break, HTML). The caller routes this to
  *   [RenderNonProseBlock] so the block renders normally. The split between
  *   [Plain] and [NonProseBlock] is done by [splitPlainAtBlocks].
  */
@@ -90,8 +79,8 @@ sealed interface MarkdownSegment {
   data class Plain(val text: String) : MarkdownSegment
   data class Table(
     val header: List<String>,
-    val alignments: List<TextAlign>,
-    val rows: List<List<String>>
+    val rows: List<List<String>>,
+    val alignments: List<TextAlign>
   ) : MarkdownSegment
 
   data class NonProseBlock(val text: String) : MarkdownSegment
@@ -103,15 +92,14 @@ sealed interface MarkdownSegment {
  * instead of being rendered as a header-only / empty grid. There must be
  * at least one non-blank cell in at least one body row.
  */
-fun MarkdownSegment.Table.isRenderable(): Boolean =
-  rows.any { row -> row.any { it.isNotBlank() } }
+fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row -> row.any { it.isNotBlank() } }
 
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
-private val CellHorizontalPadding: Dp = 10.dp
-private val CellVerticalPadding: Dp = 8.dp
 private val MinCellWidthDp: Dp = 70.dp
-private val ScrollbarReservedSpace: Dp = 8.dp
+private val CellHorizontalPadding: Dp = 10.dp
+private val CellVerticalPadding: Dp = GradumSpacing.md
+private val ScrollbarReservedSpace: Dp = GradumSpacing.md
 
 /**
  * Splits a Markdown string into alternating [MarkdownSegment.Plain] and
@@ -166,19 +154,16 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         val currentLine: String = lines[bodyLineIndex]
         val trimmedCurrent: String = currentLine.trim()
         if (trimmedCurrent.isEmpty() || !currentLine.contains('|')) break
-        bodyLines.add(currentLine)
-        bodyLineIndex++
+        bodyLines.add(currentLine).also { bodyLineIndex++ }
       }
 
       val bodyRows: List<List<String>> = bodyLines
         .filter { it.length <= MAX_TABLE_LINE_LENGTH }
         .map { parseTableRow(it) }
-        // Drop rows with mismatched column count — these are usually
-        // misparsed prose with a stray `|`, not real table data.
         .filter { it.size == headers.size }
 
       flushPlain()
-      segments.add(MarkdownSegment.Table(headers, alignments, bodyRows))
+      segments.add(MarkdownSegment.Table(headers, bodyRows, alignments))
       lineIndex = bodyLineIndex
       continue
     }
@@ -192,18 +177,15 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
  * Splits a Markdown string into [MarkdownSegment.Plain] /
  * [MarkdownSegment.Table] / [MarkdownSegment.NonProseBlock] segments. Two-step:
  * 1. [splitMarkdownAtTables] extracts GFM tables (fast and accurate for pipes).
- * 2. Each [Plain] is re-parsed with commonmark and split on top-level block
+ * 2. Each `Plain` is reparsed with commonmark and split on top-level block
  *    boundaries via [splitPlainAtBlocks] (heading / list / blockquote / fenced
- *    code / thematic break / html → [NonProseBlock], everything else → [Plain]).
+ *    code / thematic break / HTML → `NonProseBlock`, everything else → `Plain`).
  */
 fun splitMarkdown(markdown: String): List<MarkdownSegment> =
   splitMarkdownAtTables(markdown).flatMap { segment: MarkdownSegment ->
     when (segment) {
       is MarkdownSegment.Plain -> splitPlainAtBlocks(segment.text)
       is MarkdownSegment.Table -> listOf(segment)
-      // [splitMarkdownAtTables] never emits NonProseBlock (only
-      // [splitPlainAtBlocks] does), so this branch is dead code —
-      // included only to satisfy the sealed-interface exhaustive `when` check.
       is MarkdownSegment.NonProseBlock -> listOf(segment)
     }
   }
@@ -249,13 +231,15 @@ private fun parseTableRow(line: String): List<String> {
 }
 
 /** A separator row is a pipe row whose every cell is `---` / `:---` / `---:` / `:---:`. */
-private fun isTableSeparator(line: String): Boolean {
-  if (!line.contains('|')) return false
-  return parseTableRow(line).all { cell ->
-    val trimmedCell: String = cell.trim()
-    trimmedCell.isNotEmpty() &&
-      trimmedCell.all { it == '-' || it == ':' } &&
-      trimmedCell.count { it == '-' } >= 1
+private fun isTableSeparator(tableRow: String): Boolean {
+  if (!tableRow.contains('|')) return false
+
+  val cells: List<String> = parseTableRow(tableRow)
+  return cells.all { cellContent ->
+    val trimmedCellContent: String = cellContent.trim()
+    trimmedCellContent.isNotEmpty() &&
+      trimmedCellContent.all { char -> char == '-' || char == ':' } &&
+      trimmedCellContent.count { char -> char == '-' } >= 1
   }
 }
 
@@ -335,7 +319,7 @@ fun ScrollableTable(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
-      .clip(RoundedCornerShape(8.dp))
+      .clip(RoundedCornerShape(GradumSpacing.md))
     // horizontalScroll goes on the inner Box, not here.
     // If placed here, BoxWithConstraints would read Constraints.Infinity
     // and pass it to distributeTableWidth, breaking layout.
@@ -489,7 +473,7 @@ private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
  * Picks the final column widths for a table. Clamps every column to at
  * least [minCellWidthPx], then if the natural total is wider than the
  * container, returns the clamped natural widths and lets `horizontalScroll`
- * take over. Otherwise scales every column up by the same factor so the
+ * take over. Otherwise, scales every column up by the same factor so the
  * new total exactly matches the container width; the last column absorbs
  * the round-down residue.
  */

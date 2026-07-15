@@ -2,16 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JsonUtil.kt  2026-07-14 21:27:12 Changed by gwy
+ * JsonUtil.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 package gradum.utils
 
+import gradum.utils.JsonUtil.encodeMap
 import gradum.utils.JsonUtil.toJsonElement
 import kotlinx.serialization.json.*
-
-/** JSON parser used by [JsonUtil.decodeMap]. Not a global. */
-private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
 /**
  * Helpers for serializing heterogeneous [Map] / [List] payloads where the

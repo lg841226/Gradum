@@ -1311,7 +1311,7 @@ The Gradum IntelliJ plugin exposes one interface for the chat UI:
 [`ToolCallRenderer`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt).
 A renderer is responsible for turning a server-side `tool_call` event
 into the row the user sees in the chat timeline — its icon, its
-localised label, its body, and the action buttons (`Open in editor`,
+localized label, its body, and the action buttons (`Open in editor`,
 `View diff`, `Copy`, etc.) it offers.
 
 This is the same mechanism the built-in `RanRenderer`, `EditedRenderer`,
@@ -1453,7 +1453,7 @@ chat panel does not auto-dispatch `Custom` actions for you — your
 renderer's `render` composable is responsible for matching the
 `customId` and dispatching the click (typically by reading the
 active `Project` from `ctx.project` or by registering a callback
-during plugin initialisation).
+during plugin initialization).
 
 ### 16.4 The render context
 
@@ -1613,6 +1613,6 @@ edit, no Platform EP, no classloader dance.
   panel.
 - **Localisation goes through the `labelKey()` resource bundle.**
   A renderer that hard-codes an English string will not
-  localise. Use a Gradum bundle key (or your own plugin's
+  localize. Use a Gradum bundle key (or your own plugin's
   bundle) and look it up via `message("myplugin.tool.testsPassed")`
   inside `render`.

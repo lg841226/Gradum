@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-14 21:27:12 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-15 18:48:38 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -25,21 +25,10 @@ package gradum.idea.chat.ui.markdown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +36,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
@@ -58,14 +46,10 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownBlock.CodeBlock.FencedCodeBlock
 import org.jetbrains.jewel.markdown.rendering.DefaultMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.HorizontalScrollbar
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(8.dp)
+private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(GradumSpacing.md)
 
 /**
  * Custom Markdown code block renderer. Renders a fenced code block as a
@@ -104,9 +88,6 @@ class GradumCodeBlockRenderer(
     var isSoftWrap by remember { mutableStateOf(false) }
 
     if (isSimplified) {
-      // Simplified mode (used by ThinkingIndicator) drops the toolbar entirely;
-      // the surrounding reasoning text is already greyed and the affordances
-      // would compete with the rest of the reasoning block.
       ContainerOrScrollable(isSoftWrap, styling) {
         CodeBlockContent(annotatedCode, styling, isSoftWrap)
       }
@@ -119,11 +100,6 @@ class GradumCodeBlockRenderer(
           onInsertAsFile = onInsertAsFile,
           onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
         )
-        // soft-wrap on → `Box` (finite max width so `Text` wraps)
-        // soft-wrap off → `HorizontalScrollContainer` (long lines scroll horizontally)
-        // A `horizontalScroll` modifier would also strip the finite width
-        // that `softWrap = true` needs, so wrapping a soft-wrap-enabled
-        // `Text` in a scrollable container is a silent no-op.
         ContainerOrScrollable(isSoftWrap, styling) {
           CodeBlockContent(annotatedCode, styling, isSoftWrap)
         }
@@ -149,6 +125,7 @@ class GradumCodeBlockRenderer(
   }
 }
 
+@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun ContainerOrScrollable(
   isSoftWrap: Boolean,
@@ -189,7 +166,7 @@ private fun CodeBlockToolbar(
   onInsertAsFile: (code: String, language: String) -> Unit,
   onSoftWrapToggle: () -> Unit
 ) {
-  val scope = rememberCoroutineScope()
+  val coroutineScope = rememberCoroutineScope()
   var isCopied: Boolean by remember { mutableStateOf(false) }
   val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
   Row(
@@ -208,7 +185,7 @@ private fun CodeBlockToolbar(
       IconButton(
         onClick = {
           copyToClipboard(
-            scope = scope,
+            scope = coroutineScope,
             text = rawCode,
             onCopied = { isCopied = true },
             onReset = { isCopied = false }

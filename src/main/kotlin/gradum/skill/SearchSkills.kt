@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-07-14 21:27:12 Changed by gwy
+ * SearchSkills.kt  2026-07-15 20:19:37 Changed by gwy
  */
 package gradum.skill
 
@@ -584,7 +584,7 @@ class GlobSkill : Skill() {
       )
     )
 
-    // Java's PathMatcher only honours `**` when at least one directory
+    // Java's PathMatcher only honors `**` when at least one directory
     // segment follows it, so a pattern like `**/*.kt` never matches
     // `gradum_kotlin.kt` at the project root. Strip a leading `**/` and
     // try the suffix as a second matcher so that root-level files are

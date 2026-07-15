@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallAction.kt  2026-07-14 21:27:12 Changed by gwy
+ * ToolCallAction.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi
@@ -50,14 +50,4 @@ sealed class ToolCallAction {
     val displayLabel: String? = null
   ) : ToolCallAction()
 
-  /**
-   * Free-form action a third-party renderer defines. Pair this with a
-   * matching branch in the renderer's `render` composable — the
-   * built-in `DefaultRenderer` will ignore unknown custom actions.
-   */
-  data class Custom(
-    val customId: String,
-    val displayLabel: String,
-    val dataMap: Map<String, Any?> = emptyMap()
-  ) : ToolCallAction()
 }

@@ -56,6 +56,13 @@ dependencies {
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
   testImplementation("junit:junit:4.13.2")
+
+  // Force safe versions of transitive dependencies flagged by vulnerability scanners.
+  constraints {
+    implementation("com.fasterxml.jackson.core:jackson-core:2.21.1") {
+      because("WS-2026-0003 — async JSON parser bypasses maxNumberLength, DoS via memory/CPU exhaustion")
+    }
+  }
 }
 
 kotlin {

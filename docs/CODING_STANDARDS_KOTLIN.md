@@ -846,7 +846,7 @@ The rules in this document are enforced automatically by **detekt**
 - **detekt (core)** — naming (`BooleanPropertyNaming` /
   `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`),
   complexity (cyclomatic / nested depth / function count via
-  `TooManyFunctions`), error-handling anti-patterns
+  `TooManyFunctions`), error-handling antipatterns
   (`SwallowedException` / `TooGenericExceptionCaught` /
   `PrintStackTrace`), style (`MagicNumber` / `WildcardImport` /
   `UnusedImports`), comments (`UndocumentedPublicClass` /
