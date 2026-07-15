@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorCode.java  2026-07-05 21:12:15 Changed by gwy
+ * ErrorCode.java  2026-07-14 21:27:12 Changed by gwy
  */
 
 package gradum;

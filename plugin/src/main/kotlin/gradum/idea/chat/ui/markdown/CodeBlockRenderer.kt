@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * CodeBlockRenderer.kt  2026-07-14 21:27:12 Changed by gwy
+ */
+
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 @file:Suppress(

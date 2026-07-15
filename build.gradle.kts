@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-05 16:42:55 Changed by gwy
+ * build.gradle.kts  2026-07-14 21:27:13 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -62,9 +62,9 @@ dependencies {
 
   // Logging
   implementation("ch.qos.logback:logback-classic:1.5.25")
-    testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
+  testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
 
-    // Detekt
+  // Detekt
   detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
 
   // Test

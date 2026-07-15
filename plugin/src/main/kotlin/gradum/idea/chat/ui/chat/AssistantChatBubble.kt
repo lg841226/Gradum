@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-10 15:12:55 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-14 21:27:12 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -244,7 +244,7 @@ private fun ResponseBlock(
             // [rememberGradumMarkdownStyling] that `Markdown(...)`
             // would have used, so the visual look matches except
             // that inline code now renders as chips.
-            RenderNonProseBlock(segment, onUrlClick = onUrlClick)
+            RenderNonProseBlock(onUrlClick = onUrlClick, segment)
           }
 
           is MarkdownSegment.Table -> {

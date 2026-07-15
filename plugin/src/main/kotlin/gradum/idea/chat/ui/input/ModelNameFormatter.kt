@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-07-11 12:30:00 Changed by gwy
+ * ModelNameFormatter.kt  2026-07-14 22:13:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -62,7 +62,6 @@ data class FormattedModelName(
  * users spell the same model in slightly different ways.
  */
 private val modelDisplayNames: Map<String, String> = buildMap {
-  // ---- Alibaba (Qwen) ----
   put("qwen", "Qwen")
   put("qwen2", "Qwen 2")
   put("qwen2.5", "Qwen 2.5")
@@ -81,8 +80,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("qwen-long", "Qwen Long")
   put("qwq", "QwQ")
   put("qvq", "QVQ")
-
-  // ---- Meta (Llama) ----
   put("llama", "Llama")
   put("llama2", "Llama 2")
   put("llama3", "Llama 3")
@@ -91,8 +88,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("llama3.3", "Llama 3.3")
   put("llama4", "Llama 4")
   put("codellama", "CodeLlama")
-
-  // ---- DeepSeek ----
   put("deepseek", "DeepSeek")
   put("deepseek-r1", "DeepSeek R1")
   put("deepseek-r1-lite", "DeepSeek R1 Lite")
@@ -106,15 +101,11 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("deepseek-coder", "DeepSeek Coder")
   put("deepseek-coder-v2", "DeepSeek Coder V2")
   put("deepseek-coder-v2.5", "DeepSeek Coder V2.5")
-
-  // ---- MiniMax (mystery placeholder family, kept for back-compat) ----
   put("minimax-m2", "MiniMax M2")
   put("minimax-m2.1", "MiniMax M2.1")
   put("minimax-m2.5", "MiniMax M2.5")
   put("minimax-m2.7", "MiniMax M2.7")
   put("minimax-m3", "MiniMax M3")
-
-  // ---- Google ----
   put("gemma", "Gemma")
   put("gemma2", "Gemma 2")
   put("gemma3", "Gemma 3")
@@ -130,8 +121,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("gemini-2.5-pro", "Gemini 2.5 Pro")
   put("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite")
   put("gemini-3-pro", "Gemini 3 Pro")
-
-  // ---- Zhipu AI (GLM) ----
   put("glm-4", "GLM 4")
   put("glm-4.5", "GLM 4.5")
   put("glm-4.6", "GLM 4.6")
@@ -145,15 +134,11 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("chatglm2", "ChatGLM 2")
   put("chatglm3", "ChatGLM 3")
   put("chatglm4", "ChatGLM 4")
-
-  // ---- Moonshot (Kimi) ----
   put("kimi-k2", "Kimi K2")
   put("kimi-k2.5", "Kimi K2.5")
   put("kimi-k2.6", "Kimi K2.6")
   put("moonshot-v1", "Moonshot V1")
   put("kimi", "Kimi")
-
-  // ---- Mistral AI ----
   put("mistral", "Mistral")
   put("mistral-7b", "Mistral 7B")
   put("mistral-nemo", "Mistral Nemo")
@@ -175,8 +160,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("ministral", "Ministral")
   put("ministral-3b", "Ministral 3B")
   put("ministral-8b", "Ministral 8B")
-
-  // ---- Microsoft (Phi) ----
   put("phi", "Phi")
   put("phi-2", "Phi 2")
   put("phi-3", "Phi 3")
@@ -191,8 +174,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("wizardlm", "WizardLM")
   put("wizardcoder", "WizardCoder")
   put("orca-2", "Orca 2")
-
-  // ---- 01.AI (Yi) ----
   put("yi", "Yi")
   put("yi-1.5", "Yi 1.5")
   put("yi-6b", "Yi 6B")
@@ -201,8 +182,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("yi-coder", "Yi Coder")
   put("yi-large", "Yi Large")
   put("yi-vision", "Yi Vision")
-
-  // ---- BigCode / IBM (StarCoder, Granite) ----
   put("starcoder", "StarCoder")
   put("starcoder2", "StarCoder 2")
   put("starcoderbase", "StarCoder Base")
@@ -210,8 +189,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("granite-code", "Granite Code")
   put("granite-3b-code", "Granite 3B Code")
   put("granite-8b-code", "Granite 8B Code")
-
-  // ---- Cohere (Command) ----
   put("command", "Command")
   put("command-r", "Command R")
   put("command-r-plus", "Command R+")
@@ -221,7 +198,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("c4ai-command-r-plus", "Command R+")
   put("c4ai-command-r", "Command R")
 
-  // ---- TII (Falcon) ----
   put("falcon", "Falcon")
   put("falcon-7b", "Falcon 7B")
   put("falcon-40b", "Falcon 40B")
@@ -229,24 +205,20 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("falcon3", "Falcon 3")
   put("falcon-mamba", "Falcon Mamba")
 
-  // ---- Baichuan ----
   put("baichuan", "Baichuan")
   put("baichuan2", "Baichuan 2")
   put("baichuan2-7b", "Baichuan 2 7B")
   put("baichuan2-13b", "Baichuan 2 13B")
   put("baichuan3", "Baichuan 3")
 
-  // ---- Shanghai AI Lab (InternLM) ----
   put("internlm", "InternLM")
   put("internlm2", "InternLM 2")
   put("internlm2.5", "InternLM 2.5")
   put("internlm3", "InternLM 3")
 
-  // ---- Xiaomi (MiMo) ----
   put("mimo", "MiMo")
   put("mimo-7b", "MiMo 7B")
 
-  // ---- xAI (Grok) ----
   put("grok-1", "Grok 1")
   put("grok-1.5", "Grok 1.5")
   put("grok-2", "Grok 2")
@@ -256,7 +228,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("grok-3-mini", "Grok 3 Mini")
   put("grok-4", "Grok 4")
 
-  // ---- Anthropic (Claude) ----
   put("claude-3-opus", "Claude 3 Opus")
   put("claude-3-sonnet", "Claude 3 Sonnet")
   put("claude-3-haiku", "Claude 3 Haiku")
@@ -275,7 +246,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("claude-opus-4", "Claude Opus 4")
   put("claude-haiku-4", "Claude Haiku 4")
 
-  // ---- OpenAI (GPT) ----
   put("gpt-3.5", "GPT-3.5")
   put("gpt-3.5-turbo", "GPT-3.5 Turbo")
   put("gpt-4", "GPT-4")
@@ -315,7 +285,6 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("text-embedding-3-large", "Embedding 3 Large")
   put("text-embedding-nomic-embed-text-v1.5", "Nomic Embed V1.5")
 
-  // ---- Misc but common in the wild ----
   put("nous-hermes", "Nous Hermes")
   put("openhermes", "OpenHermes")
   put("dolphin", "Dolphin")
@@ -339,9 +308,7 @@ private val modelDisplayNames: Map<String, String> = buildMap {
  * (not "OpenAI via command-r" or similar nonsense).
  */
 private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
-  // Anthropic
   "claude" to "Anthropic",
-  // OpenAI — most specific first
   "gpt-oss" to "OpenAI",
   "chatgpt" to "OpenAI",
   "gpt-3.5" to "OpenAI",
@@ -351,64 +318,44 @@ private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
   "o3" to "OpenAI",
   "o4" to "OpenAI",
   "gpt" to "OpenAI",
-  // Google — gemini before gemma
   "gemini" to "Google",
   "codegemma" to "Google",
   "gemma" to "Google",
-  // Alibaba
   "qwen" to "Alibaba",
   "qwq" to "Alibaba",
   "qvq" to "Alibaba",
-  // Meta
   "codellama" to "Meta",
   "llama" to "Meta",
-  // DeepSeek
   "deepseek" to "DeepSeek",
-  // MiniMax
   "minimax" to "MiniMax",
-  // Mistral AI — codestral/pixtral/ministral all win over bare mistral
   "codestral" to "Mistral AI",
   "pixtral" to "Mistral AI",
   "ministral" to "Mistral AI",
   "mixtral" to "Mistral AI",
   "mistral" to "Mistral AI",
-  // xAI
   "grok" to "xAI",
-  // Xiaomi
   "mimo" to "Xiaomi",
-  // Zhipu AI
   "glm" to "Zhipu AI",
   "chatglm" to "Zhipu AI",
-  // Moonshot
   "kimi" to "Moonshot",
   "moonshot" to "Moonshot",
-  // 01.AI
   "yi" to "01.AI",
-  // Cohere — command-r-plus / c4ai-* win over bare command
   "cohere" to "Cohere",
   "c4ai-command" to "Cohere",
   "command-r" to "Cohere",
   "command" to "Cohere",
-  // TII
   "falcon" to "TII",
-  // Baichuan
   "baichuan" to "Baichuan",
-  // Shanghai AI Lab
   "internlm" to "Shanghai AI Lab",
-  // BigCode
   "starcoder" to "BigCode",
   "magicoder" to "BigCode",
-  // IBM
   "granite" to "IBM",
-  // Microsoft
   "phi" to "Microsoft",
   "wizard" to "Microsoft",
   "orca" to "Microsoft",
-  // Research collectives
   "nous-hermes" to "Nous Research",
   "openhermes" to "Nous Research",
   "dolphin" to "Eric Hartford",
-  // Chinese tech
   "hunyuan" to "Tencent",
   "ernie" to "Baidu",
   "skywork" to "Skywork"
@@ -550,45 +497,25 @@ private val versionPatterns: List<Regex> = listOf(
 fun parseModelName(raw: String): FormattedModelName {
   val rawTrimmed: String = raw.trim()
 
-  // 1. Strip the Ollama / LM Studio ":tag" suffix. Re-attach
-  // its size/quant signal later if we recognize one.
   val beforeColon: String = rawTrimmed.substringBefore(":")
   val afterColon: String = rawTrimmed.substringAfter(":", missingDelimiterValue = "")
 
-  // 2. Strip HF / Ollama org prefix. We use the LAST `/` so
-  // paths like `a/b/c/mistral-7b-instruct` (rare but possible
-  // when an org nests sub-orgs) drop everything up to the final
-  // model name. The org is not preserved — the selector shows
   // `Mistral`, not "via a/b/c".
   val baseName: String = if (beforeColon.contains("/")) beforeColon.substringAfterLast("/") else beforeColon
 
-  // 3. Strip date stamps. Both 8-digit YYYYMMDD and ISO
-  // YYYY-MM-DD are handled. Single-digit or short number
-  // suffixes are left alone.
   val dateStripped: String = baseName
     .replace(Regex("""-\d{8}$"""), "")
     .replace(Regex("""-\d{4}-\d{2}-\d{2}$"""), "")
 
-  // 4 + 5. Pull the size and quant out of the name. Try the
-  // post-colon tail first (Ollama tags like `:7b-q4_k_m` are
-  // the cleanest source) and fall back to the body.
   val combined: String = if (afterColon.isNotBlank()) "$dateStripped-$afterColon" else dateStripped
   val parameterSize: String? = extractParameterSize(combined)
   val quant: String? = extractQuant(combined)
 
-  // 6. Build the family-root lookup key. We strip size/quant/
-  // variant suffixes off `dateStripped` so all sizes of a family
-  // hit the same map entry. The afterColon tail is irrelevant
-  // here because it's already been harvested for size/quant.
   val lookupKey: String = buildLookupKey(dateStripped)
 
-  // 7. Try the key and progressively shorter prefixes against
-  // the family map. Misses fall through to a Title-Case
-  // fallback of the key itself.
   val resolvedDisplay: String = lookupDisplayNameWithSize(lookupKey, parameterSize)
     ?: if (lookupKey.isEmpty()) rawTrimmed else fallbackDisplay(lookupKey)
 
-  // 8 + 9. Provider + catalog flag.
   val lowerName: String = rawTrimmed.lowercase()
   val provider: String? = providerDisplayByKeyword
     .firstOrNull { lowerName.contains(it.first) }
@@ -662,41 +589,19 @@ fun formatModelName(raw: String): String = parseModelName(raw).displayName
  */
 private fun lookupDisplayName(key: String): String? {
   if (key.isEmpty()) return null
-  // 1. Literal key.
   modelDisplayNames[key]?.let { return it }
-  // 2. No-dash form. Only when the key itself has dashes —
-  // otherwise we'd be re-asking the same key in step 1.
   if ("-" in key) {
     val noDash: String = key.replace("-", "")
     if (noDash != key) {
       modelDisplayNames[noDash]?.let { return it }
     }
   }
-  // 3. Dash-inserted form, but ONLY when the key has no
-  // dashes at all. The intent is to bridge dashless spellings
-  // like `glm4` (Ollama's `glm4:latest`) and `mistral7b` to
-  // their dashed family entries (`glm-4`, `mistral-7b`).
-  //
-  // We must NOT run this on already-dashed keys: a key like
-  // `deepseek-r1-distill-llama` contains `r1` as a single
-  // token (R1 = family generation), and inserting a dash on
-  // the alpha↔digit boundary would split it into `r-1`,
-  // turning the lookup into a miss. Already-dashed keys
-  // already place dashes on the right boundaries (the user
-  // typed them in), so the dashInserted step is a no-op for
-  // them anyway.
   if ("-" !in key) {
     val dashInserted: String = key
       .replace(Regex("(?<=[a-z])(?=\\d)"), "-")
     if (dashInserted != key) {
       modelDisplayNames[dashInserted]?.let { return it }
     }
-    // 4. Drop the last segment one at a time. We start from
-    // dashInserted (not the original key) so a dashless key
-    // like `mistral7b` can still find `mistral` via the
-    // `mistral-7-b` → `mistral-7` → `mistral` chain. Starting
-    // from the raw key would never enter the loop because the
-    // key has no `-` to drop.
     var current: String = dashInserted
     while (current.contains('-')) {
       current = current.substringBeforeLast('-')
@@ -704,8 +609,6 @@ private fun lookupDisplayName(key: String): String? {
     }
     return null
   }
-  // 5. Already-dashed key: drop the last segment one at a
-  // time. No dashInserted step here (see the rationale above).
   var current: String = key
   while (current.contains('-')) {
     current = current.substringBeforeLast('-')
@@ -743,7 +646,7 @@ private fun lookupDisplayName(key: String): String? {
  */
 private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): String? {
   if (parameterSize != null) {
-    val sizeQualified: String = "$key-${parameterSize.lowercase()}"
+    val sizeQualified = "$key-${parameterSize.lowercase()}"
     val sizeQualifiedDisplay: String? = modelDisplayNames[sizeQualified]
     val bareDisplay: String? = modelDisplayNames[key]
     if (sizeQualifiedDisplay != null && bareDisplay != null &&
@@ -828,13 +731,9 @@ private fun extractQuant(name: String): String? {
  */
 private fun buildLookupKey(name: String): String {
   var working: String = name
-  var changed: Boolean = true
+  var changed = true
   while (changed) {
     changed = false
-    // 1. Trailing variant or version token. Variants are
-    // matched against [variantSuffixes]; versions are matched
-    // against [versionPatterns] (which require an explicit `v`
-    // prefix or a year-length digit count).
     val lastDash: Int = working.lastIndexOf('-')
     if (lastDash > 0) {
       val tail: String = working.substring(lastDash + 1)
@@ -847,9 +746,6 @@ private fun buildLookupKey(name: String): String {
         continue
       }
     }
-    // 2. Trailing MoE size (e.g. `-8x7b`). Must come before
-    // the plain size pattern so the MoE `7b` part isn't
-    // stripped first, leaving a stray `8x` prefix.
     val moeStripped: String = working.replace(
       Regex("""-\d+x\d+(?:\.\d+)?[bm]$""", RegexOption.IGNORE_CASE),
       ""
@@ -859,7 +755,7 @@ private fun buildLookupKey(name: String): String {
       changed = true
       continue
     }
-    // 3. Trailing plain size (e.g. `-7b`, `-70b`, `-0.5b`).
+
     val sizeStripped: String = working.replace(
       Regex("""-\d+(?:\.\d+)?[bm]$""", RegexOption.IGNORE_CASE),
       ""
@@ -869,11 +765,6 @@ private fun buildLookupKey(name: String): String {
       changed = true
       continue
     }
-    // 4. Trailing quant tag (e.g. `-q4_k_m`, `-awq`). We use
-    // the same patterns as [extractQuant] but require the match
-    // to end at the last character of the working string, so a
-    // quant token in the middle (e.g. `qwen2.5-q4_k_m-7b`) is
-    // left alone until the trailing size has been stripped.
     for (pattern in quantPatterns) {
       val match: MatchResult? = pattern.find(working)
       if (match != null && match.range.last == working.lastIndex) {

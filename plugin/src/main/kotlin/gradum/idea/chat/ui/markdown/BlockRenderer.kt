@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-14 21:04:03 Changed by gwy
+ * BlockRenderer.kt  2026-07-14 21:27:12 Changed by gwy
  */
 
 @file:Suppress(
@@ -73,16 +73,17 @@ internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
  */
 @Composable
 fun RenderNonProseBlock(
-  segment: MarkdownSegment.NonProseBlock,
   onUrlClick: (String) -> Unit = {},
+  segment: MarkdownSegment.NonProseBlock
 ) {
   val document: Document = remember(segment.text) {
     commonmarkParser.parse(segment.text) as Document
   }
+
   val children: NodeChildren = NodeChildren.of(document)
   val first: Node? = children.first
-  if (first != null) RenderBlockNode(first, onUrlClick)
-  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick)
+  if (first != null) RenderBlockNode(first, onUrlClick = onUrlClick)
+  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick)
 }
 
 /**
@@ -99,15 +100,13 @@ fun RenderNonProseBlock(
  */
 @Composable
 fun RenderBlockNode(
-  block: Node,
-  onUrlClick: (String) -> Unit = {},
-  indentDepth: Int = 0,
+  block: Node, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {}
 ) {
   when (block) {
     is Heading -> RenderHeading(block, onUrlClick)
     is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
-    is BulletList -> RenderBulletList(block, onUrlClick, indentDepth)
-    is OrderedList -> RenderOrderedList(block, onUrlClick, indentDepth)
+    is BulletList -> RenderBulletList(block, indentDepth, onUrlClick)
+    is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick)
     is BlockQuote -> RenderBlockQuote(block, onUrlClick)
     is FencedCodeBlock -> RenderFencedCodeBlock(block)
     is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
@@ -147,7 +146,7 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
       .fillMaxWidth()
       .padding(headingStyle.padding)
       .padding(headingExtraPadding),
-    onUrlClick = onUrlClick,
+    onUrlClick = onUrlClick
   )
 }
 
@@ -163,14 +162,15 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
 @Composable
 private fun RenderBulletList(
   list: BulletList,
-  onUrlClick: (String) -> Unit = {},
   indentDepth: Int = 0,
+  onUrlClick: (String) -> Unit = {}
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val unorderedList: MarkdownStyling.List.Unordered = styling.list.unordered
   val listItems: List<ListItem> = collectListItems(list)
   val bulletStyle: TextStyle = unorderedList.bulletStyle
   val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
+
   Column(
     modifier = Modifier
       .fillMaxWidth()
@@ -203,14 +203,15 @@ private fun RenderBulletList(
 @Composable
 private fun RenderOrderedList(
   list: OrderedList,
-  onUrlClick: (String) -> Unit = {},
   indentDepth: Int = 0,
+  onUrlClick: (String) -> Unit = {}
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val orderedList: MarkdownStyling.List.Ordered = styling.list.ordered
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
   val listItems: List<ListItem> = collectListItems(list)
   val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
+
   Column(
     modifier = Modifier
       .fillMaxWidth()
@@ -252,16 +253,17 @@ private fun collectListItems(listNode: Node): List<ListItem> =
 private fun RenderListItem(
   item: ListItem,
   prefixText: String,
-  prefixStyle: TextStyle,
-  prefixColumnMinWidth: Dp,
-  prefixContentGap: Dp,
-  contentStyle: TextStyle,
-  onUrlClick: (String) -> Unit,
   indentDepth: Int = 0,
+  prefixContentGap: Dp,
+  prefixStyle: TextStyle,
+  contentStyle: TextStyle,
+  prefixColumnMinWidth: Dp,
+  onUrlClick: (String) -> Unit,
 ) {
   val children: NodeChildren = NodeChildren.of(item)
   if (children.isEmpty) return
   val first: Node? = children.first
+
   if (first is Paragraph && children.rest.isEmpty()) {
     val inlineText: String = serializeInlineChildren(first)
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
@@ -299,17 +301,16 @@ private fun RenderListItem(
       }
     } else {
       Text(
-        text = prefixText,
-        style = prefixStyle,
         maxLines = 1,
-        softWrap = false
+        softWrap = false,
+        text = prefixText,
+        style = prefixStyle
       )
-      if (first != null) {
-        RenderBlockNode(first, onUrlClick, indentDepth + 1)
-      }
+      if (first != null)
+        RenderBlockNode(first, indentDepth + 1, onUrlClick)
     }
     for (childNode in children.rest) {
-      RenderBlockNode(childNode, onUrlClick, indentDepth + 1)
+      RenderBlockNode(childNode, indentDepth + 1, onUrlClick)
     }
   }
 }
@@ -318,9 +319,9 @@ private fun RenderListItem(
 @Composable
 private fun MarkerColumn(
   prefixText: String,
-  prefixStyle: TextStyle,
-  prefixColumnMinWidth: Dp,
   prefixContentGap: Dp,
+  prefixStyle: TextStyle,
+  prefixColumnMinWidth: Dp
 ) {
   Box(
     modifier = Modifier
@@ -394,12 +395,12 @@ private fun RenderBlockQuoteChild(
       RenderInlineTextWithChips(
         text = inlineText,
         style = quoteTextStyle,
-        modifier = Modifier.fillMaxWidth(),
         onUrlClick = onUrlClick,
+        modifier = Modifier.fillMaxWidth()
       )
     }
 
-    else -> RenderBlockNode(node, onUrlClick)
+    else -> RenderBlockNode(node, onUrlClick = onUrlClick)
   }
 }
 
@@ -420,9 +421,9 @@ private fun RenderFencedCodeBlock(block: FencedCodeBlock) {
     parseFencedCodeBlock(block)
   }
   blockRenderer.RenderFencedCodeBlock(
+    enabled = true,
     block = markdownBlock,
     styling = fencedStyling,
-    enabled = true,
     modifier = Modifier.fillMaxWidth()
   )
 }
@@ -445,8 +446,9 @@ private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {
   )
 }
 
+@OptIn(ExperimentalJewelApi::class)
 private fun parseFencedCodeBlock(block: FencedCodeBlock): MarkdownBlock.CodeBlock.FencedCodeBlock {
-  val markdownSource: String = "```${block.info ?: ""}\n${block.literal ?: ""}\n```"
+  val markdownSource = "```${block.info ?: ""}\n${block.literal ?: ""}\n```"
   val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(markdownSource)
   val first: MarkdownBlock = blocks.first()
   require(first is MarkdownBlock.CodeBlock.FencedCodeBlock) {
@@ -485,11 +487,12 @@ private fun RenderParagraphWithChips(paragraph: Paragraph, onUrlClick: (String) 
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val baseStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
   val inlineText: String = serializeInlineChildren(paragraph)
+
   RenderInlineTextWithChips(
     text = inlineText,
     style = baseStyle,
-    modifier = Modifier.fillMaxWidth(),
     onUrlClick = onUrlClick,
+    modifier = Modifier.fillMaxWidth()
   )
 }
 
@@ -518,7 +521,7 @@ fun RenderInlineTextWithChips(
   text: String,
   style: TextStyle,
   modifier: Modifier = Modifier,
-  onUrlClick: (String) -> Unit = {},
+  onUrlClick: (String) -> Unit = {}
 ) {
   if (text.isEmpty()) return
   val fontSizeSp: Float = style.fontSize.value.let { if (it <= 0f) FALLBACK_FONT_SIZE_SP_NO_STYLE else it }
@@ -539,9 +542,11 @@ fun RenderInlineTextWithChips(
   if (parseOutcome.render != null) {
     val inlineRender: InlineMarkdownRender = parseOutcome.render
     val urlAnnotations: List<UrlAnnotation> = inlineRender.urlAnnotations
+
     if (urlAnnotations.isNotEmpty() && onUrlClick !== NoOpUrlClick) {
       val layoutResultRef: androidx.compose.runtime.MutableState<androidx.compose.ui.text.TextLayoutResult?> =
         remember(urlAnnotations) { mutableStateOf(null) }
+
       val gestureModifier: Modifier = Modifier.pointerHoverIcon(
         icon = PointerIcon.Hand,
         overrideDescendants = true,
@@ -557,6 +562,7 @@ fun RenderInlineTextWithChips(
           }
         }
       }
+
       Text(
         text = inlineRender.annotated,
         inlineContent = inlineRender.inlineContent,

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * Table.kt  2026-07-14 21:28:49 Changed by gwy
+ */
+
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 @file:Suppress(
@@ -16,22 +23,10 @@ package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,11 +52,7 @@ import org.jetbrains.jewel.markdown.extensions.github.strikethrough.GitHubStrike
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.markdown.rendering.MarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.ui.component.HorizontalScrollbar
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -102,6 +93,7 @@ sealed interface MarkdownSegment {
     val alignments: List<TextAlign>,
     val rows: List<List<String>>
   ) : MarkdownSegment
+
   data class NonProseBlock(val text: String) : MarkdownSegment
 }
 
@@ -344,12 +336,9 @@ fun ScrollableTable(
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .clip(RoundedCornerShape(8.dp))
-    // horizontalScroll goes on the *inner* Box below, not here. If it were
-    // on this modifier chain, BoxWithConstraints would read the post-scroll
-    // maxWidth — Constraints.Infinity — and feed it to distributeTableWidth
-    // as a sane-looking pixel count, which would then propagate into
-    // Modifier.width() on every cell. Layout would refuse to pack a
-    // billion-pixel constraint into the constraint record.
+    // horizontalScroll goes on the inner Box, not here.
+    // If placed here, BoxWithConstraints would read Constraints.Infinity
+    // and pass it to distributeTableWidth, breaking layout.
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { MinCellWidthDp.roundToPx() }
@@ -428,7 +417,7 @@ fun ScrollableTable(
           scrollState = scrollState,
           modifier = Modifier
             .align(Alignment.BottomStart)
-            .fillMaxWidth(),
+            .fillMaxWidth()
         )
       }
     }

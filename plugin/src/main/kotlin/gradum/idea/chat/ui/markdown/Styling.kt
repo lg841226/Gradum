@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * Styling.kt  2026-07-14 21:27:12 Changed by gwy
+ */
+
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 @file:Suppress(
@@ -33,12 +40,7 @@ import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.rendering.InlinesStyling
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H1
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H2
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H3
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H4
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H5
-import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.H6
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.Heading.*
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
@@ -195,13 +197,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       color = if (thinkingMode) thinkingGray else globalColors.text.info
     )
 
-    val listItemPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.md)
+    val listItemPadding = PaddingValues(vertical = GradumSpacing.md)
 
-    // Blockquote: muted (disabled) text color + a 3dp link-colored left
-    // bar, no inner padding. 2026-07-14: italic was tried but the user
-    // reverted it — quotes should read as regular prose, just visually
-    // de-emphasized. Padding was tried then dropped the same day — the
-    // user wants the quote text flush with the surrounding content.
     val blockQuoteTextColor: Color =
       if (thinkingMode) thinkingGray else globalColors.text.disabled
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(

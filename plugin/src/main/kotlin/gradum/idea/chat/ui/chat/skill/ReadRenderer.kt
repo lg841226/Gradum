@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-07-11 09:57:06 Changed by gwy
+ * ReadRenderer.kt  2026-07-14 21:27:12 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)

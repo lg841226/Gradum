@@ -1,3 +1,10 @@
+<!--
+  - Copyright (c) 2026 Gradum team, some rights reserved.
+  - For licensing terms and conditions, see the MIT LICENSE file.
+  -
+  - numbered-list_dark.svg  2026-07-14 21:27:12 Changed by gwy
+  -->
+
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M7 2.5C7 2.22386 7.22386 2 7.5 2H13.5C13.7761 2 14 2.22386 14 2.5C14 2.77614 13.7761 3 13.5 3H7.5C7.22386 3 7 2.77614 7 2.5Z"
           fill="#CED0D6"/>

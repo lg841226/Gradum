@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-07-09 16:20:14 Changed by gwy
+ * ExploreProjectSkill.kt  2026-07-14 21:27:12 Changed by gwy
  */
 
 package gradum.skill
@@ -83,8 +83,10 @@ class ExploreProjectSkill : Skill() {
 
     @Suppress("UNCHECKED_CAST")
     val configCount: Int = (parsed["config_files"] as? List<*>)?.size ?: 0
+
     @Suppress("UNCHECKED_CAST")
     val codeCount: Int = (parsed["code_files"] as? List<*>)?.size ?: 0
+
     @Suppress("UNCHECKED_CAST")
     val otherCount: Int = (parsed["other_files"] as? List<*>)?.size ?: 0
 

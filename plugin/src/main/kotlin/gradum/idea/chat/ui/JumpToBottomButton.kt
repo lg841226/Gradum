@@ -2,42 +2,25 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-13 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-14 23:14:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalComposeUiApi::class)
 
 package gradum.idea.chat.ui
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -55,6 +38,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Floating "Jump to latest" / "Jump to top" pill.
@@ -66,8 +50,8 @@ import org.jetbrains.jewel.ui.typography
  * The mode is a sticky [mutableStateOf] flipped on Option rising
  * edges via the global [LocalWindowInfo] modifier stream — the
  * host platform writes the modifier state on every AWT key event,
- * so the toggle fires the instant the user presses the key (no
- * pointer activity, no focus required).
+ * so the toggle fires the instant the user presses the key. (No
+ * pointer activity, no focus required.)
  *
  * ## Visibility
  *
@@ -88,7 +72,7 @@ import org.jetbrains.jewel.ui.typography
  *   bounce via `Spring.DampingRatioMediumBouncy` and
  *   `StiffnessMediumLow`. The icon is visible from the start
  *   of the rise; the text label waits [TEXT_REVEAL_DELAY_MS]
- *   and fades in — a "icon first, text after" build-up so the
+ *   and fades in — an "icon first, text after" build-up so the
  *   eye registers the shape before the words.
  * - **Exit**: fade-out + slide-down to the same offset, 80ms
  *   linear. Fast on purpose so the pill is gone before the
@@ -174,7 +158,7 @@ private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
   LaunchedEffect(isVisible) {
     if (isVisible) {
       textVisible = false
-      delay(TEXT_REVEAL_DELAY_MS)
+      delay(TEXT_REVEAL_DELAY_MS.milliseconds)
       textVisible = true
     } else {
       textVisible = false

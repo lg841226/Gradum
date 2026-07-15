@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-12 12:29:03 Changed by gwy
+ * ReadFileSkill.kt  2026-07-14 21:27:12 Changed by gwy
  */
 
 package gradum.skill
@@ -96,7 +96,7 @@ class ReadFileSkill : Skill() {
       .ifBlank { arguments["line_range"] as? String ?: "" }
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    
+
     if (filePath.isBlank())
       return makeFailure(
         ErrorCode.INVALID_PARAMETER, buildXmlError(

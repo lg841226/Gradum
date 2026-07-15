@@ -2,15 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatterTest.kt  2026-07-11 12:30:00 Changed by gwy
+ * ModelNameFormatterTest.kt  2026-07-14 22:24:00 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
@@ -25,15 +22,6 @@ import org.junit.Test
  * wrong" failure.
  */
 class ModelNameFormatterTest {
-
-  // ---------------------------------------------------------------------
-  // formatModelName() backward compatibility
-  //
-  // The 4 call sites that pre-date [parseModelName] still call
-  // [formatModelName] for a `String`. These cases pin the
-  // expected output for those callers so the rewire doesn't
-  // regress any of them.
-  // ---------------------------------------------------------------------
 
   @Test
   fun `formatModelName returns bare family name for Ollama colon-tagged name`() {
@@ -54,10 +42,6 @@ class ModelNameFormatterTest {
   fun `formatModelName title-cases PascalCase slash input`() {
     assertEquals("DeepSeek V3", formatModelName("DeepSeek-V3"))
   }
-
-  // ---------------------------------------------------------------------
-  // Zhipu AI (GLM) — common open-weights names from THUDM
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName resolves GLM family variants`() {
@@ -87,11 +71,6 @@ class ModelNameFormatterTest {
     assertEquals("GLM 4", parsed.displayName)
   }
 
-  // ---------------------------------------------------------------------
-  // Dashless family roots — users sometimes type `glm4` instead
-  // of `glm-4` (Ollama tags especially). The dash-inserted lookup
-  // step in lookupDisplayName should bridge these.
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName inserts dash for dashless family roots`() {
@@ -118,10 +97,6 @@ class ModelNameFormatterTest {
     // shows up in parameterSize, not displayName).
     assertEquals("Unsupported Xyz", formatModelName("unsupported-xyz:70b"))
   }
-
-  // ---------------------------------------------------------------------
-  // Family map coverage — local / open-source models
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName resolves Qwen family variants`() {
@@ -203,10 +178,6 @@ class ModelNameFormatterTest {
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Family map coverage — cloud / API models
-  // ---------------------------------------------------------------------
-
   @Test
   fun `parseModelName resolves Claude family variants`() {
     val cases: List<Pair<String, String>> = listOf(
@@ -268,9 +239,6 @@ class ModelNameFormatterTest {
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Parameter-size extraction
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName extracts simple integer sizes`() {
@@ -329,10 +297,6 @@ class ModelNameFormatterTest {
     assertEquals("Q4_K_M", result.quant)
   }
 
-  // ---------------------------------------------------------------------
-  // Quant extraction
-  // ---------------------------------------------------------------------
-
   @Test
   fun `parseModelName extracts long-form GGUF quant tags`() {
     val cases: List<Pair<String, String>> = listOf(
@@ -388,10 +352,6 @@ class ModelNameFormatterTest {
     assertNull(parseModelName("gpt-4o").quant)
   }
 
-  // ---------------------------------------------------------------------
-  // Date / version stripping
-  // ---------------------------------------------------------------------
-
   @Test
   fun `parseModelName strips 8-digit YYYYMMDD date suffix`() {
     assertEquals("Claude 3.5 Sonnet", parseModelName("claude-3-5-sonnet-20241022").displayName)
@@ -419,10 +379,6 @@ class ModelNameFormatterTest {
     assertEquals("Claude 3.5 Sonnet", result.displayName)
   }
 
-  // ---------------------------------------------------------------------
-  // Org / HF prefix stripping
-  // ---------------------------------------------------------------------
-
   @Test
   fun `parseModelName drops LM Studio HF org prefix`() {
     val result: FormattedModelName =
@@ -449,10 +405,6 @@ class ModelNameFormatterTest {
       parseModelName("a/b/c/mistral-7b-instruct")
     assertEquals("Mistral", result.displayName)
   }
-
-  // ---------------------------------------------------------------------
-  // Variant / instruct / chat suffix stripping
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName strips instruct suffix from family key`() {
@@ -495,10 +447,6 @@ class ModelNameFormatterTest {
       parseModelName("qwen2.5-coder-7b-instruct-q4_k_m").quant
     )
   }
-
-  // ---------------------------------------------------------------------
-  // Provider inference
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName detects Anthropic provider from Claude family`() {
@@ -581,13 +529,10 @@ class ModelNameFormatterTest {
     assertEquals(false, parseModelName("totally-unknown-model:7b").isFromCatalog)
   }
 
-  // ---------------------------------------------------------------------
-  // Raw name preservation
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName preserves raw name verbatim`() {
-    val raw: String = "lmstudio-community/qwen2.5-coder:7b-q4_k_m"
+    val raw = "lmstudio-community/qwen2.5-coder:7b-q4_k_m"
     assertEquals(raw, parseModelName(raw).rawName)
   }
 
@@ -597,9 +542,6 @@ class ModelNameFormatterTest {
     assertEquals("qwen2.5-coder:7b", result.rawName)
   }
 
-  // ---------------------------------------------------------------------
-  // Fuzzy lookup (progressive prefix shortening)
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName fuzzy-lookup falls back from phi-3-mini-4k to phi-3-mini`() {
@@ -617,9 +559,6 @@ class ModelNameFormatterTest {
     assertEquals("Llama 3", result.displayName)
   }
 
-  // ---------------------------------------------------------------------
-  // Fallback path (unknown families)
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName title-cases unknown model for fallback display`() {
@@ -640,9 +579,6 @@ class ModelNameFormatterTest {
     assertEquals("Q4_K_M", result.quant)
   }
 
-  // ---------------------------------------------------------------------
-  // Edge cases / malformed inputs
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName handles empty string gracefully`() {

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * CommonCapsule.kt  2026-07-14 21:27:12 Changed by gwy
+ */
+
 @file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat.skill.internal

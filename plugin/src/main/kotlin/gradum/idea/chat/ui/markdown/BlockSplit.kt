@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * BlockSplit.kt  2026-07-14 21:51:35 Changed by gwy
+ */
+
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 @file:Suppress(
@@ -14,28 +21,7 @@ package gradum.idea.chat.ui.markdown
 
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
-import org.commonmark.node.BlockQuote
-import org.commonmark.node.BulletList
-import org.commonmark.node.Code
-import org.commonmark.node.Document
-import org.commonmark.node.Emphasis
-import org.commonmark.node.FencedCodeBlock
-import org.commonmark.node.HardLineBreak
-import org.commonmark.node.Heading
-import org.commonmark.node.HtmlBlock
-import org.commonmark.node.HtmlInline
-import org.commonmark.node.Image
-import org.commonmark.node.IndentedCodeBlock
-import org.commonmark.node.Link
-import org.commonmark.node.LinkReferenceDefinition
-import org.commonmark.node.ListItem
-import org.commonmark.node.Node
-import org.commonmark.node.OrderedList
-import org.commonmark.node.Paragraph
-import org.commonmark.node.SoftLineBreak
-import org.commonmark.node.StrongEmphasis
-import org.commonmark.node.Text
-import org.commonmark.node.ThematicBreak
+import org.commonmark.node.*
 import org.commonmark.parser.Parser
 
 private val blockSplitParser: Parser = Parser.builder()
@@ -73,9 +59,10 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
   val document: Document = blockSplitParser.parse(plainText) as Document
   val children: NodeChildren = NodeChildren.of(document)
   val blocks: List<Node> = buildList {
-    if (children.first != null) add(children.first!!)
+    if (children.first != null) add(children.first)
     addAll(children.rest)
   }
+
   return blocks
     .filter { blockNode -> blockNode !is LinkReferenceDefinition }
     .map { blockNode ->
@@ -86,9 +73,7 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
 }
 
 private fun serializeChildrenInto(
-  parentNode: Node,
-  out: StringBuilder,
-  markerCol: Int,
+  parentNode: Node, out: StringBuilder, markerCol: Int
 ) {
   val children: NodeChildren = NodeChildren.of(parentNode)
   val first: Node? = children.first
@@ -103,18 +88,17 @@ private fun serializeInto(currentNode: Node, markerCol: Int): String {
 }
 
 private fun serializeInto(
-  currentNode: Node,
-  out: StringBuilder,
-  markerCol: Int,
+  currentNode: Node, out: StringBuilder, markerCol: Int
 ) {
   when (currentNode) {
     is Document -> serializeChildrenInto(currentNode, out, markerCol)
     is Paragraph -> serializeParagraphInto(currentNode, out)
     is Heading -> serializeHeadingInto(currentNode, out)
     is Text -> out.append(currentNode.literal.orEmpty())
-    is Emphasis -> serializeWrapInlineInto(open = "*", close = "*", parentNode = currentNode, out = out)
-    is StrongEmphasis -> serializeWrapInlineInto(open = "**", close = "**", parentNode = currentNode, out = out)
+    is Emphasis -> serializeWrapInlineInto("*", "*", currentNode, out)
+    is StrongEmphasis -> serializeWrapInlineInto("**", "**", currentNode, out)
     is Code -> out.append('`').append(currentNode.literal.orEmpty()).append('`')
+    is Strikethrough -> serializeStrikethroughInto(currentNode, out)
     is Link -> serializeLinkInto(currentNode, out)
     is Image -> serializeImageInto(currentNode, out)
     is SoftLineBreak -> out.append('\n')
@@ -125,7 +109,6 @@ private fun serializeInto(
     is FencedCodeBlock -> serializeFencedCodeBlockInto(currentNode, out)
     is IndentedCodeBlock -> out.append(currentNode.literal.orEmpty())
     is ThematicBreak -> out.append("---")
-    is Strikethrough -> serializeStrikethroughInto(currentNode, out)
     is HtmlBlock -> out.append(currentNode.literal.orEmpty())
     is HtmlInline -> out.append(currentNode.literal.orEmpty())
     else -> serializeChildrenInto(currentNode, out, markerCol)
@@ -133,10 +116,7 @@ private fun serializeInto(
 }
 
 private fun serializeWrapInlineInto(
-  open: String,
-  close: String,
-  parentNode: Node,
-  out: StringBuilder,
+  open: String, close: String, parentNode: Node, out: StringBuilder
 ) {
   out.append(open)
   serializeChildrenInto(parentNode, out, markerCol = 0)
@@ -164,9 +144,7 @@ private fun serializeLinkInto(link: Link, out: StringBuilder) {
   serializeChildrenInto(link, out, markerCol = 0)
   out.append("](")
   out.append(link.destination.orEmpty())
-  if (link.title != null) {
-    out.append(" \"").append(link.title).append('"')
-  }
+  if (link.title != null) out.append(" \"").append(link.title).append('"')
   out.append(')')
 }
 
@@ -175,9 +153,9 @@ private fun serializeImageInto(image: Image, out: StringBuilder) {
   serializeChildrenInto(image, out, markerCol = 0)
   out.append("](")
   out.append(image.destination.orEmpty())
-  if (image.title != null) {
+
+  if (image.title != null)
     out.append(" \"").append(image.title).append('"')
-  }
   out.append(')')
 }
 
@@ -199,9 +177,10 @@ private fun serializeOrderedListInto(orderedList: OrderedList, out: StringBuilde
   val children: NodeChildren = NodeChildren.of(orderedList)
   val first: ListItem? = children.first as? ListItem
   if (first != null) {
-    val firstMarker: String = "${orderedList.startNumber}. "
+    val firstMarker = "${orderedList.startNumber}. "
     serializeListItemInto(first, marker = firstMarker, out)
     var itemNumber: Int = orderedList.startNumber + 1
+
     for (restNode in children.rest) {
       if (restNode is ListItem) {
         out.append('\n')
@@ -216,7 +195,7 @@ private fun serializeOrderedListInto(orderedList: OrderedList, out: StringBuilde
  * Serialize a `ListItem`: emit `<marker>` then the first child inline
  * (on the same line as the marker); subsequent children (nested list,
  * second paragraph, fenced code) are emitted on the next line(s)
- * indented 4 columns so Markdown recognises them as continuation
+ * indented 4 columns so Markdown recognizes them as continuation
  * content of the list item (not a new top-level list). The 4-column
  * minimum is the CommonMark rule for list-item continuation.
  */
@@ -225,11 +204,8 @@ private fun serializeListItemInto(listItem: ListItem, marker: String, out: Strin
   out.append(marker)
   val first: Node? = children.first
   if (first != null) serializeInto(first, out, markerCol = 0)
-  // Indent is a fixed 4 columns regardless of marker length. The
-  // marker itself is the leading prefix on the first line; the
-  // CommonMark continuation rule cares about absolute column count
-  // of the FIRST NON-SPACE char of the continuation line, not the
-  // relative offset to the marker.
+  // Indent is fixed at 4 columns. The marker is the leading prefix on the first line.
+  // Continuation lines: the first non-space char must align at column 4 (not relative to marker).
   val indent: String = " ".repeat(LIST_CHILD_INDENT_COLUMNS)
   for (childNode in children.rest) {
     out.append('\n')
@@ -243,8 +219,7 @@ private fun serializeBlockQuoteInto(blockQuote: BlockQuote, out: StringBuilder) 
   val first: Node? = children.first
   if (first != null) {
     out.append("> ")
-    // Only prefix continuation lines with `> `, not the first line —
-    // we already wrote it above.
+    // Only prefix continuation lines with `> `, not the first line — we already wrote it above.
     out.append(prefixEachLineExceptFirst(serializeInto(first, markerCol = 0), prefix = "> "))
   }
   for (childNode in children.rest) {
@@ -258,9 +233,11 @@ private fun serializeFencedCodeBlockInto(block: FencedCodeBlock, out: StringBuil
   out.append("```")
   val info: String? = block.info
   if (!info.isNullOrBlank()) out.append(info)
+
   out.append('\n')
   out.append(block.literal.orEmpty())
   if (!out.endsWith('\n')) out.append('\n')
+
   out.append("```")
 }
 
@@ -268,6 +245,7 @@ private fun serializeFencedCodeBlockInto(block: FencedCodeBlock, out: StringBuil
 private fun prefixEachLineExceptFirst(text: String, prefix: String): String {
   if (!text.contains('\n')) return text
   val lines: List<String> = text.split('\n')
+
   return lines.mapIndexed { lineIndex, line ->
     if (lineIndex == 0 || line.isEmpty()) line else "$prefix$line"
   }.joinToString(separator = "\n")

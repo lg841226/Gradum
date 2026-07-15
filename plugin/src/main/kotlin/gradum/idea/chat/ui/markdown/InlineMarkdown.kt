@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * InlineMarkdown.kt  2026-07-14 21:27:12 Changed by gwy
+ */
+
 // Detekt defaults disagree with project standards (2-space indent, 200-char
 // lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 @file:Suppress(
@@ -89,6 +96,7 @@ private fun isCjkChar(char: Char): Boolean = when (char.code) {
   in 0xF900..0xFAFF,
   in 0x3000..0x303F,
   in 0xFF00..0xFFEF -> true
+
   else -> false
 }
 
