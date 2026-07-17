@@ -2,18 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-15 21:29:12 Changed by gwy
+ * BlockRenderer.kt  2026-07-17 21:31:16 Changed by gwy
  */
 
-@file:Suppress(
-  "MaximumLineLength",
-  "Indentation",
-  "FunctionNaming",
-  "SpacingBetweenPackageAndImports",
-  "NoConsecutiveBlankLines",
-  "NoMultipleSpaces",
-  "ArgumentListWrapping",
-)
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.markdown
 
@@ -73,17 +65,16 @@ internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
  */
 @Composable
 fun RenderNonProseBlock(
-  onUrlClick: (String) -> Unit = {},
-  segment: MarkdownSegment.NonProseBlock
+  onUrlClick: (String) -> Unit = {}, segment: MarkdownSegment.NonProseBlock
 ) {
   val document: Document = remember(segment.text) {
     commonmarkParser.parse(segment.text) as Document
   }
 
   val children: NodeChildren = NodeChildren.of(document)
-  val first: Node? = children.first
-  if (first != null) RenderBlockNode(first, onUrlClick = onUrlClick)
-  for (child in children.rest) RenderBlockNode(child, onUrlClick = onUrlClick)
+  val firstNode: Node? = children.first
+  if (firstNode != null) RenderBlockNode(firstNode, onUrlClick = onUrlClick)
+  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick)
 }
 
 /**
@@ -103,14 +94,14 @@ fun RenderBlockNode(
   block: Node, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {}
 ) {
   when (block) {
+    is ThematicBreak -> RenderThematicBreak()
     is Heading -> RenderHeading(block, onUrlClick)
-    is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
+    is FencedCodeBlock -> RenderFencedCodeBlock(block)
+    is BlockQuote -> RenderBlockQuote(block, onUrlClick)
+    is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
     is BulletList -> RenderBulletList(block, indentDepth, onUrlClick)
     is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick)
-    is BlockQuote -> RenderBlockQuote(block, onUrlClick)
-    is FencedCodeBlock -> RenderFencedCodeBlock(block)
-    is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
-    is ThematicBreak -> RenderThematicBreak()
+    is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
     is TableBlock -> Text(
       modifier = Modifier.fillMaxWidth(),
       text = serializeMarkdownNode(block)
@@ -189,10 +180,10 @@ private fun RenderBulletList(
       if (taskMarker != null) {
         RenderTaskListItem(
           item = listItem,
-          isChecked = taskMarker.checked,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle,
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
+          isChecked = taskMarker.checked,
+          contentStyle = styling.paragraph.inlinesStyling.textStyle
         )
       } else {
         RenderListItem(
@@ -200,10 +191,10 @@ private fun RenderBulletList(
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
           prefixStyle = bulletStyle,
-          prefixText = unorderedList.bullet.toString(),
           prefixContentGap = markerContentGap,
+          prefixText = unorderedList.bullet.toString(),
           prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+          contentStyle = styling.paragraph.inlinesStyling.textStyle
         )
       }
     }
@@ -243,21 +234,21 @@ private fun RenderOrderedList(
       if (taskMarker != null) {
         RenderTaskListItem(
           item = listItem,
-          isChecked = taskMarker.checked,
-          contentStyle = contentStyle,
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
+          contentStyle = contentStyle,
+          isChecked = taskMarker.checked
         )
       } else {
         RenderListItem(
           item = listItem,
           prefixText = "$number.",
-          prefixStyle = orderedList.numberStyle,
-          prefixColumnMinWidth = orderedMarkerColumnMinWidth,
-          prefixContentGap = markerContentGap,
-          contentStyle = contentStyle,
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
+          contentStyle = contentStyle,
+          prefixContentGap = markerContentGap,
+          prefixStyle = orderedList.numberStyle,
+          prefixColumnMinWidth = orderedMarkerColumnMinWidth
         )
       }
     }
@@ -336,7 +327,6 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
  * through [RenderBlockNode] at `indentDepth + 1`, same as
  * [RenderListItem].
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderTaskListItem(
   item: ListItem,
@@ -353,8 +343,8 @@ private fun RenderTaskListItem(
     RenderTaskListItemRow(
       paragraph = first,
       isChecked = isChecked,
-      contentStyle = contentStyle,
       onUrlClick = onUrlClick,
+      contentStyle = contentStyle,
     )
     return
   }
@@ -393,13 +383,12 @@ private fun RenderTaskListItem(
  * the non-task-list `RenderInlineTextInListRow` uses, minus the
  * marker prefix.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderTaskListItemRow(
-  paragraph: Paragraph,
   isChecked: Boolean,
+  paragraph: Paragraph,
   contentStyle: TextStyle,
-  onUrlClick: (String) -> Unit,
+  onUrlClick: (String) -> Unit
 ) {
   val strippedParagraph: Paragraph = stripTaskListMarker(paragraph) ?: paragraph
   val parseOutcome: InlineMarkdownRenderResult =
@@ -431,7 +420,6 @@ private fun RenderTaskListItemRow(
  * with `indentDepth + 1`. When the first child isn't a `Paragraph` the marker
  * is drawn on its own line above the children.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderListItem(
   item: ListItem,
@@ -450,12 +438,12 @@ private fun RenderListItem(
   if (first is Paragraph && children.rest.isEmpty()) {
     RenderInlineTextInListRow(
       paragraph = first,
-      contentStyle = contentStyle,
       onUrlClick = onUrlClick,
       prefixText = prefixText,
       prefixStyle = prefixStyle,
-      prefixColumnMinWidth = prefixColumnMinWidth,
+      contentStyle = contentStyle,
       prefixContentGap = prefixContentGap,
+      prefixColumnMinWidth = prefixColumnMinWidth
     )
     return
   }
@@ -463,12 +451,12 @@ private fun RenderListItem(
     if (first is Paragraph) {
       RenderInlineTextInListRow(
         paragraph = first,
-        contentStyle = contentStyle,
         onUrlClick = onUrlClick,
         prefixText = prefixText,
         prefixStyle = prefixStyle,
-        prefixColumnMinWidth = prefixColumnMinWidth,
+        contentStyle = contentStyle,
         prefixContentGap = prefixContentGap,
+        prefixColumnMinWidth = prefixColumnMinWidth
       )
     } else {
       Text(
@@ -494,16 +482,15 @@ private fun RenderListItem(
  * serialize-then-re-parse flow would re-interpret the leading `1. `
  * as an `OrderedList` and bail.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderInlineTextInListRow(
-  paragraph: Paragraph,
-  contentStyle: TextStyle,
-  onUrlClick: (String) -> Unit,
   prefixText: String,
-  prefixStyle: TextStyle,
-  prefixColumnMinWidth: Dp,
+  paragraph: Paragraph,
   prefixContentGap: Dp,
+  prefixStyle: TextStyle,
+  contentStyle: TextStyle,
+  prefixColumnMinWidth: Dp,
+  onUrlClick: (String) -> Unit
 ) {
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
   Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
@@ -538,11 +525,11 @@ private fun MarkerColumn(
     contentAlignment = Alignment.CenterEnd
   ) {
     Text(
+      maxLines = 1,
+      softWrap = false,
       text = prefixText,
       style = prefixStyle,
-      textAlign = TextAlign.End,
-      maxLines = 1,
-      softWrap = false
+      textAlign = TextAlign.End
     )
   }
 }
@@ -588,17 +575,17 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
         .fillMaxWidth()
         .padding(start = indentStart)
     ) {
-      val first: Node? = children.first
-      if (first != null) RenderBlockQuoteChild(first, contentStyle, onUrlClick)
-      for (child in children.rest) {
-        RenderBlockQuoteChild(child, contentStyle, onUrlClick)
+      val firstChild: Node? = children.first
+      if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick)
+      for (childNode in children.rest) {
+        RenderBlockQuoteChild(childNode, contentStyle, onUrlClick)
       }
     }
   }
+
 }
 
 /** Render one block-quote child with the blockquote text color applied to inline text. */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBlockQuoteChild(
   node: Node,
@@ -609,11 +596,11 @@ private fun RenderBlockQuoteChild(
     is Paragraph -> {
       val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(node)
       RenderInlineRender(
-        parseOutcome = parseOutcome,
         style = quoteTextStyle,
         onUrlClick = onUrlClick,
+        parseOutcome = parseOutcome,
         modifier = Modifier.fillMaxWidth(),
-        fallbackText = serializeInlineChildren(node),
+        fallbackText = serializeInlineChildren(node)
       )
     }
 
@@ -656,16 +643,16 @@ private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {
     parseIndentedCodeBlock(block)
   }
   blockRenderer.RenderIndentedCodeBlock(
+    enabled = true,
     block = markdownBlock,
     styling = indentedStyling,
-    enabled = true,
     modifier = Modifier.fillMaxWidth()
   )
 }
 
 @OptIn(ExperimentalJewelApi::class)
 private fun parseFencedCodeBlock(block: FencedCodeBlock): MarkdownBlock.CodeBlock.FencedCodeBlock {
-  val markdownSource = "```${block.info ?: ""}\n${block.literal ?: ""}\n```"
+  val markdownSource = "```${block.info ?: ""}\n${block.literal?.trimEnd('\n') ?: ""}\n```"
   val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(markdownSource)
   val first: MarkdownBlock = blocks.first()
   require(first is MarkdownBlock.CodeBlock.FencedCodeBlock) {
@@ -705,11 +692,11 @@ private fun RenderParagraphWithChips(paragraph: Paragraph, onUrlClick: (String) 
   val baseStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
   RenderInlineRender(
-    parseOutcome = parseOutcome,
     style = baseStyle,
     onUrlClick = onUrlClick,
+    parseOutcome = parseOutcome,
     modifier = Modifier.fillMaxWidth(),
-    fallbackText = serializeInlineChildren(paragraph),
+    fallbackText = serializeInlineChildren(paragraph)
   )
 }
 
@@ -751,18 +738,18 @@ fun RenderInlineTextWithChips(
   val parseOutcome: InlineMarkdownRenderResult = remember(text) {
     parseInlineMarkdown(
       plainText = text,
+      linkColor = linkColor,
       fontSizeSp = fontSizeSp,
       chipTint = chipTintColor,
-      linkColor = linkColor,
-      imageAltColor = imageAltColor,
+      imageAltColor = imageAltColor
     )
   }
   RenderInlineRender(
-    parseOutcome = parseOutcome,
     style = style,
     modifier = modifier,
-    onUrlClick = onUrlClick,
     fallbackText = text,
+    onUrlClick = onUrlClick,
+    parseOutcome = parseOutcome
   )
 }
 
@@ -788,8 +775,8 @@ private fun RenderInlineRender(
   val inlineRender: InlineMarkdownRender = parseOutcome.render
   val segments: List<InlineSegment> = splitIntoInlineSegments(
     annotated = inlineRender.annotated,
-    inlineContent = inlineRender.inlineContent,
     urlAnnotations = inlineRender.urlAnnotations,
+    inlineContent = inlineRender.inlineContent,
   )
   val gradumLinkStyle: LinkStyle = rememberGradumLinkStyle()
   // Anchor by first baseline so `Text` and `ExternalLink` line up
@@ -811,8 +798,8 @@ private fun RenderInlineRender(
 
         is InlineSegment.LinkSegment -> ExternalLink(
           text = segment.text,
-          textStyle = resolvedStyle,
           style = gradumLinkStyle,
+          textStyle = resolvedStyle,
           onClick = { onUrlClick(segment.url) }
         )
       }

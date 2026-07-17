@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-07-15 22:44:56 Changed by gwy
+ * GradumCallbacks.kt  2026-07-15 23:14:15 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -90,26 +90,24 @@ fun rememberGradumCallbacks(
   val onViewDiff = rememberViewDiffCallback(toolWindow)
   val onAttachmentClick = rememberAttachmentClickCallback(toolWindow)
 
-  return remember(session, toolWindow, coroutineScope) {
-    GradumCallbacks(
-      onDeleteMessage = onDeleteMessage,
-      onRetryMessage = onRetryMessage,
-      onSend = onSend,
-      onStop = onStop,
-      onOpenInEditor = onOpenInEditor,
-      onViewDiff = onViewDiff,
-      onAttachmentClick = onAttachmentClick,
-      eventCallbacks = eventCallbacks,
-    )
-  }
+  return GradumCallbacks(
+    onDeleteMessage = onDeleteMessage,
+    onRetryMessage = onRetryMessage,
+    onSend = onSend,
+    onStop = onStop,
+    onOpenInEditor = onOpenInEditor,
+    onViewDiff = onViewDiff,
+    onAttachmentClick = onAttachmentClick,
+    eventCallbacks = eventCallbacks,
+  )
 }
 
 @Composable
 private fun rememberEventCallbacks(
   session: GradumChatSession,
   toolWindow: ToolWindow?,
-): EventCallbacks = remember(session, toolWindow) {
-  EventCallbacks(
+): EventCallbacks {
+  return EventCallbacks(
     onFocusChange = { session.isFocused = it },
     onToggleExpanded = { session.isExpanded = !session.isExpanded },
     onToggleMenu = { session.isMenuVisible = !session.isMenuVisible },
@@ -146,7 +144,7 @@ private fun rememberEventCallbacks(
         }
       }
     },
-    onUploadImage = uploadImageCallback(session, toolWindow),
+    onUploadImage = uploadImageCallback(toolWindow, session),
     onCopyAsContext = { text ->
       if (session.attachedFiles.size < MAX_ATTACHMENTS) {
         val previewText = if (text.length > 30) text.take(30) + "..." else text
@@ -165,8 +163,8 @@ private fun rememberEventCallbacks(
 }
 
 private fun uploadImageCallback(
-  session: GradumChatSession,
   toolWindow: ToolWindow?,
+  session: GradumChatSession
 ): () -> Unit = Unit@{
   val remainingSlots: Int = MAX_ATTACHMENTS - session.attachedFiles.size
   if (remainingSlots <= 0) return@Unit

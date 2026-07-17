@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineSegmentTest.kt  2026-07-15 17:15:59 Changed by gwy
+ * GradumInlineSegmentTest.kt  2026-07-17 12:52:48 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -33,8 +33,8 @@ class GradumInlineSegmentTest {
     val annotated: AnnotatedString = buildAnnotatedString { append("plain prose with no links") }
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = emptyList(),
+      inlineContent = emptyMap(),
     )
     assertEquals(1, segments.size)
     assertTrue(segments[0] is InlineSegment.TextSegment)
@@ -55,8 +55,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = urlAnnotations,
+      inlineContent = emptyMap(),
     )
     assertEquals(3, segments.size)
     assertTrue(segments[0] is InlineSegment.TextSegment)
@@ -77,8 +77,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = urlAnnotations,
+      inlineContent = emptyMap(),
     )
     assertEquals(2, segments.size)
     assertTrue(segments[0] is InlineSegment.LinkSegment)
@@ -95,8 +95,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = urlAnnotations,
+      inlineContent = emptyMap(),
     )
     assertEquals(2, segments.size)
     assertTrue(segments[0] is InlineSegment.TextSegment)
@@ -114,8 +114,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = urlAnnotations,
+      inlineContent = emptyMap(),
     )
     assertEquals(5, segments.size)
     assertEquals("see ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
@@ -134,8 +134,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = emptyMap(),
       urlAnnotations = urlAnnotations,
+      inlineContent = emptyMap(),
     )
     assertEquals(5, segments.size)
     assertEquals("a ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
@@ -163,8 +163,8 @@ class GradumInlineSegmentTest {
     )
     val segments: List<InlineSegment> = splitIntoInlineSegments(
       annotated = annotated,
-      inlineContent = inlineContent,
       urlAnnotations = urlAnnotations,
+      inlineContent = inlineContent,
     )
     val textSegments: List<InlineSegment.TextSegment> = segments
       .filterIsInstance<InlineSegment.TextSegment>()

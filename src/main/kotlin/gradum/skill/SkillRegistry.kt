@@ -41,6 +41,7 @@ object SkillRegistry {
     discoverSkills()
   }
 
+  /** Returns all registered skill instances. */
   fun getAllSkills(): Collection<Skill> {
     return registeredSkills.values
   }

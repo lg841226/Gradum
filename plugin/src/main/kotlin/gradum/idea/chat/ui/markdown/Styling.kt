@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-15 22:00:12 Changed by gwy
+ * Styling.kt  2026-07-17 10:40:05 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -82,7 +82,6 @@ private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
  * (line-height 1.5×). Returned as a [TextStyle] so the inline chip parser
  * can read the font size for its placeholder width / height.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberGradumParagraphTextStyle(): TextStyle {
   val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
@@ -103,7 +102,6 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
  * `withContent` for the chat's "thinking-mode link color"
  * override. Used by [rememberGradumMarkdownStyling].
  */
-@OptIn(ExperimentalJewelApi::class)
 internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
   content = newContent,
   contentFocused = contentFocused,
@@ -123,8 +121,9 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
  * here so the paragraph and heading configurations stay in sync.
  */
 @OptIn(ExperimentalJewelApi::class)
+@Suppress("UnstableApiUsage")
 internal fun gradumInlinesStyling(
-  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors,
+  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors
 ): InlinesStyling {
   fun linkSpan(content: Color): SpanStyle = SpanStyle(color = content)
   return InlinesStyling(
@@ -152,7 +151,6 @@ internal fun gradumInlinesStyling(
  * leaving the link looking like plain blue text). Permanent
  * underline gives the link a stable visual affordance.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberGradumLinkStyle(): LinkStyle {
   val base: LinkStyle = JewelTheme.linkStyle
@@ -171,6 +169,7 @@ fun rememberGradumLinkStyle(): LinkStyle {
  *
  * @param thinkingMode When `true`, all colors collapse to muted gray for streaming reasoning blocks.
  */
+@Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStyling {
@@ -186,7 +185,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     color = inlineTint,
-    background = inlineTint.copy(alpha = 0.12f),
+    background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
   val bodyTextStyle: TextStyle = labelTextStyle
@@ -222,7 +221,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
 
     fun headingInlines(textStyle: TextStyle): InlinesStyling {
       val headingInlineCode: SpanStyle = textStyle.toSpanStyle().copy(
-        background = inlineTint.copy(alpha = 0.12f)
+        background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
       )
       return gradumInlinesStyling(
         textStyle = textStyle,
@@ -309,7 +308,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         paragraphTextStyle,
         Ordered.createOrderedListStyling(
           numberStyle = numberStyle,
-          padding = listItemPadding,
+          padding = listItemPadding
         ),
         Unordered.createUnorderedListStyling(
           bullet = '\u2022',

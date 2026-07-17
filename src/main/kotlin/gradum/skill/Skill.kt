@@ -237,7 +237,7 @@ abstract class Skill {
     val content: String = message["content"] as? String ?: return message
     val parsed: Map<String, Any?>? = try {
       gradum.utils.JsonUtil.decodeMap(content)
-    } catch (e: Exception) {
+    } catch (jsonDecodeException: Exception) {
       // Not a JSON object (plain string, error marker, etc.) —
       // leave the message as-is.
       return message

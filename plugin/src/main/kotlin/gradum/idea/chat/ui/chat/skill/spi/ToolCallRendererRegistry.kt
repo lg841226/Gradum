@@ -2,15 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallRendererRegistry.kt  2026-07-14 21:27:12 Changed by gwy
+ * ToolCallRendererRegistry.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi
 
 import gradum.idea.chat.ui.chat.skill.*
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.DEFAULT_ALIAS
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.RENDERERS
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find
 
 /**
  * In-process registry of [ToolCallRenderer]s. The Gradum chat panel

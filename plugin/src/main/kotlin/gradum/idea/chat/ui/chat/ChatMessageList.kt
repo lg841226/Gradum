@@ -2,14 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-07-14 21:27:12 Changed by gwy
+ * ChatMessageList.kt  2026-07-17 09:35:23 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +19,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.ui.GradumSpacing
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 private val TimestampSpacing = GradumSpacing.xs
 

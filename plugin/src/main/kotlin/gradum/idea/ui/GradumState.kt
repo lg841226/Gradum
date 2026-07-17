@@ -37,20 +37,18 @@ fun rememberGradumState(
     val inputState = rememberInputState(session, editorContext)
     val inputActions = rememberInputActions(session, callbacks)
 
-    return remember(session, editorContext, callbacks) {
-        GradumState(
-            inputState = inputState,
-            inputActions = inputActions,
-        )
-    }
+    return GradumState(
+        inputState = inputState,
+        inputActions = inputActions,
+    )
 }
 
 @Composable
 private fun rememberInputState(
     session: GradumChatSession,
     editorContext: EditorContext,
-): ChatInputState = remember(session, editorContext) {
-    ChatInputState(
+): ChatInputState {
+    return ChatInputState(
         models = session.models.toList(),
         pinnedModels = session.pinnedModels.toList(),
         selectedModel = session.selectedModel,
@@ -74,8 +72,8 @@ private fun rememberInputState(
 private fun rememberInputActions(
     session: GradumChatSession,
     callbacks: GradumCallbacks,
-): ChatInputActions = remember(session, callbacks) {
-    ChatInputActions(
+): ChatInputActions {
+    return ChatInputActions(
         onSend = callbacks.onSend,
         onStop = callbacks.onStop,
         onUploadImage = callbacks.eventCallbacks.onUploadImage,

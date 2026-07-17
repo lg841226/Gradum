@@ -151,15 +151,15 @@ private fun projectMessageForBackend(
 }
 
 private fun extractContentParts(message: Map<String, Any>): List<Map<String, Any>>? {
-  val content = message["content"]
+  val content: Any? = message["content"]
   return if (content is List<*>) {
     content.filterIsInstance<Map<String, Any>>()
   } else null
 }
 
 private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
-  val text = StringBuilder()
-  val images = mutableListOf<String>()
+  val text: StringBuilder = StringBuilder()
+  val images: MutableList<String> = mutableListOf()
 
   for (part in parts) {
     when (part["type"]) {
@@ -177,27 +177,27 @@ private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
     }
   }
 
-  val result = mutableMapOf<String, Any>("role" to "user")
+  val result: MutableMap<String, Any> = mutableMapOf("role" to "user")
   if (text.isNotEmpty()) result["content"] = text.toString()
   if (images.isNotEmpty()) result["images"] = images
   return result
 }
 
 private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
-  val projectedParts = mutableListOf<Map<String, Any>>()
+  val projectedContentParts: MutableList<Map<String, Any>> = mutableListOf()
 
   for (part in parts) {
     when (part["type"]) {
       "text" -> {
         (part["text"] as? String)?.let {
-          projectedParts.add(mapOf("type" to "text", "text" to it))
+          projectedContentParts.add(mapOf("type" to "text", "text" to it))
         }
       }
 
       "image" -> {
         val data = part["data"] as? String ?: continue
         val mime = part["mime"] as? String ?: "image/jpeg"
-        projectedParts.add(
+        projectedContentParts.add(
           mapOf(
             "type" to "image_url",
             "image_url" to mapOf("url" to "data:$mime;base64,$data")
@@ -208,7 +208,7 @@ private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
     }
   }
 
-  return mapOf("role" to "user", "content" to projectedParts)
+  return mapOf("role" to "user", "content" to projectedContentParts)
 }
 
 /**
@@ -323,10 +323,10 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
           )
         }
         lastError = null; break
-      } catch (exception: Exception) {
-        lastError = exception
-        if (attemptIndex < 2 && isTransientError(exception)) {
-          val delayMs = 5_000L * (1L shl attemptIndex)
+      } catch (httpClientException: Exception) {
+        lastError = httpClientException
+        if (attemptIndex < 2 && isTransientError(httpClientException)) {
+          val delayMs: Long = 5_000L * (1L shl attemptIndex)
           delay(delayMs.milliseconds)
         } else break
       }
@@ -402,9 +402,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
         lastError = null; break
 
-      } catch (exception: Exception) {
-        lastError = exception
-        if (isTransientError(exception) && attemptIndex < 2)
+      } catch (httpClientException: Exception) {
+        lastError = httpClientException
+        if (isTransientError(httpClientException) && attemptIndex < 2)
           delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
         else
           break

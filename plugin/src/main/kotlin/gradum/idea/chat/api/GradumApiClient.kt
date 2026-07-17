@@ -2,13 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-07-14 21:27:12 Changed by gwy
+ * GradumApiClient.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.idea.chat.api
 
 import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.chat.api.GradumApiClient.Companion.MAX_LOGGED_LINE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector

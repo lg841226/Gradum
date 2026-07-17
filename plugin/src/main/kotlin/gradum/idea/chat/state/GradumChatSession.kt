@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-14 21:27:12 Changed by gwy
+ * GradumChatSession.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -21,7 +21,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.*
-import gradum.idea.chat.state.GradumChatSession.Companion.POLL_INTERVAL_MS
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.editor.*

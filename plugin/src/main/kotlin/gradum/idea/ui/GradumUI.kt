@@ -42,10 +42,9 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
-    val editorContext: EditorContext = remember(toolWindow) {
-        toolWindow?.project?.let { EditorUtils.getEditorContext(it) }
-            ?: EditorContext.EMPTY
-    }
+    val editorContext: EditorContext = toolWindow?.project?.let {
+        EditorUtils.getEditorContext(it)
+    } ?: EditorContext.EMPTY
     val coroutineScope = rememberCoroutineScope()
 
     // Effects

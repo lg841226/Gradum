@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-15 22:00:55 Changed by gwy
+ * Table.kt  2026-07-16 21:28:50 Changed by gwy
  */
 
 
@@ -96,10 +96,10 @@ fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row -> row.any { 
 
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
-private val MinCellWidthDp: Dp = 70.dp
-private val CellHorizontalPadding: Dp = 10.dp
-private val CellVerticalPadding: Dp = GradumSpacing.md
-private val ScrollbarReservedSpace: Dp = GradumSpacing.md
+private val minCellWidthDp: Dp = 70.dp
+private val cellHorizontalPadding: Dp = 10.dp
+private val cellVerticalPadding: Dp = GradumSpacing.md
+private val scrollbarReservedSpace: Dp = GradumSpacing.md
 
 /**
  * Splits a Markdown string into alternating [MarkdownSegment.Plain] and
@@ -167,7 +167,8 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
       lineIndex = bodyLineIndex
       continue
     }
-    appendPlain(headerLine); lineIndex++
+    appendPlain(headerLine)
+    lineIndex++
   }
   flushPlain()
   return segments
@@ -288,7 +289,7 @@ fun ScrollableTable(
   onUrlClick: (String) -> Unit = {}
 ) {
   val density: Density = LocalDensity.current
-  val horizontalPaddingPx: Int = with(density) { CellHorizontalPadding.roundToPx() }
+  val horizontalPaddingPx: Int = with(density) { cellHorizontalPadding.roundToPx() }
   val textMeasurer: TextMeasurer = rememberTextMeasurer()
   val baseStyle: TextStyle = JewelTheme.typography.regular
   val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
@@ -320,12 +321,9 @@ fun ScrollableTable(
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .clip(RoundedCornerShape(GradumSpacing.md))
-    // horizontalScroll goes on the inner Box, not here.
-    // If placed here, BoxWithConstraints would read Constraints.Infinity
-    // and pass it to distributeTableWidth, breaking layout.
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
-    val minCellWidthPx: Int = with(density) { MinCellWidthDp.roundToPx() }
+    val minCellWidthPx: Int = with(density) { minCellWidthDp.roundToPx() }
     val finalColumnWidthsPx: IntArray = remember(
       naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, horizontalPaddingPx
     ) {
@@ -344,7 +342,7 @@ fun ScrollableTable(
         Box(
           modifier = Modifier
             .width(with(density) { containerWidthPx.toDp() })
-            .padding(bottom = ScrollbarReservedSpace)
+            .padding(bottom = scrollbarReservedSpace)
             .horizontalScroll(scrollState)
         ) {
           Column {
@@ -360,8 +358,8 @@ fun ScrollableTable(
                       }
                     )
                     .padding(
-                      horizontal = CellHorizontalPadding,
-                      vertical = CellVerticalPadding
+                      horizontal = cellHorizontalPadding,
+                      vertical = cellVerticalPadding
                     ),
                   onUrlClick = onUrlClick,
                   blockRenderer = renderer,
@@ -384,8 +382,8 @@ fun ScrollableTable(
                         }
                       )
                       .padding(
-                        horizontal = CellHorizontalPadding,
-                        vertical = CellVerticalPadding
+                        horizontal = cellHorizontalPadding,
+                        vertical = cellVerticalPadding
                       ),
                     onUrlClick = onUrlClick,
                     blockRenderer = renderer,

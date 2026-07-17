@@ -7,6 +7,7 @@
 
 package gradum.server
 
+/** Configuration for the Gradum embedded HTTP server. */
 data class ServerConfiguration(
   val hostAddress: String = "localhost",
   val portNumber: Int = 8765,

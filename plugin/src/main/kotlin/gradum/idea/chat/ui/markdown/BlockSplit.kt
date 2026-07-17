@@ -2,45 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockSplit.kt  2026-07-15 19:45:45 Changed by gwy
+ * BlockSplit.kt  2026-07-16 23:32:54 Changed by gwy
  */
-
-@file:Suppress(
-  "MaximumLineLength",
-  "Indentation",
-  "FunctionNaming",
-  "SpacingBetweenPackageAndImports",
-  "NoConsecutiveBlankLines",
-  "NoMultipleSpaces",
-  "ArgumentListWrapping",
-)
 
 package gradum.idea.chat.ui.markdown
 
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
-import org.commonmark.node.BlockQuote
-import org.commonmark.node.Document
-import org.commonmark.node.Emphasis
-import org.commonmark.node.FencedCodeBlock
-import org.commonmark.node.HardLineBreak
-import org.commonmark.node.Heading
-import org.commonmark.node.HtmlBlock
-import org.commonmark.node.HtmlInline
-import org.commonmark.node.Image
-import org.commonmark.node.IndentedCodeBlock
-import org.commonmark.node.Link
-import org.commonmark.node.LinkReferenceDefinition
-import org.commonmark.node.ListItem
-import org.commonmark.node.Node
-import org.commonmark.node.OrderedList
-import org.commonmark.node.Paragraph
-import org.commonmark.node.SoftLineBreak
-import org.commonmark.node.StrongEmphasis
-import org.commonmark.node.Text
-import org.commonmark.node.ThematicBreak
-import org.commonmark.node.BulletList
-import org.commonmark.node.Code
+import org.commonmark.node.*
 import org.commonmark.parser.Parser
 
 private val blockSplitParser: Parser = Parser.builder()
@@ -126,6 +95,7 @@ private fun appendHtmlBlockChild(childNode: Node, output: StringBuilder) {
     is HtmlInline -> {
       // strip raw <tag> / </tag> markers
     }
+
     is Text -> output.append(childNode.literal.orEmpty())
     else -> serializeChildrenInto(childNode, output)
   }
@@ -172,6 +142,7 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
     is HtmlInline -> {
       // strip raw <tag> / </tag> markers from round-tripped markdown
     }
+
     else -> serializeChildrenInto(currentNode, output)
   }
 }
@@ -199,27 +170,26 @@ private fun serializeHeadingInto(heading: Heading, output: StringBuilder) {
   serializeChildrenInto(heading, output)
 }
 
-// TODO: Consolidate serializeLinkInto and serializeImageInto into a single generic function
-private fun serializeLinkInto(link: Link, output: StringBuilder) {
-  output.append('[')
-  serializeChildrenInto(link, output)
+private fun serializeLinkLikeNode(
+  openingMarker: String,
+  containerNode: Node,
+  destination: String?,
+  title: String?,
+  output: StringBuilder,
+) {
+  output.append(openingMarker)
+  serializeChildrenInto(containerNode, output)
   output.append("](")
-  output.append(link.destination.orEmpty())
-  if (link.title != null) output.append(" \"").append(link.title).append('"')
+  output.append(destination.orEmpty())
+  if (title != null) output.append(" \"").append(title).append('"')
   output.append(')')
 }
 
-private fun serializeImageInto(image: Image, output: StringBuilder) {
-  output.append("![")
-  serializeChildrenInto(image, output)
-  output.append("](")
-  output.append(image.destination.orEmpty())
+private fun serializeLinkInto(link: Link, output: StringBuilder) =
+  serializeLinkLikeNode("[", link, link.destination, link.title, output)
 
-  if (image.title != null) {
-    output.append(" \"").append(image.title).append('"')
-  }
-  output.append(')')
-}
+private fun serializeImageInto(image: Image, output: StringBuilder) =
+  serializeLinkLikeNode("![", image, image.destination, image.title, output)
 
 private fun serializeBulletListInto(bulletList: BulletList, output: StringBuilder) {
   val children: NodeChildren = NodeChildren.of(bulletList)

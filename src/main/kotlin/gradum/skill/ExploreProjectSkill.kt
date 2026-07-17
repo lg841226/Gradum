@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-07-14 21:27:12 Changed by gwy
+ * ExploreProjectSkill.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.skill
@@ -312,7 +312,7 @@ private val truncatedDirectoryNames: Set<String> = setOf(
   // Go / PHP / Ruby
   "vendor", ".bundle",
   // iOS / macOS
-  "Pods", "DerivedData", ".build",
+  "Pods", ".build",
   // Misc build / cache
   ".terraform", ".dart_tool", ".serverless", ".expo", ".vercel",
   "coverage", ".nyc_output"

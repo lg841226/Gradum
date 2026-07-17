@@ -527,8 +527,10 @@ private fun findMatchesByStrategy(
   return matchResults
 }
 
+/** Exception thrown when a file has been modified externally during an edit operation. */
 class StaleContentError(val path: String) : Exception("File changed externally:$path")
 
+/** Thread-safe wrapper for atomic file mutations with per-path locking. */
 class FileMutation {
   private val locks = ConcurrentHashMap<String, Mutex>()
 

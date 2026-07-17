@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-07-15 20:19:37 Changed by gwy
+ * SearchSkills.kt  2026-07-17 09:35:23 Changed by gwy
  */
 package gradum.skill
 
@@ -290,18 +290,18 @@ class GrepSkill : Skill() {
       )
     }
 
-    val flags = if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
+    val regexFlags: Set<RegexOption> = if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
     else emptySet()
 
-    val regex = try {
-      Regex(patternStr, flags)
-    } catch (e: PatternSyntaxException) {
+    val compiledRegex: Regex = try {
+      Regex(patternStr, regexFlags)
+    } catch (patternSyntaxException: PatternSyntaxException) {
       return Either.Failure(
         makeFailure(
           ErrorCode.INVALID_PARAMETER,
           buildXmlError(
             code = "INVALID_PARAMETER",
-            message = "Invalid regex pattern: ${e.message}",
+            message = "Invalid regex pattern: ${patternSyntaxException.message}",
             fixHint = "Check the regex syntax. Use simple text for literal searches."
           )
         )
@@ -322,7 +322,7 @@ class GrepSkill : Skill() {
     return Either.Success(
       SearchParams(
         pattern = patternStr,
-        regex = regex,
+        regex = compiledRegex,
         rootFile = rootFile,
         resolvedPath = resolvedPath,
         includeFilter = includeFilter,
@@ -407,18 +407,18 @@ class GrepSkill : Skill() {
   }
 
   private fun collectFiles(root: File, includeMatcher: PathMatcher?): List<File> {
-    val result = mutableListOf<File>()
+    val collectedFiles: MutableList<File> = mutableListOf()
     walkFiltered(root) { file ->
       if (includeMatcher == null || includeMatcher.matches(file.toPath().fileName))
-        result.add(file)
+        collectedFiles.add(file)
     }
-    return result
+    return collectedFiles
   }
 
   private fun searchFiles(
     files: List<File>, regex: Regex, limit: Int
   ): List<Map<String, Any>> {
-    val matches = ConcurrentLinkedQueue<Map<String, Any>>()
+    val searchMatches: ConcurrentLinkedQueue<Map<String, Any>> = ConcurrentLinkedQueue()
     val matchCount = AtomicInteger(0)
 
     runBlocking {
@@ -429,19 +429,19 @@ class GrepSkill : Skill() {
           launch(Dispatchers.IO) {
             semaphore.withPermit {
               if (matchCount.get() >= limit) return@withPermit
-              searchFile(file, regex, limit, matchCount, matches)
+              searchFile(file, regex, limit, matchCount, searchMatches)
             }
           }
         }
       }
     }
 
-    return matches.toList().take(limit)
+    return searchMatches.toList().take(limit)
   }
 
   private fun searchFile(
     file: File, regex: Regex, limit: Int,
-    matchCount: AtomicInteger, results: ConcurrentLinkedQueue<Map<String, Any>>
+    matchCount: AtomicInteger, searchResults: ConcurrentLinkedQueue<Map<String, Any>>
   ) {
     try {
       file.bufferedReader(Charsets.UTF_8).use { reader ->
@@ -451,7 +451,7 @@ class GrepSkill : Skill() {
           if (matchCount.get() >= limit) return
           if (regex.containsMatchIn(line)) {
             if (matchCount.incrementAndGet() <= limit) {
-              results.add(
+              searchResults.add(
                 linkedMapOf(
                   "file" to file.absolutePath,
                   "line" to lineNumber,

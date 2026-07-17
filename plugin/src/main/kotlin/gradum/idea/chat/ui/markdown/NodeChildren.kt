@@ -34,10 +34,10 @@ internal class NodeChildren private constructor(val first: Node?, val rest: List
 
     private fun walkDirectChildren(parentNode: Node): List<Node> {
       val result = mutableListOf<Node>()
-      var currentChildren = parentNode.firstChild
-      while (currentChildren != null) {
-        result.add(currentChildren)
-        currentChildren = currentChildren.next
+      var currentChild = parentNode.firstChild
+      while (currentChild != null) {
+        result.add(currentChild)
+        currentChild = currentChild.next
       }
       return result
     }

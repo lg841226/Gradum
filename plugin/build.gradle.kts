@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-14 21:27:12 Changed by gwy
+ * build.gradle.kts  2026-07-17 08:56:23 Changed by gwy
  */
 
 import org.jetbrains.intellij.platform.gradle.tasks.ComposedJarTask
@@ -43,7 +43,6 @@ dependencies {
   implementation(files("libs/intellij.platform.jewel.foundation.jar"))
   implementation(files("libs/intellij.platform.jewel.ui.jar"))
   implementation(files("libs/intellij.platform.jewel.ideLafBridge.jar"))
-
   implementation(files("libs/intellij.platform.jewel.markdown.core.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.ideLafBridgeStyling.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.extensions.autolink.jar"))
@@ -126,18 +125,6 @@ tasks.named("composedJar", ComposedJarTask::class.java) {
 
   from(bundledJars)
 }
-
-// --- Lint configuration --------------------------------------------------
-//
-// detekt is applied here (in addition to the root `build.gradle.kts`)
-// so the IntelliJ plugin module is linted as part of `gradlew detekt`.
-// ktlint is applied via the root's `subprojects {}` block.
-//
-// Both linters share the same rule files at the repository root:
-//   - `config/detekt/detekt.yml`
-//   - `config/detekt/baseline.xml`
-//   - `config/ktlint/baseline.xml`
-//   - `.editorconfig` (ktlint reads this)
 
 dependencies {
   detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")

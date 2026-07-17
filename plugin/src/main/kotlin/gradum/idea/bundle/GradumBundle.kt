@@ -2,14 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBundle.kt  2026-07-14 21:27:12 Changed by gwy
+ * GradumBundle.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.idea.bundle
 
 import com.intellij.DynamicBundle
 import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.bundle.GradumBundle.message
 import org.jetbrains.annotations.PropertyKey
 import java.util.*
 
