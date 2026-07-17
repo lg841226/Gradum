@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownTableTest.kt  2026-07-15 21:34:01 Changed by gwy
+ * GradumMarkdownTableTest.kt  2026-07-17 23:06:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -16,7 +16,7 @@ class GradumMarkdownTableTest {
 
   @Test
   fun `plain text without pipes passes through unchanged`() {
-    val markdown: String = "Hello world.\nThis is prose."
+    val markdown = "Hello world.\nThis is prose."
     val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertEquals(MarkdownSegment.Plain(markdown), segments[0])
@@ -99,7 +99,7 @@ class GradumMarkdownTableTest {
   @Test
   fun `separator row without a header line is not a table`() {
     // `| -- | -- |` alone (no preceding header line) is prose, not a table.
-    val markdown: String = "Prose line.\n| -- | -- |\nMore prose."
+    val markdown = "Prose line.\n| -- | -- |\nMore prose."
     val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
@@ -130,7 +130,7 @@ class GradumMarkdownTableTest {
   @Test
   fun `header line with no pipe and a valid separator falls back to plain`() {
     // Looks like a separator on its own but no real header above it.
-    val markdown: String = "Some intro prose.\n| --- | --- |\nMore prose."
+    val markdown = "Some intro prose.\n| --- | --- |\nMore prose."
     val segments = splitMarkdownAtTables(markdown)
     assertEquals(1, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
@@ -158,7 +158,7 @@ class GradumMarkdownTableTest {
     // row follows. The parser still emits a Table segment (with an
     // empty rows list); the call site in AssistantChatBubble checks
     // isRenderable() and substitutes the placeholder.
-    val markdown: String = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
+    val markdown = "Prose.\n| H1 | H2 |\n| -- | -- |\nMore prose."
     val segments = splitMarkdownAtTables(markdown)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
@@ -195,7 +195,7 @@ class GradumMarkdownTableTest {
     // leak into the surrounding prose. The malformed block itself
     // is a Table (with empty rows) that the caller will replace
     // with a placeholder.
-    val markdown: String = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
+    val markdown = "Lead.\n| A | B | C |\n| - | - | - |\nTrailing."
     val segments = splitMarkdownAtTables(markdown)
     assertEquals(3, segments.size)
     assertTrue(segments[0] is MarkdownSegment.Plain)
@@ -215,9 +215,9 @@ class GradumMarkdownTableTest {
     // happened to contain a `|` — any of these is "Table with
     // empty rows" from the parser's perspective. The caller
     // decides what to do with that.
-    val noBody: String = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
-    val allMismatched: String = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
-    val separatorButTrailingProse: String = "| H1 | H2 |\n| -- | -- |\nstray line"
+    val noBody = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
+    val allMismatched = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
+    val separatorButTrailingProse = "| H1 | H2 |\n| -- | -- |\nstray line"
 
     listOf(noBody, allMismatched, separatorButTrailingProse).forEach { markdown ->
       val tables = splitMarkdownAtTables(markdown).filterIsInstance<MarkdownSegment.Table>()
@@ -367,8 +367,8 @@ class GradumMarkdownTableTest {
     // (plus per-column padding accounted for by the caller) should
     // exactly equal the container width, with the round-down
     // residue absorbed by the last column.
-    val containerWidthPx: Int = 1000
-    val horizontalPaddingPx: Int = 16
+    val containerWidthPx = 1000
+    val horizontalPaddingPx = 16
     val out = distributeTableWidth(
       naturalColumnWidthsPx = intArrayOf(150, 200, 90, 110),
       containerWidthPx = containerWidthPx,

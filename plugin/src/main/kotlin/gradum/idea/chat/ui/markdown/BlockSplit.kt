@@ -237,13 +237,10 @@ private fun serializeListItemInto(listItem: ListItem, listMarker: String, output
   output.append(listMarker)
   val firstChildNode: Node? = children.first
   if (firstChildNode != null) serializeInto(firstChildNode, output)
-  // Indent is fixed at 4 columns. The listMarker is the leading prefix on the first line.
-  // Continuation lines: the first non-space char must align at column 4 (not relative to listMarker).
   val indent: String = " ".repeat(LIST_CHILD_INDENT_COLUMNS)
   for (childNode in children.rest) {
     output.append('\n')
-    output.append(indent)
-    serializeInto(childNode, output)
+    output.append(indentEveryLine(serializeInto(childNode), indent))
   }
 }
 
@@ -271,6 +268,13 @@ private fun serializeFencedCodeBlockInto(codeBlock: FencedCodeBlock, output: Str
   if (!output.endsWith('\n')) output.append('\n')
 
   output.append("```")
+}
+
+/** Prefix every line of [content] with [indent]. */
+private fun indentEveryLine(content: String, indent: String): String {
+  if (content.isEmpty()) return content
+  val lines: List<String> = content.split('\n')
+  return lines.joinToString(separator = "\n") { line -> indent + line }
 }
 
 /** Prefix every line of [content] except the first with `> `. */

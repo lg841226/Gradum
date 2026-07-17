@@ -1,15 +1,8 @@
 /*
  * Copyright (c) 2026 Gradum team, some rights reserved.
- * For licensing terms, see the MIT LICENSE file.
+ * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdownBlockSplitTest.kt  2026-07-14 Changed by gwy
- *
- * Tests for [splitPlainAtBlocks] (the block-boundary splitter that
- * turned an 804-char message into 20 chars of output in the
- * 2026-07-14 bug). The function splits a Plain segment on top-level
- * CommonMark block boundaries so the inline chip parser only ever
- * sees pure-prose segments, and every other top-level block is
- * routed to `Markdown(...)` via [MarkdownSegment.NonProseBlock].
+ * GradumMarkdownBlockSplitTest.kt  2026-07-17 23:06:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -42,7 +35,7 @@ class GradumMarkdownBlockSplitTest {
   }
 
   @Test
-  fun `paragraph followed by fenced code block — the common chat case`() {
+  fun `paragraph followed by fenced code block - the common chat case`() {
     // Most common in chat: an assistant explains something with
     // inline code in a paragraph, then provides a full code sample
     // in a fenced block. Both must render.
@@ -108,7 +101,7 @@ class GradumMarkdownBlockSplitTest {
   }
 
   @Test
-  fun `LinkReferenceDefinition is dropped — reference link still resolves in paragraph`() {
+  fun `LinkReferenceDefinition is dropped - reference link still resolves in paragraph`() {
     // The reference link `[text][ref]` resolves at parse time — the
     // `Link` node inside the `Paragraph` carries the resolved URL,
     // and the `LinkReferenceDefinition` block is dropped (not
@@ -135,10 +128,10 @@ class GradumMarkdownBlockSplitTest {
   @Test
   fun `round-trip serializer preserves inline formatting`() {
     // A paragraph with bold + italic + inline code + link is
-    // re-serialized back to valid markdown. The exact whitespace
+    // re-serialized back to valid Markdown. The exact whitespace
     // may differ from the original (commonmark normalizes), but
     // the structure must survive.
-    val input: String = "a **bold** *italic* `code` [link](https://x.test) end"
+    val input = "a **bold** *italic* `code` [link](https://x.test) end"
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
     assertEquals(1, segments.size)
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
@@ -152,7 +145,7 @@ class GradumMarkdownBlockSplitTest {
   fun `nested ordered list with bullet child is round-tripped as a nested list`() {
     // Bug: 2026-07-14 — nested list with mixed children used to
     // serialize to "1. 有序1- 无序嵌套\n2. 有序2- 有序嵌套" (all on
-    // one line, nested list unindented, Markdown(...) re-parses
+    // one line, nested list unindented, Markdown(...) reparses
     // it as a flat list of two items, losing the nesting). The
     // serializer must now (a) put a newline between the paragraph
     // and the nested list inside each list item, and (b) indent
@@ -199,7 +192,7 @@ class GradumMarkdownBlockSplitTest {
     // must serialize with the code block indented 4 columns past
     // the marker (CommonMark rule for continuation blocks inside
     // list items). 2-space indent is NOT enough — CommonMark would
-    // re-parse that as a top-level code block, not a list child.
+    // reparse that as a top-level code block, not a list child.
     val input: String =
       """
       |- list item
@@ -222,9 +215,9 @@ class GradumMarkdownBlockSplitTest {
   @Test
   fun `paragraph with strikethrough round-trips tildens`() {
     // The block splitter's serializer must emit `~~` for a
-    // Strikethrough inline node so the inline parser can re-parse
+    // Strikethrough inline node so the inline parser can reparse
     // the serialized source and re-detect the strike. Without the
-    // serializer branch, the tildens would be silently dropped and
+    // serializer branch, the tildes would be silently dropped and
     // the inline parser would see plain text.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("a ~~struck~~ word")
     assertEquals(1, segments.size)

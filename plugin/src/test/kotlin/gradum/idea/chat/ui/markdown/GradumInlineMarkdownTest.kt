@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineMarkdownTest.kt  2026-07-15 18:47:26 Changed by gwy
+ * GradumInlineMarkdownTest.kt  2026-07-17 23:06:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -49,8 +49,8 @@ class GradumInlineMarkdownTest {
   /** Drop PUA placeholders so assertions can read the visible text. */
   private fun visibleText(annotated: AnnotatedString): String {
     val out: StringBuilder = StringBuilder()
-    for (i in 0 until annotated.length) {
-      val currentChar: Char = annotated[i]
+    for (element in annotated) {
+      val currentChar: Char = element
       if (currentChar != '\uE000') out.append(currentChar)
     }
     return out.toString()
@@ -125,7 +125,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `mixed paragraph and heading bails — bail-out is all-or-nothing`() {
+  fun `mixed paragraph and heading bails - bail-out is all-or-nothing`() {
     // v2 safety-net: a Plain segment containing a non-`Paragraph`
     // block bails. The upstream `splitPlainAtBlocks` splits on block
     // boundaries before the inline parser sees the text, so the inline
@@ -205,7 +205,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `nested emphasis accumulates styles — bold containing italic`() {
+  fun `nested emphasis accumulates styles - bold containing italic`() {
     // CommonMark: "**bold *italic* inside**" — the inner italic word
     // is both bold and italic.
     val render: InlineMarkdownRender = inlineRender("**bold *italic* inside**")
@@ -270,8 +270,7 @@ class GradumInlineMarkdownTest {
   fun `INLINE_CONTENT_TAG annotation item matches the map key`() {
     // Pins the bug that originally caused every chip to fall back to
     // default Markdown rendering. Compose's `inlineContent` scans for
-    // annotations with the FIXED internal tag Compose owns. User-
-    // defined tags are ignored. The previous v1 used
+    // annotations with the FIXED internal tag Compose owns. User-defined tags are ignored. The previous v1 used
     // `pushStringAnnotation("INLINE_CODE", ...)`, which Compose
     // ignored, so the chip was silently dropped. We now use
     // `appendInlineContent(id, alternateText)` and use the PUA
@@ -395,7 +394,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `bold with code in same paragraph — both render`() {
+  fun `bold with code in same paragraph - both render`() {
     val render: InlineMarkdownRender = inlineRender("**bold** and `code` together")
     assertTrue(
       "expected bold span",
@@ -405,7 +404,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `italic with link in same paragraph — both render`() {
+  fun `italic with link in same paragraph - both render`() {
     val render: InlineMarkdownRender = inlineRender("*italic* and [link](https://x.test)")
     assertTrue(
       "expected italic span",
@@ -423,7 +422,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `escaped asterisks render as literal asterisks — no emphasis`() {
+  fun `escaped asterisks render as literal asterisks - no emphasis`() {
     val render: InlineMarkdownRender = inlineRender("not \\*italic\\* here")
     val visible: String = visibleText(render.annotated)
     assertEquals("not *italic* here", visible)
@@ -482,7 +481,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `strikethrough accumulates with bold — both styles apply`() {
+  fun `strikethrough accumulates with bold - both styles apply`() {
     // `~~**bold strike**~~` — the inner bold gets BOTH the bold
     // weight AND the line-through decoration.
     val render: InlineMarkdownRender = inlineRender("~~**bold strike**~~")
@@ -500,7 +499,7 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `strikethrough inside link — link underline plus strike`() {
+  fun `strikethrough inside link - link underline plus strike`() {
     // `~~[struck link](https://x.test)~~` — the link's text is
     // struck-through, and the link's underline decoration coexists
     // with the strike (composed via combineDecoration).
@@ -519,7 +518,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `strikethrough and inline code in same paragraph both render`() {
     // Mix of formatting — the chip and the strike should be
-    // independent (the strike only spans the tilded text, the chip is
+    // independent (the strike only spans the tided text, the chip is
     // a separate `inlineContent` entry).
     val render: InlineMarkdownRender = inlineRender("struck ~~here~~ with `code`")
     val strikeSpans: List<AnnotatedString.Range<SpanStyle>> =
@@ -588,7 +587,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `parseInlineNodes on a heading walks its inline children directly`() {
-    // Build the heading AST by parsing the original markdown source
+    // Build the heading AST by parsing the original Markdown source
     // once with commonmark — this is what RenderNonProseBlock does
     // before dispatching to RenderHeading.
     val parser: Parser = Parser.builder().build()
@@ -672,7 +671,7 @@ class GradumInlineMarkdownTest {
   fun `parseInlineNodes on a paragraph that starts with a list marker renders bold`() {
     // The list-item / blockquote cases share the same root cause as
     // the heading case: a Paragraph's inline content starting with
-    // a list marker (e.g. `1. `) gets re-parsed as an OrderedList
+    // a list marker (e.g. `1. `) gets reparsed as an OrderedList
     // by `parseInlineMarkdown`, which bails on non-Paragraph blocks.
     // Walking the AST directly preserves the formatting. Here we
     // build the Paragraph manually (the way RenderListItem /

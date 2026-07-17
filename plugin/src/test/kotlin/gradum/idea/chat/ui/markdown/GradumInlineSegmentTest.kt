@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineSegmentTest.kt  2026-07-17 12:52:48 Changed by gwy
+ * GradumInlineSegmentTest.kt  2026-07-17 23:06:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -151,7 +151,7 @@ class GradumInlineSegmentTest {
     val urlAnnotations: List<UrlAnnotation> = listOf(
       UrlAnnotation(start = 3, end = 6, url = "https://x.test"),
     )
-    val placeholder: String = "PLACEHOLDER"
+    val placeholder = "PLACEHOLDER"
     val inlineContent: Map<String, InlineTextContent> = mapOf(
       placeholder to InlineTextContent(
         placeholder = Placeholder(
@@ -169,8 +169,8 @@ class GradumInlineSegmentTest {
     val textSegments: List<InlineSegment.TextSegment> = segments
       .filterIsInstance<InlineSegment.TextSegment>()
     assertEquals(2, textSegments.size)
-    for (seg in textSegments) {
-      assertEquals(setOf(placeholder), seg.inlineContent.keys)
+    for ((_, inlineContent1) in textSegments) {
+      assertEquals(setOf(placeholder), inlineContent1.keys)
     }
   }
 }

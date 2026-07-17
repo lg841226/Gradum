@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * GradumLinkStylingTest.kt  2026-07-17 23:06:55 Changed by gwy
+ */
+
+@file:Suppress("UnstableApiUsage")
+
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.ui.graphics.Color
@@ -5,10 +14,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
@@ -49,7 +55,7 @@ class GradumLinkStylingTest {
 
   @Test
   fun `gradumInlinesStyling wires each LinkColors state into the right InlinesStyling slot`() {
-    val inlineCodeStyle: SpanStyle = SpanStyle(background = Color(0xFFEEEEEE))
+    val inlineCodeStyle = SpanStyle(background = Color(0xFFEEEEEE))
     val styling = gradumInlinesStyling(
       textStyle = TextStyle(),
       inlineCodeStyle = inlineCodeStyle,
@@ -91,7 +97,7 @@ class GradumLinkStylingTest {
 
   @Test
   fun `gradumInlinesStyling passes through the inline code style as-is`() {
-    val inlineCodeStyle: SpanStyle = SpanStyle(background = Color(0xFFEEEEEE))
+    val inlineCodeStyle = SpanStyle(background = Color(0xFFEEEEEE))
     val styling = gradumInlinesStyling(
       textStyle = TextStyle(),
       inlineCodeStyle = inlineCodeStyle,
