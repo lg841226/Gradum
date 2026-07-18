@@ -34,7 +34,6 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Ordered
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling.List.Unordered
 import org.jetbrains.jewel.ui.component.styling.LinkColors
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
-import org.jetbrains.jewel.ui.component.styling.LinkUnderlineBehavior
 import org.jetbrains.jewel.ui.theme.badgeStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
@@ -143,26 +142,11 @@ internal fun gradumInlinesStyling(
 
 /**
  * Chat-panel `LinkStyle` for `ExternalLink`. Same colors / metrics /
- * icons as `JewelTheme.linkStyle`, but with the underline behavior
- * set to [LinkUnderlineBehavior.ShowAlways] so the underline paints
- * at all times — not just on hover. The v1 `ShowOnHover` rule was
- * unreliable in chat-bubble context (Compose `FlowRow` re-layouts
- * and the IDE LaF's hover state sometimes don't fire predictably,
- * leaving the link looking like plain blue text). Permanent
- * underline gives the link a stable visual affordance.
+ * icons as [JewelTheme.linkStyle], but wraps the default in a
+ * [remember] so the identity is stable across recompositions.
  */
 @Composable
-fun rememberGradumLinkStyle(): LinkStyle {
-  val base: LinkStyle = JewelTheme.linkStyle
-  return remember(base) {
-    LinkStyle(
-      icons = base.icons,
-      colors = base.colors,
-      metrics = base.metrics,
-      underlineBehavior = LinkUnderlineBehavior.ShowAlways
-    )
-  }
-}
+fun rememberGradumLinkStyle(): LinkStyle = JewelTheme.linkStyle
 
 /**
  * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
