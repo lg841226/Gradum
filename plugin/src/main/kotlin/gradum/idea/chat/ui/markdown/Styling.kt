@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-17 10:40:05 Changed by gwy
+ * Styling.kt  2026-07-18 11:38:19 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextGeometricTransform
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -132,8 +131,8 @@ internal fun gradumInlinesStyling(
     inlineCode = inlineCodeStyle,
     link = linkSpan(linkColors.content),
     emphasis = SpanStyle(
-      fontStyle = FontStyle.Normal,
-      textGeometricTransform = TextGeometricTransform(skewX = 0.15f)
+      fontStyle = FontStyle.Italic,
+      fontFamily = editorTextStyle.fontFamily
     ),
     strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
     linkFocused = linkSpan(linkColors.contentFocused),
@@ -203,8 +202,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         fontWeight = fontWeight,
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
-        fontStyle = if (italic) FontStyle.Normal else FontStyle.Normal,
-        textGeometricTransform = if (italic) TextGeometricTransform(skewX = 0.15f) else TextGeometricTransform.Default
+        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+        fontFamily = if (italic) editorTextStyle.fontFamily else null,
       )
     }
 

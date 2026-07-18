@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-17 21:47:54 Changed by gwy
+ * InlineMarkdown.kt  2026-07-18 11:57:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -18,7 +18,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.*import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.*
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -134,13 +136,15 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp) {
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily
+  return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineMarkdown(
       chipTint = chipTint,
       linkColor = linkColor,
       plainText = plainText,
       fontSizeSp = fontSizeSp,
-      imageAltColor = imageAltColor
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily
     )
   }
 }
@@ -163,12 +167,14 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  return remember(parentNode, linkColor, imageAltColor, fontSizeSp) {
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily
+  return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineNodes(
       linkColor = linkColor,
       parentNode = parentNode,
       fontSizeSp = fontSizeSp,
-      imageAltColor = imageAltColor
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily
     )
   }
 }
@@ -187,7 +193,8 @@ internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|
 
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
-  plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color
+  plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color,
+  editorFontFamily: FontFamily = FontFamily.Default
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
@@ -236,13 +243,15 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
  */
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 internal fun parseInlineNodes(
-  parentNode: Node, fontSizeSp: Float, linkColor: Color, imageAltColor: Color
+  parentNode: Node, fontSizeSp: Float, linkColor: Color, imageAltColor: Color,
+  editorFontFamily: FontFamily = FontFamily.Default
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
       fontSizeSp = fontSizeSp,
       linkColor = linkColor,
       imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily,
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
@@ -294,7 +303,8 @@ private fun buildInlineRender(
     val renderState = RenderState(
       linkColor = linkColor,
       fontSizeSp = fontSizeSp,
-      imageAltColor = imageAltColor
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily,
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
     log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, chipTint=$chipTint, text=$preview")
@@ -330,6 +340,7 @@ private class RenderState(
   val fontSizeSp: Float,
   val linkColor: Color,
   val imageAltColor: Color,
+  val editorFontFamily: FontFamily = FontFamily.Default,
   var chipCounter: Int = 0,
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
@@ -445,7 +456,7 @@ private fun renderInlineNode(
 ) {
   when (inlineNode) {
     is Text -> renderTextInline(inlineNode, renderState, annotatedStringBuilder)
-    is Emphasis -> renderEmphasisInline(inlineNode, annotatedStringBuilder, renderState)
+    is Emphasis -> renderEmphasisInline(inlineNode, renderState, annotatedStringBuilder)
     is StrongEmphasis -> renderStrongEmphasisInline(inlineNode, annotatedStringBuilder, renderState)
     is Code -> renderCodeInline(inlineNode, annotatedStringBuilder, renderState)
     is Link -> renderLinkInline(inlineNode, renderState, annotatedStringBuilder)
@@ -510,12 +521,12 @@ private fun renderTextInline(
 
 private fun renderEmphasisInline(
   emphasisNode: Emphasis,
-  annotatedStringBuilder: AnnotatedString.Builder,
   renderState: RenderState,
+  annotatedStringBuilder: AnnotatedString.Builder,
 ) {
   val italicStyle: SpanStyle = renderState.currentStyle.copy(
-    fontStyle = FontStyle.Normal,
-    textGeometricTransform = TextGeometricTransform(skewX = 0.15f)
+    fontStyle = FontStyle.Italic,
+    fontFamily = renderState.editorFontFamily
   )
   renderState.withStyle(italicStyle) { renderInlineChildren(emphasisNode, annotatedStringBuilder, renderState) }
 }
@@ -583,8 +594,8 @@ private fun renderImageInline(
   annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val imageAltStyle: SpanStyle = renderState.currentStyle.copy(
-    fontStyle = FontStyle.Normal,
-    textGeometricTransform = TextGeometricTransform(skewX = 0.15f),
+    fontStyle = FontStyle.Italic,
+    fontFamily = renderState.editorFontFamily,
     color = renderState.imageAltColor,
     textDecoration = renderState.currentStyle.textDecoration ?: TextDecoration.None,
   )
