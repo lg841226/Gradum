@@ -40,8 +40,8 @@ private val logger: Logger = LoggerFactory.getLogger("Agent")
  * conversions happen at exactly one boundary — `Routes.events`
  * maps `List<AttachmentDto>` → `List<AttachmentPayload>` once,
  * then the wire shape stays untouched all the way to
- * [buildUserMessage] and from there to the multimodal rewriter
- * in [gradum.client.LLMClient]. This avoids a server → agent
+ * [#buildUserMessage] and from there to the multimodal rewriter
+ * in [gradum.client.LlmClient]. This avoids a server → agent
  * import cycle (Routes already depends on Agent).
  *
  * The payload is already base64-encoded JPEG bytes — the plugin
@@ -315,7 +315,7 @@ class Agent(
    * Filters conditional sections in the prompt based on [SchemaVariant].
    *
    * Sections wrapped in `<!-- if SIMPLE -->...<!-- endif -->` are kept
-   * only when [schemaVariant] is [SchemaVariant.SECTIONS]. Sections wrapped in
+   * only when [schemaVariant] is [SchemaVariant.SIMPLE]. Sections wrapped in
    * `<!-- if FULL -->...<!-- endif -->` are kept only when [schemaVariant] is [SchemaVariant.FULL].
    *
    * Edge cases:
@@ -496,7 +496,7 @@ class Agent(
    * The per-provider clients (`OllamaClient`,
    * `OpenAICompatibleClient`) are responsible for translating
    * the array shape into the wire format each backend expects
-   * — see [gradum.client.LLMClient.sendChat].
+   * — see [gradum.client.LlmClient.sendChat].
    */
   private fun buildUserMessage(text: String, attachments: List<AttachmentPayload>): Map<String, Any> {
     if (attachments.isEmpty()) {
