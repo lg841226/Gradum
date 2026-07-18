@@ -85,11 +85,13 @@ private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 @Composable
 fun rememberGradumParagraphTextStyle(): TextStyle {
   val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   val fontSizeValue: Float = labelTextStyle.fontSize.value.takeIf { it > 0f }
     ?: BODY_FONT_SIZE_FALLBACK_SP
   val resolvedTextStyle: TextStyle = labelTextStyle.copy(
     fontSize = fontSizeValue.sp,
-    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
+    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp,
+    fontFamily = editorFontFamily
   )
   return resolvedTextStyle
 }
@@ -180,9 +182,16 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val bodyTextStyle: TextStyle = labelTextStyle
 
   val paragraphTextStyle: TextStyle = if (thinkingMode) {
-    bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER, color = thinkingGray)
+    bodyTextStyle.copy(
+      lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER,
+      color = thinkingGray,
+      fontFamily = editorTextStyle.fontFamily
+    )
   } else {
-    bodyTextStyle.copy(lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER)
+    bodyTextStyle.copy(
+      lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER,
+      fontFamily = editorTextStyle.fontFamily
+    )
   }
 
   return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode) {
