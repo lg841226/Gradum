@@ -18,8 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.*
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.*import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -514,7 +513,10 @@ private fun renderEmphasisInline(
   annotatedStringBuilder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  val italicStyle: SpanStyle = renderState.currentStyle.copy(fontStyle = FontStyle.Italic)
+  val italicStyle: SpanStyle = renderState.currentStyle.copy(
+    fontStyle = FontStyle.Normal,
+    textGeometricTransform = TextGeometricTransform(skewX = 0.15f)
+  )
   renderState.withStyle(italicStyle) { renderInlineChildren(emphasisNode, annotatedStringBuilder, renderState) }
 }
 
@@ -581,7 +583,8 @@ private fun renderImageInline(
   annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val imageAltStyle: SpanStyle = renderState.currentStyle.copy(
-    fontStyle = FontStyle.Italic,
+    fontStyle = FontStyle.Normal,
+    textGeometricTransform = TextGeometricTransform(skewX = 0.15f),
     color = renderState.imageAltColor,
     textDecoration = renderState.currentStyle.textDecoration ?: TextDecoration.None,
   )

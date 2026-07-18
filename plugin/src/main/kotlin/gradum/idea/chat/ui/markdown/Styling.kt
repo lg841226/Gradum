@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextGeometricTransform
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -130,7 +131,10 @@ internal fun gradumInlinesStyling(
     inlineHtml = SpanStyle(),
     inlineCode = inlineCodeStyle,
     link = linkSpan(linkColors.content),
-    emphasis = SpanStyle(fontStyle = FontStyle.Italic),
+    emphasis = SpanStyle(
+      fontStyle = FontStyle.Normal,
+      textGeometricTransform = TextGeometricTransform(skewX = 0.15f)
+    ),
     strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
     linkFocused = linkSpan(linkColors.contentFocused),
     linkHovered = linkSpan(linkColors.contentHovered),
@@ -199,7 +203,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         fontWeight = fontWeight,
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
-        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal
+        fontStyle = if (italic) FontStyle.Normal else FontStyle.Normal,
+        textGeometricTransform = if (italic) TextGeometricTransform(skewX = 0.15f) else TextGeometricTransform.Default
       )
     }
 
