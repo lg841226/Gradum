@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-18 11:38:19 Changed by gwy
+ * Styling.kt  2026-07-18 12:07:32 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -122,7 +123,8 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 @OptIn(ExperimentalJewelApi::class)
 @Suppress("UnstableApiUsage")
 internal fun gradumInlinesStyling(
-  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors
+  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors,
+  editorFontFamily: FontFamily? = null
 ): InlinesStyling {
   fun linkSpan(content: Color): SpanStyle = SpanStyle(color = content)
   return InlinesStyling(
@@ -132,7 +134,7 @@ internal fun gradumInlinesStyling(
     link = linkSpan(linkColors.content),
     emphasis = SpanStyle(
       fontStyle = FontStyle.Italic,
-      fontFamily = editorTextStyle.fontFamily
+      fontFamily = editorFontFamily
     ),
     strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
     linkFocused = linkSpan(linkColors.contentFocused),
@@ -192,7 +194,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     val paragraphInlines: InlinesStyling = gradumInlinesStyling(
       linkColors = chatLinkColors,
       textStyle = paragraphTextStyle,
-      inlineCodeStyle = inlineCodeTextStyle.toSpanStyle()
+      inlineCodeStyle = inlineCodeTextStyle.toSpanStyle(),
+      editorFontFamily = editorTextStyle.fontFamily
     )
 
     fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight, italic: Boolean = false): TextStyle {
@@ -214,7 +217,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       return gradumInlinesStyling(
         textStyle = textStyle,
         linkColors = chatLinkColors,
-        inlineCodeStyle = headingInlineCode
+        inlineCodeStyle = headingInlineCode,
+        editorFontFamily = editorTextStyle.fontFamily
       )
     }
 
