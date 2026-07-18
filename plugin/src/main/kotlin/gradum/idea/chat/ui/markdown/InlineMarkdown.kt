@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-18 11:57:18 Changed by gwy
+ * InlineMarkdown.kt  2026-07-18 12:04:03 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -19,8 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.*
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -136,7 +136,7 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineMarkdown(
       chipTint = chipTint,
@@ -167,7 +167,7 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineNodes(
       linkColor = linkColor,
@@ -218,7 +218,8 @@ internal fun parseInlineMarkdown(
     topBlocks = topBlocks,
     plainText = plainText,
     fontSizeSp = fontSizeSp,
-    imageAltColor = imageAltColor
+    imageAltColor = imageAltColor,
+    editorFontFamily = editorFontFamily
   )
 }
 
@@ -297,7 +298,8 @@ private fun bailWithReason(reason: String, plainText: String): InlineMarkdownRen
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 private fun buildInlineRender(
   plainText: String, topBlocks: List<Node>, fontSizeSp: Float,
-  chipTint: Color, linkColor: Color, imageAltColor: Color
+  chipTint: Color, linkColor: Color, imageAltColor: Color,
+  editorFontFamily: FontFamily = FontFamily.Default
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
