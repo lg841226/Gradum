@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.*
 import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
@@ -31,7 +30,6 @@ import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
 import gradum.idea.chat.ui.markdown.splitMarkdown
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
-import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
@@ -99,7 +97,6 @@ fun ThinkingIndicator(
       Text(
         fontWeight = FontWeight.Medium,
         text = message("gradum.thinking"),
-        fontFamily = JewelTheme.editorTextStyle.fontFamily,
       )
       Icon(
         key = if (isExpanded) AllIconsKeys.General.ChevronDown

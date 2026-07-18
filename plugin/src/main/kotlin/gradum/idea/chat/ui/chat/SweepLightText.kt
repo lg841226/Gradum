@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
@@ -48,10 +47,7 @@ fun SweepLightText(
     Text(
       text = text,
       modifier = modifier,
-      style = TextStyle(
-        color = JewelTheme.globalColors.text.info,
-        fontFamily = JewelTheme.editorTextStyle.fontFamily
-      )
+      style = TextStyle(color = JewelTheme.globalColors.text.info)
     )
     return
   }
@@ -71,7 +67,6 @@ fun SweepLightText(
     text = text,
     modifier = modifier,
     style = TextStyle(
-      fontFamily = JewelTheme.editorTextStyle.fontFamily,
       brush = Brush.linearGradient(
         colors = listOf(
           JewelTheme.globalColors.text.info.copy(alpha = 0.4f),
