@@ -45,8 +45,8 @@ private val orderedMarkerColumnMinWidth: Dp = 24.dp
 private val unorderedMarkerColumnMinWidth: Dp = 20.dp
 private val markerContentGap: Dp = GradumSpacing.sm
 private val nestedListIndentStep: Dp = GradumSpacing.xl
-private val listItemVerticalSpacing: Dp = GradumSpacing.sm
-private val listOuterPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.sm)
+private val listItemVerticalSpacing: Dp = GradumSpacing.md
+private val listOuterPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.md)
 private val headingExtraPadding: PaddingValues =
   PaddingValues(top = GradumSpacing.lg, bottom = GradumSpacing.sm)
 private val thematicBreakVerticalSpacing: Dp = GradumSpacing.lg

@@ -215,7 +215,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
-        fontFamily = if (italic) editorTextStyle.fontFamily else null,
+        fontFamily = null,
       )
     }
 
