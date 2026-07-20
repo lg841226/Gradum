@@ -1242,11 +1242,7 @@
     </ID>
     <ID>StringTemplateIndent:GradumMarkdownTableTest.kt$GradumMarkdownTableTest$""" | | H2 | | -- | -- | | a | b | """
     </ID>
-    <ID>TooGenericExceptionCaught:ChatScreen.kt$exception: Exception</ID>
-    <ID>TooGenericExceptionCaught:DiffViewer.kt$DiffViewer$exception: Exception</ID>
-    <ID>TooGenericExceptionCaught:GradumApiClient.kt$GradumApiClient$exception: Exception</ID>
-    <ID>TooGenericExceptionCaught:GradumChatSession.kt$GradumChatSession$exception: Exception</ID>
-    <ID>TooGenericExceptionCaught:GradumToolWindowFactory.kt$exception: Exception</ID>
+
     <ID>TopLevelPropertyNaming:MessageAttachmentPreview.kt$private const val bubbleThumbnailCornerRadiusDp: Int = 6</ID>
     <ID>TopLevelPropertyNaming:MessageAttachmentPreview.kt$private const val bubbleThumbnailEdgeDp: Int = 100</ID>
     <ID>UndocumentedPublicClass:Attachments.kt$AttachedContext</ID>

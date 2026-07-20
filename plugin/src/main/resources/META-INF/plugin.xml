@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-07-14 21:27:12 Changed by gwy
+  ~ plugin.xml  2026-07-20 19:26:21 Changed by gwy
   -->
 
 <idea-plugin>
@@ -20,6 +20,7 @@
     ]]></description>
 
   <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.compose</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <toolWindow
@@ -44,6 +45,5 @@
         NotificationGroupManager.getInstance().getNotificationGroup
         from `GradumToolWindowFactory`.
     -->
-    <notificationGroup id="Gradum.Notifications" displayType="BALLOON" isLogByDefault="false"/>
   </extensions>
 </idea-plugin>

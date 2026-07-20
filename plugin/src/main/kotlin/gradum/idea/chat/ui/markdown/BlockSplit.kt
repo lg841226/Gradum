@@ -13,7 +13,7 @@ import org.commonmark.node.*
 import org.commonmark.parser.Parser
 
 private val blockSplitParser: Parser = Parser.builder()
-  .extensions(listOf(StrikethroughExtension.create()))
+  .extensions(listOf(StrikethroughExtension.create(), LatexBlockExtension.create()))
   .build()
 
 /** Indent step (in columns) for child blocks inside a list item. */
@@ -67,6 +67,19 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
         is HtmlBlock -> stripHtmlBlockTags(topLevelBlock)?.let { stripped ->
           MarkdownSegment.Plain(text = stripped)
         } ?: MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
+        // LaTeX blocks round-trip through the same NonProseBlock
+        // path as headings / lists / fenced code: the formula is
+        // re-serialized to `$$\n<formula>\n$$`, and
+        // `RenderNonProseBlock` reparses it (with the
+        // [LatexBlockExtension] registered on its parser) into a
+        // fresh `LatexBlock`, which [RenderBlockNode] dispatches
+        // to `RenderLatexBlock`. Carrying the formula through
+        // this serialize/parse round-trip keeps the
+        // [MarkdownSegment] variants stable — no new
+        // `LatexBlock` variant — at the cost of one extra
+        // parse. The LaTeX extension is cheap (one regex) so
+        // this is well below a frame.
+        is LatexBlock -> MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
 
         else -> MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
       }
@@ -108,7 +121,7 @@ private fun serializeChildrenInto(containerNode: Node, output: StringBuilder) {
   for (childNode in children.rest) serializeInto(childNode, output)
 }
 
-private fun serializeInto(currentNode: Node): String {
+internal fun serializeInto(currentNode: Node): String {
   val resultBuilder: StringBuilder = StringBuilder()
   serializeInto(currentNode, resultBuilder)
   return resultBuilder.toString()
@@ -128,6 +141,7 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
     is HtmlBlock -> output.append(currentNode.literal.orEmpty())
     is IndentedCodeBlock -> output.append(currentNode.literal.orEmpty())
     is Paragraph -> serializeChildrenInto(currentNode, output)
+    is LatexBlock -> serializeLatexBlockInto(currentNode, output)
     // inline nodes
     is Text -> output.append(currentNode.literal.orEmpty())
     is Code -> output.append('`').append(currentNode.literal.orEmpty()).append('`')
@@ -268,6 +282,20 @@ private fun serializeFencedCodeBlockInto(codeBlock: FencedCodeBlock, output: Str
   if (!output.endsWith('\n')) output.append('\n')
 
   output.append("```")
+}
+
+/**
+ * Emit `$$\n<formula>\n$$` for a [LatexBlock]. Trailing newline
+ * before the closing `$$` is conditional so a multi-line formula
+ * preserves its internal newlines, but a single-line formula
+ * still serializes as `$$ x $$` (with one newline before/after
+ * the body) so the reparse path recognizes it as a block rather
+ * than a paragraph.
+ */
+private fun serializeLatexBlockInto(latexBlock: LatexBlock, output: StringBuilder) {
+  output.append("\$\$\n")
+  output.append(latexBlock.formula)
+  output.append("\n\$\$")
 }
 
 /** Prefix every line of [content] with [indent]. */

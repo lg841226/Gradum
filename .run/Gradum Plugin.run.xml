@@ -1,26 +1,19 @@
-<!--
-  ~ Copyright (c) 2026 Gradum team, some rights reserved.
-  ~ For licensing terms and conditions, see the MIT LICENSE file.
-  ~
-  ~ Gradum Plugin.run.xml  2026-07-14 21:27:12 Changed by gwy
-  -->
-
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Gradum Plugin" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
-      <option name="executionName"/>
-      <option name="externalProjectPath" value="$PROJECT_DIR$/plugin"/>
-      <option name="externalSystemIdString" value="GRADLE"/>
-      <option name="scriptParameters" value=""/>
+      <option name="executionName" />
+      <option name="externalProjectPath" value="$PROJECT_DIR$/plugin" />
+      <option name="externalSystemIdString" value="GRADLE" />
+      <option name="scriptParameters" value="" />
       <option name="taskDescriptions">
-        <list/>
+        <list />
       </option>
       <option name="taskNames">
         <list>
-          <option value=":plugin:runIde"/>
+          <option value=":plugin:runIde" />
         </list>
       </option>
-      <option name="vmOptions" value=""/>
+      <option name="vmOptions" value="" />
     </ExternalSystemSettings>
     <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
     <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
@@ -29,6 +22,6 @@
     <RunAsTest>false</RunAsTest>
     <GradleProfilingDisabled>false</GradleProfilingDisabled>
     <GradleCoverageDisabled>false</GradleCoverageDisabled>
-    <method v="2"/>
+    <method v="2" />
   </configuration>
 </component>

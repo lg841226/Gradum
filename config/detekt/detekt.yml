@@ -790,6 +790,10 @@ formatting:
     active: true
   WildcardImport:
     active: true
+  Wrapping:
+    # Disabled: ktlint WrappingRule crashes with NPE at
+    # WrappingRule.rearrangeBlock on certain AST patterns (ktlint bug).
+    active: false
 
 # detekt's `test:` block is not a valid top-level section in 1.23.x;
 # test-only rule relaxations are configured per-test-source-set via

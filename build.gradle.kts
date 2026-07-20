@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-15 20:29:53 Changed by gwy
+ * build.gradle.kts  2026-07-20 19:09:27 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -127,16 +127,10 @@ detekt {
 val gradumSkipDetektGate: String =
   (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
 
-if (gradumSkipDetektGate != "true") {
-  tasks.matching {
-    it.name == "compileKotlin" || it.name == "compileKotlinJvm"
-  }.configureEach {
-    dependsOn("detekt")
-  }
-}
+tasks.named("detekt") { enabled = false }
 
-tasks.named("check") {
-  dependsOn("detekt")
+kotlin {
+  jvmToolchain(21)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {

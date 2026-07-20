@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-16 21:28:50 Changed by gwy
+ * Table.kt  2026-07-18 12:23:29 Changed by gwy
  */
 
 
 @file:OptIn(ExperimentalJewelApi::class)
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.markdown
 
@@ -32,6 +33,12 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
+import org.commonmark.ext.gfm.tables.TableBlock
+import org.commonmark.ext.gfm.tables.TableBody
+import org.commonmark.ext.gfm.tables.TableCell
+import org.commonmark.ext.gfm.tables.TableHead
+import org.commonmark.ext.gfm.tables.TableRow
+import org.commonmark.node.Node
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.MarkdownText
@@ -53,6 +60,12 @@ import org.jetbrains.jewel.ui.typography
  *
  * GFM table syntax is *not* registered here: the chat UI strips GFM tables out
  * at the call site in AssistantChatBubble and renders them with [ScrollableTable].
+ *
+ * [LatexBlockExtension] is intentionally **not** registered here — this
+ * processor is used by the fenced / indented code block reparse path
+ * ([BlockRenderer.parseFencedCodeBlock]), and a `$$…$$` inside a code
+ * block must stay as literal text, not become a rendered formula. The
+ * LaTeX block extension lives on the inline / block path parsers only.
  */
 val GradumMarkdownProcessor: MarkdownProcessor by lazy {
   MarkdownProcessor(
@@ -423,7 +436,7 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
     Text(
       text = message("gradum.table"),
       fontWeight = FontWeight.Medium,
-      style = JewelTheme.editorTextStyle
+      fontFamily = JewelTheme.editorTextStyle.fontFamily
     )
     Tooltip(tooltip = { Text(text = message("gradum.copy.table.tooltip")) }) {
       IconButton(
@@ -571,4 +584,49 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
     color = globalColors.text.disabled,
     modifier = modifier.padding(vertical = GradumSpacing.sm)
   )
+}
+
+/**
+ * Converts a CommonMark [TableBlock] (from the GFM tables extension) into
+ * a [MarkdownSegment.Table] that [ScrollableTable] can render. Walks the
+ * AST: [TableBlock] → [TableHead]/[TableBody] → [TableRow] → [TableCell],
+ * serializing each cell's inline children to plain text.
+ */
+internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
+  fun Node.childNodes(): List<Node> = buildList {
+    val nc = NodeChildren.of(this@childNodes)
+    if (nc.first != null) add(nc.first)
+    addAll(nc.rest)
+  }
+
+  val headNode: TableHead? = childNodes().filterIsInstance<TableHead>().firstOrNull()
+  val bodyNode: TableBody? = childNodes().filterIsInstance<TableBody>().firstOrNull()
+
+  val firstHeadRow: TableRow? = headNode?.childNodes()?.filterIsInstance<TableRow>()?.firstOrNull()
+
+  val headerCells: List<String> = firstHeadRow
+    ?.childNodes()?.filterIsInstance<TableCell>()
+    ?.map { serializeInlineChildren(it) }
+    ?: emptyList()
+
+  val alignments: List<TextAlign> = firstHeadRow
+    ?.childNodes()?.filterIsInstance<TableCell>()
+    ?.map { cell ->
+      when (cell.alignment) {
+        org.commonmark.ext.gfm.tables.TableCell.Alignment.CENTER -> TextAlign.Center
+        org.commonmark.ext.gfm.tables.TableCell.Alignment.RIGHT -> TextAlign.End
+        else -> TextAlign.Start
+      }
+    }
+    ?: emptyList()
+
+  val bodyRows: List<List<String>> = bodyNode
+    ?.childNodes()?.filterIsInstance<TableRow>()
+    ?.map { row ->
+      row.childNodes().filterIsInstance<TableCell>()
+        .map { serializeInlineChildren(it) }
+    }
+    ?: emptyList()
+
+  return MarkdownSegment.Table(headerCells, bodyRows, alignments)
 }

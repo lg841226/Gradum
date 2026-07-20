@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 import java.io.InputStream
 import java.net.URI
@@ -218,7 +219,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
     val parsed: JsonElement = try {
       ndjsonParser.parseToJsonElement(line)
-    } catch (exception: Exception) {
+    } catch (exception: SerializationException) {
       val preview: String = line.take(MAX_LOGGED_LINE)
 
       log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)

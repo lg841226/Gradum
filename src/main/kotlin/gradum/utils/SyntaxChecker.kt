@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-07-14 21:27:12 Changed by gwy
+ * SyntaxChecker.kt  2026-07-18 10:36:05 Changed by gwy
  */
 
 package gradum.utils
@@ -111,7 +111,7 @@ private data class PendingIssue(
 }
 
 /**
- * Rustc uses "error[E0425]: message" headers followed by an arrow " --> path:line:col" location line.
+ * Rustc uses `error E0425`: message" headers followed by an arrow " --> path:line:col" location line.
  * Extracts error code and coordinates from the structured two-line format.
  */
 private val rustcParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
@@ -202,7 +202,7 @@ private val goParser: SyntaxParser = SyntaxParser { output: String, filePath: St
 /**
  * Python / Node / JS parser. Handles three formats from the same language:
  * 1. Traceback-style: "File \"path\", line N" + "ErrorType: message" (py_compile)
- * 2. Flat format: "file:line:col: message" without severity keyword (pyflakes, jshint)
+ * 2. Flat format: "file:line:col: message" without severity keyword (Pyflakes, jshint)
  * 3. Code-prefixed: "file:line:col: CODE message" where CODE is alphanumeric (flake8, eslint)
  */
 private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->

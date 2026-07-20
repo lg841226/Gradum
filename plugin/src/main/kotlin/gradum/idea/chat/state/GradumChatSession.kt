@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-17 09:35:23 Changed by gwy
+ * GradumChatSession.kt  2026-07-20 16:39:04 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import java.io.IOException
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -203,8 +204,15 @@ class GradumChatSession {
    * discarded and started fresh.
    */
   fun reset() {
-    currentJob?.cancel()
+    val job = currentJob
     currentJob = null
+    if (job != null) {
+      try {
+        job.cancel(CancellationException("Gradum: reset session"))
+      } catch (t: Throwable) {
+        log.warn("Failed to cancel current job on reset", t)
+      }
+    }
     sessionId = null
     hasSentMessage = false
     isSending = false
@@ -228,8 +236,8 @@ class GradumChatSession {
       val json: String = apiClient.getModels()
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
       applyModelList(response.models, response.recommended)
-    } catch (exception: Exception) {
-      log.warn("Failed to load models from ${apiClient.baseUrl}", exception)
+    } catch (iOException: IOException) {
+      log.warn("Failed to load models from ${apiClient.baseUrl}", iOException)
       models.clear(); modelsLoaded = false
     }
   }
@@ -363,9 +371,38 @@ class GradumChatSession {
 
   /**
    * Stops the background model polling job if it is running.
+   *
+   * Implementation note: we explicitly pass a [CancellationException] (instead
+   * of `null` or relying on the default-parameter form `pollingJob?.cancel()`).
+   *
+   * Reason: `pollingJob?.cancel()` would compile to a call to the
+   * Kotlin-generated `kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`
+   * synthetic bridge. The IDE's coroutines library is a JetBrains internal rebuild
+   * (`1.10.2-intellij-1`) whose bytecode differs from upstream. If a future IDE
+   * update ships a coroutines variant where that synthetic is absent (or loads
+   * from a stripped-down path), the call site will throw
+   * `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(...)` and freeze
+   * the UI on the first user click. By calling the **non-synthetic**
+   * `Job.cancel(CancellationException)` overload directly, we always hit a
+   * method that is part of the public `Job` interface and is guaranteed to
+   * exist.
+   *
+   * The catch is a defensive belt-and-braces measure: cancellation is a
+   * no-op cleanup, so it should never crash the app. If anything goes wrong
+   * (e.g. a corrupted classpath, a partial reload), we still want the user
+   * to be able to keep interacting with the UI rather than see a frozen
+   * tool window.
    */
   fun stopModelPolling() {
-    pollingJob?.cancel(); pollingJob = null
+    val job = pollingJob
+    pollingJob = null
+    if (job != null) {
+      try {
+        job.cancel(CancellationException("Gradum: stop model polling"))
+      } catch (t: Throwable) {
+        log.warn("Failed to cancel polling job", t)
+      }
+    }
   }
 
   /**
@@ -375,7 +412,15 @@ class GradumChatSession {
    * to abort the agent's execution.
    */
   suspend fun stopSession() {
-    currentJob?.cancel(); currentJob = null
+    val job = currentJob
+    currentJob = null
+    if (job != null) {
+      try {
+        job.cancel(CancellationException("Gradum: stop session"))
+      } catch (t: Throwable) {
+        log.warn("Failed to cancel current job on stopSession", t)
+      }
+    }
 
     val currentSessionId = sessionId
     if (currentSessionId != null) {

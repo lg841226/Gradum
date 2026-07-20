@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DiffViewer.kt  2026-07-14 21:27:12 Changed by gwy
+ * DiffViewer.kt  2026-07-20 16:40:06 Changed by gwy
  */
 
 package gradum.idea.chat.ui.common
@@ -130,8 +130,8 @@ object DiffViewer {
 
       log.debug("Dispatching DiffManager.showDiff with DiffDialogHints.MODAL")
       DiffManager.getInstance().showDiff(project, request, DiffDialogHints.MODAL)
-    } catch (exception: Exception) {
-      log.warn("Failed to open diff viewer for $path", exception)
+    } catch (illegalArgumentException: IllegalArgumentException) {
+      log.warn("Failed to open diff viewer for $path", illegalArgumentException)
     }
   }
 

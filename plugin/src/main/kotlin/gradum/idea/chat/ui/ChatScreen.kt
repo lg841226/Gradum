@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-14 21:27:12 Changed by gwy
+ * ChatScreen.kt  2026-07-20 16:39:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -31,6 +31,7 @@ import gradum.idea.chat.ui.input.ChatInputSection
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import java.awt.Desktop
+import java.io.IOException
 import java.net.URI
 
 private val logger = Logger.getInstance("ChatScreen"::class.java)
@@ -233,8 +234,8 @@ fun ChatScreen(
               onUrlClick = { url ->
                 try {
                   Desktop.getDesktop().browse(URI(url))
-                } catch (exception: Exception) {
-                  logger.warn("Failed to open URL: $url", exception)
+                } catch (iOException: IOException) {
+                  logger.warn("Failed to open URL: $url", iOException)
                 }
               },
             )

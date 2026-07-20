@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-15 18:48:38 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-18 12:23:29 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -179,7 +179,7 @@ private fun CodeBlockToolbar(
     Text(
       text = displayLanguage,
       fontWeight = FontWeight.Medium,
-      style = JewelTheme.editorTextStyle
+      fontFamily = JewelTheme.editorTextStyle.fontFamily
     )
     Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
       IconButton(

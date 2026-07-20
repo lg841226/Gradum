@@ -137,7 +137,14 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("kimi-k2", "Kimi K2")
   put("kimi-k2.5", "Kimi K2.5")
   put("kimi-k2.6", "Kimi K2.6")
+  put("kimi-k2.7", "Kimi K2.7")
+  put("kimi-k2.7-thinking", "Kimi K2.7 Thinking")
+  put("kimi-k3", "Kimi K3")
+  put("kimi-k3-mini", "Kimi K3 Mini")
+  put("kimi-k3-thinking", "Kimi K3 Thinking")
   put("moonshot-v1", "Moonshot V1")
+  put("moonshot-v2", "Moonshot V2")
+  put("moonshot-v2-thinking", "Moonshot V2 Thinking")
   put("kimi", "Kimi")
   put("mistral", "Mistral")
   put("mistral-7b", "Mistral 7B")
@@ -242,9 +249,24 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("claude-4-opus", "Claude 4 Opus")
   put("claude-4-sonnet", "Claude 4 Sonnet")
   put("claude-4.5-sonnet", "Claude 4.5 Sonnet")
+  put("claude-4.5-opus", "Claude 4.5 Opus")
+  put("claude-4.5-haiku", "Claude 4.5 Haiku")
+  put("claude-4-5-opus", "Claude 4.5 Opus")
+  put("claude-4-5-sonnet", "Claude 4.5 Sonnet")
+  put("claude-4-5-haiku", "Claude 4.5 Haiku")
   put("claude-sonnet-4", "Claude Sonnet 4")
   put("claude-opus-4", "Claude Opus 4")
   put("claude-haiku-4", "Claude Haiku 4")
+  put("claude-sonnet-4.5", "Claude Sonnet 4.5")
+  put("claude-opus-4.5", "Claude Opus 4.5")
+  put("claude-haiku-4.5", "Claude Haiku 4.5")
+  put("claude-5-opus", "Claude 5 Opus")
+  put("claude-5-sonnet", "Claude 5 Sonnet")
+  put("claude-5-haiku", "Claude 5 Haiku")
+  put("claude-opus-5", "Claude Opus 5")
+  put("claude-sonnet-5", "Claude Sonnet 5")
+  put("claude-haiku-5", "Claude Haiku 5")
+  put("claude-fable-5", "Claude Fable 5")
 
   put("gpt-3.5", "GPT-3.5")
   put("gpt-3.5-turbo", "GPT-3.5 Turbo")
@@ -258,6 +280,22 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("gpt-5", "GPT-5")
   put("gpt-5-mini", "GPT-5 Mini")
   put("gpt-5-nano", "GPT-5 Nano")
+  put("gpt-5-codex", "GPT-5 Codex")
+  put("gpt-5.1", "GPT-5.1")
+  put("gpt-5.1-mini", "GPT-5.1 Mini")
+  put("gpt-5.1-pro", "GPT-5.1 Pro")
+  put("gpt-5.1-codex", "GPT-5.1 Codex")
+  // ChatGPT 5.6 — OpenAI's 3-tier release. Naming follows the
+  // user's instruction: `chatgpt-5.6` resolves to the
+  // flagship ("ChatGPT 5.6"), `chatgpt-5.6-mini` to the
+  // efficiency tier, and `chatgpt-5.6-nano` to the
+  // ultra-low-latency tier. We deliberately do NOT collapse
+  // these into `gpt-5.6` because the bare "GPT-5.6" entry
+  // (if added later) is the API-facing model name while
+  // "ChatGPT 5.6" is the consumer-facing product name.
+  put("chatgpt-5.6", "ChatGPT 5.6")
+  put("chatgpt-5.6-mini", "ChatGPT 5.6 Mini")
+  put("chatgpt-5.6-nano", "ChatGPT 5.6 Nano")
   put("o1", "o1")
   put("o1-mini", "o1 Mini")
   put("o1-preview", "o1 Preview")
@@ -266,6 +304,9 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("o3-mini", "o3 Mini")
   put("o3-pro", "o3 Pro")
   put("o4-mini", "o4 Mini")
+  put("o5", "o5")
+  put("o5-mini", "o5 Mini")
+  put("o5-pro", "o5 Pro")
   put("chatgpt-4o-latest", "ChatGPT-4o")
   // GPT-OSS — OpenAI's open-weights distilled line, both
   // sizes are distilled from ChatGPT 4. Naming follows the

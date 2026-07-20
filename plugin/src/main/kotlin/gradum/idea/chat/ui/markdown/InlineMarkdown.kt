@@ -53,6 +53,14 @@ private const val IMAGE_ALT_PLACEHOLDER_BASE: Char = '\uE001'
 internal const val FOOTNOTE_TEXT_TAG: String = "FOOTNOTE_TEXT"
 private const val FOOTNOTE_PLACEHOLDER_BASE: Char = '\uE002'
 
+/**
+ * PUA base for inline LaTeX placeholders. Distinct from the
+ * code / image / footnote bases so the four placeholder
+ * tables never collide in the surrounding `Text(annotated,
+ * inlineContent = ...)` map.
+ */
+private const val LATEX_PLACEHOLDER_BASE: Char = '\uE003'
+
 private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
 private val inlineCodePaddingHorizontal: Dp = GradumSpacing.xs
 private val inlineCodePaddingVertical: Dp = 0.dp
@@ -60,7 +68,15 @@ internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.12f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
 private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
-private const val PLACEHOLDER_WIDTH_PADDING_SP: Float = 8f
+// Horizontal padding on each side of the inline LaTeX PUA placeholder
+// char. 8sp was too much — at 14sp body text that's ~57% extra
+// horizontal dead-space, all on the right of the rendered formula
+// (because the actual LaTeX composable is left-aligned within the
+// PUA bounding box and most formulas are narrower than the
+// per-character width estimate). 2sp keeps just enough breathing room
+// for the LaTeX baseline to align with the surrounding text without
+// leaving a visible gap.
+private const val PLACEHOLDER_WIDTH_PADDING_SP: Float = 2f
 private const val FALLBACK_FONT_SIZE_SP: Float = 14f
 private const val FALLBACK_EM_FONT_SIZE_SP: Float = 14f
 private const val MIN_OPAQUE_TINT_ALPHA: Float = 0.1f
@@ -189,6 +205,40 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
  * Used by [renderTextInline] to split text into prose and footnote segments.
  */
 internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|\[(\d+)])""")
+
+
+/**
+ * Regex to detect inline LaTeX formulas: `$…$`. Non-greedy,
+ * no newlines, requires at least 1 char between the two `$`
+ * markers. Used by [renderTextInline] to split text into prose
+ * and LaTeX segments; matched ranges are rendered through the
+ * huarangmeng/latex library.
+ *
+ * The block-level `$$…$$` (each `$$` on its own line) is
+ * handled separately by the CommonMark [LatexBlockExtension] —
+ * this regex is intentionally only matching the single-`$`
+ * inline form so the two don't fight.
+ */
+// Matches both inline LaTeX forms:
+//   1) `$$…$$` — what the LLM writes when it produces block-style
+//      delimiters inside a paragraph (e.g. on the same line as
+//      surrounding prose instead of on its own line per the
+//      block-parser rule). The `$$` form MUST be the first
+//      alternative so the engine tries it before `$…$` — otherwise
+//      the regex would match the inner `$x$` of `$$x^2$$` and leave
+//      one stray `$` on each side, leaking into the UI.
+//   2) `$…$` — the standard inline-LaTeX form.
+//
+// `[^$\n]+?` excludes both `$` and `\n`. Newline exclusion means
+// `$\nx^2$` (the dollar pair split across lines) never matches —
+// CommonMark would have moved that onto a new line as prose.
+//
+// Capture-group count: exactly 1. The second alternative uses a
+// non-capturing group `(?:…)` so the matched formula is always in
+// `groupValues[1]`, regardless of which alternative matched. The
+// production walker reads `groupValues[1]` directly (see
+// [renderTextInline]); tests can do the same.
+internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$(?:[^$\n]+?)\$""")
 
 
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
@@ -346,6 +396,7 @@ private class RenderState(
   var chipCounter: Int = 0,
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
+  var latexCounter: Int = 0,
   var currentStyle: SpanStyle = SpanStyle(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf()
@@ -427,6 +478,40 @@ private class RenderState(
     }
     return placeholderKey
   }
+
+  /**
+   * Consume a fresh inline LaTeX placeholder + register a
+   * [RenderInlineLatex] composable in `inlineContent`. The
+   * placeholder is a PUA glyph whose width is measured against
+   * the formula's bounding box (estimated by `cjkAwareWidthRatio`
+   * for now — a real measurement would require a synchronous
+   * LaTeX pre-parse, which the library does inside its
+   * `Latex(...)` composable; we use a per-em estimate to
+   * reserve enough horizontal space so the surrounding text
+   * doesn't reflow when the math is painted). The caller
+   * appends the placeholder to the [AnnotatedString] so the
+   * `Text(annotated, inlineContent = ...)` will paint the
+   * formula inline at that position.
+   */
+  fun allocateLatex(formulaText: String): String {
+    val placeholderKey: String = LATEX_PLACEHOLDER_BASE.toString().repeat(latexCounter + 1)
+    latexCounter += 1
+    val placeholderWidth: Float = fontSizeSp * cjkAwareWidthRatio(formulaText) + PLACEHOLDER_WIDTH_PADDING_SP
+    val placeholderHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
+    val placeholderShape = Placeholder(
+      width = placeholderWidth.sp,
+      height = placeholderHeight.sp,
+      placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+    )
+    inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
+      RenderInlineLatex(
+        formula = formulaText,
+        fontSizeSp = fontSizeSp,
+        fontFamily = editorFontFamily
+      )
+    }
+    return placeholderKey
+  }
 }
 
 
@@ -479,33 +564,62 @@ private fun renderTextInline(
   val literal: String = textNode.literal.orEmpty()
   if (literal.isEmpty()) return
 
-  val matches: List<MatchResult> = INLINE_FOOTNOTE_REGEX.findAll(literal).toList()
-  if (matches.isEmpty()) {
+  val footnoteMatches: List<MatchResult> = INLINE_FOOTNOTE_REGEX.findAll(literal).toList()
+  val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal).toList()
+  if (footnoteMatches.isEmpty() && latexMatches.isEmpty()) {
     if (renderState.currentStyle == SpanStyle()) annotatedStringBuilder.append(literal)
     else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(literal) }
     return
   }
 
+  // Merge the two match lists into a single ordered walk. The
+  // two regexes are disjoint (footnotes use `[` / `]`, LaTeX
+  // uses `$`), so the merged sequence preserves both. If the
+  // two ever produce overlapping matches in the future, the
+  // `assumeNonOverlapping` precondition is violated — that's a
+  // structural regression, not a runtime one.
+  val allMatches: List<MatchResult> = (footnoteMatches + latexMatches)
+    .sortedBy { it.range.first }
+
   var lastIndex = 0
-  for (match in matches) {
+  for (match in allMatches) {
+    if (match.range.first < lastIndex) {
+      // Defensive: should never happen because the two regexes
+      // are disjoint, but a stray overlap would corrupt the
+      // AnnotatedString. Skip and log instead of producing
+      // malformed output.
+      continue
+    }
     val preText: String = literal.substring(lastIndex, match.range.first)
     if (preText.isNotEmpty()) {
       if (renderState.currentStyle == SpanStyle()) annotatedStringBuilder.append(preText)
       else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(preText) }
     }
 
-    val footnoteText: String = match.groupValues[2]
-      .ifEmpty { match.groupValues[3] }
-      .ifEmpty { match.groupValues[4] }
-    if (footnoteText.isNotEmpty()) {
-      val placeholderKey: String = renderState.allocateFootnote(footnoteText)
-      annotatedStringBuilder.pushStringAnnotation(tag = FOOTNOTE_TEXT_TAG, annotation = footnoteText)
-      annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
-      annotatedStringBuilder.pushStyle(SpanStyle())
-      annotatedStringBuilder.append(placeholderKey)
-      annotatedStringBuilder.pop()
-      annotatedStringBuilder.pop()
-      annotatedStringBuilder.pop()
+    if (footnoteMatches.contains(match)) {
+      val footnoteText: String = match.groupValues[2]
+        .ifEmpty { match.groupValues[3] }
+        .ifEmpty { match.groupValues[4] }
+      if (footnoteText.isNotEmpty()) {
+        val placeholderKey: String = renderState.allocateFootnote(footnoteText)
+        annotatedStringBuilder.pushStringAnnotation(tag = FOOTNOTE_TEXT_TAG, annotation = footnoteText)
+        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+        annotatedStringBuilder.pushStyle(SpanStyle())
+        annotatedStringBuilder.append(placeholderKey)
+        annotatedStringBuilder.pop()
+        annotatedStringBuilder.pop()
+        annotatedStringBuilder.pop()
+      }
+    } else {
+      val formulaText: String = match.groupValues[1]
+      if (formulaText.isNotEmpty()) {
+        val placeholderKey: String = renderState.allocateLatex(formulaText)
+        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+        annotatedStringBuilder.pushStyle(SpanStyle())
+        annotatedStringBuilder.append(placeholderKey)
+        annotatedStringBuilder.pop()
+        annotatedStringBuilder.pop()
+      }
     }
 
     lastIndex = match.range.last + 1
@@ -689,20 +803,31 @@ internal fun splitIntoInlineSegments(
 }
 
 /**
- * Drop PUA placeholders from a link's text range — code chips that
- * happen to be inside a link's label are rendered through the prose
- * path, not the link path. `AnnotatedString.toString()` already
- * preserves plain text content; we just need to filter out the PUA
- * chars. The link range was wrapped in a `pushStringAnnotation` for
- * the link's URL, but that's metadata, not visible text.
+ * Drop PUA placeholders from a link's text range — code chips,
+ * image icons, footnote marks, and inline LaTeX that happen to
+ * be inside a link's label are all rendered through their own
+ * `inlineContent` entries, not the link path. `AnnotatedString.toString()`
+ * already preserves plain text content; we just need to filter
+ * out the PUA chars. The link range was wrapped in a
+ * `pushStringAnnotation` for the link's URL, but that's metadata,
+ * not visible text.
  */
 private fun stripInlineLinkText(range: CharSequence): String {
-  if (range.none { it == INLINE_CODE_PLACEHOLDER }) return range.toString()
+  if (range.none { it.isInlinePlaceholderPua() }) return range.toString()
   val output: StringBuilder = StringBuilder(range.length)
   for (char in range) {
-    if (char != INLINE_CODE_PLACEHOLDER) output.append(char)
+    if (!char.isInlinePlaceholderPua()) output.append(char)
   }
   return output.toString()
+}
+
+/** One of the PUA placeholders reserved for an inline-only chip / icon / formula. */
+private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
+  INLINE_CODE_PLACEHOLDER,
+  IMAGE_ALT_PLACEHOLDER_BASE,
+  FOOTNOTE_PLACEHOLDER_BASE,
+  LATEX_PLACEHOLDER_BASE -> true
+  else -> false
 }
 
 

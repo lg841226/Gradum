@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-17 21:31:16 Changed by gwy
+ * BlockRenderer.kt  2026-07-18 19:52:02 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -39,7 +39,9 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 
-private val commonmarkParser: Parser = Parser.builder().build()
+internal val blockReparseParser: Parser = Parser.builder()
+  .extensions(listOf(LatexBlockExtension.create()))
+  .build()
 
 private val orderedMarkerColumnMinWidth: Dp = 24.dp
 private val unorderedMarkerColumnMinWidth: Dp = 20.dp
@@ -68,7 +70,7 @@ fun RenderNonProseBlock(
   onUrlClick: (String) -> Unit = {}, segment: MarkdownSegment.NonProseBlock
 ) {
   val document: Document = remember(segment.text) {
-    commonmarkParser.parse(segment.text) as Document
+    blockReparseParser.parse(segment.text) as Document
   }
 
   val children: NodeChildren = NodeChildren.of(document)
@@ -102,9 +104,14 @@ fun RenderBlockNode(
     is BulletList -> RenderBulletList(block, indentDepth, onUrlClick)
     is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick)
     is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
-    is TableBlock -> Text(
+    is TableBlock -> ScrollableTable(
+      table = block.toMarkdownSegmentTable(),
       modifier = Modifier.fillMaxWidth(),
-      text = serializeMarkdownNode(block)
+      onUrlClick = onUrlClick
+    )
+    is LatexBlock -> RenderLatexBlock(
+      formula = block.formula,
+      modifier = Modifier.fillMaxWidth()
     )
 
     else -> Text(
@@ -258,7 +265,6 @@ private fun RenderOrderedList(
 internal fun collectListItems(listNode: Node): List<ListItem> =
   generateSequence(listNode.firstChild) { it.next }.filterIsInstance<ListItem>().toList()
 
-
 /** A `ListItem` that starts with a GFM task-list marker. */
 internal data class TaskListMarker(val checked: Boolean)
 
@@ -305,12 +311,23 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   val strippedParagraph = Paragraph()
   strippedParagraph.appendChild(org.commonmark.node.Text(stripped))
 
+  // Walk the original paragraph's children starting at the
+  // sibling after `firstText`. We must capture `current.next`
+  // *before* `appendChild` because the call goes through
+  // `Node.unlink`, which nulls the moved node's `next` field
+  // (see commonmark `org.commonmark.node.Node#unlink`).
+  // A `generateSequence { it.next }` over the moved node would
+  // terminate after the first sibling — a real bug that dropped
+  // every-other-child for paragraphs with a strong/emphasis
+  // sibling in a task-list item. The manual loop captures
+  // `next` before the destructive append.
   var current: Node? = firstText.next
   while (current != null) {
     val next: Node? = current.next
     strippedParagraph.appendChild(current)
     current = next
   }
+
   return strippedParagraph
 }
 
@@ -556,20 +573,17 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(color = quoteTextColor)
   val quotePadding: PaddingValues = styling.blockQuote.padding
   val borderColor = styling.blockQuote.lineColor
-  val borderWidth: Dp = styling.blockQuote.lineWidth
   val indentStart: Dp = quotePadding.calculateStartPadding(LayoutDirection.Ltr)
   val children: NodeChildren = NodeChildren.of(quote)
 
-  Row(modifier = Modifier.fillMaxWidth()) {
-    if (borderWidth.value > 0f && borderColor.alpha > 0f) {
-      Box(
-        modifier = Modifier
-          .width(borderWidth)
-          .fillMaxHeight()
-          .clip(RoundedCornerShape(percent = 50))
-          .background(borderColor)
-      )
-    }
+  Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+    Box(
+      modifier = Modifier
+        .width(4.dp)
+        .fillMaxHeight()
+        .clip(RoundedCornerShape(percent = 50))
+        .background(borderColor)
+    )
     Column(
       modifier = Modifier
         .fillMaxWidth()
@@ -582,7 +596,6 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
       }
     }
   }
-
 }
 
 /** Render one block-quote child with the blockquote text color applied to inline text. */

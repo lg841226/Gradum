@@ -85,13 +85,11 @@ private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 @Composable
 fun rememberGradumParagraphTextStyle(): TextStyle {
   val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
-  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   val fontSizeValue: Float = labelTextStyle.fontSize.value.takeIf { it > 0f }
     ?: BODY_FONT_SIZE_FALLBACK_SP
   val resolvedTextStyle: TextStyle = labelTextStyle.copy(
     fontSize = fontSizeValue.sp,
-    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp,
-    fontFamily = editorFontFamily
+    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
   )
   return resolvedTextStyle
 }
@@ -184,13 +182,11 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val paragraphTextStyle: TextStyle = if (thinkingMode) {
     bodyTextStyle.copy(
       lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER,
-      color = thinkingGray,
-      fontFamily = editorTextStyle.fontFamily
+      color = thinkingGray
     )
   } else {
     bodyTextStyle.copy(
-      lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER,
-      fontFamily = editorTextStyle.fontFamily
+      lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER
     )
   }
 
@@ -246,7 +242,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
 
     val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.disabled
-    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.borders.normal
+    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.text.disabled
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
       padding = PaddingValues(
         start = GradumSpacing.xl,
@@ -264,7 +260,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       paragraphTextStyle,
       paragraphTextStyle,
       paragraphInlines,
-      GradumSpacing.xl,
+      GradumSpacing.lrl,
       paragraph = MarkdownStyling.Paragraph.createInlinesStyling(paragraphInlines),
       heading = MarkdownStyling.Heading.createInlinesStyling(
         paragraphTextStyle,
