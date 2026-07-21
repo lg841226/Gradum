@@ -369,18 +369,17 @@ def compute_quality_batch(commits: List[Dict], unit: str, now: datetime, params:
 def write_report(q: Dict, periods: List[Dict], output_path: str):
     s = q["scores"]
     lines = []
-    sep = "=" * 66
 
-    lines.append(sep)
+    lines.append("")
     lines.append(f"  Project Quality Analysis Report")
     lines.append(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append(sep)
+    lines.append("")
     lines.append(f"  Project:         {q['repo']}")
     lines.append(f"  Commits:         {q['total_commits']}")
     lines.append(f"  Period:          {q['active_days']} days")
     lines.append(f"  Last commit:     {q['days_since_last']} days ago")
-    lines.append(f"  Overall Quality: {q['band']} ({s['composite']:.2f})")
-    lines.append(sep)
+    lines.append(f"  Quality:         {q['band']} ({s['composite']:.2f})")
+    lines.append("")
     lines.append("")
     lines.append("  Factor Scores:")
     lines.append(f"    Recency (no zombie)      {s['recency']:.2f}")
@@ -388,7 +387,7 @@ def write_report(q: Dict, periods: List[Dict], output_path: str):
     lines.append(f"    Deletion Health          {s['deletion_health']:.2f}")
     lines.append(f"    Scale Maturity           {s['scale']:.2f}")
     lines.append("")
-    lines.append(sep)
+    lines.append("")
     lines.append("  Raw Metrics:")
     lines.append(f"    Total lines (add+del):  {q['total_lines']:,}")
     lines.append(f"    Additions:              {q['total_add']:,}")
@@ -400,7 +399,7 @@ def write_report(q: Dict, periods: List[Dict], output_path: str):
     lines.append(f"    Active days:            {q['active_days']:.0f}")
     lines.append(f"    First commit:           {q['first_commit']}")
     lines.append(f"    Last commit:            {q['last_commit']}")
-    lines.append(sep)
+    lines.append("")
 
     if periods:
         lines.append("")
@@ -561,8 +560,8 @@ def main():
         band, color = q["band"], q["band_color"]
         console.print(f"[dim]{ICON_ARROW}[/dim]")
         console.print(f"[dim]{ICON_ARROW}[/dim]")
-        console.print(f"[{color}]{ICON_STEP}[/{color}] [bold][{color}]Overall Quality: {band} ({q['scores']['composite']:.2f})[/{color}][/bold]")
-        console.print(f"[dim]{ICON_ARROW}[/dim]  Recency: {q['scores']['recency']:.2f}  Anti-AI: {1 - q['scores']['suspicion']:.2f}  Deletion Health: {q['scores']['deletion_health']:.2f}  Scale: {q['scores']['scale']:.2f}")
+        console.print(f"[default]{ICON_STEP}[/default] [bold]Quality: {band} ({q['scores']['composite']:.2f})[/bold]")
+        console.print(f"[dim]{ICON_ARROW}[/dim] \u23bf Recency: {q['scores']['recency']:.2f}  Anti-AI: {1 - q['scores']['suspicion']:.2f}  Deletion Health: {q['scores']['deletion_health']:.2f}  Scale: {q['scores']['scale']:.2f}")
 
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
