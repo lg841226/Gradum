@@ -21,7 +21,6 @@ from rich.progress import (
 )
 from rich.spinner import SPINNERS, Spinner
 from rich.table import Table
-from rich.panel import Panel
 
 console = Console()
 
@@ -419,34 +418,6 @@ def write_report(q: Dict, periods: List[Dict], output_path: str):
         f.write("\n".join(lines) + "\n")
     return output_path
 
-# ---------------------------------------------------------------------------
-# Quality CSV writer
-# ---------------------------------------------------------------------------
-
-def write_quality_csv(q: Dict, periods: List[Dict], output_path: str):
-    with open(output_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-
-        # summary section
-        w.writerow(["Metric", "Value"])
-        for k, v in q.items():
-            if k == "scores":
-                for sk, sv in v.items():
-                    w.writerow([f"score.{sk}", sv])
-            elif k == "band_color":
-                continue
-            else:
-                w.writerow([k, v])
-
-        if periods:
-            w.writerow([])
-            w.writerow(["Batch Analysis"])
-            headers = ["Period", "Commits", "Added", "Deleted", "Recency", "AI", "Deletion", "Composite", "Band"]
-            w.writerow(headers)
-            for p in periods:
-                w.writerow([p["period"], p["commits"], p["add"], p["del"],
-                           p["recency"], p["ai"], p["deletion"], p["composite"], p["band"]])
-    return output_path
 
 # ---------------------------------------------------------------------------
 # Main orchestrator
@@ -568,44 +539,30 @@ def main():
 
     # ---------- quality analysis ----------
     if args.quality:
-        console.print(f"[dim]{ICON_ARROW}[/dim]")
-        console.print(f"[default][blue]{ICON_POINT}[/blue] Running quality analysis...[/default]")
-
         params = dict(QUALITY_PARAMS)
         if args.quality_params and os.path.exists(args.quality_params):
             with open(args.quality_params) as f:
                 params.update(json.load(f))
 
-        # get full commit data for quality
-        with console.status("Collecting quality data...", spinner="dots"):
+        with console.status("Running quality analysis...", spinner="blink"):
             commits_full = get_commits_full(repo)
 
         now = datetime.now(timezone.utc)
         q = compute_quality(commits_full, params, now, get_repo_name(repo))
         periods = compute_quality_batch(commits_full, args.batch or "month", now, params) if args.batch else []
 
-        # write quality CSV
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        q_csv = f"quality_{ts}.csv"
-        write_quality_csv(q, periods, q_csv)
-        console.print(f"[default][blue]{ICON_STEP}[/blue] Quality data written to {q_csv}[/default]")
-
-        # write text report
         report_path = args.report or f"quality_report_{ts}.txt"
         write_report(q, periods, report_path)
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
         console.print(f"[default][blue]{ICON_STEP}[/blue] Report written to {report_path}[/default]")
 
-        # show summary
         band, color = q["band"], q["band_color"]
-        console.print()
-        console.print(Panel(
-            f"[bold]Overall Quality:[/bold] [{color}]{band}[/{color}] ({q['scores']['composite']:.2f})\n"
-            f"[bold]Recency:[/bold] {q['scores']['recency']:.2f}  "
-            f"[bold]Anti-AI:[/bold] {1 - q['scores']['suspicion']:.2f}  "
-            f"[bold]Deletion Health:[/bold] {q['scores']['deletion_health']:.2f}  "
-            f"[bold]Scale:[/bold] {q['scores']['scale']:.2f}",
-            title="Quality Analysis Summary", border_style="blue",
-        ))
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
+        console.print(f"[{color}]{ICON_STEP}[/{color}] [bold][{color}]Overall Quality: {band} ({q['scores']['composite']:.2f})[/{color}][/bold]")
+        console.print(f"[dim]{ICON_ARROW}[/dim]  Recency: {q['scores']['recency']:.2f}  Anti-AI: {1 - q['scores']['suspicion']:.2f}  Deletion Health: {q['scores']['deletion_health']:.2f}  Scale: {q['scores']['scale']:.2f}")
 
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
