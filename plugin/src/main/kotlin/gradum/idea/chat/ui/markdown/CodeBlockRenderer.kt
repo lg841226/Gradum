@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-18 12:23:29 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char

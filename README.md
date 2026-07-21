@@ -226,6 +226,7 @@ Install via `Settings > Plugins > Install Plugin from Disk`.
 - [Coding Standards](docs/CODING_STANDARDS_KOTLIN.md) — Kotlin conventions
 - [Skill Development](docs/PLUGIN_DEVELOPMENT.md) — creating custom skills
 - [UI Conventions](docs/CONVENTIONS.md) — IntelliJ plugin patterns
+- [Infrastructure Pitfalls](docs/INFRASTRUCTURE_PITFALLS_EN.md) — Jewel / Compose / Classloader integration traps, API pitfalls, and engineering lessons
 
 ## Contributing
 

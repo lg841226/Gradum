@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-07-15 00:00:00 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)

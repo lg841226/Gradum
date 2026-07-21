@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Attachments.kt  2026-07-15 20:21:09 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -34,53 +33,23 @@ data class AttachedText(
 /**
  * An image attached to the next outgoing message.
  *
- * The plugin pipeline for an image is split into two completely
- * independent paths that share the user's original file but
- * otherwise never touch each other:
+ * Two independent paths share the original file:
+ *  - **Wire path** ([data]): factory reads bytes verbatim, base64-encodes them.
+ *    MIME follows the file extension. Server receives the exact file.
+ *  - **Render path** ([file]): original [VirtualFile] kept on disk.
+ *    Compose preview loads it via Skia and downscales at draw time.
+ *    No re-encode, no base64 round trip, no in-memory copy.
  *
- *  - **Wire path** ([data], original → model): the factory reads
- *    the file's bytes verbatim and base64-encodes them so the
- *    server receives the exact image the user picked — no JPEG
- *    re-encoding, no quality loss, no colorspace surprises. The
- *    MIME type follows the file extension (`.png` → `image/png`,
- *    `.heic` → `image/heic`, etc.) so the vision model gets a
- *    payload it can decode natively.
- *  - **Render path** ([file], local → UI): the original
- *    [VirtualFile] is kept untouched on disk. The Compose preview
- *    chip loads the file directly through Skia's
- *    `Image.makeFromEncoded` and Compose downscales the bitmap to
- *    the chip size at draw time — no re-encode, no base64 round
- *    trip, no copy in memory. The file path is never sent to the
- *    server.
+ * Splitting the paths keeps the wire format lossless and model-friendly while
+ * the UI gets fast hardware-scaled previews. Joined only at construction —
+ * wire payload is a one-way trip to server, file path is a one-way trip to UI.
  *
- * Splitting the two paths lets the wire format stay lossless and
- * model-friendly (whatever the user picked) while the UI still
- * gets fast, hardware-scaled previews. The two are joined at
- * construction time only — after [gradum.idea.encodeImageToAttachment]
- * hands back the value, the wire payload is a one-way trip to
- * the server and the file path is a one-way trip to the UI.
- *
- * The factory caller enforces `originalSizeBytes <= 5 MB` per
- * image. Images share the same per-message attachment cap
- * (`MAX_ATTACHMENTS`) with file and text attachments.
- *
- * @property id A short random id used to dedupe identical uploads
- *   (e.g. user picks the same file twice in the same session).
- * @property mime The image's IANA media type as derived from the
- *   file extension (`image/png`, `image/jpeg`, `image/webp`, …).
- *   This is what the server sees — there is no normalization to
- *   a single type on the wire.
+ * @property id Short random id to dedupe identical uploads in the same session.
+ * @property mime IANA media type from file extension (not normalized on wire).
  * @property data Base64-encoded original file bytes (wire path only).
- * @property file The original on-disk file (render path only).
- *   The IDE's `VirtualFile` API gives the UI thread a fast
- *   read-only handle; `MessageAttachmentPreview` decodes it on
- *   demand and Compose downscales the bitmap to the chip size
- *   at draw time.
- * @property originalName The file name as the user selected it,
- *   surfaced in the chip and the LLM prompt as a hint.
- * @property originalSizeBytes Size of the *original* file in bytes,
- *   surfaced in tooltips and the error UI when an upload is
- *   rejected as too large.
+ * @property file Original on-disk file (render path only).
+ * @property originalName File name shown in chip and LLM prompt.
+ * @property originalSizeBytes Size of the original file in bytes.
  */
 @Suppress(
   "SpellCheckingInspection", "SpellCheckingInspection",

@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-07-14 22:13:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -10,18 +9,10 @@ package gradum.idea.chat.ui.input
 /**
  * Structured display breakdown of a raw model name.
  *
- * Returned by [parseModelName] so the UI can render the parts
- * separately — the main title uses [displayName] (e.g. "Qwen 2.5
- * Coder"), the parameter size is dropped into a blue badge via
- * [parameterSize] (e.g. "7B", "8x7B"), and the quantization is
- * shown as a secondary tag via [quant] (e.g. "Q4_K_M", "AWQ").
- *
- * The split is deliberately lossy on purpose: a raw name like
- * `lmstudio-community/qwen2.5-coder:7b-Q4_K_M` carries way more
- * noise than the user wants to see in a selector row, and the
- * selectors only ever need the three pieces above plus the
- * provider for an icon. Everything else is preserved in [rawName]
- * for tooltips.
+ * Returned by [parseModelName] so the UI can render parts separately:
+ * [displayName] for the title, [parameterSize] for a badge (e.g. "7B"),
+ * [quant] for a secondary tag (e.g. "Q4_K_M"), [provider] for an icon.
+ * The split is deliberately lossy — noise is dropped; [rawName] preserves the original.
  */
 data class FormattedModelName(
   /** Human-friendly family + variant name, e.g. "Qwen 2.5 Coder". */
@@ -39,27 +30,13 @@ data class FormattedModelName(
 )
 
 /**
- * Known families + their human-friendly display names.
+ * Known families → human-friendly display names.
+ * Lookup key is the lower-cased family root after stripping org, tag, size, quant, variant.
+ * Fuzzy: key miss triggers progressive prefix shortening (`phi-3-mini-4k` → `phi-3-mini` → `phi-3` → `phi`)
+ * and no-dash fallback (`llama-3` → `llama3`).
  *
- * Lookup key is the lower-cased **family root** after the org,
- * tag, size, quant, and variant suffix have all been stripped
- * (e.g. `qwen2.5-coder:7b` → key `qwen2.5-coder`). The intent is
- * to bucket any size/quant/instruct variant of the same family
- * under one canonical name so a user sees a consistent label
- * regardless of which quantization or parameter count they pick.
- *
- * Why a map and not a regex ladder: the family roots are short,
- * stable, and the list of "blessed" names is small (~150 entries).
- * A regex ladder would either under-match (collapse distinct
- * families like `qwen3-coder` vs `qwen3-vl` into one) or over-match
- * (catch `claude-3-opus` when the user actually wanted
- * `claude-3.5-sonnet`). The map sidesteps both failure modes.
- *
- * Lookup is fuzzy: when a key miss happens, the formatter also
- * tries progressively shorter prefixes (`phi-3-mini-4k` →
- * `phi-3-mini` → `phi-3` → `phi`) and the no-dash form
- * (`llama-3` → `llama3`). This handles the common case where
- * users spell the same model in slightly different ways.
+ * Map (not regex ladder) because family roots are short, stable, and ~150 entries;
+ * a regex would either under- or over-match.
  */
 private val modelDisplayNames: Map<String, String> = buildMap {
   put("qwen", "Qwen")
@@ -285,14 +262,8 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("gpt-5.1-mini", "GPT-5.1 Mini")
   put("gpt-5.1-pro", "GPT-5.1 Pro")
   put("gpt-5.1-codex", "GPT-5.1 Codex")
-  // ChatGPT 5.6 — OpenAI's 3-tier release. Naming follows the
-  // user's instruction: `chatgpt-5.6` resolves to the
-  // flagship ("ChatGPT 5.6"), `chatgpt-5.6-mini` to the
-  // efficiency tier, and `chatgpt-5.6-nano` to the
-  // ultra-low-latency tier. We deliberately do NOT collapse
-  // these into `gpt-5.6` because the bare "GPT-5.6" entry
-  // (if added later) is the API-facing model name while
-  // "ChatGPT 5.6" is the consumer-facing product name.
+  // ChatGPT 5.6 — OpenAI's 3-tier release. Stays separate from `gpt-5.6`
+  // because "ChatGPT 5.6" is the consumer product name vs the API-facing model.
   put("chatgpt-5.6", "ChatGPT 5.6")
   put("chatgpt-5.6-mini", "ChatGPT 5.6 Mini")
   put("chatgpt-5.6-nano", "ChatGPT 5.6 Nano")
@@ -308,17 +279,9 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("o5-mini", "o5 Mini")
   put("o5-pro", "o5 Pro")
   put("chatgpt-4o-latest", "ChatGPT-4o")
-  // GPT-OSS — OpenAI's open-weights distilled line, both
-  // sizes are distilled from ChatGPT 4. Naming follows the
-  // model's own self-identification (per its system prompt),
-  // not the OpenAI product hierarchy: 20b presents itself
-  // as "ChatGPT 4 Nano" because it is the small distilled
-  // tier; 120b presents itself as "ChatGPT 4" because it
-  // is the full-size distilled tier (the actual closed-source
-  // "ChatGPT 4" flagship is a much larger 100B+ model that
-  // is not released as open weights). The bare `gpt-oss`
-  // entry is the fallthrough when no size suffix is present
-  // in the raw name.
+  // GPT-OSS — OpenAI's open-weights distilled line.
+  // 20b presents itself as "ChatGPT 4 Nano", 120b as "ChatGPT 4"
+  // (per system prompt, not the closed-source flagship).
   put("gpt-oss", "ChatGPT 4")
   put("gpt-oss-20b", "ChatGPT 4 Nano")
   put("gpt-oss-120b", "ChatGPT 4")
@@ -403,16 +366,10 @@ private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
 )
 
 /**
- * Recognized parameter-size patterns, in the order the regex
- * tries them. MoE (`8x7B`) must come first because the standalone
- * `7B` pattern would otherwise consume the trailing `7B` and leave
- * a stray `8x` prefix on the family name. Decimals (`0.5B`,
- * `1.5B`) come before the integer `5B`/`7B` patterns for the same
- * reason — `5B` would otherwise clip the decimal off.
- *
- * Unit suffix is `[bm]` only. `k` is reserved (a `4k` token means
- * "4K context" in some model names, not "4K parameters"), and
- * `M` here means "million params" (used by some embedding models).
+ * Recognized parameter-size patterns. MoE (`8x7B`) must come before standalone `7B`
+ * so the trailing `7B` in `8x7B` is consumed first. Decimals (`0.5B`) before integer
+ * patterns for the same reason.
+ * Unit is `[bm]` only — `k` is reserved for context size, `M` for million-param models.
  */
 private val parameterSizePatterns: List<Regex> = listOf(
   Regex("""(\d+)x(\d+(?:\.\d+)?)[bm]""", RegexOption.IGNORE_CASE),
@@ -421,44 +378,25 @@ private val parameterSizePatterns: List<Regex> = listOf(
 )
 
 /**
- * Recognized quant tags. Listed in long-form-first order so a
- * model like `Q4_K_M` matches the full pattern, not just `Q4`.
- *
- * Covers the formats actually shipped to the catalog (GGUF, AWQ,
- * GPTQ, EXL2, BNB) plus the standard precision tags
- * (FP16/BF16/FP32/INT4/INT8). The match is anchored to a word
- * boundary so `qwen2.5` doesn't accidentally lose the `2.5`
- * (the leading `q` is not a quant prefix in this regex).
+ * Recognized quant tags, tried in long-form-first order. Covers GGUF (`Q4_K_M`), AWQ,
+ * GPTQ, EXL2, BNB, and precision tags (FP16/BF16/INT4/INT8).
+ * Anchored to word boundary so `qwen2.5` doesn't lose the `2.5`.
  */
 private val quantPatterns: List<Regex> = listOf(
-  // Long-form GGUF: Q4_K_M, Q5_K_S, Q4_0, Q4_1, etc. Must
-  // come first so Q4_K_M doesn't get matched by the bare Q4 below.
   Regex("""\bq\d+_k_[sml]\b""", RegexOption.IGNORE_CASE),
   Regex("""\bq\d+_k\b""", RegexOption.IGNORE_CASE),
   Regex("""\bq\d+_[01]\b""", RegexOption.IGNORE_CASE),
   Regex("""\bq[2-8]\b""", RegexOption.IGNORE_CASE),
-  // Precision: FP16, FP32, BF16, INT4, INT8
   Regex("""\b(?:fp16|fp32|bf16|int4|int8)\b""", RegexOption.IGNORE_CASE),
-  // Generic quant methods: AWQ, GPTQ, EXL2, GGUF, GGML, BNB
   Regex("""\b(?:awq|gptq|exl2|gguf|ggml|bnb)\b""", RegexOption.IGNORE_CASE)
 )
 
 /**
- * Recognized variant / pipeline suffixes. These are dropped
- * during the family-key lookup because they do not change which
- * display-name bucket the model belongs to.
- *
- * `preview`, `experimental`, and `exp` are deliberately NOT in
- * this set. They are valid model identifiers on their own
- * (`o1-preview`, `claude-3-7-sonnet-experimental`, `gpt-4o-exp`),
- * and the fuzzy lookup already handles them by dropping the
- * suffix and re-checking the map. Stripping them eagerly would
- * collapse `o1-preview` to `o1` and lose the "Preview" label.
- *
- * File-format tags (`gguf`, `ggml`) are also NOT here — the
- * quant extractor handles them. Listing them in both places
- * would make the family-key loop try to strip them twice in
- * different orders, which is wasteful and easy to get wrong.
+ * Recognized variant / pipeline suffixes that are dropped during family-key lookup.
+ * `preview`, `experimental`, `exp` are NOT here — they are valid identifiers
+ * (`o1-preview`, `gpt-4o-exp`) and the fuzzy lookup handles them by dropping
+ * the suffix and re-checking. File-format tags (`gguf`, `ggml`) are also NOT
+ * here — quant extraction handles them.
  */
 private val variantSuffixes: Set<String> = setOf(
   "instruct", "chat", "base", "it", "hf",
@@ -466,16 +404,9 @@ private val variantSuffixes: Set<String> = setOf(
 )
 
 /**
- * Version / date tokens. These are dropped only when they
- * appear at the end of the family key.
- *
- * The pattern is deliberately strict: it requires either an
- * explicit `v` prefix (`v0.1`, `v0.2.1`) or a 3+ segment
- * numeric pattern (`0.2.1`). A bare digit or two-digit number
- * is preserved because it is almost always a model generation
- * (`V3` in `DeepSeek-V3`, `3` and `5` in `claude-3-5-sonnet`)
- * rather than a version stamp. The single-digit case is the
- * most common miss we guard against.
+ * Version/date tokens dropped when at the end of the family key.
+ * Requires either `v` prefix (`v0.1`) or 3+ segment numeric pattern (`0.2.1`).
+ * Bare digits preserved — they are usually model generations (`V3`, `3`, `5`).
  */
 private val versionPatterns: List<Regex> = listOf(
   Regex("""v\d+(\.\d+)+""", RegexOption.IGNORE_CASE),
@@ -485,55 +416,10 @@ private val versionPatterns: List<Regex> = listOf(
 /**
  * Parse a raw model identifier into a [FormattedModelName].
  *
- * Pipeline (run in order; each step feeds the next):
- *
- *  1. **Strip Ollama / LM Studio tag.** `qwen2.5-coder:7b` →
- *     `qwen2.5-coder`. The tag reappears in [quant] / [parameterSize]
- *     if it carries a size or quant we can recognize.
- *  2. **Strip HF / Ollama org prefix.** `lmstudio-community/qwen2.5-7b`
- *     and `TheBloke/Llama-2-7B-Chat-GGUF` both drop the leading
- *     `org/`. The org is not preserved — the selector shows
- *     `Qwen 2.5`, not "via LM Studio community".
- *  3. **Strip date stamps.** `claude-3-5-sonnet-20241022` and
- *     `gpt-4o-2024-08-06` collapse to their model root. Date
- *     detection is `-\d{8}$` (8-digit YYYYMMDD) and
- *     `-\d{4}-\d{2}-\d{2}$` (ISO date). Year-only or month-only
- *     stamps are left alone to avoid mangling `mistral-7b-v0.3`.
- *  4. **Extract [parameterSize].** MoE → decimal → integer.
- *     Tries the post-colon tail first (Ollama tags like `:7b`
- *     are the cleanest source) and falls back to the body.
- *  5. **Extract [quant].** Tries long-form GGUF first
- *     (`Q4_K_M`), then precision tokens (`FP16`), then generic
- *     `AWQ`/`GPTQ`/`EXL2`. The first match wins — a name like
- *     `qwen2.5-7b-instruct-q4_k_m-gguf` returns `Q4_K_M`, the
- *     earlier `GGUF` token is shadowed by the more specific
- *     `Q4_K_M` tag.
- *  6. **Build the family-root lookup key** by repeatedly
- *     stripping trailing variant / version / size / quant
- *     tokens until nothing changes. See [buildLookupKey].
- *  7. **Look up [displayName].** Tries the key, then
- *     progressively shorter prefixes (`phi-3-mini-4k` → `phi-3-mini`),
- *     then the no-dash form (`llama-3` → `llama3`). First hit
- *     wins. Misses fall through to a Title-Case fallback.
- *  8. **Infer [provider].** First keyword match in
- *     [providerDisplayByKeyword]. Order is enforced by the list
- *     order (more specific keywords come first).
- *  9. **Set [isFromCatalog].** `true` when the normalized
- *     name appears in our offline mini-catalog (a small list of
- *     well-known models — the plugin can't directly reach the
- *     server-side `ModelCatalog` over the module boundary, so
- *     this is a local proxy that covers the common case).
- *
- * Examples:
- *  - `qwen2.5-coder:7b` → displayName "Qwen 2.5 Coder",
- *    parameterSize "7B", provider "Alibaba"
- *  - `lmstudio-community/qwen2.5-7b` → displayName "Qwen 2.5",
- *    parameterSize "7B", provider "Alibaba"
- *  - `claude-3-5-sonnet-20241022` → displayName "Claude 3.5
- *    Sonnet", no size (cloud), provider "Anthropic"
- *  - `mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf` → displayName
- *    "Mixtral", parameterSize "8x7B", quant "Q4_K_M", provider
- *    "Mistral AI"
+ * Pipeline: strip Ollama/LM Studio tag → strip org prefix → strip date stamps → extract
+ * [parameterSize] (MoE → decimal → integer) → extract [quant] (long-form GGUF first) → build
+ * family-root lookup key → look up [displayName] (exact → no-dash → dashed-insert → prefix drop)
+ * → infer [provider] → set [isFromCatalog].
  */
 fun parseModelName(raw: String): FormattedModelName {
   val rawTrimmed: String = raw.trim()
@@ -585,48 +471,12 @@ fun parseModelName(raw: String): FormattedModelName {
 fun formatModelName(raw: String): String = parseModelName(raw).displayName
 
 /**
- * Try the key, the no-dash form, the dash-inserted form, and
- * progressively shorter prefixes against the family map.
- * Returns the first hit, or `null` if nothing matches.
+ * Look up the display name in [modelDisplayNames]. Tries in order: literal key → no-dash form
+ * (`llama-3` → `llama3`) → dash-inserted form (`glm4` → `glm-4`) → drop last segment
+ * (`phi-3-mini-4k` → `phi-3-mini` → ...). First hit wins. Returns `null` on no match.
  *
- * Order is the most subtle bit of this function. The intent
- * is "first specific, then general":
- *
- *  1. **Literal key** — respects the user's exact spelling.
- *  2. **No-dash form** — for keys that are themselves dashed
- *     (`llama-3`), this collapses to `llama3`, which is the
- *     more-specific map entry when both exist. We skip this
- *     step when the key has no dashes to avoid a wasted
- *     self-lookup.
- *  3. **Dash-inserted form** — for keys without dashes that
- *     actually want the dashed family (`glm4` → `glm-4`).
- *     This is the common case where users write a colon-tagged
- *     Ollama name like `glm4:latest` instead of the
- *     HuggingFace-style `glm-4`. We insert a dash on the
- *     alpha↔digit boundary in both directions so `gpt4` →
- *     `gpt-4`, `phi3` → `phi-3`, `qwen25` → `qwen2-5`.
- *  4. **Drop the last segment** — keeps `phi-3-mini-4k`
- *     findable as `phi-3-mini` when no shorter prefix hits.
- *
- * Examples for key `llama-3`:
- *   - `llama-3`          (literal, miss)
- *   - `llama3`           (no-dash, hit → "Llama 3")
- *   - `llama-3`          (dash-inserted, same as literal)
- *   - `llama`            (drop suffix, skipped — noDash already won)
- *
- * Examples for key `phi-3-mini-4k`:
- *   - `phi-3-mini-4k`    (literal, miss)
- *   - `phi3mini4k`       (no-dash, miss)
- *   - `phi-3-mini-4k`    (dash-inserted, same as literal)
- *   - `phi-3-mini`       (drop suffix, hit → "Phi 3 Mini")
- *   - `phi-3`            (skipped)
- *   - `phi`              (skipped)
- *
- * Examples for key `glm4` (the bug case that motivated step 3):
- *   - `glm4`             (literal, miss)
- *   - (no-dash skipped — key has no dashes)
- *   - `glm-4`            (dash-inserted, hit → "GLM 4")
- *   - `glm`              (drop suffix, skipped)
+ * Order: "first specific, then general". Step 3 (dash-inserted) exists for Ollama-style names
+ * (`glm4:latest` → `glm-4`); the alpha↔digit boundary insert handles `gpt4` → `gpt-4`, `phi3` → `phi-3`.
  */
 private fun lookupDisplayName(key: String): String? {
   if (key.isEmpty()) return null
@@ -659,31 +509,14 @@ private fun lookupDisplayName(key: String): String? {
 }
 
 /**
- * Variant of [lookupDisplayName] that ALSO tries a
- * size-qualified key (e.g. `gpt-oss-20b`) before falling
- * through to the bare key. This is needed because Ollama
- * names carry the size in the colon tag (`gpt-oss:20b`),
- * and [buildLookupKey] only operates on the base name —
- * so the bare lookupKey `gpt-oss` would hit the
- * size-less `ChatGPT 4` entry instead of the
- * size-specific `ChatGPT 4 Nano` entry.
+ * Variant of [lookupDisplayName] that tries a size-qualified key (e.g. `gpt-oss-20b`)
+ * before falling through to the bare key. Needed because [buildLookupKey] operates on the
+ * base name only — the colon tag's size is lost if not re-appended here.
  *
- * Adoption rule: the size-qualified entry is used only
- * when the bare entry ALSO exists AND the size-specific
- * displayName is NOT simply `bareDisplay + " " + size`.
- * This rejects the common case where the size-specific
- * entry just appends the parameter count to the family
- * name (`mistral-7b` → "Mistral 7B" would duplicate the
- * 7B parameterSize badge, so the bare `Mistral` entry
- * wins) and accepts the case where the size suffix
- * carries independent semantic content — typically a
- * distillation tier name (`gpt-oss-20b` → "ChatGPT 4
- * Nano" — "Nano" is the tier, not the size, so the
- * parameterSize badge is still distinct).
- *
- * parameterSize is the already-canonicalized form
- * (`20B`, `120B`, `8x7B`); the lookup key is built in
- * lowercase to match the map convention.
+ * The size-qualified entry wins only when the bare entry ALSO exists AND the size-specific
+ * displayName is NOT simply `bareDisplay + " " + size`. This rejects cases where the suffix
+ * just appends the parameter count (which the badge already shows) and accepts cases
+ * where the suffix carries independent semantic content (distillation tier name, e.g. "Nano").
  */
 private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): String? {
   if (parameterSize != null) {
@@ -757,18 +590,9 @@ private fun extractQuant(name: String): String? {
 }
 
 /**
- * Build the family-root lookup key. Strips size, quant, version,
- * and common variant suffixes from the end of the name — one
- * at a time, in a loop — until nothing changes. We only strip
- * *trailing* tokens so internal parts of the name (like
- * `coder` in `qwen2.5-coder`) are preserved.
- *
- * Why a loop instead of a fixed pipeline: the order of trailing
- * tokens varies. `qwen2.5-7b-instruct-q4_k_m` ends with quant,
- * `llama-3-8b-instruct` ends with variant, `mixtral-8x7b-instruct-v0.1`
- * ends with version. Any fixed order leaves at least one of
- * these partially stripped. The loop handles all three with
- * the same code.
+ * Build the family-root lookup key by repeatedly stripping trailing size, quant, version,
+ * and variant tokens until nothing changes. Loop (not fixed pipeline) because the order
+ * of trailing tokens varies — any fixed order leaves at least one case partially stripped.
  */
 private fun buildLookupKey(name: String): String {
   var working: String = name
@@ -819,15 +643,10 @@ private fun buildLookupKey(name: String): String {
 }
 
 /**
- * Title-Case-Space-Replace fallback for models that miss
- * [modelDisplayNames]. Hyphens become spaces, the first letter
- * of each word is upper-cased, and the rest stay lower-case.
- *
- * We deliberately do NOT try to be smart here — if the model
- * isn't blessed, the user gets a readable approximation, not
- * a guess. The provider / size / quant fields are still
- * extracted normally, so the badge UI works even on
- * unrecognized models.
+ * Title-Case-Space-Replace fallback for unrecognized models.
+ * Hyphens → spaces, first letter uppercase, rest lowercase.
+ * Deliberately simple — if the model isn't in the map, the user
+ * gets a readable approximation, not a guess.
  */
 private fun fallbackDisplay(key: String): String =
   key.split("-").joinToString(" ") { part ->
@@ -835,16 +654,7 @@ private fun fallbackDisplay(key: String): String =
   }
 
 /**
- * Mini-catalog of well-known model identifiers. Used only to
- * set [FormattedModelName.isFromCatalog].
- *
- * We can't reach the server-side [gradum.discovery.ModelCatalog]
- * from the plugin module (the two modules don't share a classpath),
- * so this set is the plugin's local proxy. Coverage is biased
- * toward the same models the server-side catalog is most likely
- * to have populated — anything in [modelDisplayNames] is also in
- * this set, so the badge UI gets a consistent "this is a
- * recognized model" signal regardless of which side resolved
- * the name.
+ * Mini-catalog of well-known model identifiers. Used only for [FormattedModelName.isFromCatalog].
+ * Local proxy — can't reach server-side `ModelCatalog` from the plugin module.
  */
 private val knownModelSet: Set<String> = modelDisplayNames.keys

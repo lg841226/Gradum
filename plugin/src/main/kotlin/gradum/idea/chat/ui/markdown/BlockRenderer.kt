@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-18 19:52:02 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -109,6 +108,7 @@ fun RenderBlockNode(
       modifier = Modifier.fillMaxWidth(),
       onUrlClick = onUrlClick
     )
+
     is LatexBlock -> RenderLatexBlock(
       formula = block.formula,
       modifier = Modifier.fillMaxWidth()
@@ -143,13 +143,13 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
   // Walking the AST skips the lossy round-trip.
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(heading)
   RenderInlineRender(
-    parseOutcome = parseOutcome,
-    style = headingStyle.inlinesStyling.textStyle,
     modifier = Modifier
       .fillMaxWidth()
       .padding(headingStyle.padding)
       .padding(headingExtraPadding),
     onUrlClick = onUrlClick,
+    parseOutcome = parseOutcome,
+    style = headingStyle.inlinesStyling.textStyle,
     fallbackText = serializeInlineChildren(heading),
   )
 }
@@ -165,9 +165,7 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBulletList(
-  list: BulletList,
-  indentDepth: Int = 0,
-  onUrlClick: (String) -> Unit = {}
+  list: BulletList, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {}
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val unorderedList: MarkdownStyling.List.Unordered = styling.list.unordered
@@ -312,7 +310,7 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   strippedParagraph.appendChild(org.commonmark.node.Text(stripped))
 
   // Walk the original paragraph's children starting at the
-  // sibling after `firstText`. We must capture `current.next`
+  // sibling after `firstText`. We must capture `currentNode.next`
   // *before* `appendChild` because the call goes through
   // `Node.unlink`, which nulls the moved node's `next` field
   // (see commonmark `org.commonmark.node.Node#unlink`).
@@ -321,11 +319,11 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   // every-other-child for paragraphs with a strong/emphasis
   // sibling in a task-list item. The manual loop captures
   // `next` before the destructive append.
-  var current: Node? = firstText.next
-  while (current != null) {
-    val next: Node? = current.next
-    strippedParagraph.appendChild(current)
-    current = next
+  var currentNode: Node? = firstText.next
+  while (currentNode != null) {
+    val nextNode: Node? = currentNode.next
+    strippedParagraph.appendChild(currentNode)
+    currentNode = nextNode
   }
 
   return strippedParagraph

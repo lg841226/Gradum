@@ -2,10 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-20 16:39:31 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui
 
@@ -29,104 +26,48 @@ import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.UserChatBubble
 import gradum.idea.chat.ui.input.ChatInputSection
 import kotlinx.coroutines.launch
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import java.awt.Desktop
 import java.io.IOException
 import java.net.URI
 
 private val logger = Logger.getInstance("ChatScreen"::class.java)
 
-/**
- * Tolerance (in dp) for "the user is at the bottom of the chat". The
- * jump-to-bottom button stays hidden while the user is within this
- * distance of the end; once they cross it, the button appears. Set
- * deliberately to 64 dp (~2.5 lines of body text) so a small read-up
- * gesture — a quick glance at the previous bubble — does not
- * accidentally trigger the button, while a clear "I want to read
- * history" scroll does.
- */
+/** Tolerance (dp) for "user is at the bottom". Hides jump-to-bottom button when within this range. */
 private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
 
 /**
- * The active conversation screen: scrollable history on top, input
- * pinned to the bottom. Shown after the user has sent at least one
- * message.
+ * Active conversation: scrollable history + input pinned to bottom.
  *
  * ## Jump-to-bottom button
+ * A `JumpToBottomButton` floats above the input, fading in when the user scrolls past
+ * `NearBottomThresholdDp` and fading out on return. 64dp tolerance prevents flicker.
  *
- * A [JumpToBottomButton] floats above the input section, anchored
- * to the message column's bottom edge. It fades in when the user is
- * more than [NearBottomThresholdDp] (64 dp) away from the end of the
- * chat, and fades out as soon as the user returns. The 64 dp
- * tolerance prevents the button from flickering on tiny overscroll
- * at the very end of the chat.
+ * ### Show/hide rules
+ * - **Default** ("Jump to latest"): hidden when within 64dp of bottom; visible otherwise.
+ * - **Alt** ("Jump to top"): hidden when within 64dp of top; visible otherwise.
+ * - **Startup**: hidden (auto-scroll to bottom on first render).
  *
- * ### Show / hide rules (mode-aware, position-based)
+ * Toggling modes via Option key (see `JumpToBottomButton`; captured via `LocalWindowInfo.keyboardModifiers`).
+ * "Near bottom/top" checks are `derivedStateOf` — see `isNearBottom` / `isNearTop`.
  *
- * The pill's current action depends on the Option-toggled mode, so
- * the hide rule depends on the mode:
- *  - **Default mode** ("Jump to latest"): user is within 64 dp of
- *    the end of the chat → **hidden**. Visible when the user has
- *    scrolled up past the tolerance.
- *  - **Alternative mode** ("Jump to top"): user is within 64 dp
- *    of the start of the chat → **hidden**. Visible when the user
- *    has scrolled down past the tolerance.
- *  - **Initial state at startup** → **hidden** in default mode
- *    (the chat auto-scrolls to the end on first composition, and
- *    once the user is at the end the button stays hidden).
+ * ### Auto-scroll
+ * `animateScrollTo(maxValue)` fires when new content arrives **and** the user was near bottom
+ * at the moment of arrival. If the user scrolled up, content doesn't yank them back — the
+ * button appears instead. This is "force scroll to bottom" priority: locked by default, break
+ * out by scrolling up, return via button.
  *
- * Mode toggling happens on Option-key rising edges captured by
- * [LocalWindowInfo.keyboardModifiers]; see [JumpToBottomButton].
- *
- * The "near the bottom" / "near the top" checks are
- * `derivedStateOf` of the live `scrollState.value` vs.
- * `scrollState.maxValue` — see [isNearBottom] / [isNearTop]
- * below.
- *
- * ### Auto-scroll strategy — "force scroll to bottom" wins
- *
- * When new content lands (a new message, or a new render block
- * appended to the streaming last message), the chat follows it with
- * a smooth `animateScrollTo(maxValue)` as long as the user was near
- * the bottom when the content arrived. If the user has scrolled up
- * past the 64 dp tolerance, new content does **not** yank them
- * back — the button appears instead, and clicking it returns them
- * to the bottom. This is the "force scroll to bottom" priority:
- * the chat is "locked" to the bottom by default, the user has to
- * actively scroll up to break out, and the button is the exit ramp
- * back to the bottom.
- *
- * ### Why a `wasAtBottom` snapshot, not the live `isNearBottom`
- *
- * Reading the live `scrollState.value` vs. `scrollState.maxValue`
- * inside the auto-scroll effect would flip to "not at bottom" the
- * instant new content grows `maxValue` in the layout pass that
- * precedes the effect, even when the user was originally at the
- * bottom. The effect instead reads [wasAtBottom], a snapshot of
- * [isNearBottom] taken at the moment of the user's last scroll
- * (i.e. whenever `scrollState.value` changes). The snapshot is
- * updated only when the user actually moves, not when content
- * grows, so it preserves the user's pre-content position.
+ * ### Why `wasAtBottom` snapshot (not live `isNearBottom`)
+ * Reading `scrollState.value` inside the effect would flip to "not at bottom" when `maxValue`
+ * grows during the layout pass preceding the effect, even if the user was at the bottom.
+ * The effect reads `wasAtBottom`, a snapshot of `isNearBottom` taken at the user's last scroll.
  *
  * ### Fresh-user-message exception
- *
- * A new user message always force-scrolls to the bottom, regardless
- * of where the user was reading. Hitting Enter is unambiguous "I
- * want to see this conversation from now on" intent, and the
- * alternative (showing the just-sent message in place, then jumping
- * back) is much more disorienting.
+ * New user messages always force-scroll to bottom regardless of position. Hitting Enter is
+ * unambiguous "I want to see the conversation from now" intent.
  *
  * ## Layout
- *
- * The message column and the input section are siblings inside a
- * vertical Column. The messages column is wrapped in a Box that
- * hosts the floating jump-to-bottom button as an overlay. The
- * button's `Alignment.BottomCenter` anchor lives on that Box, so
- * the button always sits right above the input section regardless
- * of how tall the input grows (multi-line input, attachment chips,
- * model selector row, etc.). A small `GradumSpacing.lg` (12 dp)
- * bottom padding gives the pill breathing room from the input top
- * edge.
+ * Messages Column + input section are siblings. The button sits in a Box overlay above the input,
+ * anchored `BottomCenter` with `GradumSpacing.lg` bottom padding.
  */
 @Composable
 fun ChatScreen(
@@ -184,7 +125,7 @@ fun ChatScreen(
       }
     }
     if (!wasAtBottom) return@LaunchedEffect
-    withFrameNanos { }
+    withFrameNanos {}
     scrollState.animateScrollTo(scrollState.maxValue)
   }
 

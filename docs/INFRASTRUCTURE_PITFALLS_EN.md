@@ -1,8 +1,13 @@
 # Gradum Plugin Infrastructure Pitfall Record (Jewel / Compose / Classloader)
 
-> A record of **7 runtime errors** triggered consecutively in a single day (2026-07-20) while integrating
+> A record of **runtime errors, API traps, and engineering lessons** from integrating
 > IntelliJ Platform 2026.2 + Jewel + Compose. Each section includes: symptoms → root cause → fix → verification.
 > The goal is to prevent the next person (and your future self within six months) from **spending 7 hours** on this.
+
+> **[WARNING] Disclaimer**: This document reflects the author's experience with a specific IDE version (2026.2) and library
+> versions as of July 2026. IntelliJ Platform, Jewel, Compose, and related libraries are actively maintained — APIs may
+> change, bugs may be fixed, and new best practices may emerge. **Always check the official documentation and source
+> code for the latest information.** If this document conflicts with the official docs, the official docs win.
 
 ---
 
@@ -16,11 +21,11 @@
 | Compose                         | CMP 1.11.0                                | IDE bundled                                               |
 | Skiko                           | 0.9.x                                     | IDE bundled                                               |
 | IntelliJ Platform Gradle Plugin | 2.x                                       | `plugin/build.gradle.kts:6-7`                             |
-| Gradle                          | 9.5.1                                     |                                                           |
+| Gradle                          | 9.5.1                                     | -                                                         |
 | JVM Target                      | 25                                        | Supported by Kotlin 2.3.0; not supported by detekt 1.23.7 |
 
-**Project directory**: `/Users/gwy/Documents/Code_Project/Gradum`
-**Plugin submodule**: `/Users/gwy/Documents/Code_Project/Gradum/plugin`
+**Project directory**: `/Users/xxx/Documents/Code_Project/Gradum`
+**Plugin submodule**: `/Users/xxx/Documents/Code_Project/Gradum/plugin`
 **`plugin/libs/`**: 15 IDE jar copies (manually copied from IDE `Contents/lib/`)
 
 ---
@@ -187,7 +192,7 @@ Go back to the **original shadow approach** — manually copy IDE jars to `plugi
 to put these classes into plugin/lib so PluginClassLoader can access them directly:
 
 ```kotlin
-// Copy these jars from /Users/gwy/Applications/IntelliJ IDEA.app/Contents/lib/
+// Copy these jars from /Users/xxx/Applications/IntelliJ IDEA.app/Contents/lib/
 implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
 implementation(files("libs/intellij.libraries.compose.runtime.desktop.jar"))
 implementation(files("libs/intellij.libraries.skiko.jar"))
@@ -351,7 +356,7 @@ Compose's many classes / objects is permitted at the JVM level.
 
 ```bash
 # One-time copy of IDE jars
-cd /Users/gwy/Documents/Code_Project/Gradum/plugin/libs
+cd /Users/xxx/Documents/Code_Project/Gradum/plugin/libs
 for jar in \
   intellij.libraries.compose.foundation.desktop \
   intellij.libraries.compose.runtime.desktop \
@@ -368,7 +373,7 @@ for jar in \
   intellij.platform.jewel.markdown.extensions.images \
   intellij.platform.jewel.markdown.ideLafBridgeStyling \
   intellij.platform.jewel.ui; do
-  cp -v "/Users/gwy/Applications/IntelliJ IDEA.app/Contents/lib/${jar}.jar" .
+  cp -v "/Users/xxx/Applications/IntelliJ IDEA.app/Contents/lib/${jar}.jar" .
 done
 ```
 
@@ -376,16 +381,9 @@ Key snippet in `plugin/build.gradle.kts`:
 
 ```kotlin
 dependencies {
-  intellijPlatform {
-    create("IU", "2026.2")
-    bundledPlugin("com.intellij.modules.platform")
-    testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
-  }
-
   // 15 IDE jar copies → plugin/lib
   implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
-  // ... 14 more identical implementation(files("libs/...")) lines
-  implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.jar"))
+  // ... 14 more implementation(files("libs/...")) lines
 
   // kotlinx via compileOnly — runtime delegates to IDE PathClassLoader
   compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
@@ -393,18 +391,12 @@ dependencies {
 
   // LaTeX: exclude all Compose / Skiko / kotlinx / kotlin-stdlib transitive deps
   implementation("io.github.huarangmeng:latex-base:1.4.7") {
-    exclude(group = "org.jetbrains.compose.runtime")
-    exclude(group = "org.jetbrains.compose.foundation")
-    exclude(group = "org.jetbrains.compose.ui")
-    exclude(group = "org.jetbrains.compose.material3")
-    exclude(group = "org.jetbrains.compose.animation")
-    exclude(group = "org.jetbrains.compose.components")
-    exclude(group = "org.jetbrains.compose.desktop")
+    exclude(group = "org.jetbrains.compose.*")
     exclude(group = "org.jetbrains.skiko")
     exclude(group = "org.jetbrains.kotlinx")
     exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
   }
-  // Same 10 lines for latex-parser / latex-renderer
+  // Same for latex-parser / latex-renderer
 }
 ```
 
@@ -431,30 +423,29 @@ dependencies {
 - **kotlinx-\* ecosystem**: Use `compileOnly`, runtime delegates to IDE PathClassLoader.
 - **Three LaTeX artifacts**: Exclude all Compose / Skiko / kotlinx / kotlin-stdlib transitive dependencies.
 - **plugin.xml `<depends>`**: Keep only `com.intellij.modules.platform` + `com.intellij.modules.compose`.
-- **Job.cancel()**: Always pass an explicit `CancellationException("...")`, never `null` and never no-arg.
-  Wrapped in try-catch. Defends against both `NoSuchMethodError: cancel$default` and arbitrary coroutines
-  version drift. See § 10.
-- **runIde caveat**: `./gradlew :plugin:runIde` does NOT hot-reload plugin classes. After code changes,
-  stop and restart the task. See § 10.
+- **Job.cancel ()**: Always pass an explicit `CancellationException("...")`, never `null` and never no-arg. Wrapped in
+  try-catch. Defends against both `NoSuchMethodError: cancel$default` and arbitrary coroutines version drift. See § 10.
+- **runIde caveat**: `./gradlew :plugin:runIde` does NOT hot-reload plugin classes. After code changes, stop and restart
+  the task. See § 10.
 
 ---
 
 ## 9. Timeline (Single Day: 2026-07-20)
 
-| Time      | Event                                                                                                                                                                                                                                                 |
-|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Morning   | Migrated from shadow to bundledModule approach; all 10 Jewel/Compose bundledModule descriptors resolved; all 293 tests passed                                                                                                                         |
-| Afternoon | User actually ran the plugin; IDE startup reported `loader constraint violation: CoroutineScope`                                                                                                                                                      |
-| 14:00     | Added `bundledModule("intellij.libraries.kotlinx.coroutines.core")` + LaTeX exclude kotlinx → error changed to `PROVIDED_RUNTIME_TOO_LOW` (IDE re-versioned kotlinx-serialization-core) → switched back to `implementation` for kotlinx-serialization |
-| 14:30     | CoroutineScope error gone; `NoClassDefFoundError: InlinesStyling` appeared                                                                                                                                                                            |
-| 14:45     | Tried adding `<depends>intellij.platform.jewel.markdown.core</depends>` etc. to plugin.xml → compiled, IDE reported `requires plugin 'intellij.libraries.skiko' to be installed`                                                                      |
-| 15:00     | Removed all `intellij.libraries.*` `<depends>` for skiko / coroutines → reported `requires plugin 'intellij.platform.compose' to be installed`                                                                                                        |
-| 15:15     | User proposed switching paths. Decision: revert to shadow + forced excludes                                                                                                                                                                           |
-| 15:30     | Copied 15 jars to plugin/libs/, updated build.gradle.kts, deleted composedJar custom block                                                                                                                                                            |
-| 15:45     | `InlinesStyling` error gone; `NoClassDefFoundError: AutolinkProcessorExtension` appeared                                                                                                                                                              |
-| 16:00     | Moved 5 markdown extensions to `implementation` (previously via `composedJar.from`, nested inside main jar, invisible to classloader)                                                                                                                 |
-| 16:15     | Plugin finally loads! Chat / Markdown / LaTeX all work                                                                                                                                                                                                |
-| 16:30     | detekt fails because 1.23.7 doesn't support jvm-target 25 → bypassed with `-Pgradum.skipDetektGate=true`; wrote this document                                                                                                                         |
+| Time      | Event                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Morning   | Migrated from shadow to bundledModule approach; all 10 Jewel/Compose bundledModule descriptors resolved; all 293 tests passed                                                                                                                                                                                                                                                                                                                                                                    |
+| Afternoon | User actually ran the plugin; IDE startup reported `loader constraint violation: CoroutineScope`                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 14:00     | Added `bundledModule("intellij.libraries.kotlinx.coroutines.core")` + LaTeX exclude kotlinx → error changed to `PROVIDED_RUNTIME_TOO_LOW` (IDE re-versioned kotlinx-serialization-core) → switched back to `implementation` for kotlinx-serialization                                                                                                                                                                                                                                            |
+| 14:30     | CoroutineScope error gone; `NoClassDefFoundError: InlinesStyling` appeared                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 14:45     | Tried adding `<depends>intellij.platform.jewel.markdown.core</depends>` etc. to plugin.xml → compiled, IDE reported `requires plugin 'intellij.libraries.skiko' to be installed`                                                                                                                                                                                                                                                                                                                 |
+| 15:00     | Removed all `intellij.libraries.*` `<depends>` for skiko / coroutines → reported `requires plugin 'intellij.platform.compose' to be installed`                                                                                                                                                                                                                                                                                                                                                   |
+| 15:15     | User proposed switching paths. Decision: revert to shadow + forced excludes                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 15:30     | Copied 15 jars to plugin/libs/, updated build.gradle.kts, deleted composedJar custom block                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 15:45     | `InlinesStyling` error gone; `NoClassDefFoundError: AutolinkProcessorExtension` appeared                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 16:00     | Moved 5 markdown extensions to `implementation` (previously via `composedJar.from`, nested inside main jar, invisible to classloader)                                                                                                                                                                                                                                                                                                                                                            |
+| 16:15     | Plugin finally loads! Chat / Markdown / LaTeX all work                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 16:30     | detekt fails because 1.23.7 doesn't support jvm-target 25 → bypassed with `-Pgradum.skipDetektGate=true`; wrote this document                                                                                                                                                                                                                                                                                                                                                                    |
 | 17:00     | User clicked stop button / Gradum tool window icon → `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`. Initial fix: pass `null` explicitly at the 3 call sites. Final fix (after deeper investigation in § 10): the real root cause is the runIde process serving a **stale plugin class**; the IDE's coroutines rebuild DOES contain the synthetic. Source now uses explicit `CancellationException("...")` + try-catch as defense-in-depth. |
 
 ---
@@ -478,6 +469,7 @@ com.intellij.openapi.diagnostic.UnhandledException: 'void kotlinx.coroutines.Job
 ```
 
 Triggers the **first** time the user clicks either:
+
 - The stop button in the chat
 - The Gradum icon in the right sidebar (tool window)
 
@@ -487,7 +479,7 @@ broken coroutine state → animation/frame loop deadlocks.
 
 ### Root Cause (corrected after a deeper investigation)
 
-> ⚠️ **The first version of this section (v1) claimed that the IDE's coroutines rebuild
+> **[WARNING] The first version of this section (v1) claimed that the IDE's coroutines rebuild
 > is missing the `cancel$default` synthetic. That was wrong.** The actual situation is more mundane
 > but more annoying. The IDE DOES ship `cancel$default`. The error in the user's session was caused
 > by the runIde process running a **stale `GradumChatSession.class`** that was compiled before the fix
@@ -495,41 +487,43 @@ broken coroutine state → animation/frame loop deadlocks.
 > in the current source the cancel call lives at line 380 (after the explanatory comment block was added).
 
 What is true:
+
 - IDE 2026.2 ships `kotlinx-coroutines-core:1.10.2-intellij-1` (a JetBrains internal rebuild, confirmed by
   `unzip -p Contents/lib/intellij.libraries.kotlinx.coroutines.core.jar META-INF/kotlinx_coroutines_core.version`).
-- The IDE's `Job$DefaultImpls` DOES contain `cancel$default(Job, CancellationException, int, Object)` — verified
-  by `javap` on the actual JAR and by a Java reflection probe that ran successfully against it.
+- The IDE's `Job$DefaultImpls` DOES contain `cancel$default(Job, CancellationException, int, Object)` — verified by
+  `javap` on the actual JAR and by a Java reflection probe that ran successfully against it.
 - When the plugin is compiled with the no-arg form `pollingJob?.cancel()`, Kotlin 2.3.0 emits a call to that
-  `cancel$default` synthetic. Because the synthetic does exist in the IDE's classpath, the call resolves correctly
-  — and in the latest build the bytecode does not even call `cancel$default` because we pass an explicit arg.
+  `cancel$default` synthetic. Because the synthetic does exist in the IDE's classpath, the call resolves correctly — and
+  in the latest build the bytecode does not even call `cancel$default` because we pass an explicit arg.
 
-The real problem is what happens to the error report. `NoSuchMethodError` for a classloader-missed method is a
-**hard error**, not a recoverable coroutine exception. When the user reports seeing this error, the most
-likely explanations (in order of probability) are:
-1. **Stale plugin class in the running dev IDE.** `./gradlew :plugin:runIde` starts a long-lived IDE process.
-   It loads the plugin JAR that existed when runIde started. Rebuilding the plugin while runIde is running
-   does **not** reload the plugin classes — only restarting the runIde process does. The first time the user
-   hits the error is a giveaway: the stack trace points at a source line that no longer contains the cancel call.
-2. Stale class from a previous install in the same IDE home (less likely with runIde, but possible if you also
+The real problem is what happens to the error report. `NoSuchMethodError` for a classloader-missed method is a **hard
+error**, not a recoverable coroutine exception. When the user reports seeing this error, the most likely explanations
+(in order of probability) are:
+
+1. **Stale plugin class in the running dev IDE.** `./gradlew :plugin:runIde` starts a long-lived IDE process. It loads
+   the plugin JAR that existed when runIde started. Rebuilding the plugin while runIde is running does **not** reload
+   the plugin classes — only restarting the runIde process does. The first time the user hits the error is a giveaway:
+   the stack trace points at a source line that no longer contains the cancel call.
+2. Stale class from a previous installation in the same IDE home (less likely with runIde, but possible if you also
    install the plugin ZIP for testing).
-3. Genuine classpath corruption (e.g. an old `kotlinx-coroutines-core-1.11.0.jar` left in `plugin/lib/` from
-   an earlier attempt before we moved to `compileOnly`) — verify with
+3. Genuine classpath corruption (e.g. an old `kotlinx-coroutines-core-1.11.0.jar` left in `plugin/lib/` from an earlier
+   attempt before we moved to `compileOnly`) — verify with
    `unzip -l plugin/build/distributions/plugin-0.9.0.zip | grep -i coroutines`.
 
 ### Fix
 
-**Primary fix: just relaunch the runIde process.** Stop the runIde task (close its window or Ctrl-C in the
-terminal) and start it again. The new build will be picked up.
+**Primary fix: just relaunch the runIde process.** Stop the runIde task (close its window or Ctrl-C in the terminal) and
+start it again. The new build will be picked up.
 
 **Belt-and-braces hardening applied to the source** (see
 `gradum.idea.chat.state.GradumChatSession.stopModelPolling` / `reset` / `stopSession`):
 
 1. Pass an **explicit** `CancellationException("...")` instead of `null`. The Kotlin compiler emits
    `invokeinterface Job.cancel:(Ljava/util/concurrent/CancellationException;)V` directly. No `cancel$default`
-   synthetic is referenced, so the call cannot fail with `NoSuchMethodError` for that synthetic — even if
-   a future IDE version strips the synthetic from `Job$DefaultImpls`.
-2. Wrap the cancel in a `try { ... } catch (t: Throwable) { log.warn(...) }` block. Cancel is a cleanup
-   no-op; if it ever does throw, we just log and move on. The UI stays interactive.
+   synthetic is referenced, so the call cannot fail with `NoSuchMethodError` for that synthetic — even if a future IDE
+   version strips the synthetic from `Job$DefaultImpls`.
+2. Wrap the cancel in a `try { ... } catch (t: Throwable) { log.warn(...) }` block. Cancel is a cleanup no-op; if it
+   ever does throw, we just log and move on. The UI stays interactive.
 
 ```kotlin
 // Code that is now in GradumChatSession.kt:
@@ -564,14 +558,338 @@ verified clean.
 
 ### Lessons for Future Code
 
-- **`runIde` is not hot-reload.** If you change plugin code, stop and restart the runIde process to
-  pick up the new classes. Gradle's incremental build only updates the JAR; the long-lived IDE process
-  has already loaded the old class.
-- **Be skeptical of stack-trace line numbers.** If a user reports a `NoSuchMethodError` at a line that
-  in your current source is in a comment, the IDE was running an old class. Verify by `javap -p -c` on
-  the built JAR — if the JAR's bytecode already uses the correct method, the issue is class loading
-  state, not source code.
+- **`runIde` is not hot-reload.** If you change plugin code, stop and restart the runIde process to pick up the new
+  classes. Gradle's incremental build only updates the JAR; the long-lived IDE process has already loaded the old class.
+- **Be skeptical of stack-trace line numbers.** If a user reports a `NoSuchMethodError` at a line that in your current
+  source is in a comment, the IDE was running an old class. Verify by `javap -p -c` on the built JAR — if the JAR's
+  bytecode already uses the correct method, the issue is class loading state, not source code.
 - **Prefer explicit args over default-parameter shorthand for cross-version-sensitive calls.** Passing
-  `CancellationException("...")` instead of `null` makes the call immune to synthetic-availability
-  differences between coroutines versions.
+  `CancellationException("...")` instead of `null` makes the call immune to synthetic-availability differences between
+  coroutines versions.
 - **Wrap cancel in try-catch.** It is a no-op cleanup and should never be allowed to crash the UI.
+
+---
+
+## 11. Compose / Jewel Integration Traps
+
+### 11.1 Inline Content Chip Registration — Silent Drop
+
+`Text(annotated, inlineContent = map)` requires `StringAnnotation.item` == map key **AND** a fixed internal tag. Compose
+looks up chips via
+`getStringAnnotations("androidx.compose.foundation.text.inlineContent", ...).filter { it.item == mapKey }`. The tag is
+`INLINE_CONTENT_TAG` — an internal constant in `InlineContentUtils`, NOT a user-defined tag.
+
+Using `pushStringAnnotation("INLINE_CODE", placeholder)` (or any custom tag) makes Compose **silently drop every chip**.
+The official extension `AnnotatedString.Builder.appendInlineContent(id, alternateText)` is `internal` in Compose
+foundation 1.7.3 — inline its 4-line impl (pushStringAnnotation + pushStyle (SpanStyle ()) + append (alternateText) + 2×
+pop). Hardcode the tag string `"androidx.compose.foundation.text.inlineContent"` since the constant is internal.
+
+> **Lesson**: The GradumInlineMarkdown chip renderer (v1, then v1.5) twice got this wrong — first because
+> `annotation.item` didn't match the map key, then because the tag was user-defined. Both versions produced no error, no
+> log; every chip was silently dropped and the segment fell back to default `Markdown(...)`.
+
+Always pair the `INLINE_CONTENT_TAG` annotation with an `INLINE_CODE_TEXT` annotation (or similar) for the raw code
+text — that one CAN have a user-defined tag and is needed for click-to-copy.
+
+### 11.2 Badge Style Color Trap — Transparent Tint
+
+`JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)` for the default outlined badge style.
+Don't use it as a tint source — `tint.copy(alpha = X)` of transparent is still transparent.
+
+Use `JewelTheme.linkStyle.colors.content` (a solid `Color`) for code-chip tints, or `JewelTheme.contentColor` as a
+fallback.
+
+> **Lesson**: The GradumInlineMarkdown v2 originally read the badge background, made every chip invisible, AND the unit
+> test didn't catch it because tests pass `tint` explicitly instead of resolving it from the theme. Any `@Composable`
+> theme resolver should have a non-zero-alpha guard AND log the resolved value to the IDE log for sanity check.
+
+### 11.3 Unit Tests Miss Theme Bugs
+
+Unit tests that skip `@Composable` theme resolution miss theme bugs. Pass a real (or fake) `JewelTheme.contentColor` /
+`linkStyle` to the resolver under test, or add a Compose-rendered test that mounts a real `JewelTheme` and asserts the
+chip is visible.
+
+### 11.4 `Markdown(...)` Ignores `ProvideMarkdownStyling` Unless Explicitly Wired
+
+`Markdown(...)` (Jewel) does NOT read `markdownStyling` / `blockRenderer` / `processor` from
+`LocalMarkdownStyling` / `LocalMarkdownBlockRenderer` / `LocalMarkdownProcessor`. The parameter defaults are
+`JewelTheme.markdownStyling` / `JewelTheme.markdownBlockRenderer` / `JewelTheme.markdownProcessor` (the Jewel theme's
+own values).
+
+If you want the chat panel's `ProvideMarkdownStyling` to apply, you must either:
+
+- **(a)** NOT pass `markdownStyling` / `blockRenderer` / `processor` to `Markdown(...)` AND wrap the call site in
+  `ProvideMarkdownStyling`, OR
+- **(b)** Pass `LocalMarkdownStyling.current` / `LocalMarkdownBlockRenderer.current` explicitly.
+
+> **Lesson**: Explicitly passing `blockRenderer = JewelTheme.markdownBlockRenderer` inside `ProvideMarkdownStyling`
+> overrides the local with the Jewel-default renderer, making headings / lists / fenced code render with default colors.
+> This cost 3 hours of debugging before the fix.
+
+### 11.5 `AnnotatedString.Builder` Has No No-Arg Constructor
+
+`AnnotatedString.Builder` in Compose 1.7.3 has no no-arg constructor. Use
+`buildAnnotatedString { val builder = this; ... }` to grab the builder as the receiver.
+
+### 11.6 CommonMark API Gotchas
+
+- `Document` from `org.commonmark.node` has no `children()` method. Walk via `firstChild` + `next` directly.
+- `withStyle` is an extension function on `AnnotatedString.Builder` — must
+  `import androidx.compose.ui.text.withStyle`.
+- `TextUnit` is a value class. Construct via `.sp` / `.em` extensions; do not write `TextUnit(value, type)`.
+
+### 11.7 `LayoutCoordinates.getOffsetForPosition` Does NOT Exist
+
+`LayoutCoordinates.getOffsetForPosition(offset)` does NOT exist on this Compose version (verified by `javap` on
+`LayoutCoordinates.class` from `intellij.libraries.compose.foundation.desktop.jar` — the only public methods are
+`windowToLocal`, `localToScreen`, `localToRoot`, `localPositionOf`, `localBoundingBoxOf`, `get(AlignmentLine)`).
+
+For text hit-testing (mapping a tap position to a character offset) use `TextLayoutResult.getOffsetForPosition(Offset)`
+instead, and capture the result via the `Text` composable's `onTextLayout: (TextLayoutResult) -> Unit` callback.
+
+The correct path: hold a `MutableState<TextLayoutResult?>` filled by `onTextLayout`, read it inside
+`detectTapGestures`, and call `.getOffsetForPosition(offset)` on the layout result.
+
+### 11.8 `GlobalColors.editorBackground` Does NOT Exist
+
+`GlobalColors.editorBackground` does NOT exist — use `GlobalColors.panelBackground` for the LaTeX chip background tint.
+
+---
+
+## 12. LaTeX Rendering Pitfalls (LANDED 2026-07-21, 7 Debug Rounds)
+
+### 12.1 User's "Aha Moment": Block vs Inline LaTeX
+
+The first 4 rounds were adjusting the block-level `$$…$$` `Box` container (48dp vertical padding + heightIn to lock the
+first frame), but the user's test samples were all single-line `$…$` — **inline formulas, not block**. The block
+modifications had zero effect on the inline path.
+
+> **Lesson**: First lock down the code path using LaTeX syntax (inline `$…$` / block `$$…$$`), then choose the
+> Box/Placeholder fix. `$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$` that appears on its own line is STILL inline — it goes
+> through `RenderInlineLatex` → PUA Placeholder in the text line, NOT `RenderLatexBlock` → standalone Box.
+
+### 12.2 Internal Padding from huarangmeng Library
+
+Constants in `com.hrm.latex.renderer.utils.MathConstants`:
+
+- `CANVAS_HORIZONTAL_PADDING = 0.15f`
+- `CANVAS_VERTICAL_PADDING = 0.10f`
+
+Applied at `LatexRenderer.kt:98-102` (`val horizontalPadding = fontSizePx * CANVAS_HORIZONTAL_PADDING`, then
+`canvasWidth = layout.width + horizontalPadding * 2`), and the `Latex` composable hard-sizes itself via
+`modifier.size(widthDp, heightDp)` using `renderResult.canvasWidth` / `canvasHeight` (which INCLUDE the padding).
+
+For 18.sp block formula: ~1.8.dp top + 1.8.dp bottom = 3.6.dp vertical, ~2.7.dp left + 2.7.dp right = 5.4.dp horizontal.
+NOT visible to parent layout (part of Canvas size, not separate Modifier padding). NOT configurable from
+`LatexConfig`.
+
+The user's-eye gap is exactly `BLOCK_LATEX_VERTICAL_PADDING_DP` (48.dp) between formula glyphs and surrounding text.
+
+### 12.3 Async Parsing with Layout Shift
+
+The `Latex` composable uses `LaunchedEffect(latex) + withContext(Dispatchers.Default)` to parse the formula. First frame
+has `document = LatexNode.Document(emptyList())` → `LatexDocument.measure(empty)` returns tiny
+`canvasWidth/canvasHeight`
+→ Canvas is ~0×0. After parse completes, `document` updates → `LatexDocument.measure(parsed)` re-measures → Canvas snaps
+to formula's real size.
+
+**This causes a layout shift on first frame** — the wrapping Box starts at padding-only height and jumps to the real
+height after parse. Text below visibly jumps.
+
+**Mitigation**: wrap the Latex in a `Box` with
+`Modifier.heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)` (currently
+44.dp + 48.dp×2 = 140.dp outer) so the Box is a stable size on the first frame.
+
+### 12.4 Inline LaTeX Placeholder Too Short → Formula Overflows Line
+
+`RenderState.allocateLatex(formulaText)` was using the same `PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 1.0f` as the
+chip/footnote, giving `placeholderHeight = fontSizeSp × 1.0 + 2sp`. For a single line of text that's correct, but for a
+`\frac{a}{b}` the huarangmeng Canvas is 2× the font size tall, and a nested `\frac{...}{...}` or `\sqrt{...}` is 2.5–3×.
+The Placeholder is what the surrounding `Text(annotated, inlineContent = ...)` uses for line height; if the Placeholder
+is too short, the line box is too short, the formula Canvas overflows vertically, and visually covers the next line of
+text.
+
+**Fix**: dedicated `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 2.2f` and `INLINE_LATEX_PLACEHOLDER_PADDING_SP`
+(2sp) used only by `allocateLatex`. 2.2× is a safe default that fits single-line formulas with one small fraction.
+
+### 12.5 Placeholder Vertical Alignment: Center vs TextCenter
+
+| Mode            | Behavior                                                           | Problem                                                                                              |
+|-----------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `Center`        | Placeholder center = line-height center (baseline + 0.75×fontSize) | Formula visual center at x-height (baseline + 0.5×fontSize) — offset 0.25×fontSize, looks "elevated" |
+| `AboveBaseline` | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize — still elevated                                   |
+| `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5×fontSize)            | Matches formula visual center — this is what LaTeX `\textstyle` does                                 |
+
+### 12.6 Block-Level LaTeX Rendering Structure (Final)
+
+```
+RenderLatexBlock(formula)
+  └── Box(modifier = fillMaxWidth() + heightIn(min=140dp) + padding(vertical=48dp),
+            contentAlignment = TopCenter)
+        └── Latex(latex=formula, config=18sp + Color.Transparent)  // no internal fillMaxWidth
+              └── Canvas(Modifier.size(canvasWidth, canvasHeight))  // canvasWidth/Height includes library padding
+                    └── formula glyphs
+```
+
+Parent layout: `AssistantChatBubble`'s `Column` has no `verticalArrangement` (inter-block spacing determined by
+`padding(vertical=48dp)`), no horizontal padding (formula centered on the full chat panel content area).
+
+### 12.7 Library Canvas Horizontal Padding Side Effect
+
+`MathConstants.CANVAS_HORIZONTAL_PADDING = 0.15f` (proportional to fontSize) is folded into `renderResult.canvasWidth`,
+so the Latex Canvas width = formula visible width + 2×0.15×fontSize (~5.4dp transparent padding at 18sp). The user
+perceiving "large right margin" is actually a visual illusion from the panel content area being much wider than the
+formula — left and right are perfectly symmetric. Cannot be eliminated externally (hardcoded in library); the only way
+to reduce perceived "right margin" is to narrow the chat panel content area (`maxContentWidth`).
+
+### 12.8 PUA Placeholder Allocation Table
+
+| Codepoint       | Usage                                                     |
+|-----------------|-----------------------------------------------------------|
+| `U+E000`        | Inline code chip                                          |
+| `U+E001`        | Image alt text                                            |
+| `U+E002`        | Footnote mark                                             |
+| `U+E003`        | Inline LaTeX chip                                         |
+| `U+E100–U+E1FF` | Paren-form LaTeX `\(…\)` preprocessor markers (256 slots) |
+
+Within one chip type, the key is `base.toString().repeat(counter + 1)` — counter resets per `parseInlineMarkdown`
+call (each call creates a fresh `RenderState`).
+
+### 12.9 LaTeX Rendering Debug Timeline
+
+| Round | User Feedback                                                                   | Root Cause                                                                                                                                                                            | Fix                                                                                                                                 |
+|-------|---------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| 1     | Inline code truncated, block LaTeX overlapping, `\(\Delta > 0\)` shows raw text | chip `clip+background` clips children; block LaTeX no vertical padding; CommonMark backslash escaping eats `\(`                                                                       | chip uses `background(rounded)` without clipping; add 2dp vertical padding + 8dp rounded corners; preprocessor PUA-replaces `\(…\)` |
+| 2     | Block LaTeX spacing abnormal                                                    | No vertical padding set                                                                                                                                                               | Add 24dp → 32dp                                                                                                                     |
+| 3     | Library draws background as chip, block LaTeX not centered, large right margin  | `LatexConfig.backgroundColor = panelBackground` makes library draw background; internal `Latex` uses `fillMaxWidth`; library `CANVAS_HORIZONTAL_PADDING=0.15f` folds into canvasWidth | Change to `Color.Transparent`; remove internal `fillMaxWidth`; Box uses `fillMaxWidth + contentAlignment=TopCenter`                 |
+| 4     | Block LaTeX still squeezes text below                                           | huarangmeng library **async parsing first frame 0×0** causes layout shift                                                                                                             | Box adds `heightIn(min=44+48×2=140dp)` to lock first frame; vertical padding → 48dp                                                 |
+| 5     | Discovered it's inline formulas blocking                                        | 1.0× Placeholder too short for `\frac{}{}`                                                                                                                                            | `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER=1.0→2.2`                                                                           |
+| 6     | Increased default + wrote memory file + reported new bug                        | 2.2× still insufficient                                                                                                                                                               | → 2.5×                                                                                                                              |
+| 7     | Inline formula baseline rises                                                   | `PlaceholderVerticalAlign.Center` centers by line-height, formula visual center is at x-height                                                                                        | → `PlaceholderVerticalAlign.TextCenter` (aligns by x-height)                                                                        |
+
+---
+
+## 13. Inline Markdown Engineering (LANDED 2026-07-14, v2.1)
+
+### 13.1 Inline Code Chip — Key Pitfalls
+
+**Chip lineHeight clips glyphs**: the chip's internal `Text` must explicitly set `lineHeight = fontSize` (1.0x).
+Inheriting the editor style's `lineHeight` (1.5x) clips the glyphs to ~0 visible pixels.
+
+**Badge background is transparent**: `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)`. Use
+`JewelTheme.linkStyle.colors.content` for chip tints instead.
+
+**CJK chip width too narrow**: `MONOSPACE_CHAR_WIDTH_RATIO (0.6f) × code.length` clips CJK characters (which are
+full-width ~1.0). Use `cjkAwareWidthRatio(code)` — 1.0 for CJK, 0.6 for Latin — computed char-by-char.
+
+**`node.unlink()` loses siblings**: `generateSequence { it.next }.forEach { appendChild(it) }` breaks because
+`appendChild` → `unlink` → `next = null` mid-iteration. Always capture `next` BEFORE unlinking:
+
+```kotlin
+var current = first.next
+while (current != null) {
+  val next = current.next
+  strippedParagraph.appendChild(current)
+  current = next
+}
+```
+
+**`serializeInto` must cover every block type**: the `else` branch falls through to `serializeChildrenInto` which
+produces empty output for blocks with `formula: String` fields (no children).
+
+**Kotlin string template gotcha**: `"$$x^2$$"` is a template reference. Use raw strings `"""$$x^2$$"""` for test strings
+containing `$`. The test framework's `Edit` tool also has this issue — use Python scripts to batch-escape `$`.
+
+**commonmark parser OrderedList trap**: text starting with "2." in headings, list items, blockquotes, and paragraphs is
+treated as OrderedList start, causing bold syntax (`**text**`) to be dropped when reparsing via `parseInlineMarkdown`.
+Use `parseInlineNodes` + `rememberInlineMarkdownRenderFromNode` to directly process AST inline children instead.
+
+**End-to-end tests must check root node type**: `Parser.parse()` returns a `Document`, so appending it to another
+`Document` causes nested structure — use the parsed `Node` directly instead of wrapping it.
+
+**GradumBlockRenderer compilation errors**: incorrect casting of `ListItem`, using non-existent `editorBackground` from
+`GlobalColors`, using non-existent `HorizontalDivider` composable, and accessing non-existent `textStyle` on
+`Paragraph`. Fixes: cast to `ListItem`, use `panelBackground` with fallback, replace divider with styled `Box`, access
+`inlinesStyling.textStyle`. These errors caused IDE to use old renderer version with default styles.
+
+### 13.2 Architecture Summary
+
+The inline Markdown system uses a two-layer architecture:
+
+- **Layer 1** (`BlockSplit.kt`): splits `Plain` segments on block boundaries via `splitPlainAtBlocks()`.
+  `Paragraph` → `Plain`, everything else → `NonProseBlock`.
+- **Layer 2** (`InlineMarkdown.kt`): handles `Plain` sub-segments with inline chips (code, image alt, footnote, LaTeX).
+  `NonProseBlock` renders via Jewel's `Markdown(...)`.
+
+Key design decisions (see `plugin/src/main/kotlin/gradum/idea/chat/ui/markdown/` for implementation):
+
+- GFM Strikethrough: `combineDecoration` helper stacks LineThrough + Underline
+- Clickable links: `TextLayoutResult.getOffsetForPosition(offset)` for hit-testing (NOT `LayoutCoordinates`)
+- Nested lists: custom renderer with `indentDepth + 1` recursion (Jewel native drops code chips)
+- Blockquote left bar: `Box.width(4.dp).clip(RoundedCornerShape(50%)).background()` (not `drawBehind`)
+- Task lists: `CheckboxRow(checked, enabled = false)` — disabled, no interaction
+- Link underline: `ShowAlways` (not `ShowOnHover` — unreliable in chat context)
+- Inline image alt: italic placeholder with icon, NOT a link
+- PUA allocation: code=`\uE000`, image=`\uE001`, footnote=`\uE002`, LaTeX=`\uE003`
+- Four parsers need extension registration: `blockSplitParser` [OK], `blockReparseParser` [OK], `commonmarkParser` [NO],
+  `GradumMarkdownProcessor` ✗ (intentional — no LaTeX in code blocks)
+
+---
+
+## 14. Core Principles
+
+### 15.1 Read the Source Code — Don't Guess
+
+When you encounter an unsolvable problem, **read the actual source code**. Do not guess based on error messages,
+documentation, or blog posts. This document itself was born from guessing:
+
+- We assumed `bundledModule()` would work at runtime — it only works at compile time. Reading the IntelliJ Platform
+  Gradle Plugin source would have revealed this in minutes.
+- We assumed `LayoutCoordinates.getOffsetForPosition(offset)` existed — a quick `javap` on the class would have shown it
+  doesn't.
+- We assumed `GlobalColors.editorBackground` existed — reading the Jewel source would have shown it's
+  `panelBackground`.
+- We assumed detekt 1.23.7 supported JVM 25 — checking the compatibility table would have saved an hour.
+
+**The source code is the single source of truth.** Documentation is often outdated, blog posts are often wrong, and AI
+assistants (including this one) can hallucinate API names. When in doubt:
+
+1. `javap -p -c` on the JAR to inspect bytecode
+2. Read the actual `.class` or `.kt` source in the IDE
+3. Check the library's `pom.xml` for transitive dependencies
+4. Verify with `unzip -l` what's actually in the built artifact
+
+### 15.2 Don't Blindly Trust Unit Tests
+
+Unit tests can pass while the production code is completely broken. This document records multiple cases:
+
+- **Badge tint trap (§11.2)**: Tests passed `tint` explicitly instead of resolving it from the theme. Every chip was
+  invisible in production because `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)`. The
+  test didn't catch it because it never resolved the theme.
+- **Inline content chip (§11.1)**: v1 and v2 both had silent chip drops. No test caught it because tests don't mount a
+  real `JewelTheme` — they just call the function with synthetic inputs.
+- **`Markdown(...)` defaults (§11.4)**: Tests passed `markdownStyling` explicitly, so they never discovered that the
+  production code's `ProvideMarkdownStyling` was being overridden by Jewel's theme defaults.
+
+**Rules for trustworthy tests:**
+
+1. If a function uses `@Composable` theme resolution, the test must either use a real `JewelTheme` or a fake that
+   exercises the same code path.
+2. If a function produces visual output (chips, colors, layout), add a Compose-rendered test that asserts the output is
+   visible (not transparent, not zero-size).
+3. If a function depends on `LocalMarkdownStyling` / `LocalMarkdownBlockRenderer`, wrap the test call in
+   `ProvideMarkdownStyling` with test values.
+4. Always test the **integration path** — not just the unit in isolation.
+
+### 15.3 Other Principles
+
+- **Verify with `javap`, not with docs.** If you need to know whether a method exists on a class, inspect the bytecode.
+  Documentation lies; bytecode doesn't.
+- **Check transitive dependencies.** `./gradlew :dependencies` or `unzip -l` on the built JAR to see what actually ended
+  up in `plugin/lib/`. Don't assume excludes worked — verify.
+- **Restart after code changes.** `./gradlew :plugin:runIde` does NOT hot-reload. If you changed code and the old
+  behavior persists, restart the process before debugging further.
+- **Suspicious stack traces.** If a line number in a stack trace points to code that no longer exists in your source,
+  the IDE is running a stale class. Rebuild and restart.
+- **One classloader, one copy.** The JVM rule is simple: the same interface loaded by two different classloaders
+  triggers `LinkageError`. Classes (non-interface) can be dual-loaded safely. Know the difference.

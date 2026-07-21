@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LatexBlockExtension.kt  2026-07-20 16:30:09 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown

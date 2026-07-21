@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-20 16:39:04 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -46,7 +45,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Serializable
 private data class ModelsListResponse(
   val models: List<ModelInfo>,
-  val recommended: ModelInfo? = null,
+  val recommended: ModelInfo? = null
 )
 
 /**
@@ -209,14 +208,14 @@ class GradumChatSession {
     if (job != null) {
       try {
         job.cancel(CancellationException("Gradum: reset session"))
-      } catch (t: Throwable) {
-        log.warn("Failed to cancel current job on reset", t)
+      } catch (throwable: Throwable) {
+        log.warn("Failed to cancel current job on reset", throwable)
       }
     }
-    sessionId = null
-    hasSentMessage = false
-    isSending = false
     sendingPhase = ""
+    sessionId = null
+    isSending = false
+    hasSentMessage = false
     messages.clear()
     attachedFiles.clear()
     pendingMessages.clear()
@@ -243,18 +242,15 @@ class GradumChatSession {
   }
 
   private fun applyModelList(newModels: List<ModelInfo>, recommended: ModelInfo? = null) {
-    // Drop unavailable models from the active roster and pinned set.
-    // The server retains them with `available = false` for future health checks.
-    // This keeps the UI clean and avoids haunting users with dead pinned entries.
     val healthyModels: List<ModelInfo> = newModels.filter { it.available }
-    models.clear(); models.addAll(healthyModels); modelsLoaded = true
+    models.clear()
+    models.addAll(healthyModels)
+    modelsLoaded = true
     recommendedModel = recommended?.takeIf { it.available }
 
     val selectedEntry = selectedModel
     when {
       selectedEntry == null -> {
-        // First load: adopt the server's recommended model.
-        // This gives the user the strongest available model, not the first probe result.
         if (models.isNotEmpty()) {
           selectedModel = recommendedModel ?: models.first()
           isAutoSelected = true
@@ -310,8 +306,6 @@ class GradumChatSession {
       tickerFlow()
         .flatMapLatest { fetchModelsOnce() }
         .catch { exception ->
-          // Flow-level failures (shouldn't happen because the inner flow swallows I/O errors, but defensive).
-          // The ticker keeps ticking so the next cycle gets a chance.
           log.warn("Model polling stream error: ${exception.message}", exception)
         }
         .collect { json ->
@@ -319,9 +313,6 @@ class GradumChatSession {
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
             val newModels: List<ModelInfo> = response.models
             val newRecommended: ModelInfo? = response.recommended
-            // Apply if model roster or recommendation changed.
-            // Recommendation may flip even when model list stays the same
-            // (e.g. another app closed, freeing memory).
             val modelsChanged: Boolean = newModels.size != models.size ||
               newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
             val recommendedChanged: Boolean =
@@ -399,8 +390,8 @@ class GradumChatSession {
     if (job != null) {
       try {
         job.cancel(CancellationException("Gradum: stop model polling"))
-      } catch (t: Throwable) {
-        log.warn("Failed to cancel polling job", t)
+      } catch (throwable: Throwable) {
+        log.warn("Failed to cancel polling job", throwable)
       }
     }
   }
@@ -486,8 +477,10 @@ class GradumChatSession {
             )
           )
         }
-        isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
-
+        isSending = false
+        sendingPhase = ""
+        isWaitingForResponse = false
+        processPendingQueue()
         return
       }
     } catch (exception: Exception) {
@@ -501,7 +494,10 @@ class GradumChatSession {
           )
         )
       }
-      isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
+      isSending = false
+      sendingPhase = ""
+      isWaitingForResponse = false
+      processPendingQueue()
 
       return
     }
@@ -539,7 +535,9 @@ class GradumChatSession {
             ChatEvent.Error(code = ErrorCode.CLIENT_ERROR.code, message = message("gradum.model.no.vision"))
           )
         }
-        isSending = false; sendingPhase = ""; return
+        isSending = false
+        sendingPhase = ""
+        return
       }
 
       apiClient.sendMessage(
@@ -558,7 +556,9 @@ class GradumChatSession {
               ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
             )
           }
-          isSending = false; sendingPhase = ""; return@catch
+          isSending = false
+          sendingPhase = ""
+          return@catch
         }
         log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
         val assistantIndex: Int = messages.lastIndex
@@ -569,7 +569,10 @@ class GradumChatSession {
             )
           )
         }
-        isSending = false; sendingPhase = ""; processPendingQueue()
+
+        isSending = false
+        sendingPhase = ""
+        processPendingQueue()
       }.collect { event: JsonObject ->
         // Per-line parse errors are handled by the client and skipped.
         // This collector only receives valid JsonObject emissions.
@@ -620,7 +623,10 @@ class GradumChatSession {
           )
         )
       }
-      isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
+      isSending = false
+      sendingPhase = ""
+      isWaitingForResponse = false
+      processPendingQueue()
     }
   }
 
@@ -757,8 +763,12 @@ class GradumChatSession {
         )
       )
 
-      hasSentMessage = true; isSending = true; isWaitingForResponse = true
-      currentJob = scope?.launch { sendMessage(next.content, next.attachments, "") }
+      isSending = true
+      hasSentMessage = true
+      isWaitingForResponse = true
+      currentJob = scope?.launch {
+        sendMessage(next.content, next.attachments, "")
+      }
     }
   }
 
@@ -853,7 +863,10 @@ class GradumChatSession {
           regex = FOCUS_FILE_PATTERN,
           replacement = "<Context path=\"$focusedFilePath\"/>"
         )
-        resultBuffer.clear(); resultBuffer.append(resolvedText); wasReplaced = true
+
+        resultBuffer.clear()
+        resultBuffer.append(resolvedText)
+        wasReplaced = true
       }
 
       if (hasFileReference) {

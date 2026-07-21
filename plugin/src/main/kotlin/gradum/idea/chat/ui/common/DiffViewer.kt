@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DiffViewer.kt  2026-07-20 16:40:06 Changed by gwy
+ * DiffViewer.kt  2026-07-21 19:32:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.common
@@ -23,35 +23,19 @@ import gradum.idea.bundle.GradumBundle
 import java.io.File
 
 /**
- * Thin facade over the IntelliJ Platform's native diff viewer. Used by
- * the chat UI to expose a "View Diff" action on a successful
- * `edit_file` tool call, so the user can inspect exactly what the LLM
- * changed before trusting the result.
+ * Thin facade over the IntelliJ Platform's native diff viewer. Used by the chat UI
+ * to expose a "View Diff" action on successful `edit_file` tool calls.
  *
- * The platform API is intentionally accessed through a narrow surface
- * — `DiffManager.showDiff` + `DiffContentFactory.create` +
- * `SimpleDiffRequest` + `DiffDialogHints.MODAL` — because those types
- * have been the stable contract since 2017 (2024.3 / 2025.x / 2026.x
- * all keep the same signature). Newer diff APIs
- * (e.g. `DiffEditorTabTitleProvider`, `DiffRequestFactory` for merge
- * tools) are deliberately avoided here because they are convenience
- * wrappers, not replacements.
+ * Platform API surface is intentionally narrow: `DiffManager.showDiff` +
+ * `DiffContentFactory.create` + `SimpleDiffRequest` + `DiffDialogHints.MODAL`
+ * — these types have been stable since 2017 (2024.3/2025.x/2026.x).
  *
- * Side resolution falls back through three tiers, best to worst:
- *  1. [VirtualFile] from `LocalFileSystem.findFileByPath(path)` or
- *     the path joined with `project.basePath` — gives the diff panel
- *     the real file type, full syntax highlighting, gutter icons,
- *     and navigation. The `edit_file` tool emits project-relative
- *     paths to the plugin, and `findFileByPath` does NOT resolve
- *     those itself, which is why the second lookup exists.
- *  2. [FileType] from `FileTypeRegistry.getFileTypeByFileName(name)`
- *     when the file is not yet on disk or lives outside the VFS —
- *     still produces correct syntax highlighting for known
- *     extensions (`.kt` → KotlinFileType, `.java` → JavaFileType,
- *     etc.) but loses the live editor integration.
- *  3. [PlainTextFileType.INSTANCE] as the last resort — no syntax
- *     highlighting, used only for extensions the platform cannot
- *     recognize.
+ * Side resolution falls back through three tiers:
+ *  1. [VirtualFile] from `LocalFileSystem.findFileByPath(path)` or joined with
+ *     `project.basePath` — full syntax highlighting, gutter icons, navigation.
+ *  2. [FileType] from `FileTypeRegistry.getFileTypeByFileName(name)` — correct
+ *     highlighting for known extensions but no live editor integration.
+ *  3. [PlainTextFileType.INSTANCE] — no syntax highlighting, last resort.
  */
 object DiffViewer {
   private val log: Logger = Logger.getInstance(DiffViewer::class.java)
@@ -167,14 +151,12 @@ object DiffViewer {
     val localFileSystem = LocalFileSystem.getInstance()
 
     runCatching { localFileSystem.findFileByPath(path) }
-      .getOrNull()
-      ?.let { return it }
+      .getOrNull()?.let { return it }
 
     val basePath: String? = project?.basePath
     if (!basePath.isNullOrBlank() && !File(path).isAbsolute) {
       runCatching { localFileSystem.findFileByPath("$basePath/$path") }
-        .getOrNull()
-        ?.let { return it }
+        .getOrNull()?.let { return it }
     }
     return null
   }

@@ -58,12 +58,14 @@ class GradumLatexTest {
 
   /**
    * Visible text of an [AnnotatedString] after dropping PUA placeholders
-   * (code / image / footnote / LaTeX chips all share the PUA block).
+   * (code / image / footnote / LaTeX chips all share the PUA block,
+   * plus the paren-form LaTeX markers in the U+E100..U+E1FF range).
    */
   private fun visibleText(annotated: AnnotatedString): String {
     val builder: StringBuilder = StringBuilder(annotated.length)
     for (char in annotated) {
       if (char.code in 0xE000..0xE07F) continue
+      if (char.code in 0xE100..0xE1FF) continue
       builder.append(char)
     }
     return builder.toString()
@@ -73,9 +75,34 @@ class GradumLatexTest {
 
   @Test
   fun `INLINE_LATEX_REGEX matches a simple single-pair formula`() {
+    // `$x^2$` — single-dollar form. The regex has two capturing
+    // groups: group 1 is the `$$…$$` body, group 2 is the `$…$`
+    // body. The first alt is `$$…$$`; the second is `$…$`. For
+    // a single-dollar input the first alt doesn't match, so the
+    // second alt fires and the body lives in `groupValues[2]`.
     val match = INLINE_LATEX_REGEX.find("the formula is \$x^2\$ here")
-    assertNotNull("regex should match a single `\$x^2\$`", match)
+    assertNotNull("regex should match a single-dollar pair", match)
+    assertEquals("x^2", match!!.groupValues[2])
+    // The dollar-dollar group is empty for a single-dollar input.
+    assertTrue(
+      "first group (for dollar-dollar form) should be empty for a single-dollar input, was '${match.groupValues[1]}'",
+      match.groupValues[1].isEmpty()
+    )
+  }
+
+  @Test
+  fun `INLINE_LATEX_REGEX matches a dollar-dollar pair into the first capture group`() {
+    // `$$x^2$$` (all on one line) — the first alt wins because
+    // it appears first in the alternation, and the body lives
+    // in `groupValues[1]`. The second group stays empty.
+    val match = INLINE_LATEX_REGEX.find("the formula is \$\$x^2\$\$ here")
+    assertNotNull("regex should match a dollar-dollar pair", match)
     assertEquals("x^2", match!!.groupValues[1])
+    // The single-dollar group is empty for a dollar-dollar input.
+    assertTrue(
+      "second group (for single-dollar form) should be empty for a dollar-dollar input, was '${match.groupValues[2]}'",
+      match.groupValues[2].isEmpty()
+    )
   }
 
   @Test
@@ -99,17 +126,155 @@ class GradumLatexTest {
   @Test
   fun `INLINE_LATEX_REGEX is non-greedy across adjacent pairs`() {
     // `$x$$y$` should match `$x$` and `$y$` independently, not
-    // try to span them as one match.
+    // try to span them as one match. Both matches are in the
+    // `$…$` form so the body lives in `groupValues[2]`.
     val matches = INLINE_LATEX_REGEX.findAll("\$x\$\$y\$").toList()
     assertEquals(2, matches.size)
-    assertEquals("x", matches[0].groupValues[1])
-    assertEquals("y", matches[1].groupValues[1])
+    assertEquals("x", matches[0].groupValues[2])
+    assertEquals("y", matches[1].groupValues[2])
   }
 
   @Test
   fun `INLINE_LATEX_REGEX handles a single dollar as plain text`() {
     // One lone `$` is not a formula — must NOT match.
     assertNull(INLINE_LATEX_REGEX.find("only one dollar $ here"))
+  }
+
+  // ─── INLINE_LATEX_PAREN_REGEX (the `\(…\)` form) ────────────────────
+
+  @Test
+  fun `INLINE_LATEX_PAREN_REGEX matches a simple paren formula`() {
+    val match = INLINE_LATEX_PAREN_REGEX.find("the formula is \\(x\\) here")
+    assertNotNull("regex should match `\\(x\\)`", match)
+    // Single capturing group.
+    assertEquals("x", match!!.groupValues[1])
+  }
+
+  @Test
+  fun `INLINE_LATEX_PAREN_REGEX matches a discriminant expression`() {
+    // The exact example from the user's feedback: `\(\Delta > 0\)`.
+    // Before this regex was added, the model output leaked through
+    // as literal text — this test pins the regression down.
+    val match = INLINE_LATEX_PAREN_REGEX.find("当 \\(\\Delta > 0\\) 时，方程有两个不相等的实根")
+    assertNotNull("regex should match `\\(\\Delta > 0\\)`", match)
+    assertEquals("\\Delta > 0", match!!.groupValues[1])
+  }
+
+  @Test
+  fun `INLINE_LATEX_PAREN_REGEX returns null for an unclosed paren pair`() {
+    assertNull(INLINE_LATEX_PAREN_REGEX.find("partial \\(x^2 here"))
+  }
+
+  @Test
+  fun `INLINE_LATEX_PAREN_REGEX rejects nested parens by design`() {
+    // Documented limitation: the body exclusion is `[^()\n]+?`,
+    // so parens inside the body are forbidden and a nested-paren
+    // formula can't be captured as one match. We assert the
+    // engine does NOT produce a single full-input match for the
+    // nested form.
+    val matches = INLINE_LATEX_PAREN_REGEX.findAll("see \\(\\frac{(a)}{(b)}\\) here").toList()
+    assertTrue(
+      "nested-paren formula should not produce a single full-input match; got ${matches.size} matches",
+      matches.none { it.value == "\\(\\frac{(a)}{(b)}\\)" }
+    )
+  }
+
+  @Test
+  fun `INLINE_LATEX_PAREN_REGEX skips newlines inside the formula`() {
+    assertNull(INLINE_LATEX_PAREN_REGEX.find("split \\(\nx^2\\) across lines"))
+  }
+
+  // ─── preprocessParenLatexFormulas ───────────────────────────────────
+
+  @Test
+  fun `preprocessParenLatexFormulas replaces each match with a unique PUA marker`() {
+    val input = "当 \\(\\Delta > 0\\) 时，方程有两个不相等的实根"
+    val result: PreprocessedParenLatex = preprocessParenLatexFormulas(input)
+    // The text contains exactly one marker (a single PUA char in
+    // U+E100..U+E1FF). The surrounding prose and the formula body
+    // are NOT in the rewritten text — the formula moved to the
+    // side table.
+    val rewrittenNoMarkers: String = result.text.filter { it.code !in 0xE100..0xE1FF }
+    assertEquals("当  时，方程有两个不相等的实根", rewrittenNoMarkers)
+    // Side table has the formula text keyed by the marker char.
+    assertEquals(1, result.formulaByMarker.size)
+    val formula: String? = result.formulaByMarker.values.firstOrNull()
+    assertEquals("\\Delta > 0", formula)
+  }
+
+  @Test
+  fun `preprocessParenLatexFormulas returns the original text when there is no match`() {
+    val input = "no paren latex here, just plain prose"
+    val result: PreprocessedParenLatex = preprocessParenLatexFormulas(input)
+    assertEquals(input, result.text)
+    assertTrue(result.formulaByMarker.isEmpty())
+  }
+
+  @Test
+  fun `preprocessParenLatexFormulas handles multiple paren formulas in one input`() {
+    val input = "a \\(x\\) b \\(y\\) c \\(z\\) end"
+    val result: PreprocessedParenLatex = preprocessParenLatexFormulas(input)
+    // 3 markers in the rewritten text, 3 entries in the side table.
+    val markerCount: Int = result.text.count { it.code in 0xE100..0xE1FF }
+    assertEquals(3, markerCount)
+    assertEquals(3, result.formulaByMarker.size)
+    assertEquals(listOf("x", "y", "z"), result.formulaByMarker.values.toList())
+  }
+
+  @Test
+  fun `INLINE_LATEX_PAREN_MARKER_REGEX matches any char in the reserved PUA range`() {
+    // Sanity check: the marker regex finds all three sample chars
+    // in the U+E100..U+E1FF range and nothing outside it.
+    val matches: List<MatchResult> = INLINE_LATEX_PAREN_MARKER_REGEX
+      .findAll("\uE100hello\uE150world\uE1FF")
+      .toList()
+    assertEquals(3, matches.size)
+    // The code / image / footnote / LaTeX chip bases must NOT match.
+    val chipMatches: List<MatchResult> = INLINE_LATEX_PAREN_MARKER_REGEX
+      .findAll("\uE000\uE001\uE002\uE003")
+      .toList()
+    assertEquals(
+      "chip placeholder PUA bases (U+E000..U+E003) must not match the paren-marker regex",
+      0, chipMatches.size
+    )
+  }
+
+  @Test
+  fun `inline paren-form LaTeX is recognized by the walker and emits a placeholder chip`() {
+    // The full pipeline: preprocessor turns `\(…\)` into a PUA
+    // marker, CommonMark parses the rewritten text, the walker
+    // scans for the marker and emits a LaTeX chip. The user's
+    // `\(\Delta > 0\)` example must produce a LaTeX chip, not
+    // leak through as literal text.
+    val render: InlineMarkdownRender =
+      requireNotNull(inlineRender("当 \\(\\Delta > 0\\) 时").render)
+    // One LaTeX chip for the paren-form formula.
+    assertEquals(
+      "expected exactly 1 inline chip for the paren-form formula, was ${render.inlineContent.size}",
+      1, render.inlineContent.size
+    )
+    // The chip key uses the LaTeX PUA base (U+E003), not the
+    // code / image / footnote bases.
+    assertEquals("\uE003", render.inlineContent.keys.first())
+    // Visible text retains the surrounding prose and drops the
+    // PUA marker (which the walker replaced with a chip). Note
+    // the marker itself is in the U+E100..U+E1FF range — also
+    // stripped by `visibleText`.
+    assertEquals("当  时", visibleText(render.annotated))
+  }
+
+  @Test
+  fun `inline paren-form and dollar-form LaTeX coexist in the same paragraph`() {
+    // Both forms should be picked up by the walker in one pass.
+    val render: InlineMarkdownRender = requireNotNull(
+      inlineRender("a \\(b\\) c and \$d\$ e").render
+    )
+    // Two chips: one for each formula. The walker allocates a
+    // fresh PUA key per chip, so the map has 2 entries.
+    assertEquals(2, render.inlineContent.size)
+    // Both visible text bodies are stripped — only the surrounding
+    // prose remains in the AnnotatedString.
+    assertEquals("a  c and  e", visibleText(render.annotated))
   }
 
   // ─── Block LaTeX — AST shape ────────────────────────────────────────

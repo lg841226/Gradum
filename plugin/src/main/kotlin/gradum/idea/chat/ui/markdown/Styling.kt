@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-18 12:07:32 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -17,8 +16,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -241,8 +240,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
 
     val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
 
-    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.disabled
-    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.text.disabled
+    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.info
+    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.text.info
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
       padding = PaddingValues(
         start = GradumSpacing.xl,

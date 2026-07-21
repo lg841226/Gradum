@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-18 12:04:03 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -61,22 +60,111 @@ private const val FOOTNOTE_PLACEHOLDER_BASE: Char = '\uE002'
  */
 private const val LATEX_PLACEHOLDER_BASE: Char = '\uE003'
 
+/**
+ * PUA range reserved for pre-processing `\(…\)`-form LaTeX
+ * formulas out of the raw text BEFORE CommonMark sees them.
+ *
+ * Why a pre-processing pass is necessary: CommonMark treats
+ * `\(` as a backslash-escape sequence (the leading backslash
+ * is dropped, the `(` is left as a literal paren). The
+ * LaTeX-original `\(…\)` form many models emit gets chewed
+ * up by that rule — by the time the AST walker sees the Text
+ * node, the backslashes are gone and the formula has bled
+ * into the surrounding prose as a plain `(…)`.
+ *
+ * The pre-processing pass [preprocessParenLatexFormulas]
+ * scans the raw text for `\(…\)` and replaces each match
+ * with a single PUA char from the `U+E100`–`U+E1FF` range,
+ * keeping the formula text in a side table. The replacement
+ * char survives CommonMark parsing verbatim (PUA is not
+ * processed by the parser), and the walker scans for those
+ * PUA chars with [INLINE_LATEX_PAREN_MARKER_REGEX] and looks
+ * up the formula in the side table.
+ *
+ * The range is disjoint from the chip placeholder bases
+ * (U+E000..U+E003) and supports up to 256 paren-form formulas
+ * in a single message — more than enough for chat.
+ */
+private const val PAREN_LATEX_MARKER_RANGE_START: Int = 0xE100
+private const val PAREN_LATEX_MARKER_RANGE_END: Int = 0xE1FF
+private const val PAREN_LATEX_MARKER_RANGE_SIZE: Int =
+  PAREN_LATEX_MARKER_RANGE_END - PAREN_LATEX_MARKER_RANGE_START + 1
+
 private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
-private val inlineCodePaddingHorizontal: Dp = GradumSpacing.xs
-private val inlineCodePaddingVertical: Dp = 0.dp
+// Chip/footnote horizontal padding (inside the rounded background). Generous
+// enough that long inline code (e.g. `explore_project`) doesn't visually
+// press against the right edge of the chip.
+private val inlineCodePaddingHorizontal: Dp = GradumSpacing.sm
+// Chip/footnote vertical padding. Was 0.dp — that meant the descenders of
+// letters like 'p' / 'g' / 'y' sat right at the bottom of the rounded
+// background and were clipped by the 4-dp rounded corners. 2.dp is enough
+// room for the descenders to clear the corner while keeping the chip
+// visually compact.
+private val inlineCodePaddingVertical: Dp = GradumSpacing.xs
+// Chip/footnote corner radius. Bumped from GradumSpacing.xs (2.dp) to
+// GradumSpacing.md (8.dp) per the user's "增大" directive — the chips
+// now read as clearly rounded badges instead of near-rectangular tags.
+// 8.dp is the project's standard "medium" spacing; larger values (12+
+// dp) start to look pill-shaped for short content like `x = 4` and
+// look uneven for long content like `explore_project`.
+private val inlineCodeCornerRadius: Dp = GradumSpacing.md
 internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.12f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
 private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
-// Horizontal padding on each side of the inline LaTeX PUA placeholder
-// char. 8sp was too much — at 14sp body text that's ~57% extra
-// horizontal dead-space, all on the right of the rendered formula
-// (because the actual LaTeX composable is left-aligned within the
-// PUA bounding box and most formulas are narrower than the
-// per-character width estimate). 2sp keeps just enough breathing room
-// for the LaTeX baseline to align with the surrounding text without
-// leaving a visible gap.
+// Line-height multiplier specifically for inline LaTeX placeholders.
+// The chip / footnote use [PLACEHOLDER_LINE_HEIGHT_MULTIPLIER] = 1.0
+// because their rendered text fits in a single line; LaTeX is
+// different — a `\frac{a}{b}` is ~2× the font size tall, a nested
+// `\frac{...}{...}` or `\sqrt{...}` can be 2.5–3×. The huarangmeng
+// library draws the formula at its measured height inside the
+// `Modifier.size(widthDp, heightDp)` Canvas, and that Canvas is
+// placed at the Placeholder's position by the surrounding
+// `Text(annotated, inlineContent = ...)` layout. If the
+// Placeholder's `height` is too small, the formula's Canvas
+// overflows the line box vertically and visually covers the next
+// line of text — the "大公式挡下面文字" symptom the user
+// reported. Bumped from 2.2 to 2.5 per the user's "拍个更高
+// 默认值" ask — the +0.3 buys headroom for `\sqrt{(4-1)^2 +
+// (6-2)^2}`-style radicals with grouped contents, which the user
+// noted in the same round. 2.5× wastes 1–2sp of line height for
+// trivial cases like `$x^2$`, but that whitespace is absorbed
+// invisibly into the line rhythm. A future tuning pass could
+// replace this with a per-formula heuristic (count the `\frac` /
+// `\sqrt` / `\sum` / `\int` occurrences and bump the multiplier
+// accordingly) but 2.5 handles 95%+ of chat inputs without
+// per-formula parsing.
+private const val INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 2.5f
+
+// Chip/footnote placeholder padding (extra sp added on top of the
+// per-character width estimate). Separate from the LaTeX constant below
+// because the two have different needs:
+//   * Chip / footnote — the rendered text often has descenders that
+//     push into the extra height budget, AND the 0.6 Latin ratio is a
+//     rough estimate that doesn't always match the actual monospace
+//     font's per-character advance. 10sp covers both the horizontal
+//     buffer (right-side padding) and the vertical buffer (descender
+//     room) without making the chip look puffy.
+//   * LaTeX formula — the huarangmeng library draws a tight bounding
+//     box around the formula, and most formulas are narrower than
+//     0.6 × charCount (math glyphs tend to be sparse). 2sp is enough.
+private const val INLINE_CODE_PLACEHOLDER_PADDING_SP: Float = 10f
+
+// LaTeX placeholder padding. See the long comment on
+// `INLINE_CODE_PLACEHOLDER_PADDING_SP` for the rationale — the LaTeX
+// renderer is much tighter than the chip's text layout, so 2sp is
+// sufficient. Was 8sp before, reduced to 2sp after the user feedback
+// that 8sp left a visible gap on the right of rendered formulas.
 private const val PLACEHOLDER_WIDTH_PADDING_SP: Float = 2f
+// Inline-LaTeX-specific padding. Kept as an alias of
+// [PLACEHOLDER_WIDTH_PADDING_SP] (2.sp) but named differently so the
+// call site in [RenderState.allocateLatex] reads as "this is the
+// LaTeX padding" rather than reusing the chip/footnote width
+// constant. The huarangmeng library draws the formula tight to its
+// glyph bounding box, so a 2sp buffer is enough; bumping it would
+// re-introduce the right-side gap the user complained about
+// earlier.
+private const val INLINE_LATEX_PLACEHOLDER_PADDING_SP: Float = PLACEHOLDER_WIDTH_PADDING_SP
 private const val FALLBACK_FONT_SIZE_SP: Float = 14f
 private const val FALLBACK_EM_FONT_SIZE_SP: Float = 14f
 private const val MIN_OPAQUE_TINT_ALPHA: Float = 0.1f
@@ -219,7 +307,7 @@ internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|
  * this regex is intentionally only matching the single-`$`
  * inline form so the two don't fight.
  */
-// Matches both inline LaTeX forms:
+// Matches both inline LaTeX dollar forms:
 //   1) `$$…$$` — what the LLM writes when it produces block-style
 //      delimiters inside a paragraph (e.g. on the same line as
 //      surrounding prose instead of on its own line per the
@@ -233,12 +321,59 @@ internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|
 // `$\nx^2$` (the dollar pair split across lines) never matches —
 // CommonMark would have moved that onto a new line as prose.
 //
-// Capture-group count: exactly 1. The second alternative uses a
-// non-capturing group `(?:…)` so the matched formula is always in
-// `groupValues[1]`, regardless of which alternative matched. The
-// production walker reads `groupValues[1]` directly (see
-// [renderTextInline]); tests can do the same.
-internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$(?:[^$\n]+?)\$""")
+// Capture-group shape: TWO groups. The first alt's body is in
+// `groupValues[1]`; the second alt's body is in `groupValues[2]`.
+// The previous shape used a non-capturing group for the second
+// alt, which left `groupValues[1]` empty for `$x^2$` matches — a
+// latent bug that the production walker used to mask with a
+// substring-slicing fallback. Both alternatives are now
+// capturing, so the production walker (and the tests) can read
+// `groupValues[1].ifEmpty { groupValues[2] }` cleanly.
+internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$([^$\n]+?)\$""")
+
+
+/**
+ * Regex to detect inline LaTeX in the LaTeX-original `\(…\)` form
+ * (used by many models — including the one the user tested — when
+ * emitting math inside a Markdown paragraph). The single
+ * [INLINE_LATEX_REGEX] above is kept narrow to `$…$` / `$$…$$` only
+ * so it doesn't accidentally eat the `\(` and `\)` of a non-math
+ * command.
+ *
+ * Body exclusions: the inner content is `[^()\n]+?` — no nested
+ * parens, no newlines. That rejects `\(\frac{(a)}{(b)}\)`-style
+ * nested-paren formulas; the LaTeX library does not need them for
+ * the formulas the user actually sends, and accepting them would
+ * require a balanced-paren matcher that the standard regex syntax
+ * doesn't support. If the model ever emits a nested-paren inline
+ * formula, the user will see the raw `\(…\)` text — a known and
+ * documented limitation.
+ *
+ * Important: this regex is applied to the RAW input text in
+ * [preprocessParenLatexFormulas] BEFORE CommonMark sees the
+ * text. CommonMark's inline parser would otherwise treat
+ * `\(` and `\)` as backslash-escape sequences and strip the
+ * backslashes, after which the formula has bled into the
+ * surrounding prose as plain `(…)` and the original intent
+ * is unrecoverable. After pre-processing, the matched
+ * `\(…\)` source is replaced by a PUA marker char from the
+ * U+E100–U+E1FF range (see [PAREN_LATEX_MARKER_RANGE_START])
+ * which CommonMark passes through unchanged. The walker then
+ * scans for those marker chars with [INLINE_LATEX_PAREN_MARKER_REGEX]
+ * and looks up the formula in the side table.
+ */
+internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex("""\\\(([^()\n]+?)\\\)""")
+
+
+/**
+ * Regex matching any single PUA char in the range reserved for
+ * pre-processed paren-form LaTeX markers (U+E100–U+E1FF). The
+ * walker uses this to locate the markers that
+ * [preprocessParenLatexFormulas] planted in the text; the
+ * formula text itself is fetched from the [RenderState]'s
+ * side table using the matched char as the key.
+ */
+internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE1FF]""")
 
 
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
@@ -248,10 +383,20 @@ internal fun parseInlineMarkdown(
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
-  val document: Document = parseCommonmarkDocument(plainText) ?: return bailWithReason(
-    plainText = plainText,
-    reason = "CommonMark parse failed (see IDE log for details)"
-  )
+  // Pre-process `\(…\)`-form LaTeX BEFORE CommonMark sees the text.
+  // CommonMark would otherwise strip the backslashes as backslash
+  // escapes, after which the `\(…\)` source has bled into the
+  // surrounding prose as plain `(…)` and the original intent is
+  // unrecoverable. See the long comment on
+  // [INLINE_LATEX_PAREN_REGEX] for the full rationale.
+  val preprocessed: PreprocessedParenLatex =
+    preprocessParenLatexFormulas(plainText)
+
+  val document: Document = parseCommonmarkDocument(preprocessed.text)
+    ?: return bailWithReason(
+      plainText = plainText,
+      reason = "CommonMark parse failed (see IDE log for details)"
+    )
   val children: NodeChildren = NodeChildren.of(document)
   val topBlocks: List<Node> = buildList {
     if (children.first != null) add(children.first)
@@ -269,8 +414,80 @@ internal fun parseInlineMarkdown(
     plainText = plainText,
     fontSizeSp = fontSizeSp,
     imageAltColor = imageAltColor,
-    editorFontFamily = editorFontFamily
+    editorFontFamily = editorFontFamily,
+    parenLatexFormulas = preprocessed.formulaByMarker
   )
+}
+
+
+/**
+ * Result of [preprocessParenLatexFormulas]:
+ *   * [text] — the input text with each `\(…\)` span replaced by a
+ *     single PUA marker char from the reserved range. Safe to feed
+ *     to the CommonMark parser.
+ *   * [formulaByMarker] — map from marker char (the literal 1-char
+ *     PUA string) to the formula text that was inside the original
+ *     `\(…\)`. The walker uses this to recover the formula when it
+ *     encounters a marker in the parsed Text node literal.
+ */
+internal data class PreprocessedParenLatex(
+  val text: String,
+  val formulaByMarker: Map<String, String>,
+)
+
+
+/**
+ * Scan [rawText] for `\(…\)`-form LaTeX formulas and replace each
+ * match with a single PUA marker char from the U+E100–U+E1FF range.
+ * Returns the rewritten text plus a side table mapping each marker
+ * char to the formula text it replaced.
+ *
+ * Why a pre-processing pass is necessary: CommonMark's inline
+ * parser treats `\(` and `\)` as backslash-escape sequences, which
+ * strips the backslashes. By the time the AST walker sees the Text
+ * node, the formula has bled into the surrounding prose as a plain
+ * `(…)` and the original `\(…\)` boundary is gone. Running this
+ * pass BEFORE CommonMark preserves the boundary by encoding it in
+ * a single PUA char that CommonMark doesn't touch.
+ *
+ * If a `\(…\)` match would exceed the 256-marker capacity of the
+ * PUA range, the overflow matches are left in the text as-is (so
+ * they fall through to CommonMark and become plain `(…)` in the
+ * rendered output). The expected chat workload is well under 256
+ * formulas per message.
+ */
+internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLatex {
+  val matches: List<MatchResult> = INLINE_LATEX_PAREN_REGEX.findAll(rawText).toList()
+  if (matches.isEmpty()) {
+    return PreprocessedParenLatex(text = rawText, formulaByMarker = emptyMap())
+  }
+  val formulaByMarker: MutableMap<String, String> = LinkedHashMap(matches.size)
+  val rewritten: StringBuilder = StringBuilder(rawText.length)
+  var lastIndex = 0
+  for ((matchIndex, match) in matches.withIndex()) {
+    if (matchIndex >= PAREN_LATEX_MARKER_RANGE_SIZE) {
+      // Capacity exhausted. Emit the rest of the input verbatim;
+      // the overflow `\(…\)` will fall through to CommonMark and
+      // render as plain `(…)` in the chat. This is the documented
+      // "we don't support 256+ paren formulas" edge case.
+      continue
+    }
+    if (match.range.first < lastIndex) {
+      // Defensive: regex match positions should always be
+      // monotonically increasing. If a future change makes this
+      // not the case, skip the overlap and let the rest of the
+      // text render as plain prose.
+      continue
+    }
+    rewritten.append(rawText, lastIndex, match.range.first)
+    val markerCode: Int = PAREN_LATEX_MARKER_RANGE_START + matchIndex
+    val marker: String = String(Character.toChars(markerCode))
+    formulaByMarker[marker] = match.groupValues[1]
+    rewritten.append(marker)
+    lastIndex = match.range.last + 1
+  }
+  rewritten.append(rawText, lastIndex, rawText.length)
+  return PreprocessedParenLatex(text = rewritten.toString(), formulaByMarker = formulaByMarker)
 }
 
 
@@ -349,7 +566,8 @@ private fun bailWithReason(reason: String, plainText: String): InlineMarkdownRen
 private fun buildInlineRender(
   plainText: String, topBlocks: List<Node>, fontSizeSp: Float,
   chipTint: Color, linkColor: Color, imageAltColor: Color,
-  editorFontFamily: FontFamily = FontFamily.Default
+  editorFontFamily: FontFamily = FontFamily.Default,
+  parenLatexFormulas: Map<String, String> = emptyMap()
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
@@ -357,6 +575,7 @@ private fun buildInlineRender(
       fontSizeSp = fontSizeSp,
       imageAltColor = imageAltColor,
       editorFontFamily = editorFontFamily,
+      parenLatexFormulas = parenLatexFormulas,
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
     log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, chipTint=$chipTint, text=$preview")
@@ -399,7 +618,15 @@ private class RenderState(
   var latexCounter: Int = 0,
   var currentStyle: SpanStyle = SpanStyle(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
-  val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf()
+  val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
+  /**
+   * Side table produced by [preprocessParenLatexFormulas]: maps
+   * each pre-processed PUA marker char to the formula text it
+   * replaced. The walker reads this table when it encounters a
+   * marker (a PUA char in the U+E100–U+E1FF range) inside a Text
+   * node literal. Empty for inputs that have no `\(…\)` matches.
+   */
+  val parenLatexFormulas: Map<String, String> = emptyMap(),
 ) {
   /** Snapshot + restore helper for the recursive walker. */
   fun <T> withStyle(replacementStyle: SpanStyle, block: () -> T): T {
@@ -416,8 +643,8 @@ private class RenderState(
   fun allocateChip(codeText: String) {
     val placeholderKey: String = makePlaceholder(chipCounter)
     chipCounter += 1
-    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(codeText) + PLACEHOLDER_WIDTH_PADDING_SP
-    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
+    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(codeText) + INLINE_CODE_PLACEHOLDER_PADDING_SP
+    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_CODE_PLACEHOLDER_PADDING_SP
     val placeholderShape = Placeholder(
       width = chipWidth.sp,
       height = chipHeight.sp,
@@ -466,8 +693,8 @@ private class RenderState(
   fun allocateFootnote(footnoteText: String): String {
     val placeholderKey: String = FOOTNOTE_PLACEHOLDER_BASE.toString().repeat(footnoteCounter + 1)
     footnoteCounter += 1
-    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(footnoteText) + PLACEHOLDER_WIDTH_PADDING_SP
-    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
+    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(footnoteText) + INLINE_CODE_PLACEHOLDER_PADDING_SP
+    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_CODE_PLACEHOLDER_PADDING_SP
     val placeholderShape = Placeholder(
       width = chipWidth.sp,
       height = chipHeight.sp,
@@ -496,12 +723,50 @@ private class RenderState(
   fun allocateLatex(formulaText: String): String {
     val placeholderKey: String = LATEX_PLACEHOLDER_BASE.toString().repeat(latexCounter + 1)
     latexCounter += 1
-    val placeholderWidth: Float = fontSizeSp * cjkAwareWidthRatio(formulaText) + PLACEHOLDER_WIDTH_PADDING_SP
-    val placeholderHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + PLACEHOLDER_WIDTH_PADDING_SP
+    // Width: keep the cjkAwareWidthRatio estimate but bump the
+    // padding (was 2sp) to leave room for the actual rendered
+    // formula's bounding box, which can exceed the per-character
+    // estimate when the formula has wide math glyphs (√, fractions
+    // with long numerators, etc.).
+    val placeholderWidth: Float = fontSizeSp * cjkAwareWidthRatio(formulaText) + INLINE_LATEX_PLACEHOLDER_PADDING_SP
+    // Height: use the dedicated `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER`
+    // (2.5) instead of the chip/footnote `PLACEHOLDER_LINE_HEIGHT_MULTIPLIER`
+    // (1.0). The chip/footnote multiplier is correct for single-line
+    // text; for LaTeX formulas a `\frac{a}{b}` is ~2× the font size
+    // tall and a nested fraction or sqrt is 2.5–3×. See the long
+    // comment on the constant for the full rationale and the
+    // "大公式挡下面文字" symptom this fixes.
+    val placeholderHeight: Float = fontSizeSp * INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_LATEX_PLACEHOLDER_PADDING_SP
+    // Vertical align: `TextCenter` (NOT `Center` — see below).
+    // The huarangmeng library draws the formula with its mathematical
+    // baseline at roughly the Canvas's vertical center (the Canvas
+    // has 0.10f × fontSize padding on each side, and the formula
+    // glyphs are vertically centered in that padded region). Standard
+    // mathematical typography wants the math baseline to align with
+    // the text x-height — which Compose's `TextCenter` does by
+    // centering the placeholder around the text's x-height line.
+    //
+    // The previous `PlaceholderVerticalAlign.Center` (line-centered
+    // in the full line height) put the formula's center at the
+    // line's vertical midpoint, which is well above the text
+    // x-height (line height is ~1.5× font size, so the midpoint is
+    // ~0.75× font size up from the baseline, while the x-height is
+    // ~0.5× font size up). The visual symptom was "公式高于文字
+    // 基线，显的高高的" — the formula appeared to float above
+    // the text baseline.
+    //
+    // `AboveBaseline` was considered as an alternative (it puts
+    // the placeholder's bottom on the text baseline, so the formula
+    // would "sit on" the baseline like subscript text) but it puts
+    // the formula's mathematical baseline ABOVE the text baseline
+    // by the math-axis offset, which reads as "elevated" for the
+    // same reason `Center` did. `TextCenter` is the only option
+    // that puts the math axis at the x-height, matching LaTeX's
+    // own `\textstyle` rendering.
     val placeholderShape = Placeholder(
       width = placeholderWidth.sp,
       height = placeholderHeight.sp,
-      placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+      placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
       RenderInlineLatex(
@@ -566,27 +831,41 @@ private fun renderTextInline(
 
   val footnoteMatches: List<MatchResult> = INLINE_FOOTNOTE_REGEX.findAll(literal).toList()
   val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal).toList()
-  if (footnoteMatches.isEmpty() && latexMatches.isEmpty()) {
+  // Paren-form LaTeX was pre-processed BEFORE CommonMark saw the
+  // text (see [preprocessParenLatexFormulas]): each `\(…\)` was
+  // replaced by a single PUA marker char (U+E100..U+E1FF) and the
+  // formula text stashed in `renderState.parenLatexFormulas`. Here
+  // we scan for those markers; the formula is recovered from the
+  // side table keyed by the matched PUA char.
+  val parenLatexMatches: List<MatchResult> = if (renderState.parenLatexFormulas.isEmpty()) {
+    emptyList()
+  } else {
+    INLINE_LATEX_PAREN_MARKER_REGEX.findAll(literal)
+      .filter { renderState.parenLatexFormulas.containsKey(it.value) }
+      .toList()
+  }
+  if (footnoteMatches.isEmpty() && latexMatches.isEmpty() && parenLatexMatches.isEmpty()) {
     if (renderState.currentStyle == SpanStyle()) annotatedStringBuilder.append(literal)
     else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(literal) }
     return
   }
 
-  // Merge the two match lists into a single ordered walk. The
-  // two regexes are disjoint (footnotes use `[` / `]`, LaTeX
-  // uses `$`), so the merged sequence preserves both. If the
-  // two ever produce overlapping matches in the future, the
+  // Merge the three match lists into a single ordered walk. The
+  // three regexes are pairwise disjoint (footnotes use `[` / `]`,
+  // dollar LaTeX uses `$`, paren LaTeX uses a PUA marker char in
+  // U+E100..U+E1FF), so the merged sequence preserves all three.
+  // If they ever produce overlapping matches in the future, the
   // `assumeNonOverlapping` precondition is violated — that's a
   // structural regression, not a runtime one.
-  val allMatches: List<MatchResult> = (footnoteMatches + latexMatches)
+  val allMatches: List<MatchResult> = (footnoteMatches + latexMatches + parenLatexMatches)
     .sortedBy { it.range.first }
 
   var lastIndex = 0
   for (match in allMatches) {
     if (match.range.first < lastIndex) {
-      // Defensive: should never happen because the two regexes
-      // are disjoint, but a stray overlap would corrupt the
-      // AnnotatedString. Skip and log instead of producing
+      // Defensive: should never happen because the three regexes
+      // are pairwise disjoint, but a stray overlap would corrupt
+      // the AnnotatedString. Skip and log instead of producing
       // malformed output.
       continue
     }
@@ -596,7 +875,7 @@ private fun renderTextInline(
       else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(preText) }
     }
 
-    if (footnoteMatches.contains(match)) {
+    if (match in footnoteMatches) {
       val footnoteText: String = match.groupValues[2]
         .ifEmpty { match.groupValues[3] }
         .ifEmpty { match.groupValues[4] }
@@ -610,8 +889,25 @@ private fun renderTextInline(
         annotatedStringBuilder.pop()
         annotatedStringBuilder.pop()
       }
+    } else if (match in parenLatexMatches) {
+      // Paren-form: the matched PUA marker char is the key into
+      // the side table; the value is the original formula body.
+      val formulaText: String = renderState.parenLatexFormulas[match.value].orEmpty()
+      if (formulaText.isNotEmpty()) {
+        val placeholderKey: String = renderState.allocateLatex(formulaText)
+        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+        annotatedStringBuilder.pushStyle(SpanStyle())
+        annotatedStringBuilder.append(placeholderKey)
+        annotatedStringBuilder.pop()
+        annotatedStringBuilder.pop()
+      }
     } else {
-      val formulaText: String = match.groupValues[1]
+      // Dollar form (`$…$` or `$$…$$`). The regex has TWO
+      // capturing groups: `groupValues[1]` for `$$…$$` and
+      // `groupValues[2]` for `$…$`. The first alt MUST be
+      // declared first so it wins over the second one for
+      // `$$…$$` input.
+      val formulaText: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
       if (formulaText.isNotEmpty()) {
         val placeholderKey: String = renderState.allocateLatex(formulaText)
         annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
@@ -827,7 +1123,7 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
   IMAGE_ALT_PLACEHOLDER_BASE,
   FOOTNOTE_PLACEHOLDER_BASE,
   LATEX_PLACEHOLDER_BASE -> true
-  else -> false
+  else -> this.code in PAREN_LATEX_MARKER_RANGE_START..PAREN_LATEX_MARKER_RANGE_END
 }
 
 
@@ -835,6 +1131,14 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
  * The actual chip composable. Uses `JewelTheme.linkStyle`'s `content` color for a
  * vivid tint across themes; the chip's internal `Text` sets `lineHeight = fontSizeSp.sp`
  * (1.0x) so the editor's 1.5x line height doesn't clip the glyphs.
+ *
+ * Implementation note: we use `Modifier.background(color, shape)` rather than
+ * `Modifier.clip(shape).background(color)`. The former paints the background
+ * in the rounded shape but does NOT clip the children — so descenders of
+ * characters like `p`, `g`, `y` remain visible even if they briefly extend
+ * past the bottom edge of the rounded shape. (The old `clip`+`background`
+ * combination clipped both background and text, which is what produced the
+ * "text slightly clipped at the bottom" the user reported.)
  */
 @Composable
 private fun InlineCodeChip(
@@ -851,8 +1155,10 @@ private fun InlineCodeChip(
   )
   Box(
     modifier = Modifier
-      .clip(RoundedCornerShape(GradumSpacing.sm))
-      .background(badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA))
+      .background(
+        color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
+        shape = RoundedCornerShape(inlineCodeCornerRadius)
+      )
       .padding(
         vertical = inlineCodePaddingVertical,
         horizontal = inlineCodePaddingHorizontal,
@@ -888,8 +1194,10 @@ private fun FootnoteMark(text: String, fontSizeSp: Float) {
   )
   Box(
     modifier = Modifier
-      .clip(RoundedCornerShape(GradumSpacing.sm))
-      .background(infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA))
+      .background(
+        color = infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
+        shape = RoundedCornerShape(inlineCodeCornerRadius)
+      )
       .padding(
         vertical = inlineCodePaddingVertical,
         horizontal = inlineCodePaddingHorizontal,

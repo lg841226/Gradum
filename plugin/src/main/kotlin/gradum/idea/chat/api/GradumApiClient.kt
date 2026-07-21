@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-07-17 09:35:23 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -23,21 +22,11 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 
 /**
- * HTTP client for communicating with the Gradum backend server.
+ * HTTP client for the Gradum backend REST API (models + streaming NDJSON at `POST /events`).
  *
- * Provides methods to fetch available LLM models and send chat messages
- * via the server's REST API. The server exposes a streaming NDJSON endpoint
- * at `POST /events` for real-time agent responses.
- *
- * The NDJSON stream is consumed and **parsed per line inside this client**:
- * each line is JSON-decoded independently, and a line that fails to parse
- * is logged at WARN level and skipped — the stream itself does not abort.
- * This used to live in the caller ([gradum.idea.chat.state.GradumChatSession]),
- * but the previous per-line try-catch was easy to miss when adding new
- * consumers and meant the same JSON object was being parsed twice (once to
- * validate, once to dispatch). Centralizing it here gives us a typed
- * `Flow<JsonObject>` contract and a single place to add observability
- * (e.g. per-line counters, schema validation).
+ * NDJSON parsing is centralized here: each line is JSON-decoded independently;
+ * malformed lines are logged at WARN and skipped without aborting the stream.
+ * This gives callers a typed `Flow<JsonObject>` contract with per-line resilience.
  *
  * @property baseUrl The base URL of the Gradum server (default: `http://localhost:8765`).
  */
@@ -113,35 +102,17 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
-   * Sends a chat message to the Gradum server and returns a streaming response
-   * of pre-parsed JSON event objects.
+   * Sends a chat message and returns a streaming response of pre-parsed NDJSON events.
    *
-   * The server processes the message through an agent loop that may invoke
-   * tools (file editing, search, command execution) and streams back NDJSON
-   * events as the agent works. Each event line contains a JSON object with
-   * `type`, `timestamp`, and `data` fields.
+   * Server processes through an agent loop (tool calls, file editing, search, etc.)
+   * and streams back NDJSON events: `session_start`, `thinking`, `response`, `tool_call`,
+   * `error`, `session_end`.
    *
-   * **Per-line resilience:** Each NDJSON line is parsed in isolation. A
-   * malformed line is logged at WARN and the stream continues with the
-   * next line. Only connection-level failures (e.g. the underlying
-   * [HttpClient.send] throws) abort the flow — those are caught by the
-   * caller's `Flow.catch` block. The line payload is truncated to
-   * [MAX_LOGGED_LINE] characters in the log to keep IDE logs readable.
+   * **Per-line resilience:** a malformed line is logged at WARN and skipped; only
+   * connection-level failures abort the flow (caught by caller's `.catch`).
+   * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
-   * Event types include:
-   * - `session_start` — Agent session initialized
-   * - `thinking` — LLM reasoning content (when thinking mode is enabled)
-   * - `response` — Text content from the LLM
-   * - `tool_call` — A skill/tool was invoked
-   * - `error` — An error occurred
-   * - `session_end` — Agent finished processing
-   *
-   * @param message The user's message text.
-   * @param modelName Optional model name override. When `null`, the server uses its configured default.
-   * @param modelParams Optional configuration map with keys like `baseUrl`, `provider`, `think`, etc.
-   * @param loadContext Whether to load previous conversation context from disk.
-   * @return A [Flow] of [JsonObject] events from the server. Lines that fail
-   *   to parse are logged and skipped — they do not appear in the flow.
+   * @return A [Flow] of [JsonObject] events. Failed lines are skipped silently.
    */
   fun sendMessage(
     message: String, modelName: String? = null,

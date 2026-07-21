@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-15 20:19:37 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -202,6 +201,23 @@ private fun ResponseBlock(
       this.alpha = fadeAlpha.value
     }
   ) {
+    // The parent `Column` has NO `verticalArrangement` — segments
+    // are stacked with zero baseline gap. The user explicitly
+    // wants spacing around special blocks (LaTeX, code, …) to
+    // come from inside the block, not from the parent Column.
+    // Adding a `spacedBy(...)` here would push two consecutive
+    // plain paragraphs apart as if they were separate blocks,
+    // which they aren't.
+    //
+    // For a paragraph → LaTeXBlock → paragraph sequence, the
+    // visible gap is now [BLOCK_LATEX_VERTICAL_PADDING_DP] on
+    // each side of the LaTeX. The huarangmeng library adds its
+    // own internal padding inside the formula Canvas (see
+    // `MathConstants.CANVAS_VERTICAL_PADDING = 0.10f` —
+    // 1.8 dp at 18 sp for the block formula) but that's
+    // already folded into the Canvas size, not visible to the
+    // parent layout, so the user's-eye gap is exactly
+    // [BLOCK_LATEX_VERTICAL_PADDING_DP].
     Column {
       segments.forEach { segment ->
         when (segment) {

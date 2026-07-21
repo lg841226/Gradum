@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-14 23:14:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalComposeUiApi::class)
@@ -47,56 +46,23 @@ import kotlin.time.Duration.Companion.milliseconds
  *  - **Default**: down arrow + "Jump to latest"; click → [onClick]
  *  - **Alternative**: up arrow + "Jump to top"; click → [onJumpToTop]
  *
- * The mode is a sticky [mutableStateOf] flipped on Option rising
- * edges via the global [LocalWindowInfo] modifier stream — the
- * host platform writes the modifier state on every AWT key event,
- * so the toggle fires the instant the user presses the key. (No
- * pointer activity, no focus required.)
+ * Mode is a sticky [mutableStateOf] flipped via [LocalWindowInfo] modifier stream on rising edge.
  *
  * ## Visibility
- *
- * The pill is visible when its current action is meaningful:
- *  - **Default mode**: visible when [isAtBottom] is `false`
- *    (the user has scrolled up).
- *  - **Alternative mode**: visible when [isAtTop] is `false`
- *    (the user has scrolled down away from the top).
- *
- * Scrolling to the top in alternative mode hides the pill
- * (they're already where they want to be); scrolling back
- * down re-shows it.
+ *  - Default mode: visible when [isAtBottom] is `false` (user scrolled up).
+ *  - Alternative mode: visible when [isAtTop] is `false` (user scrolled down).
  *
  * ## Animation
- *
- * - **Enter**: fade-in 0→1 (80ms) + slide-up from one full
- *   height below (the input box's top edge) with a subtle
- *   bounce via `Spring.DampingRatioMediumBouncy` and
- *   `StiffnessMediumLow`. The icon is visible from the start
- *   of the rise; the text label waits [TEXT_REVEAL_DELAY_MS]
- *   and fades in — an "icon first, text after" build-up so the
- *   eye registers the shape before the words.
- * - **Exit**: fade-out + slide-down to the same offset, 80ms
- *   linear. Fast on purpose so the pill is gone before the
- *   user starts typing.
- * - **Mode swap**: the label crossfades (140ms in / 80ms out)
- *   and the pill width smoothly animates to fit the new label
- *   via [androidx.compose.animation.animateContentSize].
+ *  - Enter: fade-in 80ms + slide-up with bounce (MediumBouncy / StiffnessMediumLow).
+ *    Icon first, text fades in after [TEXT_REVEAL_DELAY_MS] (build-up effect).
+ *  - Exit: fade-out + slide-down, 80ms linear.
+ *  - Mode swap: label crossfades (140ms in / 80ms out), width animates via [animateContentSize].
  *
  * ## Visual stack
- *
- *  1. Solid `panelBackground` fill — the pill now stands out
- *     from the chat rather than blending into it. (Previously
- *     a 0.3-alpha translucent fill with a self-blur for a
- *     "frosted" look; reverted because Compose's `Modifier.blur`
- *     is a self-blur on the composable's own content, not a
- *     true backdrop blur, so the effect didn't actually blur
- *     the chat behind the pill — it just softened the fill
- *     silhouette, which is hard to read against busy chat
- *     content.)
- *  2. 1 dp `borders.normal` outline at 40% alpha — a clean
- *     pill-shaped edge that separates the pill from the chat
- *     background without competing with the message bubbles.
- *  3. Sharp foreground Row with the icon + label, **not
- *     blurred** — the label and icon stay readable.
+ *  1. Solid `panelBackground` fill (former frosted-blur was a self-blur, not a true backdrop blur —
+ *     reverted because it only softened the fill silhouette without actually blurring chat content).
+ *  2. 1 dp `borders.normal` outline at 40% alpha.
+ *  3. Sharp foreground Row (icon + label, not blurred).
  */
 @Composable
 fun JumpToBottomButton(

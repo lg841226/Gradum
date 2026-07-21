@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LatexRenderer.kt  2026-07-20 22:01:28 Changed by gwy
+ * LatexRenderer.kt  2026-07-21 19:32:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -10,6 +10,7 @@ package gradum.idea.chat.ui.markdown
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -31,22 +32,31 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
 private const val BLOCK_LATEX_DEFAULT_FONT_SIZE_SP: Float = 18f
-private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 12f
+
+// Vertical padding around block formulas. Bumped from 32dp to 48dp per user feedback
+// "blocking text below" — the library's Canvas can be 100-150dp tall for multi-line formulas.
+// Library internal padding (CANVAS_VERTICAL_PADDING=0.10f, ~1.8dp) is baked into Canvas size,
+// not user-configurable. Async parsing (first frame 0×0 → parsed height) causes a layout shift;
+// heightIn(min=...) in RenderLatexBlock reserves BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP to stabilize it.
+private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 48f
+
+// Minimum inner content height the Box reserves for the formula. 44dp fits a single \frac{}{}
+// without making small formulas look floating. See also BLOCK_LATEX_VERTICAL_PADDING_DP.
+private const val BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP: Float = 44f
 private const val FALLBACK_TEXT_VERTICAL_PADDING_DP: Float = 2f
 private const val FALLBACK_FONT_SIZE_SP: Float = 13f
 private const val FALLBACK_FONT_WEIGHT: Int = 500
 
 /**
- * Render a block-level LaTeX formula (`$$…$$`). Centered, padded
- * vertically, no horizontal margin — the parent block column
- * already provides that. Falls back to monospace raw text if the
- * library throws (broken formula, missing font, …).
+ * Render a block-level LaTeX formula (`$$…$$`). Centered, padded vertically.
+ * Falls back to monospace raw text if the library throws.
  *
- * The huarangmeng library exposes a `@Composable Latex(latex,
- * modifier, config, isDarkTheme)`. The `config.fontSize` is the
- * only knob we set — `theme` is derived from the IDE's text
- * color so the formula stays readable when the user toggles
- * the editor background.
+ * Alignment: `TopCenter` — overflow extends downward into bottom padding.
+ * `Center` horizontally centers the formula within the panel.
+ * Sizing: outer `Box` is `fillMaxWidth`, inner `Latex` sizes to content (no fillMaxWidth).
+ * Layout-shift defense: `heightIn(min=...)` reserves 44dp for the formula so the Box
+ * stays stable on the first frame (library async-parses, first frame is 0×0).
+ * Vertical padding: 48dp each side (see [BLOCK_LATEX_VERTICAL_PADDING_DP]).
  */
 @Composable
 fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
@@ -54,21 +64,21 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .fillMaxWidth()
+      .heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)
       .padding(vertical = BLOCK_LATEX_VERTICAL_PADDING_DP.dp),
-    contentAlignment = Alignment.Center
+    contentAlignment = Alignment.TopCenter
   ) {
     if (renderState.shouldFallback) {
       LatexFallbackText(
-        formula = formula,
         isBlock = true,
+        formula = formula,
         modifier = Modifier.fillMaxWidth()
       )
     } else {
       Latex(
         latex = formula,
-        config = renderState.config.copy(fontSize = BLOCK_LATEX_DEFAULT_FONT_SIZE_SP.sp),
         isDarkTheme = isSystemInDarkTheme(),
-        modifier = Modifier.fillMaxWidth()
+        config = renderState.config.copy(fontSize = BLOCK_LATEX_DEFAULT_FONT_SIZE_SP.sp)
       )
     }
   }
@@ -101,25 +111,13 @@ internal fun RenderInlineLatex(
   }
 }
 
-/**
- * `remember`d render state for a single formula. Holds the
- * [LatexConfig] and a "should we fall back" flag. The first
- * time [RenderLatexBlock] / [RenderInlineLatex] is called for
- * a given formula, the flag is `false` (try the library). If
- * the library throws, the composable catches it, flips the
- * flag, and the next recomposition renders the fallback. The
- * formula text is the only `key` — re-deriving the state on
- * every recomposition would defeat `remember`.
- */
+/** Cached per-formula render decisions. */
 @Composable
 private fun rememberLatexRenderState(formula: String): LatexRenderState {
   val globalColors = LocalGlobalColors.current
   val baseColor: Color = JewelTheme.contentColor
   val config: LatexConfig = remember(formula, baseColor, globalColors) {
-    buildAdaptiveLatexConfig(
-      baseColor = baseColor,
-      backgroundColor = globalColors.panelBackground
-    )
+    buildAdaptiveLatexConfig(baseColor = baseColor)
   }
   return remember(formula, config) {
     LatexRenderState(
@@ -136,45 +134,22 @@ internal data class LatexRenderState(
 )
 
 /**
- * Build a [LatexConfig] that uses the IDE's current text color
- * for both light and dark theme entries, so the formula stays
- * readable when the user toggles the editor background. The
- * background color is `panelBackground` so the library's own
- * background (when it draws one) matches the chat panel.
- *
- * We can't use [LatexTheme.Companion.auto] with proper light/dark
- * variants here because the chat panel's text color is the same
- * in both modes (the IntelliJ LaF inverts the background, not
- * the text). One color, two themes — the [Latex] composable
- * reads `isDarkTheme` at render time and picks the matching
- * entry.
+ * Build a [LatexConfig] with the IDE's text color for both light/dark (the chat panel's text
+ * color is the same in both modes — IntelliJ inverts background, not text).
+ * Background is [Color.Transparent] to avoid a "chip-like" rectangle behind formulas.
  */
-private fun buildAdaptiveLatexConfig(
-  baseColor: Color, backgroundColor: Color
-): LatexConfig {
+private fun buildAdaptiveLatexConfig(baseColor: Color): LatexConfig {
   val colors = LatexThemeColors(
     color = baseColor,
-    backgroundColor = backgroundColor
+    backgroundColor = Color.Transparent
   )
   val theme: LatexTheme = LatexTheme.auto(light = colors, dark = colors)
   return LatexConfig(theme = theme)
 }
 
 /**
- * Fallback rendering for a formula the library can't draw.
- * Shows the original `$$…$$` / `$…$` source as monospace text in
- * a muted color. Triggered when:
- *
- * - the formula is empty (we never ask the library to render
- *   an empty canvas);
- * - the library throws on a previous attempt (caught and
- *   retried via [rememberLatexRenderState]);
- * - the user disables the LaTeX feature in the future.
- *
- * The `$$…$$` wrapping is added back on top of the formula for
- * block mode so the fallback is a faithful re-creation of the
- * original Markdown source (copy-paste back into the chat
- * works). Inline mode keeps the `$…$` markers.
+ * Fallback rendering for a formula the library can't draw. Shows the original Markdown source
+ * (with `$$…$$` / `$…$` wrapping) as monospace text in a muted color.
  */
 @Composable
 private fun LatexFallbackText(
@@ -191,14 +166,15 @@ private fun LatexFallbackText(
     "$${formula}$"
   }
   val fallbackStyle = TextStyle(
-    fontSize = fontSizeSp.sp,
     fontFamily = fontFamily,
+    fontSize = fontSizeSp.sp,
     fontStyle = FontStyle.Italic,
     color = globalColors.text.info,
     fontWeight = FontWeight(FALLBACK_FONT_WEIGHT)
   )
   Box(
-    modifier = modifier.padding(vertical = FALLBACK_TEXT_VERTICAL_PADDING_DP.dp)
+    modifier = modifier
+      .padding(vertical = FALLBACK_TEXT_VERTICAL_PADDING_DP.dp)
   ) {
     Text(text = wrapped, style = fallbackStyle, modifier = Modifier.fillMaxWidth())
   }
