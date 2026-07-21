@@ -7,14 +7,23 @@ Usage: ./git_stats.py [repository_path] [options]
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-21 21:32:38 Changed by gwy
+#  git_stats.py  2026-07-21 22:01:16 Changed by gwy
 #
-#  git_stats.py  2026-07-21 21:31:57 Changed by gwy
+#  git_stats.py  2026-07-21 22:01:01 Changed by gwy
 #
-#  git_stats.py  2026-07-21 21:31:11 Changed by gwy
+#  git_stats.py  2026-07-21 22:00:56 Changed by gwy
 #
-#  git_stats.py  2026-07-21 21:30:46 Changed by gwy
-
+#  git_stats.py  2026-07-21 21:59:58 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:56:20 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:55:39 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:53:27 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:53:09 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:52:40 Changed by gwy
 import argparse
 import concurrent.futures
 import csv
@@ -24,21 +33,26 @@ import sys
 import time
 from collections import deque
 from datetime import datetime
-
 from rich.console import Console
 from rich.progress import (
     Progress, SpinnerColumn, TextColumn,
     TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
 )
+from rich.spinner import SPINNERS, Spinner
 
 console = Console()
 
 ICON_START = "⎡"
-ICON_STEP = "●"
 ICON_COMPLETE = "⎣"
-ICON_WARNING = "▲"
 ICON_ARROW = "│"
+ICON_STEP = "●"
 ICON_POINT = "○"
+ICON_WARNING = "▲"
+
+SPINNERS["blink"] = {
+    "interval": 450,
+    "frames": ["●", " "]
+}
 
 BUILTIN_FORMULAS = {
     "net_ratio": "(net / (add + deletions) * 100) if (add + deletions) > 0 else 0",
@@ -138,6 +152,7 @@ SAFE_BUILTINS = {
     "sum": sum, "pow": pow, "int": int, "float": float,
 }
 
+
 def evaluate_formula(expr, vars_dict):
     try:
         result = eval(expr, {"__builtins__": SAFE_BUILTINS}, vars_dict)
@@ -149,7 +164,6 @@ def evaluate_formula(expr, vars_dict):
 
 
 def list_builtin_formulas():
-    console.print("[bold]Built-in formulas:[/bold]")
     for name, expr in BUILTIN_FORMULAS.items():
         console.print(f"  [green]{name}[/green]: {expr}")
 
@@ -160,6 +174,9 @@ def analyze_commits(args):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     output_file = args.output or f'git_stats_{timestamp}.csv'
 
+    console.print("[dim]Git Commit Statistics Analyzer | Copyright (c) 2026 Gradum team | MIT License[/dim]")
+    console.print()
+
     if not os.path.exists(repo_path):
         console.print(f"[yellow]{ICON_WARNING}  Directory does not exist: {repo_path}[/yellow]")
         sys.exit(1)
@@ -168,7 +185,7 @@ def analyze_commits(args):
         sys.exit(1)
 
     use_threads = not args.no_threads
-    num_threads = args.threads if args.threads > 0 else min(8, os.cpu_count() or 4)
+    num_threads = args.threads if args.threads > 0 else min(4, os.cpu_count() or 2)
 
     with console.status("Fetching commit history...", spinner="dots"):
         commits = run_git_command(repo_path, 'git log --reverse --format="%H"')
@@ -185,7 +202,8 @@ def analyze_commits(args):
     console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total_commits} commit records in {repo_name}[/default]")
     if total_commits >= 100 and use_threads:
         console.print(f"[dim]{ICON_ARROW}[/dim]")
-        console.print(f"[default][blue]{ICON_STEP}[/blue] Using {num_threads} threads for parallel processing[/default]")
+        console.print(
+            f"[default][blue]{ICON_POINT}[/blue] Using {num_threads} threads for parallel processing[/default]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
@@ -207,13 +225,10 @@ def analyze_commits(args):
 
     if should_use_parallel:
         with Progress(
-            SpinnerColumn(spinner_name="line", style="blue"),
-            TextColumn("{task.description}"),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
-            console=console,
-            transient=True,
+                SpinnerColumn(spinner_name="blink", style="blue"),
+                TextColumn("{task.description}"),
+                console=console,
+                transient=True,
         ) as progress:
             task = progress.add_task("", total=total_commits)
             completed = 0
@@ -237,10 +252,10 @@ def analyze_commits(args):
                     )
     else:
         with Progress(
-            SpinnerColumn(spinner_name="line", style="blue"),
-            TextColumn("{task.description}"),
-            console=console,
-            transient=True,
+                SpinnerColumn(spinner_name="line", style="blue"),
+                TextColumn("{task.description}"),
+                console=console,
+                transient=True,
         ) as progress:
             task = progress.add_task("", total=total_commits)
             for i, commit_hash in enumerate(commits_list):
@@ -323,7 +338,8 @@ def analyze_commits(args):
     console.print(f"[blue]{ICON_STEP}[/blue] [default]Read 100%, remaining 0 records[/default]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
-    console.print(f"[default][blue]{ICON_STEP}[/blue] Validating data integrity, {total_commits} / {total_commits} completed[/default]")
+    console.print(
+        f"[default][blue]{ICON_STEP}[/blue] Validating data integrity, {total_commits} / {total_commits} completed[/default]")
     time.sleep(0.3)
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
@@ -331,7 +347,8 @@ def analyze_commits(args):
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == '--formula' and len(sys.argv) > 2 and sys.argv[2] in ('list', '--help', '-h'):
+    if (len(sys.argv) > 1 and sys.argv[1] == '--formula' and len(sys.argv) > 2 and sys.argv[2] in
+            ('list', '--help', '-h')):
         list_builtin_formulas()
         sys.exit(0)
 
