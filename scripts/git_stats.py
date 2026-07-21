@@ -229,11 +229,11 @@ def _gaussian(x: float, mu: float, sigma: float) -> float:
 
 def _quality_band(score: float) -> Tuple[str, str]:
     if score >= 0.8:
-        return "Excellent", "green"
+        return "Excellent", "purple"
     if score >= 0.6:
         return "Good", "cyan"
     if score >= 0.4:
-        return "Fair", "yellow"
+        return "Fair", "green"
     if score >= 0.2:
         return "Poor", "orange1"
     return "Critical", "red"
@@ -496,40 +496,37 @@ def main():
     stats_results = {}
 
     if should_parallel:
-        progress = Progress(
+        with Progress(
                 SpinnerColumn(spinner_name="blink", style="default"),
                 TextColumn("{task.description}"),
-                console=console,
-        )
-        task = progress.add_task("", total=total_commits)
-        completed = 0
-        progress.start()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-            f2h = {executor.submit(get_commit_stats, repo, h): h for h in commits_list}
-            for future in concurrent.futures.as_completed(f2h):
-                h = f2h[future]
-                a, d = future.result()
-                stats_results[h] = (a, d)
-                completed += 1
-                pct = int(completed * 100 / total_commits)
-                progress.update(task, advance=1,
-                                description=f"Read {pct}%, remaining {total_commits - completed} records")
-        progress.stop()
+                console=console, transient=True,
+        ) as progress:
+            task = progress.add_task("", total=total_commits)
+            completed = 0
+            with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+                f2h = {executor.submit(get_commit_stats, repo, h): h for h in commits_list}
+                for future in concurrent.futures.as_completed(f2h):
+                    h = f2h[future]
+                    a, d = future.result()
+                    stats_results[h] = (a, d)
+                    completed += 1
+                    pct = int(completed * 100 / total_commits)
+                    progress.update(task, advance=1,
+                                    description=f"Read {pct}%, remaining {total_commits - completed} records")
     else:
-        progress = Progress(
+        with Progress(
                 SpinnerColumn(spinner_name="blink", style="default"),
                 TextColumn("{task.description}"),
-                console=console,
-        )
-        task = progress.add_task("", total=total_commits)
-        progress.start()
-        for i, h in enumerate(commits_list):
-            a, d = get_commit_stats(repo, h)
-            stats_results[h] = (a, d)
-            pct = int((i + 1) * 100 / total_commits)
-            progress.update(task, advance=1,
-                            description=f"Read {pct}%, remaining {total_commits - (i + 1)} records")
-        progress.stop()
+                console=console, transient=True,
+        ) as progress:
+            task = progress.add_task("", total=total_commits)
+            for i, h in enumerate(commits_list):
+                a, d = get_commit_stats(repo, h)
+                stats_results[h] = (a, d)
+                pct = int((i + 1) * 100 / total_commits)
+                progress.update(task, advance=1,
+                                description=f"Read {pct}%, remaining {total_commits - (i + 1)} records")
+    console.print(f"[blue]{ICON_STEP}[/blue] Read 100%, remaining 0 records")
 
     # ---------- write per-commit CSV ----------
     csv_path = analyze_commits(args, commits_list, commit_dates, stats_results)
@@ -542,19 +539,21 @@ def main():
             with open(args.quality_params) as f:
                 params.update(json.load(f))
 
-        progress = Progress(
+        with Progress(
             SpinnerColumn(spinner_name="blink", style="default"),
             TextColumn("[default]{task.description}[/default]"),
-            console=console,
-        )
-        progress.add_task("Running quality analysis", total=None)
-        progress.start()
-        commits_full = get_commits_full(repo)
-        progress.stop()
+            console=console, transient=True,
+        ) as progress:
+            progress.add_task("Running quality analysis", total=None)
+            commits_full = get_commits_full(repo)
 
         now = datetime.now(timezone.utc)
         q = compute_quality(commits_full, params, now, get_repo_name(repo))
         periods = compute_quality_batch(commits_full, args.batch or "month", now, params) if args.batch else []
+
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
+        console.print(f"[dim]{ICON_ARROW}[/dim]")
+        console.print(f"[default]{ICON_STEP}[/default] Running quality analysis")
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = args.report or f"quality_report_{ts}.txt"
@@ -566,7 +565,7 @@ def main():
         band, color = q["band"], q["band_color"]
         console.print(f"[dim]{ICON_ARROW}[/dim]")
         console.print(f"[dim]{ICON_ARROW}[/dim]")
-        console.print(f"[default]{ICON_STEP}[/default] [bold]Quality: {band} ({q['scores']['composite']:.2f})[/bold]")
+        console.print(f"[{color}]{ICON_STEP}[/{color}] [bold]Quality: {band} ({q['scores']['composite']:.2f})[/bold]")
         console.print(f"[dim]{ICON_ARROW}[/dim] \u23bf Recency: {q['scores']['recency']:.2f}  Anti-AI: {1 - q['scores']['suspicion']:.2f}  Deletion Health: {q['scores']['deletion_health']:.2f}  Scale: {q['scores']['scale']:.2f}")
 
     console.print(f"[dim]{ICON_ARROW}[/dim]")
