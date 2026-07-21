@@ -52,3 +52,4 @@ gradum.properties
 
 # Sensitive words (user-defined, do not commit)
 red_line_keywords.txtscripts/__pycache__/
+scripts/__pycache__/
