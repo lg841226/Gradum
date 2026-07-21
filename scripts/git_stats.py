@@ -4,6 +4,17 @@ Git Commit Statistics Analyzer with Rich Progress Display
 Usage: ./git_stats.py [repository_path] [options]
 """
 
+#  Copyright (c) 2026 Gradum team, some rights reserved.
+#  For licensing terms and conditions, see the MIT LICENSE file.
+#
+#  git_stats.py  2026-07-21 21:32:38 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:31:57 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:31:11 Changed by gwy
+#
+#  git_stats.py  2026-07-21 21:30:46 Changed by gwy
+
 import argparse
 import concurrent.futures
 import csv
@@ -16,17 +27,18 @@ from datetime import datetime
 
 from rich.console import Console
 from rich.progress import (
-    Progress, SpinnerColumn, TextColumn, BarColumn,
+    Progress, SpinnerColumn, TextColumn,
     TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
 )
 
 console = Console()
 
-ICON_POINT = "⎡"
+ICON_START = "⎡"
 ICON_STEP = "●"
 ICON_COMPLETE = "⎣"
 ICON_WARNING = "▲"
 ICON_ARROW = "│"
+ICON_POINT = "○"
 
 BUILTIN_FORMULAS = {
     "net_ratio": "(net / (add + deletions) * 100) if (add + deletions) > 0 else 0",
@@ -168,7 +180,7 @@ def analyze_commits(args):
     commits_list = commits.split('\n')
     total_commits = len(commits_list)
 
-    console.print(f"[dim]{ICON_POINT}[/dim] Start investigating Git data")
+    console.print(f"[dim]{ICON_START}[/dim] Start investigating Git data")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total_commits} commit records in {repo_name}[/default]")
     if total_commits >= 100 and use_threads:
@@ -197,7 +209,6 @@ def analyze_commits(args):
         with Progress(
             SpinnerColumn(spinner_name="line", style="blue"),
             TextColumn("{task.description}"),
-            BarColumn(),
             TaskProgressColumn(),
             TimeElapsedColumn(),
             TimeRemainingColumn(),
