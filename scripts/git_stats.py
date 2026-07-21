@@ -15,13 +15,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
-from rich.progress import (
-    Progress, SpinnerColumn, TextColumn,
-    TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn
-)
-from rich.spinner import SPINNERS, Spinner
-from rich.table import Table
-
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.spinner import SPINNERS
 console = Console()
 
 ICON_START = "\u23A1"
@@ -501,36 +496,40 @@ def main():
     stats_results = {}
 
     if should_parallel:
-        with Progress(
+        progress = Progress(
                 SpinnerColumn(spinner_name="blink", style="default"),
                 TextColumn("{task.description}"),
-                console=console, transient=True,
-        ) as progress:
-            task = progress.add_task("", total=total_commits)
-            completed = 0
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-                f2h = {executor.submit(get_commit_stats, repo, h): h for h in commits_list}
-                for future in concurrent.futures.as_completed(f2h):
-                    h = f2h[future]
-                    a, d = future.result()
-                    stats_results[h] = (a, d)
-                    completed += 1
-                    pct = int(completed * 100 / total_commits)
-                    progress.update(task, advance=1,
-                                    description=f"Read {pct}%, remaining {total_commits - completed} records")
-    else:
-        with Progress(
-                SpinnerColumn(spinner_name="line", style="blue"),
-                TextColumn("{task.description}"),
-                console=console, transient=True,
-        ) as progress:
-            task = progress.add_task("", total=total_commits)
-            for i, h in enumerate(commits_list):
-                a, d = get_commit_stats(repo, h)
+                console=console,
+        )
+        task = progress.add_task("", total=total_commits)
+        completed = 0
+        progress.start()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+            f2h = {executor.submit(get_commit_stats, repo, h): h for h in commits_list}
+            for future in concurrent.futures.as_completed(f2h):
+                h = f2h[future]
+                a, d = future.result()
                 stats_results[h] = (a, d)
-                pct = int((i + 1) * 100 / total_commits)
+                completed += 1
+                pct = int(completed * 100 / total_commits)
                 progress.update(task, advance=1,
-                                description=f"Read {pct}%, remaining {total_commits - (i + 1)} records")
+                                description=f"Read {pct}%, remaining {total_commits - completed} records")
+        progress.stop()
+    else:
+        progress = Progress(
+                SpinnerColumn(spinner_name="blink", style="default"),
+                TextColumn("{task.description}"),
+                console=console,
+        )
+        task = progress.add_task("", total=total_commits)
+        progress.start()
+        for i, h in enumerate(commits_list):
+            a, d = get_commit_stats(repo, h)
+            stats_results[h] = (a, d)
+            pct = int((i + 1) * 100 / total_commits)
+            progress.update(task, advance=1,
+                            description=f"Read {pct}%, remaining {total_commits - (i + 1)} records")
+        progress.stop()
 
     # ---------- write per-commit CSV ----------
     csv_path = analyze_commits(args, commits_list, commit_dates, stats_results)
@@ -543,8 +542,15 @@ def main():
             with open(args.quality_params) as f:
                 params.update(json.load(f))
 
-        with console.status("Running quality analysis...", spinner="blink"):
-            commits_full = get_commits_full(repo)
+        progress = Progress(
+            SpinnerColumn(spinner_name="blink", style="default"),
+            TextColumn("[default]{task.description}[/default]"),
+            console=console,
+        )
+        progress.add_task("Running quality analysis", total=None)
+        progress.start()
+        commits_full = get_commits_full(repo)
+        progress.stop()
 
         now = datetime.now(timezone.utc)
         q = compute_quality(commits_full, params, now, get_repo_name(repo))
