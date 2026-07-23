@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * AddContextPopup.kt  2026-07-23 09:44:08 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -142,7 +143,7 @@ fun AddContextPopup(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+          .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
       ) {
         Text(
           text = message("gradum.add.popup.workspace"),
@@ -156,7 +157,7 @@ fun AddContextPopup(
         Text(
           text = message("gradum.add.popup.empty"),
           color = JewelTheme.globalColors.text.info,
-          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
+          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
         )
       }
     } else if (filteredFiles.isEmpty()) {
@@ -164,7 +165,7 @@ fun AddContextPopup(
         Text(
           text = message("gradum.add.popup.no.results"),
           color = JewelTheme.globalColors.text.info,
-          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.md)
+          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
         )
       }
     } else {
