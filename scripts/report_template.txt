@@ -1,0 +1,45 @@
+{ARCHIVED_BLOCK}
+  Project Analysis Report
+  Generated: {generated_at}
+
+  Project:         {project_name}
+  Commits:         {total_commits}
+  Period:          {active_days} days
+  Last commit:     {duration_since_last} ago
+
+  Status:  {status}
+{ARCHIVED_BLOCK}
+{NORMAL_BLOCK}
+  Project Quality Analysis Report
+  Generated: {generated_at}
+
+  Project:         {project_name}
+  Commits:         {total_commits}
+  Period:          {active_days} days
+  Last commit:     {duration_since_last} ago
+  Quality:         {band} ({score:.2f})
+
+
+  Factor Scores:
+    Recency                     {recency:.2f}
+    Anti-AI Detection           {anti_ai:.2f}  {ai_breakdown}
+    Deletion Health             {deletion_health:.2f}
+    Scale Maturity              {scale:.2f}
+{tiny_penalty}
+  Raw Metrics:
+    Total lines (add+del):     {total_lines}
+    Additions:                 {total_additions}
+    Deletions:                 {total_deletions}
+    Net change:                {net_change}
+    Avg additions/commit:      {avg_additions}
+    Commit density:            {commit_density} / day
+    Churn ratio (del/add):     {churn_ratio}
+    Active days:               {active_days_raw}
+    First commit:              {first_commit}
+    Last commit:               {last_commit}
+{claude_ai_line}
+{batch_analysis}
+{file_breakdown}
+{hero_risk}
+{see_also}
+{NORMAL_BLOCK}

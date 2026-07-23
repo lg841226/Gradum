@@ -1,26 +1,21 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-22 23:48:13 Changed by gwy
+#  git_stats.py  2026-07-23 17:09:47 Changed by gwy
 #
-#  git_stats.py  2026-07-22 23:48:03 Changed by gwy
+#  git_stats.py  2026-07-23 13:06:28 Changed by gwy
 #
-#  git_stats.py  2026-07-22 23:08:15 Changed by gwy
-#
-#  git_stats.py  2026-07-22 16:59:58 Changed by gwy
-#
-#  git_stats.py  2026-07-22 16:59:40 Changed by gwy
-#
-#  git_stats.py  2026-07-22 14:50:19 Changed by gwy
-#
-#  git_stats.py  2026-07-22 14:02:10 Changed by gwy
+#  git_stats.py  2026-07-23 11:21:36 Changed by gwy
+
 
 import argparse
 import concurrent.futures
 import csv
 import hashlib
+import itertools
 import json
 import math
+import matplotlib
 import os
 import shutil
 import statistics
@@ -28,9 +23,23 @@ import subprocess
 import sys
 import tempfile
 import time
+import warnings
 import zipfile
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+warnings.filterwarnings("ignore", message=".*missing from font.*")
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import numpy as np
+from matplotlib.colors import ListedColormap
+
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = ["PingFang SC", "Heiti SC", "Apple SD Gothic Neo", "WenQuanYi Micro Hei",
+                                   "Noto Sans CJK SC", "SimHei", "DejaVu Sans"]
+
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -106,40 +115,46 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
         pass
 
     proc = subprocess.Popen(
-        'git log -c --numstat --reverse --format="%H||%cI||%s"',
+        f'git log -c --numstat --reverse --format="%H||%cI||%s||%an||%ae||%(trailers:key=Co-Authored-By,only=yes)"',
         cwd=repo_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True, bufsize=1,
     )
 
     entries = []
-    current_hash = current_iso = current_subject = None
+    current_hash = current_iso = current_subject = current_author = current_email = current_trailer = None
     numstat_lines = []
-    idx = 0
+    index = 0
 
     for ln in proc.stdout:
         ln = ln.rstrip("\n")
         if "||" in ln and len(ln) > 40:
             if current_hash:
-                idx += 1
+                index += 1
                 dt = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
                 additions, deletions = _parse_numstat("\n".join(numstat_lines))
-                entries.append({"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
-                                "files_changed": len(numstat_lines)})
+                is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
+                entries.append(
+                    {"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
+                     "files_changed": len(numstat_lines), "is_claude": is_claude,
+                     "author_name": current_author, "author_email": current_email})
                 if on_commit:
-                    on_commit(current_hash[:8], current_subject, idx, total)
+                    on_commit(current_hash[:8], current_subject, index, total)
                 numstat_lines.clear()
-            current_hash, current_iso, current_subject = ln.split("||", 2)
+            current_hash, current_iso, current_subject, current_author, current_email, current_trailer = ln.split("||",
+                                                                                                                  5)
         elif ln and "\t" in ln:
             numstat_lines.append(ln)
 
     if current_hash:
-        idx += 1
+        index += 1
         dt = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
         additions, deletions = _parse_numstat("\n".join(numstat_lines))
+        is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
         entries.append({"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
-                        "files_changed": len(numstat_lines)})
+                        "files_changed": len(numstat_lines), "is_claude": is_claude,
+                        "author_name": current_author, "author_email": current_email})
         if on_commit:
-            on_commit(current_hash[:8], current_subject, idx, total)
+            on_commit(current_hash[:8], current_subject, index, total)
 
     proc.stdout.close()
     proc.wait()
@@ -150,7 +165,6 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
 # export, custom formulas, and every quality sub-score. All downstream
 # analyses are just aggregations and transformations of these three raw
 # numbers per commit.
-
 SAFE_BUILTINS = {
     "abs": abs, "max": max, "min": min, "round": round,
     "sum": sum, "pow": pow, "int": int, "float": float,
@@ -187,13 +201,12 @@ def build_formula(args) -> Tuple[Optional[str], Optional[str]]:
 # Custom formulas let users define new CSV columns at export time (net_ratio,
 # efficiency, churn, or arbitrary expressions) without modifying the code.
 # SAFE_BUILTINS restricts eval to pure math — no I/O or system access.
-
 def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
     path = args.output or f'git_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     expr, label = build_formula(args)
 
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
+        writer = csv.writer(f)
         headers = [
             "Index", "Commit Hash", "Date", "Time",
             "Additions", "Deletions", "Net Change",
@@ -204,7 +217,7 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
             headers.append("Moving Avg")
         if expr is not None:
             headers.append(label)
-        w.writerow(headers)
+        writer.writerow(headers)
 
         cum_add = cum_del = cum_net = 0
         first_commit = True
@@ -213,7 +226,7 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
         moving_avg = 0
 
         for i, hash_ in enumerate(hashes):
-            idx = i + 1
+            index = i + 1
             add, delete = stats.get(hash_, (0, 0))
             net = add - delete
 
@@ -232,7 +245,7 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
                 growth_rate = 0
 
             date, time_str = dates.get(hash_, ("", ""))
-            row = [idx, hash_[:8], date, time_str, add, delete, net,
+            row = [index, hash_[:8], date, time_str, add, delete, net,
                    cum_add, cum_del, cum_net, cum_total, growth_rate]
 
             if args.window > 0:
@@ -244,13 +257,13 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
                 vars_ = {
                     "add": add, "deletions": delete, "net": net,
                     "cum_add": cum_add, "cum_del": cum_del, "cum_net": cum_net,
-                    "cum_total": cum_total, "count": idx, "growth_rate": growth_rate,
+                    "cum_total": cum_total, "count": index, "growth_rate": growth_rate,
                     "moving_avg": moving_avg,
                 }
                 val = evaluate_formula(expr, vars_)
                 row.append(val if val is not None else "")
 
-            w.writerow(row)
+            writer.writerow(row)
 
     return path
 
@@ -258,36 +271,6 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
 # The CSV is the primary output format — it layers cumulative totals, growth
 # rate, moving average, and optional custom formulas over the raw per-commit
 # diff counts. Every column is a derived view of the same add/delete pairs.
-
-QUALITY_PARAMS = {
-    "recency_half_life_days": 90.0,
-    "ai_additions_threshold": 500.0,
-    "ai_additions_scale": 200.0,
-    "ai_initiative_commits": 3,
-    "ai_initiative_threshold": 20.0,
-    "ai_initiative_scale": 10.0,
-    "ai_repetition_cv_threshold": 0.5,
-    "ai_repetition_scale": 0.15,
-    "ai_focus_target": 3.0,
-    "ai_focus_scale": 1.5,
-    "firework_density_threshold": 5.0,
-    "firework_active_days": 90.0,
-    "deletion_ideal_ratio": 0.35,
-    "deletion_sigma": 0.15,
-    "scale_tiny": 100,
-    "scale_small": 1000,
-    "scale_medium": 10000,
-    "scale_large": 100000,
-    "tiny_commit_threshold": 10,
-    "tiny_penalty_max": 0.25,
-    "zombie_days": 730,
-    "weight_recency": 0.34,
-    "weight_anti_ai": 0.24,
-    "weight_deletion_health": 0.26,
-    "weight_scale": 0.16,
-}
-
-
 def _sigmoid(x: float) -> float:
     if x < -700:
         return 0.0
@@ -301,27 +284,23 @@ def _gaussian(x: float, mu: float, sigma: float) -> float:
 
 
 def quality_band(score: float) -> Tuple[str, str]:
-    if score >= 0.8:
-        return "Excellent", "purple"
-    if score >= 0.6:
-        return "Good", "cyan"
-    if score >= 0.4:
-        return "Fair", "green"
-    if score >= 0.2:
-        return "Needs Attention", "orange1"
+    for band in _QUALITY_BANDS:
+        if score >= band["min"]:
+            return band["name"], band["color"]
     return "Caution", "red"
 
 
 def _scale_score(total_lines: int, p: Dict) -> float:
+    scores = p.get("scale_scores", [0.1, 0.3, 0.7, 1.0, 0.8])
     if total_lines < p["scale_tiny"]:
-        return 0.1
+        return scores[0]
     if total_lines < p["scale_small"]:
-        return 0.3
+        return scores[1]
     if total_lines < p["scale_medium"]:
-        return 0.7
+        return scores[2]
     if total_lines < p["scale_large"]:
-        return 1.0
-    return 0.8
+        return scores[3]
+    return scores[4]
 
 
 def _confidence(total_commits: int) -> float:
@@ -393,7 +372,9 @@ def compute_quality(entries: List[Dict], p: Dict, now: datetime, name: str = "")
         if total_additions > 0 else 0.5
     scale = _scale_score(total_lines, p)
 
-    suspicion = (ai_volume + ai_initiative + ai_repetition + ai_focus + firework) / 5.0
+    claude_commits = sum(1 for e in entries if e.get("is_claude"))
+    ai_claude = 1.0 if claude_commits > 0 else 0.0
+    suspicion = (ai_volume + ai_initiative + ai_repetition + ai_focus + firework + ai_claude) / 6.0
 
     tiny_project = _sigmoid((p["tiny_commit_threshold"] - total) / 2.0) * p["tiny_penalty_max"]
     raw = (p["weight_recency"] * recency +
@@ -429,6 +410,7 @@ def compute_quality(entries: List[Dict], p: Dict, now: datetime, name: str = "")
             "ai_repetition": round(ai_repetition, 4),
             "ai_focus": round(ai_focus, 4),
             "firework": round(firework, 4),
+            "ai_claude": round(ai_claude, 4),
             "tiny_project": round(tiny_project, 4),
             "suspicion": round(suspicion, 4),
             "deletion_health": round(deletion_health, 4),
@@ -438,6 +420,7 @@ def compute_quality(entries: List[Dict], p: Dict, now: datetime, name: str = "")
         "band": band,
         "band_color": band_color,
         "avg_files_changed": round(avg_files, 2),
+        "claude_commits": claude_commits,
     }
 
 
@@ -498,34 +481,32 @@ def compute_quality_periods(entries: List[Dict], unit: str, now: datetime, p: Di
 # reveals a different failure mode: abandonment (recency), bot-like commits
 # (anti-AI), copy-paste without cleanup (deletion health), or trivial scale
 # (maturity). The batch variant shows how these factors trend over time.
-
-SUSPICION_LABELS = {
-    "clean": ("Clean", "green"),
-    "normal": ("Normal", "cyan"),
-    "watch": ("Watch", "yellow"),
-    "alert": ("Alert", "orange1"),
-    "critical": ("Critical", "red"),
-}
-
-
-def _load_core_configs() -> Tuple[set, set]:
+def _load_config() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), "configs.json")
     try:
         with open(config_path) as f:
-            cfg = json.load(f)
+            return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        cfg = {}
-    all_exts = set(cfg.get("code_extensions", []))
-    non_prog = set(cfg.get("non_programming_languages", []))
-    non_prog_exts = set()
-    for ext, lang in cfg.get("language_mapping", {}).items():
-        if lang in non_prog:
-            non_prog_exts.add(ext)
-    source_dirs = set(cfg.get("source_dirs", []))
-    return all_exts - non_prog_exts, source_dirs
+        return {}
 
 
-_CORE_EXTS, _SOURCE_DIRS = _load_core_configs()
+_CONFIG = _load_config()
+all_exts = set(_CONFIG.get("code_extensions", []))
+non_prog = set(_CONFIG.get("non_programming_languages", []))
+_non_prog_exts = set()
+for ext, lang in _CONFIG.get("language_mapping", {}).items():
+    if lang in non_prog:
+        _non_prog_exts.add(ext)
+_CORE_EXTS = all_exts - _non_prog_exts
+_SOURCE_DIRS = set(_CONFIG.get("source_dirs", []))
+_SKIP_DIRS = set(_CONFIG.get("skip_dirs", []))
+_QUALITY_PARAMS = _CONFIG.get("quality_params", {})
+_SUSPICION_THRESHOLDS = _CONFIG.get("suspicion_thresholds", {})
+_SUSPICION_LABELS = _CONFIG.get("suspicion_labels", {})
+_QUALITY_BANDS = _CONFIG.get("quality_bands", [])
+_HERO_TOP_N = _CONFIG.get("hero_top_n", 5)
+_HERO_THRESHOLD = _CONFIG.get("hero_threshold", 0.8)
+_PARETO_MAX_BARS = _CONFIG.get("pareto_max_bars", 50)
 
 
 def _changed_files(repo: str, hash_: str) -> List[str]:
@@ -548,19 +529,8 @@ def _is_core_commit(repo: str, hash_: str) -> Tuple[bool, int, int]:
     return core_count > 0, core_count, len(files)
 
 
-SUSPICION_THRESHOLDS = {
-    "del_net": -200,
-    "del_ratio": 0.05,
-    "both_large": 500,
-    "cluster_gap": 3,
-    "cluster_min": 3,
-    "mature_commits": 50,
-    "recent_days": 90,
-}
-
-
 def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optional[Dict] = None) -> Dict:
-    thresholds = {**SUSPICION_THRESHOLDS, **(params or {})}
+    thresholds = {**_SUSPICION_THRESHOLDS, **(params or {})}
     total = len(entries)
     if total == 0:
         return {}
@@ -707,80 +677,349 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optio
     }
 
 
-def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_path: str, path: str) -> int:
-    if q.get("band") == "Archived":
-        lines = [
-            "",
-            f"  Project Quality Analysis Report",
-            f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "",
-            f"  Project:         {q['name']}",
-            f"  Commits:         {q['total_commits']}",
-            f"  Period:          {q['active_days']} days",
-            f"  Last commit:     {q['days_since_last']:.0f} days ago",
-            "",
-            f"  Status:  Archived — no activity in {q['days_since_last']:.0f} days",
-            "",
-        ]
-    else:
-        s = q["scores"]
-        lines = []
+def _duration_str(days: float) -> str:
+    if days < 0:
+        return "0 minutes"
+    total_minutes = int(days * 24 * 60 + 0.5)
+    years = total_minutes // (365 * 24 * 60)
+    total_minutes %= (365 * 24 * 60)
+    days_part = total_minutes // (24 * 60)
+    total_minutes %= (24 * 60)
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    parts = []
+    if years > 0:
+        parts.append(f"{years} year{'s' if years > 1 else ''}")
+    if days_part > 0:
+        parts.append(f"{days_part} day{'s' if days_part > 1 else ''}")
+    if hours > 0:
+        parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+    if minutes > 0 or not parts:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return ", ".join(parts)
 
-        lines.append("")
-        lines.append(f"  Project Quality Analysis Report")
-        lines.append(f"  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append("")
-        lines.append(f"  Project:         {q['name']}")
-        lines.append(f"  Commits:         {q['total_commits']}")
-        lines.append(f"  Period:          {q['active_days']} days")
-        lines.append(f"  Last commit:     {q['days_since_last']} days ago")
-        lines.append(f"  Quality:         {q['band']} ({s['composite']:.2f})")
-        lines.append("")
-        lines.append("")
-        lines.append("  Factor Scores:")
-        lines.append(f"    Recency                     {s['recency']:.2f}")
+
+def _file_breakdown(root: str) -> Optional[Dict]:
+    raw = _git(root, "git ls-files")
+    if not raw:
+        return None
+    files = raw.strip().split("\n")
+    exts: Dict[str, Dict] = {}
+    for fp in files:
+        if not fp.strip():
+            continue
+        ext = os.path.splitext(fp)[1].lower()
+        full = os.path.join(root, fp)
+        try:
+            with open(full, "rb") as fh:
+                chunk = fh.read(8192)
+            if b"\x00" in chunk:
+                continue
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                total = non_blank = 0
+                for line in fh:
+                    total += 1
+                    if line.strip():
+                        non_blank += 1
+        except (IOError, OSError):
+            continue
+        entry = exts.setdefault(ext, {"files": 0, "total": 0, "non_blank": 0})
+        entry["files"] += 1
+        entry["total"] += total
+        entry["non_blank"] += non_blank
+
+    if not exts:
+        return None
+
+    sorted_exts = sorted(exts.items(), key=lambda x: -x[1]["total"])
+    total_files = sum(e["files"] for _, e in sorted_exts)
+    total_lines = sum(e["total"] for _, e in sorted_exts)
+    total_non_blank = sum(e["non_blank"] for _, e in sorted_exts)
+    code_lines = sum(e["non_blank"] for ext, e in sorted_exts if ext in _CORE_EXTS)
+
+    return {
+        "exts": sorted_exts,
+        "total_files": total_files,
+        "total_lines": total_lines,
+        "total_non_blank": total_non_blank,
+        "code_lines": code_lines,
+    }
+
+
+def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, color: str = "#4a9eff"):
+    daily = defaultdict(lambda: {"net": 0})
+    for e in entries:
+        day = e["date"].date()
+        daily[day]["net"] += e["additions"] - e["deletions"]
+
+    sorted_days = sorted(daily)
+    cum = 0
+    days_list, cum_list = [], []
+    for d in sorted_days:
+        cum += daily[d]["net"]
+        days_list.append(d)
+        cum_list.append(cum * scale)
+
+    if len(days_list) < 2:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.text(0.5, 0.5, "Not enough data", ha="center", va="center", transform=ax.transAxes)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return
+
+    x = mdates.date2num(days_list)
+    y = np.array(cum_list, dtype=float)
+    n = len(x)
+    w = max(3, n // 20)
+    if w % 2 == 0:
+        w += 1
+
+    pad = w // 2
+    y_pad = np.pad(y, pad, mode="edge")
+    kernel = np.ones(w) / w
+    smooth = np.convolve(y_pad, kernel, mode="same")[pad:-pad or None]
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.fill_between(days_list, 0, smooth, alpha=0.08, color=color)
+    ax.plot(days_list, smooth, color=color, linewidth=1.8)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Effective Code Lines")
+    ax.set_title("Code Growth Trend")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _commit_barchart(entries: List[Dict], path: str, color: str = "#4a9eff"):
+    daily = defaultdict(int)
+    for e in entries:
+        daily[e["date"].date()] += 1
+
+    if not daily:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.text(0.5, 0.5, "Not enough data", ha="center", va="center", transform=ax.transAxes)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return
+
+    sorted_days = sorted(daily)
+    values = [daily[d] for d in sorted_days]
+    x = mdates.date2num(sorted_days)
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.bar(x, values, width=0.4, color=color, alpha=0.8, linewidth=0)
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Commits")
+    ax.set_title("Daily Commit Activity")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def write_contributor_csv(entries: List[Dict], path: str) -> str:
+    c = defaultdict(lambda: {"commits": 0, "ai_commits": 0, "email": "", "first": None, "last": None, "days": set()})
+    for e in entries:
+        name = e.get("author_name", "Unknown")
+        email = e.get("author_email", "")
+        day = e["date"].date()
+        c[name]["commits"] += 1
+        c[name]["email"] = email
+        c[name]["days"].add(day)
+        if e.get("is_claude"):
+            c[name]["ai_commits"] += 1
+        if c[name]["first"] is None or e["date"] < c[name]["first"]:
+            c[name]["first"] = e["date"]
+        if c[name]["last"] is None or e["date"] > c[name]["last"]:
+            c[name]["last"] = e["date"]
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Index", "Author", "Email", "Commits", "AI", "Active Days", "First Commit", "Last Commit"])
+        for index, (name, info) in enumerate(sorted(c.items(), key=lambda x: -x[1]["commits"]), 1):
+            w.writerow([index, name, info["email"], info["commits"], info["ai_commits"], len(info["days"]),
+                        info["first"].strftime("%Y-%m-%d") if info["first"] else "",
+                        info["last"].strftime("%Y-%m-%d") if info["last"] else ""])
+    return path
+
+
+def _contributor_pareto(entries: List[Dict], path: str, color: str = "#4a9eff", max_bars: int = 50):
+    authors = defaultdict(int)
+    for e in entries:
+        authors[e.get("author_name", "Unknown")] += 1
+
+    if not authors:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.text(0.5, 0.5, "Not enough data", ha="center", va="center", transform=ax.transAxes)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return
+
+    sorted_authors = sorted(authors.items(), key=lambda x: -x[1])
+    sorted_authors = sorted_authors[:max_bars]
+    counts = [a[1] for a in sorted_authors]
+    total = sum(counts)
+    cumulative = [sum(counts[:i + 1]) / total * 100 for i in range(len(counts))]
+    indices = list(range(1, len(counts) + 1))
+
+    fig, ax1 = plt.subplots(figsize=(10, 4))
+    ax1.bar(indices, counts, color=color, alpha=0.85, width=0.6)
+    ax1.set_ylabel("Commits")
+    ax1.set_title("Contributor Pareto")
+    ax1.set_xticks(indices)
+    ax1.set_xticklabels(indices, fontsize=7)
+
+    ax2 = ax1.twinx()
+    ax2.plot(indices, cumulative, color=color, linewidth=1.5)
+    ax2.set_ylabel("Cumulative %")
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _hero_risk(entries: List[Dict], top_n: int = 5) -> Tuple[float, int, int]:
+    authors = defaultdict(int)
+    for e in entries:
+        authors[e.get("author_name", "Unknown")] += 1
+    sorted_authors = sorted(authors.items(), key=lambda x: -x[1])
+    top_commits = sum(c for _, c in sorted_authors[:top_n])
+    total = sum(c for _, c in sorted_authors)
+    ratio = top_commits / total if total > 0 else 0
+    return ratio, top_commits, total
+
+
+def _build_factor_scores(s: Dict) -> str:
+    claude = f", Claude: {s['ai_claude']:.2f}" if s.get("ai_claude", 0) > 0 else ""
+    ai_breakdown = (
+        f"(Volume: {s['ai_volume']:.2f}, Initiative: {s['ai_initiative']:.2f}, "
+        f"Repetition: {s['ai_repetition']:.2f}, Focus: {s['ai_focus']:.2f}, "
+        f"Burst: {s['firework']:.2f}{claude})"
+    )
+    tiny = f"    Tiny Project Penalty        -{s['tiny_project']:.2f}\n" if s["tiny_project"] > 0 else ""
+    return ai_breakdown, tiny
+
+
+def _build_batch_section(periods: List[Dict]) -> str:
+    if not periods:
+        return ""
+    lines = ["", "  Batch Analysis by Period:",
+             f"  {'Period':<12} {'C':>4} {'+Ln':>7} {'-Ln':>7} {'Rec':>5} {'Vol':>5} {'DelH':>5} {'Q':>5}  Band",
+             "  " + "-" * 62]
+    for p in periods:
         lines.append(
-            f"    Anti-AI Detection           {1 - s['suspicion']:.2f}  "
-            f"(Volume: {s['ai_volume']:.2f}, "
-            f"Initiative: {s['ai_initiative']:.2f}, "
-            f"Repetition: {s['ai_repetition']:.2f}, "
-            f"Focus: {s['ai_focus']:.2f}, "
-            f"Burst: {s['firework']:.2f})")
-        lines.append(f"    Deletion Health             {s['deletion_health']:.2f}")
-        lines.append(f"    Scale Maturity              {s['scale']:.2f}")
-        if s["tiny_project"] > 0:
-            lines.append(f"    Tiny Project Penalty        -{s['tiny_project']:.2f}")
-        lines.append("")
-        lines.append("")
-        lines.append("  Raw Metrics:")
-        lines.append(f"    Total lines (add+del):     {q['total_lines']:,}")
-        lines.append(f"    Additions:                 {q['total_additions']:,}")
-        lines.append(f"    Deletions:                 {q['total_deletions']:,}")
-        lines.append(f"    Net change:                {q['net_change']:+,}")
-        lines.append(f"    Avg additions/commit:      {q['avg_additions_per_commit']}")
-        lines.append(f"    Commit density:            {q['commits_per_day']} / day")
-        lines.append(f"    Churn ratio (del/add):     {q['churn_ratio']}")
-        lines.append(f"    Active days:               {q['active_days']:.0f}")
-        lines.append(f"    First commit:              {q['first_commit']}")
-        lines.append(f"    Last commit:               {q['last_commit']}")
-        lines.append("")
+            f"  {p['period']:<12} {p['commits']:>4} {p['additions']:>7} {p['deletions']:>7} "
+            f"{p['recency']:>5.2f} {p['ai_volume']:>5.2f} {p['deletion']:>5.2f} {p['composite']:>5.2f}  {p['band']}")
+    return "\n".join(lines)
 
-        if periods:
-            lines.append("")
-            lines.append("  Batch Analysis by Period:")
-            lines.append(
-                f"  {'Period':<12} {'C':>4} {'+Ln':>7} {'-Ln':>7} {'Rec':>5} {'Vol':>5} {'DelH':>5} {'Q':>5}  Band")
-            lines.append("  " + "-" * 62)
-            for p in periods:
-                lines.append(
-                    f"  {p['period']:<12} {p['commits']:>4} {p['additions']:>7} {p['deletions']:>7} "
-                    f"{p['recency']:>5.2f} {p['ai_volume']:>5.2f} {p['deletion']:>5.2f} {p['composite']:>5.2f}  {p['band']}"
-                )
-            lines.append("")
+
+def _build_breakdown_section(breakdown: Optional[Dict]) -> str:
+    if not breakdown:
+        return ""
+    lines = ["",
+             f"  File Breakdown{'':>56} "
+             f"Total: {breakdown['total_lines']:,}  Non-blank: {breakdown['total_non_blank']:,}  "
+             f"Code: {breakdown['code_lines']:,}",
+             "",
+             f"  {'Extension':<16} {'Files':>7} {'Lines':>10} {'Non-blank':>10}",
+             f"  {'─' * 46}"]
+    for ext, info in breakdown["exts"]:
+        label = ext if ext else "(no ext)"
+        lines.append(f"  {label:<16} {info['files']:>7} {info['total']:>10,} {info['non_blank']:>10,}")
+    lines.extend([
+        f"  {'─' * 46}",
+        f"  {'Total':<16} {breakdown['total_files']:>7} {breakdown['total_lines']:>10,} {breakdown['total_non_blank']:>10,}",
+    ])
+    return "\n".join(lines)
+
+
+def _build_hero_section(entries: List[Dict], human_entries: List[Dict], hero_top_n: int,
+                        hero_threshold: float) -> str:
+    if not entries:
+        return ""
+    hero_ratio, hero_top, hero_total = _hero_risk(human_entries, hero_top_n)
+    lines = ["",
+             f"  Hero Risk (top {hero_top_n}):  {hero_ratio:.0%}  ({hero_top:,} / {hero_total:,} human commits)"]
+    if hero_ratio >= hero_threshold:
+        lines.append(f"  High risk — project relies on top {hero_top_n} contributors")
+    return "\n".join(lines)
+
+
+def _build_see_also() -> str:
+    return ("\n"
+            "  See also (in charts/ subdirectory):\n"
+            "    charts/growth_trend.png     — Code growth trend\n"
+            "    charts/commit_activity.png  — Daily commit activity\n"
+            "    charts/contributors.png     — Developer Pareto (AI excluded)\n"
+            "    contributors.csv            — Contributor activity summary (incl. AI)")
+
+
+def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_path: str, path: str,
+                 entries: List[Dict] = None, color: str = "#4a9eff", hero_top_n: int = 5,
+                 hero_threshold: float = 0.8, pareto_max_bars: int = 50) -> int:
+    template_path = os.path.join(os.path.dirname(__file__), "report_template.txt")
+    try:
+        with open(template_path) as f:
+            template = f.read()
+    except FileNotFoundError:
+        template = ""
+
+    breakdown = _file_breakdown(repo_path) if repo_path else None
+    human_entries = [e for e in entries if not e.get("is_claude")] if entries else []
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    duration = _duration_str(q['days_since_last'])
+
+    if q.get("band") == "Archived":
+        marker = "{ARCHIVED_BLOCK}"
+        body = template.split(marker)[1]
+        ctx = dict(
+            generated_at=now_str, project_name=q['name'], total_commits=q['total_commits'],
+            active_days=q['active_days'], duration_since_last=duration,
+            status=f"Archived — no activity in {duration}",
+        )
+    else:
+        marker = "{NORMAL_BLOCK}"
+        body = template.split(marker)[1]
+        s = q["scores"]
+        ai_breakdown, tiny = _build_factor_scores(s)
+        claude_line = f"    Claude AI commits:         {q['claude_commits']}" if q.get("claude_commits", 0) > 0 else ""
+        ctx = dict(
+            generated_at=now_str, project_name=q['name'], total_commits=q['total_commits'],
+            active_days=q['active_days'], duration_since_last=duration,
+            band=q['band'], score=s['composite'],
+            recency=s['recency'], anti_ai=1 - s['suspicion'], ai_breakdown=ai_breakdown,
+            deletion_health=s['deletion_health'], scale=s['scale'],
+            tiny_penalty=tiny,
+            total_lines=f"{q['total_lines']:,}", total_additions=f"{q['total_additions']:,}",
+            total_deletions=f"{q['total_deletions']:,}", net_change=f"{q['net_change']:+,}",
+            avg_additions=q['avg_additions_per_commit'], commit_density=q['commits_per_day'],
+            churn_ratio=q['churn_ratio'], active_days_raw=f"{q['active_days']:.0f}",
+            first_commit=q['first_commit'], last_commit=q['last_commit'],
+            claude_ai_line=claude_line,
+            batch_analysis=_build_batch_section(periods),
+            file_breakdown=_build_breakdown_section(breakdown),
+            hero_risk=_build_hero_section(entries, human_entries, hero_top_n, hero_threshold),
+            see_also=_build_see_also() if entries else "",
+        )
+
+    text = body.format(**ctx)
+    lines = text.split("\n")
 
     tmpdir = tempfile.mkdtemp()
     detail_count = 0
     try:
+        if entries:
+            chart_dir = os.path.join(tmpdir, "charts")
+            os.makedirs(chart_dir, exist_ok=True)
+            cum_net = sum(e["additions"] - e["deletions"] for e in entries) if entries else 0
+            nb_goal = breakdown["total_non_blank"] if breakdown else 0
+            nb_ratio = nb_goal / cum_net if cum_net > 0 else 1.0
+            _growth_trend_chart(entries, os.path.join(chart_dir, "growth_trend.png"), nb_ratio, color)
+            _commit_barchart(entries, os.path.join(chart_dir, "commit_activity.png"), color)
+            _contributor_pareto(human_entries, os.path.join(chart_dir, "contributors.png"), color, pareto_max_bars)
+            write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"))
+
         with open(os.path.join(tmpdir, "report.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
 
@@ -813,6 +1052,12 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
                 for fn in sorted(os.listdir(detail_dir)):
                     fpath = os.path.join(detail_dir, fn)
                     zf.write(fpath, f"details/{fn}")
+            chart_dir_tmp = os.path.join(tmpdir, "charts")
+            if os.path.isdir(chart_dir_tmp):
+                for fn in sorted(os.listdir(chart_dir_tmp)):
+                    zf.write(os.path.join(chart_dir_tmp, fn), f"charts/{fn}")
+            if os.path.exists(os.path.join(tmpdir, "contributors.csv")):
+                zf.write(os.path.join(tmpdir, "contributors.csv"), "contributors.csv")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -821,7 +1066,6 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
 
 # The report is a human-readable snapshot of the quality analysis — used for
 # sharing results outside the CLI or keeping a historical record.
-
 def parse_args():
     p = argparse.ArgumentParser(description="Git Stats & Quality Analyzer")
     p.add_argument("repo_path", nargs="?", default=os.getcwd(),
@@ -846,6 +1090,8 @@ def parse_args():
                    help="Text report output path (default: auto-name)")
     p.add_argument("--quality-params", type=str, default=None,
                    help="JSON file with custom quality formula parameters")
+    p.add_argument("--color", type=str, default="#4a9eff",
+                   help="Primary color for charts (hex or name, default: #4a9eff)")
     return p.parse_args()
 
 
@@ -884,7 +1130,7 @@ def main():
     console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total} commit records in {repo_name(repo)}[/default]")
 
     use_threads = not args.no_threads
-    num_threads = args.threads if args.threads > 0 else min(8, os.cpu_count() or 4)
+    num_threads = args.threads if args.threads > 0 else min(6, os.cpu_count() or 4)
     parallel = total >= 100 and use_threads
 
     if parallel:
@@ -903,7 +1149,7 @@ def main():
     with Progress(
             SpinnerColumn(spinner_name="blink", style="default"),
             TextColumn("{task.description}"),
-            console=console, transient=True,
+            console=console, transient=True
     ) as progress:
         task = progress.add_task("", total=total)
 
@@ -944,7 +1190,7 @@ def main():
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
     if args.quality:
-        p = dict(QUALITY_PARAMS)
+        p = dict(_QUALITY_PARAMS)
         if args.quality_params and os.path.exists(args.quality_params):
             with open(args.quality_params) as f:
                 p.update(json.load(f))
@@ -967,7 +1213,7 @@ def main():
             q = compute_quality(entries, p, now, repo_name(repo))
 
             if q.get("band") == "Archived":
-                progress.update(task, description=f"Archived — no commits in {q['days_since_last']:.0f} days")
+                progress.update(task, description=f"Archived — no commits in {_duration_str(q['days_since_last'])}")
                 audit = {"suspicion_count": 0, "deletion_percent": 0, "heavy_deletions": 0, "suspicion": []}
                 periods = []
             else:
@@ -979,7 +1225,7 @@ def main():
 
         if q.get("band") == "Archived":
             console.print(
-                f"[grey58]{ICON_STEP}[/grey58] [default]Archived — no commits in {q['days_since_last']:.0f} days[/default]")
+                f"[grey58]{ICON_STEP}[/grey58] [default]Archived — no commits in {_duration_str(q['days_since_last'])}[/default]")
         else:
             console.print(
                 f"[blue]{ICON_STEP}[/blue] [default]Analyzed {len(entries)} commits, {audit['suspicion_count']} suspicious patterns[/default]"
@@ -989,7 +1235,8 @@ def main():
 
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_path = args.report or f"quality_report_{ts}.zip"
-            detail_count = write_report(q, periods, audit, repo, csv_path, report_path)
+            detail_count = write_report(q, periods, audit, repo, csv_path, report_path, entries, args.color,
+                                        _HERO_TOP_N, _HERO_THRESHOLD, _PARETO_MAX_BARS)
             console.print(f"[blue]{ICON_POINT}[/blue] [default]Packaged {detail_count} detail files + 1 CSV[/default]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
@@ -1017,7 +1264,7 @@ def main():
             if top:
                 parts = []
                 for s in top:
-                    _, lvl_color = SUSPICION_LABELS.get(s["level"], ("", "default"))
+                    _, lvl_color = _SUSPICION_LABELS.get(s["level"], ["", "default"])
                     parts.append(
                         f"[{lvl_color}]{s['hash']} [{_ABBREV.get(s['level'], '?')}][/{lvl_color}]"
                     )
@@ -1040,6 +1287,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         console.print(f"\n[yellow]{ICON_WARNING}  Analysis interrupted[/yellow]")
         sys.exit(1)
-    except Exception as e:
-        console.print(f"[yellow]{ICON_WARNING}  {e}[/yellow]")
+    except Exception as error:
+        console.print(f"[yellow]{ICON_WARNING}  {error}[/yellow]")
         sys.exit(1)
