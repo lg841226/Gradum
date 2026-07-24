@@ -1,22 +1,31 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-23 17:09:47 Changed by gwy
+#  git_stats.py  2026-07-24 21:03:07 Changed by gwy
 #
-#  git_stats.py  2026-07-23 13:06:28 Changed by gwy
+#  git_stats.py  2026-07-24 21:02:31 Changed by gwy
 #
-#  git_stats.py  2026-07-23 11:21:36 Changed by gwy
+#  git_stats.py  2026-07-24 20:06:37 Changed by gwy
+#
+#  git_stats.py  2026-07-24 20:05:21 Changed by gwy
+#
+#  git_stats.py  2026-07-24 20:04:14 Changed by gwy
+#
+#  git_stats.py  2026-07-24 18:49:09 Changed by gwy
+#
+#  git_stats.py  2026-07-24 18:45:23 Changed by gwy
+#
+#  git_stats.py  2026-07-24 18:44:41 Changed by gwy
 
 
-import argparse
 import concurrent.futures
 import csv
-import hashlib
 import itertools
 import json
 import math
 import matplotlib
 import os
+import re
 import shutil
 import statistics
 import subprocess
@@ -28,18 +37,11 @@ import zipfile
 from collections import defaultdict, deque
 from datetime import datetime, timezone, timedelta
 
-warnings.filterwarnings("ignore", message=".*missing from font.*")
-
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import numpy as np
+import numpy as npy
 from matplotlib.colors import ListedColormap
-
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = ["PingFang SC", "Heiti SC", "Apple SD Gothic Neo", "WenQuanYi Micro Hei",
-                                   "Noto Sans CJK SC", "SimHei", "DejaVu Sans"]
-
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -62,12 +64,16 @@ def _git(repo: str, cmd: str) -> Optional[str]:
     try:
         r = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True, check=True)
         return r.stdout.strip()
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as error:
+        print(f"{ICON_WARNING} Git command failed (exit {error.returncode}): {cmd}",
+              file=sys.stderr)
+        if error.stderr and error.stderr.strip():
+            print(f"  stderr: {error.stderr.strip()}", file=sys.stderr)
         return None
 
 
 def _parse_numstat(numstat: str) -> Tuple[int, int]:
-    lines = [ln.strip() for ln in numstat.strip().split("\n") if ln.strip()]
+    lines = [line.strip() for line in numstat.strip().split("\n") if line.strip()]
     additions = deletions = 0
     for line in lines:
         parts = line.split("\t")
@@ -97,11 +103,11 @@ def commit_dates(repo_path: str) -> Dict[str, Tuple[str, str]]:
     for line in out.split("\n"):
         if "||" not in line:
             continue
-        h, rest = line.split("||", 1)
+        hash_val, rest = line.split("||", 1)
         parts = rest.split()
         date = parts[0] if parts else ""
         time_str = parts[1].split("+")[0] if len(parts) > 1 else ""
-        result[h] = (date, time_str)
+        result[hash_val] = (date, time_str)
     return result
 
 
@@ -125,9 +131,9 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
     numstat_lines = []
     index = 0
 
-    for ln in proc.stdout:
-        ln = ln.rstrip("\n")
-        if "||" in ln and len(ln) > 40:
+    for line in proc.stdout:
+        line = line.rstrip("\n")
+        if "||" in line and len(line) > 40:
             if current_hash:
                 index += 1
                 dt = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
@@ -136,14 +142,16 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
                 entries.append(
                     {"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
                      "files_changed": len(numstat_lines), "is_claude": is_claude,
-                     "author_name": current_author, "author_email": current_email})
+                     "author_name": current_author, "author_email": current_email,
+                     "subject": current_subject})
                 if on_commit:
                     on_commit(current_hash[:8], current_subject, index, total)
                 numstat_lines.clear()
-            current_hash, current_iso, current_subject, current_author, current_email, current_trailer = ln.split("||",
-                                                                                                                  5)
-        elif ln and "\t" in ln:
-            numstat_lines.append(ln)
+            current_hash, current_iso, current_subject, current_author, current_email, current_trailer = line.split(
+                "||",
+                5)
+        elif line and "\t" in line:
+            numstat_lines.append(line)
 
     if current_hash:
         index += 1
@@ -152,7 +160,8 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
         is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
         entries.append({"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
                         "files_changed": len(numstat_lines), "is_claude": is_claude,
-                        "author_name": current_author, "author_email": current_email})
+                        "author_name": current_author, "author_email": current_email,
+                        "subject": current_subject})
         if on_commit:
             on_commit(current_hash[:8], current_subject, index, total)
 
@@ -190,20 +199,21 @@ def list_builtin_formulas():
         console.print(f"  [green]{name}[/green]: {expr}")
 
 
-def build_formula(args) -> Tuple[Optional[str], Optional[str]]:
-    if not args.formula:
+def build_formula(formula_expr: str) -> Tuple[Optional[str], Optional[str]]:
+    if not formula_expr:
         return None, None
-    if args.formula in BUILTIN_FORMULAS:
-        return BUILTIN_FORMULAS[args.formula], args.formula
-    return args.formula, "Custom Formula"
+    if formula_expr in BUILTIN_FORMULAS:
+        return BUILTIN_FORMULAS[formula_expr], formula_expr
+    return formula_expr, "Custom Formula"
 
 
 # Custom formulas let users define new CSV columns at export time (net_ratio,
 # efficiency, churn, or arbitrary expressions) without modifying the code.
 # SAFE_BUILTINS restricts eval to pure math — no I/O or system access.
-def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
-    path = args.output or f'git_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-    expr, label = build_formula(args)
+def write_csv(config: Dict, hashes: List[str], dates: Dict, stats: Dict) -> str:
+    path = config.get("outputFilePath") or f'git_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+    expr, label = build_formula(config.get("formulaExpression"))
+    window_size = config.get("movingAverageWindow", 5)
 
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -213,7 +223,7 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
             "Cumulative Add", "Cumulative Del", "Cumulative Net",
             "Total Lines", "Growth Rate (%)",
         ]
-        if args.window > 0:
+        if window_size > 0:
             headers.append("Moving Avg")
         if expr is not None:
             headers.append(label)
@@ -222,11 +232,11 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
         cum_add = cum_del = cum_net = 0
         first_commit = True
         first_cum_net = 0
-        window = deque(maxlen=args.window) if args.window > 0 else None
+        window = deque(maxlen=window_size) if window_size > 0 else None
         moving_avg = 0
 
-        for i, hash_ in enumerate(hashes):
-            index = i + 1
+        for index, hash_ in enumerate(hashes):
+            index = index + 1
             add, delete = stats.get(hash_, (0, 0))
             net = add - delete
 
@@ -248,7 +258,7 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
             row = [index, hash_[:8], date, time_str, add, delete, net,
                    cum_add, cum_del, cum_net, cum_total, growth_rate]
 
-            if args.window > 0:
+            if window_size > 0:
                 window.append(net)
                 moving_avg = round(sum(window) / len(window), 2)
                 row.append(moving_avg)
@@ -271,16 +281,16 @@ def write_csv(args, hashes: List[str], dates: Dict, stats: Dict) -> str:
 # The CSV is the primary output format — it layers cumulative totals, growth
 # rate, moving average, and optional custom formulas over the raw per-commit
 # diff counts. Every column is a derived view of the same add/delete pairs.
-def _sigmoid(x: float) -> float:
-    if x < -700:
+def _sigmoid(value: float) -> float:
+    if value < -700:
         return 0.0
-    if x > 700:
+    if value > 700:
         return 1.0
-    return 1.0 / (1.0 + math.exp(-x))
+    return 1.0 / (1.0 + math.exp(-value))
 
 
-def _gaussian(x: float, mu: float, sigma: float) -> float:
-    return math.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+def _gaussian(value: float, mu: float, sigma: float) -> float:
+    return math.exp(-((value - mu) ** 2) / (2 * sigma ** 2))
 
 
 def quality_band(score: float) -> Tuple[str, str]:
@@ -290,189 +300,692 @@ def quality_band(score: float) -> Tuple[str, str]:
     return "Caution", "red"
 
 
-def _scale_score(total_lines: int, p: Dict) -> float:
-    scores = p.get("scale_scores", [0.1, 0.3, 0.7, 1.0, 0.8])
-    if total_lines < p["scale_tiny"]:
-        return scores[0]
-    if total_lines < p["scale_small"]:
-        return scores[1]
-    if total_lines < p["scale_medium"]:
-        return scores[2]
-    if total_lines < p["scale_large"]:
-        return scores[3]
-    return scores[4]
+class QualityModel:
+    """
+    Quality scoring engine. Every scoring method is independently testable:
+    takes raw data + config, returns a 0-1 score with no side effects.
+
+    Pipeline:
+      evaluate()
+        ├─ gather_metrics()    → extract raw values from commit entries (no scoring)
+        ├─ score_*()            → one method per dimension (independent, testable)
+        ├─ aggregate_suspicion()→ combine AI sub-dimensions via noisy-OR
+        ├─ compute_raw_score()  → weighted sum of factor scores
+        └─ adjust_composite()   → confidence shrinkage + personality jitter → clamp
+
+    Why separate methods instead of one monolithic function:
+    Each dimension can be unit-tested, tuned, or replaced in isolation
+    without touching the rest of the pipeline.
+    """
+
+    def __init__(self, quality_params: dict):
+        """All toggles and thresholds come from configs.json — no hardcoded magic numbers."""
+        self._params = quality_params
+
+    @staticmethod
+    def gather_metrics(entries: List[Dict], now: datetime) -> dict:
+        """
+        Extract all raw metrics from a commit list.
+
+        This is the only method that touches commit data directly.
+        Scoring methods consume the returned dict, not raw entries,
+        so they can be tested with synthetic data.
+
+        Parameters
+        ----------
+        entries : List[Dict]
+            Sorted list of commit dicts, each with "date", "additions",
+            "deletions", "files_changed", and optionally "is_claude".
+        now : datetime
+            Reference timestamp for recency calculations.
+
+        Returns
+        -------
+        dict
+            Keys: total_commits, first/last_commit_date, active_days,
+            days_since_last_commit, total_additions/deletions/lines,
+            average_additions, commits_per_day, claude_commit_count,
+            all_additions (list), average_files_changed.
+        """
+        total_commits = len(entries)
+        first_commit_date = entries[0]["date"]
+        last_commit_date = entries[-1]["date"]
+        # Clamp to 0.1 days to avoid division by zero on single-commit repos
+        active_days = max((last_commit_date - first_commit_date).total_seconds() / 86400.0, 0.1)
+        days_since_last_commit = (now - last_commit_date).total_seconds() / 86400.0
+
+        total_additions = sum(entry["additions"] for entry in entries)
+        total_deletions = sum(entry["deletions"] for entry in entries)
+        total_lines = total_additions + total_deletions
+
+        commits_with_additions = sum(1 for entry in entries if entry["additions"] > 0)
+        average_additions = total_additions / max(commits_with_additions, 1)
+        commits_per_day = total_commits / active_days
+
+        claude_commit_count = sum(1 for entry in entries if entry.get("is_claude"))
+        all_additions = [entry["additions"] for entry in entries]
+        average_files_changed = (
+            statistics.mean([entry["files_changed"] for entry in entries])
+            if total_commits > 0 else 0.0
+        )
+
+        return dict(
+            total_commits=total_commits,
+            first_commit_date=first_commit_date,
+            last_commit_date=last_commit_date,
+            active_days=active_days,
+            days_since_last_commit=days_since_last_commit,
+            total_additions=total_additions,
+            total_deletions=total_deletions,
+            total_lines=total_lines,
+            average_additions=average_additions,
+            commits_per_day=commits_per_day,
+            claude_commit_count=claude_commit_count,
+            all_additions=all_additions,
+            average_files_changed=average_files_changed,
+        )
+
+    def score_recency(self, days_since_last_commit: float) -> float:
+        """
+        Recent activity score. The more recent the last commit, the higher the score.
+
+        Uses Gaussian rather than linear decay because project activity
+        doesn't die on a fixed date — it decays continuously.
+        At half-life = 90 days: 90-day-old project scores ~0.61,
+        180-day-old scores ~0.14.
+
+        Parameters
+        ----------
+        days_since_last_commit : float
+            Days elapsed since the most recent commit.
+
+        Returns
+        -------
+        float
+            0 (stale) to 1 (just committed).
+        """
+        return _gaussian(days_since_last_commit, 0.0, self._params["recencyHalfLifeDays"])
+
+    def score_ai_volume(self, average_additions: float) -> float:
+        """
+        AI suspicion — average additions per commit.
+
+        GPT-class AI often generates hundreds to thousands of lines per commit,
+        while human commits typically range from tens to a few hundred.
+        Uses sigmoid instead of a hard threshold to avoid edge discontinuities.
+
+        Config params used: ai_additions_threshold (sigmoid midpoint),
+        ai_additions_scale (sigmoid steepness).
+        """
+        deviation = (average_additions - self._params["aiAdditionsThreshold"])
+        normalized = deviation / self._params["aiAdditionsScale"]
+        return _sigmoid(normalized)
+
+    def score_ai_initiative(self, entries: List[Dict]) -> float:
+        """
+        AI suspicion — initial project bootstrap signature.
+
+        AI tends to generate large amounts of boilerplate in early commits:
+        - Very high additions (creating the full file structure)
+        - Very low deletions (generative, not modifying)
+        Captured via the add/delete ratio of the first N commits.
+        Higher ratio → more likely AI-initiated.
+
+        Config params: ai_initiative_commits (N), ai_initiative_threshold,
+        ai_initiative_scale.
+        """
+        early_count = min(self._params["aiInitiativeCommits"], len(entries))
+        early_additions = sum(entry["additions"] for entry in entries[:early_count])
+        early_deletions = sum(entry["deletions"] for entry in entries[:early_count])
+        addition_to_deletion_ratio = early_additions / max(early_deletions, 1)
+        deviation = addition_to_deletion_ratio - self._params["aiInitiativeThreshold"]
+        normalized = deviation / self._params["aiInitiativeScale"]
+        return _sigmoid(normalized)
+
+    def score_ai_repetition(self, all_additions: List[int]) -> float:
+        """
+        AI suspicion — commit size repetition.
+
+        Human commit sizes vary widely (2-line bugfix vs 500-line feature).
+        AI-generated commits tend to be uniformly sized.
+        Uses coefficient of variation CV = stddev / mean to quantify uniformity.
+        Low CV → highly uniform → suspicious.
+        Inverse sigmoid: low CV maps to high suspicion.
+
+        Config params: ai_repetition_cv_threshold, ai_repetition_scale.
+        """
+        if len(all_additions) < 2:
+            return 0.5  # Not enough data — neutral score
+        coefficient_of_variation = statistics.stdev(all_additions) / max(
+            statistics.mean(all_additions), 1
+        )
+        deviation = coefficient_of_variation - self._params["aiRepetitionCvThreshold"]
+        normalized = deviation / self._params["aiRepetitionScale"]
+        return 1.0 - _sigmoid(normalized)
+
+    def score_ai_focus(self, average_files_changed: float) -> float:
+        """
+        AI suspicion — file focus per commit.
+
+        Humans typically touch multiple related files per commit
+        (interface + implementation + tests). AI tends to modify
+        1-2 files at a time. Target is 3 files; deviation in either
+        direction raises suspicion.
+
+        Config params: ai_focus_target, ai_focus_scale.
+        """
+        deviation = self._params["aiFocusTarget"] - average_files_changed
+        normalized = deviation / self._params["aiFocusScale"]
+        return _sigmoid(normalized)
+
+    def score_firework(self, commits_per_day: float, active_days: float) -> float:
+        """
+        AI suspicion — firework pattern: dense commits in a short span.
+
+        AI can produce 10+ commits within minutes, while humans have
+        natural rhythms (work hours, weekdays). Uses the product of
+        two sigmoids so BOTH conditions must hold:
+
+          1. Daily commit density exceeds threshold
+          2. Active window is short (so new-project bursts aren't penalized)
+
+        Product (not average): if either factor is 0, score is 0.
+        Only "high density + short span" together trigger the pattern.
+
+        Config params: firework_density_threshold, firework_density_slope,
+        firework_active_days, firework_duration_slope.
+        """
+        density_normalized = (
+                                     commits_per_day - self._params["fireworkDensityThreshold"]
+                             ) / self._params["fireworkDensitySlope"]
+        density_activation = _sigmoid(density_normalized)
+
+        duration_normalized = (
+                                      self._params["fireworkActiveDays"] - active_days
+                              ) / self._params["fireworkDurationSlope"]
+        duration_penalty = _sigmoid(duration_normalized)
+
+        return density_activation * duration_penalty
+
+    @staticmethod
+    def score_agent_artifacts(repo: str) -> float:
+        if not repo:
+            return 0.0
+        detected = _detect_agent_artifacts(repo)
+        if not detected:
+            return 0.0
+        return min(len(detected) / 3.0, 1.0)
+
+    def score_ai_claude(self, claude_commit_count: int, total_commits: int) -> float:
+        """
+        AI suspicion — Claude Co-Authored-By commit ratio.
+
+        Uses ratio instead of binary check: one Claude commit doesn't
+        make a project AI-driven. Ratio better reflects real AI dependency.
+
+        Multiplied by ai_claude_factor to amplify sensitivity:
+        factor=2.0 means 50% Claude commits saturates at 1.0,
+        light usage (<10%) has negligible impact.
+
+        Config params: ai_claude_factor.
+        """
+        claude_ratio = claude_commit_count / max(total_commits, 1)
+        return min(claude_ratio * self._params["aiClaudeFactor"], 1.0)
+
+    def score_deletion_health(self, total_additions: int, total_deletions: int) -> float:
+        """
+        Deletion health — how close the delete/add ratio is to ideal.
+
+        Uses Gaussian instead of linear: neither "delete less = better"
+        nor "delete more = better". Ideal ratio ~35% scores highest.
+        Deviation in either direction lowers the score.
+
+        Config params: deletion_ideal_ratio, deletion_sigma,
+        deletion_default_score (fallback when additions = 0).
+        """
+        if total_additions == 0:
+            return self._params.get("deletionDefaultScore", 0.5)
+        deletion_ratio = total_deletions / total_additions
+        return _gaussian(
+            deletion_ratio,
+            self._params["deletionIdealRatio"],
+            self._params["deletionSigma"],
+        )
+
+    def score_scale(self, total_lines: int) -> float:
+        """
+        Project scale maturity — maps line count to score via a smooth log curve.
+
+        Formula:
+          score = min + (max - min) × log(1 + lines / ref) / log(1 + max_ref / ref)
+
+        Why log returns diminish: going from 100 to 1,000 lines matters
+        far more than going from 100,000 to 101,000 lines.
+
+        Why not a step function: steps produce discontinuities.
+        A 9,999-line project and a 10,001-line project should not
+        differ by 0.3 just because of a threshold boundary.
+
+        Config params: scale_ref_lines, scale_max_lines,
+        scale_min_score, scale_max_score.
+        """
+        reference_lines = self._params["scaleRefLines"]
+        maximum_lines = self._params["scaleMaxLines"]
+        minimum_score = self._params["scaleMinScore"]
+        maximum_score = self._params["scaleMaxScore"]
+
+        if total_lines <= 0:
+            return minimum_score
+
+        log_ratio = math.log(1 + total_lines / reference_lines)
+        log_range = math.log(1 + maximum_lines / reference_lines)
+        normalized_position = min(log_ratio / log_range, 1.0)
+
+        return minimum_score + (maximum_score - minimum_score) * normalized_position
+
+    @staticmethod
+    def score_hero(entries: List[Dict], top_n: int) -> float:
+        """
+        Contribution concentration risk — share of commits by top N contributors.
+
+        Doesn't look at absolute team size: a 10-person project where
+        one person writes 90% is high-risk; a 3-person project at
+        33% each is healthy. Higher return value = more distributed = healthier.
+
+        Author names matching bot_patterns (from configs.json) are excluded
+        before computing the concentration ratio.
+
+        Returns: 1.0 - (top N commit total / all commit total).
+        So 1.0 = perfectly distributed, 0.0 = fully concentrated.
+        """
+        author_commit_counts = defaultdict(int)
+        for entry in entries:
+            author_name = entry.get("author_name", "Unknown")
+            if _is_bot_author(author_name, _BOT_PATTERNS):
+                continue
+            author_commit_counts[author_name] += 1
+
+        if not author_commit_counts:
+            return 1.0
+
+        sorted_counts = sorted(author_commit_counts.values(), reverse=True)
+        top_total = sum(sorted_counts[:top_n])
+        grand_total = sum(sorted_counts)
+        concentration_ratio = top_total / max(grand_total, 1)
+        return 1.0 - concentration_ratio
+
+    def compute_tiny_penalty(self, total_commits: int) -> float:
+        """
+        Tiny-project penalty — scores are unreliable with very few commits.
+
+        Uses sigmoid for smooth transition:
+        5 commits → ~0.22 penalty, 10 → ~0.12, 20 → ~0.01.
+        No hard cliff at the threshold.
+
+        Config params: tiny_commit_threshold, tiny_penalty_max, tiny_penalty_slope.
+        """
+        shortfall = self._params["tinyCommitThreshold"] - total_commits
+        activation = _sigmoid(shortfall / self._params["tinyPenaltySlope"])
+        return activation * self._params["tinyPenaltyMax"]
+
+    @staticmethod
+    def compute_confidence(total_commits: int) -> float:
+        """
+        Confidence — more commits = more trust in the score.
+
+        confidence = 1 - 1 / (√n + 1)
+        1 commit  → 0.50
+        9 commits → 0.75
+        99        → 0.91
+
+        Square root makes confidence growth diminish:
+        the first few commits add the most information.
+        Never reaches 1.0 — always preserves some uncertainty.
+        """
+        return 1.0 - 1.0 / (math.sqrt(total_commits) + 1.0)
+
+    def compute_personality(self, total_lines: int, confidence: float) -> float:
+        """
+        Scale-based jitter — small projects get a slight downward nudge,
+        large projects a slight upward nudge.
+
+        Uses project size (log) instead of a random hash for the offset:
+        larger projects statistically have more reliable scores,
+        which is a natural inductive bias.
+
+        Formula:
+          size_factor   = log10(max(lines, 1) + 1) / log10(max_lines + 1)
+          personality   = (size_factor - 0.5) × amplitude × confidence
+
+        A million-line project (size_factor ≈ 1.0) gets +0.5×4%×confidence ≈ +2%.
+        A hundred-line project (size_factor ≈ 0.0) gets -0.5×4%×confidence ≈ -2%.
+
+        Config params: personality_max_lines, personality_amplitude.
+        """
+        max_lines = self._params.get("personalityMaxLines", 1000000)
+        amplitude = self._params.get("personalityAmplitude", 0.04)
+        size_factor = math.log10(max(total_lines, 1) + 1) / math.log10(max_lines + 1)
+        return (size_factor - 0.5) * amplitude * confidence
+
+    @staticmethod
+    def aggregate_suspicion(ai_sub_scores: List[float]) -> float:
+        """Arithmetic mean of the 6 AI suspicion sub-dimensions."""
+        if not ai_sub_scores:
+            return 0.0
+        return sum(ai_sub_scores) / len(ai_sub_scores)
+
+    def compute_raw_score(self, factor_scores: dict) -> float:
+        """
+        Weighted sum of factor scores:
+          raw = Σ(weight_i × score_i)
+
+        Weights come from configs.json under keys matching
+        weight_{factor_name}. The weight dict must sum to 1.0
+        for the composite to stay in the 0-1 range.
+        """
+        raw = 0.0
+        for factor_name, score in factor_scores.items():
+            weight_key = "weight" + factor_name.replace("_", " ").title().replace(" ", "")
+            if weight_key in self._params:
+                raw += self._params[weight_key] * score
+        return raw
+
+    @staticmethod
+    def adjust_composite(
+            raw_score: float, confidence: float,
+            baseline: float, personality: float
+    ) -> float:
+        """
+        Shrink the raw score toward baseline by confidence, add personality jitter, then clamp.
+
+        adjusted   = baseline + (raw - baseline) × confidence
+        composite  = clamp(adjusted + personality)
+
+        Why shrink toward baseline: with few commits the score is unreliable.
+        Shrinking prevents extreme values from misleading interpretations.
+        Baseline 0.5 represents "neutral judgment under complete uncertainty."
+
+        Parameters
+        ----------
+        raw_score : float
+            Weighted sum before adjustment (may include penalty subtraction).
+        confidence : float
+            0 (no confidence) to ~1 (high confidence).
+        baseline : float
+            Anchor value for shrinkage (0.5 by default).
+        personality : float
+            Scale-based jitter term (typically -0.02 to +0.02).
+        """
+        adjusted = baseline + (raw_score - baseline) * confidence
+        composite = adjusted + personality
+        return max(0.0, min(1.0, composite))
+
+    def evaluate(self, entries: List[Dict], project_name: str, now: datetime,
+                 repo: str = None) -> dict:
+        """
+        Run a complete quality evaluation on a project.
+
+        Returns raw metrics, per-dimension scores, composite score,
+        quality band, and metadata. The result dict matches the schema
+        expected by write_report() and the CLI output.
+
+        Parameters
+        ----------
+        entries : List[Dict]
+            Sorted commit list with all required fields.
+        project_name : str
+            Repository name for display and band computation.
+        now : datetime
+            Reference timestamp for recency.
+
+        Returns
+        -------
+        dict
+            Keys: name, total_commits, active_days, days_since_last,
+            first/last_commit, total_additions/deletions/lines,
+            net_change, avg_additions_per_commit, commits_per_day,
+            churn_ratio, scores (dict with all sub-scores + composite),
+            band, band_color, avg_files_changed, claude_commits.
+            Returns {} if entries is empty.
+            Returns archived skeleton if zombie_days exceeded.
+        """
+        if not entries:
+            return {}
+
+        metrics = self.gather_metrics(entries, now)
+
+        # Early exit for zombie projects — skip all scoring
+        if metrics["days_since_last_commit"] > self._params["zombieDays"]:
+            return dict(
+                name=project_name,
+                total_commits=metrics["total_commits"],
+                active_days=round(metrics["active_days"], 1),
+                days_since_last=round(metrics["days_since_last_commit"], 1),
+                band="Archived",
+                band_color="grey58",
+                scores={"composite": 0.0},
+            )
+
+        # Score every AI sub-dimension
+        ai_volume_score = self.score_ai_volume(metrics["average_additions"])
+        ai_initiative_score = self.score_ai_initiative(entries)
+        ai_repetition_score = self.score_ai_repetition(metrics["all_additions"])
+        ai_focus_score = self.score_ai_focus(metrics["average_files_changed"])
+        firework_score = self.score_firework(metrics["commits_per_day"], metrics["active_days"])
+        agent_artifact_score = self.score_agent_artifacts(repo)
+        ai_claude_score = self.score_ai_claude(
+            metrics["claude_commit_count"], metrics["total_commits"]
+        )
+
+        suspicion = self.aggregate_suspicion([
+            ai_volume_score,
+            ai_initiative_score,
+            ai_repetition_score,
+            ai_focus_score,
+            firework_score,
+            agent_artifact_score,
+        ])
+
+        deletion_health_score = self.score_deletion_health(
+            metrics["total_additions"], metrics["total_deletions"]
+        )
+        scale_score = self.score_scale(metrics["total_lines"])
+        hero_score = self.score_hero(entries, _HERO_TOP_N)
+        tiny_penalty = self.compute_tiny_penalty(metrics["total_commits"])
+
+        # Compose the 5 top-level factors
+        factor_scores = dict(
+            recency=self.score_recency(metrics["days_since_last_commit"]),
+            anti_ai=1.0 - suspicion,
+            deletion_health=deletion_health_score,
+            scale=scale_score,
+            hero=hero_score,
+        )
+        raw = self.compute_raw_score(factor_scores) - tiny_penalty
+        confidence = self.compute_confidence(metrics["total_commits"])
+        baseline = self._params.get("baseline", 0.5)
+        personality = self.compute_personality(metrics["total_lines"], confidence)
+        composite = self.adjust_composite(raw, confidence, baseline, personality)
+
+        band_name, band_color = quality_band(composite)
+
+        return dict(
+            name=project_name,
+            total_commits=metrics["total_commits"],
+            active_days=round(metrics["active_days"], 1),
+            days_since_last=round(metrics["days_since_last_commit"], 1),
+            first_commit=metrics["first_commit_date"].isoformat(),
+            last_commit=metrics["last_commit_date"].isoformat(),
+            total_additions=metrics["total_additions"],
+            total_deletions=metrics["total_deletions"],
+            total_lines=metrics["total_lines"],
+            net_change=metrics["total_additions"] - metrics["total_deletions"],
+            avg_additions_per_commit=round(metrics["average_additions"], 1),
+            commits_per_day=round(metrics["commits_per_day"], 2),
+            churn_ratio=round(
+                metrics["total_deletions"] / max(metrics["total_additions"], 1), 3
+            ),
+            scores=dict(
+                recency=round(factor_scores["recency"], 4),
+                ai_volume=round(ai_volume_score, 4),
+                ai_initiative=round(ai_initiative_score, 4),
+                ai_repetition=round(ai_repetition_score, 4),
+                ai_focus=round(ai_focus_score, 4),
+                firework=round(firework_score, 4),
+                agent_artifact=round(agent_artifact_score, 4),
+                ai_claude=round(ai_claude_score, 4),
+                tiny_project=round(tiny_penalty, 4),
+                suspicion=round(suspicion, 4),
+                deletion_health=round(deletion_health_score, 4),
+                scale=round(scale_score, 4),
+                hero=round(hero_score, 4),
+                composite=round(composite, 4),
+            ),
+            band=band_name,
+            band_color=band_color,
+            avg_files_changed=round(metrics["average_files_changed"], 2),
+            claude_commits=metrics["claude_commit_count"],
+        )
+
+    def evaluate_period_batch(
+            self, entries: List[Dict], unit: str, now: datetime,
+            overall_hero_score: float = None, repo: str = None,
+    ) -> List[dict]:
+        """
+        Evaluate quality per time period (month/week/quarter/year).
+
+        Uses the same scoring pipeline as evaluate() so period scores
+        are directly comparable to the overall score — unlike the old
+        model which used a simplified formula for periods.
+
+        Hero score is passed from the overall evaluation (not recomputed
+        per period) because contribution concentration is a project-level
+        attribute, not a period-level one.
+
+        Parameters
+        ----------
+        entries : List[Dict]
+            Sorted commit list (same as evaluate).
+        unit : str
+            Bucket unit: "month", "week", "quarter", or "year".
+        now : datetime
+            Reference timestamp for recency.
+        overall_hero_score : float, optional
+            Hero score from the overall evaluation. If omitted, defaults
+            to 1.0 (perfectly distributed — neutral assumption).
+
+        Returns
+        -------
+        List[dict]
+            Each dict has period, commits, additions, deletions, recency,
+            ai_volume, deletion, composite, band.
+            Returns empty list if entries is empty.
+        """
+        if not entries:
+            return []
+
+        # Bucket entries by time period
+        buckets = defaultdict(list)
+        for entry in entries:
+            commit_date = entry["date"]
+            if unit == "month":
+                period_key = commit_date.strftime("%Y-%m")
+            elif unit == "week":
+                period_key = commit_date.strftime("%Y-W%V")
+            elif unit == "quarter":
+                period_key = f"{commit_date.year}-Q{(commit_date.month - 1) // 3 + 1}"
+            elif unit == "year":
+                period_key = commit_date.strftime("%Y")
+            else:
+                period_key = commit_date.strftime("%Y-%m")
+            buckets[period_key].append(entry)
+
+        periods = []
+        overall_hero = overall_hero_score if overall_hero_score is not None else 1.0
+
+        # Walking index avoids O(n) list.index() per period;
+        # cumulative_lines accumulates incrementally to avoid O(n) rescanning.
+        entry_index = 0
+        cumulative_lines = 0
+
+        for period_name in sorted(buckets):
+            group = buckets[period_name]
+            metrics = self.gather_metrics(group, now)
+
+            ai_volume_score = self.score_ai_volume(metrics["average_additions"])
+            firework_score = self.score_firework(metrics["commits_per_day"], metrics["active_days"])
+
+            # Full suspicion (same as evaluate)
+            ai_initiative_score = self.score_ai_initiative(group)
+            ai_repetition_score = self.score_ai_repetition(metrics["all_additions"])
+            ai_focus_score = self.score_ai_focus(metrics["average_files_changed"])
+            agent_artifact_score = self.score_agent_artifacts(repo)
+
+            suspicion = self.aggregate_suspicion([
+                ai_volume_score,
+                ai_initiative_score,
+                ai_repetition_score,
+                ai_focus_score,
+                firework_score,
+                agent_artifact_score,
+            ])
+
+            deletion_health_score = self.score_deletion_health(
+                metrics["total_additions"], metrics["total_deletions"]
+            )
+
+            # Scale uses cumulative lines to this period's end,
+            # reflecting "what the project looked like at that time"
+            cumulative_lines += metrics["total_additions"] + metrics["total_deletions"]
+            entry_index += len(group)
+            scale_score = self.score_scale(cumulative_lines)
+
+            tiny_penalty = self.compute_tiny_penalty(metrics["total_commits"])
+
+            factor_scores = dict(
+                recency=self.score_recency(metrics["days_since_last_commit"]),
+                anti_ai=1.0 - suspicion,
+                deletion_health=deletion_health_score,
+                scale=scale_score,
+                hero=overall_hero,
+            )
+            raw = self.compute_raw_score(factor_scores) - tiny_penalty
+            confidence = self.compute_confidence(metrics["total_commits"])
+            baseline = self._params.get("baseline", 0.5)
+            personality = self.compute_personality(cumulative_lines, confidence)
+            composite = self.adjust_composite(raw, confidence, baseline, personality)
+
+            band_name, _ = quality_band(composite)
+
+            periods.append(dict(
+                period=period_name,
+                commits=metrics["total_commits"],
+                additions=metrics["total_additions"],
+                deletions=metrics["total_deletions"],
+                recency=round(factor_scores["recency"], 3),
+                ai_volume=round(ai_volume_score, 3),
+                deletion=round(deletion_health_score, 3),
+                composite=round(composite, 3),
+                band=band_name,
+            ))
+
+        return periods
 
 
-def _confidence(total_commits: int) -> float:
-    return 1.0 - 1.0 / (math.sqrt(total_commits) + 1.0)
+# Compatibility wrappers — delegate to QualityModel.
+def compute_quality(entries: List[Dict], params: Dict, now: datetime,
+                    name: str = "", repo: str = None) -> Dict:
+    """Delegate to QualityModel.evaluate()."""
+    model = QualityModel(params)
+    return model.evaluate(entries, name, now, repo=repo)
 
 
-def _project_seed(name: str) -> int:
-    return int(hashlib.sha256(name.encode()).hexdigest()[:8], 16)
-
-
-def _seeded_rand(seed: int) -> float:
-    h = hashlib.sha256(str(seed).encode()).hexdigest()
-    return int(h[:8], 16) / 0xFFFFFFFF
-
-
-def compute_quality(entries: List[Dict], p: Dict, now: datetime, name: str = "") -> Dict:
-    total = len(entries)
-    if total == 0:
-        return {}
-
-    first = entries[0]["date"]
-    last = entries[-1]["date"]
-    active_days = max((last - first).total_seconds() / 86400.0, 0.1)
-    days_since_last = (now - last).total_seconds() / 86400.0
-
-    if days_since_last > p["zombie_days"]:
-        return {
-            "name": name,
-            "total_commits": total,
-            "active_days": round(active_days, 1),
-            "days_since_last": round(days_since_last, 1),
-            "band": "Archived",
-            "band_color": "grey58",
-            "scores": {"composite": 0.0},
-        }
-
-    total_additions = sum(e["additions"] for e in entries)
-    total_deletions = sum(e["deletions"] for e in entries)
-    total_lines = total_additions + total_deletions
-    add_commits = sum(1 for e in entries if e["additions"] > 0)
-    avg_additions = total_additions / max(add_commits, 1)
-    total_deletions / max(add_commits, 1)
-    commits_per_day = total / active_days
-
-    recency = _gaussian(days_since_last, 0.0, p["recency_half_life_days"])
-
-    ai_volume = _sigmoid((avg_additions - p["ai_additions_threshold"]) / p["ai_additions_scale"])
-
-    n_init = min(p["ai_initiative_commits"], total)
-    initial_adds = sum(e["additions"] for e in entries[:n_init])
-    initial_dels = sum(e["deletions"] for e in entries[:n_init])
-    initial_ratio = initial_adds / max(initial_dels, 1)
-    ai_initiative = _sigmoid((initial_ratio - p["ai_initiative_threshold"]) / p["ai_initiative_scale"])
-
-    if total >= 2:
-        additions_list = [e["additions"] for e in entries]
-        cv = statistics.stdev(additions_list) / max(statistics.mean(additions_list), 1)
-    else:
-        cv = 1.0
-    ai_repetition = 1.0 - _sigmoid((cv - p["ai_repetition_cv_threshold"]) / p["ai_repetition_scale"])
-
-    avg_files = statistics.mean([e["files_changed"] for e in entries]) if total > 0 else 0.0
-    ai_focus = _sigmoid((p["ai_focus_target"] - avg_files) / p["ai_focus_scale"])
-
-    firework = _sigmoid((commits_per_day - p["firework_density_threshold"]) / 2.0) * \
-               _sigmoid((p["firework_active_days"] - active_days) / 20.0)
-    deletion_health = _gaussian(total_deletions / max(total_additions, 1),
-                                p["deletion_ideal_ratio"], p["deletion_sigma"]) \
-        if total_additions > 0 else 0.5
-    scale = _scale_score(total_lines, p)
-
-    claude_commits = sum(1 for e in entries if e.get("is_claude"))
-    ai_claude = 1.0 if claude_commits > 0 else 0.0
-    suspicion = (ai_volume + ai_initiative + ai_repetition + ai_focus + firework + ai_claude) / 6.0
-
-    tiny_project = _sigmoid((p["tiny_commit_threshold"] - total) / 2.0) * p["tiny_penalty_max"]
-    raw = (p["weight_recency"] * recency +
-           p["weight_anti_ai"] * (1.0 - suspicion) +
-           p["weight_deletion_health"] * deletion_health +
-           p["weight_scale"] * scale) - tiny_project
-    confidence = _confidence(total)
-    baseline = 0.5
-    adjusted = baseline + (raw - baseline) * confidence
-    seed = _project_seed(name)
-    personality = (_seeded_rand(seed) - 0.5) * 0.02 * confidence
-    composite = max(0.0, min(1.0, adjusted + personality))
-    band, band_color = quality_band(composite)
-
-    return {
-        "name": name,
-        "total_commits": total,
-        "active_days": round(active_days, 1),
-        "days_since_last": round(days_since_last, 1),
-        "first_commit": first.isoformat(),
-        "last_commit": last.isoformat(),
-        "total_additions": total_additions,
-        "total_deletions": total_deletions,
-        "total_lines": total_lines,
-        "net_change": total_additions - total_deletions,
-        "avg_additions_per_commit": round(avg_additions, 1),
-        "commits_per_day": round(commits_per_day, 2),
-        "churn_ratio": round(total_deletions / max(total_additions, 1), 3),
-        "scores": {
-            "recency": round(recency, 4),
-            "ai_volume": round(ai_volume, 4),
-            "ai_initiative": round(ai_initiative, 4),
-            "ai_repetition": round(ai_repetition, 4),
-            "ai_focus": round(ai_focus, 4),
-            "firework": round(firework, 4),
-            "ai_claude": round(ai_claude, 4),
-            "tiny_project": round(tiny_project, 4),
-            "suspicion": round(suspicion, 4),
-            "deletion_health": round(deletion_health, 4),
-            "scale": round(scale, 4),
-            "composite": round(composite, 4),
-        },
-        "band": band,
-        "band_color": band_color,
-        "avg_files_changed": round(avg_files, 2),
-        "claude_commits": claude_commits,
-    }
-
-
-def compute_quality_periods(entries: List[Dict], unit: str, now: datetime, p: Dict) -> List[Dict]:
-    buckets = defaultdict(list)
-    for e in entries:
-        commit_date = e["date"]
-        if unit == "month":
-            key = commit_date.strftime("%Y-%m")
-        elif unit == "week":
-            key = commit_date.strftime("%Y-W%V")
-        elif unit == "quarter":
-            key = f"{commit_date.year}-Q{(commit_date.month - 1) // 3 + 1}"
-        elif unit == "year":
-            key = commit_date.strftime("%Y")
-        else:
-            key = commit_date.strftime("%Y-%m")
-        buckets[key].append(e)
-
-    periods = []
-    for label in sorted(buckets):
-        group = buckets[label]
-        additions = sum(e["additions"] for e in group)
-        deletions = sum(e["deletions"] for e in group)
-        count = len(group)
-        span_days = max((group[-1]["date"] - group[0]["date"]).total_seconds() / 86400.0, 0.1)
-        avg_additions = additions / max(sum(1 for e in group if e["additions"] > 0), 1)
-        commits_per_day = count / span_days
-        recency = _gaussian((now - group[-1]["date"]).total_seconds() / 86400.0, 0.0, p["recency_half_life_days"])
-        ai_volume = _sigmoid((avg_additions - p["ai_additions_threshold"]) / p["ai_additions_scale"])
-        firework = _sigmoid((commits_per_day - p["firework_density_threshold"]) / 2.0) * \
-                   _sigmoid((p["firework_active_days"] - span_days) / 20.0)
-        deletion_health = _gaussian(deletions / max(additions, 1), p["deletion_ideal_ratio"], p["deletion_sigma"]) \
-            if additions > 0 else 0.5
-        cum_lines = sum(e["additions"] + e["deletions"] for e in entries[:entries.index(group[-1]) + 1])
-        scale = _scale_score(cum_lines, p)
-        suspicion = max(ai_volume, firework)
-        raw = (p["weight_recency"] * recency +
-               p["weight_anti_ai"] * (1.0 - suspicion) +
-               p["weight_deletion_health"] * deletion_health +
-               p["weight_scale"] * scale)
-        confidence = _confidence(count)
-        baseline = 0.5
-        adjusted = baseline + (raw - baseline) * confidence
-        composite = max(0.0, min(1.0, adjusted))
-        band, _ = quality_band(composite)
-        periods.append({
-            "period": label, "commits": count, "additions": additions, "deletions": deletions,
-            "recency": round(recency, 3), "ai_volume": round(ai_volume, 3),
-            "deletion": round(deletion_health, 3), "composite": round(composite, 3), "band": band,
-        })
-    return periods
+def compute_quality_periods(entries: List[Dict], unit: str, now: datetime,
+                            params: Dict, overall_hero_score: float = None,
+                            repo: str = None) -> List[Dict]:
+    """Delegate to QualityModel.evaluate_period_batch()."""
+    model = QualityModel(params)
+    return model.evaluate_period_batch(entries, unit, now, overall_hero_score, repo=repo)
 
 
 # The 4-factor quality model scores repo health 0-1 across four independent
@@ -482,31 +995,160 @@ def compute_quality_periods(entries: List[Dict], unit: str, now: datetime, p: Di
 # (anti-AI), copy-paste without cleanup (deletion health), or trivial scale
 # (maturity). The batch variant shows how these factors trend over time.
 def _load_config() -> dict:
-    config_path = os.path.join(os.path.dirname(__file__), "configs.json")
+    config_path = os.path.join(os.path.dirname(__file__), "configs.jsonc")
     try:
         with open(config_path) as f:
-            return json.load(f)
+            text = f.read()
+        text = re.sub(r'//.*', '', text)
+        text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+        return json.loads(text)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 _CONFIG = _load_config()
-all_exts = set(_CONFIG.get("code_extensions", []))
-non_prog = set(_CONFIG.get("non_programming_languages", []))
-_non_prog_exts = set()
-for ext, lang in _CONFIG.get("language_mapping", {}).items():
-    if lang in non_prog:
-        _non_prog_exts.add(ext)
+all_exts = set(_CONFIG.get("codeExtensions", []))
+_non_prog_exts = set(_CONFIG.get("nonProgrammingExtensions", []))
 _CORE_EXTS = all_exts - _non_prog_exts
-_SOURCE_DIRS = set(_CONFIG.get("source_dirs", []))
-_SKIP_DIRS = set(_CONFIG.get("skip_dirs", []))
-_QUALITY_PARAMS = _CONFIG.get("quality_params", {})
-_SUSPICION_THRESHOLDS = _CONFIG.get("suspicion_thresholds", {})
-_SUSPICION_LABELS = _CONFIG.get("suspicion_labels", {})
-_QUALITY_BANDS = _CONFIG.get("quality_bands", [])
-_HERO_TOP_N = _CONFIG.get("hero_top_n", 5)
-_HERO_THRESHOLD = _CONFIG.get("hero_threshold", 0.8)
-_PARETO_MAX_BARS = _CONFIG.get("pareto_max_bars", 50)
+_EXCLUDED_DIRS = set(_CONFIG.get("excludedDirectories", []))
+_QUALITY_PARAMS = _CONFIG.get("qualityParams", {})
+_SUSPICION_LABELS = _CONFIG.get("suspicionLabels", {})
+_QUALITY_BANDS = _CONFIG.get("qualityBands", [])
+_PRIMARY_COLOR = "#4a9eff"
+_PARETO_LINE_COLOR = "#1a5276"
+
+_SETTINGS = _CONFIG.get("settings", {})
+_AUDIT_PARAMS = _CONFIG.get("audit", {})
+_HERO_TOP_N = _AUDIT_PARAMS.get("heroTopContributorCount", 5)
+_HERO_THRESHOLD = _AUDIT_PARAMS.get("heroRiskThreshold", 0.8)
+_PARETO_MAX_BARS = _AUDIT_PARAMS.get("paretoMaxBarCount", 50)
+_BOT_PATTERNS = _AUDIT_PARAMS.get("botAuthorPatterns", ["bot", "agent"])
+
+_AUDIT_PARAM_KEYS = {
+    "del_net": ("netDeletionThreshold", -200),
+    "del_ratio": ("deletionRatioBoundary", 0.05),
+    "both_large": ("refactoringBothLargeThreshold", 500),
+    "cluster_gap": ("clusterPositionGap", 3),
+    "cluster_min": ("clusterMinimumSize", 3),
+    "mature_commits": ("matureProjectCommitCount", 50),
+    "recent_days": ("recentActivityWindowDays", 90),
+}
+_SUSPICION_THRESHOLDS = {}
+for internal, (config_key, default) in _AUDIT_PARAM_KEYS.items():
+    _SUSPICION_THRESHOLDS[internal] = _AUDIT_PARAMS.get(config_key, default)
+
+_AUDIT_CODES = {
+    # Critical (S1000-S1999)
+    "S1001": ("High-Risk Refactoring", "critical",
+              "+{add} / -{dels} refactoring (threshold {threshold})"),
+    "S1002": ("Net Reduction", "critical",
+              "codebase shrunk: {dels} del / {add} add ({ratio:.0f}%)"),
+    "S1003": ("Single-Author Project", "critical",
+              "single point of failure: only \"{author}\" across {total} commits"),
+    "S1004": ("Mass Rewrite", "critical",
+              "mass rewrite: {lines} lines ({pct:.0f}% of total)"),
+    "S1005": ("Zero Activity", "critical",
+              "no commits"),
+    # Alert (S2000-S2999)
+    "S2001": ("Deletion Cluster", "alert",
+              "deletion cluster: {count} commits, {lines} lines (pos {start_idx}–{end_idx})"),
+    "S2002": ("Mature Churn", "alert",
+              "mature churn: {total} commits, {count} heavy deletions in {days}d"),
+    "S2003": ("Core Net Deletion", "alert",
+              "deleted {lines} lines of source code"),
+    "S2004": ("Accumulation-Only", "alert",
+              "deletion ratio {ratio:.1f}% ({total} commits)"),
+    "S2005": ("AI Volume Spike", "alert",
+              "avg {avg:.0f} lines/commit exceeds {threshold}"),
+    "S2006": ("AI Bootstrap", "alert",
+              "first {n} commits: {ratio:.1f}x add/del ratio"),
+    "S2007": ("AI Uniformity", "alert",
+              "CV={cv:.3f} below {threshold:.2f}"),
+    "S2008": ("AI Focus Deviation", "alert",
+              "avg {avg:.1f} files/commit deviates from {target}"),
+    "S2009": ("Firework Burst", "alert",
+              "{density:.1f} commits/day over {days:.0f}d"),
+    "S2010": ("Claude Flood", "alert",
+              "{pct:.0f}% Claude ({count}/{total})"),
+    "S2011": ("Hero Dependency", "alert",
+              "top {n} own {pct:.0f}% of {total} commits"),
+    "S2012": ("Abandoned", "alert",
+              "last commit {days:.0f}d ago (HL {half}d)"),
+    # Watch (S3000-S3999)
+    "S3001": ("Non-Core Deletion", "watch",
+              "deleted {lines} lines; {core}/{files} files are source code"),
+    "S3002": ("Heavy Churn", "watch",
+              "churn {ratio:.0f}% ({dels} del / {add} add)"),
+    "S3003": ("Bot-like Author", "watch",
+              "\"{author}\" matches bot pattern \"{pattern}\""),
+    "S3004": ("Weekend Warrior", "watch",
+              "{pct:.0f}% weekend commits ({count}/{total})"),
+    "S3005": ("Day Burst", "watch",
+              "{count} commits on {date}"),
+    "S3006": ("No Merges", "watch",
+              "0 merges in {total} commits"),
+    "S3007": ("Tiny Commits", "watch",
+              "{count} commits <{limit} lines ({pct:.0f}%)"),
+    "S3008": ("Vague Messages", "watch",
+              "{count} generic subjects ({pct:.0f}%)"),
+    # Normal (S4000-S4999)
+    "S4001": ("Low Cleanup", "normal",
+              "deletion ratio {ratio:.1f}%"),
+    "S4002": ("Small Project", "normal",
+              "{lines} lines, {files} files"),
+    "S4003": ("Compact History", "normal",
+              "{days}d active"),
+    # Clean (S5000-S5999)
+    "S5001": ("Balanced Churn", "clean",
+              "deletion ratio {ratio:.1f}%"),
+    "S5002": ("Multiple Contributors", "clean",
+              "{count} distinct authors"),
+    "S2013": ("AI Agent Artifacts", "alert",
+              "traces: {files} ({count} tool{plural})"),
+    "S5003": ("Gradual Growth", "clean",
+              "{lines} lines over {days}d"),
+}
+
+# Pre-built lookup: code → (type, level)
+_AUDIT_CODE_META = {key: (value[0], value[1]) for key, value in _AUDIT_CODES.items()}
+
+# Agent artifact file/directory patterns for AI tool detection (S2013)
+_AGENT_ARTIFACT_PATTERNS = {
+    "Claude Code": ["CLAUDE.md", ".mcp.json", ".claude/*"],
+    "Cursor": [".cursor/*", ".cursorrules", ".cursorignore"],
+    "GitHub Copilot": [".github/copilot-instructions.md", ".github/instructions/*"],
+    "Windsurf": [".windsurfrules", ".windsurf/*", ".codeiumignore"],
+    "Cline": [".clinerules", ".cline/*", ".clineignore"],
+    "Aider": [".aider.conf.yml", ".aiderignore"],
+    "Gemini CLI": ["GEMINI.md", ".gemini/*"],
+    "OpenCode": ["opencode.json", "opencode.jsonc", ".opencode/*"],
+    "Codex CLI": ["AGENTS.md"],
+    "Amazon Q": [".amazonq/*"],
+}
+
+
+def _detect_agent_artifacts(repo: str) -> Dict[str, List[str]]:
+    detected = {}
+    for agent_name, patterns in _AGENT_ARTIFACT_PATTERNS.items():
+        for pattern in patterns:
+            out = _git(repo, f'git ls-files "{pattern}"')
+            if out:
+                files = [f for f in out.strip().split("\n") if f]
+                if files:
+                    detected.setdefault(agent_name, []).extend(files)
+    return detected
+
+
+def _audit_msg(code: str, **kwargs) -> str:
+    """Format the audit message for a given code with keyword args."""
+    template = _AUDIT_CODES[code][2]
+    return template.format(**kwargs)
+
+
+def _is_bot_author(name: str, patterns: List[str] = None) -> bool:
+    if patterns is None:
+        patterns = _BOT_PATTERNS
+    return any(pattern.lower() in name.lower() for pattern in patterns)
 
 
 def _changed_files(repo: str, hash_: str) -> List[str]:
@@ -518,33 +1160,34 @@ def _is_core_commit(repo: str, hash_: str) -> Tuple[bool, int, int]:
     files = _changed_files(repo, hash_)
     if not files:
         return False, 0, 0
-    core_count = 0
-    for f in files:
-        ext = os.path.splitext(f)[1]
-        if ext in _CORE_EXTS:
-            parts = f.replace("\\", "/").split("/")
-            in_source_dir = any(d in parts for d in _SOURCE_DIRS)
-            if in_source_dir:
-                core_count += 1
+    core_count = sum(1 for f in files if os.path.splitext(f)[1] in _CORE_EXTS)
     return core_count > 0, core_count, len(files)
 
 
-def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optional[Dict] = None) -> Dict:
+def audit_deletions(repo: str, entries: List[Dict], now: datetime,
+                    scores: Dict = None, params: Optional[Dict] = None) -> Dict:
     thresholds = {**_SUSPICION_THRESHOLDS, **(params or {})}
     total = len(entries)
     if total == 0:
         return {}
 
+    ap = _AUDIT_PARAMS
+
     enriched = []
-    for i, entry in enumerate(entries):
+    for index, entry in enumerate(entries):
         net = entry["additions"] - entry["deletions"]
         enriched.append({
-            "index": i,
+            "index": index,
             "hash": entry["hash"],
             "date": entry["date"],
             "additions": entry["additions"],
             "deletions": entry["deletions"],
             "net": net,
+            "author": entry.get("author_name", entry.get("author", "Unknown")),
+            "email": entry.get("author_email", ""),
+            "subject": entry.get("subject", ""),
+            "files_changed": entry.get("files_changed", 0),
+            "is_claude": entry.get("is_claude", False),
             "is_recent": (now - entry["date"]).total_seconds() / 86400.0 < thresholds["recent_days"],
         })
 
@@ -573,83 +1216,389 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optio
 
         if not is_core:
             suspicion.append({
-                "hash": commit["hash"],
-                "index": commit["index"],
-                "net": commit["net"],
-                "type": "Non-Core Deletion",
-                "level": "watch",
-                "note": f"Deleted {-commit['net']} lines in {total_files} files, only {core_count} are source — downgraded alert",
+                "code": "S3001", "hash": commit["hash"], "index": commit["index"],
+                "date": str(commit["date"].date()),
+                "time_since": int((now - commit["date"]).total_seconds() / 86400),
+                "type": "Non-Core Deletion", "level": "watch",
+                "note": _audit_msg("S3001",
+                                   lines=-commit["net"], files=total_files, core=core_count),
             })
-
         elif both_large:
             suspicion.append({
-                "hash": commit["hash"],
-                "index": commit["index"],
-                "net": commit["net"],
-                "type": "High-Risk Refactoring",
-                "level": "critical",
-                "note": f"+{commit['additions']} / -{commit['deletions']}, both exceed {thresholds['both_large']} — potential regression window",
+                "code": "S1001", "hash": commit["hash"], "index": commit["index"],
+                "date": str(commit["date"].date()),
+                "time_since": int((now - commit["date"]).total_seconds() / 86400),
+                "type": "High-Risk Refactoring", "level": "critical",
+                "note": _audit_msg("S1001",
+                                   add=commit["additions"], dels=commit["deletions"],
+                                   threshold=thresholds["both_large"]),
             })
         else:
             suspicion.append({
-                "hash": commit["hash"],
-                "index": commit["index"],
-                "net": commit["net"],
-                "type": "Core Net Deletion",
-                "level": "alert",
-                "note": f"Core code net deletion of {-commit['net']} lines",
+                "code": "S2003", "hash": commit["hash"], "index": commit["index"],
+                "date": str(commit["date"].date()),
+                "time_since": int((now - commit["date"]).total_seconds() / 86400),
+                "type": "Core Net Deletion", "level": "alert",
+                "note": _audit_msg("S2003", lines=-commit["net"]),
             })
 
-    for i, cluster in enumerate(clusters):
+    for index, cluster in enumerate(clusters):
         cluster_commits = [entry for entry in enriched if entry["index"] in cluster]
         total_del = sum(-entry["net"] for entry in cluster_commits if entry["net"] < 0)
         suspicion.append({
-            "hash": f"Cluster #{i + 1}",
-            "index": cluster[0],
-            "net": -total_del,
-            "type": "Deletion Cluster",
-            "level": "alert",
-            "note": f"{len(cluster)} adjacent commits deleting {total_del} net lines (positions {cluster[0]}-{cluster[-1]}) — possible repeated churn",
+            "code": "S2001", "hash": f"Cluster #{index + 1}", "index": cluster[0],
+            "date": str(cluster_commits[0]["date"].date()) if cluster_commits else "",
+            "time_since": "-",
+            "type": "Deletion Cluster", "level": "alert",
+            "note": _audit_msg("S2001",
+                               count=len(cluster), lines=total_del,
+                               start_idx=cluster[0], end_idx=cluster[-1]),
         })
 
     if total >= thresholds["mature_commits"]:
         recent_heavy = [commit for commit in heavy if commit["is_recent"]]
         if len(recent_heavy) >= thresholds["cluster_min"]:
+            sum(-entry["net"] for entry in recent_heavy)
             suspicion.append({
-                "hash": "Recent Spike",
-                "index": recent_heavy[-1]["index"],
-                "net": sum(-entry["net"] for entry in recent_heavy),
-                "type": "Mature Project Churn",
-                "level": "alert",
-                "note": f"Mature project ({total} commits) with {len(recent_heavy)} heavy net-deletions recently — feature instability?",
+                "code": "S2002", "hash": "Recent Spike", "index": recent_heavy[-1]["index"],
+                "date": str(recent_heavy[-1]["date"].date()), "time_since": "-",
+                "type": "Mature Project Churn", "level": "alert",
+                "note": _audit_msg("S2002", total=total, count=len(recent_heavy),
+                                   days=thresholds["recent_days"]),
             })
 
     total_additions = sum(entry["additions"] for entry in entries)
     total_deletions = sum(entry["deletions"] for entry in entries)
+    total_lines_all = total_additions + total_deletions
 
+    # S1002 / S2004 / S3002 / S4001 / S5001: churn ratios
     if total_additions == 0 and total_deletions == 0:
         ratio_label = "No Changes"
         ratio_level = "normal"
     elif total_deletions == 0:
         ratio_label = "Accumulation-Only"
         ratio_level = "alert"
+        suspicion.append({
+            "code": "S2004", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Accumulation-Only", "level": "alert",
+            "note": _audit_msg("S2004", ratio=0.0, total=total),
+        })
     else:
         ratio = total_deletions / total_additions
         if ratio < 0.05:
             ratio_label = "Accumulation-Only"
             ratio_level = "alert"
+            suspicion.append({
+                "code": "S2004", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Accumulation-Only", "level": "alert",
+                "note": _audit_msg("S2004", ratio=ratio * 100, total=total),
+            })
         elif ratio < 0.25:
             ratio_label = "Low Cleanup"
             ratio_level = "normal"
+            suspicion.append({
+                "code": "S4001", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Low Cleanup", "level": "normal",
+                "note": _audit_msg("S4001", ratio=ratio * 100),
+            })
         elif ratio < 0.50:
             ratio_label = "Balanced Churn"
             ratio_level = "clean"
+            suspicion.append({
+                "code": "S5001", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Balanced Churn", "level": "clean",
+                "note": _audit_msg("S5001", ratio=ratio * 100),
+            })
         elif ratio < 1.0:
             ratio_label = "Heavy Churn"
             ratio_level = "watch"
+            suspicion.append({
+                "code": "S3002", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Heavy Churn", "level": "watch",
+                "note": _audit_msg("S3002", ratio=ratio * 100,
+                                   dels=total_deletions, add=total_additions),
+            })
         else:
             ratio_label = "Net Reduction"
             ratio_level = "critical"
+            suspicion.append({
+                "code": "S1002", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Net Reduction", "level": "critical",
+                "note": _audit_msg("S1002", dels=total_deletions, add=total_additions,
+                                   ratio=total_deletions / max(total_additions, 1) * 100),
+            })
+
+    # S1003: Single-Author Project
+    authors = set(e["author"] for e in enriched)
+    non_bot_authors = [a for a in authors if not _is_bot_author(a)]
+    if len(non_bot_authors) <= 1 and total >= 10:
+        author_name = non_bot_authors[0] if non_bot_authors else "unknown"
+        suspicion.append({
+            "code": "S1003", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Single-Author Project", "level": "critical",
+            "note": _audit_msg("S1003", author=author_name, total=total),
+        })
+
+    # S1004: Mass Rewrite
+    max_single = max(enriched, key=lambda e: e["additions"] + e["deletions"])
+    single_total = max_single["additions"] + max_single["deletions"]
+    pct_of_total = single_total / max(total_lines_all, 1) * 100
+    if pct_of_total > 50 and total_lines_all > 1000:
+        suspicion.append({
+            "code": "S1004", "hash": max_single["hash"], "index": max_single["index"],
+            "date": str(max_single["date"].date()),
+            "time_since": int((now - max_single["date"]).total_seconds() / 86400),
+            "type": "Mass Rewrite", "level": "critical",
+            "note": _audit_msg("S1004", lines=single_total, pct=pct_of_total),
+        })
+
+    if scores:
+        # S2005: AI Volume
+        if scores.get("ai_volume", 0) > 0.5:
+            avg_add = total_additions / max(total, 1)
+            suspicion.append({
+                "code": "S2005", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "AI Volume Spike", "level": "alert",
+                "note": _audit_msg("S2005", avg=avg_add,
+                                   threshold=ap.get("aiAdditionsPerCommitThreshold", 500)),
+            })
+        # S2006: AI Initiative
+        if scores.get("ai_initiative", 0) > 0.5:
+            n = ap.get("aiInitiativeEarlyCommitCount", 3)
+            early = [e for e in enriched[:n] if e["deletions"] > 0]
+            early_ratio = (sum(e["additions"] for e in early) /
+                           max(sum(e["deletions"] for e in early), 1)) if early else 0
+            suspicion.append({
+                "code": "S2006", "hash": enriched[0]["hash"] if enriched else "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "AI Bootstrap", "level": "alert",
+                "note": _audit_msg("S2006", n=n, ratio=early_ratio),
+            })
+        # S2007: AI Repetition
+        if scores.get("ai_repetition", 0) > 0.5:
+            all_adds = [e["additions"] for e in enriched]
+            cv = (statistics.stdev(all_adds) / statistics.mean(all_adds)) if len(all_adds) > 1 and statistics.mean(
+                all_adds) > 0 else 0
+            suspicion.append({
+                "code": "S2007", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "AI Uniformity", "level": "alert",
+                "note": _audit_msg("S2007", cv=cv,
+                                   threshold=ap.get("aiRepetitionCvThreshold", 0.5)),
+            })
+        # S2008: AI Focus
+        if scores.get("ai_focus", 0) > 0.5:
+            avg_files = sum(e["files_changed"] for e in enriched) / max(total, 1)
+            suspicion.append({
+                "code": "S2008", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "AI Focus Deviation", "level": "alert",
+                "note": _audit_msg("S2008", avg=avg_files, n=total,
+                                   target=ap.get("aiFocusTargetFiles", 3.0)),
+            })
+        # S2009: Firework Burst
+        if scores.get("firework", 0) > 0.5:
+            days_active = max((enriched[-1]["date"] - enriched[0]["date"]).total_seconds() / 86400,
+                              0.1) if enriched else 1
+            density = total / days_active
+            suspicion.append({
+                "code": "S2009", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Firework Burst", "level": "alert",
+                "note": _audit_msg("S2009", density=density, days=days_active),
+            })
+        # S2010: Claude Flood
+        if scores.get("ai_claude", 0) > 0.25:
+            claude_count = sum(1 for e in enriched if e.get("is_claude", False))
+            suspicion.append({
+                "code": "S2010", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Claude Flood", "level": "alert",
+                "note": _audit_msg("S2010", pct=claude_count / max(total, 1) * 100,
+                                   count=claude_count, total=total),
+            })
+        # S2011: Hero Dependency
+        if scores.get("hero", 1.0) < 0.5:
+            hero_n = _HERO_TOP_N
+            author_counts = defaultdict(int)
+            for e in enriched:
+                a = e["author"]
+                if not _is_bot_author(a):
+                    author_counts[a] += 1
+            sorted_counts = sorted(author_counts.values(), reverse=True)
+            top_total = sum(sorted_counts[:hero_n])
+            hero_pct = top_total / max(sum(sorted_counts), 1) * 100
+            suspicion.append({
+                "code": "S2011", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Hero Dependency", "level": "alert",
+                "note": _audit_msg("S2011", n=hero_n, pct=hero_pct, total=total),
+            })
+        # S2012: Abandoned
+        days_since = (now - enriched[-1]["date"]).total_seconds() / 86400 if enriched else 9999
+        half_life = ap.get("recencyHalfLifeDays", 90)
+        if days_since > half_life:
+            suspicion.append({
+                "code": "S2012", "hash": enriched[-1]["hash"] if enriched else "-", "index": -1,
+                "date": str(enriched[-1]["date"].date()) if enriched else str(now.date()),
+                "time_since": int(days_since),
+                "type": "Abandoned", "level": "alert",
+                "note": _audit_msg("S2012", days=days_since, half=half_life),
+            })
+
+    # S3003: Bot-like Author
+    for e in enriched:
+        if _is_bot_author(e["author"]):
+            matched_pattern = next((p for p in _BOT_PATTERNS if p.lower() in e["author"].lower()), _BOT_PATTERNS[0])
+            suspicion.append({
+                "code": "S3003", "hash": e["hash"], "index": e["index"],
+                "date": str(e["date"].date()),
+                "time_since": int((now - e["date"]).total_seconds() / 86400),
+                "type": "Bot-like Author", "level": "watch",
+                "note": _audit_msg("S3003", author=e["author"],
+                                   pattern=matched_pattern),
+            })
+            break
+
+    # S3004: Weekend Warrior
+    weekend_count = sum(1 for e in enriched if e["date"].weekday() >= 5)
+    weekend_pct = weekend_count / max(total, 1) * 100
+    if weekend_pct > 50 and total >= 10:
+        suspicion.append({
+            "code": "S3004", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Weekend Warrior", "level": "watch",
+            "note": _audit_msg("S3004", pct=weekend_pct, count=weekend_count, total=total),
+        })
+
+    # S3005: Day Burst
+    day_counts = defaultdict(int)
+    for e in enriched:
+        day_counts[e["date"].date()] += 1
+    max_day = max(day_counts, key=day_counts.get)
+    max_day_count = day_counts[max_day]
+    if max_day_count > 10:
+        suspicion.append({
+            "code": "S3005",
+            "hash": enriched[next(index for index, entry in enumerate(enriched) if entry["date"].date() == max_day)][
+                "hash"],
+            "index": -1, "date": str(max_day), "time_since": "-",
+            "type": "Day Burst", "level": "watch",
+            "note": _audit_msg("S3005", date=str(max_day), count=max_day_count),
+        })
+
+    # S3006: No Merges
+    merge_count = sum(1 for e in enriched if "merge" in e["subject"].lower())
+    if merge_count == 0 and total >= 20:
+        suspicion.append({
+            "code": "S3006", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "No Merges", "level": "watch",
+            "note": _audit_msg("S3006", total=total),
+        })
+
+    # S3007: Tiny Commits
+    tiny_threshold = ap.get("tinyCommitLineThreshold", 10)
+    tiny_count = sum(1 for e in enriched if e["additions"] + e["deletions"] < tiny_threshold)
+    tiny_pct = tiny_count / max(total, 1) * 100
+    if tiny_pct > 30 and total >= 10:
+        suspicion.append({
+            "code": "S3007", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Tiny Commits", "level": "watch",
+            "note": _audit_msg("S3007", count=tiny_count, pct=tiny_pct, limit=tiny_threshold),
+        })
+
+    # S3008: Vague Messages (≤5 chars + regex)
+    _VAGUE_PATTERN = re.compile(
+        r'^[\s.]*$'                           # blank or dots
+        r'|^\d+$'                             # just numbers
+        r'|^[a-z]{1}$'                        # single letter
+        r'|^(update|fix|bugfix|minor|tweak|cleanup|wip|temp|test|asdf|qwerty|xxx|foo|bar)$'
+    )
+    vague_count = 0
+    for e in enriched:
+        subject = e["subject"].strip().lower()
+        if "initial commit" in subject:
+            continue
+        if len(subject) <= 5 and _VAGUE_PATTERN.match(subject):
+            vague_count += 1
+    vague_pct = vague_count / max(total, 1) * 100
+    if vague_pct > 30 and total >= 10:
+        suspicion.append({
+            "code": "S3008", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Vague Messages", "level": "watch",
+            "note": _audit_msg("S3008", count=vague_count, pct=vague_pct),
+        })
+
+    # S4002: Small Project
+    if total_lines_all < 1000 and total >= 5:
+        suspicion.append({
+            "code": "S4002", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Small Project", "level": "normal",
+            "note": _audit_msg("S4002", lines=total_lines_all, files=len(set(
+                f for e in enriched for f in _changed_files(repo, e["hash"])))),
+        })
+
+    # S4003: Compact History
+    if enriched:
+        active_span = (enriched[-1]["date"] - enriched[0]["date"]).total_seconds() / 86400
+        if active_span < 30 and total >= 5:
+            suspicion.append({
+                "code": "S4003", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Compact History", "level": "normal",
+                "note": _audit_msg("S4003", days=round(active_span)),
+            })
+
+    # S2013: AI Agent Artifacts
+    agent_traces = _detect_agent_artifacts(repo)
+    if agent_traces:
+        file_list = []
+        for agent_name, files in sorted(agent_traces.items()):
+            file_list.extend(files[:2])
+        display = ", ".join(file_list[:5])
+        suspicion.append({
+            "code": "S2013", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "AI Agent Artifacts", "level": "alert",
+            "note": _audit_msg("S2013", files=display,
+                               count=len(agent_traces),
+                               plural="s" if len(agent_traces) > 1 else ""),
+        })
+
+    # S5002: Multiple Contributors
+    if len(non_bot_authors) > 3:
+        author_list = ", ".join(non_bot_authors[:5])
+        if len(non_bot_authors) > 5:
+            author_list += f" and {len(non_bot_authors) - 5} more"
+        suspicion.append({
+            "code": "S5002", "hash": "-", "index": -1,
+            "date": str(now.date()), "time_since": "-",
+            "type": "Multiple Contributors", "level": "clean",
+            "note": _audit_msg("S5002", count=len(non_bot_authors), names=author_list),
+        })
+
+    # S5003: Gradual Growth
+    if enriched:
+        active_span = (enriched[-1]["date"] - enriched[0]["date"]).total_seconds() / 86400
+        if active_span > 90 and total_lines_all > 5000 and total_deletions / max(total_additions, 1) < 0.5:
+            suspicion.append({
+                "code": "S5003", "hash": "-", "index": -1,
+                "date": str(now.date()), "time_since": "-",
+                "type": "Gradual Growth", "level": "clean",
+                "note": _audit_msg("S5003", lines=total_lines_all, days=round(active_span)),
+            })
 
     highest_level = "clean"
     for suspect in suspicion:
@@ -660,6 +1609,8 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optio
             highest_level = "alert"
         elif level == "watch" and highest_level not in ("critical", "alert"):
             highest_level = "watch"
+        elif level == "normal" and highest_level not in ("critical", "alert", "watch"):
+            highest_level = "normal"
 
     return {
         "total_commits": total,
@@ -672,7 +1623,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime, params: Optio
         "heavy_list": [commit["hash"] for commit in heavy[:10]],
         "clusters": len(clusters),
         "suspicion_count": len(suspicion),
-        "suspicion": suspicion[:10],
+        "suspicion": suspicion,
         "overall_level": highest_level,
     }
 
@@ -731,7 +1682,7 @@ def _file_breakdown(root: str) -> Optional[Dict]:
     if not exts:
         return None
 
-    sorted_exts = sorted(exts.items(), key=lambda x: -x[1]["total"])
+    sorted_exts = sorted(exts.items(), key=lambda item: -item[1]["total"])
     total_files = sum(e["files"] for _, e in sorted_exts)
     total_lines = sum(e["total"] for _, e in sorted_exts)
     total_non_blank = sum(e["non_blank"] for _, e in sorted_exts)
@@ -746,7 +1697,7 @@ def _file_breakdown(root: str) -> Optional[Dict]:
     }
 
 
-def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, color: str = "#4a9eff"):
+def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, color: str = _PRIMARY_COLOR):
     daily = defaultdict(lambda: {"net": 0})
     for e in entries:
         day = e["date"].date()
@@ -755,9 +1706,9 @@ def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, colo
     sorted_days = sorted(daily)
     cum = 0
     days_list, cum_list = [], []
-    for d in sorted_days:
-        cum += daily[d]["net"]
-        days_list.append(d)
+    for day in sorted_days:
+        cum += daily[day]["net"]
+        days_list.append(day)
         cum_list.append(cum * scale)
 
     if len(days_list) < 2:
@@ -767,17 +1718,17 @@ def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, colo
         plt.close(fig)
         return
 
-    x = mdates.date2num(days_list)
-    y = np.array(cum_list, dtype=float)
-    n = len(x)
-    w = max(3, n // 20)
-    if w % 2 == 0:
-        w += 1
+    day_series = mdates.date2num(days_list)
+    values_array = npy.array(cum_list, dtype=float)
+    data_length = len(day_series)
+    window_size = max(3, data_length // 20)
+    if window_size % 2 == 0:
+        window_size += 1
 
-    pad = w // 2
-    y_pad = np.pad(y, pad, mode="edge")
-    kernel = np.ones(w) / w
-    smooth = np.convolve(y_pad, kernel, mode="same")[pad:-pad or None]
+    pad = window_size // 2
+    y_pad = npy.pad(values_array, pad, mode="edge")
+    kernel = npy.ones(window_size) / window_size
+    smooth = npy.convolve(y_pad, kernel, mode="same")[pad:-pad or None]
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.fill_between(days_list, 0, smooth, alpha=0.08, color=color)
@@ -791,7 +1742,7 @@ def _growth_trend_chart(entries: List[Dict], path: str, scale: float = 1.0, colo
     plt.close(fig)
 
 
-def _commit_barchart(entries: List[Dict], path: str, color: str = "#4a9eff"):
+def _commit_barchart(entries: List[Dict], path: str, color: str = _PRIMARY_COLOR):
     daily = defaultdict(int)
     for e in entries:
         daily[e["date"].date()] += 1
@@ -804,11 +1755,11 @@ def _commit_barchart(entries: List[Dict], path: str, color: str = "#4a9eff"):
         return
 
     sorted_days = sorted(daily)
-    values = [daily[d] for d in sorted_days]
-    x = mdates.date2num(sorted_days)
+    values = [daily[day] for day in sorted_days]
+    day_numbers = mdates.date2num(sorted_days)
 
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.bar(x, values, width=0.4, color=color, alpha=0.8, linewidth=0)
+    ax.bar(day_numbers, values, width=0.4, color=color, alpha=0.8, linewidth=0)
     ax.set_xlabel("Date")
     ax.set_ylabel("Commits")
     ax.set_title("Daily Commit Activity")
@@ -844,10 +1795,32 @@ def write_contributor_csv(entries: List[Dict], path: str) -> str:
     return path
 
 
-def _contributor_pareto(entries: List[Dict], path: str, color: str = "#4a9eff", max_bars: int = 50):
+def write_suspicion_csv(audit: Dict, path: str) -> str:
+    rows = audit.get("suspicion", [])
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Code", "Severity", "Type", "Hash", "Date", "Days Since", "Message"])
+        for r in rows:
+            w.writerow([
+                r.get("code", ""),
+                r.get("level", ""),
+                r.get("type", ""),
+                r.get("hash", ""),
+                r.get("date", ""),
+                r.get("time_since", "-"),
+                r.get("note", ""),
+            ])
+    return path
+
+
+def _contributor_pareto(entries: List[Dict], path: str, color: str = _PRIMARY_COLOR, max_bars: int = 50,
+                        line_color: str = _PARETO_LINE_COLOR):
     authors = defaultdict(int)
     for e in entries:
-        authors[e.get("author_name", "Unknown")] += 1
+        name = e.get("author_name", "Unknown")
+        if _is_bot_author(name, _BOT_PATTERNS):
+            continue
+        authors[name] += 1
 
     if not authors:
         fig, ax = plt.subplots(figsize=(10, 4))
@@ -856,11 +1829,11 @@ def _contributor_pareto(entries: List[Dict], path: str, color: str = "#4a9eff", 
         plt.close(fig)
         return
 
-    sorted_authors = sorted(authors.items(), key=lambda x: -x[1])
+    sorted_authors = sorted(authors.items(), key=lambda item: -item[1])
     sorted_authors = sorted_authors[:max_bars]
     counts = [a[1] for a in sorted_authors]
     total = sum(counts)
-    cumulative = [sum(counts[:i + 1]) / total * 100 for i in range(len(counts))]
+    cumulative = [sum(counts[:end + 1]) / total * 100 for end in range(len(counts))]
     indices = list(range(1, len(counts) + 1))
 
     fig, ax1 = plt.subplots(figsize=(10, 4))
@@ -871,7 +1844,7 @@ def _contributor_pareto(entries: List[Dict], path: str, color: str = "#4a9eff", 
     ax1.set_xticklabels(indices, fontsize=7)
 
     ax2 = ax1.twinx()
-    ax2.plot(indices, cumulative, color=color, linewidth=1.5)
+    ax2.plot(indices, cumulative, color=line_color, linewidth=1.5)
     ax2.set_ylabel("Cumulative %")
 
     fig.tight_layout()
@@ -879,23 +1852,63 @@ def _contributor_pareto(entries: List[Dict], path: str, color: str = "#4a9eff", 
     plt.close(fig)
 
 
-def _hero_risk(entries: List[Dict], top_n: int = 5) -> Tuple[float, int, int]:
-    authors = defaultdict(int)
-    for e in entries:
-        authors[e.get("author_name", "Unknown")] += 1
-    sorted_authors = sorted(authors.items(), key=lambda x: -x[1])
-    top_commits = sum(c for _, c in sorted_authors[:top_n])
-    total = sum(c for _, c in sorted_authors)
-    ratio = top_commits / total if total > 0 else 0
-    return ratio, top_commits, total
+def _quality_radar_chart(scores: Dict, path: str, color: str = _PRIMARY_COLOR):
+    axes = ["Recency", "AI Risk", "Deletion\nHealth", "Scale\nMaturity", "Contribution\nRisk"]
+    values = [
+        scores.get("recency", 0),
+        scores.get("anti_ai", 0) or (1 - scores.get("suspicion", 0)),
+        scores.get("deletion_health", 0),
+        scores.get("scale", 0),
+        scores.get("hero", 0),
+    ]
+    n = len(axes)
+    angles = npy.linspace(0, 2 * npy.pi, n, endpoint=False).tolist()
+    angles += angles[:1]
+    values += values[:1]
+
+    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
+    ax.set_theta_offset(npy.pi / 2)
+    ax.set_theta_direction(-1)
+    ax.set_rlabel_position(30)
+
+    for tick in [0.25, 0.5, 0.75, 1.0]:
+        ax.plot(angles, [tick] * len(angles), color="gray", linewidth=0.5, alpha=0.3)
+    ax.fill(angles, values, alpha=0.08, color=color)
+    ax.plot(angles, values, color=color, linewidth=1.8)
+    ax.scatter(angles[:-1], values[:-1], color=color, s=30, zorder=5)
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(axes, fontsize=9)
+    ax.set_ylim(0, 1)
+    ax.set_yticks([0.25, 0.5, 0.75])
+    ax.set_yticklabels(["0.25", "0.50", "0.75"], fontsize=7, color="gray")
+    ax.set_title("Quality Factor Radar", fontsize=11, pad=20)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _hero_risk(entries: List[Dict], top_n: int = 5, bot_patterns: List[str] = None) -> Tuple[float, int, int]:
+    if bot_patterns is None:
+        bot_patterns = _BOT_PATTERNS
+    author_commit_counts = defaultdict(int)
+    for entry in entries:
+        author = entry.get("author_name", "Unknown")
+        if _is_bot_author(author, bot_patterns):
+            continue
+        author_commit_counts[author] += 1
+    sorted_counts = sorted(author_commit_counts.values(), reverse=True)
+    top_total = sum(sorted_counts[:top_n])
+    grand_total = sum(sorted_counts) or 1
+    return top_total / grand_total, top_total, grand_total
 
 
 def _build_factor_scores(s: Dict) -> str:
-    claude = f", Claude: {s['ai_claude']:.2f}" if s.get("ai_claude", 0) > 0 else ""
+    agent_extra = f", Agent: {s['agent_artifact']:.2f}" if s.get("agent_artifact", 0) > 0 else ""
     ai_breakdown = (
         f"(Volume: {s['ai_volume']:.2f}, Initiative: {s['ai_initiative']:.2f}, "
         f"Repetition: {s['ai_repetition']:.2f}, Focus: {s['ai_focus']:.2f}, "
-        f"Burst: {s['firework']:.2f}{claude})"
+        f"Burst: {s['firework']:.2f}{agent_extra})"
     )
     tiny = f"    Tiny Project Penalty        -{s['tiny_project']:.2f}\n" if s["tiny_project"] > 0 else ""
     return ai_breakdown, tiny
@@ -934,13 +1947,12 @@ def _build_breakdown_section(breakdown: Optional[Dict]) -> str:
     return "\n".join(lines)
 
 
-def _build_hero_section(entries: List[Dict], human_entries: List[Dict], hero_top_n: int,
-                        hero_threshold: float) -> str:
+def _build_hero_section(entries: List[Dict], hero_top_n: int, hero_threshold: float) -> str:
     if not entries:
         return ""
-    hero_ratio, hero_top, hero_total = _hero_risk(human_entries, hero_top_n)
+    hero_ratio, hero_top, hero_total = _hero_risk(entries, hero_top_n)
     lines = ["",
-             f"  Hero Risk (top {hero_top_n}):  {hero_ratio:.0%}  ({hero_top:,} / {hero_total:,} human commits)"]
+             f"  Hero Risk (top {hero_top_n}):  {hero_ratio:.0%}  ({hero_top:,} / {hero_total:,} commits)"]
     if hero_ratio >= hero_threshold:
         lines.append(f"  High risk — project relies on top {hero_top_n} contributors")
     return "\n".join(lines)
@@ -951,12 +1963,14 @@ def _build_see_also() -> str:
             "  See also (in charts/ subdirectory):\n"
             "    charts/growth_trend.png     — Code growth trend\n"
             "    charts/commit_activity.png  — Daily commit activity\n"
-            "    charts/contributors.png     — Developer Pareto (AI excluded)\n"
-            "    contributors.csv            — Contributor activity summary (incl. AI)")
+            "    charts/contributors.png     — Developer Pareto (bots excluded)\n"
+            "    charts/quality_radar.png    — Quality factor radar\n"
+            "    contributors.csv            — Contributor activity summary (incl. AI)\n"
+            "    suspicion.csv               — Detailed audit findings with error codes")
 
 
 def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_path: str, path: str,
-                 entries: List[Dict] = None, color: str = "#4a9eff", hero_top_n: int = 5,
+                 entries: List[Dict] = None, color: str = _PRIMARY_COLOR, hero_top_n: int = 5,
                  hero_threshold: float = 0.8, pareto_max_bars: int = 50) -> int:
     template_path = os.path.join(os.path.dirname(__file__), "report_template.txt")
     try:
@@ -966,7 +1980,6 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         template = ""
 
     breakdown = _file_breakdown(repo_path) if repo_path else None
-    human_entries = [e for e in entries if not e.get("is_claude")] if entries else []
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     duration = _duration_str(q['days_since_last'])
 
@@ -989,7 +2002,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             active_days=q['active_days'], duration_since_last=duration,
             band=q['band'], score=s['composite'],
             recency=s['recency'], anti_ai=1 - s['suspicion'], ai_breakdown=ai_breakdown,
-            deletion_health=s['deletion_health'], scale=s['scale'],
+            deletion_health=s['deletion_health'], scale=s['scale'], hero=s['hero'],
             tiny_penalty=tiny,
             total_lines=f"{q['total_lines']:,}", total_additions=f"{q['total_additions']:,}",
             total_deletions=f"{q['total_deletions']:,}", net_change=f"{q['net_change']:+,}",
@@ -999,7 +2012,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             claude_ai_line=claude_line,
             batch_analysis=_build_batch_section(periods),
             file_breakdown=_build_breakdown_section(breakdown),
-            hero_risk=_build_hero_section(entries, human_entries, hero_top_n, hero_threshold),
+            hero_risk=_build_hero_section(entries, hero_top_n, hero_threshold),
             see_also=_build_see_also() if entries else "",
         )
 
@@ -1017,8 +2030,10 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             nb_ratio = nb_goal / cum_net if cum_net > 0 else 1.0
             _growth_trend_chart(entries, os.path.join(chart_dir, "growth_trend.png"), nb_ratio, color)
             _commit_barchart(entries, os.path.join(chart_dir, "commit_activity.png"), color)
-            _contributor_pareto(human_entries, os.path.join(chart_dir, "contributors.png"), color, pareto_max_bars)
+            _contributor_pareto(entries, os.path.join(chart_dir, "contributors.png"), color, pareto_max_bars)
             write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"))
+            _quality_radar_chart(q.get("scores", {}), os.path.join(chart_dir, "quality_radar.png"), color)
+            write_suspicion_csv(audit, os.path.join(tmpdir, "suspicion.csv"))
 
         with open(os.path.join(tmpdir, "report.txt"), "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
@@ -1030,9 +2045,9 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         os.makedirs(detail_dir, exist_ok=True)
 
         for suspect in audit.get("suspicion", []):
-            if not suspect["hash"] or "/" in suspect["hash"]:
+            commit_hash = suspect.get("hash", "")
+            if not commit_hash or not all(c in "0123456789abcdef" for c in commit_hash):
                 continue
-            commit_hash = suspect["hash"]
             safe_name = commit_hash.replace("/", "_")
             raw = _git(repo_path, f'git show {commit_hash}')
             if raw is None:
@@ -1041,6 +2056,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
                 f.write(raw + "\n")
             detail_count += 1
 
+        csv_count = 0
         zip_path = path
         if not zip_path.endswith(".zip"):
             zip_path += ".zip"
@@ -1048,6 +2064,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             zf.write(os.path.join(tmpdir, "report.txt"), "report.txt")
             if csv_path and os.path.exists(os.path.join(tmpdir, os.path.basename(csv_path))):
                 zf.write(os.path.join(tmpdir, os.path.basename(csv_path)), os.path.basename(csv_path))
+                csv_count += 1
             if os.path.isdir(detail_dir):
                 for fn in sorted(os.listdir(detail_dir)):
                     fpath = os.path.join(detail_dir, fn)
@@ -1058,50 +2075,21 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
                     zf.write(os.path.join(chart_dir_tmp, fn), f"charts/{fn}")
             if os.path.exists(os.path.join(tmpdir, "contributors.csv")):
                 zf.write(os.path.join(tmpdir, "contributors.csv"), "contributors.csv")
+                csv_count += 1
+            if os.path.exists(os.path.join(tmpdir, "suspicion.csv")):
+                zf.write(os.path.join(tmpdir, "suspicion.csv"), "suspicion.csv")
+                csv_count += 1
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    return detail_count
+    return detail_count, csv_count
 
 
 # The report is a human-readable snapshot of the quality analysis — used for
 # sharing results outside the CLI or keeping a historical record.
-def parse_args():
-    p = argparse.ArgumentParser(description="Git Stats & Quality Analyzer")
-    p.add_argument("repo_path", nargs="?", default=os.getcwd(),
-                   help="Path to git repository (default: current directory)")
-    p.add_argument("--threads", "-t", type=int, default=0,
-                   help="Parallel worker threads (0=auto, default: 0)")
-    p.add_argument("--batch-size", type=int, default=50,
-                   help="Commits per batch for thread scheduling (default: 50)")
-    p.add_argument("--window", "-w", type=int, default=5,
-                   help="Moving average window (default: 5, 0 to disable)")
-    p.add_argument("--formula", "-f", type=str, default=None,
-                   help='Custom formula (net_ratio|efficiency|churn|expr)')
-    p.add_argument("--output", "-o", type=str, default=None,
-                   help="Output CSV path (default: auto-generated)")
-    p.add_argument("--no-threads", action="store_true",
-                   help="Disable multi-threading even for 100+ commits")
-    p.add_argument("--quality", "-q", action="store_true",
-                   help="Enable 4-factor quality analysis")
-    p.add_argument("--batch", choices=["month", "week", "quarter", "year"],
-                   default=None, help="Enable per-period quality batch analysis")
-    p.add_argument("--report", "-r", type=str, default=None,
-                   help="Text report output path (default: auto-name)")
-    p.add_argument("--quality-params", type=str, default=None,
-                   help="JSON file with custom quality formula parameters")
-    p.add_argument("--color", type=str, default="#4a9eff",
-                   help="Primary color for charts (hex or name, default: #4a9eff)")
-    return p.parse_args()
-
-
 def main():
-    if len(sys.argv) > 2 and sys.argv[1] == "--formula" and sys.argv[2] in ("list", "--help", "-h"):
-        list_builtin_formulas()
-        sys.exit(0)
-
-    args = parse_args()
-    repo = args.repo_path
+    fd = _SETTINGS
+    repo = os.getcwd()
 
     console.print()
     console.print("[default]Git Commit Statistics Analyzer by Gradum[/default]")
@@ -1115,7 +2103,7 @@ def main():
         console.print(f"[yellow]{ICON_WARNING}  Not a valid Git repository: {repo}[/yellow]")
         sys.exit(1)
 
-    with console.status("Fetching commit history...", spinner="dots"):
+    with console.status("Fetching commit history", spinner="dots"):
         raw = _git(repo, 'git log --reverse --format="%H"')
 
     if not raw:
@@ -1129,8 +2117,9 @@ def main():
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total} commit records in {repo_name(repo)}[/default]")
 
-    use_threads = not args.no_threads
-    num_threads = args.threads if args.threads > 0 else min(6, os.cpu_count() or 4)
+    use_threads = not fd.get("disableMultithreading", False)
+    num_threads = fd.get("threadPoolSize", 0)
+    num_threads = num_threads if num_threads > 0 else min(6, os.cpu_count() or 4)
     parallel = total >= 100 and use_threads
 
     if parallel:
@@ -1140,7 +2129,7 @@ def main():
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
-    with console.status("Fetching commit dates...", spinner="dots"):
+    with console.status("Fetching commit dates", spinner="dots"):
         dates = commit_dates(repo)
 
     scan_start = time.time()
@@ -1156,22 +2145,22 @@ def main():
         if parallel:
             done = 0
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-                f2h = {executor.submit(commit_stats, repo, h): h for h in hashes}
+                f2h = {executor.submit(commit_stats, repo, hash_val): hash_val for hash_val in hashes}
                 for future in concurrent.futures.as_completed(f2h):
-                    h = f2h[future]
-                    a, d = future.result()
-                    stats[h] = (a, d)
+                    hash_val = f2h[future]
+                    add, delete = future.result()
+                    stats[hash_val] = (add, delete)
                     done += 1
                     pct = int(done * 100 / total)
                     progress.update(task, advance=1,
                                     description=f"Read {pct}%, remaining {total - done} records")
         else:
-            for i, h in enumerate(hashes):
-                a, d = commit_stats(repo, h)
-                stats[h] = (a, d)
-                pct = int((i + 1) * 100 / total)
+            for index, hash_val in enumerate(hashes):
+                add, delete = commit_stats(repo, hash_val)
+                stats[hash_val] = (add, delete)
+                pct = int((index + 1) * 100 / total)
                 progress.update(task, advance=1,
-                                description=f"Read {pct}%, remaining {total - (i + 1)} records")
+                                description=f"Read {pct}%, remaining {total - (index + 1)} records")
 
     elapsed = time.time() - scan_start
     minutes = int(elapsed // 60)
@@ -1184,44 +2173,48 @@ def main():
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
-    csv_path = write_csv(args, hashes, dates, stats)
+    csv_path = write_csv(fd, hashes, dates, stats)
     console.print(f"[blue]{ICON_STEP}[/blue] [default]Statistics written to {csv_path}[/default]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
-    if args.quality:
+    if fd.get("enableQualityAnalysis", False):
         p = dict(_QUALITY_PARAMS)
-        if args.quality_params and os.path.exists(args.quality_params):
-            with open(args.quality_params) as f:
-                p.update(json.load(f))
+        quality_params_path = fd.get("qualityParamsFilePath")
+        if quality_params_path and os.path.exists(quality_params_path):
+            with open(quality_params_path) as file:
+                p.update(json.load(file))
 
         with Progress(
                 SpinnerColumn(spinner_name="blink", style="default"),
                 TextColumn("[default]{task.description}[/default]"),
                 console=console, transient=True,
         ) as progress:
-            task = progress.add_task("Analyzing commits...", total=None)
+            task = progress.add_task("Analyzing commits", total=None)
             # noinspection bad-argument-type
             entries = all_commits(
                 repo,
-                on_commit=lambda h, s, i, t: progress.update(
-                    task, description=f"Analyzing {i}/{t} {escape(h)}: {escape(s[:60])}"
+                on_commit=lambda hash_str, subject, current, total_count: progress.update(
+                    task, description=f"Analyzing {current}/{total_count} {escape(hash_str)}: {escape(subject[:60])}"
                 )
             )
 
             now = datetime.now(timezone.utc)
-            q = compute_quality(entries, p, now, repo_name(repo))
+            q = compute_quality(entries, p, now, repo_name(repo), repo)
 
             if q.get("band") == "Archived":
                 progress.update(task, description=f"Archived — no commits in {_duration_str(q['days_since_last'])}")
                 audit = {"suspicion_count": 0, "deletion_percent": 0, "heavy_deletions": 0, "suspicion": []}
                 periods = []
             else:
-                progress.update(task, description="Computing quality metrics...")
-                periods = compute_quality_periods(entries, args.batch or "month", now, p) if args.batch else []
+                progress.update(task, description="Computing quality metrics")
+                overall_hero = q.get("scores", {}).get("hero", 0.0)
+                batch_unit = fd.get("batchPeriodUnit")
+                periods = compute_quality_periods(entries, batch_unit or "month", now, p,
+                                                  overall_hero, repo) if batch_unit else []
 
-                progress.update(task, description="Scanning deletion patterns...")
-                audit = audit_deletions(repo, entries, now)
+                progress.update(task, description="Scanning deletion patterns")
+                audit = audit_deletions(repo, entries, now, q.get("scores"))
 
         if q.get("band") == "Archived":
             console.print(
@@ -1234,10 +2227,12 @@ def main():
             console.print(f"[dim]{ICON_ARROW}[/dim]")
 
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_path = args.report or f"quality_report_{ts}.zip"
-            detail_count = write_report(q, periods, audit, repo, csv_path, report_path, entries, args.color,
-                                        _HERO_TOP_N, _HERO_THRESHOLD, _PARETO_MAX_BARS)
-            console.print(f"[blue]{ICON_POINT}[/blue] [default]Packaged {detail_count} detail files + 1 CSV[/default]")
+            report_path = fd.get("reportOutputPath") or f"quality_report_{ts}.zip"
+            chart_color = fd.get("chartPrimaryColor", _PRIMARY_COLOR)
+            detail_count, csv_count = write_report(q, periods, audit, repo, csv_path, report_path, entries, chart_color,
+                                                   _HERO_TOP_N, _HERO_THRESHOLD, _PARETO_MAX_BARS)
+            console.print(
+                f"[blue]{ICON_POINT}[/blue] [default]Packaged {detail_count} detail files + {csv_count} CSV files[/default]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
 
@@ -1273,6 +2268,7 @@ def main():
                 if remaining > 0:
                     console.print(f"[dim]{ICON_ARROW}          [/dim][default]+{remaining} more...[/default]")
 
+            console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(f"[default][blue]{ICON_STEP}[/blue] Report written to {report_path}[/default]")
 

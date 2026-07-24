@@ -1,5 +1,5 @@
 {ARCHIVED_BLOCK}
-  Project Analysis Report
+  Project Risk & Quality Report
   Generated: {generated_at}
 
   Project:         {project_name}
@@ -10,7 +10,7 @@
   Status:  {status}
 {ARCHIVED_BLOCK}
 {NORMAL_BLOCK}
-  Project Quality Analysis Report
+  Project Risk & Quality Report
   Generated: {generated_at}
 
   Project:         {project_name}
@@ -25,6 +25,7 @@
     Anti-AI Detection           {anti_ai:.2f}  {ai_breakdown}
     Deletion Health             {deletion_health:.2f}
     Scale Maturity              {scale:.2f}
+    Contribution Risk           {hero:.2f}
 {tiny_penalty}
   Raw Metrics:
     Total lines (add+del):     {total_lines}

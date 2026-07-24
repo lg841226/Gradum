@@ -1,0 +1,364 @@
+{
+  "$schema": "./configs.schema.json",
+  "codeExtensions": [
+    /* C Project */
+    ".c",
+    ".cpp",
+    ".cc",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".hh",
+    ".hxx",
+    /* .NET Project */
+    ".cs",
+    ".vb",
+    ".fs",
+    ".csproj",
+    ".vbproj",
+    ".fsproj",
+    ".sln",
+    /* Java/Kotlin Project */
+    ".java",
+    ".kt",
+    ".kts",
+    /* Go/Rust/Swift Project */
+    ".go",
+    ".rs",
+    ".swift",
+    /* Objective-C/Dart Project */
+    ".m",
+    ".mm",
+    ".dart",
+    /* JS/TS Project */
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".vue",
+    /* Python Project */
+    ".py",
+    ".pyw",
+    ".pyi",
+    /* PHP/Ruby/Lua/Perl Project */
+    ".php",
+    ".rb",
+    ".lua",
+    ".pl",
+    ".pm",
+    /* R Project */
+    ".r",
+    /* HTML/CSS Project */
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".css",
+    ".scss",
+    ".sass",
+    ".less",
+    /* Build */
+    ".gradle",
+    ".groovy",
+    ".cmake",
+    /* Go Mod */
+    ".mod",
+    ".sum",
+    /* Config/Data */
+    ".xml",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".cfg",
+    ".conf",
+    ".properties",
+    /* XAML */
+    ".xaml",
+    ".axaml",
+    ".axml",
+    /* Shell */
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".psm1",
+    ".bat",
+    ".cmd",
+    /* SQL Project */
+    ".sql",
+    ".psql",
+    ".mysql",
+    /* Docker/Git */
+    ".dockerfile",
+    ".dockerignore",
+    ".gitignore",
+    ".editorconfig",
+    ".gitattributes",
+    /* Zig/Nim Project */
+    ".zig",
+    ".nim",
+    /* Device Tree Project */
+    ".dts",
+    ".dtsi",
+    ".overlay",
+    /* Proto Project */
+    ".fbs",
+    ".proto",
+    /* Elixir/Erlang/Haskell Project */
+    ".ex",
+    ".exs",
+    ".hs",
+    ".lhs",
+    ".erl",
+    ".hrl",
+    /* Julia Project */
+    ".jl"
+  ],
+  "nonProgrammingExtensions": [
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".css",
+    ".scss",
+    ".sass",
+    ".less",
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".md",
+    ".markdown",
+    ".dockerfile",
+    ".dockerignore",
+    ".cfg",
+    ".conf",
+    ".properties",
+    ".editorconfig",
+    ".gitignore",
+    ".gitattributes",
+    ".xaml",
+    ".axaml",
+    ".axml"
+  ],
+  "excludedDirectories": [
+    /* Version Control */
+    ".git",
+    ".github",
+    ".gitlab",
+    ".svn",
+    ".hg",
+    /* Build Output */
+    "build",
+    "dist",
+    "target",
+    "bin",
+    "obj",
+    "out",
+    "cmake-build-debug",
+    "cmake-build-release",
+    /* Dependencies */
+    "node_modules",
+    "bower_components",
+    "vendor",
+    "third_party",
+    "third-party",
+    "deps",
+    "lib",
+    "packages",
+    "Pods",
+    "Carthage",
+    /* IDE */
+    ".gradle",
+    "gradle",
+    "idea",
+    ".idea",
+    ".vs",
+    ".vscode",
+    ".settings",
+    ".project",
+    "nbproject",
+    /* Python Cache */
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".hypothesis",
+    ".tox",
+    ".eggs",
+    "eggs",
+    "egg-info",
+    /* Virtual Environments */
+    ".venv",
+    "venv",
+    ".env",
+    "env",
+    "virtualenv",
+    /* Coverage */
+    "coverage",
+    "htmlcov",
+    ".coverage",
+    ".coverage.*",
+    /* Temp */
+    "logs",
+    "tmp",
+    "temp",
+    "cache",
+    ".cache",
+    /* Frontend */
+    ".next",
+    ".nuxt",
+    ".serverless",
+    ".serverless_nextjs",
+    ".docusaurus",
+    ".parcel-cache",
+    /* Yarn */
+    ".yarn",
+    ".pnp",
+    ".pnp.js",
+    /* Cache */
+    ".eslintcache",
+    ".stylelintcache",
+    ".prettiercache",
+    ".turbo",
+    ".storybook-out",
+    /* Angular */
+    ".angular",
+    ".claude",
+    ".cursor",
+    ".windsurf",
+    ".cline",
+    ".aider",
+    ".gemini",
+    ".opencode",
+    ".amazonq",
+    ".codex"
+  ],
+  // top-level configuration settings
+  "settings": {
+    "threadPoolSize": 0,
+    "batchCommitCount": 50,
+    "movingAverageWindow": 5,
+    "outputFilePath": null,
+    "batchPeriodUnit": null,
+    "reportOutputPath": null,
+    "formulaExpression": null,
+    "qualityParamsFilePath": null,
+    "enableQualityAnalysis": true,
+    "disableMultithreading": false,
+    "chartPrimaryColor": "#4a9eff"
+  },
+  "audit": {
+    "botAuthorPatterns": [
+      "bot",
+      "agent"
+    ],
+    "heroRiskThreshold": 0.8,
+    "heroTopContributorCount": 5,
+    "paretoMaxBarCount": 50,
+    "netDeletionThreshold": -200,
+    "deletionRatioBoundary": 0.05,
+    "refactoringBothLargeThreshold": 500,
+    "clusterPositionGap": 3,
+    "clusterMinimumSize": 3,
+    "matureProjectCommitCount": 50,
+    "recentActivityWindowDays": 90,
+    "aiFocusScaleFactor": 1.5,
+    "aiFocusTargetFiles": 3.0,
+    "aiInitiativeScaleFactor": 10,
+    "aiAdditionsScaleFactor": 200,
+    "aiRepetitionCvThreshold": 0.5,
+    "aiRepetitionScaleFactor": 0.15,
+    "aiInitiativeEarlyCommitCount": 3,
+    "aiInitiativeAddDeleteThreshold": 20,
+    "aiAdditionsPerCommitThreshold": 500,
+    "tinyCommitLineThreshold": 10,
+    "recencyHalfLifeDays": 90
+  },
+  "qualityParams": {
+    "recencyHalfLifeDays": 90.0,
+    "aiAdditionsThreshold": 500.0,
+    "aiAdditionsScale": 200.0,
+    "aiInitiativeCommits": 3,
+    "aiInitiativeThreshold": 20.0,
+    "aiInitiativeScale": 10.0,
+    "aiRepetitionCvThreshold": 0.5,
+    "aiRepetitionScale": 0.15,
+    "aiFocusTarget": 3.0,
+    "aiFocusScale": 1.5,
+    "fireworkDensityThreshold": 5.0,
+    "fireworkActiveDays": 90.0,
+    "fireworkDensitySlope": 2.0,
+    "fireworkDurationSlope": 20.0,
+    "aiClaudeFactor": 2.0,
+    "deletionIdealRatio": 0.35,
+    "deletionSigma": 0.15,
+    "deletionDefaultScore": 0.5,
+    "scaleRefLines": 100,
+    "scaleMaxLines": 100000,
+    "scaleMinScore": 0.1,
+    "scaleMaxScore": 0.85,
+    "tinyCommitThreshold": 10,
+    "tinyPenaltyMax": 0.25,
+    "tinyPenaltySlope": 2.0,
+    "zombieDays": 730,
+    "baseline": 0.5,
+    "personalityAmplitude": 0.04,
+    "personalityMaxLines": 1000000,
+    "weightRecency": 0.286,
+    "weightAntiAi": 0.202,
+    "weightDeletionHealth": 0.218,
+    "weightScale": 0.134,
+    "weightHero": 0.160
+  },
+  "suspicionLabels": {
+    "clean": [
+      "Clean",
+      "green"
+    ],
+    "normal": [
+      "Normal",
+      "cyan"
+    ],
+    "watch": [
+      "Watch",
+      "yellow"
+    ],
+    "alert": [
+      "Alert",
+      "orange1"
+    ],
+    "critical": [
+      "Critical",
+      "red"
+    ]
+  },
+  "qualityBands": [
+    {
+      "min": 0.8,
+      "name": "Excellent",
+      "color": "purple"
+    },
+    {
+      "min": 0.6,
+      "name": "Good",
+      "color": "cyan"
+    },
+    {
+      "min": 0.4,
+      "name": "Fair",
+      "color": "green"
+    },
+    {
+      "min": 0.2,
+      "name": "Needs Attention",
+      "color": "orange1"
+    },
+    {
+      "min": 0.0,
+      "name": "Caution",
+      "color": "red"
+    }
+  ]
+}

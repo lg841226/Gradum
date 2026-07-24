@@ -54,4 +54,5 @@ gradum.properties
 red_line_keywords.txtscripts/__pycache__/
 scripts/__pycache__/
 git_stats_*.csv
+quality_report_*.zip
 src/main/resources/red_line_keywords.txt

@@ -1,0 +1,428 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Gradum Configuration",
+  "description": "Configuration schema for git_stats.py quality and audit analysis.",
+  "properties": {
+    "codeExtensions": {
+      "type": "array",
+      "title": "Code Extensions",
+      "description": "File extensions considered source code for analysis. Matching files contribute to add/delete totals.",
+      "items": { "type": "string", "pattern": "^\\..+$" },
+      "uniqueItems": true
+    },
+    "nonProgrammingExtensions": {
+      "type": "array",
+      "title": "Non-Programming Extensions",
+      "description": "Extensions excluded from core source-code counting. These files still appear in total file stats but are flagged as non-core during audit checks.",
+      "items": { "type": "string", "pattern": "^\\..+$" },
+      "uniqueItems": true
+    },
+    "excludedDirectories": {
+      "type": "array",
+      "title": "Excluded Directories",
+      "description": "Directory names completely skipped during file traversal. Supports both bare names (node_modules) and dot-prefixed names (.git).",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "settings": {
+      "type": "object",
+      "title": "Runtime Settings",
+      "description": "CLI-equivalent settings governing analysis behavior, output destinations, and feature flags.",
+      "properties": {
+        "threadPoolSize": {
+          "type": "integer",
+          "default": 0,
+          "description": "Number of parallel worker threads. Set to 0 for auto-detection (capped at CPU core count)."
+        },
+        "batchCommitCount": {
+          "type": "integer",
+          "default": 50,
+          "description": "Number of commits assigned to each thread batch during parallel processing."
+        },
+        "movingAverageWindow": {
+          "type": "integer",
+          "default": 5,
+          "description": "Window size for moving average calculation in CSV output. Set to 0 to omit this column."
+        },
+        "formulaExpression": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Custom expression for an additional CSV column. Accepts a built-in name (net_ratio, efficiency, churn) or any Python math expression (e.g., 'add / max(deletions, 1)')."
+        },
+        "outputFilePath": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Output path for the generated CSV file. When null, a timestamped name is auto-generated."
+        },
+        "disableMultithreading": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enforce single-threaded processing, even for repositories with 100+ commits."
+        },
+        "enableQualityAnalysis": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the 4-factor quality model (recency, anti-AI, deletion health, and scale)."
+        },
+        "batchPeriodUnit": {
+          "type": ["string", "null"],
+          "default": null,
+          "enum": ["month", "week", "quarter", "year", null],
+          "description": "Enable per-period quality analysis by partitioning commits into time windows."
+        },
+        "reportOutputPath": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Output path for the ZIP report containing quality charts, a radar chart, and the suspicion CSV."
+        },
+        "qualityParamsFilePath": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Path to a JSON file with custom quality parameters that override defaults in qualityParams."
+        },
+        "chartPrimaryColor": {
+          "type": "string",
+          "default": "#4a9eff",
+          "description": "Primary chart color, specified as a hex code or named color."
+        }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "title": "Audit Thresholds",
+      "description": "Thresholds and parameters driving the 31-code suspicion and deletion audit engine.",
+      "properties": {
+        "botAuthorPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["bot", "agent"],
+          "description": "Case-insensitive patterns matched against author names to identify bot accounts."
+        },
+        "heroTopContributorCount": {
+          "type": "integer",
+          "default": 5,
+          "description": "Number of top contributors evaluated for hero-dependency risk (S2011)."
+        },
+        "heroRiskThreshold": {
+          "type": "number",
+          "default": 0.8,
+          "description": "Hero score threshold below which a hero-dependency alert is triggered."
+        },
+        "paretoMaxBarCount": {
+          "type": "integer",
+          "default": 50,
+          "description": "Maximum bars displayed on the Pareto contributor chart."
+        },
+        "netDeletionThreshold": {
+          "type": "integer",
+          "default": -200,
+          "description": "Net change (in lines) threshold for flagging a commit as a heavy deletion."
+        },
+        "deletionRatioBoundary": {
+          "type": "number",
+          "default": 0.05,
+          "description": "Deletion-to-addition ratio below which a project is flagged as accumulation-only (S2004)."
+        },
+        "refactoringBothLargeThreshold": {
+          "type": "integer",
+          "default": 500,
+          "description": "Minimum additions AND deletions required to classify a commit as high-risk refactoring (S1001)."
+        },
+        "clusterPositionGap": {
+          "type": "integer",
+          "default": 3,
+          "description": "Maximum positional gap (in commit index) between consecutive heavy deletions for them to be considered part of the same cluster."
+        },
+        "clusterMinimumSize": {
+          "type": "integer",
+          "default": 3,
+          "description": "Minimum number of heavy-deletion commits required to form a deletion cluster (S2001)."
+        },
+        "matureProjectCommitCount": {
+          "type": "integer",
+          "default": 50,
+          "description": "Minimum total commits required to classify a project as mature for mature-churn analysis (S2002)."
+        },
+        "recentActivityWindowDays": {
+          "type": "integer",
+          "default": 90,
+          "description": "Lookback window (in days) for considering a commit recent in mature-churn analysis."
+        },
+        "aiAdditionsPerCommitThreshold": {
+          "type": "integer",
+          "default": 500,
+          "description": "Average additions-per-commit threshold for triggering an AI volume spike alert (S2005)."
+        },
+        "aiAdditionsScaleFactor": {
+          "type": "integer",
+          "default": 200,
+          "description": "Scale factor for the AI additions sigmoid in quality scoring. Larger values produce a softer curve."
+        },
+        "aiInitiativeEarlyCommitCount": {
+          "type": "integer",
+          "default": 3,
+          "description": "Number of initial commits examined when detecting AI bootstrap patterns (S2006)."
+        },
+        "aiInitiativeAddDeleteThreshold": {
+          "type": "integer",
+          "default": 20,
+          "description": "Add/delete ratio threshold used in AI initiative scoring."
+        },
+        "aiInitiativeScaleFactor": {
+          "type": "integer",
+          "default": 10,
+          "description": "Scale factor for the AI initiative sigmoid."
+        },
+        "aiRepetitionCvThreshold": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Coefficient of variation threshold for AI uniformity detection (S2007)."
+        },
+        "aiRepetitionScaleFactor": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Scale factor for the AI repetition sigmoid."
+        },
+        "aiFocusTargetFiles": {
+          "type": "number",
+          "default": 3.0,
+          "description": "Expected average files-per-commit used in AI focus deviation analysis (S2008)."
+        },
+        "aiFocusScaleFactor": {
+          "type": "number",
+          "default": 1.5,
+          "description": "Scale factor for the AI focus deviation sigmoid."
+        },
+        "tinyCommitLineThreshold": {
+          "type": "integer",
+          "default": 10,
+          "description": "Maximum changed lines for classifying a commit as tiny (S3007)."
+        },
+        "recencyHalfLifeDays": {
+          "type": "integer",
+          "default": 90,
+          "description": "Half-life (in days) used for recency scoring and abandonment detection (S2012)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "qualityParams": {
+      "type": "object",
+      "title": "Quality Model Parameters",
+      "description": "Weights, thresholds, and scaling factors for the 4-factor quality evaluation model.",
+      "properties": {
+        "recencyHalfLifeDays": {
+          "type": "number",
+          "default": 90.0,
+          "description": "Gaussian half-life for recency scoring. At 90 days, a project scores approximately 0.61."
+        },
+        "aiAdditionsThreshold": {
+          "type": "number",
+          "default": 500.0,
+          "description": "Sigmoid midpoint for the AI volume score (average additions per commit)."
+        },
+        "aiAdditionsScale": {
+          "type": "number",
+          "default": 200.0,
+          "description": "Sigmoid steepness for the AI volume score."
+        },
+        "aiInitiativeCommits": {
+          "type": "integer",
+          "default": 3,
+          "description": "Number of initial commits checked for AI bootstrap patterns."
+        },
+        "aiInitiativeThreshold": {
+          "type": "number",
+          "default": 20.0,
+          "description": "Sigmoid midpoint for the AI initiative score."
+        },
+        "aiInitiativeScale": {
+          "type": "number",
+          "default": 10.0,
+          "description": "Sigmoid steepness for the AI initiative score."
+        },
+        "aiRepetitionCvThreshold": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Sigmoid midpoint for the AI repetition score (coefficient of variation)."
+        },
+        "aiRepetitionScale": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Sigmoid steepness for the AI repetition score."
+        },
+        "aiFocusTarget": {
+          "type": "number",
+          "default": 3.0,
+          "description": "Sigmoid midpoint for the AI focus score (files per commit)."
+        },
+        "aiFocusScale": {
+          "type": "number",
+          "default": 1.5,
+          "description": "Sigmoid steepness for the AI focus score."
+        },
+        "fireworkDensityThreshold": {
+          "type": "number",
+          "default": 5.0,
+          "description": "Sigmoid midpoint for the firework burst score (commits per day)."
+        },
+        "fireworkActiveDays": {
+          "type": "number",
+          "default": 90.0,
+          "description": "Sigmoid midpoint for the firework duration score."
+        },
+        "fireworkDensitySlope": {
+          "type": "number",
+          "default": 2.0,
+          "description": "Sigmoid steepness for the firework density score."
+        },
+        "fireworkDurationSlope": {
+          "type": "number",
+          "default": 20.0,
+          "description": "Sigmoid steepness for the firework duration score."
+        },
+        "aiClaudeFactor": {
+          "type": "number",
+          "default": 2.0,
+          "description": "Multiplier applied to the Claude commit ratio for the Claude flood score."
+        },
+        "deletionIdealRatio": {
+          "type": "number",
+          "default": 0.35,
+          "description": "Ideal deletion-to-addition ratio used in deletion health scoring."
+        },
+        "deletionSigma": {
+          "type": "number",
+          "default": 0.15,
+          "description": "Standard deviation for the Gaussian deletion health scoring."
+        },
+        "deletionDefaultScore": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Default deletion health score assigned when no deletions exist."
+        },
+        "scaleRefLines": {
+          "type": "integer",
+          "default": 100,
+          "description": "Reference line count used as the sigmoid midpoint for scale scoring."
+        },
+        "scaleMaxLines": {
+          "type": "integer",
+          "default": 100000,
+          "description": "Maximum expected project lines for scale normalization."
+        },
+        "scaleMinScore": {
+          "type": "number",
+          "default": 0.1,
+          "description": "Minimum scale score assigned to very small projects."
+        },
+        "scaleMaxScore": {
+          "type": "number",
+          "default": 0.85,
+          "description": "Maximum scale score assigned to very large projects."
+        },
+        "tinyCommitThreshold": {
+          "type": "integer",
+          "default": 10,
+          "description": "Maximum changed lines for a commit to be considered tiny (triggers a penalty)."
+        },
+        "tinyPenaltyMax": {
+          "type": "number",
+          "default": 0.25,
+          "description": "Maximum penalty deducted from the raw score for tiny commits."
+        },
+        "tinyPenaltySlope": {
+          "type": "number",
+          "default": 2.0,
+          "description": "Sigmoid steepness for the tiny-commit penalty."
+        },
+        "zombieDays": {
+          "type": "integer",
+          "default": 730,
+          "description": "Days since the last commit beyond which a project is classified as archived or zombie."
+        },
+        "baseline": {
+          "type": "number",
+          "default": 0.5,
+          "description": "Anchor value for confidence-based shrinkage toward neutrality."
+        },
+        "personalityAmplitude": {
+          "type": "number",
+          "default": 0.04,
+          "description": "Maximum personality jitter amplitude (± percentage points)."
+        },
+        "personalityMaxLines": {
+          "type": "integer",
+          "default": 1000000,
+          "description": "Line count at which personality jitter saturates."
+        },
+        "weightRecency": {
+          "type": "number",
+          "default": 0.286,
+          "description": "Weight assigned to the recency factor in the composite score."
+        },
+        "weightAntiAi": {
+          "type": "number",
+          "default": 0.202,
+          "description": "Weight assigned to the anti-AI factor in the composite score."
+        },
+        "weightDeletionHealth": {
+          "type": "number",
+          "default": 0.218,
+          "description": "Weight assigned to the deletion health factor in the composite score."
+        },
+        "weightScale": {
+          "type": "number",
+          "default": 0.134,
+          "description": "Weight assigned to the scale factor in the composite score."
+        },
+        "weightHero": {
+          "type": "number",
+          "default": 0.160,
+          "description": "Weight assigned to the hero factor in the composite score."
+        }
+      },
+      "additionalProperties": false
+    },
+    "suspicionLabels": {
+      "type": "object",
+      "title": "Suspicion Level Labels",
+      "description": "Display labels and colors for each suspicion severity level. Each value is a [name, rich-color] pair.",
+      "patternProperties": {
+        "^(clean|normal|watch|alert|critical)$": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "additionalProperties": false
+    },
+    "qualityBands": {
+      "type": "array",
+      "title": "Quality Bands",
+      "description": "Score ranges that map composite quality scores to display bands. Sorted in descending order by min score.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "min": {
+            "type": "number",
+            "description": "Minimum score for this band (inclusive)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the quality band."
+          },
+          "color": {
+            "type": "string",
+            "description": "Rich color name used in console output."
+          }
+        },
+        "required": ["min", "name", "color"]
+      }
+    }
+  },
+  "additionalProperties": false
+}
