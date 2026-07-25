@@ -1139,6 +1139,33 @@ def _detect_agent_artifacts(repo: str) -> Dict[str, List[str]]:
     return detected
 
 
+def _agent_artifacts_per_author(repo: str) -> Dict[str, int]:
+    """
+    Attribute detected agent artifact files to commit authors.
+
+    For each artifact file found by _detect_agent_artifacts(), runs
+    git log to find all distinct authors who committed it, and counts
+    how many unique tool files each author has touched.
+
+    Returns {author_name: ai_tool_file_count}.
+    """
+    artifacts = _detect_agent_artifacts(repo)
+    if not artifacts:
+        return {}
+    author_count: Dict[str, int] = defaultdict(int)
+    for files in artifacts.values():
+        for file_path in files:
+            out = _git(repo, f'git log --format="%an" -- "{file_path}"')
+            if out:
+                seen = set()
+                for author in out.strip().split("\n"):
+                    author = author.strip()
+                    if author and author not in seen:
+                        seen.add(author)
+                        author_count[author] += 1
+    return dict(author_count)
+
+
 def _audit_msg(code: str, **kwargs) -> str:
     """Format the audit message for a given code with keyword args."""
     template = _AUDIT_CODES[code][2]
@@ -1769,7 +1796,8 @@ def _commit_barchart(entries: List[Dict], path: str, color: str = _PRIMARY_COLOR
     plt.close(fig)
 
 
-def write_contributor_csv(entries: List[Dict], path: str) -> str:
+def write_contributor_csv(entries: List[Dict], path: str,
+                          agent_authors: Dict[str, int] = None) -> str:
     c = defaultdict(lambda: {"commits": 0, "ai_commits": 0, "email": "", "first": None, "last": None, "days": set()})
     for e in entries:
         name = e.get("author_name", "Unknown")
@@ -1778,16 +1806,23 @@ def write_contributor_csv(entries: List[Dict], path: str) -> str:
         c[name]["commits"] += 1
         c[name]["email"] = email
         c[name]["days"].add(day)
-        if e.get("is_claude"):
-            c[name]["ai_commits"] += 1
         if c[name]["first"] is None or e["date"] < c[name]["first"]:
             c[name]["first"] = e["date"]
         if c[name]["last"] is None or e["date"] > c[name]["last"]:
             c[name]["last"] = e["date"]
 
+    if agent_authors:
+        for name, count in agent_authors.items():
+            if name in c:
+                c[name]["ai_commits"] = count
+    else:
+        for e in entries:
+            if e.get("is_claude"):
+                c[e.get("author_name", "Unknown")]["ai_commits"] += 1
+
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Index", "Author", "Email", "Commits", "AI", "Active Days", "First Commit", "Last Commit"])
+        w.writerow(["Index", "Author", "Email", "Commits", "AI Files", "Active Days", "First Commit", "Last Commit"])
         for index, (name, info) in enumerate(sorted(c.items(), key=lambda x: -x[1]["commits"]), 1):
             w.writerow([index, name, info["email"], info["commits"], info["ai_commits"], len(info["days"]),
                         info["first"].strftime("%Y-%m-%d") if info["first"] else "",
@@ -1853,7 +1888,7 @@ def _contributor_pareto(entries: List[Dict], path: str, color: str = _PRIMARY_CO
 
 
 def _quality_radar_chart(scores: Dict, path: str, color: str = _PRIMARY_COLOR):
-    axes = ["Recency", "AI Risk", "Deletion\nHealth", "Scale\nMaturity", "Contribution\nRisk"]
+    axes = ["Recency", "AI Safety", "Deletion\nHealth", "Scale\nMaturity", "Dev\nDistribution"]
     values = [
         scores.get("recency", 0),
         scores.get("anti_ai", 0) or (1 - scores.get("suspicion", 0)),
@@ -1997,10 +2032,21 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         s = q["scores"]
         ai_breakdown, tiny = _build_factor_scores(s)
         claude_line = f"    Claude AI commits:         {q['claude_commits']}" if q.get("claude_commits", 0) > 0 else ""
+        agent_tools = []
+        for s in audit.get("suspicion", []):
+            if s.get("code") == "S2013":
+                agent_tools.append(s.get("note", ""))
+        ai_tool_line = claude_line
+        if agent_tools:
+            tools_str = "; ".join(agent_tools[:3])
+            if ai_tool_line:
+                ai_tool_line += f"\n    AI config files:         {tools_str}"
+            else:
+                ai_tool_line = f"    AI config files:         {tools_str}"
         ctx = dict(
             generated_at=now_str, project_name=q['name'], total_commits=q['total_commits'],
             active_days=q['active_days'], duration_since_last=duration,
-            band=q['band'], score=s['composite'],
+            band=q.get('band', ''), score=s.get('composite', 0.0),
             recency=s['recency'], anti_ai=1 - s['suspicion'], ai_breakdown=ai_breakdown,
             deletion_health=s['deletion_health'], scale=s['scale'], hero=s['hero'],
             tiny_penalty=tiny,
@@ -2009,7 +2055,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             avg_additions=q['avg_additions_per_commit'], commit_density=q['commits_per_day'],
             churn_ratio=q['churn_ratio'], active_days_raw=f"{q['active_days']:.0f}",
             first_commit=q['first_commit'], last_commit=q['last_commit'],
-            claude_ai_line=claude_line,
+            claude_ai_line=ai_tool_line,
             batch_analysis=_build_batch_section(periods),
             file_breakdown=_build_breakdown_section(breakdown),
             hero_risk=_build_hero_section(entries, hero_top_n, hero_threshold),
@@ -2031,7 +2077,8 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             _growth_trend_chart(entries, os.path.join(chart_dir, "growth_trend.png"), nb_ratio, color)
             _commit_barchart(entries, os.path.join(chart_dir, "commit_activity.png"), color)
             _contributor_pareto(entries, os.path.join(chart_dir, "contributors.png"), color, pareto_max_bars)
-            write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"))
+            agent_authors = _agent_artifacts_per_author(repo_path)
+            write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"), agent_authors)
             _quality_radar_chart(q.get("scores", {}), os.path.join(chart_dir, "quality_radar.png"), color)
             write_suspicion_csv(audit, os.path.join(tmpdir, "suspicion.csv"))
 
@@ -2202,8 +2249,8 @@ def main():
             now = datetime.now(timezone.utc)
             q = compute_quality(entries, p, now, repo_name(repo), repo)
 
-            if q.get("band") == "Archived":
-                progress.update(task, description=f"Archived — no commits in {_duration_str(q['days_since_last'])}")
+            if not q or q.get("band") == "Archived":
+                progress.update(task, description=f"Archived — no commits in {_duration_str(q['days_since_last'])}" if q else "Archived")
                 audit = {"suspicion_count": 0, "deletion_percent": 0, "heavy_deletions": 0, "suspicion": []}
                 periods = []
             else:
@@ -2216,9 +2263,9 @@ def main():
                 progress.update(task, description="Scanning deletion patterns")
                 audit = audit_deletions(repo, entries, now, q.get("scores"))
 
-        if q.get("band") == "Archived":
-            console.print(
-                f"[grey58]{ICON_STEP}[/grey58] [default]Archived — no commits in {_duration_str(q['days_since_last'])}[/default]")
+        if not q or q.get("band") == "Archived":
+            msg = f"Archived — no commits in {_duration_str(q['days_since_last'])}" if q else "Archived — no commits"
+            console.print(f"[grey58]{ICON_STEP}[/grey58] [default]{msg}[/default]")
         else:
             console.print(
                 f"[blue]{ICON_STEP}[/blue] [default]Analyzed {len(entries)} commits, {audit['suspicion_count']} suspicious patterns[/default]"
@@ -2251,7 +2298,7 @@ def main():
             console.print(
                 f"[{q_color}]{ICON_STEP}[/{q_color}] "
                 f"[default]Quality: Add/Del rate {audit['deletion_percent']}% · "
-                f"{audit['heavy_deletions']} problems[/default] · "
+                f"{len(audit['suspicion'])} problems[/default] · "
                 f"[{q_color}]{q_band}[/{q_color}]"
             )
 
@@ -2284,5 +2331,7 @@ if __name__ == "__main__":
         console.print(f"\n[yellow]{ICON_WARNING}  Analysis interrupted[/yellow]")
         sys.exit(1)
     except Exception as error:
+        import traceback
         console.print(f"[yellow]{ICON_WARNING}  {error}[/yellow]")
+        traceback.print_exc()
         sys.exit(1)

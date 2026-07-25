@@ -22,10 +22,10 @@
 
   Factor Scores:
     Recency                     {recency:.2f}
-    Anti-AI Detection           {anti_ai:.2f}  {ai_breakdown}
+    AI Safety                   {anti_ai:.2f}  {ai_breakdown}
     Deletion Health             {deletion_health:.2f}
     Scale Maturity              {scale:.2f}
-    Contribution Risk           {hero:.2f}
+    Dev Distribution            {hero:.2f}
 {tiny_penalty}
   Raw Metrics:
     Total lines (add+del):     {total_lines}
