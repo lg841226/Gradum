@@ -1139,31 +1139,37 @@ def _detect_agent_artifacts(repo: str) -> Dict[str, List[str]]:
     return detected
 
 
-def _agent_artifacts_per_author(repo: str) -> Dict[str, int]:
+def _ai_participation_per_author(repo: str, entries: List[Dict]) -> Dict[str, int]:
     """
-    Attribute detected agent artifact files to commit authors.
+    Count AI participation per author = Claude commits + commits touching AI config files.
 
-    For each artifact file found by _detect_agent_artifacts(), runs
-    git log to find all distinct authors who committed it, and counts
-    how many unique tool files each author has touched.
-
-    Returns {author_name: ai_tool_file_count}.
+    Claude commits are from the is_claude flag on entries.
+    AI config file commits come from git log --format="%H" per artifact file.
+    A single commit that is both Claude AND touches an AI file counts as 2.
     """
+    result: Dict[str, int] = defaultdict(int)
+
+    for e in entries:
+        if e.get("is_claude"):
+            result[e.get("author_name", "Unknown")] += 1
+
     artifacts = _detect_agent_artifacts(repo)
-    if not artifacts:
-        return {}
-    author_count: Dict[str, int] = defaultdict(int)
     for files in artifacts.values():
         for file_path in files:
-            out = _git(repo, f'git log --format="%an" -- "{file_path}"')
+            out = _git(repo, f'git log --format="%an||%H" -- "{file_path}"')
             if out:
                 seen = set()
-                for author in out.strip().split("\n"):
-                    author = author.strip()
-                    if author and author not in seen:
-                        seen.add(author)
-                        author_count[author] += 1
-    return dict(author_count)
+                for line in out.strip().split("\n"):
+                    if "||" not in line:
+                        continue
+                    author = line.split("||")[0].strip()
+                    commit_hash = line.split("||")[1].strip()
+                    key = (author, commit_hash)
+                    if author and key not in seen:
+                        seen.add(key)
+                        result[author] += 1
+
+    return dict(result)
 
 
 def _audit_msg(code: str, **kwargs) -> str:
@@ -1797,7 +1803,7 @@ def _commit_barchart(entries: List[Dict], path: str, color: str = _PRIMARY_COLOR
 
 
 def write_contributor_csv(entries: List[Dict], path: str,
-                          agent_authors: Dict[str, int] = None) -> str:
+                          ai_participation: Dict[str, int] = None) -> str:
     c = defaultdict(lambda: {"commits": 0, "ai_commits": 0, "email": "", "first": None, "last": None, "days": set()})
     for e in entries:
         name = e.get("author_name", "Unknown")
@@ -1811,8 +1817,8 @@ def write_contributor_csv(entries: List[Dict], path: str,
         if c[name]["last"] is None or e["date"] > c[name]["last"]:
             c[name]["last"] = e["date"]
 
-    if agent_authors:
-        for name, count in agent_authors.items():
+    if ai_participation:
+        for name, count in ai_participation.items():
             if name in c:
                 c[name]["ai_commits"] = count
     else:
@@ -1822,7 +1828,7 @@ def write_contributor_csv(entries: List[Dict], path: str,
 
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Index", "Author", "Email", "Commits", "AI Files", "Active Days", "First Commit", "Last Commit"])
+        w.writerow(["Index", "Author", "Email", "Commits", "AI Participation", "Active Days", "First Commit", "Last Commit"])
         for index, (name, info) in enumerate(sorted(c.items(), key=lambda x: -x[1]["commits"]), 1):
             w.writerow([index, name, info["email"], info["commits"], info["ai_commits"], len(info["days"]),
                         info["first"].strftime("%Y-%m-%d") if info["first"] else "",
@@ -2000,7 +2006,7 @@ def _build_see_also() -> str:
             "    charts/commit_activity.png  — Daily commit activity\n"
             "    charts/contributors.png     — Developer Pareto (bots excluded)\n"
             "    charts/quality_radar.png    — Quality factor radar\n"
-            "    contributors.csv            — Contributor activity summary (incl. AI)\n"
+            "    contributors.csv            — Contributor activity summary (AI Participation = Claude commits + AI config commits)\n"
             "    suspicion.csv               — Detailed audit findings with error codes")
 
 
@@ -2077,8 +2083,8 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
             _growth_trend_chart(entries, os.path.join(chart_dir, "growth_trend.png"), nb_ratio, color)
             _commit_barchart(entries, os.path.join(chart_dir, "commit_activity.png"), color)
             _contributor_pareto(entries, os.path.join(chart_dir, "contributors.png"), color, pareto_max_bars)
-            agent_authors = _agent_artifacts_per_author(repo_path)
-            write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"), agent_authors)
+            ai_participation = _ai_participation_per_author(repo_path, entries)
+            write_contributor_csv(entries, os.path.join(tmpdir, "contributors.csv"), ai_participation)
             _quality_radar_chart(q.get("scores", {}), os.path.join(chart_dir, "quality_radar.png"), color)
             write_suspicion_csv(audit, os.path.join(tmpdir, "suspicion.csv"))
 
