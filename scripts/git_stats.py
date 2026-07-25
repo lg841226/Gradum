@@ -2033,9 +2033,9 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         ai_breakdown, tiny = _build_factor_scores(s)
         claude_line = f"    Claude AI commits:         {q['claude_commits']}" if q.get("claude_commits", 0) > 0 else ""
         agent_tools = []
-        for s in audit.get("suspicion", []):
-            if s.get("code") == "S2013":
-                agent_tools.append(s.get("note", ""))
+        for suspect in audit.get("suspicion", []):
+            if suspect.get("code") == "S2013":
+                agent_tools.append(suspect.get("note", ""))
         ai_tool_line = claude_line
         if agent_tools:
             tools_str = "; ".join(agent_tools[:3])
@@ -2046,7 +2046,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         ctx = dict(
             generated_at=now_str, project_name=q['name'], total_commits=q['total_commits'],
             active_days=q['active_days'], duration_since_last=duration,
-            band=q.get('band', ''), score=s.get('composite', 0.0),
+            band=q['band'], score=s['composite'],
             recency=s['recency'], anti_ai=1 - s['suspicion'], ai_breakdown=ai_breakdown,
             deletion_health=s['deletion_health'], scale=s['scale'], hero=s['hero'],
             tiny_penalty=tiny,
