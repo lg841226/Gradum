@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * GradumCallbacks.kt  2026-07-28 20:44:22 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -21,14 +22,30 @@ import gradum.idea.GradumToolWindowFactory
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
+import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
 import gradum.idea.encodeImageToAttachment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.io.IOException
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.io.File
+import java.nio.charset.StandardCharsets
+
+@Suppress("UnstableApiUsage")
+@OptIn(ExperimentalJewelApi::class)
+private val logger = Logger.getInstance(MarkdownProcessor::class.java)
+
+private val MARKDOWN_EXTENSIONS = setOf(
+  ".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdwn"
+)
+
+/** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
+private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L
 
 /**
  * Holds all UI event callbacks for the Gradum chat interface.
@@ -80,31 +97,30 @@ fun rememberGradumCallbacks(
   toolWindow: ToolWindow?,
   coroutineScope: CoroutineScope,
 ): GradumCallbacks {
-  val eventCallbacks = rememberEventCallbacks(session, toolWindow)
-  val onDeleteMessage = rememberDeleteMessageCallback(session)
-  val onRetryMessage = rememberRetryMessageCallback(session, toolWindow, coroutineScope)
-  val onSend = rememberSendCallback(session, toolWindow, coroutineScope)
-  val onStop = rememberStopCallback(session, coroutineScope)
-  val onOpenInEditor = rememberOpenInEditorCallback(toolWindow, coroutineScope)
   val onViewDiff = rememberViewDiffCallback(toolWindow)
+  val onStop = rememberStopCallback(session, coroutineScope)
+  val onDeleteMessage = rememberDeleteMessageCallback(session)
+  val eventCallbacks = rememberEventCallbacks(toolWindow, session)
   val onAttachmentClick = rememberAttachmentClickCallback(toolWindow)
+  val onSend = rememberSendCallback(toolWindow, session, coroutineScope)
+  val onOpenInEditor = rememberOpenInEditorCallback(toolWindow, coroutineScope)
+  val onRetryMessage = rememberRetryMessageCallback(session, toolWindow, coroutineScope)
 
   return GradumCallbacks(
-    onDeleteMessage = onDeleteMessage,
-    onRetryMessage = onRetryMessage,
     onSend = onSend,
     onStop = onStop,
-    onOpenInEditor = onOpenInEditor,
     onViewDiff = onViewDiff,
-    onAttachmentClick = onAttachmentClick,
+    onOpenInEditor = onOpenInEditor,
     eventCallbacks = eventCallbacks,
+    onRetryMessage = onRetryMessage,
+    onDeleteMessage = onDeleteMessage,
+    onAttachmentClick = onAttachmentClick
   )
 }
 
 @Composable
 private fun rememberEventCallbacks(
-  session: GradumChatSession,
-  toolWindow: ToolWindow?,
+  toolWindow: ToolWindow?, session: GradumChatSession
 ): EventCallbacks {
   return EventCallbacks(
     onFocusChange = { session.isFocused = it },
@@ -234,6 +250,35 @@ private fun rememberRetryMessageCallback(
     if (userMessageIndex != null) {
       val userMessage = session.messages[userMessageIndex]
 
+      // Debug mode: re-read file from editor instead of sending to LLM
+      if (session.selectedPermission == PermissionMode.DEBUG) {
+        val toolProject = toolWindow?.project
+        val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
+        val currentFile = editorContext?.currentFile
+        if (currentFile != null &&
+          MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }
+        ) {
+          try {
+            val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
+            val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
+            val content = textEditor?.editor?.document?.text
+              ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            val messagesToRemove = assistantMessageIndex - userMessageIndex + 1
+            repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
+            session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content))
+            session.hasSentMessage = true
+            session.loadDebugMarkdown(content)
+          } catch (ioError: IOException) {
+            logger.error("IO error reading file: ${currentFile.path}", ioError)
+          } catch (securityError: SecurityException) {
+            logger.error("Security error accessing file: ${currentFile.path}", securityError)
+          } catch (processingError: Exception) {
+            logger.warn("Unexpected error processing markdown: ${currentFile.name}", processingError)
+          }
+        }
+        return@remember
+      }
+
       val activeProject = toolWindow?.project
       val editorContext = activeProject?.let { EditorUtils.getEditorContext(it) }
       val focusedPath = editorContext?.currentFile?.path ?: ""
@@ -285,13 +330,44 @@ private fun rememberRetryMessageCallback(
 
 @Composable
 private fun rememberSendCallback(
-  session: GradumChatSession,
   toolWindow: ToolWindow?,
+  session: GradumChatSession,
   coroutineScope: CoroutineScope,
 ): () -> Unit = remember(session, toolWindow, coroutineScope) {
   {
     val rawText: String = session.textState.text.toString()
     val hasModel = session.selectedModel != null || session.isAutoSelected
+
+    // Debug mode: load focused Markdown file directly without calling LLM
+    if (session.selectedPermission == PermissionMode.DEBUG) {
+      if (rawText.isNotBlank()) {
+        val toolProject = toolWindow?.project
+        val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
+        val currentFile = editorContext?.currentFile
+        if (currentFile != null &&
+          MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }
+        ) {
+          try {
+            val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
+            val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
+            val content = textEditor?.editor?.document?.text
+              ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            session.messages.add(ChatMessage(role = "user", content = rawText))
+            session.hasSentMessage = true
+            session.loadDebugMarkdown(content)
+          } catch (ioError: IOException) {
+            logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
+          } catch (securityError: SecurityException) {
+            logger.error("Security error accessing markdown file: ${currentFile.name}", securityError)
+          } catch (generalError: Exception) {
+            logger.warn("Unexpected error processing markdown file: ${currentFile.name}", generalError)
+          }
+        }
+      }
+      session.textState.edit { delete(0, length) }
+      return@remember
+    }
+
     if (rawText.isNotBlank() && hasModel) {
       val toolProject = toolWindow?.project
       val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
@@ -363,9 +439,11 @@ private fun rememberOpenInEditorCallback(
           val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
           if (virtualFile != null && virtualFile.exists()) {
             withContext(Dispatchers.Main) {
-              val fileEditor = FileEditorManager.getInstance(project).openFile(virtualFile, true)
-              if (startLine > 0 && fileEditor is TextEditor) {
-                val editor = fileEditor.editor
+              val editors = FileEditorManager.getInstance(project).openFile(virtualFile, true)
+              val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
+
+              if (startLine > 0 && textEditor != null) {
+                val editor = textEditor.editor
                 val offset = editor.document.getLineStartOffset((startLine - 1).coerceAtLeast(0))
                 editor.caretModel.moveToOffset(offset)
                 editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)
@@ -417,6 +495,3 @@ private fun rememberAttachmentClickCallback(
     }
   }
 }
-
-/** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
-private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L

@@ -29,6 +29,7 @@ fun ChatInputSection(
   state: ChatInputState,
   actions: ChatInputActions,
   textState: TextFieldState,
+  selectedPermission: String = "read_only",
   modifier: Modifier = Modifier
 ) {
   Column(modifier = modifier) {
@@ -36,7 +37,8 @@ fun ChatInputSection(
       state = state,
       actions = actions,
       roundedCornerShape = RoundedCornerShape(6.dp),
-      textState = textState
+      textState = textState,
+      selectedPermission = selectedPermission
     )
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
     ModelSelectorBar(

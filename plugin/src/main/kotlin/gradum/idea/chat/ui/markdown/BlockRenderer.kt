@@ -568,16 +568,24 @@ private fun MarkerColumn(
 private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val quoteTextColor = styling.blockQuote.textColor
-  val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(color = quoteTextColor)
+  val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(
+    color = quoteTextColor,
+    lineHeight = styling.paragraph.inlinesStyling.textStyle.fontSize * 1.6f
+  )
   val quotePadding: PaddingValues = styling.blockQuote.padding
   val borderColor = styling.blockQuote.lineColor
   val indentStart: Dp = quotePadding.calculateStartPadding(LayoutDirection.Ltr)
   val children: NodeChildren = NodeChildren.of(quote)
 
-  Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+
+  Row(
+    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
     Box(
       modifier = Modifier
-        .width(4.dp)
+        .width(styling.blockQuote.lineWidth)
+        .defaultMinSize(minHeight = 8.dp)
         .fillMaxHeight()
         .clip(RoundedCornerShape(percent = 50))
         .background(borderColor)
@@ -585,7 +593,7 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(start = indentStart)
+        .padding(start = indentStart, top = quotePadding.calculateTopPadding(), bottom = quotePadding.calculateBottomPadding())
     ) {
       val firstChild: Node? = children.first
       if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick)

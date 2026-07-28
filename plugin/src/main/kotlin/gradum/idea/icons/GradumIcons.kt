@@ -18,6 +18,7 @@ object GradumIcons {
   val DislikeSelected = PathIconKey("/icons/dislike-selected/dislike-selected.svg", GradumIcons::class.java)
   val Search = PathIconKey("/icons/search/search.svg", GradumIcons::class.java)
   val Markdown = PathIconKey("/icons/markdown/markdown.svg", GradumIcons::class.java)
+  val Table = PathIconKey("/icons/table/table.svg", GradumIcons::class.java)
   val Kotlin = PathIconKey("/icons/file-type/kotlin/kotlin.svg", GradumIcons::class.java)
   val Python = PathIconKey("/icons/file-type/python/python.svg", GradumIcons::class.java)
   val TypeScript = PathIconKey("/icons/file-type/typescript/typescript.svg", GradumIcons::class.java)

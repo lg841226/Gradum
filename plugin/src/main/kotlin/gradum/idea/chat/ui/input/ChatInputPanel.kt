@@ -51,6 +51,7 @@ fun ChatInputPanel(
   actions: ChatInputActions,
   roundedCornerShape: RoundedCornerShape,
   textState: TextFieldState,
+  selectedPermission: String = "read_only",
   modifier: Modifier = Modifier
 ) {
   val initialTextLength: Int = remember { textState.text.length }
@@ -135,8 +136,9 @@ fun ChatInputPanel(
             if (!isSubmitKey) return@onPreviewKeyEvent false
 
             val modelSelected = state.selectedModel != null || state.isAutoSelected
+            val isDebug = selectedPermission == "debug"
             val canSend = !state.isSending || !state.isPendingQueueFull
-            if (modelSelected && canSend) actions.onSend()
+            if ((modelSelected || isDebug) && canSend) actions.onSend()
 
             true
           }
@@ -144,7 +146,7 @@ fun ChatInputPanel(
 
       Spacer(modifier = Modifier.height(GradumSpacing.md))
 
-      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty())
+      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty(), selectedPermission = selectedPermission)
 
       AttachmentBar(attachedFiles = state.attachedFiles, onRemoveFile = actions.onRemoveFile)
     }

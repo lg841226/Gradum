@@ -70,6 +70,7 @@ fun WelcomeScreen(
   suggestionVariants: List<Int>,
   modifier: Modifier = Modifier,
   inputActions: ChatInputActions,
+  selectedPermission: String = "read_only",
   onRefreshSuggestions: () -> Unit,
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
@@ -107,6 +108,7 @@ fun WelcomeScreen(
         state = inputState,
         textState = textState,
         actions = inputActions,
+        selectedPermission = selectedPermission,
         modifier = Modifier.widthIn(max = 600.dp)
       )
       QuickStartSection(

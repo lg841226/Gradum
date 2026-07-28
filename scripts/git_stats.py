@@ -1,25 +1,18 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-24 21:03:07 Changed by gwy
+#  git_stats.py  2026-07-28 03:54:57 Changed by gwy
 #
-#  git_stats.py  2026-07-24 21:02:31 Changed by gwy
+#  git_stats.py  2026-07-28 03:54:33 Changed by gwy
 #
-#  git_stats.py  2026-07-24 20:06:37 Changed by gwy
+#  git_stats.py  2026-07-28 03:40:24 Changed by gwy
 #
-#  git_stats.py  2026-07-24 20:05:21 Changed by gwy
+#  git_stats.py  2026-07-28 03:29:40 Changed by gwy
 #
-#  git_stats.py  2026-07-24 20:04:14 Changed by gwy
-#
-#  git_stats.py  2026-07-24 18:49:09 Changed by gwy
-#
-#  git_stats.py  2026-07-24 18:45:23 Changed by gwy
-#
-#  git_stats.py  2026-07-24 18:44:41 Changed by gwy
+#  git_stats.py  2026-07-28 03:23:29 Changed by gwy
 
-
-import concurrent.futures
 import csv
+import functools
 import itertools
 import json
 import math
@@ -48,6 +41,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.spinner import SPINNERS
 from typing import Dict, List, Optional, Tuple
 
+__version__ = "1.1.0"
+
 console = Console()
 
 ICON_START = "\u23A1"
@@ -62,13 +57,13 @@ SPINNERS["blink"] = {"interval": 450, "frames": ["\u25CF", " "]}
 
 def _git(repo: str, cmd: str) -> Optional[str]:
     try:
-        r = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True, check=True)
-        return r.stdout.strip()
-    except subprocess.CalledProcessError as error:
-        print(f"{ICON_WARNING} Git command failed (exit {error.returncode}): {cmd}",
+        result = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        print(f"{ICON_WARNING} Git command failed (exit {exc.returncode}): {cmd}",
               file=sys.stderr)
-        if error.stderr and error.stderr.strip():
-            print(f"  stderr: {error.stderr.strip()}", file=sys.stderr)
+        if exc.stderr and exc.stderr.strip():
+            print(f"  stderr: {exc.stderr.strip()}", file=sys.stderr)
         return None
 
 
@@ -88,27 +83,6 @@ def _parse_numstat(numstat: str) -> Tuple[int, int]:
 
 def repo_name(repo_path: str) -> str:
     return os.path.basename(repo_path) or "Unknown"
-
-
-def commit_stats(repo_path: str, hash_: str) -> Tuple[int, int]:
-    out = _git(repo_path, f'git show --numstat --format="" {hash_}')
-    return _parse_numstat(out) if out else (0, 0)
-
-
-def commit_dates(repo_path: str) -> Dict[str, Tuple[str, str]]:
-    out = _git(repo_path, 'git log --reverse --format="%H||%ai"')
-    if not out:
-        return {}
-    result = {}
-    for line in out.split("\n"):
-        if "||" not in line:
-            continue
-        hash_val, rest = line.split("||", 1)
-        parts = rest.split()
-        date = parts[0] if parts else ""
-        time_str = parts[1].split("+")[0] if len(parts) > 1 else ""
-        result[hash_val] = (date, time_str)
-    return result
 
 
 def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
@@ -136,12 +110,13 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
         if "||" in line and len(line) > 40:
             if current_hash:
                 index += 1
-                dt = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
+                commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
                 additions, deletions = _parse_numstat("\n".join(numstat_lines))
                 is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
+                file_paths = [numstat_line.split("\t")[2] for numstat_line in numstat_lines if numstat_line.count("\t") >= 2]
                 entries.append(
-                    {"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
-                     "files_changed": len(numstat_lines), "is_claude": is_claude,
+                    {"hash": current_hash[:8], "date": commit_date, "additions": additions, "deletions": deletions,
+                     "files_changed": len(numstat_lines), "files_changed_list": file_paths, "is_claude": is_claude,
                      "author_name": current_author, "author_email": current_email,
                      "subject": current_subject})
                 if on_commit:
@@ -155,11 +130,12 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
 
     if current_hash:
         index += 1
-        dt = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
+        commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
         additions, deletions = _parse_numstat("\n".join(numstat_lines))
         is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
-        entries.append({"hash": current_hash[:8], "date": dt, "additions": additions, "deletions": deletions,
-                        "files_changed": len(numstat_lines), "is_claude": is_claude,
+        file_paths = [numstat_line.split("\t")[2] for numstat_line in numstat_lines if numstat_line.count("\t") >= 2]
+        entries.append({"hash": current_hash[:8], "date": commit_date, "additions": additions, "deletions": deletions,
+                        "files_changed": len(numstat_lines), "files_changed_list": file_paths, "is_claude": is_claude,
                         "author_name": current_author, "author_email": current_email,
                         "subject": current_subject})
         if on_commit:
@@ -210,7 +186,7 @@ def build_formula(formula_expr: str) -> Tuple[Optional[str], Optional[str]]:
 # Custom formulas let users define new CSV columns at export time (net_ratio,
 # efficiency, churn, or arbitrary expressions) without modifying the code.
 # SAFE_BUILTINS restricts eval to pure math — no I/O or system access.
-def write_csv(config: Dict, hashes: List[str], dates: Dict, stats: Dict) -> str:
+def write_csv(config: Dict, entries: List[Dict]) -> str:
     path = config.get("outputFilePath") or f'git_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     expr, label = build_formula(config.get("formulaExpression"))
     window_size = config.get("movingAverageWindow", 5)
@@ -235,9 +211,10 @@ def write_csv(config: Dict, hashes: List[str], dates: Dict, stats: Dict) -> str:
         window = deque(maxlen=window_size) if window_size > 0 else None
         moving_avg = 0
 
-        for index, hash_ in enumerate(hashes):
-            index = index + 1
-            add, delete = stats.get(hash_, (0, 0))
+        for idx, entry in enumerate(entries):
+            index = idx + 1
+            add = entry["additions"]
+            delete = entry["deletions"]
             net = add - delete
 
             cum_add += add
@@ -254,8 +231,9 @@ def write_csv(config: Dict, hashes: List[str], dates: Dict, stats: Dict) -> str:
             else:
                 growth_rate = 0
 
-            date, time_str = dates.get(hash_, ("", ""))
-            row = [index, hash_[:8], date, time_str, add, delete, net,
+            date = entry["date"].strftime("%Y-%m-%d")
+            time_str = entry["date"].strftime("%H:%M:%S")
+            row = [index, entry["hash"], date, time_str, add, delete, net,
                    cum_add, cum_del, cum_net, cum_total, growth_rate]
 
             if window_size > 0:
@@ -737,6 +715,8 @@ class QualityModel:
             Repository name for display and band computation.
         now : datetime
             Reference timestamp for recency.
+        repo : str, optional
+            Repository path for AI artifact detection.
 
         Returns
         -------
@@ -873,6 +853,8 @@ class QualityModel:
         overall_hero_score : float, optional
             Hero score from the overall evaluation. If omitted, defaults
             to 1.0 (perfectly distributed — neutral assumption).
+        repo : str, optional
+            Repository path for AI artifact detection.
 
         Returns
         -------
@@ -1040,76 +1022,76 @@ for internal, (config_key, default) in _AUDIT_PARAM_KEYS.items():
 _AUDIT_CODES = {
     # Critical (S1000-S1999)
     "S1001": ("High-Risk Refactoring", "critical",
-              "High-Risk Refactoring: single commit +{add}/-{dels} lines (threshold {threshold})"),
+              "single commit +{add}/-{dels} lines, threshold is {threshold}"),
     "S1002": ("Net Reduction", "critical",
-              "Net Reduction: codebase shrunk — {dels} deletions vs {add} additions ({ratio:.0f}% net loss)"),
+              "codebase net loss {ratio:.0f}% ({dels} deletions vs {add} additions)"),
     "S1003": ("Single-Author Project", "critical",
-              "Single-Author Project: only \"{author}\" across {total} commits — bus factor = 1"),
+              "only \"{author}\" across {total} commits, bus factor is 1"),
     "S1004": ("Mass Rewrite", "critical",
-              "Mass Rewrite: single commit rewrote {lines} lines ({pct:.0f}% of total codebase)"),
+              "single commit rewrote {lines} lines, {pct:.0f}% of total codebase"),
     "S1005": ("Zero Activity", "critical",
-              "Zero Activity: repository has no commits"),
+              "repository has no commits"),
     # Alert (S2000-S2999)
     "S2001": ("Deletion Cluster", "alert",
-              "Deletion Cluster: {count} consecutive deletion-heavy commits, {lines} lines removed (pos {start_idx}–{end_idx})"),
+              "{count} consecutive deletion-heavy commits, {lines} lines removed at positions {start_idx} to {end_idx}"),
     "S2002": ("Mature Churn", "alert",
-              "Mature Churn: {total} commits total, {count} heavy-deletion commits in {days}d window"),
+              "{total} total commits, {count} heavy deletions within {days} days"),
     "S2003": ("Core Net Deletion", "alert",
-              "Core Net Deletion: commit removed {lines} lines from core source files"),
+              "commit removed {lines} lines from core source files"),
     "S2004": ("Accumulation-Only", "alert",
-              "Accumulation-Only: deletion ratio {ratio:.1f}% ({total} commits, almost no cleanup)"),
+              "deletion ratio {ratio:.1f}% over {total} commits, almost no cleanup"),
     "S2005": ("AI Volume Spike", "alert",
-              "AI Volume Spike: avg {avg:.0f} lines/commit exceeds AI threshold {threshold} — unusually large"),
+              "avg {avg:.0f} lines per commit exceeds AI threshold {threshold}"),
     "S2006": ("AI Bootstrap", "alert",
-              "AI Bootstrap: first {n} commits have {ratio:.1f}x add/delete ratio — AI-generated boilerplate pattern"),
+              "first {n} commits have add/delete ratio of {ratio:.1f}x, matches AI boilerplate pattern"),
     "S2007": ("AI Uniformity", "alert",
-              "AI Uniformity: CV={cv:.3f} below {threshold:.2f} — commit sizes are suspiciously uniform"),
+              "CV {cv:.3f} is below threshold {threshold:.2f}, commit sizes are suspiciously uniform"),
     "S2008": ("AI Focus Deviation", "alert",
-              "AI Focus Deviation: avg {avg:.1f} files/commit deviates from target {target} — AI touches fewer files"),
+              "avg {avg:.1f} files per commit deviates from target {target}, AI tends to touch fewer files"),
     "S2009": ("Firework Burst", "alert",
-              "Firework Burst: {density:.1f} commits/day over {days:.0f}d — AI-like rapid-fire pattern"),
+              "{density:.1f} commits per day over {days:.0f} days, resembles AI rapid-fire pattern"),
     "S2010": ("Claude Flood", "alert",
-              "Claude Flood: {pct:.0f}% of commits ({count}/{total}) are Claude Co-Authored-By"),
+              "{pct:.0f}% of commits ({count} out of {total}) are Claude Co-Authored-By"),
     "S2011": ("Hero Dependency", "alert",
-              "Hero Dependency: top {n} contributors own {pct:.0f}% of {total} commits — bus factor risk"),
+              "top {n} contributors own {pct:.0f}% of {total} commits, bus factor risk"),
     "S2012": ("Abandoned", "alert",
-              "Abandoned: last commit {days:.0f}d ago (half-life {half}d) — project may be inactive"),
+              "last commit was {days:.0f} days ago, half-life is {half} days, project may be inactive"),
     # Watch (S3000-S3999)
     "S3001": ("Non-Core Deletion", "watch",
-              "Non-Core Deletion: deleted {lines} lines; {core}/{files} changed files are source code"),
+              "deleted {lines} lines, {core} out of {files} changed files are source code"),
     "S3002": ("Heavy Churn", "watch",
-              "Heavy Churn: {dels} deletions vs {add} additions ({ratio:.0f}% deletion ratio)"),
+              "{dels} deletions vs {add} additions, deletion ratio is {ratio:.0f}%"),
     "S3003": ("Bot-like Author", "watch",
-              "Bot-like Author: \"{author}\" matches bot pattern \"{pattern}\""),
+              "\"{author}\" matches bot pattern \"{pattern}\""),
     "S3004": ("Weekend Warrior", "watch",
-              "Weekend Warrior: {pct:.0f}% of commits ({count}/{total}) on weekends — possible personal project"),
+              "{pct:.0f}% of commits ({count} out of {total}) are on weekends, possible personal project"),
     "S3005": ("Day Burst", "watch",
-              "Day Burst: {count} commits on {date} — unusually high single-day activity"),
+              "{count} commits on {date}, unusually high single day activity"),
     "S3006": ("No Merges", "watch",
-              "No Merges: 0 merge commits in {total} total commits — linear history only"),
+              "0 merge commits in {total} total commits, linear history only"),
     "S3007": ("Tiny Commits", "watch",
-              "Tiny Commits: {count}/{total} commits ({pct:.0f}%) are <{limit} lines — possible WIP or generated"),
+              "{count} out of {total} commits ({pct:.0f}%) are under {limit} lines, possible WIP or generated"),
     "S3008": ("Vague Messages", "watch",
-              "Vague Messages: {count}/{total} commits ({pct:.0f}%) have generic ≤5-char subjects"),
+              "{count} out of {total} commits ({pct:.0f}%) have generic subjects of 5 characters or fewer"),
     # Normal (S4000-S4999)
     "S4001": ("Low Cleanup", "normal",
-              "Low Cleanup: deletion ratio {ratio:.1f}% — below ideal range"),
+              "deletion ratio is {ratio:.1f}%, below ideal range"),
     "S4002": ("Small Project", "normal",
-              "Small Project: {lines} lines across {files} files — early-stage or tiny utility"),
+              "{lines} lines across {files} files, early stage or tiny utility"),
     "S4003": ("Compact History", "normal",
-              "Compact History: {days}d of active development"),
+              "{days} days of active development"),
     # Clean (S5000-S5999)
     "S5001": ("Balanced Churn", "clean",
-              "Balanced Churn: deletion ratio {ratio:.1f}% — healthy cleanup rate"),
+              "deletion ratio is {ratio:.1f}%, healthy cleanup rate"),
     "S5002": ("Multiple Contributors", "clean",
-              "Multiple Contributors: {count} distinct authors ({names})"),
+              "{count} distinct authors: {names}"),
     "S2013": ("AI Agent Artifacts", "alert",
-              "AI Agent Artifacts: tracked files {files} ({count} tool{plural})"),
+              "tracked files {files}, {count} tool{plural} detected"),
     "S5003": ("Gradual Growth", "clean",
-              "Gradual Growth: {lines} lines added over {days}d — steady, organic growth"),
+              "{lines} lines added over {days} days, steady organic growth"),
 }
 
-# Pre-built lookup: code → (type, level)
+# Pre-built lookup: code to (type, level)
 _AUDIT_CODE_META = {key: (value[0], value[1]) for key, value in _AUDIT_CODES.items()}
 
 # Agent artifact file/directory patterns for AI tool detection (S2013)
@@ -1127,6 +1109,7 @@ _AGENT_ARTIFACT_PATTERNS = {
 }
 
 
+@functools.lru_cache(maxsize=None)
 def _detect_agent_artifacts(repo: str) -> Dict[str, List[str]]:
     detected = {}
     for agent_name, patterns in _AGENT_ARTIFACT_PATTERNS.items():
@@ -1184,6 +1167,7 @@ def _is_bot_author(name: str, patterns: List[str] = None) -> bool:
     return any(pattern.lower() in name.lower() for pattern in patterns)
 
 
+@functools.lru_cache(maxsize=None)
 def _changed_files(repo: str, hash_: str) -> List[str]:
     out = _git(repo, f'git show --name-only --format="" {hash_}')
     return out.strip().split("\n") if out else []
@@ -1204,7 +1188,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
     if total == 0:
         return {}
 
-    ap = _AUDIT_PARAMS
+    audit_params = _AUDIT_PARAMS
 
     enriched = []
     for index, entry in enumerate(entries):
@@ -1401,11 +1385,11 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Volume Spike", "level": "alert",
                 "note": _audit_msg("S2005", avg=avg_add,
-                                   threshold=ap.get("aiAdditionsPerCommitThreshold", 500)),
+                                   threshold=audit_params.get("aiAdditionsPerCommitThreshold", 500)),
             })
         # S2006: AI Initiative
         if scores.get("ai_initiative", 0) > 0.5:
-            n = ap.get("aiInitiativeEarlyCommitCount", 3)
+            n = audit_params.get("aiInitiativeEarlyCommitCount", 3)
             early = [e for e in enriched[:n] if e["deletions"] > 0]
             early_ratio = (sum(e["additions"] for e in early) /
                            max(sum(e["deletions"] for e in early), 1)) if early else 0
@@ -1425,7 +1409,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Uniformity", "level": "alert",
                 "note": _audit_msg("S2007", cv=cv,
-                                   threshold=ap.get("aiRepetitionCvThreshold", 0.5)),
+                                   threshold=audit_params.get("aiRepetitionCvThreshold", 0.5)),
             })
         # S2008: AI Focus
         if scores.get("ai_focus", 0) > 0.5:
@@ -1435,7 +1419,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Focus Deviation", "level": "alert",
                 "note": _audit_msg("S2008", avg=avg_files, n=total,
-                                   target=ap.get("aiFocusTargetFiles", 3.0)),
+                                   target=audit_params.get("aiFocusTargetFiles", 3.0)),
             })
         # S2009: Firework Burst
         if scores.get("firework", 0) > 0.5:
@@ -1477,7 +1461,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             })
         # S2012: Abandoned
         days_since = (now - enriched[-1]["date"]).total_seconds() / 86400 if enriched else 9999
-        half_life = ap.get("recencyHalfLifeDays", 90)
+        half_life = audit_params.get("recencyHalfLifeDays", 90)
         if days_since > half_life:
             suspicion.append({
                 "code": "S2012", "hash": enriched[-1]["hash"] if enriched else "-", "index": -1,
@@ -1539,7 +1523,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
         })
 
     # S3007: Tiny Commits
-    tiny_threshold = ap.get("tinyCommitLineThreshold", 10)
+    tiny_threshold = audit_params.get("tinyCommitLineThreshold", 10)
     tiny_count = sum(1 for e in enriched if e["additions"] + e["deletions"] < tiny_threshold)
     tiny_pct = tiny_count / max(total, 1) * 100
     if tiny_pct > 30 and total >= 10:
@@ -1552,9 +1536,9 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
 
     # S3008: Vague Messages (≤5 chars + regex)
     _VAGUE_PATTERN = re.compile(
-        r'^[\s.]*$'                           # blank or dots
-        r'|^\d+$'                             # just numbers
-        r'|^[a-z]{1}$'                        # single letter
+        r'^[\s.]*$'  # blank or dots
+        r'|^\d+$'  # just numbers
+        r'|^[a-z]{1}$'  # single letter
         r'|^(update|fix|bugfix|minor|tweak|cleanup|wip|temp|test|asdf|qwerty|xxx|foo|bar)$'
     )
     vague_count = 0
@@ -1575,12 +1559,14 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
 
     # S4002: Small Project
     if total_lines_all < 1000 and total >= 5:
+        all_files = set()
+        for e in entries:
+            all_files.update(e.get("files_changed_list", []))
         suspicion.append({
             "code": "S4002", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Small Project", "level": "normal",
-            "note": _audit_msg("S4002", lines=total_lines_all, files=len(set(
-                f for e in enriched for f in _changed_files(repo, e["hash"])))),
+            "note": _audit_msg("S4002", lines=total_lines_all, files=len(all_files)),
         })
 
     # S4003: Compact History
@@ -1828,7 +1814,8 @@ def write_contributor_csv(entries: List[Dict], path: str,
 
     with open(path, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Index", "Author", "Email", "Commits", "AI Participation", "Active Days", "First Commit", "Last Commit"])
+        w.writerow(
+            ["Index", "Author", "Email", "Commits", "AI Participation", "Active Days", "First Commit", "Last Commit"])
         for index, (name, info) in enumerate(sorted(c.items(), key=lambda x: -x[1]["commits"]), 1):
             w.writerow([index, name, info["email"], info["commits"], info["ai_commits"], len(info["days"]),
                         info["first"].strftime("%Y-%m-%d") if info["first"] else "",
@@ -2006,7 +1993,7 @@ def _build_see_also() -> str:
             "    charts/commit_activity.png  — Daily commit activity\n"
             "    charts/contributors.png     — Developer Pareto (bots excluded)\n"
             "    charts/quality_radar.png    — Quality factor radar\n"
-            "    contributors.csv            — Contributor activity summary (AI Participation = Claude commits + AI config commits)\n"
+            "    contributors.csv            — Contributor activity summary (AI Participation)\n"
             "    suspicion.csv               — Detailed audit findings with error codes")
 
 
@@ -2097,10 +2084,14 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         detail_dir = os.path.join(tmpdir, "details")
         os.makedirs(detail_dir, exist_ok=True)
 
+        seen_hashes = set()
         for suspect in audit.get("suspicion", []):
             commit_hash = suspect.get("hash", "")
             if not commit_hash or not all(c in "0123456789abcdef" for c in commit_hash):
                 continue
+            if commit_hash in seen_hashes:
+                continue
+            seen_hashes.add(commit_hash)
             safe_name = commit_hash.replace("/", "_")
             raw = _git(repo_path, f'git show {commit_hash}')
             if raw is None:
@@ -2146,7 +2137,7 @@ def main():
 
     console.print()
     console.print("[default]Git Commit Statistics Analyzer by Gradum[/default]")
-    console.print("[default][dim]Version: 1.0.0[/dim][/default]")
+    console.print(f"[default][dim]Version: {__version__}[/dim][/default]")
     console.print()
 
     if not os.path.exists(repo):
@@ -2156,123 +2147,78 @@ def main():
         console.print(f"[yellow]{ICON_WARNING}  Not a valid Git repository: {repo}[/yellow]")
         sys.exit(1)
 
-    with console.status("Fetching commit history", spinner="dots"):
-        raw = _git(repo, 'git log --reverse --format="%H"')
-
-    if not raw:
-        console.print(f"[yellow]{ICON_WARNING}  No commits found[/yellow]")
-        sys.exit(1)
-
-    hashes = raw.strip().split("\n")
-    total = len(hashes)
-
     console.print(f"[dim]{ICON_START}[/dim] Start investigating Git data")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
-    console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total} commit records in {repo_name(repo)}[/default]")
-
-    use_threads = not fd.get("disableMultithreading", False)
-    num_threads = fd.get("threadPoolSize", 0)
-    num_threads = num_threads if num_threads > 0 else min(6, os.cpu_count() or 4)
-    parallel = total >= 100 and use_threads
-
-    if parallel:
-        console.print(f"[dim]{ICON_ARROW}[/dim]")
-        console.print(
-            f"[default][blue]{ICON_POINT}[/blue] Using {num_threads} threads for parallel processing[/default]")
-    console.print(f"[dim]{ICON_ARROW}[/dim]")
-    console.print(f"[dim]{ICON_ARROW}[/dim]")
-
-    with console.status("Fetching commit dates", spinner="dots"):
-        dates = commit_dates(repo)
 
     scan_start = time.time()
-    stats = {}
 
     with Progress(
             SpinnerColumn(spinner_name="blink", style="default"),
             TextColumn("{task.description}"),
             console=console, transient=True
     ) as progress:
-        task = progress.add_task("", total=total)
+        task = progress.add_task("", total=None)
+        entries = all_commits(
+            repo,
+            on_commit=lambda hash_str, subject, current, total_count: progress.update(
+                task, description=f"Scanning {current}/{total_count} {escape(hash_str)}: {escape(subject[:60])}"
+            )
+        )
 
-        if parallel:
-            done = 0
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-                f2h = {executor.submit(commit_stats, repo, hash_val): hash_val for hash_val in hashes}
-                for future in concurrent.futures.as_completed(f2h):
-                    hash_val = f2h[future]
-                    add, delete = future.result()
-                    stats[hash_val] = (add, delete)
-                    done += 1
-                    pct = int(done * 100 / total)
-                    progress.update(task, advance=1,
-                                    description=f"Read {pct}%, remaining {total - done} records")
-        else:
-            for index, hash_val in enumerate(hashes):
-                add, delete = commit_stats(repo, hash_val)
-                stats[hash_val] = (add, delete)
-                pct = int((index + 1) * 100 / total)
-                progress.update(task, advance=1,
-                                description=f"Read {pct}%, remaining {total - (index + 1)} records")
+    total = len(entries)
+    if total == 0:
+        console.print(f"[yellow]{ICON_WARNING}  No commits found[/yellow]")
+        sys.exit(1)
 
     elapsed = time.time() - scan_start
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
-    if minutes > 0:
-        scan_time = f"{minutes}m {seconds}s"
-    else:
-        scan_time = f"{seconds}s"
+    scan_time = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+    console.print(f"[default][blue]{ICON_STEP}[/blue] Found {total} commit records in {repo_name(repo)}[/default]")
+    console.print(f"[dim]{ICON_ARROW}[/dim]")
+    console.print(f"[dim]{ICON_ARROW}[/dim]")
     console.print(f"[blue]{ICON_STEP}[/blue] [default]Scanned for {scan_time}[/default]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
-    console.print(f"[dim]{ICON_ARROW}[/dim]")
 
-    csv_path = write_csv(fd, hashes, dates, stats)
-    console.print(f"[blue]{ICON_STEP}[/blue] [default]Statistics written to {csv_path}[/default]")
+    csv_path = write_csv(fd, entries)
     console.print(f"[dim]{ICON_ARROW}[/dim]")
+    console.print(f"[blue]{ICON_STEP}[/blue] [default]Statistics written to {csv_path}[/default]")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
     if fd.get("enableQualityAnalysis", False):
-        p = dict(_QUALITY_PARAMS)
+        quality_params = dict(_QUALITY_PARAMS)
         quality_params_path = fd.get("qualityParamsFilePath")
         if quality_params_path and os.path.exists(quality_params_path):
             with open(quality_params_path) as file:
-                p.update(json.load(file))
+                quality_params.update(json.load(file))
 
-        with Progress(
-                SpinnerColumn(spinner_name="blink", style="default"),
-                TextColumn("[default]{task.description}[/default]"),
-                console=console, transient=True,
-        ) as progress:
-            task = progress.add_task("Analyzing commits", total=None)
-            # noinspection bad-argument-type
-            entries = all_commits(
-                repo,
-                on_commit=lambda hash_str, subject, current, total_count: progress.update(
-                    task, description=f"Analyzing {current}/{total_count} {escape(hash_str)}: {escape(subject[:60])}"
-                )
-            )
+        now = datetime.now(timezone.utc)
+        quality = compute_quality(entries, quality_params, now, repo_name(repo), repo)
 
-            now = datetime.now(timezone.utc)
-            q = compute_quality(entries, p, now, repo_name(repo), repo)
+        audit = {}
+        periods = []
+        if not quality or quality.get("band") == "Archived":
+            audit = {"suspicion_count": 0, "deletion_percent": 0, "heavy_deletions": 0, "suspicion": []}
+        else:
+            overall_hero = quality.get("scores", {}).get("hero", 0.0)
+            batch_unit = fd.get("batchPeriodUnit")
+            periods = compute_quality_periods(entries, batch_unit or "month", now, quality_params,
+                                              overall_hero, repo) if batch_unit else []
 
-            if not q or q.get("band") == "Archived":
-                progress.update(task, description=f"Archived — no commits in {_duration_str(q['days_since_last'])}" if q else "Archived")
-                audit = {"suspicion_count": 0, "deletion_percent": 0, "heavy_deletions": 0, "suspicion": []}
-                periods = []
-            else:
-                progress.update(task, description="Computing quality metrics")
-                overall_hero = q.get("scores", {}).get("hero", 0.0)
-                batch_unit = fd.get("batchPeriodUnit")
-                periods = compute_quality_periods(entries, batch_unit or "month", now, p,
-                                                  overall_hero, repo) if batch_unit else []
+            with Progress(
+                    SpinnerColumn(spinner_name="blink", style="default"),
+                    TextColumn("[default]{task.description}[/default]"),
+                    console=console, transient=True,
+            ) as progress:
+                console.print(f"[dim]{ICON_ARROW}[/dim]")
+                progress.add_task("Scanning deletion patterns", total=None)
+                audit = audit_deletions(repo, entries, now, quality.get("scores"))
 
-                progress.update(task, description="Scanning deletion patterns")
-                audit = audit_deletions(repo, entries, now, q.get("scores"))
-
-        if not q or q.get("band") == "Archived":
-            msg = f"Archived — no commits in {_duration_str(q['days_since_last'])}" if q else "Archived — no commits"
+        if not quality or quality.get("band") == "Archived":
+            msg = f"Archived — no commits in {_duration_str(quality['days_since_last'])}" if quality else "Archived — no commits"
             console.print(f"[grey58]{ICON_STEP}[/grey58] [default]{msg}[/default]")
         else:
+            console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(
                 f"[blue]{ICON_STEP}[/blue] [default]Analyzed {len(entries)} commits, {audit['suspicion_count']} suspicious patterns[/default]"
             )
@@ -2282,7 +2228,7 @@ def main():
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_path = fd.get("reportOutputPath") or f"quality_report_{ts}.zip"
             chart_color = fd.get("chartPrimaryColor", _PRIMARY_COLOR)
-            detail_count, csv_count = write_report(q, periods, audit, repo, csv_path, report_path, entries, chart_color,
+            detail_count, csv_count = write_report(quality, periods, audit, repo, csv_path, report_path, entries, chart_color,
                                                    _HERO_TOP_N, _HERO_THRESHOLD, _PARETO_MAX_BARS)
             console.print(
                 f"[blue]{ICON_POINT}[/blue] [default]Packaged {detail_count} detail files + {csv_count} CSV files[/default]")
@@ -2299,16 +2245,16 @@ def main():
             _SEVERITY = {"critical": 0, "alert": 1, "watch": 2, "normal": 3, "clean": 4}
             _ABBREV = {"critical": "C", "alert": "A", "watch": "W", "normal": "N", "clean": "L"}
 
-            q_band = q["band"]
-            q_color = q["band_color"]
+            quality_band = quality["band"]
+            quality_color = quality["band_color"]
             console.print(
-                f"[{q_color}]{ICON_STEP}[/{q_color}] "
+                f"[{quality_color}]{ICON_STEP}[/{quality_color}] "
                 f"[default]Quality: Add/Del rate {audit['deletion_percent']}% · "
                 f"{len(audit['suspicion'])} problems[/default] · "
-                f"[{q_color}]{q_band}[/{q_color}]"
+                f"[{quality_color}]{quality_band}[/{quality_color}]"
             )
 
-            top = sorted(audit["suspicion"], key=lambda s: _SEVERITY.get(s["level"], 99))[:4]
+            top = sorted(audit["suspicion"], key=lambda item: _SEVERITY.get(item["level"], 99))[:4]
             if top:
                 parts = []
                 for s in top:
@@ -2338,6 +2284,7 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as error:
         import traceback
+
         console.print(f"[yellow]{ICON_WARNING}  {error}[/yellow]")
         traceback.print_exc()
         sys.exit(1)

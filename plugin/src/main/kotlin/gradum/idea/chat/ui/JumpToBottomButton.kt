@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * JumpToBottomButton.kt  2026-07-28 20:54:20 Changed by gwy
  */
-
-@file:OptIn(ExperimentalComposeUiApi::class)
 
 package gradum.idea.chat.ui
 
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -34,10 +32,29 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
+
+/**
+ * Outline width (in dp) around the pill. 1 dp is enough to
+ * read as a deliberate edge against the chat background
+ * without competing with the message bubbles' own borders.
+ */
+private val PillBorderWidth = 1.dp
+
+/**
+ * Animation timing (in milliseconds unless noted).
+ */
+private const val EXIT_DURATION_MS = 80
+private const val ENTER_FADE_DURATION_MS = 80
+private const val TEXT_REVEAL_DELAY_MS = 80L
+private const val TEXT_REVEAL_DURATION_MS = 120
+private const val MODE_SWAP_IN_DURATION_MS = 140
+private const val MODE_SWAP_OUT_DURATION_MS = 80
+private const val WIDTH_ANIMATION_DURATION_MS = 180
 
 /**
  * Floating "Jump to latest" / "Jump to top" pill.
@@ -66,11 +83,11 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @Composable
 fun JumpToBottomButton(
-  isAtBottom: Boolean,
   isAtTop: Boolean,
+  isAtBottom: Boolean,
   onClick: () -> Unit,
-  modifier: Modifier = Modifier,
   onJumpToTop: () -> Unit = {},
+  modifier: Modifier = Modifier
 ) {
   var isAlternativeMode by remember { mutableStateOf(false) }
   // The pill is visible when the user could benefit from its
@@ -81,12 +98,12 @@ fun JumpToBottomButton(
   val textAlpha: Float = rememberTextRevealAlpha(isVisible)
   AltKeyModeEffect(isVisible) { isAlternativeMode = !isAlternativeMode }
   JumpToBottomPill(
-    isVisible = isVisible,
-    isAlternativeMode = isAlternativeMode,
     onClick = onClick,
-    onJumpToTop = onJumpToTop,
-    textAlpha = textAlpha,
     modifier = modifier,
+    isVisible = isVisible,
+    textAlpha = textAlpha,
+    onJumpToTop = onJumpToTop,
+    isAlternativeMode = isAlternativeMode,
   )
 }
 
@@ -97,10 +114,7 @@ fun JumpToBottomButton(
  * toggle the pill while it's hidden.
  */
 @Composable
-private fun AltKeyModeEffect(
-  isVisible: Boolean,
-  onToggle: () -> Unit,
-) {
+private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
   val windowInfo = LocalWindowInfo.current
   LaunchedEffect(isVisible) {
     if (!isVisible) return@LaunchedEffect
@@ -143,12 +157,12 @@ private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
  */
 @Composable
 private fun JumpToBottomPill(
+  textAlpha: Float,
   isVisible: Boolean,
-  isAlternativeMode: Boolean,
+  modifier: Modifier,
   onClick: () -> Unit,
   onJumpToTop: () -> Unit,
-  textAlpha: Float,
-  modifier: Modifier,
+  isAlternativeMode: Boolean,
 ) {
   AnimatedVisibility(
     visible = isVisible,
@@ -170,10 +184,10 @@ private fun JumpToBottomPill(
     Box {
       PillBackground(Modifier.matchParentSize())
       PillForeground(
-        isAlternativeMode = isAlternativeMode,
-        textAlpha = textAlpha,
         onClick = onClick,
+        textAlpha = textAlpha,
         onJumpToTop = onJumpToTop,
+        isAlternativeMode = isAlternativeMode
       )
     }
   }
@@ -192,11 +206,11 @@ private fun PillBackground(modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .clip(RoundedCornerShape(percent = 50))
-      .background(JewelTheme.globalColors.panelBackground)
+      .background(globalColors.borders.normal)
       .border(
         width = PillBorderWidth,
-        color = JewelTheme.globalColors.borders.normal.copy(alpha = 0.4f),
-        shape = RoundedCornerShape(percent = 50)
+        shape = RoundedCornerShape(percent = 50),
+        color = globalColors.borders.normal.copy(alpha = 0.4f)
       )
   )
 }
@@ -208,10 +222,10 @@ private fun PillBackground(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun PillForeground(
-  isAlternativeMode: Boolean,
   textAlpha: Float,
   onClick: () -> Unit,
   onJumpToTop: () -> Unit,
+  isAlternativeMode: Boolean
 ) {
   val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
   Row(
@@ -226,19 +240,13 @@ private fun PillForeground(
       .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
       .padding(horizontal = 14.dp, vertical = 8.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(6.dp)
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
     Icon(
-      key = if (isAlternativeMode) GradumIcons.ScrollUp else GradumIcons.ScrollDown,
       contentDescription = null,
-      modifier = Modifier.size(16.dp)
+      modifier = Modifier.size(16.dp),
+      key = if (isAlternativeMode) GradumIcons.ScrollUp else GradumIcons.ScrollDown
     )
-    // The label crossfades on mode swap (140ms in / 80ms out).
-    // The outer `graphicsLayer { alpha = textAlpha }` gates the
-    // whole label behind the icon-first reveal — the
-    // AnimatedContent is always there, but until [textAlpha]
-    // rises the alpha is 0, so the user sees the icon land
-    // first, then the text fades in.
     AnimatedContent(
       targetState = isAlternativeMode,
       transitionSpec = {
@@ -249,29 +257,9 @@ private fun PillForeground(
       modifier = Modifier.graphicsLayer { alpha = textAlpha }
     ) { alternative ->
       Text(
-        text = message(
-          if (alternative) "gradum.jump.to.top" else "gradum.jump.to.latest"
-        ),
-        style = JewelTheme.typography.regular
+        style = JewelTheme.typography.regular,
+        text = message(if (alternative) "gradum.jump.to.top" else "gradum.jump.to.latest")
       )
     }
   }
 }
-
-/**
- * Outline width (in dp) around the pill. 1 dp is enough to
- * read as a deliberate edge against the chat background
- * without competing with the message bubbles' own borders.
- */
-private val PillBorderWidth = 1.dp
-
-/**
- * Animation timing (in milliseconds unless noted).
- */
-private const val ENTER_FADE_DURATION_MS = 80
-private const val EXIT_DURATION_MS = 80
-private const val TEXT_REVEAL_DELAY_MS = 80L
-private const val TEXT_REVEAL_DURATION_MS = 120
-private const val MODE_SWAP_IN_DURATION_MS = 140
-private const val MODE_SWAP_OUT_DURATION_MS = 80
-private const val WIDTH_ANIMATION_DURATION_MS = 180

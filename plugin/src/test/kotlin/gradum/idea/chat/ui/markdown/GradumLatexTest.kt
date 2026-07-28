@@ -2,31 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumLatexTest.kt  2026-07-20 10:30:00 Changed by gwy
- *
- * Coverage goal: 95%+ of the LaTeX feature surface (block `$$…$$`,
- * inline `$…$`, AST shape, segmentation, serialization round-trip,
- * edge cases, fallback). Mirrors the existing test style of
- * [GradumMarkdownBlockSplitTest] / [GradumInlineMarkdownTest] —
- * pure JVM, no real Compose render, no real LaTeX library call.
+ * GradumLatexTest.kt  2026-07-28 04:39:44 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.unit.sp
 import org.commonmark.node.Block
 import org.commonmark.node.Document
 import org.commonmark.node.Paragraph
 import org.commonmark.parser.Parser
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 class GradumLatexTest {

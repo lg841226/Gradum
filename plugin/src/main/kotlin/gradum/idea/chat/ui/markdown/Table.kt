@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.icons.GradumIcons
 import org.commonmark.ext.gfm.tables.TableBlock
 import org.commonmark.ext.gfm.tables.TableBody
 import org.commonmark.ext.gfm.tables.TableCell
@@ -432,10 +433,14 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
+    Icon(
+      key = GradumIcons.Table,
+      contentDescription = message("gradum.table"),
+    )
     Text(
       text = message("gradum.table"),
-      fontWeight = FontWeight.Medium,
-      fontFamily = JewelTheme.editorTextStyle.fontFamily
+      fontFamily = JewelTheme.editorTextStyle.fontFamily,
+      modifier = Modifier.weight(1f)
     )
     Tooltip(tooltip = { Text(text = message("gradum.copy.table.tooltip")) }) {
       IconButton(

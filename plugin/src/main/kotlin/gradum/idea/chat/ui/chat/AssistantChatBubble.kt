@@ -5,6 +5,7 @@
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat
 
@@ -67,6 +68,7 @@ fun AssistantChatBubble(
   modifier: Modifier = Modifier,
   isLoading: Boolean = false,
   actionsEnabled: Boolean = true,
+  selectedPermission: String = "read_only",
   onRetry: () -> Unit = {},
   onUrlClick: (String) -> Unit = {},
   onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
@@ -110,7 +112,8 @@ fun AssistantChatBubble(
         }
       }
 
-      if (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0) {
+      // Hide TokenStatusRow in debug mode
+      if (selectedPermission != "debug" && (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0)) {
         Spacer(Modifier.height(GradumSpacing.md))
         TokenStatusRow(
           isLoading = isLoading,
@@ -125,6 +128,7 @@ fun AssistantChatBubble(
         isLoading = isLoading,
         hasContent = hasContent,
         actionsEnabled = actionsEnabled,
+        selectedPermission = selectedPermission,
         onRetry = onRetry,
       )
       Spacer(Modifier.height(GradumSpacing.xxl))
@@ -150,11 +154,11 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrl
   }
   ThinkingIndicator(
     thinking = block.content,
-    isTaskComplete = !isLoading,
-    onUrlClick = onUrlClick,
     modifier = Modifier.graphicsLayer {
       this.alpha = fadeAlpha.value
-    }
+    },
+    isTaskComplete = !isLoading,
+    onUrlClick = onUrlClick
   )
 }
 
@@ -201,30 +205,10 @@ private fun ResponseBlock(
       this.alpha = fadeAlpha.value
     }
   ) {
-    // The parent `Column` has NO `verticalArrangement` — segments
-    // are stacked with zero baseline gap. The user explicitly
-    // wants spacing around special blocks (LaTeX, code, …) to
-    // come from inside the block, not from the parent Column.
-    // Adding a `spacedBy(...)` here would push two consecutive
-    // plain paragraphs apart as if they were separate blocks,
-    // which they aren't.
-    //
-    // For a paragraph → LaTeXBlock → paragraph sequence, the
-    // visible gap is now [BLOCK_LATEX_VERTICAL_PADDING_DP] on
-    // each side of the LaTeX. The huarangmeng library adds its
-    // own internal padding inside the formula Canvas (see
-    // `MathConstants.CANVAS_VERTICAL_PADDING = 0.10f` —
-    // 1.8 dp at 18 sp for the block formula) but that's
-    // already folded into the Canvas size, not visible to the
-    // parent layout, so the user's-eye gap is exactly
-    // [BLOCK_LATEX_VERTICAL_PADDING_DP].
     Column {
       segments.forEach { segment ->
         when (segment) {
           is MarkdownSegment.Plain -> {
-            // The Plain sub-segment is guaranteed by
-            // [splitPlainAtBlocks] to contain only `Paragraph`
-            // blocks. The inline chip parser handles those.
             val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
             if (outcome.render != null) {
               val render: InlineMarkdownRender = outcome.render
@@ -244,22 +228,6 @@ private fun ResponseBlock(
           }
 
           is MarkdownSegment.NonProseBlock -> {
-            // Non-prose block (heading / list / blockquote / fenced
-            // code / thematic break / HTML). We can't use
-            // `Markdown(...)` here because Jewel's `markdownStyling`
-            // renders inline code as a `SpanStyle` (monospace text
-            // with a background) — not as the rounded
-            // `InlineCodeChip` that the inline parser produces. The
-            // user wants the chip EVERYWHERE inline code appears, so
-            // we use [RenderNonProseBlock] (BlockRenderer.kt)
-            // which walks the CommonMark AST, extracts the inline
-            // content of each block, and runs it through the chip
-            // parser ([parseInlineMarkdown]). Block-level styling
-            // (heading size / weight, list bullet / number,
-            // blockquote indent + border) comes from the same
-            // [rememberGradumMarkdownStyling] that `Markdown(...)`
-            // would have used, so the visual look matches except
-            // that inline code now renders as chips.
             RenderNonProseBlock(onUrlClick = onUrlClick, segment)
           }
 
@@ -434,7 +402,9 @@ private fun MessageActionsRow(
   isLoading: Boolean,
   hasContent: Boolean,
   actionsEnabled: Boolean,
+  selectedPermission: String = "read_only",
 ) {
+  val isDebug = selectedPermission == "debug"
   var isCopied by remember { mutableStateOf(false) }
   var isSelectedLike by remember { mutableStateOf(false) }
   var isSelectedDislike by remember { mutableStateOf(false) }
@@ -457,29 +427,31 @@ private fun MessageActionsRow(
         )
       }
     }
-    IconButton(
-      enabled = hasContent,
-      onClick = {
-        isSelectedLike = !isSelectedLike
-        if (isSelectedLike) isSelectedDislike = false
+    if (!isDebug) {
+      IconButton(
+        enabled = hasContent,
+        onClick = {
+          isSelectedLike = !isSelectedLike
+          if (isSelectedLike) isSelectedDislike = false
+        }
+      ) {
+        Icon(
+          contentDescription = message("gradum.like"),
+          key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
+        )
       }
-    ) {
-      Icon(
-        contentDescription = message("gradum.like"),
-        key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
-      )
-    }
-    IconButton(
-      enabled = hasContent,
-      onClick = {
-        isSelectedDislike = !isSelectedDislike
-        if (isSelectedDislike) isSelectedLike = false
+      IconButton(
+        enabled = hasContent,
+        onClick = {
+          isSelectedDislike = !isSelectedDislike
+          if (isSelectedDislike) isSelectedLike = false
+        }
+      ) {
+        Icon(
+          contentDescription = message("gradum.dislike"),
+          key = if (isSelectedDislike) GradumIcons.DislikeSelected else GradumIcons.Dislike
+        )
       }
-    ) {
-      Icon(
-        contentDescription = message("gradum.dislike"),
-        key = if (isSelectedDislike) GradumIcons.DislikeSelected else GradumIcons.Dislike
-      )
     }
   }
 }

@@ -2,19 +2,22 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * SelectorButton.kt  2026-07-28 20:48:19 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.common
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import gradum.idea.chat.ui.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconButton
@@ -36,12 +39,10 @@ fun SelectorButton(
     IconButton(onClick = onClick) {
       Row(
         horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = GradumSpacing.sm)
       ) {
-        Text(
-          text = text,
-          color = color
-        )
+        Text(text = text, color = color)
         Icon(
           key = AllIconsKeys.General.ChevronDown,
           contentDescription = contentDescription

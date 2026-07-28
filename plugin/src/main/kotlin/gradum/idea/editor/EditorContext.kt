@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * EditorContext.kt  2026-07-28 20:39:34 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -44,6 +45,43 @@ fun getLanguageIconKey(extension: String?): IconKey? {
     "py" -> GradumIcons.Python
     "http" -> AllIconsKeys.FileTypes.Http
     "png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff" -> GradumIcons.Png
+    "kotlin" -> GradumIcons.Kotlin
+    "python" -> GradumIcons.Python
+    "javascript" -> AllIconsKeys.FileTypes.JavaScript
+    "typescript" -> GradumIcons.TypeScript
+    "markdown" -> GradumIcons.Markdown
+    "bash", "shell", "sh", "zsh" -> GradumIcons.Ran
+    // "go" -> AllIconsKeys.FileTypes.Go
+    // "rs" -> AllIconsKeys.FileTypes.Rust
+    // "rb" -> AllIconsKeys.FileTypes.Ruby
+    // "php" -> AllIconsKeys.FileTypes.Php
+    // "c" -> AllIconsKeys.FileTypes.C
+    // "cpp", "h" -> AllIconsKeys.FileTypes.Cpp
+    // "cs" -> AllIconsKeys.FileTypes.Csharp
+    // "swift" -> AllIconsKeys.FileTypes.Swift
+    // "scala" -> AllIconsKeys.FileTypes.Scala
+    // "groovy" -> AllIconsKeys.FileTypes.Groovy
+    // "r" -> GradumIcons.R
+    // "sql" -> AllIconsKeys.FileTypes.Sql
+    // "toml" -> GradumIcons.Toml
+    // "ini", "cfg", "conf" -> AllIconsKeys.FileTypes.Config
+    // "dockerfile" -> GradumIcons.Docker
+    // "makefile" -> GradumIcons.Makefile
+    // "cmake" -> GradumIcons.CMake
+    // "gradle" -> GradumIcons.Gradle
+    // "dart" -> AllIconsKeys.FileTypes.Dart
+    // "vue" -> GradumIcons.Vue
+    // "svelte" -> GradumIcons.Svelte
+    // "elm" -> GradumIcons.Elm
+    // "hs" -> AllIconsKeys.FileTypes.Haskell
+    // "ex", "exs" -> GradumIcons.Elixir
+    // "erl" -> GradumIcons.Erlang
+    // "clj" -> GradumIcons.Clojure
+    // "jl" -> GradumIcons.Julia
+    // "lua" -> GradumIcons.Lua
+    // "solidity", "sol" -> GradumIcons.Solidity
+    // "ps1" -> GradumIcons.PowerShell
+    // "bat", "cmd" -> GradumIcons.WindowsBatch
     else -> AllIconsKeys.FileTypes.Text
   }
 }

@@ -52,7 +52,7 @@ private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
 // keep the quote rule visually slim (a 2-em blockquote shouldn't look like
 // a section divider) and over `xs` (2 dp) so the rounded end-caps still
 // register against the quote's gray text.
-private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 4f
+private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
 private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
 private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
@@ -240,14 +240,14 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
 
     val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
 
-    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.info
-    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else globalColors.text.info
+    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
+    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else badgeBlue
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
       padding = PaddingValues(
-        start = GradumSpacing.xl,
-        top = GradumSpacing.sm,
+        start = GradumSpacing.md,
+        top = GradumSpacing.md,
         end = GradumSpacing.md,
-        bottom = GradumSpacing.sm
+        bottom = GradumSpacing.md
       ),
       strokeCap = StrokeCap.Round,
       lineColor = blockQuoteLineColor,

@@ -34,6 +34,7 @@ fun ChatMessageList(
   modifier: Modifier = Modifier,
   isLoading: Boolean = false,
   sendingPhase: String = "",
+  selectedPermission: String = "read_only",
   onDeleteMessage: (Int) -> Unit = {},
   onRetryMessage: (Int) -> Unit = {},
   onCopyAsContext: (String) -> Unit = {},
@@ -66,6 +67,7 @@ fun ChatMessageList(
           message = message,
           sendingPhase = if (isLastAssistant) sendingPhase else "",
           isLoading = isLastAssistant,
+          selectedPermission = selectedPermission,
           onRetry = { onRetryMessage(index) }
         )
       }

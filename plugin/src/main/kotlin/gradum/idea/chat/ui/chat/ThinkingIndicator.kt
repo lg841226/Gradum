@@ -5,6 +5,7 @@
  */
 
 @file:OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat
 
@@ -20,13 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.*
-import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
-import gradum.idea.chat.ui.markdown.MarkdownSegment
-import gradum.idea.chat.ui.markdown.ScrollableTable
-import gradum.idea.chat.ui.markdown.isRenderable
-import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
-import gradum.idea.chat.ui.markdown.splitMarkdown
+import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.ui.markdown.*
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
@@ -61,9 +57,9 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 fun ThinkingIndicator(
   thinking: String,
   modifier: Modifier = Modifier,
-  enterTransition: EnterTransition = fadeIn(tween(800)),
   isTaskComplete: Boolean = false,
-  onUrlClick: (String) -> Unit = {}
+  onUrlClick: (String) -> Unit = {},
+  enterTransition: EnterTransition = fadeIn(tween(800))
 ) {
   if (thinking.isBlank()) return
 
@@ -75,11 +71,6 @@ fun ThinkingIndicator(
 
   val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
   val simplifiedCodeRenderer = remember(thinkingStyling) {
-    // Use `DefaultMarkdownBlockRenderer` for everything that
-    // `GradumCodeBlockRenderer` doesn't override so the parent's
-    // table-of-contents renderer, blockquote, etc. all keep
-    // working. Only the fenced-code-block override flips into
-    // `isSimplified = true` to drop the toolbar.
     GradumCodeBlockRenderer(styling = thinkingStyling, isSimplified = true)
   }
 

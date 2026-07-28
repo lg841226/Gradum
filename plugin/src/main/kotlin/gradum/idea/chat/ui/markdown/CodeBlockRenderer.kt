@@ -4,20 +4,8 @@
  *
  */
 
-// Detekt defaults disagree with project standards (2-space indent, 200-char
-// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
-@file:Suppress(
-  "MaximumLineLength",
-  "Indentation",
-  "FunctionNaming",
-  "SpacingBetweenPackageAndImports",
-  "NoConsecutiveBlankLines",
-  "NoMultipleSpaces",
-  "ArgumentListWrapping",
-  "UnstableApiUsage",
-)
-
 @file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.markdown
 
@@ -34,10 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.editor.getLanguageIconKey
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
@@ -61,7 +49,7 @@ private val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(GradumSpacin
 class GradumCodeBlockRenderer(
   styling: MarkdownStyling,
   private val isSimplified: Boolean = false,
-  private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> },
+  private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> }
 ) : DefaultMarkdownBlockRenderer(styling) {
 
   @OptIn(ExperimentalJewelApi::class)
@@ -87,9 +75,9 @@ class GradumCodeBlockRenderer(
     var isSoftWrap by remember { mutableStateOf(false) }
 
     if (isSimplified) {
-      ContainerOrScrollable(isSoftWrap, styling) {
-        CodeBlockContent(annotatedCode, styling, isSoftWrap)
-      }
+      ContainerOrScrollable(isSoftWrap, {
+        CodeBlockContent(isSoftWrap, annotatedCode, styling)
+      }, styling)
     } else {
       Column(modifier = containerModifier) {
         CodeBlockToolbar(
@@ -99,24 +87,24 @@ class GradumCodeBlockRenderer(
           onInsertAsFile = onInsertAsFile,
           onSoftWrapToggle = { isSoftWrap = !isSoftWrap }
         )
-        ContainerOrScrollable(isSoftWrap, styling) {
-          CodeBlockContent(annotatedCode, styling, isSoftWrap)
-        }
+        ContainerOrScrollable(isSoftWrap, {
+          CodeBlockContent(isSoftWrap, annotatedCode, styling)
+        }, styling)
       }
     }
   }
 
   @Composable
   private fun CodeBlockContent(
-    annotatedCode: AnnotatedString,
-    styling: MarkdownStyling.Code.Fenced,
     softWrap: Boolean,
+    annotatedCode: AnnotatedString,
+    styling: MarkdownStyling.Code.Fenced
   ) {
     Text(
       text = annotatedCode,
       style = styling.editorTextStyle,
       modifier = Modifier
-        .padding(styling.padding)
+        .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
         .fillMaxWidth()
         .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true),
       softWrap = softWrap
@@ -128,8 +116,8 @@ class GradumCodeBlockRenderer(
 @Composable
 private fun ContainerOrScrollable(
   isSoftWrap: Boolean,
-  styling: MarkdownStyling.Code.Fenced,
   content: @Composable () -> Unit,
+  styling: MarkdownStyling.Code.Fenced,
 ) {
   val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
   if (showHorizontalScroll) {
@@ -156,7 +144,6 @@ private fun HorizontalScrollContainer(content: @Composable () -> Unit) {
  * soft-wrap toggle. Same padding/arrangement as the table toolbar so the two
  * read as siblings.
  */
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun CodeBlockToolbar(
   rawCode: String,
@@ -175,10 +162,14 @@ private fun CodeBlockToolbar(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
+    Icon(
+      key = getLanguageIconKey(language) ?: GradumIcons.FeatCode,
+      contentDescription = displayLanguage,
+    )
     Text(
-      text = displayLanguage,
-      fontWeight = FontWeight.Medium,
-      fontFamily = JewelTheme.editorTextStyle.fontFamily
+      text = message("gradum.code"),
+      fontFamily = JewelTheme.editorTextStyle.fontFamily,
+      modifier = Modifier.weight(1f)
     )
     Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
       IconButton(

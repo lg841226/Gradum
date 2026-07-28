@@ -223,6 +223,22 @@ class GradumChatSession {
   }
 
   /**
+   * Loads a local Markdown file directly for debug preview.
+   * Used in debug mode to render focused .md file without calling LLM.
+   */
+  fun loadDebugMarkdown(content: String) {
+    hasSentMessage = true
+    val message = ChatMessage(
+      role = "assistant",
+      content = "",
+      modelName = "debug-preview",
+    )
+    val updatedMessage = message.appendEvent(ChatEvent.Response(content))
+    messages.add(updatedMessage)
+    isSending = false
+  }
+
+  /**
    * Loads the list of available LLM models from the Gradum server.
    *
    * The server probes local LLM providers (Ollama, LM Studio, vLLM, LocalAI)
@@ -248,18 +264,22 @@ class GradumChatSession {
     modelsLoaded = true
     recommendedModel = recommended?.takeIf { it.available }
 
+    if (models.isEmpty()) {
+      selectedModel = null
+      isAutoSelected = false
+      pinnedModels.clear()
+      return
+    }
+
     val selectedEntry = selectedModel
     when {
       selectedEntry == null -> {
-        if (models.isNotEmpty()) {
-          selectedModel = recommendedModel ?: models.first()
-          isAutoSelected = true
-        }
+        selectedModel = recommendedModel ?: models.first()
+        isAutoSelected = true
       }
 
       models.none { it.name == selectedEntry.name && it.serverName == selectedEntry.serverName } -> {
-        // User's previous model is no longer available. Fall back to server recommendation in auto mode.
-        selectedModel = recommendedModel ?: models.firstOrNull()
+        selectedModel = recommendedModel ?: models.first()
         isAutoSelected = true
       }
       // else: the user's prior pick is still present; leave it.

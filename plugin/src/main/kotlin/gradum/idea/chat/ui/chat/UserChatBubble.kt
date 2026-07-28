@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * UserChatBubble.kt  2026-07-28 20:50:32 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat
 
@@ -33,7 +34,6 @@ import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.AttachedImage
 import gradum.idea.editor.AttachedText
 import gradum.idea.icons.GradumIcons
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.*
@@ -108,14 +108,8 @@ fun UserChatBubble(
           .heightIn(max = EXPAND_MAX_HEIGHT)
           .animateContentSize(
             animationSpec = spring(
-              // DampingRatioLowBouncy (0.75) gives a very subtle
-              // single overshoot — the bubble "lands" near its
-              // target with a small bounce, not a 2-3 oscillation.
-              // StiffnessMediumLow keeps the whole thing slow
-              // enough that the bounce reads as a bounce, not a
-              // quick snap.
-              dampingRatio = Spring.DampingRatioLowBouncy,
               stiffness = Spring.StiffnessMediumLow,
+              dampingRatio = Spring.DampingRatioLowBouncy
             )
           )
       ) {

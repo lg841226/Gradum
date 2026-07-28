@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatToolbar.kt  2026-07-23 09:36:06 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -32,6 +31,7 @@ fun ChatToolbar(
   state: ChatInputState,
   actions: ChatInputActions,
   isTextNotEmpty: Boolean,
+  selectedPermission: String = "read_only",
   modifier: Modifier = Modifier
 ) {
   val searchState = remember { TextFieldState() }
@@ -91,7 +91,8 @@ fun ChatToolbar(
     )
 
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-      if (state.isSending || state.pendingMessages.isNotEmpty()) {
+      // Hide stop button in debug mode
+      if ((state.isSending || state.pendingMessages.isNotEmpty()) && selectedPermission != "debug") {
         IconTooltipButton(
           tooltip = message("gradum.stop"),
           iconKey = AllIconsKeys.Run.Stop,
@@ -100,10 +101,11 @@ fun ChatToolbar(
         )
       }
       val hasModel = state.selectedModel != null || state.isAutoSelected
-      val canSend = isTextNotEmpty && !state.isPendingQueueFull && hasModel
+      val isDebug = selectedPermission == "debug"
+      val canSend = isTextNotEmpty && !state.isPendingQueueFull && (hasModel || isDebug)
       val sendTooltip = when {
         state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
-        !hasModel -> message("gradum.send.no.model")
+        !hasModel && !isDebug -> message("gradum.send.no.model")
         else -> message("gradum.send")
       }
       IconTooltipButton(

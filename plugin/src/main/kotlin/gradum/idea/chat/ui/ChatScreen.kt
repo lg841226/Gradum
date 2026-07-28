@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ChatScreen.kt  2026-07-28 20:54:20 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -75,6 +76,7 @@ fun ChatScreen(
   isLoading: Boolean,
   isWaitingForResponse: Boolean,
   sendingPhase: String,
+  selectedPermission: String,
   textState: TextFieldState,
   inputState: ChatInputState,
   inputActions: ChatInputActions,
@@ -171,6 +173,7 @@ fun ChatScreen(
               onOpenInEditor = onOpenInEditor,
               actionsEnabled = !isWaitingForResponse,
               sendingPhase = if (isLastAssistant) sendingPhase else "",
+              selectedPermission = selectedPermission,
               onRetry = { onRetryMessage(index) },
               onUrlClick = { url ->
                 try {
@@ -185,21 +188,21 @@ fun ChatScreen(
       }
 
       JumpToBottomButton(
-        modifier = Modifier
-          .align(Alignment.BottomCenter)
-          .padding(bottom = GradumSpacing.lg),
-        isAtBottom = isNearBottom,
         isAtTop = isNearTop,
+        isAtBottom = isNearBottom,
         onClick = {
           coroutineScope.launch {
             scrollState.animateScrollTo(scrollState.maxValue)
           }
         },
-        onJumpToTop = {
+        {
           coroutineScope.launch {
             scrollState.animateScrollTo(0)
           }
-        }
+        },
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .padding(bottom = GradumSpacing.lg)
       )
     }
 
@@ -210,7 +213,8 @@ fun ChatScreen(
         .padding(bottom = GradumSpacing.sml),
       state = inputState,
       textState = textState,
-      actions = inputActions
+      actions = inputActions,
+      selectedPermission = selectedPermission
     )
   }
 }
