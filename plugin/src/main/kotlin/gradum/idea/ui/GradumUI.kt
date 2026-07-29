@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.wm.ToolWindow
@@ -56,7 +57,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
   val state = rememberGradumState(session, editorContext, callbacks)
 
   // Render UI
-  Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+  Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
     if (session.hasSentMessage) {
       ChatScreen(
         messages = session.messages,

@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * PermissionSelector.kt  2026-07-28 22:53:43 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
@@ -16,11 +15,9 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.icons.GradumIcons
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.PopupMenu
-import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.component.styling.LocalBadgeStyle
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -65,8 +62,7 @@ fun PermissionSelector(
   isMenuVisible: Boolean,
   onToggle: () -> Unit,
   onSelect: (String) -> Unit,
-  onDismiss: () -> Unit,
-  modifier: Modifier = Modifier
+  onDismiss: () -> Unit
 ) {
   SelectorButton(
     text = permissionLabel(selectedPermission),
@@ -152,6 +148,9 @@ fun PermissionSelector(
           }
         }
       }
+
+      separator()
+
       selectableItem(
         selected = selectedPermission == PermissionMode.DEBUG,
         onClick = { onSelect(PermissionMode.DEBUG) }
@@ -165,10 +164,17 @@ fun PermissionSelector(
             ),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Icon(key = AllIconsKeys.General.Show, contentDescription = message("gradum.debug"))
+          Icon(key = AllIconsKeys.Toolwindows.ToolWindowDebugger, contentDescription = message("gradum.debug"))
           Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Column {
-            Text(text = message("gradum.debug"))
+          Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Text(text = message("gradum.debug"))
+              Spacer(modifier = Modifier.width(GradumSpacing.sm))
+              Badge(
+                style = LocalBadgeStyle.current.blue,
+                content = { Text("New") }
+              )
+            }
             Text(
               text = message("gradum.debug.info"),
               color = JewelTheme.globalColors.text.info

@@ -205,7 +205,7 @@ private fun ResponseBlock(
       this.alpha = fadeAlpha.value
     }
   ) {
-    Column {
+    Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
       segments.forEach { segment ->
         when (segment) {
           is MarkdownSegment.Plain -> {

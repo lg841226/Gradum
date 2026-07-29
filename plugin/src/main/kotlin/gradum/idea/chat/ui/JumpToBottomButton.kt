@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-28 20:54:20 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-28 23:47:25 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -32,18 +32,16 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.styling.LocalMenuStyle
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Outline width (in dp) around the pill. 1 dp is enough to
- * read as a deliberate edge against the chat background
- * without competing with the message bubbles' own borders.
+ * Pill shape constant.
  */
-private val PillBorderWidth = 1.dp
+private val PillShape = RoundedCornerShape(percent = 50)
 
 /**
  * Animation timing (in milliseconds unless noted).
@@ -103,7 +101,7 @@ fun JumpToBottomButton(
     isVisible = isVisible,
     textAlpha = textAlpha,
     onJumpToTop = onJumpToTop,
-    isAlternativeMode = isAlternativeMode,
+    isAlternativeMode = isAlternativeMode
   )
 }
 
@@ -165,6 +163,7 @@ private fun JumpToBottomPill(
   isAlternativeMode: Boolean,
 ) {
   AnimatedVisibility(
+    modifier = modifier,
     visible = isVisible,
     enter = fadeIn(animationSpec = tween(durationMillis = ENTER_FADE_DURATION_MS)) +
       slideInVertically(
@@ -178,8 +177,7 @@ private fun JumpToBottomPill(
       slideOutVertically(
         animationSpec = tween(durationMillis = EXIT_DURATION_MS),
         targetOffsetY = { fullHeight: Int -> fullHeight }
-      ),
-    modifier = modifier,
+      )
   ) {
     Box {
       PillBackground(Modifier.matchParentSize())
@@ -203,14 +201,16 @@ private fun JumpToBottomPill(
  */
 @Composable
 private fun PillBackground(modifier: Modifier = Modifier) {
+  val menuColors = LocalMenuStyle.current.colors
+  val menuMetrics = LocalMenuStyle.current.metrics
   Box(
     modifier = modifier
-      .clip(RoundedCornerShape(percent = 50))
-      .background(globalColors.borders.normal)
+      .clip(PillShape)
+      .background(menuColors.background)
       .border(
-        width = PillBorderWidth,
-        shape = RoundedCornerShape(percent = 50),
-        color = globalColors.borders.normal.copy(alpha = 0.4f)
+        width = menuMetrics.borderWidth,
+        shape = PillShape,
+        color = menuColors.border
       )
   )
 }
@@ -230,7 +230,7 @@ private fun PillForeground(
   val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
   Row(
     modifier = Modifier
-      .clip(RoundedCornerShape(percent = 50))
+      .clip(PillShape)
       .animateContentSize(animationSpec = tween(durationMillis = WIDTH_ANIMATION_DURATION_MS))
       .clickable(
         interactionSource = interactionSource,
@@ -258,7 +258,7 @@ private fun PillForeground(
     ) { alternative ->
       Text(
         style = JewelTheme.typography.regular,
-        text = message(if (alternative) "gradum.jump.to.top" else "gradum.jump.to.latest")
+        text = message(if (alternative) "gradum.jump.to.top" else "gradum.jump.to.bottom")
       )
     }
   }

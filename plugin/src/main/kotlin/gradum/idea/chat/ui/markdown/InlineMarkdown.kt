@@ -89,6 +89,11 @@ private const val PAREN_LATEX_MARKER_RANGE_END: Int = 0xE1FF
 private const val PAREN_LATEX_MARKER_RANGE_SIZE: Int =
   PAREN_LATEX_MARKER_RANGE_END - PAREN_LATEX_MARKER_RANGE_START + 1
 
+private const val DOLLAR_LATEX_MARKER_RANGE_START: Int = 0xE200
+private const val DOLLAR_LATEX_MARKER_RANGE_END: Int = 0xE2FF
+private const val DOLLAR_LATEX_MARKER_RANGE_SIZE: Int =
+  DOLLAR_LATEX_MARKER_RANGE_END - DOLLAR_LATEX_MARKER_RANGE_START + 1
+
 private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
 
 // Chip/footnote horizontal padding (inside the rounded background). Generous
@@ -347,7 +352,7 @@ internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex("""\\\(([^()\n]+?)\\\)""")
  * formula text itself is fetched from the [RenderState]'s
  * side table using the matched char as the key.
  */
-internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE1FF]""")
+internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE2FF]""")
 
 
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
@@ -357,10 +362,15 @@ internal fun parseInlineMarkdown(
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
-  val preprocessed: PreprocessedParenLatex =
+  val parenPreprocessed: PreprocessedParenLatex =
     preprocessParenLatexFormulas(plainText)
 
-  val document: Document = parseCommonmarkDocument(preprocessed.text)
+  val dollarPreprocessed: PreprocessedParenLatex =
+    preprocessDollarLatexFormulas(parenPreprocessed.text)
+
+  val mergedFormulas: Map<String, String> = parenPreprocessed.formulaByMarker + dollarPreprocessed.formulaByMarker
+
+  val document: Document = parseCommonmarkDocument(dollarPreprocessed.text)
     ?: return bailWithReason(
       plainText = plainText,
       reason = "CommonMark parse failed (see IDE log for details)"
@@ -383,7 +393,7 @@ internal fun parseInlineMarkdown(
     fontSizeSp = fontSizeSp,
     imageAltColor = imageAltColor,
     editorFontFamily = editorFontFamily,
-    parenLatexFormulas = preprocessed.formulaByMarker
+    parenLatexFormulas = mergedFormulas
   )
 }
 
@@ -432,6 +442,45 @@ internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLat
     val markerCode: Int = PAREN_LATEX_MARKER_RANGE_START + matchIndex
     val marker = String(Character.toChars(markerCode))
     formulaByMarker[marker] = match.groupValues[1]
+    rewritten.append(marker)
+    lastIndex = match.range.last + 1
+  }
+  rewritten.append(rawText, lastIndex, rawText.length)
+  return PreprocessedParenLatex(text = rewritten.toString(), formulaByMarker = formulaByMarker)
+}
+
+
+/**
+ * Scan rawText for $…$ and $$…$$ LaTeX formulas and replace each match with a single PUA marker char
+ * from the U+E200–U+E2FF range. Returns the rewritten text plus a side table mapping each marker
+ * to the formula text it replaced.
+ *
+ * Why pre-processing is necessary: CommonMark's inline parser treats _ as an emphasis delimiter.
+ * Formulas like $(AB)_{ij} = \sum_{k=1}^{n} A_{ik} \times B_{kj}$ contain _ after punctuation
+ * (e.g., ")_") which CommonMark interprets as opening emphasis, and _ after letters (e.g., "\sum_")
+ * which it interprets as closing emphasis. This splits the formula into fragments across different
+ * Text nodes, and the post-parse $…$ regex never sees the complete formula. Running this pass
+ * BEFORE CommonMark preserves the formula boundary by encoding it in a single PUA char.
+ *
+ * If a match exceeded the marker capacity, overflow matches are left as-is.
+ */
+internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLatex {
+  val matches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(rawText).toList()
+  if (matches.isEmpty()) {
+    return PreprocessedParenLatex(text = rawText, formulaByMarker = emptyMap())
+  }
+  val formulaByMarker: MutableMap<String, String> = LinkedHashMap(matches.size)
+  val rewritten: StringBuilder = StringBuilder(rawText.length)
+  var lastIndex = 0
+  for ((matchIndex, match) in matches.withIndex()) {
+    if (matchIndex >= DOLLAR_LATEX_MARKER_RANGE_SIZE) continue
+    if (match.range.first < lastIndex) continue
+
+    rewritten.append(rawText, lastIndex, match.range.first)
+    val markerCode: Int = DOLLAR_LATEX_MARKER_RANGE_START + matchIndex
+    val marker = String(Character.toChars(markerCode))
+    val formula = match.groupValues[1].ifEmpty { match.groupValues[2] }
+    formulaByMarker[marker] = formula
     rewritten.append(marker)
     lastIndex = match.range.last + 1
   }
@@ -1038,7 +1087,7 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
   FOOTNOTE_PLACEHOLDER_BASE,
   LATEX_PLACEHOLDER_BASE -> true
 
-  else -> this.code in PAREN_LATEX_MARKER_RANGE_START..PAREN_LATEX_MARKER_RANGE_END
+  else -> this.code in PAREN_LATEX_MARKER_RANGE_START..DOLLAR_LATEX_MARKER_RANGE_END
 }
 
 

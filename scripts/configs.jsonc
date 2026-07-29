@@ -240,7 +240,6 @@
     ".amazonq",
     ".codex"
   ],
-  // top-level configuration settings
   "settings": {
     "threadPoolSize": 0,
     "batchCommitCount": 50,
@@ -252,7 +251,14 @@
     "qualityParamsFilePath": null,
     "enableQualityAnalysis": true,
     "disableMultithreading": false,
-    "chartPrimaryColor": "#4a9eff"
+    "chartPrimaryColor": "#4a9eff",
+    /* true = analyze all branches (--all), false/null = current branch only (HEAD) */
+    "branches": false,
+    /**
+     * ISO date string. Only commits after this date are included. Null means all commits.
+     * Example: "2026-01-01"
+    */
+    "sinceDate": null
   },
   "audit": {
     "botAuthorPatterns": [

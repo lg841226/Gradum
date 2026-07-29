@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * Styling.kt  2026-07-29 09:36:28 Changed by gwy
  */
 
 // Detekt defaults disagree with project standards (2-space indent, 200-char
@@ -241,7 +242,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
 
     val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
-    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else badgeBlue
+    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else badgeBlue.copy(alpha = 0.6f)
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
       padding = PaddingValues(
         start = GradumSpacing.md,

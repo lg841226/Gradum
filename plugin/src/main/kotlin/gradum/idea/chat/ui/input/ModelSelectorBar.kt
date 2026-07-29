@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ModelSelectorBar.kt  2026-07-28 22:53:43 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
@@ -25,7 +24,6 @@ import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.icons.GradumIcons
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey

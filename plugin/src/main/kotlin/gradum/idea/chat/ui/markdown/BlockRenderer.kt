@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * BlockRenderer.kt  2026-07-29 09:51:20 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -585,7 +586,6 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
     Box(
       modifier = Modifier
         .width(styling.blockQuote.lineWidth)
-        .defaultMinSize(minHeight = 8.dp)
         .fillMaxHeight()
         .clip(RoundedCornerShape(percent = 50))
         .background(borderColor)
@@ -593,7 +593,12 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(start = indentStart, top = quotePadding.calculateTopPadding(), bottom = quotePadding.calculateBottomPadding())
+        .padding(
+          start = indentStart,
+          top = quotePadding.calculateTopPadding(),
+          bottom = quotePadding.calculateBottomPadding()
+        ),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
     ) {
       val firstChild: Node? = children.first
       if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick)
@@ -786,7 +791,11 @@ private fun RenderInlineRender(
   onUrlClick: (String) -> Unit,
   parseOutcome: InlineMarkdownRenderResult
 ) {
-  val resolvedStyle: TextStyle = style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
+  val resolvedStyle: TextStyle = if (style.lineHeight.value.isNaN() || style.lineHeight.value <= 0f) {
+    style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
+  } else {
+    style
+  }
   if (parseOutcome.render == null) {
     Text(text = fallbackText, style = resolvedStyle, modifier = modifier)
     return

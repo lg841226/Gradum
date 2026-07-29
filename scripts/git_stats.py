@@ -1,16 +1,8 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-28 03:54:57 Changed by gwy
+#  git_stats.py  2026-07-28 21:35:29 Changed by gwy
 #
-#  git_stats.py  2026-07-28 03:54:33 Changed by gwy
-#
-#  git_stats.py  2026-07-28 03:40:24 Changed by gwy
-#
-#  git_stats.py  2026-07-28 03:29:40 Changed by gwy
-#
-#  git_stats.py  2026-07-28 03:23:29 Changed by gwy
-
 import csv
 import functools
 import itertools
@@ -85,22 +77,30 @@ def repo_name(repo_path: str) -> str:
     return os.path.basename(repo_path) or "Unknown"
 
 
-def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
-    total = 0
-    try:
-        raw = _git(repo_path, 'git rev-list --count HEAD')
-        if raw:
-            total = int(raw.strip())
-    except (ValueError, AttributeError):
-        pass
+def _parse_commit_entry(current_hash, current_iso, current_subject, current_author, current_email, current_trailer, numstat_lines):
+    """Parse a single commit's raw data into a structured dict."""
+    commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
+    additions, deletions = _parse_numstat("\n".join(numstat_lines))
+    is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
+    file_paths = [line.split("\t")[2] for line in numstat_lines if line.count("\t") >= 2]
+    return {
+        "hash": current_hash[:8], "date": commit_date,
+        "additions": additions, "deletions": deletions,
+        "files_changed": len(numstat_lines), "files_changed_list": file_paths,
+        "is_claude": is_claude,
+        "author_name": current_author, "author_email": current_email,
+        "subject": current_subject,
+    }
 
+
+def _stream_git_log(repo_path: str, git_args: str, on_commit=None, progress_offset=0, progress_total=0):
+    """Stream git log output and yield parsed commit dicts."""
     proc = subprocess.Popen(
-        f'git log -c --numstat --reverse --format="%H||%cI||%s||%an||%ae||%(trailers:key=Co-Authored-By,only=yes)"',
+        f'git log -c --numstat --reverse --format="%H||%cI||%s||%an||%ae||%(trailers:key=Co-Authored-By,only=yes)" {git_args}',
         cwd=repo_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         text=True, bufsize=1,
     )
 
-    entries = []
     current_hash = current_iso = current_subject = current_author = current_email = current_trailer = None
     numstat_lines = []
     index = 0
@@ -110,39 +110,61 @@ def all_commits(repo_path: str, on_commit=None) -> List[Dict]:
         if "||" in line and len(line) > 40:
             if current_hash:
                 index += 1
-                commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
-                additions, deletions = _parse_numstat("\n".join(numstat_lines))
-                is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
-                file_paths = [numstat_line.split("\t")[2] for numstat_line in numstat_lines if numstat_line.count("\t") >= 2]
-                entries.append(
-                    {"hash": current_hash[:8], "date": commit_date, "additions": additions, "deletions": deletions,
-                     "files_changed": len(numstat_lines), "files_changed_list": file_paths, "is_claude": is_claude,
-                     "author_name": current_author, "author_email": current_email,
-                     "subject": current_subject})
+                yield _parse_commit_entry(current_hash, current_iso, current_subject,
+                                          current_author, current_email, current_trailer, numstat_lines)
                 if on_commit:
-                    on_commit(current_hash[:8], current_subject, index, total)
+                    on_commit(current_hash[:8], current_subject, progress_offset + index, progress_total)
                 numstat_lines.clear()
             current_hash, current_iso, current_subject, current_author, current_email, current_trailer = line.split(
-                "||",
-                5)
+                "||", 5)
         elif line and "\t" in line:
             numstat_lines.append(line)
 
     if current_hash:
         index += 1
-        commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
-        additions, deletions = _parse_numstat("\n".join(numstat_lines))
-        is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
-        file_paths = [numstat_line.split("\t")[2] for numstat_line in numstat_lines if numstat_line.count("\t") >= 2]
-        entries.append({"hash": current_hash[:8], "date": commit_date, "additions": additions, "deletions": deletions,
-                        "files_changed": len(numstat_lines), "files_changed_list": file_paths, "is_claude": is_claude,
-                        "author_name": current_author, "author_email": current_email,
-                        "subject": current_subject})
+        yield _parse_commit_entry(current_hash, current_iso, current_subject,
+                                  current_author, current_email, current_trailer, numstat_lines)
         if on_commit:
-            on_commit(current_hash[:8], current_subject, index, total)
+            on_commit(current_hash[:8], current_subject, progress_offset + index, progress_total)
 
     proc.stdout.close()
     proc.wait()
+
+
+def all_commits(repo_path: str, all_branches: bool = False, since_date: str = None, on_commit=None) -> List[Dict]:
+    """
+    Fetch all commits from the repository.
+
+    Parameters
+    ----------
+    repo_path : str
+        Path to the git repository.
+    all_branches : bool
+        True = analyze all branches (--all), False = current branch only (HEAD).
+    since_date : str or None
+        ISO date string (e.g. "2026-01-01"). Only commits after this date are included.
+        None = all commits.
+    on_commit : callable, optional
+        Progress callback: (hash, subject, current, total).
+    """
+    # Build flags
+    ref = "--all" if all_branches else "HEAD"
+    since_flag = f"--since={since_date}" if since_date else ""
+
+    # Count total commits for progress
+    total = 0
+    try:
+        raw = _git(repo_path, f'git rev-list --count {since_flag} {ref}')
+        if raw:
+            total = int(raw.strip())
+    except (ValueError, AttributeError):
+        pass
+
+    git_args = f"{since_flag} {ref}".strip()
+    entries = list(_stream_git_log(repo_path, git_args, on_commit, progress_total=total))
+
+    # Sort by date (oldest first) — multi-branch may interleave
+    entries.sort(key=lambda e: e["date"])
     return entries
 
 
@@ -384,77 +406,73 @@ class QualityModel:
         """
         return _gaussian(days_since_last_commit, 0.0, self._params["recencyHalfLifeDays"])
 
+    @staticmethod
+    def _score_sigmoid(value: float, threshold: float, scale: float, invert: bool = False) -> float:
+        """Common sigmoid scoring: (value - threshold) / scale → sigmoid. Invert flips direction."""
+        normalized = (value - threshold) / scale
+        score = _sigmoid(normalized)
+        return 1.0 - score if invert else score
+
     def score_ai_volume(self, average_additions: float) -> float:
         """
         AI suspicion — average additions per commit.
 
         GPT-class AI often generates hundreds to thousands of lines per commit,
         while human commits typically range from tens to a few hundred.
-        Uses sigmoid instead of a hard threshold to avoid edge discontinuities.
-
-        Config params used: ai_additions_threshold (sigmoid midpoint),
-        ai_additions_scale (sigmoid steepness).
         """
-        deviation = (average_additions - self._params["aiAdditionsThreshold"])
-        normalized = deviation / self._params["aiAdditionsScale"]
-        return _sigmoid(normalized)
+        return self._score_sigmoid(
+            average_additions,
+            self._params["aiAdditionsThreshold"],
+            self._params["aiAdditionsScale"],
+        )
 
     def score_ai_initiative(self, entries: List[Dict]) -> float:
         """
         AI suspicion — initial project bootstrap signature.
 
-        AI tends to generate large amounts of boilerplate in early commits:
-        - Very high additions (creating the full file structure)
-        - Very low deletions (generative, not modifying)
+        AI tends to generate large amounts of boilerplate in early commits.
         Captured via the add/delete ratio of the first N commits.
-        Higher ratio → more likely AI-initiated.
-
-        Config params: ai_initiative_commits (N), ai_initiative_threshold,
-        ai_initiative_scale.
         """
         early_count = min(self._params["aiInitiativeCommits"], len(entries))
         early_additions = sum(entry["additions"] for entry in entries[:early_count])
         early_deletions = sum(entry["deletions"] for entry in entries[:early_count])
-        addition_to_deletion_ratio = early_additions / max(early_deletions, 1)
-        deviation = addition_to_deletion_ratio - self._params["aiInitiativeThreshold"]
-        normalized = deviation / self._params["aiInitiativeScale"]
-        return _sigmoid(normalized)
+        ratio = early_additions / max(early_deletions, 1)
+        return self._score_sigmoid(
+            ratio,
+            self._params["aiInitiativeThreshold"],
+            self._params["aiInitiativeScale"],
+        )
 
     def score_ai_repetition(self, all_additions: List[int]) -> float:
         """
         AI suspicion — commit size repetition.
 
-        Human commit sizes vary widely (2-line bugfix vs 500-line feature).
-        AI-generated commits tend to be uniformly sized.
-        Uses coefficient of variation CV = stddev / mean to quantify uniformity.
-        Low CV → highly uniform → suspicious.
-        Inverse sigmoid: low CV maps to high suspicion.
-
-        Config params: ai_repetition_cv_threshold, ai_repetition_scale.
+        Human commit sizes vary widely; AI-generated commits tend to be uniformly sized.
+        Low CV (coefficient of variation) → highly uniform → suspicious.
         """
         if len(all_additions) < 2:
-            return 0.5  # Not enough data — neutral score
-        coefficient_of_variation = statistics.stdev(all_additions) / max(
-            statistics.mean(all_additions), 1
+            return 0.5
+        cv = statistics.stdev(all_additions) / max(statistics.mean(all_additions), 1)
+        return self._score_sigmoid(
+            cv,
+            self._params["aiRepetitionCvThreshold"],
+            self._params["aiRepetitionScale"],
+            invert=True,
         )
-        deviation = coefficient_of_variation - self._params["aiRepetitionCvThreshold"]
-        normalized = deviation / self._params["aiRepetitionScale"]
-        return 1.0 - _sigmoid(normalized)
 
     def score_ai_focus(self, average_files_changed: float) -> float:
         """
         AI suspicion — file focus per commit.
 
-        Humans typically touch multiple related files per commit
-        (interface + implementation + tests). AI tends to modify
-        1-2 files at a time. Target is 3 files; deviation in either
-        direction raises suspicion.
-
-        Config params: ai_focus_target, ai_focus_scale.
+        Humans typically touch multiple related files per commit.
+        AI tends to modify 1-2 files at a time. Target is ~3 files.
         """
-        deviation = self._params["aiFocusTarget"] - average_files_changed
-        normalized = deviation / self._params["aiFocusScale"]
-        return _sigmoid(normalized)
+        return self._score_sigmoid(
+            average_files_changed,
+            self._params["aiFocusTarget"],
+            self._params["aiFocusScale"],
+            invert=True,
+        )
 
     def score_firework(self, commits_per_day: float, active_days: float) -> float:
         """
@@ -2150,6 +2168,14 @@ def main():
     console.print(f"[dim]{ICON_START}[/dim] Start investigating Git data")
     console.print(f"[dim]{ICON_ARROW}[/dim]")
 
+    all_branches = fd.get("branches", False)
+    since_date = fd.get("sinceDate")
+
+    if all_branches:
+        console.print(f"[dim]{ICON_ARROW}[/dim] [default]Branches: all (--all)[/default]")
+    if since_date:
+        console.print(f"[dim]{ICON_ARROW}[/dim] [default]Since: {since_date}[/default]")
+
     scan_start = time.time()
 
     with Progress(
@@ -2160,6 +2186,8 @@ def main():
         task = progress.add_task("", total=None)
         entries = all_commits(
             repo,
+            all_branches=all_branches,
+            since_date=since_date,
             on_commit=lambda hash_str, subject, current, total_count: progress.update(
                 task, description=f"Scanning {current}/{total_count} {escape(hash_str)}: {escape(subject[:60])}"
             )
@@ -2218,7 +2246,6 @@ def main():
             msg = f"Archived — no commits in {_duration_str(quality['days_since_last'])}" if quality else "Archived — no commits"
             console.print(f"[grey58]{ICON_STEP}[/grey58] [default]{msg}[/default]")
         else:
-            console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(
                 f"[blue]{ICON_STEP}[/blue] [default]Analyzed {len(entries)} commits, {audit['suspicion_count']} suspicious patterns[/default]"
             )
@@ -2248,7 +2275,7 @@ def main():
             quality_band = quality["band"]
             quality_color = quality["band_color"]
             console.print(
-                f"[{quality_color}]{ICON_STEP}[/{quality_color}] "
+                f"[{quality_color}]◆[/{quality_color}] "
                 f"[default]Quality: Add/Del rate {audit['deletion_percent']}% · "
                 f"{len(audit['suspicion'])} problems[/default] · "
                 f"[{quality_color}]{quality_band}[/{quality_color}]"

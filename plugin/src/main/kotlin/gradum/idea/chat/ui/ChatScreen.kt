@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-28 20:54:20 Changed by gwy
+ * ChatScreen.kt  2026-07-29 10:54:42 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -137,14 +137,10 @@ fun ChatScreen(
   ) {
     Box(
       modifier = Modifier
-        .weight(1f)
-        .fillMaxWidth()
-        .widthIn(max = 680.dp)
+        .weight(1f).widthIn(max = 680.dp)
     ) {
       Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .verticalScroll(scrollState)
+        modifier = Modifier.verticalScroll(scrollState)
       ) {
         messages.forEachIndexed { index, message ->
           val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
@@ -208,8 +204,6 @@ fun ChatScreen(
 
     ChatInputSection(
       modifier = Modifier
-        .fillMaxWidth()
-        .widthIn(max = 650.dp)
         .padding(bottom = GradumSpacing.sml),
       state = inputState,
       textState = textState,
