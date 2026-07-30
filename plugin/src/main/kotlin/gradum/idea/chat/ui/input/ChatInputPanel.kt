@@ -51,7 +51,7 @@ fun ChatInputPanel(
   actions: ChatInputActions,
   roundedCornerShape: RoundedCornerShape,
   textState: TextFieldState,
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   hasSentMessage: Boolean = false,
   modifier: Modifier = Modifier
 ) {
@@ -137,7 +137,7 @@ fun ChatInputPanel(
             if (!isSubmitKey) return@onPreviewKeyEvent false
 
             val modelSelected = state.selectedModel != null || state.isAutoSelected
-            val isDebug = selectedPermission == "debug"
+            val isDebug = selectedPermission == PermissionMode.DEBUG
             val canSend = !state.isSending || !state.isPendingQueueFull
             if ((modelSelected || isDebug) && canSend) actions.onSend()
 

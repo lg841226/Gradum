@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-07-28 20:39:34 Changed by gwy
+ * EditorContext.kt  2026-07-30 10:58:38 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -29,7 +29,6 @@ data class EditorContext(
 
 fun getLanguageIconKey(extension: String?): IconKey? {
   return when (extension?.lowercase()) {
-    "java" -> AllIconsKeys.FileTypes.Java
     "js" -> AllIconsKeys.FileTypes.JavaScript
     "jsx" -> GradumIcons.Jsx
     "ts" -> GradumIcons.TypeScript

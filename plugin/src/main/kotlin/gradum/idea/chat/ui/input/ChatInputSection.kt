@@ -28,7 +28,7 @@ fun ChatInputSection(
   state: ChatInputState,
   actions: ChatInputActions,
   textState: TextFieldState,
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   hasSentMessage: Boolean = false,
   modifier: Modifier = Modifier
 ) {

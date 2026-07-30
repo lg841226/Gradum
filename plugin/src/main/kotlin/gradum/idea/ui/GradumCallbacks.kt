@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-07-29 17:56:33 Changed by gwy
+ * GradumCallbacks.kt  2026-07-30 11:52:24 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -46,6 +46,17 @@ private val MARKDOWN_EXTENSIONS = setOf(
 
 /** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
 private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L
+
+/** Maximum lines of Markdown content rendered in debug mode to prevent OOM. */
+private const val MAX_MARKDOWN_LINES: Int = 4_000
+
+private fun truncateToMaxLines(content: String): String {
+  val lines = content.lines()
+  return if (lines.size > MAX_MARKDOWN_LINES) {
+    lines.take(MAX_MARKDOWN_LINES).joinToString("\n") +
+      "**Truncated to $MAX_MARKDOWN_LINES lines — this Markdown file has ${lines.size} lines**"
+  } else content
+}
 
 /**
  * Holds all UI event callbacks for the Gradum chat interface.
@@ -261,8 +272,10 @@ private fun rememberRetryMessageCallback(
           try {
             val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
             val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-            val content = textEditor?.editor?.document?.text
-              ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            val content = truncateToMaxLines(
+              textEditor?.editor?.document?.text
+                ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            )
             val messagesToRemove = assistantMessageIndex - userMessageIndex + 1
             repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
             session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content))
@@ -348,8 +361,10 @@ private fun rememberSendCallback(
           try {
             val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
             val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-            val content = textEditor?.editor?.document?.text
-              ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            val content = truncateToMaxLines(
+              textEditor?.editor?.document?.text
+                ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            )
             session.messages.add(ChatMessage(role = "user", content = rawText))
             session.hasSentMessage = true
             session.loadDebugMarkdown(content)

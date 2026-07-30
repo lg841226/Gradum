@@ -703,10 +703,17 @@ private fun parseIndentedCodeBlock(
   return first
 }
 
-/** Render `---` as a vertical spacer only (user feedback: not a horizontal line). */
+/** Render `---` as a 1dp horizontal line. */
 @Composable
 private fun RenderThematicBreak() {
-  Spacer(modifier = Modifier.height(thematicBreakVerticalSpacing))
+  val lineColor: Color = JewelTheme.globalColors.text.info.copy(alpha = 0.3f)
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(vertical = thematicBreakVerticalSpacing)
+      .height(1.dp)
+      .background(lineColor)
+  )
 }
 
 @OptIn(ExperimentalJewelApi::class)
@@ -749,10 +756,12 @@ fun RenderInlineTextWithChips(
   text: String,
   style: TextStyle,
   modifier: Modifier = Modifier,
-  onUrlClick: (String) -> Unit = {}
+  onUrlClick: (String) -> Unit = {},
+  inlineCodeFontSizeSp: Float? = null,
 ) {
   if (text.isEmpty()) return
-  val fontSizeSp: Float = style.fontSize.value.let { if (it <= 0f) FALLBACK_FONT_SIZE_SP_NO_STYLE else it }
+  val fontSizeSp: Float = inlineCodeFontSizeSp
+    ?: style.fontSize.value.let { if (it <= 0f) FALLBACK_FONT_SIZE_SP_NO_STYLE else it }
   val textColor: Color = style.color.let { colorValue ->
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }

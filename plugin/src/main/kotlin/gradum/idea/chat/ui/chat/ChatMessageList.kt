@@ -19,6 +19,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
 import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.chat.ui.input.PermissionMode
 
 private val TimestampSpacing = GradumSpacing.xs
 
@@ -28,7 +29,7 @@ fun ChatMessageList(
   modifier: Modifier = Modifier,
   isLoading: Boolean = false,
   sendingPhase: String = "",
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   onDeleteMessage: (Int) -> Unit = {},
   onRetryMessage: (Int) -> Unit = {},
   onCopyAsContext: (String) -> Unit = {},

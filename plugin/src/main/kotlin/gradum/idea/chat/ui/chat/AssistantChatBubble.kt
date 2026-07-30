@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -32,6 +33,7 @@ import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.input.formatModelName
+import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.markdown.*
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.delay
@@ -50,8 +52,12 @@ private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
 
-private const val SEGMENT_STAGGER_MS: Long = 260
-private const val SEGMENT_FADE_MS: Int = 400
+private const val SEGMENT_BASE_STAGGER_MS: Long = 95
+private const val SEGMENT_STAGGER_PER_100DP_MS: Int = 50
+private const val SEGMENT_STAGGER_MAX_MS: Long = 300
+private const val SEGMENT_BASE_DURATION_MS: Int = 150
+private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
+private const val SEGMENT_MAX_EXTRA_MS: Int = 400
 private val SEGMENT_RISE_DP: Dp = 8.dp
 
 /**
@@ -65,7 +71,7 @@ fun AssistantChatBubble(
   message: ChatMessage,
   modifier: Modifier = Modifier,
   sendingPhase: String = "",
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   isLoading: Boolean = false,
   actionsEnabled: Boolean = true,
   onRetry: () -> Unit = {},
@@ -112,7 +118,7 @@ fun AssistantChatBubble(
       }
 
       // Hide TokenStatusRow in debug mode
-      if (selectedPermission != "debug" && (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0)) {
+      if (selectedPermission != PermissionMode.DEBUG && (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0)) {
         Spacer(Modifier.height(GradumSpacing.md))
         TokenStatusRow(
           isLoading = isLoading,
@@ -176,7 +182,9 @@ private fun ResponseBlock(
   LaunchedEffect(segments.size) {
     if (segments.size > visibleCount) {
       for (i in visibleCount until segments.size) {
-        delay(SEGMENT_STAGGER_MS.milliseconds)
+        val estimatedHeightDp = estimateContentHeightDp(segments[i])
+        val staggerMs = calculateStaggerMs(estimatedHeightDp)
+        delay(staggerMs.milliseconds)
         visibleCount = i + 1
         onContentChange()
       }
@@ -198,17 +206,28 @@ private fun AnimatedSegment(
   paragraphStyle: androidx.compose.ui.text.TextStyle,
   onUrlClick: (String) -> Unit,
 ) {
+  val density = LocalDensity.current
+  var contentHeightPx by remember { mutableIntStateOf(0) }
+  val measuredHeightDp = with(density) { contentHeightPx.toDp() }
+
   val alpha = remember { Animatable(0f) }
   val offsetY = remember { Animatable(SEGMENT_RISE_DP.value) }
-  LaunchedEffect(Unit) {
-    launch { alpha.animateTo(1f, tween(durationMillis = SEGMENT_FADE_MS)) }
-    launch { offsetY.animateTo(0f, tween(durationMillis = SEGMENT_FADE_MS)) }
+
+  LaunchedEffect(contentHeightPx) {
+    if (contentHeightPx == 0) return@LaunchedEffect
+    val durationMs = animationDurationMs(segment, measuredHeightDp)
+    val easing = animationEasing(segment)
+    launch { alpha.animateTo(1f, tween(durationMillis = durationMs, easing = easing)) }
+    launch { offsetY.animateTo(0f, tween(durationMillis = durationMs, easing = easing)) }
   }
+
   Box(
-    Modifier.graphicsLayer {
-      this.alpha = alpha.value
-      translationY = offsetY.value
-    }
+    Modifier
+      .onGloballyPositioned { contentHeightPx = it.size.height }
+      .graphicsLayer {
+        this.alpha = alpha.value
+        translationY = offsetY.value
+      }
   ) {
     when (segment) {
       is MarkdownSegment.Plain -> {
@@ -243,6 +262,44 @@ private fun AnimatedSegment(
       }
     }
   }
+}
+
+private fun estimateContentHeightDp(segment: MarkdownSegment): Float = when (segment) {
+  is MarkdownSegment.Plain -> {
+    val lines = (segment.text.length / 80f).coerceAtLeast(1f)
+    lines * 22f
+  }
+  is MarkdownSegment.NonProseBlock -> {
+    val lines = segment.text.lines().size.coerceAtLeast(1)
+    lines * 22f
+  }
+  is MarkdownSegment.Table -> {
+    val rows = segment.rows.size.coerceAtLeast(1)
+    (rows + 1) * 30f + 40f
+  }
+}
+
+private fun calculateStaggerMs(estimatedHeightDp: Float): Long =
+  (SEGMENT_BASE_STAGGER_MS + (estimatedHeightDp / 100f * SEGMENT_STAGGER_PER_100DP_MS))
+    .toLong()
+    .coerceAtMost(SEGMENT_STAGGER_MAX_MS)
+
+private fun animationDurationMs(segment: MarkdownSegment, measuredHeightDp: Dp): Int {
+  val typeWeight = when (segment) {
+    is MarkdownSegment.Table -> 1.5f
+    is MarkdownSegment.NonProseBlock -> 1.2f
+    is MarkdownSegment.Plain -> 1.0f
+  }
+  val heightDp = measuredHeightDp.value.coerceAtLeast(0f)
+  val extra = (heightDp / 100f * SEGMENT_EXTRA_PER_100DP_MS * typeWeight)
+    .toInt()
+    .coerceAtMost(SEGMENT_MAX_EXTRA_MS)
+  return SEGMENT_BASE_DURATION_MS + extra
+}
+
+private fun animationEasing(segment: MarkdownSegment): Easing = when (segment) {
+  is MarkdownSegment.Table, is MarkdownSegment.NonProseBlock -> FastOutSlowInEasing
+  is MarkdownSegment.Plain -> LinearOutSlowInEasing
 }
 
 /**
@@ -402,9 +459,9 @@ private fun MessageActionsRow(
   isLoading: Boolean,
   hasContent: Boolean,
   actionsEnabled: Boolean,
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
 ) {
-  val isDebug = selectedPermission == "debug"
+  val isDebug = selectedPermission == PermissionMode.DEBUG
   var isCopied by remember { mutableStateOf(false) }
   var isSelectedLike by remember { mutableStateOf(false) }
   var isSelectedDislike by remember { mutableStateOf(false) }

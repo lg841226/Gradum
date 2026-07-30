@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-29 21:28:40 Changed by gwy
+ * GradumChatSession.kt  2026-07-30 11:37:29 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -23,6 +23,7 @@ import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
+import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -128,7 +129,7 @@ class GradumChatSession {
    * [toolMode] is a pure derivation of this value — no parallel mutable
    * state to drift.
    */
-  var selectedPermission: String by mutableStateOf("read_only")
+  var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
   /**
    * The ToolMode string sent to the server. Derived from
@@ -140,6 +141,8 @@ class GradumChatSession {
    * - `"edit"` — read-only set plus `edit_file` / `save_file`,
    *   no task planning (`to_do` / `finish_to_do_item` are blocked).
    * - `"agent"` — every Skill is exposed.
+   * - `"debug"` — bypasses the LLM entirely; reads the focused editor file
+   *   and renders it directly as a Markdown preview.
    */
   val toolMode: String get() = selectedPermission
 
@@ -476,8 +479,16 @@ class GradumChatSession {
       textAttachments.forEach { append("<Context text=\"${it.content}\"/>") }
     }
 
-    val messageWithHint = "${prefix}${userMessage}"
+    val systemRule = """
+        <Rule>
+          - Answer in English by default. Use another language only if the user asks.
+          - No use emojis in anywhere (eg: Code or text).
+          - Use Mermaid for diagrams. Do not use text-based drawings.
+          - Give complete (600+ words), clear, and knowledgeable answers. Avoid short or vague replies.
+        </Rule>
+    """.trimIndent()
 
+    val messageWithHint = "${prefix}${userMessage}\n\n$systemRule"
     // Validate server connectivity and model availability before sending.
     sendingPhase = message("gradum.phase.synthesizing")
     val validationStart: Long = System.currentTimeMillis()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-29 18:32:58 Changed by gwy
+ * Table.kt  2026-07-30 12:35:43 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -13,11 +13,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
@@ -299,7 +297,7 @@ fun ScrollableTable(
   val density: Density = LocalDensity.current
   val horizontalPaddingPx: Int = with(density) { cellHorizontalPadding.roundToPx() }
   val textMeasurer: TextMeasurer = rememberTextMeasurer()
-  val baseStyle: TextStyle = JewelTheme.typography.regular
+  val baseStyle: TextStyle = rememberGradumMarkdownStyling().paragraph.inlinesStyling.textStyle
   val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
@@ -328,7 +326,7 @@ fun ScrollableTable(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
-      .clip(RoundedCornerShape(GradumSpacing.md))
+      .codeBlockBorder()
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { minCellWidthDp.roundToPx() }
@@ -418,6 +416,8 @@ fun ScrollableTable(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TableToolbar(table: MarkdownSegment.Table) {
+  val cols = table.header.size
+  val rows = table.rows.size
   val scope = rememberCoroutineScope()
   var isCopied: Boolean by remember { mutableStateOf(false) }
   val tableAsMarkdown: String = remember(table) { tableToMarkdownString(table) }
@@ -432,11 +432,21 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
       key = GradumIcons.Table,
       contentDescription = message("gradum.table"),
     )
-    Text(
-      text = message("gradum.table"),
-      fontFamily = JewelTheme.editorTextStyle.fontFamily,
-      modifier = Modifier.weight(1f)
-    )
+    Row(
+      modifier = Modifier.weight(1f),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Text(
+        text = message("gradum.table"),
+        fontFamily = JewelTheme.editorTextStyle.fontFamily,
+      )
+      Text(
+        text = "${cols}x${rows}",
+        fontFamily = JewelTheme.editorTextStyle.fontFamily,
+        color = JewelTheme.globalColors.text.info,
+      )
+    }
     Tooltip(tooltip = { Text(text = message("gradum.copy.table.tooltip")) }) {
       IconButton(
         onClick = {
@@ -558,11 +568,14 @@ fun SafeMarkdownText(
   }
   val baseStyle: TextStyle = rememberGradumMarkdownStyling().paragraph.inlinesStyling.textStyle
     .copy(fontWeight = fontWeight)
+  val editorFontSizeSp: Float = JewelTheme.editorTextStyle.fontSize.value
+    .let { if (it <= 0f) 13f else it }
   RenderInlineTextWithChips(
     text = text,
     style = baseStyle,
     modifier = modifier,
     onUrlClick = onUrlClick,
+    inlineCodeFontSizeSp = editorFontSizeSp,
   )
 }
 

@@ -22,6 +22,7 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.ui.ChatScreen
 import gradum.idea.chat.ui.home.WelcomeScreen
+import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.EditorUtils
 import kotlinx.coroutines.CoroutineScope
@@ -103,7 +104,7 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   LaunchedEffect(session.hasSentMessage, session.isSending, session.selectedPermission) {
     val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
 
-    if (session.selectedPermission == "debug") {
+    if (session.selectedPermission == PermissionMode.DEBUG) {
       tabContent.displayName = message("gradum.debug")
       return@LaunchedEffect
     }

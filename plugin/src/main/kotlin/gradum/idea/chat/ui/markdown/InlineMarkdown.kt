@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-30 10:14:43 Changed by gwy
+ * InlineMarkdown.kt  2026-07-30 10:34:25 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -80,7 +80,7 @@ private val inlineCodePaddingVertical: Dp = GradumSpacing.xs
 
 
 private val inlineCodeCornerRadius: Dp = GradumSpacing.sm
-internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.2f
+internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.16f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
 private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
@@ -927,7 +927,7 @@ private fun InlineCodeChip(
         horizontal = inlineCodePaddingHorizontal
       )
       .onGloballyPositioned { coordinates ->
-        log.error("InlineCodeChip render: text='$text', actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp")
+        log.info("InlineCodeChip render: text='$text', actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp")
       }
   ) {
     Text(

@@ -25,6 +25,7 @@ import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.input.ChatInputSection
+import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.icons.GradumIcons
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
@@ -63,7 +64,7 @@ fun WelcomeScreen(
   suggestionVariants: List<Int>,
   modifier: Modifier = Modifier,
   inputActions: ChatInputActions,
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   onRefreshSuggestions: () -> Unit,
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }

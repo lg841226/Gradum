@@ -33,7 +33,7 @@ fun ChatToolbar(
   actions: ChatInputActions,
   isTextNotEmpty: Boolean,
   hasSentMessage: Boolean = false,
-  selectedPermission: String = "read_only",
+  selectedPermission: String = PermissionMode.READONLY,
   modifier: Modifier = Modifier
 ) {
   val searchState = remember { TextFieldState() }
@@ -75,7 +75,7 @@ fun ChatToolbar(
       selectedPermission = state.selectedPermission,
       isMenuVisible = state.isMenuVisible,
       hasSentMessage = hasSentMessage,
-      isPermissionLocked = hasSentMessage && selectedPermission == "debug"
+      isPermissionLocked = hasSentMessage && selectedPermission == PermissionMode.DEBUG
     )
 
     Spacer(modifier = Modifier.weight(1f))
@@ -98,7 +98,7 @@ fun ChatToolbar(
 
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
       // Hide stop button in debug mode
-      if ((state.isSending || state.pendingMessages.isNotEmpty()) && selectedPermission != "debug") {
+      if ((state.isSending || state.pendingMessages.isNotEmpty()) && selectedPermission != PermissionMode.DEBUG) {
         IconTooltipButton(
           tooltip = message("gradum.stop"),
           iconKey = AllIconsKeys.Run.Stop,
@@ -107,7 +107,7 @@ fun ChatToolbar(
         )
       }
       val hasModel = state.selectedModel != null || state.isAutoSelected
-      val isDebug = selectedPermission == "debug"
+      val isDebug = selectedPermission == PermissionMode.DEBUG
       val canSend = isTextNotEmpty && !state.isPendingQueueFull && (hasModel || isDebug)
       val sendTooltip = when {
         state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
