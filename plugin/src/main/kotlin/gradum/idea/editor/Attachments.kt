@@ -56,6 +56,14 @@ data class AttachedText(
   "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection", "SpellCheckingInspection",
   "SpellCheckingInspection", "SpellCheckingInspection"
 )
+data class AttachedQuote(
+  val content: String,
+  val preview: String,
+  override val iconKey: IconKey = AllIconsKeys.FileTypes.Text
+) : AttachedContext() {
+  override val displayName: String get() = preview
+}
+
 data class AttachedImage(
   val id: String,
   val mime: String,

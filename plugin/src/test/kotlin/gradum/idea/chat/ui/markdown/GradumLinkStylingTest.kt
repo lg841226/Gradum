@@ -124,8 +124,8 @@ class GradumLinkStylingTest {
       styling.emphasis.fontStyle == FontStyle.Italic,
     )
     assertTrue(
-      "strong emphasis should set FontWeight.Bold",
-      styling.strongEmphasis.fontWeight == FontWeight.Bold,
+      "strong emphasis should set FontWeight.SemiBold",
+      styling.strongEmphasis.fontWeight == FontWeight.SemiBold,
     )
   }
 }

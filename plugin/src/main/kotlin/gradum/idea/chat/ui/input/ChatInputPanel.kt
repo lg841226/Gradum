@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-07-29 21:48:03 Changed by gwy
+ * ChatInputPanel.kt  2026-07-30 13:52:23 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -49,11 +49,11 @@ import kotlin.time.Duration.Companion.milliseconds
 fun ChatInputPanel(
   state: ChatInputState,
   actions: ChatInputActions,
-  roundedCornerShape: RoundedCornerShape,
   textState: TextFieldState,
-  selectedPermission: String = PermissionMode.READONLY,
+  modifier: Modifier = Modifier,
   hasSentMessage: Boolean = false,
-  modifier: Modifier = Modifier
+  roundedCornerShape: RoundedCornerShape,
+  selectedPermission: String = PermissionMode.READONLY
 ) {
   val initialTextLength: Int = remember { textState.text.length }
   var previousTextLength by remember { mutableStateOf(initialTextLength) }

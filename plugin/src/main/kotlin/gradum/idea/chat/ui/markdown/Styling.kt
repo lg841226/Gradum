@@ -129,7 +129,7 @@ internal fun gradumInlinesStyling(
       fontStyle = FontStyle.Italic,
       fontFamily = editorFontFamily
     ),
-    strongEmphasis = SpanStyle(fontWeight = FontWeight.Bold),
+    strongEmphasis = SpanStyle(fontWeight = FontWeight.SemiBold),
     linkFocused = linkSpan(linkColors.contentFocused),
     linkHovered = linkSpan(linkColors.contentHovered),
     linkPressed = linkSpan(linkColors.contentPressed),
@@ -204,7 +204,6 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
-        fontFamily = null,
       )
     }
 
@@ -220,10 +219,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       )
     }
 
-    val h1Style: TextStyle = headingStyle(HEADING_H1_SIZE_MULTIPLIER, FontWeight.Bold)
-    val h2Style: TextStyle = headingStyle(HEADING_H2_SIZE_MULTIPLIER, FontWeight.Bold)
+    val h1Style: TextStyle = headingStyle(HEADING_H1_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h2Style: TextStyle = headingStyle(HEADING_H2_SIZE_MULTIPLIER, FontWeight.SemiBold)
     val h3Style: TextStyle = headingStyle(HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h4Style: TextStyle = headingStyle(HEADING_H4_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h4Style: TextStyle = headingStyle(HEADING_H4_SIZE_MULTIPLIER, FontWeight.Medium)
     val h5Style: TextStyle = headingStyle(HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
     val h6Style: TextStyle = headingStyle(HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 

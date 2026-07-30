@@ -473,10 +473,12 @@ class GradumChatSession {
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
     val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
+    val quoteAttachments: List<AttachedQuote> = attachments.filterIsInstance<AttachedQuote>()
     val prefix: String = buildString {
       if (contextPath.isNotEmpty()) append("<Context path=\"$contextPath\"/>")
       if (attachmentPaths.isNotEmpty()) append("<Attachments paths=\"${attachmentPaths.joinToString(", ")}\"/>")
       textAttachments.forEach { append("<Context text=\"${it.content}\"/>") }
+      quoteAttachments.forEach { append("<quote text=\"${it.content}\"/>") }
     }
 
     val systemRule = """

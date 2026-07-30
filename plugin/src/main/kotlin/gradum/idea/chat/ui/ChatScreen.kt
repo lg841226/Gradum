@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-29 21:42:09 Changed by gwy
+ * ChatScreen.kt  2026-07-30 15:06:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -187,7 +187,7 @@ fun ChatScreen(
                 }
               },
               onViewDiff = onViewDiff,
-              onOpenInEditor = onOpenInEditor
+              onOpenInEditor = onOpenInEditor,
             )
           }
         }

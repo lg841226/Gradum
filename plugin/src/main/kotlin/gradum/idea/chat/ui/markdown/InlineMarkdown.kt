@@ -131,6 +131,16 @@ private val commonmarkParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create()))
   .build()
 
+/**
+ * Matches bare http/https/ftp URLs in plain text. The last character
+ * excludes common trailing punctuation so `https://example.com.` captures
+ * only the URL without the period.
+ */
+private val bareUrlRegex: Regex = Regex(
+  """https?://[^\s<>"'()\[\]]+[^\s<>"'().,;:!?)\]""]""",
+  RegexOption.IGNORE_CASE
+)
+
 /** One renderable inline representation: PUA-placeholder AnnotatedString + chip InlineTextContent map. */
 data class InlineMarkdownRender(
   val paragraphCount: Int,
@@ -650,6 +660,7 @@ private fun renderTextInline(
 
   val footnoteMatches: List<MatchResult> = INLINE_FOOTNOTE_REGEX.findAll(literal).toList()
   val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal).toList()
+  val urlMatches: List<MatchResult> = bareUrlRegex.findAll(literal).toList()
 
   val parenLatexMatches: List<MatchResult> = if (renderState.parenLatexFormulas.isEmpty()) {
     emptyList()
@@ -658,14 +669,22 @@ private fun renderTextInline(
       .filter { renderState.parenLatexFormulas.containsKey(it.value) }
       .toList()
   }
-  if (footnoteMatches.isEmpty() && latexMatches.isEmpty() && parenLatexMatches.isEmpty()) {
+  if (footnoteMatches.isEmpty() && latexMatches.isEmpty() && parenLatexMatches.isEmpty() && urlMatches.isEmpty()) {
     if (renderState.currentStyle == SpanStyle()) annotatedStringBuilder.append(literal)
     else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(literal) }
     return
   }
 
-  val allMatches: List<MatchResult> = (footnoteMatches + latexMatches + parenLatexMatches)
+  val allMatches: List<MatchResult> = (footnoteMatches + latexMatches + parenLatexMatches + urlMatches)
     .sortedBy { it.range.first }
+
+  val linkStyle: SpanStyle = renderState.currentStyle.copy(
+    color = renderState.linkColor,
+    textDecoration = combineDecoration(
+      renderState.currentStyle.textDecoration ?: TextDecoration.None,
+      TextDecoration.Underline
+    ),
+  )
 
   var lastIndex = 0
   for (match in allMatches) {
@@ -678,39 +697,54 @@ private fun renderTextInline(
       else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(preText) }
     }
 
-    if (match in footnoteMatches) {
-      val footnoteText: String = match.groupValues[2]
-        .ifEmpty { match.groupValues[3] }
-        .ifEmpty { match.groupValues[4] }
-      if (footnoteText.isNotEmpty()) {
-        val placeholderKey: String = renderState.allocateFootnote(footnoteText)
-        annotatedStringBuilder.pushStringAnnotation(tag = FOOTNOTE_TEXT_TAG, annotation = footnoteText)
-        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
-        annotatedStringBuilder.pushStyle(SpanStyle())
-        annotatedStringBuilder.append(placeholderKey)
-        annotatedStringBuilder.pop()
-        annotatedStringBuilder.pop()
-        annotatedStringBuilder.pop()
+    when {
+      match in footnoteMatches -> {
+        val footnoteText: String = match.groupValues[2]
+          .ifEmpty { match.groupValues[3] }
+          .ifEmpty { match.groupValues[4] }
+        if (footnoteText.isNotEmpty()) {
+          val placeholderKey: String = renderState.allocateFootnote(footnoteText)
+          annotatedStringBuilder.pushStringAnnotation(tag = FOOTNOTE_TEXT_TAG, annotation = footnoteText)
+          annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+          annotatedStringBuilder.pushStyle(SpanStyle())
+          annotatedStringBuilder.append(placeholderKey)
+          annotatedStringBuilder.pop()
+          annotatedStringBuilder.pop()
+          annotatedStringBuilder.pop()
+        }
       }
-    } else if (match in parenLatexMatches) {
-      val formulaText: String = renderState.parenLatexFormulas[match.value].orEmpty()
-      if (formulaText.isNotEmpty()) {
-        val placeholderKey: String = renderState.allocateLatex(formulaText)
-        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
-        annotatedStringBuilder.pushStyle(SpanStyle())
-        annotatedStringBuilder.append(placeholderKey)
-        annotatedStringBuilder.pop()
-        annotatedStringBuilder.pop()
+      match in parenLatexMatches -> {
+        val formulaText: String = renderState.parenLatexFormulas[match.value].orEmpty()
+        if (formulaText.isNotEmpty()) {
+          val placeholderKey: String = renderState.allocateLatex(formulaText)
+          annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+          annotatedStringBuilder.pushStyle(SpanStyle())
+          annotatedStringBuilder.append(placeholderKey)
+          annotatedStringBuilder.pop()
+          annotatedStringBuilder.pop()
+        }
       }
-    } else {
-      val formulaText: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
-      if (formulaText.isNotEmpty()) {
-        val placeholderKey: String = renderState.allocateLatex(formulaText)
-        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
-        annotatedStringBuilder.pushStyle(SpanStyle())
-        annotatedStringBuilder.append(placeholderKey)
+      match in urlMatches -> {
+        val url: String = match.value
+        val urlStart: Int = annotatedStringBuilder.length
+        annotatedStringBuilder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = url)
+        renderState.withStyle(linkStyle) { annotatedStringBuilder.append(url) }
         annotatedStringBuilder.pop()
-        annotatedStringBuilder.pop()
+        val urlEnd: Int = annotatedStringBuilder.length
+        if (urlEnd > urlStart) {
+          renderState.urlAnnotations += UrlAnnotation(start = urlStart, end = urlEnd, url = url)
+        }
+      }
+      else -> {
+        val formulaText: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
+        if (formulaText.isNotEmpty()) {
+          val placeholderKey: String = renderState.allocateLatex(formulaText)
+          annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
+          annotatedStringBuilder.pushStyle(SpanStyle())
+          annotatedStringBuilder.append(placeholderKey)
+          annotatedStringBuilder.pop()
+          annotatedStringBuilder.pop()
+        }
       }
     }
 
@@ -741,7 +775,7 @@ private fun renderStrongEmphasisInline(
   annotatedStringBuilder: AnnotatedString.Builder,
   renderState: RenderState,
 ) {
-  val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.Bold)
+  val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.SemiBold)
   renderState.withStyle(boldStyle) { renderInlineChildren(strongEmphasisNode, renderState, annotatedStringBuilder) }
 }
 

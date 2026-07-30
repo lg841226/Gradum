@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-30 12:35:43 Changed by gwy
+ * Table.kt  2026-07-30 13:40:50 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -10,9 +10,11 @@
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -297,8 +299,10 @@ fun ScrollableTable(
   val density: Density = LocalDensity.current
   val horizontalPaddingPx: Int = with(density) { cellHorizontalPadding.roundToPx() }
   val textMeasurer: TextMeasurer = rememberTextMeasurer()
-  val baseStyle: TextStyle = rememberGradumMarkdownStyling().paragraph.inlinesStyling.textStyle
+  val markdownStyling = rememberGradumMarkdownStyling()
+  val baseStyle: TextStyle = markdownStyling.paragraph.inlinesStyling.textStyle
   val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
+  val tableBackground = markdownStyling.code.fenced.background
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
 
@@ -327,6 +331,7 @@ fun ScrollableTable(
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
       .codeBlockBorder()
+      .background(tableBackground)
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { minCellWidthDp.roundToPx() }
@@ -343,7 +348,7 @@ fun ScrollableTable(
     val scrollState = rememberScrollState()
 
     Column(modifier = Modifier.fillMaxWidth()) {
-      if (!isSimplified) TableToolbar(table = table)
+      if (!isSimplified) DisableSelection { TableToolbar(table = table) }
       Box(modifier = Modifier.fillMaxWidth()) {
         Box(
           modifier = Modifier
@@ -352,7 +357,11 @@ fun ScrollableTable(
             .horizontalScroll(scrollState)
         ) {
           Column {
-            Row {
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.08f))
+            ) {
               table.header.forEachIndexed { columnIndex, cell ->
                 SafeMarkdownText(
                   text = cell,

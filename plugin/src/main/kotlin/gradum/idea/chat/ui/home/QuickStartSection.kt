@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
@@ -116,8 +117,12 @@ private fun SuggestionCard(
       contentDescription = null
     )
     Spacer(modifier = Modifier.width(GradumSpacing.md))
-    Text(text = suggestionText)
-    Spacer(modifier = Modifier.weight(1f))
+    Text(
+      modifier = Modifier.weight(1f),
+      text = suggestionText,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
     Icon(
       key = AllIconsKeys.General.ArrowRight,
       contentDescription = message("gradum.use.suggestion")

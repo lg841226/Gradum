@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AttachmentBar.kt  2026-07-29 18:32:58 Changed by gwy
+ * AttachmentBar.kt  2026-07-30 13:52:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -56,6 +56,7 @@ fun AttachmentBar(
           modifier = Modifier.size(16.dp)
         )
         Text(
+          maxLines = 1,
           text = attachedContext.displayName,
           color = JewelTheme.globalColors.text.normal
         )

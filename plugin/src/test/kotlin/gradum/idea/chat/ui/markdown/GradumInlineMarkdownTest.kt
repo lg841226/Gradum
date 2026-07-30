@@ -174,10 +174,10 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `bold renders with FontWeight_Bold span`() {
+  fun `bold renders with FontWeight_SemiBold span`() {
     val render: InlineMarkdownRender = inlineRender("a **bold** word")
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
     assertEquals(1, boldSpans.size)
     assertEquals("bold", visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)))
   }
@@ -357,11 +357,55 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
+  fun `bare https URL is detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("visit https://example.com today")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://example.com", render.urlAnnotations[0].url)
+    val linkText: String = visibleText(render.annotated.subSequence(render.urlAnnotations[0].start, render.urlAnnotations[0].end))
+    assertEquals("https://example.com", linkText)
+  }
+
+  @Test
+  fun `bare http URL is detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("check http://localhost:8080/api now")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("http://localhost:8080/api", render.urlAnnotations[0].url)
+  }
+
+  @Test
+  fun `bare URL followed by period excludes trailing punctuation`() {
+    val render: InlineMarkdownRender = inlineRender("see https://example.com.")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://example.com", render.urlAnnotations[0].url)
+  }
+
+  @Test
+  fun `bare URL inside inline code is NOT detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("use `https://example.com` in code")
+    assertEquals(0, render.urlAnnotations.size)
+  }
+
+  @Test
+  fun `multiple bare URLs in one paragraph are all detected`() {
+    val render: InlineMarkdownRender = inlineRender("a https://first.com and https://second.org here")
+    assertEquals(2, render.urlAnnotations.size)
+    assertEquals("https://first.com", render.urlAnnotations[0].url)
+    assertEquals("https://second.org", render.urlAnnotations[1].url)
+  }
+
+  @Test
+  fun `bare URL in markdown link text does NOT duplicate annotations`() {
+    val render: InlineMarkdownRender = inlineRender("[click](https://example.com)")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://example.com", render.urlAnnotations[0].url)
+  }
+
+  @Test
   fun `bold with code in same paragraph - both render`() {
     val render: InlineMarkdownRender = inlineRender("**bold** and `code` together")
     assertTrue(
       "expected bold span",
-      render.annotated.spanStyles.any { span -> span.item.fontWeight == FontWeight.Bold },
+      render.annotated.spanStyles.any { span -> span.item.fontWeight == FontWeight.SemiBold },
     )
     assertEquals(1, render.inlineContent.size)
   }
@@ -444,7 +488,7 @@ class GradumInlineMarkdownTest {
       }
     assertEquals(1, strikeSpans.size)
     val strikeRange: AnnotatedString.Range<SpanStyle> = strikeSpans[0]
-    assertEquals(FontWeight.Bold, strikeRange.item.fontWeight)
+    assertEquals(FontWeight.SemiBold, strikeRange.item.fontWeight)
     assertEquals(
       "bold strike",
       visibleText(render.annotated.subSequence(strikeRange.start, strikeRange.end)),
@@ -559,7 +603,7 @@ class GradumInlineMarkdownTest {
     // possible through the old serialize-then-re-parse flow.
     assertEquals("2. 游戏速度不一致", visible)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
     assertEquals(1, boldSpans.size)
     val boldText: String =
       visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end))
@@ -579,7 +623,7 @@ class GradumInlineMarkdownTest {
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
     assertEquals(1, boldSpans.size)
     assertEquals(
       "bold heading",
@@ -646,7 +690,7 @@ class GradumInlineMarkdownTest {
     val visible: String = visibleText(render.annotated)
     assertEquals("bold item", visible)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
     assertEquals(1, boldSpans.size)
     assertEquals(
       "bold item",
@@ -673,7 +717,7 @@ class GradumInlineMarkdownTest {
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.Bold }
+      render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
     assertEquals(1, boldSpans.size)
     assertEquals(
       "bold quote",
