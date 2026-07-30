@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-30 19:44:44 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-30 19:50:34 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -240,6 +240,15 @@ class GradumCodeBlockRenderer(
       else 0f
     }
 
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    val lineHeightPx = remember(textLayout) {
+      textLayout?.let { tl ->
+        if (tl.lineCount >= 2) tl.getLineTop(1) - tl.getLineTop(0)
+        else tl.size.height.toFloat()
+      } ?: 0f
+    }
+
     Box(
       modifier = Modifier
         .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
@@ -249,19 +258,23 @@ class GradumCodeBlockRenderer(
         softWrap = softWrap,
         text = annotatedCode,
         style = textStyle,
-        onTextLayout = onTextLayout,
+        onTextLayout = {
+          textLayout = it
+          onTextLayout(it)
+        },
         modifier = Modifier
           .fillMaxWidth()
           .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
           .then(
-            if (showIndentGuides && indentInfo != null && charWidth > 0f) {
-              val lineColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.18f)
+            if (showIndentGuides && indentInfo != null && charWidth > 0f && lineHeightPx > 0f) {
+              val lineColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.5f)
               Modifier.drawWithContent {
                 val stepPx = indentInfo.step * charWidth
-                for (level in 1..indentInfo.maxLevel) {
-                  val x = level * stepPx
-                  if (x < size.width)
-                    drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), 1f)
+                for (range in indentInfo.levelRanges) {
+                  val x = range.level * stepPx
+                  val startY = range.firstLine * lineHeightPx
+                  val endY = (range.lastLine + 1) * lineHeightPx
+                  drawLine(lineColor, Offset(x, startY), Offset(x, endY), 1f)
                 }
                 drawContent()
               }
@@ -428,18 +441,27 @@ private fun CodeBlockToolbar(
   }
 }
 
-private data class IndentInfo(val step: Int, val maxLevel: Int)
+private data class LevelRange(val level: Int, val firstLine: Int, val lastLine: Int)
+private data class IndentInfo(val step: Int, val maxLevel: Int, val levelRanges: List<LevelRange>)
 
 private fun analyzeIndent(code: String): IndentInfo? {
   val lines = code.lines()
-  val counts = lines.mapNotNull { line ->
-    if (line.isBlank()) null
-    else line.length - line.trimStart().length
-  }.filter { it > 0 }.distinct()
-  if (counts.isEmpty()) return null
-  val step = counts.reduce { a, b -> gcd(a, b) }
-  val maxLevel = counts.maxOrNull()!! / step
-  return IndentInfo(step, maxLevel)
+  val lineIndents = lines.map { line ->
+    if (line.isBlank()) -1 else line.length - line.trimStart().length
+  }
+  val positiveCounts = lineIndents.filter { it > 0 }.distinct()
+  if (positiveCounts.isEmpty()) return null
+  val step = positiveCounts.reduce { a, b -> gcd(a, b) }
+  val maxLevel = positiveCounts.maxOrNull()!! / step
+
+  val levelRanges = (1..maxLevel).mapNotNull { level ->
+    val minIndent = level * step
+    val first = lineIndents.indexOfFirst { it >= minIndent }
+    val last = lineIndents.indexOfLast { it >= minIndent }
+    if (first >= 0) LevelRange(level, first, last) else null
+  }
+
+  return IndentInfo(step, maxLevel, levelRanges)
 }
 
 private fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
