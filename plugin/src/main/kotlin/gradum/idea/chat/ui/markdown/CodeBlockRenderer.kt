@@ -21,8 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -107,7 +109,7 @@ class GradumCodeBlockRenderer(
 
     if (isSimplified) {
       ContainerOrScrollable(isSoftWrap, {
-        CodeBlockContent(isSoftWrap, annotatedCode, styling, codeTextStyle)
+        CodeBlockContent(isSoftWrap, annotatedCode, styling, codeTextStyle, showIndentGuides = isCollapsible)
       }, styling)
     } else {
       val stickyRegistry = LocalStickySectionRegistry.current
@@ -183,7 +185,7 @@ class GradumCodeBlockRenderer(
               }
               Box(modifier = Modifier.weight(1f)) {
                 ContainerOrScrollable(isSoftWrap, {
-                  CodeBlockContent(isSoftWrap, displayCode, styling, codeTextStyle, onTextLayout = { textLayout = it })
+                  CodeBlockContent(isSoftWrap, displayCode, styling, codeTextStyle, showIndentGuides = isCollapsible, onTextLayout = { textLayout = it })
                 }, styling)
               }
             }
@@ -228,18 +230,51 @@ class GradumCodeBlockRenderer(
     annotatedCode: AnnotatedString,
     styling: MarkdownStyling.Code.Fenced,
     textStyle: TextStyle = styling.editorTextStyle,
+    showIndentGuides: Boolean = false,
     onTextLayout: ((TextLayoutResult) -> Unit) = {},
   ) {
-    Text(
-      softWrap = softWrap,
-      text = annotatedCode,
-      style = textStyle,
-      onTextLayout = onTextLayout,
+    Box(
       modifier = Modifier
         .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
         .fillMaxWidth()
-        .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-    )
+    ) {
+      if (showIndentGuides) {
+        val textMeasurer = rememberTextMeasurer()
+        val indentInfo = remember(annotatedCode.text) { analyzeIndent(annotatedCode.text) }
+        val charWidth = remember(textStyle, textMeasurer) {
+          textMeasurer.measure(
+            text = AnnotatedString(" "),
+            style = textStyle
+          ).size.width.toFloat()
+        }
+        if (indentInfo != null && charWidth > 0f) {
+          val indentColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.12f)
+          Canvas(modifier = Modifier.fillMaxSize()) {
+            val stepPx = indentInfo.step * charWidth
+            for (level in 1..indentInfo.maxLevel) {
+              val x = level * stepPx
+              if (x < size.width) {
+                drawLine(
+                  color = indentColor,
+                  start = Offset(x, 0f),
+                  end = Offset(x, size.height),
+                  strokeWidth = 1f
+                )
+              }
+            }
+          }
+        }
+      }
+      Text(
+        softWrap = softWrap,
+        text = annotatedCode,
+        style = textStyle,
+        onTextLayout = onTextLayout,
+        modifier = Modifier
+          .fillMaxWidth()
+          .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
+      )
+    }
   }
 
   @Composable
@@ -398,6 +433,22 @@ private fun CodeBlockToolbar(
     }
   }
 }
+
+private data class IndentInfo(val step: Int, val maxLevel: Int)
+
+private fun analyzeIndent(code: String): IndentInfo? {
+  val lines = code.lines()
+  val counts = lines.mapNotNull { line ->
+    if (line.isBlank()) null
+    else line.length - line.trimStart().length
+  }.filter { it > 0 }.distinct()
+  if (counts.isEmpty()) return null
+  val step = counts.reduce { a, b -> gcd(a, b) }
+  val maxLevel = counts.maxOrNull()!! / step
+  return IndentInfo(step, maxLevel)
+}
+
+private fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
 
 private fun truncateAnnotatedString(annotated: AnnotatedString, maxLines: Int)
   : AnnotatedString {

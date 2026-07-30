@@ -7,6 +7,7 @@
 
 package gradum.idea.chat.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
@@ -213,7 +214,8 @@ fun ChatScreen(
           val remaining = section.bottomInColumn - scrollState.value
           val toolbarHeight = section.toolbarHeight
           val alpha = if (isActive && toolbarHeight > 0f) {
-            ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
+            val linear = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
+            FastOutSlowInEasing.transform(linear)
           } else if (isActive) 1f else 0f
           if (alpha > 0f) {
             Box(
