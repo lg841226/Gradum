@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * BlockSplit.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -292,9 +293,9 @@ private fun serializeFencedCodeBlockInto(codeBlock: FencedCodeBlock, output: Str
  * than a paragraph.
  */
 private fun serializeLatexBlockInto(latexBlock: LatexBlock, output: StringBuilder) {
-  output.append("\$\$\n")
+  output.append("$$\n")
   output.append(latexBlock.formula)
-  output.append("\n\$\$")
+  output.append("\n$$")
 }
 
 /** Prefix every line of [content] with [indent]. */

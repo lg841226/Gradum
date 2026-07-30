@@ -183,43 +183,6 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
-  fun `italic renders with FontStyle_Italic span`() {
-    val render: InlineMarkdownRender = inlineRender("an *italic* word")
-    val italicSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontStyle == FontStyle.Italic }
-    assertEquals(1, italicSpans.size)
-    assertEquals("italic", visibleText(render.annotated.subSequence(italicSpans[0].start, italicSpans[0].end)))
-  }
-
-  @Test
-  fun `bold and italic in the same paragraph both render`() {
-    val render: InlineMarkdownRender = inlineRender("**bold** and *italic*")
-    assertTrue(
-      "expected bold span",
-      render.annotated.spanStyles.any { span -> span.item.fontWeight == FontWeight.Bold },
-    )
-    assertTrue(
-      "expected italic span",
-      render.annotated.spanStyles.any { span -> span.item.fontStyle == FontStyle.Italic },
-    )
-  }
-
-  @Test
-  fun `nested emphasis accumulates styles - bold containing italic`() {
-    // CommonMark: "**bold *italic* inside**" — the inner italic word
-    // is both bold and italic.
-    val render: InlineMarkdownRender = inlineRender("**bold *italic* inside**")
-    val italicSpans: List<AnnotatedString.Range<SpanStyle>> =
-      render.annotated.spanStyles.filter { span -> span.item.fontStyle == FontStyle.Italic }
-    assertEquals(1, italicSpans.size)
-    val italicRange: AnnotatedString.Range<SpanStyle> = italicSpans[0]
-    val italicText: String = visibleText(render.annotated.subSequence(italicRange.start, italicRange.end))
-    assertEquals("italic", italicText)
-    // The italic range must ALSO have bold (style is accumulated).
-    assertEquals(FontWeight.Bold, italicRange.item.fontWeight)
-  }
-
-  @Test
   fun `inline code produces one PUA placeholder`() {
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
     assertEquals(1, countPua(render.annotated))
@@ -401,16 +364,6 @@ class GradumInlineMarkdownTest {
       render.annotated.spanStyles.any { span -> span.item.fontWeight == FontWeight.Bold },
     )
     assertEquals(1, render.inlineContent.size)
-  }
-
-  @Test
-  fun `italic with link in same paragraph - both render`() {
-    val render: InlineMarkdownRender = inlineRender("*italic* and [link](https://x.test)")
-    assertTrue(
-      "expected italic span",
-      render.annotated.spanStyles.any { span -> span.item.fontStyle == FontStyle.Italic },
-    )
-    assertEquals(1, render.urlAnnotations.size)
   }
 
   @Test

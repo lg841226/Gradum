@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-07-14 21:27:12 Changed by gwy
+ * Agent.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -505,17 +505,17 @@ class Agent(
     val parts: MutableList<Map<String, Any>> = mutableListOf(
       mapOf("type" to "text", "text" to text)
     )
-    for (attachment in attachments) {
-      if (attachment.type != "image") {
-        logger.warn("Ignoring unsupported attachment type '${attachment.type}' (filename=${attachment.filename})")
+    for ((type, mime, data, filename) in attachments) {
+      if (type != "image") {
+        logger.warn("Ignoring unsupported attachment type '$type' (filename=$filename)")
         continue
       }
       parts.add(
         mapOf(
           "type" to "image",
-          "data" to (attachment.data),
-          "mime" to (attachment.mime ?: "image/jpeg"),
-          "filename" to (attachment.filename ?: "")
+          "data" to (data),
+          "mime" to (mime ?: "image/jpeg"),
+          "filename" to (filename ?: "")
         )
       )
     }

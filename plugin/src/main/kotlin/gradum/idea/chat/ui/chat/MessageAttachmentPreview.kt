@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * MessageAttachmentPreview.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.chat
 
@@ -30,7 +29,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedImage
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
 import org.jetbrains.jewel.ui.component.Icon

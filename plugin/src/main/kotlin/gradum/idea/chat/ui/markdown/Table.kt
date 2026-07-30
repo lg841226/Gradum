@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * Table.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
 
@@ -33,11 +32,7 @@ import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.icons.GradumIcons
-import org.commonmark.ext.gfm.tables.TableBlock
-import org.commonmark.ext.gfm.tables.TableBody
-import org.commonmark.ext.gfm.tables.TableCell
-import org.commonmark.ext.gfm.tables.TableHead
-import org.commonmark.ext.gfm.tables.TableRow
+import org.commonmark.ext.gfm.tables.*
 import org.commonmark.node.Node
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -63,7 +58,7 @@ import org.jetbrains.jewel.ui.typography
  *
  * [LatexBlockExtension] is intentionally **not** registered here — this
  * processor is used by the fenced / indented code block reparse path
- * ([BlockRenderer.parseFencedCodeBlock]), and a `$$…$$` inside a code
+ * (`BlockRenderer.parseFencedCodeBlock`), and a `$$…$$` inside a code
  * block must stay as literal text, not become a rendered formula. The
  * LaTeX block extension lives on the inline / block path parsers only.
  */
@@ -420,7 +415,7 @@ fun ScrollableTable(
 }
 
 /** Top-row toolbar: "Table" label + copy button. Mirrors the code block toolbar. */
-@OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TableToolbar(table: MarkdownSegment.Table) {
   val scope = rememberCoroutineScope()
@@ -617,8 +612,8 @@ internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
     ?.childNodes()?.filterIsInstance<TableCell>()
     ?.map { cell ->
       when (cell.alignment) {
-        org.commonmark.ext.gfm.tables.TableCell.Alignment.CENTER -> TextAlign.Center
-        org.commonmark.ext.gfm.tables.TableCell.Alignment.RIGHT -> TextAlign.End
+        TableCell.Alignment.CENTER -> TextAlign.Center
+        TableCell.Alignment.RIGHT -> TextAlign.End
         else -> TextAlign.Start
       }
     }

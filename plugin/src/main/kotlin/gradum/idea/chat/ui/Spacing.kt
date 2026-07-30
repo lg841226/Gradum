@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * Spacing.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -43,9 +44,6 @@ object GradumSpacing {
   /** Extra, extra large — major section gaps. */
   val xxl = 24.dp
 
-  /** Extra extra extra large — hero spacers. */
-  val xxxl = 32.dp
-
   /**
    * Letter spacing for the welcome heading on the home
    * screen. Slightly looser than the default tracking
@@ -53,7 +51,7 @@ object GradumSpacing {
    * title — currently "Hi, I'm Gradum" — reads as airy
    * and brand-distinct, not as just another default
    * h2 heading. Keep this name in sync with the actual
-   * label rendered by [gradum.welcome.text].
+   * label rendered by `gradum.welcome.text`
    */
   val welcomeTitleTracking = 0.5.sp
 }

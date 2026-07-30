@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * LatexRenderer.kt  2026-07-29 18:21:16 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -30,18 +31,13 @@ import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
-private const val BLOCK_LATEX_DEFAULT_FONT_SIZE_SP: Float = 18f
+private const val BLOCK_LATEX_DEFAULT_FONT_SIZE_SP: Float = 14f
 
-// Vertical padding around block formulas. Bumped from 32dp to 48dp per user feedback
-// "blocking text below" — the library's Canvas can be 100-150dp tall for multi-line formulas.
-// Library internal padding (CANVAS_VERTICAL_PADDING=0.10f, ~1.8dp) is baked into Canvas size,
-// not user-configurable. Async parsing (first frame 0×0 → parsed height) causes a layout shift;
-// heightIn(min=...) in RenderLatexBlock reserves BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP to stabilize it.
-private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 48f
+// Vertical padding around block formulas. Compact for chat panel.
+private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 16f
 
-// Minimum inner content height the Box reserves for the formula. 44dp fits a single \frac{}{}
-// without making small formulas look floating. See also BLOCK_LATEX_VERTICAL_PADDING_DP.
-private const val BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP: Float = 44f
+// Minimum inner content height the Box reserves for the formula.
+private const val BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP: Float = 12f
 private const val FALLBACK_TEXT_VERTICAL_PADDING_DP: Float = 2f
 private const val FALLBACK_FONT_SIZE_SP: Float = 13f
 private const val FALLBACK_FONT_WEIGHT: Int = 500
@@ -65,7 +61,7 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
       .fillMaxWidth()
       .heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)
       .padding(vertical = BLOCK_LATEX_VERTICAL_PADDING_DP.dp),
-    contentAlignment = Alignment.TopCenter
+    contentAlignment = Alignment.Center
   ) {
     if (renderState.shouldFallback) {
       LatexFallbackText(
@@ -91,14 +87,13 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
  */
 @Composable
 internal fun RenderInlineLatex(
-  formula: String, fontSizeSp: Float, fontFamily: FontFamily?
+  formula: String, fontSizeSp: Float
 ) {
   val renderState: LatexRenderState = rememberLatexRenderState(formula = formula)
   if (renderState.shouldFallback) {
     LatexFallbackText(
-      formula = formula,
       isBlock = false,
-      fontFamily = fontFamily,
+      formula = formula,
       fontSizeSp = fontSizeSp
     )
   } else {
@@ -127,10 +122,7 @@ private fun rememberLatexRenderState(formula: String): LatexRenderState {
 }
 
 /** Bundle of cached per-formula render decisions. */
-internal data class LatexRenderState(
-  val config: LatexConfig,
-  val shouldFallback: Boolean,
-)
+internal data class LatexRenderState(val config: LatexConfig, val shouldFallback: Boolean)
 
 /**
  * Build a [LatexConfig] with the IDE's text color for both light/dark (the chat panel's text
@@ -159,11 +151,8 @@ private fun LatexFallbackText(
   fontSizeSp: Float = FALLBACK_FONT_SIZE_SP
 ) {
   val globalColors = LocalGlobalColors.current
-  val wrapped: String = if (isBlock) {
-    "$$ ${formula.trim()} $$"
-  } else {
-    "$${formula}$"
-  }
+  val wrapped: String = if (isBlock) "$$ ${formula.trim()} $$" else "$${formula}$"
+
   val fallbackStyle = TextStyle(
     fontFamily = fontFamily,
     fontSize = fontSizeSp.sp,
@@ -175,6 +164,10 @@ private fun LatexFallbackText(
     modifier = modifier
       .padding(vertical = FALLBACK_TEXT_VERTICAL_PADDING_DP.dp)
   ) {
-    Text(text = wrapped, style = fallbackStyle, modifier = Modifier.fillMaxWidth())
+    Text(
+      text = wrapped,
+      style = fallbackStyle,
+      modifier = Modifier.fillMaxWidth()
+    )
   }
 }

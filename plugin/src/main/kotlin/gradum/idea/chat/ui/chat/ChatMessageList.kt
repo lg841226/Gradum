@@ -2,12 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-07-29 10:08:15 Changed by gwy
+ * ChatMessageList.kt  2026-07-29 21:24:44 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -19,13 +22,6 @@ import gradum.idea.chat.ui.GradumSpacing
 
 private val TimestampSpacing = GradumSpacing.xs
 
-/**
- * Scrollable list of chat bubbles with a bottom spacer.
- *
- * When [isLoading] is true the last assistant bubble shows a progress indicator.
- * [onAttachmentClick] is forwarded to the user bubble so the attachment
- * preview can open the original file in the IDE.
- */
 @Composable
 fun ChatMessageList(
   messages: List<ChatMessage>,
@@ -64,8 +60,8 @@ fun ChatMessageList(
         else -> AssistantChatBubble(
           message = message,
           sendingPhase = if (isLastAssistant) sendingPhase else "",
-          isLoading = isLastAssistant,
           selectedPermission = selectedPermission,
+          isLoading = isLastAssistant,
           onRetry = { onRetryMessage(index) }
         )
       }

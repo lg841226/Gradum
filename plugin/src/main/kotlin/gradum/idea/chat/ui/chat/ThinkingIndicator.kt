@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ThinkingIndicator.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
-@file:OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
+@file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat
@@ -13,7 +14,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*

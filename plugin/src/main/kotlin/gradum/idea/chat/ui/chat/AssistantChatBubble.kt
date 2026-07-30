@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * AssistantChatBubble.kt  2026-07-29 21:24:44 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -30,17 +32,9 @@ import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.input.formatModelName
-import gradum.idea.chat.ui.markdown.InlineMarkdownRender
-import gradum.idea.chat.ui.markdown.InlineMarkdownRenderResult
-import gradum.idea.chat.ui.markdown.MarkdownSegment
-import gradum.idea.chat.ui.markdown.RenderNonProseBlock
-import gradum.idea.chat.ui.markdown.ScrollableTable
-import gradum.idea.chat.ui.markdown.TableParseFailurePlaceholder
-import gradum.idea.chat.ui.markdown.isRenderable
-import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
-import gradum.idea.chat.ui.markdown.rememberInlineMarkdownRender
-import gradum.idea.chat.ui.markdown.splitMarkdown
+import gradum.idea.chat.ui.markdown.*
 import gradum.idea.icons.GradumIcons
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -48,12 +42,17 @@ import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+import kotlin.time.Duration.Companion.milliseconds
 
 private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
+
+private const val SEGMENT_STAGGER_MS: Long = 260
+private const val SEGMENT_FADE_MS: Int = 400
+private val SEGMENT_RISE_DP: Dp = 8.dp
 
 /**
  * Left-aligned assistant message bubble.
@@ -64,16 +63,16 @@ private const val RISE_DURATION_MS: Int = 300
 @Composable
 fun AssistantChatBubble(
   message: ChatMessage,
-  sendingPhase: String = "",
   modifier: Modifier = Modifier,
+  sendingPhase: String = "",
+  selectedPermission: String = "read_only",
   isLoading: Boolean = false,
   actionsEnabled: Boolean = true,
-  selectedPermission: String = "read_only",
   onRetry: () -> Unit = {},
+  onContentChange: () -> Unit = {},
   onUrlClick: (String) -> Unit = {},
   onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
-  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) ->
-  Unit = { _, _, _ -> }
+  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {
   val renderBlocks = message.renderBlocks
   val hasContent = renderBlocks.isNotEmpty()
@@ -105,7 +104,7 @@ fun AssistantChatBubble(
           when (block) {
             is RenderBlock.Thinking -> ThinkingBlock(block, isLoading, onUrlClick)
             is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
-            is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
+            is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
             is RenderBlock.Error -> ErrorBlock(block)
           }
           Spacer(modifier = Modifier.height(GradumSpacing.lrl))
@@ -122,15 +121,17 @@ fun AssistantChatBubble(
         )
       }
 
-      Spacer(modifier = Modifier.height(GradumSpacing.md))
-      MessageActionsRow(
-        message = message,
-        isLoading = isLoading,
-        hasContent = hasContent,
-        actionsEnabled = actionsEnabled,
-        selectedPermission = selectedPermission,
-        onRetry = onRetry,
-      )
+      if (!isLoading) {
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
+        MessageActionsRow(
+          message = message,
+          isLoading = isLoading,
+          hasContent = hasContent,
+          actionsEnabled = actionsEnabled,
+          selectedPermission = selectedPermission,
+          onRetry = onRetry,
+        )
+      }
       Spacer(Modifier.height(GradumSpacing.xxl))
     }
   }
@@ -166,79 +167,78 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrl
 private fun ResponseBlock(
   block: RenderBlock.Response,
   onUrlClick: (String) -> Unit,
+  onContentChange: () -> Unit = {},
 ) {
-  val fadeAlpha = remember { Animatable(0f) }
-  LaunchedEffect(Unit) {
-    fadeAlpha.animateTo(
-      targetValue = 1f,
-      animationSpec = tween(durationMillis = FADE_IN_MS)
-    )
-  }
-  /**
-   * Pull GFM tables out of the raw Markdown BEFORE handing the
-   * rest to `Markdown(...)`. Tables are rendered as plain Compose
-   * inside a horizontally scrollable Box (see [ScrollableTable]),
-   * which gives a wide table its own horizontal scrollbar without
-   * also scrolling the surrounding prose. Trying to wrap the
-   * whole `Markdown(...)` in `Box.horizontalScroll(...)` instead
-   * had the side effect of making long inline code / URLs
-   * horizontally scrollable too — undesirable in a chat panel.
-   *
-   * Then each Plain segment is split further on top-level block
-   * boundaries via [splitMarkdown] → [splitPlainAtBlocks]. The
-   * result is a flat list of [MarkdownSegment.Plain] (paragraph
-   * prose — routed to the inline chip parser) /
-   * [MarkdownSegment.NonProseBlock] (heading / list / blockquote /
-   * fenced code / thematic break — routed to `Markdown(...)` so
-   * the block renders normally, just not with custom chip
-   * styling) / [MarkdownSegment.Table] (existing scrollable
-   * table). Without the block-boundary split, a message that
-   * contains a fenced code block (very common) would either bail
-   * the whole segment to `Markdown(...)` (no chips anywhere) or
-   * — the bug fixed 2026-07-14 — silently drop the non-paragraph
-   * blocks, rendering only 20 chars of an 804-char message.
-   */
   val segments = remember(block.content) { splitMarkdown(block.content) }
   val paragraphStyle = rememberGradumParagraphTextStyle()
-  SelectionContainer(
-    modifier = Modifier.graphicsLayer {
-      this.alpha = fadeAlpha.value
+
+  var visibleCount by rememberSaveable { mutableIntStateOf(0) }
+  LaunchedEffect(segments.size) {
+    if (segments.size > visibleCount) {
+      for (i in visibleCount until segments.size) {
+        delay(SEGMENT_STAGGER_MS.milliseconds)
+        visibleCount = i + 1
+        onContentChange()
+      }
+    }
+  }
+
+  SelectionContainer {
+    Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
+      segments.take(visibleCount).forEach { segment ->
+        AnimatedSegment(segment, paragraphStyle, onUrlClick)
+      }
+    }
+  }
+}
+
+@Composable
+private fun AnimatedSegment(
+  segment: MarkdownSegment,
+  paragraphStyle: androidx.compose.ui.text.TextStyle,
+  onUrlClick: (String) -> Unit,
+) {
+  val alpha = remember { Animatable(0f) }
+  val offsetY = remember { Animatable(SEGMENT_RISE_DP.value) }
+  LaunchedEffect(Unit) {
+    launch { alpha.animateTo(1f, tween(durationMillis = SEGMENT_FADE_MS)) }
+    launch { offsetY.animateTo(0f, tween(durationMillis = SEGMENT_FADE_MS)) }
+  }
+  Box(
+    Modifier.graphicsLayer {
+      this.alpha = alpha.value
+      translationY = offsetY.value
     }
   ) {
-    Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-      segments.forEach { segment ->
-        when (segment) {
-          is MarkdownSegment.Plain -> {
-            val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
-            if (outcome.render != null) {
-              val render: InlineMarkdownRender = outcome.render
-              Text(
-                text = render.annotated,
-                inlineContent = render.inlineContent,
-                modifier = Modifier.fillMaxWidth(),
-                style = paragraphStyle,
-              )
-            } else {
-              Markdown(
-                onUrlClick = onUrlClick,
-                markdown = segment.text,
-                modifier = Modifier.fillMaxWidth(),
-              )
-            }
-          }
+    when (segment) {
+      is MarkdownSegment.Plain -> {
+        val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
+        if (outcome.render != null) {
+          val render: InlineMarkdownRender = outcome.render
+          Text(
+            style = paragraphStyle,
+            text = render.annotated,
+            modifier = Modifier.fillMaxWidth(),
+            inlineContent = render.inlineContent
+          )
+        } else {
+          Markdown(
+            onUrlClick = onUrlClick,
+            markdown = segment.text,
+            modifier = Modifier.fillMaxWidth()
+          )
+        }
+      }
 
-          is MarkdownSegment.NonProseBlock -> {
-            RenderNonProseBlock(onUrlClick = onUrlClick, segment)
-          }
+      is MarkdownSegment.NonProseBlock -> {
+        RenderNonProseBlock(onUrlClick = onUrlClick, segment)
+      }
 
-          is MarkdownSegment.Table -> {
-            // Skip rendering if the table has no body content. Show placeholder instead.
-            if (segment.isRenderable()) {
-              ScrollableTable(segment, onUrlClick = onUrlClick)
-            } else {
-              TableParseFailurePlaceholder()
-            }
-          }
+      is MarkdownSegment.Table -> {
+        if (segment.isRenderable()) {
+          ScrollableTable(segment, onUrlClick = onUrlClick)
+        } else {
+          TableParseFailurePlaceholder()
         }
       }
     }

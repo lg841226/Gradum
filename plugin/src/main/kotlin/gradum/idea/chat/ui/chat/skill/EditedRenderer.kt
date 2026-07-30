@@ -2,24 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * EditedRenderer.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat.skill
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
-import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
-import gradum.idea.chat.ui.chat.skill.internal.ViewDiffButton
-import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
-import gradum.idea.chat.ui.chat.skill.internal.toolCallErrorColor
+import gradum.idea.chat.ui.chat.skill.internal.*
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext

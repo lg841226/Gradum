@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * GradumToolWindowFactory.kt  2026-07-29 21:57:53 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -78,8 +79,8 @@ class GradumToolWindowFactory : ToolWindowFactory {
     }
 
     val newChatAction = object : AnAction(
-      "New Chat",
-      "Start a new chat session",
+      message("gradum.toolwindow.newchat"),
+      message("gradum.toolwindow.newchat.action.text"),
       AllIcons.General.Add
     ) {
       override fun actionPerformed(event: AnActionEvent) {

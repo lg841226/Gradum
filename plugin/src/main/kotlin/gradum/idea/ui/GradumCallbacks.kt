@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-07-28 20:44:22 Changed by gwy
+ * GradumCallbacks.kt  2026-07-29 17:56:33 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -330,9 +330,7 @@ private fun rememberRetryMessageCallback(
 
 @Composable
 private fun rememberSendCallback(
-  toolWindow: ToolWindow?,
-  session: GradumChatSession,
-  coroutineScope: CoroutineScope,
+  toolWindow: ToolWindow?, session: GradumChatSession, coroutineScope: CoroutineScope
 ): () -> Unit = remember(session, toolWindow, coroutineScope) {
   {
     val rawText: String = session.textState.text.toString()
@@ -378,7 +376,7 @@ private fun rememberSendCallback(
         if (!session.isPendingQueueFull) {
           session.pendingMessages.add(
             PendingMessage(
-              content = rawText,
+              content = resolvedText,
               attachments = session.attachedFiles.toList()
             )
           )

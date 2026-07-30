@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * GradumChatSession.kt  2026-07-29 21:28:40 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -229,9 +230,9 @@ class GradumChatSession {
   fun loadDebugMarkdown(content: String) {
     hasSentMessage = true
     val message = ChatMessage(
-      role = "assistant",
       content = "",
-      modelName = "debug-preview",
+      role = "debug",
+      modelName = message("gradum.debug.model.name"),
     )
     val updatedMessage = message.appendEvent(ChatEvent.Response(content))
     messages.add(updatedMessage)
@@ -321,7 +322,6 @@ class GradumChatSession {
     // closes the tool window or the timer ticks again. With
     // flatMapLatest, a stale fetch is canceled by the upstream
     // tick before its result lands in the UI.
-
     pollingJob = scope.launch {
       tickerFlow()
         .flatMapLatest { fetchModelsOnce() }
@@ -428,8 +428,8 @@ class GradumChatSession {
     if (job != null) {
       try {
         job.cancel(CancellationException("Gradum: stop session"))
-      } catch (t: Throwable) {
-        log.warn("Failed to cancel current job on stopSession", t)
+      } catch (throwable: Throwable) {
+        log.warn("Failed to cancel current job on stopSession", throwable)
       }
     }
 
@@ -514,11 +514,10 @@ class GradumChatSession {
           )
         )
       }
-      isSending = false
       sendingPhase = ""
+      isSending = false
       isWaitingForResponse = false
       processPendingQueue()
-
       return
     }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-28 23:47:25 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-29 21:36:45 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -160,7 +160,7 @@ private fun JumpToBottomPill(
   modifier: Modifier,
   onClick: () -> Unit,
   onJumpToTop: () -> Unit,
-  isAlternativeMode: Boolean,
+  isAlternativeMode: Boolean
 ) {
   AnimatedVisibility(
     modifier = modifier,

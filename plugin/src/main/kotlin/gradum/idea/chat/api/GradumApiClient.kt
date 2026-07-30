@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * GradumApiClient.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -143,12 +144,12 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         // Server projects this into the user message's content array.
         // Then re-shapes per provider: Ollama `images` or OpenAI `image_url`.
         val imageAttachmentsJson: JsonArray = buildJsonArray {
-          for (image in imageAttachments) {
+          for ((mime, data, filename) in imageAttachments) {
             add(buildJsonObject {
               put("type", "image")
-              put("mime", image.mime)
-              put("data", image.data)
-              put("filename", image.filename)
+              put("mime", mime)
+              put("data", data)
+              put("filename", filename)
             })
           }
         }

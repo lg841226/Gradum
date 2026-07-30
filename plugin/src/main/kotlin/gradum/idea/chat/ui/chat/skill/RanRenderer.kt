@@ -2,13 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * RanRenderer.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat.skill
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton

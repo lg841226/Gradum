@@ -2,11 +2,9 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-29 09:36:28 Changed by gwy
+ * Styling.kt  2026-07-29 21:20:06 Changed by gwy
  */
 
-// Detekt defaults disagree with project standards (2-space indent, 200-char
-// lines, Compose-PascalCase, 1-line spacing between imports and code, etc.).
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,14 +43,6 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListSty
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
-private const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
-private const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
-private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
-
-// 4 dp = GradumSpacing.sm — chat's small scale. Picked over `md` (8 dp) to
-// keep the quote rule visually slim (a 2-em blockquote shouldn't look like
-// a section divider) and over `xs` (2 dp) so the rounded end-caps still
-// register against the quote's gray text.
 private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
 private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
@@ -61,6 +51,9 @@ private const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f
 private const val HEADING_H4_SIZE_MULTIPLIER: Float = 1.1f
 private const val HEADING_H5_SIZE_MULTIPLIER: Float = 1.0f
 private const val HEADING_H6_SIZE_MULTIPLIER: Float = 1.0f
+private const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
+private const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
+private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
 
 /**
  * Padding applied to every heading block (H1–H6).
@@ -171,10 +164,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       ?: JewelTheme.badgeStyle.blue.colors.content
 
   val thinkingGray: Color = globalColors.text.info
-  val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
+  val inlineTint: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     color = inlineTint,
-    background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
+    background = globalColors.text.info.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
   val bodyTextStyle: TextStyle = labelTextStyle

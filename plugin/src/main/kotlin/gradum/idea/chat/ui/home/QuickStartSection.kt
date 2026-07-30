@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * QuickStartSection.kt  2026-07-29 12:04:37 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.home
 
@@ -28,12 +27,12 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.icons.GradumIcons
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.IconButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.icon.PathIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -71,37 +70,57 @@ fun QuickStartSection(
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.lg))
-    Column(modifier = Modifier.widthIn(max = 300.dp)) {
+    FlowRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
+    ) {
       repeat(4) { categoryIndex ->
-        val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
-        val interactionSource = remember { MutableInteractionSource() }
-        val isHovered by interactionSource.collectIsHoveredAsState()
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          modifier = Modifier
-            .padding(vertical = GradumSpacing.sm)
-            .hoverable(interactionSource)
-            .clickable { textState.edit { replace(0, length, suggestionText) } }
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-              if (isHovered) JewelTheme.globalColors.text.info
-                .copy(alpha = 0.08f) else Color.Transparent
-            )
-            .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
-        ) {
-          Icon(
-            key = featureIcons[categoryIndex],
-            contentDescription = null
-          )
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Text(text = suggestionText)
-          Spacer(modifier = Modifier.weight(1f))
-          Icon(
-            key = AllIconsKeys.General.ArrowRight,
-            contentDescription = message("gradum.use.suggestion")
-          )
-        }
+        SuggestionCard(
+          textState = textState,
+          suggestionVariants = suggestionVariants,
+          featureIcons = featureIcons,
+          categoryIndex = categoryIndex,
+        )
       }
     }
+  }
+}
+
+@Composable
+private fun SuggestionCard(
+  textState: TextFieldState,
+  suggestionVariants: List<Int>,
+  featureIcons: List<PathIconKey>,
+  categoryIndex: Int,
+  modifier: Modifier = Modifier
+) {
+  val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
+  val interactionSource = remember { MutableInteractionSource() }
+  val isHovered by interactionSource.collectIsHoveredAsState()
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = modifier
+      .padding(vertical = GradumSpacing.sm)
+      .hoverable(interactionSource)
+      .clickable { textState.edit { replace(0, length, suggestionText) } }
+      .clip(RoundedCornerShape(6.dp))
+      .background(
+        if (isHovered) JewelTheme.globalColors.text.info
+          .copy(alpha = 0.08f) else Color.Transparent
+      )
+      .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
+  ) {
+    Icon(
+      key = featureIcons[categoryIndex],
+      contentDescription = null
+    )
+    Spacer(modifier = Modifier.width(GradumSpacing.md))
+    Text(text = suggestionText)
+    Spacer(modifier = Modifier.weight(1f))
+    Icon(
+      key = AllIconsKeys.General.ArrowRight,
+      contentDescription = message("gradum.use.suggestion")
+    )
   }
 }

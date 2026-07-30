@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-07-28 22:53:43 Changed by gwy
+ * PermissionSelector.kt  2026-07-29 22:03:14 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -58,16 +58,21 @@ fun permissionLabel(wire: String): String = when (wire) {
  */
 @Composable
 fun PermissionSelector(
-  selectedPermission: String,
-  isMenuVisible: Boolean,
+  onDismiss: () -> Unit,
   onToggle: () -> Unit,
   onSelect: (String) -> Unit,
-  onDismiss: () -> Unit
+  selectedPermission: String,
+  isMenuVisible: Boolean,
+  hasSentMessage: Boolean = false,
+  isPermissionLocked: Boolean = false
 ) {
   SelectorButton(
     text = permissionLabel(selectedPermission),
-    onClick = onToggle,
-    contentDescription = message("gradum.select.permissions"),
+    onClick = { if (!isPermissionLocked) onToggle() },
+    contentDescription =
+      if (isPermissionLocked) message("gradum.debug.refuse")
+      else message("gradum.select.permissions"),
+    isButtonEnabled = !isPermissionLocked,
     color = JewelTheme.globalColors.text.normal
   )
 
@@ -84,36 +89,42 @@ fun PermissionSelector(
           modifier = Modifier
             .fillMaxWidth()
             .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
+              vertical = GradumSpacing.xs,
+              horizontal = GradumSpacing.md
             ),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Icon(key = AllIconsKeys.General.ReaderMode, contentDescription = message("gradum.read.mode"))
+          Icon(
+            key = AllIconsKeys.General.ReaderMode,
+            contentDescription = message("gradum.read.mode")
+          )
           Spacer(modifier = Modifier.width(GradumSpacing.md))
           Column {
             Text(text = message("gradum.read"))
             Text(
-              text = message("gradum.read.info"),
-              color = JewelTheme.globalColors.text.info
+              color = JewelTheme.globalColors.text.info,
+              text = message("gradum.read.info")
             )
           }
         }
       }
       selectableItem(
-        selected = selectedPermission == PermissionMode.EDIT,
-        onClick = { onSelect(PermissionMode.EDIT) }
+        onClick = { onSelect(PermissionMode.EDIT) },
+        selected = selectedPermission == PermissionMode.EDIT
       ) {
         Row(
           modifier = Modifier
             .fillMaxWidth()
             .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
+              vertical = GradumSpacing.xs,
+              horizontal = GradumSpacing.md
             ),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Icon(key = GradumIcons.Edit, contentDescription = message("gradum.edit.mode"))
+          Icon(
+            key = GradumIcons.Edit,
+            contentDescription = message("gradum.edit.mode")
+          )
           Spacer(modifier = Modifier.width(GradumSpacing.md))
           Column {
             Text(text = message("gradum.edit"))
@@ -132,8 +143,8 @@ fun PermissionSelector(
           modifier = Modifier
             .fillMaxWidth()
             .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
+              vertical = GradumSpacing.xs,
+              horizontal = GradumSpacing.md
             ),
           verticalAlignment = Alignment.CenterVertically
         ) {
@@ -149,36 +160,43 @@ fun PermissionSelector(
         }
       }
 
-      separator()
+      val showDebugEntry = !hasSentMessage || selectedPermission == PermissionMode.DEBUG
+      if (showDebugEntry) {
+        separator()
 
-      selectableItem(
-        selected = selectedPermission == PermissionMode.DEBUG,
-        onClick = { onSelect(PermissionMode.DEBUG) }
-      ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-              horizontal = GradumSpacing.md,
-              vertical = GradumSpacing.xs
-            ),
-          verticalAlignment = Alignment.CenterVertically
+        selectableItem(
+          selected = selectedPermission == PermissionMode.DEBUG,
+          onClick = { onSelect(PermissionMode.DEBUG) },
+          enabled = !hasSentMessage
         ) {
-          Icon(key = AllIconsKeys.Toolwindows.ToolWindowDebugger, contentDescription = message("gradum.debug"))
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
-          Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Text(text = message("gradum.debug"))
-              Spacer(modifier = Modifier.width(GradumSpacing.sm))
-              Badge(
-                style = LocalBadgeStyle.current.blue,
-                content = { Text("New") }
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(
+                horizontal = GradumSpacing.md,
+                vertical = GradumSpacing.xs
+              ),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              key = AllIconsKeys.Toolwindows.ToolWindowDebugger,
+              contentDescription = message("gradum.debug")
+            )
+            Spacer(modifier = Modifier.width(GradumSpacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = message("gradum.debug"))
+                Spacer(modifier = Modifier.width(GradumSpacing.sm))
+                Badge(
+                  content = { Text(message("gradum.new")) },
+                  style = LocalBadgeStyle.current.graySecondary
+                )
+              }
+              Text(
+                text = message("gradum.debug.info"),
+                color = JewelTheme.globalColors.text.info
               )
             }
-            Text(
-              text = message("gradum.debug.info"),
-              color = JewelTheme.globalColors.text.info
-            )
           }
         }
       }

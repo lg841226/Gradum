@@ -2,10 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputSection.kt  2026-07-29 10:54:42 Changed by gwy
+ * ChatInputSection.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
@@ -21,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.ui.GradumSpacing
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
  * Wraps [ChatInputPanel] with a model selector bar below it.
@@ -32,6 +29,7 @@ fun ChatInputSection(
   actions: ChatInputActions,
   textState: TextFieldState,
   selectedPermission: String = "read_only",
+  hasSentMessage: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   Column(
@@ -42,7 +40,8 @@ fun ChatInputSection(
       actions = actions,
       roundedCornerShape = RoundedCornerShape(6.dp),
       textState = textState,
-      selectedPermission = selectedPermission
+      selectedPermission = selectedPermission,
+      hasSentMessage = hasSentMessage
     )
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
     ModelSelectorBar(

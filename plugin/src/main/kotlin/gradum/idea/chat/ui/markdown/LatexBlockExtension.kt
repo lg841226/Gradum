@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * LatexBlockExtension.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -76,7 +77,7 @@ internal class LatexBlockParser : AbstractBlockParser() {
 
   override fun tryContinue(state: ParserState): BlockContinue {
     val rawLine: String = state.line.content.toString()
-    val isClosingLine: Boolean = rawLine.trim() == "\$\$"
+    val isClosingLine: Boolean = rawLine.trim() == "$$"
     if (isClosingLine) return BlockContinue.finished()
     lines.add(rawLine)
     return BlockContinue.atIndex(state.index)
@@ -133,9 +134,39 @@ internal class LatexBlockParser : AbstractBlockParser() {
     ): BlockStart? {
       val rawLine: String = state.line.content.toString()
       val trimmedLine: String = rawLine.trim()
-      if (trimmedLine != "\$\$") return null
-      return BlockStart.of(LatexBlockParser()).atIndex(state.index)
+      if (trimmedLine == "$$") {
+        return BlockStart.of(LatexBlockParser()).atIndex(state.index)
+      }
+      if (trimmedLine.startsWith("$$") && trimmedLine.endsWith("$$") && trimmedLine.length > 4) {
+        return BlockStart.of(SingleLineLatexBlockParser(trimmedLine)).atIndex(state.index)
+      }
+      return null
     }
+  }
+}
+
+/**
+ * A block parser for single-line `$$...$$` formulas. Unlike
+ * [LatexBlockParser] which requires `$$` on separate lines,
+ * this parser captures the formula content from a single line
+ * like `$$2x^2 - 7x + 3 = 0$$`.
+ */
+internal class SingleLineLatexBlockParser(private val formula: String) : AbstractBlockParser() {
+
+  private val block: LatexBlock = LatexBlock()
+
+  init {
+    block.formula = formula.removePrefix("$$").removeSuffix("$$").trim()
+  }
+
+  override fun getBlock(): Block = block
+
+  override fun tryContinue(state: ParserState): BlockContinue = BlockContinue.finished()
+
+  override fun closeBlock() { /* formula already set in init */
+  }
+
+  override fun addLine(line: org.commonmark.parser.SourceLine) { /* no-op */
   }
 }
 

@@ -2,9 +2,8 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * MessageAttachmentList.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.chat
 
@@ -20,7 +19,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.AttachedContext
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
@@ -38,7 +36,6 @@ import org.jetbrains.jewel.ui.component.Text
  * Chips are intentionally immutable: the message is already sent,
  * removing them would diverge UI from history.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MessageAttachmentList(
   attachments: List<AttachedContext>,

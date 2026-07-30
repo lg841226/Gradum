@@ -2,13 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ChatInputPanel.kt  2026-07-29 21:48:03 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
@@ -52,6 +52,7 @@ fun ChatInputPanel(
   roundedCornerShape: RoundedCornerShape,
   textState: TextFieldState,
   selectedPermission: String = "read_only",
+  hasSentMessage: Boolean = false,
   modifier: Modifier = Modifier
 ) {
   val initialTextLength: Int = remember { textState.text.length }
@@ -146,7 +147,7 @@ fun ChatInputPanel(
 
       Spacer(modifier = Modifier.height(GradumSpacing.md))
 
-      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotEmpty(), selectedPermission = selectedPermission)
+      ChatToolbar(state = state, actions = actions, isTextNotEmpty = textState.text.isNotBlank(), hasSentMessage = hasSentMessage, selectedPermission = selectedPermission)
 
       AttachmentBar(attachedFiles = state.attachedFiles, onRemoveFile = actions.onRemoveFile)
     }

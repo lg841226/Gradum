@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * GradumUI.kt  2026-07-29 21:41:52 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -61,10 +62,11 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     if (session.hasSentMessage) {
       ChatScreen(
         messages = session.messages,
-        isLoading = session.isSending,
-        isWaitingForResponse = session.isWaitingForResponse,
         sendingPhase = session.sendingPhase,
+        isLoading = session.isSending,
         selectedPermission = session.selectedPermission,
+        isWaitingForResponse = session.isWaitingForResponse,
+        hasSentMessage = session.hasSentMessage,
         textState = session.textState,
         inputState = state.inputState,
         inputActions = state.inputActions,
@@ -101,7 +103,7 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   LaunchedEffect(session.hasSentMessage, session.isSending, session.selectedPermission) {
     val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
 
-    if (session.selectedPermission == "debug" && !session.hasSentMessage) {
+    if (session.selectedPermission == "debug") {
       tabContent.displayName = message("gradum.debug")
       return@LaunchedEffect
     }

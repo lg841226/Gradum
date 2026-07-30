@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SelectorButton.kt  2026-07-28 20:48:19 Changed by gwy
+ * SelectorButton.kt  2026-07-29 22:01:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -33,16 +33,21 @@ fun SelectorButton(
   text: String,
   onClick: () -> Unit,
   contentDescription: String,
+  isButtonEnabled: Boolean = true,
   color: Color = JewelTheme.globalColors.text.info
 ) {
   Tooltip(tooltip = { Text(text = contentDescription) }) {
-    IconButton(onClick = onClick) {
+    IconButton(onClick = onClick, enabled = isButtonEnabled) {
       Row(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(horizontal = GradumSpacing.sm)
       ) {
-        Text(text = text, color = color)
+        Text(
+          text = text,
+          color = if (isButtonEnabled) color
+          else JewelTheme.globalColors.text.disabled
+        )
         Icon(
           key = AllIconsKeys.General.ChevronDown,
           contentDescription = contentDescription

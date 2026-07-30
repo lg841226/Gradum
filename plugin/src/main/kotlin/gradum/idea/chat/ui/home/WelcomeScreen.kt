@@ -2,27 +2,23 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * WelcomeScreen.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea.chat.ui.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
@@ -30,13 +26,10 @@ import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.input.ChatInputSection
 import gradum.idea.icons.GradumIcons
-import kotlinx.coroutines.delay
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Linear gradient for the welcome heading text. Anchored at
@@ -134,70 +127,4 @@ fun WelcomeScreen(
       )
     }
   }
-}
-
-@Composable
-@Suppress("unused")
-private fun TypewriterText(
-  text: String,
-  play: Boolean = true,
-  charDelayMs: Long = 20,
-  modifier: Modifier = Modifier,
-  initialCursorBlinkCount: Int = 3,
-  cursorBlinkDurationMs: Long = 300,
-  cursorColor: Color = Color.Unspecified,
-  style: androidx.compose.ui.text.TextStyle
-) {
-  var visibleCharacterCount by remember { mutableStateOf(0) }
-  var isCursorVisible by remember { mutableStateOf(true) }
-
-  LaunchedEffect(text, play) {
-    if (play) {
-      isCursorVisible = true
-      visibleCharacterCount = 0
-
-      repeat(initialCursorBlinkCount) {
-        isCursorVisible = !isCursorVisible
-        delay(cursorBlinkDurationMs.milliseconds)
-      }
-      isCursorVisible = true
-
-      for (index in text.indices) {
-        delay(charDelayMs.milliseconds)
-        visibleCharacterCount = index + 1
-      }
-
-      isCursorVisible = false
-    } else {
-      visibleCharacterCount = text.length
-      isCursorVisible = false
-    }
-  }
-
-  val displayText: AnnotatedString = when {
-    visibleCharacterCount == 0 && play -> {
-      buildAnnotatedString {
-        if (isCursorVisible)
-          withStyle(SpanStyle(color = cursorColor)) { append("_") }
-        else
-          append("\u00A0")
-      }
-    }
-
-    play && visibleCharacterCount < text.length -> {
-      buildAnnotatedString {
-        if (visibleCharacterCount > 0)
-          append(text.take(visibleCharacterCount))
-        if (isCursorVisible)
-          withStyle(SpanStyle(color = cursorColor)) { append("_") }
-      }
-    }
-
-    else -> AnnotatedString(text.take(visibleCharacterCount))
-  }
-  Text(
-    style = style,
-    text = displayText,
-    modifier = modifier
-  )
 }

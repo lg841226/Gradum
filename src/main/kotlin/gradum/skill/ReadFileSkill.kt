@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-14 21:27:12 Changed by gwy
+ * ReadFileSkill.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
 package gradum.skill
@@ -32,7 +32,7 @@ private const val MAXIMUM_LINES: Int = 10000
  * the file. Stripping even a deeply-old `content` from a long
  * session can force the model to re-read the file from disk
  * and burn the same context the strip was trying to save.
- * Locked in by [gradum.skill.ReadFileSkillPrepareHistoryTest].
+ * Locked in by `gradum.skill.ReadFileSkillPrepareHistoryTest`.
  * Context-bloat control lives in [MAXIMUM_FILE_SIZE] /
  * [MAXIMUM_LINES] and in `lineRange`, not in history
  * stripping.

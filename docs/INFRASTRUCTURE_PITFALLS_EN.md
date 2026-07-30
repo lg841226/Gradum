@@ -4,7 +4,8 @@
 > IntelliJ Platform 2026.2 + Jewel + Compose. Each section includes: symptoms → root cause → fix → verification.
 > The goal is to prevent the next person (and your future self within six months) from **spending 7 hours** on this.
 
-> **[WARNING] Disclaimer**: This document reflects the author's experience with a specific IDE version (2026.2) and library
+> **[WARNING] Disclaimer**: This document reflects the author's experience with a specific IDE version (2026.2) and
+> library
 > versions as of July 2026. IntelliJ Platform, Jewel, Compose, and related libraries are actively maintained — APIs may
 > change, bugs may be fixed, and new best practices may emerge. **Always check the official documentation and source
 > code for the latest information.** If this document conflicts with the official docs, the official docs win.
@@ -714,10 +715,10 @@ text.
 
 ### 12.5 Placeholder Vertical Alignment: Center vs TextCenter
 
-| Mode            | Behavior                                                           | Problem                                                                                              |
-|-----------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `Center`        | Placeholder center = line-height center (baseline + 0.75×fontSize) | Formula visual center at x-height (baseline + 0.5×fontSize) — offset 0.25×fontSize, looks "elevated" |
-| `AboveBaseline` | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize — still elevated                                   |
+| Mode                   | Behavior                                                           | Problem                                                                                              |
+|------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `Center`               | Placeholder center = line-height center (baseline + 0.75×fontSize) | Formula visual center at x-height (baseline + 0.5×fontSize) — offset 0.25×fontSize, looks "elevated" |
+| `AboveBaseline`        | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize — still elevated                                   |
 | `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5×fontSize)            | Matches formula visual center — this is what LaTeX `\textstyle` does                                 |
 
 ### 12.6 Block-Level LaTeX Rendering Structure (Final)
@@ -751,6 +752,7 @@ to reduce perceived "right margin" is to narrow the chat panel content area (`ma
 | `U+E002`        | Footnote mark                                             |
 | `U+E003`        | Inline LaTeX chip                                         |
 | `U+E100–U+E1FF` | Paren-form LaTeX `\(…\)` preprocessor markers (256 slots) |
+| `U+E200–U+E2FF` | Dollar-form LaTeX `$…$` preprocessor markers (256 slots)  |
 
 Within one chip type, the key is `base.toString().repeat(counter + 1)` — counter resets per `parseInlineMarkdown`
 call (each call creates a fresh `RenderState`).
@@ -766,6 +768,58 @@ call (each call creates a fresh `RenderState`).
 | 5     | Discovered it's inline formulas blocking                                        | 1.0× Placeholder too short for `\frac{}{}`                                                                                                                                            | `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER=1.0→2.2`                                                                           |
 | 6     | Increased default + wrote memory file + reported new bug                        | 2.2× still insufficient                                                                                                                                                               | → 2.5×                                                                                                                              |
 | 7     | Inline formula baseline rises                                                   | `PlaceholderVerticalAlign.Center` centers by line-height, formula visual center is at x-height                                                                                        | → `PlaceholderVerticalAlign.TextCenter` (aligns by x-height)                                                                        |
+
+### 12.10 Inline LaTeX Placeholder Width — From Estimation to Real Measurement
+
+**Problem**: `allocateLatex()` used `estimateLatexWidth()` — a per-character heuristic (letters 0.45em, narrow symbols
+0.25em, digits 0.45em, CJK 1.0em) — to set the `Placeholder` width. This produced visible right-side whitespace on
+formulas like
+`2(3)^2 - 7(3) + 3 = 18 - 21 + 3 = 0` because the estimate couldn't account for the actual glyph widths rendered by the
+huarangmeng library.
+
+**Initial wrong approach**: Tried to improve the heuristic with tighter per-character ratios. This is fundamentally
+unreliable — no character-level estimate can match the library's internal layout engine which considers font metrics,
+kerning, and math-mode spacing.
+
+**Solution**: Use the library's own synchronous measurement API (`LatexMeasurerState.measure()`) to get the real
+rendered dimensions. The huarangmeng library provides:
+
+```kotlin
+class LatexMeasurerState {
+    fun measure(
+        latex: String,
+        config: LatexConfig = LatexConfig(),
+        isDarkTheme: Boolean = false
+    ): LatexDimensions?  // returns widthPx, heightPx, baselinePx, etc.
+}
+```
+
+**Implementation**:
+
+1. Create `LatexMeasurerState` via `rememberLatexMeasurer()` in composable scope (needs `Density` + `TextMeasurer`).
+2. Pass it through `rememberInlineMarkdownRender()` → `parseInlineMarkdown()` → `buildInlineRender()` → `RenderState`.
+3. In `allocateLatex()`, call `latexMeasurer.measure(formulaText, config = LatexConfig(fontSize = fontSizeSp.sp))` and
+   use
+   `dimensions.widthPx / density.density` as the placeholder width.
+4. Cache results in `mutableMapOf<String, LatexDimensions?>()` to avoid re-measuring the same formula.
+5. Fallback to `estimateLatexWidth()` if `measure()` returns `null` (parse failure).
+
+**Key findings about the library's measurement**:
+
+- `measure()` is **fully synchronous** — no async, no lazy init, no warmup. `TextMeasurer` is immediately ready on first
+  call.
+- It **cannot return 0×0 dimensions** — guard `layout.width <= 0f || layout.height <= 0f` returns `null` instead.
+- No first-call vs subsequent-call difference — the method is stateless.
+- The `LatexConfig` passed to `measure()` must match the one used for rendering (same `fontSize`), otherwise measured
+  width won't match actual rendered width.
+
+**Config mismatch pitfall**: Initially created `LatexMeasurerState` with default `LatexConfig()` (fontSize = 20.sp), but
+rendering uses `fontSizeSp.sp` (~13.sp). This caused measured widths to be ~54% larger than actual rendered widths. Fix:
+pass `LatexConfig(fontSize = fontSizeSp.sp)` to `measure()`.
+
+**Backward compatibility**: All new parameters (`latexMeasurer`, `density`) are nullable with default `null`. Callers
+that don't pass them (e.g., `parseInlineNodes()` for heading paths, `BlockRenderer.kt`'s `RenderInlineTextWithChips`)
+fall back to the estimation heuristic — acceptable because heading text rarely contains inline LaTeX.
 
 ---
 

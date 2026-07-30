@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * InlineMarkdown.kt  2026-07-30 10:14:43 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -16,14 +17,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hrm.latex.renderer.measure.LatexDimensions
+import com.hrm.latex.renderer.measure.LatexMeasurerState
+import com.hrm.latex.renderer.measure.rememberLatexMeasurer
+import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.ui.GradumSpacing
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
@@ -42,7 +49,7 @@ private val log: Logger = Logger.getInstance("gradum.idea.chat.ui.markdown.Inlin
 private const val INLINE_CODE_PLACEHOLDER: Char = '\uE000'
 private const val INLINE_CODE_TEXT_TAG: String = "INLINE_CODE_TEXT"
 
-/** Compose's internal tag for inline-content lookups in `Text(annotated, inlineContent = ...)`. */
+/** Compose's internal tag for inline-content lookups. Must match exactly — custom tags are silently dropped. */
 internal const val INLINE_CONTENT_TAG: String = "androidx.compose.foundation.text.inlineContent"
 
 private const val INLINE_URL_TAG: String = "INLINE_URL"
@@ -51,44 +58,16 @@ private const val IMAGE_ALT_PLACEHOLDER_BASE: Char = '\uE001'
 internal const val FOOTNOTE_TEXT_TAG: String = "FOOTNOTE_TEXT"
 private const val FOOTNOTE_PLACEHOLDER_BASE: Char = '\uE002'
 
-/**
- * PUA base for inline LaTeX placeholders. Distinct from the
- * code / image / footnote bases so the four placeholder
- * tables never collide in the surrounding `Text(annotated,
- * inlineContent = ...)` map.
- */
+/** PUA base for inline LaTeX placeholders. Distinct from code/image/footnote bases. */
 private const val LATEX_PLACEHOLDER_BASE: Char = '\uE003'
 
-/**
- * PUA range reserved for pre-processing `\(…\)`-form LaTeX
- * formulas out of the raw text BEFORE CommonMark sees them.
- *
- * Why a pre-processing pass is necessary: CommonMark treats
- * `\(` as a backslash-escape sequence (the leading backslash
- * is dropped, the `(` is left as a literal paren). The
- * LaTeX-original `\(…\)` form many models emit gets chewed
- * up by that rule — by the time the AST walker sees the Text
- * node, the backslashes are gone and the formula has bled
- * into the surrounding prose as a plain `(…)`.
- *
- * The pre-processing pass [preprocessParenLatexFormulas]
- * scans the raw text for `\(…\)` and replaces each match
- * with a single PUA char from the `U+E100`–`U+E1FF` range,
- * keeping the formula text in a side table. The replacement
- * char survives CommonMark parsing verbatim (PUA is not
- * processed by the parser), and the walker scans for those
- * PUA chars with [INLINE_LATEX_PAREN_MARKER_REGEX] and looks
- * up the formula in the side table.
- *
- * The range is disjoint from the chip placeholder bases
- * (U+E000...U+E003) and supports up to 256 paren-form formulas
- * in a single message — more than enough for chat.
- */
+/** PUA range for pre-processed \(…\)-form LaTeX markers (256 slots). CommonMark treats \( as backslash-escape, so we must pre-process BEFORE parsing. */
 private const val PAREN_LATEX_MARKER_RANGE_START: Int = 0xE100
 private const val PAREN_LATEX_MARKER_RANGE_END: Int = 0xE1FF
 private const val PAREN_LATEX_MARKER_RANGE_SIZE: Int =
   PAREN_LATEX_MARKER_RANGE_END - PAREN_LATEX_MARKER_RANGE_START + 1
 
+/** PUA range for pre-processed $…$-form LaTeX markers (256 slots). CommonMark treats _ as emphasis delimiter, splitting formulas. */
 private const val DOLLAR_LATEX_MARKER_RANGE_START: Int = 0xE200
 private const val DOLLAR_LATEX_MARKER_RANGE_END: Int = 0xE2FF
 private const val DOLLAR_LATEX_MARKER_RANGE_SIZE: Int =
@@ -96,50 +75,35 @@ private const val DOLLAR_LATEX_MARKER_RANGE_SIZE: Int =
 
 private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
 
-// Chip/footnote horizontal padding (inside the rounded background). Generous
-// enough that long inline code (e.g. `explore_project`) doesn't visually
-// press against the right edge of the chip.
 private val inlineCodePaddingHorizontal: Dp = GradumSpacing.sm
-
-// Chip/footnote vertical padding. Was 0.dp — that meant the descenders of
-// letters like 'p' / 'g' / 'y' sat right at the bottom of the rounded
-// background and were clipped by the 4-dp rounded corners. 2.dp is enough
-// room for the descenders to clear the corner while keeping the chip
-// visually compact.
 private val inlineCodePaddingVertical: Dp = GradumSpacing.xs
 
 
 private val inlineCodeCornerRadius: Dp = GradumSpacing.sm
-internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.12f
+internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.2f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
 private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
 
-/**
- * Line-height multiplier for inline LaTeX placeholders.
- * Tall formulas (fractions, radicals) need extra height to avoid overflowing the line box and covering text below.
- * Default 2.5× handles 95%+ of cases; trivial formulas waste ~1-2sp which is absorbed into line rhythm.
- * Future: per-formula heuristic based on LaTeX command counts.
- */
-private const val INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 2.5f
+/** Line-height multiplier for inline LaTeX placeholders. Tall formulas (fractions, radicals) need extra height. */
+private const val INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.4f
 
-/**
- * Placeholder padding for chips/footnotes vs. LaTeX formulas.
- * Chips need 10sp: descenders need vertical room, and the 0.6 Latin ratio underestimates monospace advance width.
- * LaTeX needs only 2sp: math glyphs are sparse and the library draws tight bounding boxes.
- */
+/** Chip/footnote padding (10sp) vs LaTeX padding (2sp). LaTeX renderer draws tight bounding boxes. */
 private const val INLINE_CODE_PLACEHOLDER_PADDING_SP: Float = 10f
-
-/**
- * LaTeX placeholder padding. 2sp is sufficient — the renderer draws tight bounding boxes, unlike chip text which needs 10sp.
- * Reduced from 8sp after user feedback that 8sp left visible gaps on the right of formulas.
- */
 private const val PLACEHOLDER_WIDTH_PADDING_SP: Float = 2f
 
-/**
- * Inline-LaTeX placeholder padding. Alias of 2sp, but named distinctly so call sites read clearly.
- * The renderer draws tight bounding boxes; 2sp is sufficient. Increasing would re-introduce the right-side gap users reported.
- */
+/** Character width ratios for inline LaTeX placeholder estimation (fallback only — real measurement preferred). */
+private const val LATEX_LETTER_RATIO: Float = 0.45f
+private const val LATEX_DIGIT_RATIO: Float = 0.45f
+private const val LATEX_NARROW_SYMBOL_RATIO: Float = 0.25f
+private const val LATEX_DEFAULT_SYMBOL_RATIO: Float = 0.35f
+
+/** Math symbols that render significantly narrower than their character advance. */
+private val LATEX_NARROW_SYMBOLS: Set<Char> = setOf(
+  '=', '+', '-', '^', '_', '{', '}', '\\', ',', '.', ';', ':',
+  '!', '|', '<', '>', '/', '*', '~', '(', ')', '[', ']'
+)
+
 private const val INLINE_LATEX_PLACEHOLDER_PADDING_SP: Float = PLACEHOLDER_WIDTH_PADDING_SP
 private const val FALLBACK_FONT_SIZE_SP: Float = 14f
 private const val FALLBACK_EM_FONT_SIZE_SP: Float = 14f
@@ -167,12 +131,7 @@ private val commonmarkParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create()))
   .build()
 
-
-/**
- * One renderable inline representation: PUA-placeholder `AnnotatedString` +
- * the chip `InlineTextContent` map + collected URL annotations for click
- * handling. Returned from [rememberInlineMarkdownRender].
- */
+/** One renderable inline representation: PUA-placeholder AnnotatedString + chip InlineTextContent map. */
 data class InlineMarkdownRender(
   val paragraphCount: Int,
   val annotated: AnnotatedString,
@@ -184,13 +143,8 @@ data class InlineMarkdownRender(
 data class UrlAnnotation(val start: Int, val end: Int, val url: String)
 
 /**
- * One chunk of a rendered inline line — either prose (rendered via
- * `androidx.compose.foundation.text.Text` with `inlineContent` for
- * code chips) or a clickable link (rendered via Jewel's
- * [org.jetbrains.jewel.ui.component.ExternalLink]). [splitIntoInlineSegments]
- * slices the walker output at link boundaries so the link can be a
- * standalone `Composable` (with the external-link icon) instead of a
- * `UrlAnnotation` tapped via `pointerInput` on the surrounding text.
+ * One chunk of a rendered inline line — either prose (Text with inlineContent for chips)
+ * or a clickable link (ExternalLink). Split at link boundaries by splitIntoInlineSegments.
  */
 sealed interface InlineSegment {
   /** A prose chunk. May contain PUA placeholders for code chips. */
@@ -217,6 +171,8 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
   val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
+  val latexMeasurer: LatexMeasurerState = rememberLatexMeasurer()
+  val density: Density = androidx.compose.ui.platform.LocalDensity.current
   return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineMarkdown(
       chipTint = chipTint,
@@ -224,23 +180,17 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
       plainText = plainText,
       fontSizeSp = fontSizeSp,
       imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily
+      editorFontFamily = editorFontFamily,
+      latexMeasurer = latexMeasurer,
+      density = density
     )
   }
 }
 
 
 /**
- * Walk a parent node's inline children directly into an
- * [InlineMarkdownRenderResult]. Used for blocks whose
- * serialize-then-re-parse round-trip changes the block structure —
- * the canonical example is a heading whose inline content starts
- * with a list marker, e.g. `### 2. **bold**`. Serializing strips
- * the `### ` prefix, leaving `"2. **bold**"`, and the reparse in
- * [parseInlineMarkdown] then produces an `OrderedList` (not a
- * `Paragraph`), which bails and falls back to plain text — losing
- * the bold. Walking the original AST skips that round-trip and
- * keeps the formatting. Bail cases: walker exception.
+ * Walk a parent node's inline children directly. Used for blocks where
+ * serialize-then-re-parse round-trip is lossy (e.g. headings starting with list markers).
  */
 @Composable
 fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRenderResult {
@@ -260,105 +210,31 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
 }
 
 
-/**
- * Regex to detect inline footnotes in three flavors:
- * - Pandoc-style: `^[footnote text]`  (group 2 = content)
- * - CommonMark-style: `[^reference]`  (group 3 = ref)
- * - Plain bracket-number: `[1]` `[2]`  (group 4 = digit)
- *
- * Used by [renderTextInline] to split text into prose and footnote segments.
- */
+/** Regex for inline footnotes: `^[text]`, `[^ref]`, or `[1]`. */
 internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|\[(\d+)])""")
 
 
 /**
- * Regex to detect inline LaTeX formulas: `$…$. Non-greedy,
- * no newlines, requires at least 1 char between the two $
- * markers. Used by [renderTextInline] to split text into prose
- * and LaTeX segments; matched ranges are rendered through the
- * huarangmeng/latex library.
- *
- * The block-level $$…$$ (each $$ on its own line) is
- * handled separately by the CommonMark [LatexBlockExtension] —
- * this regex is intentionally only matching the single-$
- * inline form so the two don't fight.
- *
- * ---
- *
- * Implementation detail: matches both inline LaTeX dollar forms:
- *   1) $$…$$ — what the LLM writes when it produces block-style
- *      delimiters inside a paragraph (e.g. on the same line as
- *      surrounding prose instead of on its own line per the
- *      block-parser rule). The $  form MUST be the first
- *      alternative so the engine tries it before $…$ — otherwise
- *      the regex would match the inner $x$ of $$x^2$$ and leave
- *      one stray $ on each side, leaking into the UI.
- *   2) $…$ — the standard inline-LaTeX form.
- *
- * [^$\n]+? excludes both $ and \n. Newline exclusion means
- * $\nx^2$ (the dollar pair split across lines) never matches —
- * CommonMark would have moved that onto a new line as prose.
- *
- * Capture-group shape: TWO groups. The first alt's body is in
- * `groupValues[1]`; the second alt's body is in `groupValues[2]`.
- * The previous shape used a non-capturing group for the second
- * alt, which left `groupValues[1]` empty for $x^2$ matches — a
- * latent bug that the production walker used to mask with a
- * substring-slicing fallback. Both alternatives are now
- * capturing, so the production walker (and the tests) can read
- * `groupValues[1].ifEmpty { groupValues[2] }` cleanly.
+ * Regex for inline LaTeX: $$…$$ (must come first to avoid matching inner $ of $$x^2$$) and $…$.
+ * Non-greedy, no newlines. Block-level $$…$$ on its own line is handled by LatexBlockExtension.
  */
 internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$([^$\n]+?)\$""")
 
 
-/**
- * Regex to detect inline LaTeX in the LaTeX-original \(…\) form
- * (used by many models — including the one the user tested — when
- * emitting math inside a Markdown paragraph). The single
- * INLINE_LATEX_REGEX above is kept narrow to $…$ / $$…$$ only
- * so it doesn't accidentally eat the \( and \) of a non-math
- * command.
- *
- * Body exclusions: the inner content is [^()\n]+? — no nested
- * parens, no newlines. That rejects \(\frac{(a)}{(b)}\)-style
- * nested-paren formulas; the LaTeX library does not need them for
- * the formulas the user actually sends, and accepting them would
- * require a balanced-paren matcher that the standard regex syntax
- * doesn't support. If the model ever emits a nested-paren inline
- * formula, the user will see the raw \(…\) text — a known and
- * documented limitation.
- *
- * Important: this regex is applied to the RAW input text in
- * preprocessParenLatexFormulas BEFORE CommonMark sees the
- * text. CommonMark's inline parser would otherwise treat
- * \( and \) as backslash-escape sequences and strip the
- * backslashes, after which the formula has bled into the
- * surrounding prose as plain (...) and the original intent
- * is unrecoverable. After pre-processing, the matched
- * \(…\) source is replaced by a PUA marker char from the
- * U+E100–U+E1FF range (see PAREN_LATEX_MARKER_RANGE_START)
- * which CommonMark passes through unchanged. The walker then
- * scans for those marker chars with INLINE_LATEX_PAREN_MARKER_REGEX
- * and looks up the formula in the side table.
- */
+/** Regex for \(…\)-form LaTeX. Applied BEFORE CommonMark to preserve formulas (CommonMark strips backslashes). */
 internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex("""\\\(([^()\n]+?)\\\)""")
 
 
-/**
- * Regex matching any single PUA char in the range reserved for
- * pre-processed paren-form LaTeX markers (U+E100–U+E1FF). The
- * walker uses this to locate the markers that
- * [preprocessParenLatexFormulas] planted in the text; the
- * formula text itself is fetched from the [RenderState]'s
- * side table using the matched char as the key.
- */
+/** Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF). */
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE2FF]""")
 
 
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
   plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color,
-  editorFontFamily: FontFamily = FontFamily.Default
+  editorFontFamily: FontFamily = FontFamily.Default,
+  latexMeasurer: LatexMeasurerState? = null,
+  density: Density? = null
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
@@ -393,7 +269,9 @@ internal fun parseInlineMarkdown(
     fontSizeSp = fontSizeSp,
     imageAltColor = imageAltColor,
     editorFontFamily = editorFontFamily,
-    parenLatexFormulas = mergedFormulas
+    parenLatexFormulas = mergedFormulas,
+    latexMeasurer = latexMeasurer,
+    density = density
   )
 }
 
@@ -407,24 +285,12 @@ internal fun parseInlineMarkdown(
  */
 internal data class PreprocessedParenLatex(
   val text: String,
-  val formulaByMarker: Map<String, String>,
+  val formulaByMarker: Map<String, String>
 )
 
-
 /**
- * Scan rawText for \(…\)-form LaTeX formulas and replace each match with a single PUA marker char
- * from the U+E100–U+E1FF range. Returns the rewritten text plus a side table mapping each marker
- * to the formula text it replaced.
- *
- * Why pre-processing is necessary: CommonMark's inline parser treats \( and \) as backslash-escape
- * sequences and strips the backslashes. By the time the AST walker sees the Text node, the formula
- * has bled into the surrounding prose as plain (...) and the original boundary is gone. Running this
- * pass BEFORE CommonMark preserves the boundary by encoding it in a single PUA char that CommonMark
- * doesn't touch.
- *
- * If a match exceeded the 256-marker capacity, overflow matches are left as-is (they fall through
- * to CommonMark and become plain (...) in the rendered output). Expected workload is well under 256
- * formulas per message.
+ * Replace \(…\)-form LaTeX with PUA markers before CommonMark parsing.
+ * CommonMark treats \( as backslash-escape, destroying the formula boundary.
  */
 internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLatex {
   val matches: List<MatchResult> = INLINE_LATEX_PAREN_REGEX.findAll(rawText).toList()
@@ -451,18 +317,8 @@ internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLat
 
 
 /**
- * Scan rawText for $…$ and $$…$$ LaTeX formulas and replace each match with a single PUA marker char
- * from the U+E200–U+E2FF range. Returns the rewritten text plus a side table mapping each marker
- * to the formula text it replaced.
- *
- * Why pre-processing is necessary: CommonMark's inline parser treats _ as an emphasis delimiter.
- * Formulas like $(AB)_{ij} = \sum_{k=1}^{n} A_{ik} \times B_{kj}$ contain _ after punctuation
- * (e.g., ")_") which CommonMark interprets as opening emphasis, and _ after letters (e.g., "\sum_")
- * which it interprets as closing emphasis. This splits the formula into fragments across different
- * Text nodes, and the post-parse $…$ regex never sees the complete formula. Running this pass
- * BEFORE CommonMark preserves the formula boundary by encoding it in a single PUA char.
- *
- * If a match exceeded the marker capacity, overflow matches are left as-is.
+ * Replace $…$/$$…$$-form LaTeX with PUA markers before CommonMark parsing.
+ * CommonMark treats _ as emphasis delimiter, splitting formulas like $(AB)_{ij}$.
  */
 internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLatex {
   val matches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(rawText).toList()
@@ -501,27 +357,26 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
 }
 
 
-/**
- * Walk a parent node's inline children directly into an
- * [InlineMarkdownRenderResult]. Companion to [parseInlineMarkdown] for
- * blocks where the serialize-then-re-parse round-trip is lossy
- * (see [rememberInlineMarkdownRenderFromNode] for the rationale).
- */
+/** Walk a parent node's inline children directly into InlineMarkdownRenderResult. */
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 internal fun parseInlineNodes(
   parentNode: Node, fontSizeSp: Float, linkColor: Color, imageAltColor: Color,
-  editorFontFamily: FontFamily = FontFamily.Default
+  editorFontFamily: FontFamily = FontFamily.Default,
+  latexMeasurer: LatexMeasurerState? = null,
+  density: Density? = null
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      fontSizeSp = fontSizeSp,
+      density = density,
       linkColor = linkColor,
+      fontSizeSp = fontSizeSp,
+      latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily,
+      editorFontFamily = editorFontFamily
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
-      renderInlineChildren(parentNode, builder, renderState)
+      renderInlineChildren(parentNode, renderState, builder)
     }
     InlineMarkdownRenderResult(
       render = InlineMarkdownRender(
@@ -565,7 +420,9 @@ private fun buildInlineRender(
   plainText: String, topBlocks: List<Node>, fontSizeSp: Float,
   chipTint: Color, linkColor: Color, imageAltColor: Color,
   editorFontFamily: FontFamily = FontFamily.Default,
-  parenLatexFormulas: Map<String, String> = emptyMap()
+  parenLatexFormulas: Map<String, String> = emptyMap(),
+  latexMeasurer: LatexMeasurerState? = null,
+  density: Density? = null
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
@@ -574,6 +431,8 @@ private fun buildInlineRender(
       imageAltColor = imageAltColor,
       editorFontFamily = editorFontFamily,
       parenLatexFormulas = parenLatexFormulas,
+      latexMeasurer = latexMeasurer,
+      density = density
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
     log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, chipTint=$chipTint, text=$preview")
@@ -581,16 +440,16 @@ private fun buildInlineRender(
       val builder: AnnotatedString.Builder = this
       topBlocks.forEachIndexed { blockIndex, blockNode ->
         if (blockIndex > 0) builder.append("\n\n")
-        renderInlineChildren(blockNode as Paragraph, builder, renderState)
+        renderInlineChildren(blockNode as Paragraph, renderState, builder)
       }
     }
     log.debug("InlineMarkdown: parse done — chipCounter=${renderState.chipCounter}, inlineContent.keys=${renderState.inlineContent.keys}")
     InlineMarkdownRenderResult(
       render = InlineMarkdownRender(
-        paragraphCount = topBlocks.size,
         annotated = annotatedString,
-        urlAnnotations = renderState.urlAnnotations.toList(),
-        inlineContent = renderState.inlineContent.toMap()
+        paragraphCount = topBlocks.size,
+        inlineContent = renderState.inlineContent.toMap(),
+        urlAnnotations = renderState.urlAnnotations.toList()
       ),
       bailReason = null,
     )
@@ -617,15 +476,13 @@ private class RenderState(
   var currentStyle: SpanStyle = SpanStyle(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
-  /**
-   * Side table produced by [preprocessParenLatexFormulas]: maps
-   * each pre-processed PUA marker char to the formula text it
-   * replaced. The walker reads this table when it encounters a
-   * marker (a PUA char in the U+E100–U+E1FF range) inside a Text
-   * node literal. Empty for inputs that have no \(…\) matches.
-   */
+  /** Side table from preprocessParenLatexFormulas: PUA marker → formula text. */
   val parenLatexFormulas: Map<String, String> = emptyMap(),
+  private val latexMeasurer: LatexMeasurerState? = null,
+  val density: Density? = null
 ) {
+  private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
+
   // Snapshot + restore helper for the recursive walker.
   fun <T> withStyle(replacementStyle: SpanStyle, block: () -> T): T {
     val savedStyle: SpanStyle = currentStyle
@@ -653,16 +510,8 @@ private class RenderState(
     }
   }
 
-  /**
-   * Consume a fresh image-alt placeholder + register the `GradumIcons.Image`
-   * icon in `inlineContent`. The placeholder is a PUA glyph that lives
-   * at the start of the alt-text range; the caller appends it
-   * followed by a space and the alt text, and the icon paints
-   * inline via the surrounding `Text(annotated, inlineContent = ...)`.
-   * The base codepoint [IMAGE_ALT_PLACEHOLDER_BASE] is distinct
-   * from [INLINE_CODE_PLACEHOLDER] so adjacent image + code
-   * spans never collide in the placeholder table.
-   */
+
+  /** Consume a fresh image-alt placeholder + register the GradumIcons.Image icon. */
   fun allocateImageAlt(): String {
     val placeholder: String = IMAGE_ALT_PLACEHOLDER_BASE.toString().repeat(imageAltCounter + 1)
     imageAltCounter += 1
@@ -682,15 +531,11 @@ private class RenderState(
     return placeholder
   }
 
-  /**
-   * Consume a fresh footnote placeholder + register [FootnoteMark] in
-   * `inlineContent`.  The placeholder is a PUA glyph; the caller appends it
-   * to the [AnnotatedString] so the footnote composable paints inline via
-   * the surrounding `Text(annotated, inlineContent = ...)`.
-   */
+  /** Consume a fresh footnote placeholder + register [FootnoteMark]. */
   fun allocateFootnote(footnoteText: String): String {
     val placeholderKey: String = FOOTNOTE_PLACEHOLDER_BASE.toString().repeat(footnoteCounter + 1)
     footnoteCounter += 1
+    val numberFontSizeSp: Float = fontSizeSp - 1f
     val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(footnoteText) + INLINE_CODE_PLACEHOLDER_PADDING_SP
     val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_CODE_PLACEHOLDER_PADDING_SP
     val placeholderShape = Placeholder(
@@ -699,69 +544,38 @@ private class RenderState(
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
-      FootnoteMark(text = footnoteText, fontSizeSp = fontSizeSp)
+      FootnoteMark(text = footnoteText, fontSizeSp = numberFontSizeSp)
     }
     return placeholderKey
   }
 
-  /**
-   * Consume a fresh inline LaTeX placeholder + register a
-   * [RenderInlineLatex] composable in `inlineContent`. The
-   * placeholder is a PUA glyph whose width is measured against
-   * the formula's bounding box (estimated by `cjkAwareWidthRatio`
-   * for now — a real measurement would require a synchronous
-   * LaTeX pre-parse, which the library does inside its
-   * `Latex(...)` composable; we use a per-em estimate to
-   * reserve enough horizontal space so the surrounding text
-   * doesn't reflow when the math is painted). The caller
-   * appends the placeholder to the [AnnotatedString] so the
-   * `Text(annotated, inlineContent = ...)` will paint the
-   * formula inline at that position.
-   */
+  /** Consume a fresh inline LaTeX placeholder. Uses real measurement via LatexMeasurerState, fallback to estimation. */
   fun allocateLatex(formulaText: String): String {
     val placeholderKey: String = LATEX_PLACEHOLDER_BASE.toString().repeat(latexCounter + 1)
     latexCounter += 1
-    /**
-     * Width: use cjkAwareWidthRatio estimate with extra padding.
-     * The 2sp padding gives room for wide math glyphs (√, fractions with long numerators, etc.)
-     * that can exceed the per-character estimate.
-     */
-    val placeholderWidth: Float = fontSizeSp * cjkAwareWidthRatio(formulaText) + INLINE_LATEX_PLACEHOLDER_PADDING_SP
 
-    /**
-     * Height: use INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER (2.5)
-     * instead of PLACEHOLDER_LINE_HEIGHT_MULTIPLIER (1.0) used for chips/footnotes.
-     *
-     * Chips/footnotes contain single-line text; LaTeX formulas like \frac{a}{b}
-     * are ~2× font height, nested fractions or radicals are 2.5–3×.
-     * See the constant's comment for rationale and the "tall formulas overlapping text below" symptom this fixes.
-     */
+    val dimensions: LatexDimensions? = if (latexMeasurer != null && density != null) {
+      latexMeasureCache.getOrPut(formulaText) {
+        latexMeasurer.measure(formulaText, config = LatexConfig(fontSize = fontSizeSp.sp))
+      }
+    } else null
+    val placeholderWidth: Float = if (dimensions != null && dimensions.widthPx > 0f && density != null) {
+      dimensions.widthPx / density.density + PLACEHOLDER_WIDTH_PADDING_SP
+    } else {
+      fontSizeSp * estimateLatexWidth(formulaText) + PLACEHOLDER_WIDTH_PADDING_SP
+    }
+
     val placeholderHeight: Float = fontSizeSp * INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_LATEX_PLACEHOLDER_PADDING_SP
 
-    /**
-     * Vertical alignment: PlaceholderVerticalAlign.TextCenter (not Center).
-     *
-     * The huarangmeng library draws formulas with the mathematical baseline at roughly the Canvas's vertical center.
-     * TextCenter aligns the placeholder with the text's x-height line, which is the standard math baseline in LaTeX.
-     *
-     * Center (line-centered) puts the formula center at the line's vertical midpoint — well above the x-height,
-     * causing formulas to appear to float above the text baseline ("formulas appear too high relative to text baseline").
-     *
-     * AboveBaseline would put the placeholder's bottom on the text baseline, making the formula sit like subscript
-     * text — the math axis would still be above the baseline, so it reads as elevated too.
-     *
-     * TextCenter is the only option that places the math axis at the x-height, matching LaTeX's \textstyle.
-     */
     val placeholderShape = Placeholder(
       width = placeholderWidth.sp,
       height = placeholderHeight.sp,
-      placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter
+      placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
       RenderInlineLatex(
         formula = formulaText,
-        fontSizeSp = fontSizeSp,
-        fontFamily = editorFontFamily
+        fontSizeSp = fontSizeSp
       )
     }
     return placeholderKey
@@ -777,10 +591,26 @@ internal fun cjkAwareWidthRatio(codeText: String): Float {
   return totalRatio
 }
 
+/** Fallback width estimation for LaTeX formulas (used when LatexMeasurerState unavailable). */
+internal fun estimateLatexWidth(formula: String): Float {
+  if (formula.isEmpty()) return 0f
+  var totalWidth = 0f
+  for (chinaChar in formula) {
+    totalWidth += when {
+      isCjkChar(chinaChar) -> MONOSPACE_CJK_RATIO
+      chinaChar in LATEX_NARROW_SYMBOLS -> LATEX_NARROW_SYMBOL_RATIO
+      chinaChar.isLetter() -> LATEX_LETTER_RATIO
+      chinaChar.isDigit() -> LATEX_DIGIT_RATIO
+      else -> LATEX_DEFAULT_SYMBOL_RATIO
+    }
+  }
+  return totalWidth
+}
+
 private fun renderInlineChildren(
   parentNode: Node,
-  annotatedStringBuilder: AnnotatedString.Builder,
   renderState: RenderState,
+  annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val children: NodeChildren = NodeChildren.of(parentNode)
   val firstChild: Node? = children.first
@@ -806,7 +636,7 @@ private fun renderInlineNode(
     is HardLineBreak -> annotatedStringBuilder.withStyle(renderState.currentStyle) { append('\n') }
     is Strikethrough -> renderStrikethroughInline(renderState, inlineNode, annotatedStringBuilder)
     else -> {
-      if (inlineNode.firstChild != null) renderInlineChildren(inlineNode, annotatedStringBuilder, renderState)
+      if (inlineNode.firstChild != null) renderInlineChildren(inlineNode, renderState, annotatedStringBuilder)
     }
   }
 }
@@ -903,7 +733,7 @@ private fun renderEmphasisInline(
   annotatedStringBuilder: AnnotatedString.Builder,
 ) {
   // Render emphasis as normal text (no italic style, no markers)
-  renderState.withStyle(renderState.currentStyle) { renderInlineChildren(emphasisNode, annotatedStringBuilder, renderState) }
+  renderState.withStyle(renderState.currentStyle) { renderInlineChildren(emphasisNode, renderState, annotatedStringBuilder) }
 }
 
 private fun renderStrongEmphasisInline(
@@ -912,7 +742,7 @@ private fun renderStrongEmphasisInline(
   renderState: RenderState,
 ) {
   val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.Bold)
-  renderState.withStyle(boldStyle) { renderInlineChildren(strongEmphasisNode, annotatedStringBuilder, renderState) }
+  renderState.withStyle(boldStyle) { renderInlineChildren(strongEmphasisNode, renderState, annotatedStringBuilder) }
 }
 
 private fun renderCodeInline(
@@ -955,7 +785,7 @@ private fun renderLinkInline(
   val linkUrl: String = linkNode.destination.orEmpty()
   val linkTextStart: Int = annotatedStringBuilder.length
   annotatedStringBuilder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = linkUrl)
-  renderState.withStyle(linkStyle) { renderInlineChildren(linkNode, annotatedStringBuilder, renderState) }
+  renderState.withStyle(linkStyle) { renderInlineChildren(linkNode, renderState, annotatedStringBuilder) }
   annotatedStringBuilder.pop()
   val linkTextEnd: Int = annotatedStringBuilder.length
   if (linkUrl.isNotEmpty() && linkTextEnd > linkTextStart) {
@@ -978,7 +808,7 @@ private fun renderImageInline(
   renderState.withStyle(imageAltStyle) {
     annotatedStringBuilder.append(iconPlaceholder)
     annotatedStringBuilder.append(' ')
-    renderInlineChildren(imageNode, annotatedStringBuilder, renderState)
+    renderInlineChildren(imageNode, renderState, annotatedStringBuilder)
   }
 }
 
@@ -990,7 +820,7 @@ private fun renderStrikethroughInline(
   val strikethroughStyle: SpanStyle = renderState.currentStyle.copy(
     textDecoration = combineDecoration(TextDecoration.LineThrough, (renderState.currentStyle.textDecoration ?: TextDecoration.None))
   )
-  renderState.withStyle(strikethroughStyle) { renderInlineChildren(strikethroughNode, annotatedStringBuilder, renderState) }
+  renderState.withStyle(strikethroughStyle) { renderInlineChildren(strikethroughNode, renderState, annotatedStringBuilder) }
 }
 
 
@@ -1015,21 +845,8 @@ private fun makePlaceholder(chipIndex: Int): String =
 
 
 /**
- * Slice the walker output at link boundaries so the prose path can
- * stay on `Text(annotated, inlineContent = ...)` (for code chips) and
- * the link path can use [org.jetbrains.jewel.ui.component.ExternalLink]
- * (a standalone `Composable` with the external-link icon). Without
- * this split, links would have to be inlined into the `AnnotatedString`
- * — which can't host a `Composable` icon.
- *
- * [inlineContent] is shared across every emitted [InlineSegment.TextSegment]
- * because PUA placeholders in the sub-`AnnotatedString` ranges are
- * looked up against the same map by `Text(..., inlineContent = ...)`.
- *
- * The link text is de-styled (Punctuation / SpanStyles stripped) so
- * the `ExternalLink` picks up its own theme styling. PUA placeholders
- * inside the link range (e.g. `[\`code\`](url)`) are dropped — the
- * chip rendering lives in the prose path, not the link path.
+ * Split walker output at link boundaries: prose stays on Text(annotated, inlineContent),
+ * links use ExternalLink (standalone Composable with icon).
  */
 internal fun splitIntoInlineSegments(
   annotated: AnnotatedString, urlAnnotations: List<UrlAnnotation>, inlineContent: Map<String, InlineTextContent>
@@ -1061,16 +878,7 @@ internal fun splitIntoInlineSegments(
   return segments
 }
 
-/**
- * Drop PUA placeholders from a link's text range — code chips,
- * image icons, footnote marks, and inline LaTeX that happen to
- * be inside a link's label are all rendered through their own
- * `inlineContent` entries, not the link path. `AnnotatedString.toString()`
- * already preserves plain text content; we just need to filter
- * out the PUA chars. The link range was wrapped in a
- * `pushStringAnnotation` for the link's URL, but that's metadata,
- * not visible text.
- */
+/** Drop PUA placeholders from a link's text range — chips/icons/formulas render through their own inlineContent. */
 private fun stripInlineLinkText(range: CharSequence): String {
   if (range.none { it.isInlinePlaceholderPua() }) return range.toString()
   val output: StringBuilder = StringBuilder(range.length)
@@ -1092,58 +900,48 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
 
 
 /**
- * The actual chip composable. Uses `JewelTheme.linkStyle`'s `content` color for a
- * vivid tint across themes; the chip's internal `Text` sets `lineHeight = fontSizeSp.sp`
- * (1.0x) so the editor's 1.5x line height doesn't clip the glyphs.
- *
- * Implementation note: we use `Modifier.background(color, shape)` rather than
- * `Modifier.clip(shape).background(color)`. The former paints the background
- * in the rounded shape but does NOT clip the children — so descenders of
- * characters like `p`, `g`, `y` remain visible even if they briefly extend
- * past the bottom edge of the rounded shape. (The old `clip`+`background`
- * combination clipped both background and text, which is what produced the
- * "text slightly clipped at the bottom" the user reported.)
+ * Inline code chip. Uses background(color, shape) without clip to avoid clipping descenders (p, g, y).
  */
 @Composable
 private fun InlineCodeChip(
   text: String, fontSizeSp: Float
 ) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val badgeColor: Color = JewelTheme.linkStyle.colors.content
+  val textColor: Color = JewelTheme.globalColors.text.normal
+  val badgeColor: Color = JewelTheme.globalColors.text.info
   val chipStyle = TextStyle(
     color = badgeColor,
     fontSize = fontSizeSp.sp,
     lineHeight = fontSizeSp.sp,
-    fontWeight = FontWeight.Medium,
+    fontWeight = FontWeight.Normal,
     fontFamily = editorStyle.fontFamily
   )
   Box(
     modifier = Modifier
       .background(
-        color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
-        shape = RoundedCornerShape(inlineCodeCornerRadius)
+        shape = RoundedCornerShape(inlineCodeCornerRadius),
+        color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
       )
       .padding(
         vertical = inlineCodePaddingVertical,
-        horizontal = inlineCodePaddingHorizontal,
+        horizontal = inlineCodePaddingHorizontal
       )
+      .onGloballyPositioned { coordinates ->
+        log.error("InlineCodeChip render: text='$text', actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp")
+      }
   ) {
     Text(
       text = text,
       maxLines = 1,
       softWrap = false,
       style = chipStyle,
-      color = badgeColor
+      color = textColor,
     )
   }
 }
 
 
-/**
- * Footnote marker composable. Renders as a chip with gray (info) background
- * and blue badge text color, matching the inline code chip's shape treatment.
- * Displays just the footnote number/text without any prefix.
- */
+/** Footnote marker composable. */
 @Composable
 private fun FootnoteMark(text: String, fontSizeSp: Float) {
   val badgeColor: Color = JewelTheme.linkStyle.colors.content
@@ -1159,12 +957,12 @@ private fun FootnoteMark(text: String, fontSizeSp: Float) {
   Box(
     modifier = Modifier
       .background(
-        color = infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
-        shape = RoundedCornerShape(inlineCodeCornerRadius)
+        shape = RoundedCornerShape(inlineCodeCornerRadius),
+        color = infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
       )
       .padding(
         vertical = inlineCodePaddingVertical,
-        horizontal = inlineCodePaddingHorizontal,
+        horizontal = inlineCodePaddingHorizontal
       )
   ) {
     Text(

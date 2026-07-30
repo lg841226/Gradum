@@ -2,13 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ExploredRenderer.kt  2026-07-29 18:32:58 Changed by gwy
  */
-
-@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.chat.ui.chat.skill
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
@@ -37,13 +35,11 @@ class ExploredRenderer : ToolCallRenderer {
     val projectRoot: String = (arguments["projectRoot"] as? String)
       ?: (arguments["project_root"] as? String) ?: ""
     val scanDepth: Int = (result["depth"] as? Number)?.toInt() ?: 0
-    val projectName: String = projectRoot.substringAfterLast('/')
     return ToolCallContent(
       aliasName = ALIAS,
       fieldMap = mapOf(
         "projectRoot" to projectRoot,
-        "depth" to scanDepth,
-        "projectName" to projectName
+        "depth" to scanDepth
       )
     )
   }

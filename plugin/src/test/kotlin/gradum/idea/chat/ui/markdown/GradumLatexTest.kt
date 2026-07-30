@@ -338,22 +338,6 @@ class GradumLatexTest {
   }
 
   @Test
-  fun `inline dollar-dollar without newlines stays as a paragraph - block requires own line`() {
-    // `$$x^2$$` on a single line is NOT a block — the user must put
-    // each `$$` on its own line per the plan rule. This avoids
-    // mis-classifying dollar amounts in prose.
-    val document: Document =
-      latexBlockParser.parse("this is \$\$${'$'}x^2${'$'}\$\$") as Document
-    val paragraph: Paragraph = document.firstChild as Paragraph
-    val inline: org.commonmark.node.Node = requireNotNull(paragraph.firstChild)
-    assertEquals(
-      "paragraph should contain the raw source, no LatexBlock",
-      "this is \$\$${'$'}x^2${'$'}\$\$",
-      (inline as org.commonmark.node.Text).literal
-    )
-  }
-
-  @Test
   fun `block LatexBlock rejects marker lines with leading or trailing text`() {
     // `$$ x^2 $$` on a single line is plain prose (and the inline
     // regex will later match `$x^2$` inside the paragraph).
@@ -757,6 +741,95 @@ class GradumLatexTest {
     // (JVM, no Compose UI) lets us at least confirm the
     // Placeholder object is non-null and has a width > 0.
     assertNotNull(placeholder)
+  }
+
+  // ─── Single-line $$...$$ block parsing ─────────────────────────────
+
+  @Test
+  fun `single-line dollar-dollar is parsed as a LatexBlock`() {
+    val document: Document = latexBlockParser.parse("\$\$2x^2 - 7x + 3 = 0\$\$") as Document
+    val first: org.commonmark.node.Node = requireNotNull(document.firstChild)
+    assertTrue("first block should be a LatexBlock, was ${first.javaClass.simpleName}", first is LatexBlock)
+    assertEquals("2x^2 - 7x + 3 = 0", (first as LatexBlock).formula)
+  }
+
+  @Test
+  fun `single-line dollar-dollar with leading and trailing spaces trims the formula`() {
+    val document: Document = latexBlockParser.parse("\$\$  x^2  \$\$") as Document
+    val block: LatexBlock = document.firstChild as LatexBlock
+    assertEquals("x^2", block.formula)
+  }
+
+  @Test
+  fun `single-line dollar-dollar with complex formula preserves content`() {
+    val document: Document = latexBlockParser.parse("\$\$\\frac{1}{2} + \\sqrt{25}\$\$") as Document
+    val block: LatexBlock = document.firstChild as LatexBlock
+    assertEquals("\\frac{1}{2} + \\sqrt{25}", block.formula)
+  }
+
+  @Test
+  fun `single-line dollar-dollar does not match exactly four dollars`() {
+    // `$$$$` is only 4 chars (two `$$` markers with empty body),
+    // which is NOT valid — needs > 4 chars to have formula content.
+    val document: Document = latexBlockParser.parse("\$\$\$\$") as Document
+    assertTrue(
+      "$$$$ should not be a LatexBlock, was ${document.firstChild.javaClass.simpleName}",
+      document.firstChild is Paragraph
+    )
+  }
+
+  @Test
+  fun `single-line dollar-dollar on its own line is parsed as LatexBlock`() {
+    // When $$...$$ is the only content on a line, the block parser sees it.
+    val source = "\$\$x^2\$\$"
+    val document: Document = latexBlockParser.parse(source) as Document
+    val blocks: List<org.commonmark.node.Node> =
+      generateSequence(document.firstChild) { it.next }.toList()
+    assertTrue("should be a LatexBlock, was ${blocks[0].javaClass.simpleName}", blocks[0] is LatexBlock)
+    assertEquals("x^2", (blocks[0] as LatexBlock).formula)
+  }
+
+  @Test
+  fun `single-line dollar-dollar surrounded by prose stays as Paragraph`() {
+    // When text precedes $$...$$ on the same line, CommonMark wraps the
+    // whole line in a Paragraph — the block parser never sees $$.
+    // This is a CommonMark limitation: block parsers only see lines
+    // at block boundaries.
+    val source = "before \$\$x^2\$\$ after"
+    val document: Document = latexBlockParser.parse(source) as Document
+    assertTrue(
+      "should be a Paragraph, was ${document.firstChild.javaClass.simpleName}",
+      document.firstChild is Paragraph
+    )
+  }
+
+  @Test
+  fun `single-line dollar-dollar followed by another paragraph`() {
+    val source = "\$\$E = mc^2\$\$\n\nnext paragraph"
+    val document: Document = latexBlockParser.parse(source) as Document
+    val blocks: List<org.commonmark.node.Node> =
+      generateSequence(document.firstChild) { it.next }.toList()
+    assertTrue("first should be LatexBlock", blocks[0] is LatexBlock)
+    assertEquals("E = mc^2", (blocks[0] as LatexBlock).formula)
+    assertTrue("second should be Paragraph", blocks[1] is Paragraph)
+  }
+
+  @Test
+  fun `single-line dollar-dollar with underscores and braces`() {
+    val formula = "\\sum_{i=1}^{N} x_i^2"
+    val document: Document = latexBlockParser.parse("\$\$$formula\$\$") as Document
+    val block: LatexBlock = document.firstChild as LatexBlock
+    assertEquals(formula, block.formula)
+  }
+
+  @Test
+  fun `inline dollar-dollar on its own line is parsed as block`() {
+    // $$...$$ alone on a line → LatexBlock.
+    val document: Document = latexBlockParser.parse("\$\$x^2\$\$") as Document
+    val blocks: List<org.commonmark.node.Node> =
+      generateSequence(document.firstChild) { it.next }.toList()
+    assertTrue("should be a LatexBlock, was ${blocks[0].javaClass.simpleName}", blocks[0] is LatexBlock)
+    assertEquals("x^2", (blocks[0] as LatexBlock).formula)
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

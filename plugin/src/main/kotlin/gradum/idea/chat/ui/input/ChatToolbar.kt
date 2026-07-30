@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ChatToolbar.kt  2026-07-29 21:48:03 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -31,6 +32,7 @@ fun ChatToolbar(
   state: ChatInputState,
   actions: ChatInputActions,
   isTextNotEmpty: Boolean,
+  hasSentMessage: Boolean = false,
   selectedPermission: String = "read_only",
   modifier: Modifier = Modifier
 ) {
@@ -40,7 +42,9 @@ fun ChatToolbar(
   val filteredFiles = if (searchQuery.isBlank()) {
     state.editorContext.allOpenFiles
   } else {
-    state.editorContext.allOpenFiles.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    state.editorContext.allOpenFiles.filter {
+      it.name.contains(searchQuery, ignoreCase = true)
+    }
   }
 
   Row(
@@ -65,11 +69,13 @@ fun ChatToolbar(
     }
 
     PermissionSelector(
-      selectedPermission = state.selectedPermission,
-      isMenuVisible = state.isMenuVisible,
+      onDismiss = actions.onDismissMenu,
       onToggle = actions.onToggleMenu,
       onSelect = actions.onSelectPermission,
-      onDismiss = actions.onDismissMenu
+      selectedPermission = state.selectedPermission,
+      isMenuVisible = state.isMenuVisible,
+      hasSentMessage = hasSentMessage,
+      isPermissionLocked = hasSentMessage && selectedPermission == "debug"
     )
 
     Spacer(modifier = Modifier.weight(1f))

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-29 10:54:42 Changed by gwy
+ * ChatScreen.kt  2026-07-29 21:42:09 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -34,18 +34,18 @@ import java.net.URI
 private val logger = Logger.getInstance("ChatScreen"::class.java)
 
 /** Tolerance (dp) for "user is at the bottom". Hides jump-to-bottom button when within this range. */
-private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
+private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 256.dp
 
 /**
  * Active conversation: scrollable history + input pinned to bottom.
  *
  * ## Jump-to-bottom button
  * A `JumpToBottomButton` floats above the input, fading in when the user scrolls past
- * `NearBottomThresholdDp` and fading out on return. 64dp tolerance prevents flicker.
+ * `NearBottomThresholdDp` and fading out on return. 256dp tolerance prevents flicker.
  *
  * ### Show/hide rules
- * - **Default** ("Jump to latest"): hidden when within 64dp of bottom; visible otherwise.
- * - **Alt** ("Jump to top"): hidden when within 64dp of top; visible otherwise.
+ * - **Default** ("Jump to bottom"): hidden when within 256dp of bottom; visible otherwise.
+ * - **Alt** ("Jump to top"): hidden when within 256dp of top; visible otherwise.
  * - **Startup**: hidden (auto-scroll to bottom on first render).
  *
  * Toggling modes via Option key (see `JumpToBottomButton`; captured via `LocalWindowInfo.keyboardModifiers`).
@@ -73,10 +73,11 @@ private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 64.dp
 @Composable
 fun ChatScreen(
   messages: List<ChatMessage>,
-  isLoading: Boolean,
-  isWaitingForResponse: Boolean,
   sendingPhase: String,
+  isLoading: Boolean,
   selectedPermission: String,
+  isWaitingForResponse: Boolean,
+  hasSentMessage: Boolean = false,
   textState: TextFieldState,
   inputState: ChatInputState,
   inputActions: ChatInputActions,
@@ -126,9 +127,10 @@ fun ChatScreen(
         return@LaunchedEffect
       }
     }
-    if (!wasAtBottom) return@LaunchedEffect
-    withFrameNanos {}
-    scrollState.animateScrollTo(scrollState.maxValue)
+    if (wasAtBottom) {
+      withFrameNanos {}
+      scrollState.animateScrollTo(scrollState.maxValue)
+    }
   }
 
   Column(
@@ -164,13 +166,19 @@ fun ChatScreen(
 
             else -> AssistantChatBubble(
               message = message,
-              onViewDiff = onViewDiff,
-              isLoading = isLastAssistant,
-              onOpenInEditor = onOpenInEditor,
-              actionsEnabled = !isWaitingForResponse,
               sendingPhase = if (isLastAssistant) sendingPhase else "",
               selectedPermission = selectedPermission,
+              isLoading = isLastAssistant,
+              actionsEnabled = !isWaitingForResponse,
               onRetry = { onRetryMessage(index) },
+              onContentChange = {
+                coroutineScope.launch {
+                  withFrameNanos {}
+                  if (wasAtBottom) {
+                    scrollState.animateScrollTo(scrollState.maxValue)
+                  }
+                }
+              },
               onUrlClick = { url ->
                 try {
                   Desktop.getDesktop().browse(URI(url))
@@ -178,6 +186,8 @@ fun ChatScreen(
                   logger.warn("Failed to open URL: $url", iOException)
                 }
               },
+              onViewDiff = onViewDiff,
+              onOpenInEditor = onOpenInEditor
             )
           }
         }
@@ -208,7 +218,8 @@ fun ChatScreen(
       state = inputState,
       textState = textState,
       actions = inputActions,
-      selectedPermission = selectedPermission
+      selectedPermission = selectedPermission,
+      hasSentMessage = hasSentMessage
     )
   }
 }
