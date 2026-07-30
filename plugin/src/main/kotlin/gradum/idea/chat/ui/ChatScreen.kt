@@ -213,7 +213,7 @@ fun ChatScreen(
           val remaining = section.bottomInColumn - scrollState.value
           val toolbarHeight = section.toolbarHeight
           val alpha = if (isActive && toolbarHeight > 0f) {
-            ((remaining - 0.5f * toolbarHeight) / toolbarHeight).coerceIn(0f, 1f)
+            ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
           } else if (isActive) 1f else 0f
           if (alpha > 0f) {
             Box(
