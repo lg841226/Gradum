@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-30 15:06:23 Changed by gwy
+ * ChatScreen.kt  2026-07-30 19:07:51 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -14,6 +14,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.diagnostic.Logger
@@ -26,6 +29,8 @@ import gradum.idea.chat.ui.chat.AssistantChatBubble
 import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.UserChatBubble
 import gradum.idea.chat.ui.input.ChatInputSection
+import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
+import gradum.idea.chat.ui.markdown.StickySectionRegistry
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.io.IOException
@@ -141,54 +146,84 @@ fun ChatScreen(
       modifier = Modifier
         .weight(1f).widthIn(max = 680.dp)
     ) {
-      Column(
-        modifier = Modifier.verticalScroll(scrollState)
-      ) {
-        messages.forEachIndexed { index, message ->
-          val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
-            formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
-          val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
+      val stickyRegistry = remember { StickySectionRegistry() }
 
-          if (shouldShowTimestamp) {
-            MessageTimestamp(
-              timestamp = message.timestamp,
-              modifier = Modifier.padding(vertical = GradumSpacing.lg)
-            )
-          }
+      CompositionLocalProvider(LocalStickySectionRegistry provides stickyRegistry) {
+        Column(
+          modifier = Modifier
+            .verticalScroll(scrollState)
+            .onGloballyPositioned { stickyRegistry.columnOriginInWindow = it.localToWindow(Offset.Zero) }
+        ) {
+          messages.forEachIndexed { index, message ->
+            val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
+              formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
+            val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
 
-          when {
-            message.isUserMessage -> UserChatBubble(
-              message = message,
-              onDeleteMessage = { onDeleteMessage(index) },
-              onCopyAsContext = onCopyAsContext,
-              onAttachmentClick = onAttachmentClick
-            )
+            if (shouldShowTimestamp) {
+              MessageTimestamp(
+                timestamp = message.timestamp,
+                modifier = Modifier.padding(vertical = GradumSpacing.lg)
+              )
+            }
 
-            else -> AssistantChatBubble(
-              message = message,
-              sendingPhase = if (isLastAssistant) sendingPhase else "",
-              selectedPermission = selectedPermission,
-              isLoading = isLastAssistant,
-              actionsEnabled = !isWaitingForResponse,
-              onRetry = { onRetryMessage(index) },
-              onContentChange = {
-                coroutineScope.launch {
-                  withFrameNanos {}
-                  if (wasAtBottom) {
-                    scrollState.animateScrollTo(scrollState.maxValue)
+            when {
+              message.isUserMessage -> UserChatBubble(
+                message = message,
+                onDeleteMessage = { onDeleteMessage(index) },
+                onCopyAsContext = onCopyAsContext,
+                onAttachmentClick = onAttachmentClick
+              )
+
+              else -> AssistantChatBubble(
+                message = message,
+                sendingPhase = if (isLastAssistant) sendingPhase else "",
+                selectedPermission = selectedPermission,
+                isLoading = isLastAssistant,
+                actionsEnabled = !isWaitingForResponse,
+                onRetry = { onRetryMessage(index) },
+                onContentChange = {
+                  coroutineScope.launch {
+                    withFrameNanos {}
+                    if (wasAtBottom) {
+                      scrollState.animateScrollTo(scrollState.maxValue)
+                    }
                   }
-                }
-              },
-              onUrlClick = { url ->
-                try {
-                  Desktop.getDesktop().browse(URI(url))
-                } catch (iOException: IOException) {
-                  logger.warn("Failed to open URL: $url", iOException)
-                }
-              },
-              onViewDiff = onViewDiff,
-              onOpenInEditor = onOpenInEditor,
-            )
+                },
+                onUrlClick = { url ->
+                  try {
+                    Desktop.getDesktop().browse(URI(url))
+                  } catch (iOException: IOException) {
+                    logger.warn("Failed to open URL: $url", iOException)
+                  }
+                },
+                onViewDiff = onViewDiff,
+                onOpenInEditor = onOpenInEditor,
+              )
+            }
+          }
+        }
+      }
+
+      val activeSection = stickyRegistry.entries.firstOrNull { entry ->
+        scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
+      }
+      Box(modifier = Modifier.fillMaxWidth()) {
+        stickyRegistry.entries.forEach { section ->
+          val isActive = section == activeSection
+          val remaining = section.bottomInColumn - scrollState.value
+          val toolbarHeight = section.toolbarHeight
+          val alpha = if (isActive && toolbarHeight > 0f) {
+            ((remaining - 0.5f * toolbarHeight) / toolbarHeight).coerceIn(0f, 1f)
+          } else if (isActive) 1f else 0f
+          if (alpha > 0f) {
+            Box(
+              modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { section.toolbarHeight = it.size.height.toFloat() }
+                .graphicsLayer { this.alpha = alpha }
+            ) {
+              section.toolbar()
+            }
           }
         }
       }

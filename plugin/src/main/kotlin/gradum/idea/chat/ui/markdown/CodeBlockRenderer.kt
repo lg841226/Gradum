@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-30 17:22:18 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-30 18:52:03 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -20,8 +20,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -106,7 +110,44 @@ class GradumCodeBlockRenderer(
         CodeBlockContent(isSoftWrap, annotatedCode, styling, codeTextStyle)
       }, styling)
     } else {
-      Column(modifier = containerModifier) {
+      val stickyRegistry = LocalStickySectionRegistry.current
+      val sectionId = remember { Any() }
+      val toolbarProvider: @Composable () -> Unit = {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(styling.background)
+        ) {
+          DisableSelection {
+            CodeBlockToolbar(
+              language = language,
+              isSoftWrap = isSoftWrap,
+              isCollapsible = isCollapsible,
+              rawCode = block.content,
+              onInsertAsFile = onInsertAsFile,
+              onSoftWrapToggle = { isSoftWrap = !isSoftWrap },
+              onLineNumbersToggle = { showLineNumbers = !showLineNumbers }
+            )
+          }
+        }
+      }
+      val sectionEntry = remember { stickyRegistry.register(sectionId, toolbarProvider) }
+      DisposableEffect(sectionEntry) {
+        onDispose { stickyRegistry.unregister(sectionEntry) }
+      }
+      Column(
+        modifier = containerModifier
+          .onGloballyPositioned { coords ->
+            val topLeft = coords.localToWindow(Offset.Zero)
+            val bottomRight = coords.localToWindow(
+              Offset(coords.size.width.toFloat(), coords.size.height.toFloat())
+            )
+            stickyRegistry.updateBounds(
+              sectionEntry,
+              Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y)
+            )
+          }
+      ) {
         DisableSelection {
           CodeBlockToolbar(
             language = language,
