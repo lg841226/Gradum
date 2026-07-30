@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-30 18:52:03 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-30 19:44:44 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -20,17 +20,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-
-import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
@@ -233,38 +232,19 @@ class GradumCodeBlockRenderer(
     showIndentGuides: Boolean = false,
     onTextLayout: ((TextLayoutResult) -> Unit) = {},
   ) {
+    val textMeasurer = rememberTextMeasurer()
+    val indentInfo = remember(annotatedCode.text) { if (showIndentGuides) analyzeIndent(annotatedCode.text) else null }
+    val charWidth = remember(textStyle, textMeasurer) {
+      if (showIndentGuides && indentInfo != null)
+        textMeasurer.measure(AnnotatedString(" "), style = textStyle).size.width.toFloat()
+      else 0f
+    }
+
     Box(
       modifier = Modifier
         .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
         .fillMaxWidth()
     ) {
-      if (showIndentGuides) {
-        val textMeasurer = rememberTextMeasurer()
-        val indentInfo = remember(annotatedCode.text) { analyzeIndent(annotatedCode.text) }
-        val charWidth = remember(textStyle, textMeasurer) {
-          textMeasurer.measure(
-            text = AnnotatedString(" "),
-            style = textStyle
-          ).size.width.toFloat()
-        }
-        if (indentInfo != null && charWidth > 0f) {
-          val indentColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.12f)
-          Canvas(modifier = Modifier.fillMaxSize()) {
-            val stepPx = indentInfo.step * charWidth
-            for (level in 1..indentInfo.maxLevel) {
-              val x = level * stepPx
-              if (x < size.width) {
-                drawLine(
-                  color = indentColor,
-                  start = Offset(x, 0f),
-                  end = Offset(x, size.height),
-                  strokeWidth = 1f
-                )
-              }
-            }
-          }
-        }
-      }
       Text(
         softWrap = softWrap,
         text = annotatedCode,
@@ -273,6 +253,20 @@ class GradumCodeBlockRenderer(
         modifier = Modifier
           .fillMaxWidth()
           .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
+          .then(
+            if (showIndentGuides && indentInfo != null && charWidth > 0f) {
+              val lineColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.18f)
+              Modifier.drawWithContent {
+                val stepPx = indentInfo.step * charWidth
+                for (level in 1..indentInfo.maxLevel) {
+                  val x = level * stepPx
+                  if (x < size.width)
+                    drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), 1f)
+                }
+                drawContent()
+              }
+            } else Modifier
+          )
       )
     }
   }
