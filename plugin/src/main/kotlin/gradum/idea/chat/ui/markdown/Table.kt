@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-30 13:40:50 Changed by gwy
+ * Table.kt  2026-07-31 10:00:18 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -18,6 +18,9 @@ import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
@@ -330,7 +333,6 @@ fun ScrollableTable(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
-      .codeBlockBorder()
       .background(tableBackground)
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
@@ -339,15 +341,73 @@ fun ScrollableTable(
       naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, horizontalPaddingPx
     ) {
       distributeTableWidth(
-        naturalColumnWidthsPx = naturalColumnWidthsPx,
-        containerWidthPx = containerWidthPx,
         minCellWidthPx = minCellWidthPx,
-        horizontalPaddingPx = horizontalPaddingPx
+        containerWidthPx = containerWidthPx,
+        horizontalPaddingPx = horizontalPaddingPx,
+        naturalColumnWidthsPx = naturalColumnWidthsPx
       )
     }
     val scrollState = rememberScrollState()
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val stickyRegistry: StickySectionRegistry = LocalStickySectionRegistry.current
+    val sectionEntry: StickySectionEntry? = if (isSimplified) null else {
+      val sectionId: Any = remember { Any() }
+      val stickyHeaderProvider: @Composable () -> Unit = {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(tableBackground)
+        ) {
+          DisableSelection {
+            Column {
+              TableToolbar(table = table)
+              Box(
+                modifier = Modifier
+                  .width(with(density) { containerWidthPx.toDp() })
+                  .horizontalScroll(scrollState)
+              ) {
+                TableHeaderRow(
+                  header = table.header,
+                  columnWidthsPx = finalColumnWidthsPx,
+                  alignments = table.alignments,
+                  density = density,
+                  horizontalPaddingPx = horizontalPaddingPx,
+                  onUrlClick = onUrlClick,
+                  renderer = renderer,
+                  paragraphStyling = paragraphStyling,
+                )
+              }
+            }
+          }
+        }
+      }
+      remember { stickyRegistry.register(sectionId, stickyHeaderProvider) }
+    }
+
+    if (sectionEntry != null) {
+      DisposableEffect(sectionEntry) {
+        onDispose { stickyRegistry.unregister(sectionEntry) }
+      }
+    }
+
+    val sectionBoundsModifier: Modifier =
+      if (sectionEntry != null) {
+        Modifier.onGloballyPositioned { coordinates ->
+          val topLeft: Offset = coordinates.localToWindow(Offset.Zero)
+          val bottomRight: Offset = coordinates.localToWindow(
+            Offset(
+              coordinates.size.width.toFloat(),
+              coordinates.size.height.toFloat()
+            )
+          )
+          stickyRegistry.updateBounds(
+            sectionEntry,
+            Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y)
+          )
+        }
+      } else Modifier
+
+    Column(modifier = Modifier.fillMaxWidth().then(sectionBoundsModifier)) {
       if (!isSimplified) DisableSelection { TableToolbar(table = table) }
       Box(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -357,33 +417,16 @@ fun ScrollableTable(
             .horizontalScroll(scrollState)
         ) {
           Column {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .background(JewelTheme.globalColors.borders.normal.copy(alpha = 0.08f))
-            ) {
-              table.header.forEachIndexed { columnIndex, cell ->
-                SafeMarkdownText(
-                  text = cell,
-                  modifier = Modifier
-                    .width(
-                      with(density) {
-                        (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
-                          .toDp()
-                      }
-                    )
-                    .padding(
-                      horizontal = cellHorizontalPadding,
-                      vertical = cellVerticalPadding
-                    ),
-                  onUrlClick = onUrlClick,
-                  blockRenderer = renderer,
-                  fontWeight = FontWeight.SemiBold,
-                  paragraphStyling = paragraphStyling,
-                  textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
-                )
-              }
-            }
+            TableHeaderRow(
+              header = table.header,
+              columnWidthsPx = finalColumnWidthsPx,
+              alignments = table.alignments,
+              density = density,
+              horizontalPaddingPx = horizontalPaddingPx,
+              onUrlClick = onUrlClick,
+              renderer = renderer,
+              paragraphStyling = paragraphStyling,
+            )
             table.rows.forEachIndexed { _, row ->
               Row {
                 row.forEachIndexed { columnIndex, cell ->
@@ -417,6 +460,49 @@ fun ScrollableTable(
             .fillMaxWidth()
         )
       }
+    }
+  }
+}
+
+/**
+ * Renders the table's header row. Shared between the in-flow table and the
+ * sticky header overlay (registered via [StickySectionRegistry]) so both
+ * render identically — same per-column widths, padding and typography.
+ */
+@Composable
+private fun TableHeaderRow(
+  header: List<String>,
+  columnWidthsPx: IntArray,
+  alignments: List<TextAlign>,
+  density: Density,
+  horizontalPaddingPx: Int,
+  onUrlClick: (String) -> Unit,
+  renderer: MarkdownBlockRenderer,
+  paragraphStyling: MarkdownStyling.Paragraph,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    header.forEachIndexed { columnIndex, cell ->
+      SafeMarkdownText(
+        text = cell,
+        modifier = Modifier
+          .width(
+            with(density) {
+              (columnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
+                .toDp()
+            }
+          )
+          .padding(
+            horizontal = cellHorizontalPadding,
+            vertical = cellVerticalPadding
+          ),
+        onUrlClick = onUrlClick,
+        blockRenderer = renderer,
+        fontWeight = FontWeight.SemiBold,
+        paragraphStyling = paragraphStyling,
+        textAlign = alignments.getOrNull(columnIndex) ?: TextAlign.Start
+      )
     }
   }
 }

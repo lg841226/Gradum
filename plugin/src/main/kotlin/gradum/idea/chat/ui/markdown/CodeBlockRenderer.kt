@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-30 19:50:34 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-31 09:55:31 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -14,13 +14,10 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -29,7 +26,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
@@ -48,24 +44,9 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-internal val CodeBlockShape: RoundedCornerShape = RoundedCornerShape(GradumSpacing.md)
-
 private const val CODE_COLLAPSE_LIMIT: Int = 20
 private val CollapseStripPadding = GradumSpacing.sm
 
-@Composable
-internal fun Modifier.codeBlockBorder(): Modifier {
-  val borderColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.5f)
-  return this.clip(CodeBlockShape).border(1.dp, borderColor, CodeBlockShape)
-}
-
-/**
- * Custom Markdown code block renderer. Renders a fenced code block as a
- * vertically-stacked panel — a thin toolbar (language tag + copy / insert-as-file /
- * soft-wrap buttons) above the highlighted code. The outer [Column] owns the
- * rounded shape, background, and border so the toolbar + code area read as one
- * continuous panel.
- */
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
   styling: MarkdownStyling,
@@ -76,17 +57,18 @@ class GradumCodeBlockRenderer(
   @OptIn(ExperimentalJewelApi::class)
   @Composable
   override fun RenderFencedCodeBlock(
-    block: FencedCodeBlock, styling: MarkdownStyling.Code.Fenced,
-    enabled: Boolean, modifier: Modifier
+    block: FencedCodeBlock,
+    styling: MarkdownStyling.Code.Fenced,
+    enabled: Boolean,
+    modifier: Modifier
   ) {
-    val language: String = block.language?.takeUnless { it.isBlank() } ?: DEFAULT_CODE_LANGUAGE
+    val language = block.language?.takeUnless { it.isBlank() } ?: DEFAULT_CODE_LANGUAGE
 
-    val annotatedCode: AnnotatedString by LocalCodeHighlighter.current
+    val annotatedCode by LocalCodeHighlighter.current
       .highlight(block.content, language)
       .collectAsState(AnnotatedString(block.content))
 
-    val containerModifier: Modifier = modifier
-      .codeBlockBorder()
+    val containerModifier = modifier
       .background(styling.background)
       .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
@@ -96,23 +78,28 @@ class GradumCodeBlockRenderer(
     var isCollapsed by remember(block.content) { mutableStateOf(isCollapsible) }
     var showLineNumbers by remember { mutableStateOf(false) }
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
     val codeTextStyle = remember(styling) {
       val original = styling.editorTextStyle
       val lineHeight = original.lineHeight
       if (lineHeight.value > 0f) {
-        // Bridge multiplies editorTextStyle.lineHeight by 0.85 by default to tighten line spacing.
-        // Divide it back here to obtain the actual editor line height, so that line numbers align with code lines.
-        original.copy(lineHeight = TextUnit(lineHeight.value / 0.85f, TextUnitType.Sp))
+        original.copy(
+          lineHeight = TextUnit(lineHeight.value / 0.85f, TextUnitType.Sp)
+        )
       } else original
     }
 
     if (isSimplified) {
-      ContainerOrScrollable(isSoftWrap, {
-        CodeBlockContent(isSoftWrap, annotatedCode, styling, codeTextStyle, showIndentGuides = isCollapsible)
-      }, styling)
+      ContainerOrScrollable(isSoftWrap) {
+        CodeBlockContent(
+          softWrap = isSoftWrap,
+          annotatedCode = annotatedCode,
+          textStyle = codeTextStyle
+        )
+      }
     } else {
-      val stickyRegistry = LocalStickySectionRegistry.current
       val sectionId = remember { Any() }
+      val stickyRegistry = LocalStickySectionRegistry.current
       val toolbarProvider: @Composable () -> Unit = {
         Box(
           modifier = Modifier
@@ -132,20 +119,28 @@ class GradumCodeBlockRenderer(
           }
         }
       }
+
       val sectionEntry = remember { stickyRegistry.register(sectionId, toolbarProvider) }
+
       DisposableEffect(sectionEntry) {
         onDispose { stickyRegistry.unregister(sectionEntry) }
       }
+
       Column(
         modifier = containerModifier
           .onGloballyPositioned { coords ->
             val topLeft = coords.localToWindow(Offset.Zero)
             val bottomRight = coords.localToWindow(
-              Offset(coords.size.width.toFloat(), coords.size.height.toFloat())
+              Offset(
+                coords.size.width.toFloat(),
+                coords.size.height.toFloat()
+              )
             )
             stickyRegistry.updateBounds(
-              sectionEntry,
-              Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y)
+              sectionEntry, Rect(
+                topLeft.x, topLeft.y,
+                bottomRight.x, bottomRight.y
+              )
             )
           }
       ) {
@@ -160,17 +155,21 @@ class GradumCodeBlockRenderer(
             onLineNumbersToggle = { showLineNumbers = !showLineNumbers }
           )
         }
-        Box(modifier = Modifier.animateContentSize(animationSpec = tween(200))) {
+
+        Box(
+          modifier = Modifier
+            .animateContentSize(animationSpec = tween(200))
+        ) {
           Column {
-            val displayCode = if (isCollapsed && isCollapsible)
-              truncateAnnotatedString(annotatedCode, CODE_COLLAPSE_LIMIT)
-            else annotatedCode
+            val displayCode =
+              if (isCollapsed && isCollapsible) truncateAnnotatedString(annotatedCode)
+              else annotatedCode
+
             Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
               if (isCollapsible && showLineNumbers && textLayout != null) {
                 DisableSelection {
                   LineNumberColumn(
                     textLayout = textLayout!!,
-                    styling = styling,
                     textStyle = codeTextStyle
                   )
                 }
@@ -182,22 +181,30 @@ class GradumCodeBlockRenderer(
                     .background(lineColor)
                 )
               }
+
               Box(modifier = Modifier.weight(1f)) {
-                ContainerOrScrollable(isSoftWrap, {
-                  CodeBlockContent(isSoftWrap, displayCode, styling, codeTextStyle, showIndentGuides = isCollapsible, onTextLayout = { textLayout = it })
-                }, styling)
+                ContainerOrScrollable(isSoftWrap) {
+                  CodeBlockContent(
+                    softWrap = isSoftWrap,
+                    textStyle = codeTextStyle,
+                    annotatedCode = displayCode,
+                    onTextLayout = { textLayout = it }
+                  )
+                }
               }
             }
+
             if (isCollapsible) {
               DisableSelection {
-                val hiddenLines = lineCount - CODE_COLLAPSE_LIMIT
-                val stripColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.15f)
+                val hiddenLinesCount = lineCount - CODE_COLLAPSE_LIMIT
+                val collapseBarColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.15f)
                 val textColor = JewelTheme.globalColors.text.info
+
                 Row(
                   modifier = Modifier
                     .fillMaxWidth()
                     .clickable { isCollapsed = !isCollapsed }
-                    .background(stripColor)
+                    .background(collapseBarColor)
                     .padding(vertical = CollapseStripPadding),
                   horizontalArrangement = Arrangement.Center,
                   verticalAlignment = Alignment.CenterVertically
@@ -211,8 +218,11 @@ class GradumCodeBlockRenderer(
                   Spacer(Modifier.width(CollapseStripPadding))
                   Text(
                     color = textColor,
-                    text = if (isCollapsed) message("gradum.code.expand", hiddenLines)
-                    else message("gradum.code.collapse", lineCount - CODE_COLLAPSE_LIMIT)
+                    text = if (isCollapsed) {
+                      message("gradum.code.expand", hiddenLinesCount)
+                    } else {
+                      message("gradum.code.collapse", lineCount - CODE_COLLAPSE_LIMIT)
+                    }
                   )
                 }
               }
@@ -227,89 +237,62 @@ class GradumCodeBlockRenderer(
   private fun CodeBlockContent(
     softWrap: Boolean,
     annotatedCode: AnnotatedString,
-    styling: MarkdownStyling.Code.Fenced,
-    textStyle: TextStyle = styling.editorTextStyle,
-    showIndentGuides: Boolean = false,
-    onTextLayout: ((TextLayoutResult) -> Unit) = {},
+    textStyle: TextStyle,
+    onTextLayout: ((TextLayoutResult) -> Unit) = {}
   ) {
-    val textMeasurer = rememberTextMeasurer()
-    val indentInfo = remember(annotatedCode.text) { if (showIndentGuides) analyzeIndent(annotatedCode.text) else null }
-    val charWidth = remember(textStyle, textMeasurer) {
-      if (showIndentGuides && indentInfo != null)
-        textMeasurer.measure(AnnotatedString(" "), style = textStyle).size.width.toFloat()
-      else 0f
-    }
-
-    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
-
-    val lineHeightPx = remember(textLayout) {
-      textLayout?.let { tl ->
-        if (tl.lineCount >= 2) tl.getLineTop(1) - tl.getLineTop(0)
-        else tl.size.height.toFloat()
-      } ?: 0f
-    }
-
-    Box(
+    Text(
+      softWrap = softWrap,
+      text = annotatedCode,
+      style = textStyle,
+      onTextLayout = onTextLayout,
       modifier = Modifier
         .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
         .fillMaxWidth()
-    ) {
-      Text(
-        softWrap = softWrap,
-        text = annotatedCode,
-        style = textStyle,
-        onTextLayout = {
-          textLayout = it
-          onTextLayout(it)
-        },
-        modifier = Modifier
-          .fillMaxWidth()
-          .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
-          .then(
-            if (showIndentGuides && indentInfo != null && charWidth > 0f && lineHeightPx > 0f) {
-              val lineColor = JewelTheme.globalColors.text.disabled.copy(alpha = 0.5f)
-              Modifier.drawWithContent {
-                val stepPx = indentInfo.step * charWidth
-                for (range in indentInfo.levelRanges) {
-                  val x = range.level * stepPx
-                  val startY = range.firstLine * lineHeightPx
-                  val endY = (range.lastLine + 1) * lineHeightPx
-                  drawLine(lineColor, Offset(x, startY), Offset(x, endY), 1f)
-                }
-                drawContent()
-              }
-            } else Modifier
-          )
-      )
-    }
+        .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
+    )
   }
 
   @Composable
   private fun LineNumberColumn(
     textLayout: TextLayoutResult,
-    styling: MarkdownStyling.Code.Fenced,
-    textStyle: TextStyle = styling.editorTextStyle
+    textStyle: TextStyle
   ) {
     val textColor = JewelTheme.globalColors.text.disabled
+
     val displayText = remember(textLayout) {
       val input = textLayout.layoutInput.text.text
       val lineCount = textLayout.lineCount
-      val newlineOffsets = buildList { input.forEachIndexed { i, c -> if (c == '\n') add(i) } }
+      val newlineOffsets = buildList {
+        input.forEachIndexed { i, c ->
+          if (c == '\n') add(i)
+        }
+      }
+
       buildString(lineCount * 4) {
         var nlIndex = 0
         var prevSrcLine = 0
+
         for (displayLine in 0 until lineCount) {
           val offset = textLayout.getLineStart(displayLine)
-          while (nlIndex < newlineOffsets.size && newlineOffsets[nlIndex] < offset) nlIndex++
+
+          while (nlIndex < newlineOffsets.size && newlineOffsets[nlIndex] < offset) {
+            nlIndex++
+          }
+
           val srcLine = nlIndex + 1
+
           if (srcLine != prevSrcLine) {
             append(srcLine.toString())
             prevSrcLine = srcLine
           }
-          if (displayLine < lineCount - 1) append('\n')
+
+          if (displayLine < lineCount - 1) {
+            append('\n')
+          }
         }
       }
     }
+
     Text(
       text = displayText,
       color = textColor,
@@ -324,15 +307,12 @@ class GradumCodeBlockRenderer(
   }
 }
 
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun ContainerOrScrollable(
-  isSoftWrap: Boolean,
-  content: @Composable () -> Unit,
-  styling: MarkdownStyling.Code.Fenced,
+  isSoftWrapEnabled: Boolean,
+  content: @Composable () -> Unit
 ) {
-  val showHorizontalScroll: Boolean = !isSoftWrap && styling.scrollsHorizontally
-  if (showHorizontalScroll) {
+  if (!isSoftWrapEnabled) {
     HorizontalScrollContainer { content() }
   } else {
     Box { content() }
@@ -351,11 +331,6 @@ private fun HorizontalScrollContainer(content: @Composable () -> Unit) {
   )
 }
 
-/**
- * Toolbar above the highlighted code: language tag + copy + insert-as-file +
- * soft-wrap toggle. Same padding/arrangement as the table toolbar so the two
- * read as siblings.
- */
 @Composable
 private fun CodeBlockToolbar(
   rawCode: String,
@@ -367,25 +342,32 @@ private fun CodeBlockToolbar(
   onInsertAsFile: (code: String, language: String) -> Unit
 ) {
   val coroutineScope = rememberCoroutineScope()
-  var isCopied: Boolean by remember { mutableStateOf(false) }
-  val displayLanguage: String = language.replaceFirstChar { it.uppercase() }
+  var isCopied by remember { mutableStateOf(false) }
+  val displayLanguage = language.replaceFirstChar { it.uppercase() }
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(start = GradumSpacing.md, end = GradumSpacing.sm, top = GradumSpacing.sm),
+      .padding(
+        start = GradumSpacing.md,
+        end = GradumSpacing.sm,
+        top = GradumSpacing.sm
+      ),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
     Icon(
-      key = getLanguageIconKey(language) ?: GradumIcons.FeatCode,
       contentDescription = displayLanguage,
+      key = getLanguageIconKey(language) ?: GradumIcons.FeatCode
     )
+
     Text(
+      modifier = Modifier.weight(1f),
       text = message("gradum.code"),
-      fontFamily = JewelTheme.editorTextStyle.fontFamily,
-      modifier = Modifier.weight(1f)
+      fontFamily = JewelTheme.editorTextStyle.fontFamily
     )
-    Tooltip(tooltip = { Text(text = message("gradum.copy.code.tooltip")) }) {
+
+    Tooltip(tooltip = { Text(message("gradum.copy.code.tooltip")) }) {
       IconButton(
         onClick = {
           copyToClipboard(
@@ -402,7 +384,8 @@ private fun CodeBlockToolbar(
         )
       }
     }
-    Tooltip(tooltip = { Text(text = message("gradum.insert.file")) }) {
+
+    Tooltip(tooltip = { Text(message("gradum.insert.file")) }) {
       IconButton(
         onClick = { onInsertAsFile(rawCode, language) }
       ) {
@@ -412,13 +395,18 @@ private fun CodeBlockToolbar(
         )
       }
     }
-    Tooltip(tooltip = {
-      Text(
-        text =
-          if (isSoftWrap) message("gradum.soft.wrap.disable")
-          else message("gradum.soft.wrap.enable")
-      )
-    }) {
+
+    Tooltip(
+      tooltip = {
+        Text(
+          text = if (isSoftWrap) {
+            message("gradum.soft.wrap.disable")
+          } else {
+            message("gradum.soft.wrap.enable")
+          }
+        )
+      }
+    ) {
       IconButton(onClick = onSoftWrapToggle) {
         Icon(
           key = GradumIcons.SoftWarp,
@@ -426,10 +414,9 @@ private fun CodeBlockToolbar(
         )
       }
     }
+
     if (isCollapsible) {
-      Tooltip(tooltip = {
-        Text(text = message("gradum.line.numbers"))
-      }) {
+      Tooltip(tooltip = { Text(message("gradum.line.numbers")) }) {
         IconButton(onClick = onLineNumbersToggle) {
           Icon(
             key = AllIconsKeys.General.Show,
@@ -441,35 +428,17 @@ private fun CodeBlockToolbar(
   }
 }
 
-private data class LevelRange(val level: Int, val firstLine: Int, val lastLine: Int)
-private data class IndentInfo(val step: Int, val maxLevel: Int, val levelRanges: List<LevelRange>)
-
-private fun analyzeIndent(code: String): IndentInfo? {
-  val lines = code.lines()
-  val lineIndents = lines.map { line ->
-    if (line.isBlank()) -1 else line.length - line.trimStart().length
-  }
-  val positiveCounts = lineIndents.filter { it > 0 }.distinct()
-  if (positiveCounts.isEmpty()) return null
-  val step = positiveCounts.reduce { a, b -> gcd(a, b) }
-  val maxLevel = positiveCounts.maxOrNull()!! / step
-
-  val levelRanges = (1..maxLevel).mapNotNull { level ->
-    val minIndent = level * step
-    val first = lineIndents.indexOfFirst { it >= minIndent }
-    val last = lineIndents.indexOfLast { it >= minIndent }
-    if (first >= 0) LevelRange(level, first, last) else null
-  }
-
-  return IndentInfo(step, maxLevel, levelRanges)
-}
-
-private fun gcd(a: Int, b: Int): Int = if (b == 0) a else gcd(b, a % b)
-
-private fun truncateAnnotatedString(annotated: AnnotatedString, maxLines: Int)
-  : AnnotatedString {
-  val truncateIndex = annotated.text.withIndex()
-    .filter { it.value == '\n' }.drop(maxLines - 1).firstOrNull()
+private fun truncateAnnotatedString(annotated: AnnotatedString): AnnotatedString {
+  val truncateIndex = annotated.text
+    .withIndex()
+    .filter { it.value == '\n' }
+    .drop(CODE_COLLAPSE_LIMIT - 1)
+    .firstOrNull()
     ?.index ?: annotated.text.length
-  return if (truncateIndex < annotated.text.length) annotated.subSequence(0, truncateIndex) else annotated
+
+  return if (truncateIndex < annotated.text.length) {
+    annotated.subSequence(0, truncateIndex)
+  } else {
+    annotated
+  }
 }

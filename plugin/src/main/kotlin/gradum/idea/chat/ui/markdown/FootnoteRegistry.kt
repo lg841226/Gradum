@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * FootnoteRegistry.kt
+ */
+
+package gradum.idea.chat.ui.markdown
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.geometry.Offset
+import kotlin.math.abs
+
+/**
+ * Per-message registry linking footnote labels to their definition positions
+ * (in scroll-column coordinates). Footnote reference chips look up their label
+ * and ask the scroll owner to animate to the definition's offset — "one radish,
+ * one hole": `[^2]` in the body matches the later `[^2]: ...` definition.
+ *
+ * Positions are read live from the scrollable column via [getColumnOrigin] and
+ * the actual scrolling is delegated to [scrollToPosition], wired up by the chat
+ * screen so this class stays layout-agnostic.
+ *
+ * Shortest-path lookup: a label may be defined more than once (each definition
+ * chip registers its own slot via [updateDefinitionPosition]). [scrollToFootnote]
+ * jumps to the definition that requires the least scrolling distance from the
+ * current offset ([getCurrentScrollOffset]) — the "nearest" definition.
+ *
+ * After the scroll completes the chat screen calls [onJumpComplete]; the
+ * definition chip for that label reacts by flashing [FootnoteRegistry.flashTarget].
+ */
+class FootnoteRegistry(
+  private val getColumnOrigin: () -> Offset?,
+  private val getCurrentScrollOffset: () -> Float = { 0f },
+) {
+  /** Scrolls column content to [position] (px), then calls back for [label] on completion. */
+  var scrollToPosition: (position: Float, label: String) -> Unit = { _, _ -> }
+
+  /** The definition chip that should flash right now. `null` when idle. */
+  var flashTarget: FlashTarget? by mutableStateOf(null)
+    private set
+
+  /** A jump target: the [label] to flash plus a [nonce] so re-clicking the same label re-triggers. */
+  data class FlashTarget(val label: String, val nonce: Long)
+
+  /** Each definition chip owns a slot (keyed by its stable [chipId]) so positions stay fresh. */
+  private val definitionPositionsByLabel = mutableMapOf<String, MutableMap<Any, Float>>()
+
+  /** Records the on-screen position (window coords) of a footnote definition chip. */
+  fun updateDefinitionPosition(label: String, chipId: Any, positionInWindow: Offset) {
+    val origin: Offset = getColumnOrigin() ?: return
+    definitionPositionsByLabel
+      .getOrPut(label) { mutableMapOf() }
+      .put(chipId, positionInWindow.y - origin.y)
+  }
+
+  /**
+   * Shortest-path jump: among all registered definitions for [label], scrolls
+   * to the one that needs the least scrolling distance from the current
+   * position. No-op if [label] has no registered definitions.
+   */
+  fun scrollToFootnote(label: String) {
+    val positions: Collection<Float> = definitionPositionsByLabel[label]?.values ?: return
+    val currentScrollOffset: Float = getCurrentScrollOffset()
+    val nearestDefinition: Float =
+      positions.minByOrNull { abs(it - currentScrollOffset) } ?: return
+    scrollToPosition(nearestDefinition, label)
+  }
+
+  /** Marks [label] as the definition to flash (after its scroll has finished). */
+  fun onJumpComplete(label: String) {
+    flashTarget = FlashTarget(label, System.nanoTime())
+  }
+}
+
+val LocalFootnoteRegistry = staticCompositionLocalOf {
+  FootnoteRegistry(getColumnOrigin = { null })
+}

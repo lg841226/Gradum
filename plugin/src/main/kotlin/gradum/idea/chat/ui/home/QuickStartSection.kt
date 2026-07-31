@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * QuickStartSection.kt  2026-07-29 12:04:37 Changed by gwy
+ * QuickStartSection.kt  2026-07-30 20:43:15 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -49,7 +49,10 @@ fun QuickStartSection(
   modifier: Modifier = Modifier
 ) {
   val featureIcons = remember {
-    listOf(GradumIcons.FeatChat, GradumIcons.FeatQuestion, GradumIcons.FeatCode, GradumIcons.FeatText)
+    listOf(
+      GradumIcons.FeatChat, GradumIcons.FeatQuestion,
+      GradumIcons.FeatCode, GradumIcons.FeatText
+    )
   }
 
   Column(modifier = modifier) {

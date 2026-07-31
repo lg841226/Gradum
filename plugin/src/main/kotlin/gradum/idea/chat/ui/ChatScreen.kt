@@ -30,6 +30,8 @@ import gradum.idea.chat.ui.chat.AssistantChatBubble
 import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.UserChatBubble
 import gradum.idea.chat.ui.input.ChatInputSection
+import gradum.idea.chat.ui.markdown.FootnoteRegistry
+import gradum.idea.chat.ui.markdown.LocalFootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
 import gradum.idea.chat.ui.markdown.StickySectionRegistry
 import kotlinx.coroutines.launch
@@ -41,6 +43,9 @@ private val logger = Logger.getInstance("ChatScreen"::class.java)
 
 /** Tolerance (dp) for "user is at the bottom". Hides jump-to-bottom button when within this range. */
 private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 256.dp
+
+/** Gap (dp) left between the viewport top and a footnote definition after a jump. */
+private val FootnoteScrollPadding: androidx.compose.ui.unit.Dp = GradumSpacing.xxl
 
 /**
  * Active conversation: scrollable history + input pinned to bottom.
@@ -175,31 +180,51 @@ fun ChatScreen(
                 onAttachmentClick = onAttachmentClick
               )
 
-              else -> AssistantChatBubble(
-                message = message,
-                sendingPhase = if (isLastAssistant) sendingPhase else "",
-                selectedPermission = selectedPermission,
-                isLoading = isLastAssistant,
-                actionsEnabled = !isWaitingForResponse,
-                onRetry = { onRetryMessage(index) },
-                onContentChange = {
-                  coroutineScope.launch {
-                    withFrameNanos {}
-                    if (wasAtBottom) {
-                      scrollState.animateScrollTo(scrollState.maxValue)
+              else -> {
+                val footnoteRegistry: FootnoteRegistry = remember(message) {
+                  FootnoteRegistry(
+                    getColumnOrigin = { stickyRegistry.columnOriginInWindow },
+                    getCurrentScrollOffset = { scrollState.value.toFloat() },
+                  ).also { registry ->
+                    registry.scrollToPosition = { position, label ->
+                      coroutineScope.launch {
+                        val paddingPx: Float = with(density) { FootnoteScrollPadding.toPx() }
+                        scrollState.animateScrollTo(
+                          (position - paddingPx).toInt().coerceAtLeast(0)
+                        )
+                        registry.onJumpComplete(label)
+                      }
                     }
                   }
-                },
-                onUrlClick = { url ->
-                  try {
-                    Desktop.getDesktop().browse(URI(url))
-                  } catch (iOException: IOException) {
-                    logger.warn("Failed to open URL: $url", iOException)
-                  }
-                },
-                onViewDiff = onViewDiff,
-                onOpenInEditor = onOpenInEditor,
-              )
+                }
+                CompositionLocalProvider(LocalFootnoteRegistry provides footnoteRegistry) {
+                  AssistantChatBubble(
+                    message = message,
+                    sendingPhase = if (isLastAssistant) sendingPhase else "",
+                    selectedPermission = selectedPermission,
+                    isLoading = isLastAssistant,
+                    actionsEnabled = !isWaitingForResponse,
+                    onRetry = { onRetryMessage(index) },
+                    onContentChange = {
+                      coroutineScope.launch {
+                        withFrameNanos {}
+                        if (wasAtBottom) {
+                          scrollState.animateScrollTo(scrollState.maxValue)
+                        }
+                      }
+                    },
+                    onUrlClick = { url ->
+                      try {
+                        Desktop.getDesktop().browse(URI(url))
+                      } catch (iOException: IOException) {
+                        logger.warn("Failed to open URL: $url", iOException)
+                      }
+                    },
+                    onViewDiff = onViewDiff,
+                    onOpenInEditor = onOpenInEditor,
+                  )
+                }
+              }
             }
           }
         }

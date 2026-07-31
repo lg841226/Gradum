@@ -147,6 +147,18 @@ internal fun gradumInlinesStyling(
 fun rememberGradumLinkStyle(): LinkStyle = JewelTheme.linkStyle
 
 /**
+ * The solid blue of the theme's blue badge. Resolved from
+ * `JewelTheme.badgeStyle.blue` (the `background` may be a transparent
+ * `SolidColor`, so the `content` is the fallback).
+ */
+@Suppress("UnstableApiUsage")
+@OptIn(ExperimentalJewelApi::class)
+@Composable
+fun rememberBadgeBlueColor(): Color =
+  (JewelTheme.badgeStyle.blue.colors.background as? SolidColor)?.value
+    ?: JewelTheme.badgeStyle.blue.colors.content
+
+/**
  * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
  *
  * @param thinkingMode When `true`, all colors collapse to muted gray for streaming reasoning blocks.
@@ -159,9 +171,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
   val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
-  val badgeBlue: Color =
-    (JewelTheme.badgeStyle.blue.colors.background as? SolidColor)?.value
-      ?: JewelTheme.badgeStyle.blue.colors.content
+  val badgeBlue: Color = rememberBadgeBlueColor()
 
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = if (thinkingMode) thinkingGray else globalColors.text.normal

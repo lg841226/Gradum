@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-07-29 09:51:20 Changed by gwy
+ * BlockRenderer.kt  2026-07-31 11:05:53 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -771,9 +771,9 @@ fun RenderInlineTextWithChips(
   val parseOutcome: InlineMarkdownRenderResult = remember(text) {
     parseInlineMarkdown(
       plainText = text,
-      linkColor = linkColor,
       fontSizeSp = fontSizeSp,
       chipTint = chipTintColor,
+      linkColor = linkColor,
       imageAltColor = imageAltColor
     )
   }

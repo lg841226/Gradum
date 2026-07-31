@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumFootnoteTest.kt  2026-07-17 21:58:09 Changed by gwy
+ * GradumFootnoteTest.kt  2026-07-31 11:05:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown

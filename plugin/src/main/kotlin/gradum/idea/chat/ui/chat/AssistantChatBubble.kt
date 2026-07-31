@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-29 21:24:44 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-30 23:24:20 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -32,8 +32,8 @@ import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
-import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.input.PermissionMode
+import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.*
 import gradum.idea.icons.GradumIcons
 import kotlinx.coroutines.delay
@@ -269,10 +269,12 @@ private fun estimateContentHeightDp(segment: MarkdownSegment): Float = when (seg
     val lines = (segment.text.length / 80f).coerceAtLeast(1f)
     lines * 22f
   }
+
   is MarkdownSegment.NonProseBlock -> {
     val lines = segment.text.lines().size.coerceAtLeast(1)
     lines * 22f
   }
+
   is MarkdownSegment.Table -> {
     val rows = segment.rows.size.coerceAtLeast(1)
     (rows + 1) * 30f + 40f
@@ -399,10 +401,10 @@ private fun TokenStatusRow(
     sendingPhase.ifEmpty { "..." }
 
   val density = LocalDensity.current
-  var displayText by remember { mutableStateOf(sendingPhase) }
-  var previousText by remember { mutableStateOf(sendingPhase) }
   val fadeAlpha = remember { Animatable(1f) }
   val verticalOffset = remember { Animatable(0f) }
+  var displayText by remember { mutableStateOf(sendingPhase) }
+  var previousText by remember { mutableStateOf(sendingPhase) }
   val riseDistancePx: Float = with(density) { -RISE_DISTANCE_DP.toPx() }
 
   LaunchedEffect(sendingPhase, tokenText) {
@@ -424,8 +426,8 @@ private fun TokenStatusRow(
         verticalOffset.animateTo(
           targetValue = 0f,
           animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
           ),
         )
       }
@@ -445,8 +447,8 @@ private fun TokenStatusRow(
       text = displayText,
       enabled = isLoading,
       modifier = Modifier.graphicsLayer {
-        translationY = verticalOffset.value
         this.alpha = fadeAlpha.value
+        translationY = verticalOffset.value
       }
     )
   }

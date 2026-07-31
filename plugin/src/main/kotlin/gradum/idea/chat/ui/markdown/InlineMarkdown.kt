@@ -2,21 +2,29 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-30 10:34:25 Changed by gwy
+ * InlineMarkdown.kt  2026-07-31 11:32:57 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
@@ -33,14 +41,17 @@ import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.ui.GradumSpacing
+import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.node.*
 import org.commonmark.node.Paragraph
 import org.commonmark.parser.Parser
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.theme.linkStyle
+import kotlin.time.Duration.Companion.milliseconds
 
 
 private val log: Logger = Logger.getInstance("gradum.idea.chat.ui.markdown.InlineMarkdown")
@@ -125,7 +136,6 @@ private fun isCjkChar(char: Char): Boolean = when (char.code) {
   else -> false
 }
 
-
 /** Stateless CommonMark parser with the GFM Strikethrough extension enabled. */
 private val commonmarkParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create()))
@@ -137,7 +147,7 @@ private val commonmarkParser: Parser = Parser.builder()
  * only the URL without the period.
  */
 private val bareUrlRegex: Regex = Regex(
-  """https?://[^\s<>"'()\[\]]+[^\s<>"'().,;:!?)\]""]""",
+  """https?://[^\s<>"'()\[\]]+[^\s<>"'().,;:!?\]]""",
   RegexOption.IGNORE_CASE
 )
 
@@ -185,14 +195,14 @@ fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult 
   val density: Density = androidx.compose.ui.platform.LocalDensity.current
   return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
     parseInlineMarkdown(
+      density = density,
       chipTint = chipTint,
-      linkColor = linkColor,
       plainText = plainText,
+      linkColor = linkColor,
       fontSizeSp = fontSizeSp,
       imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily,
       latexMeasurer = latexMeasurer,
-      density = density
+      editorFontFamily = editorFontFamily
     )
   }
 }
@@ -223,28 +233,24 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
 /** Regex for inline footnotes: `^[text]`, `[^ref]`, or `[1]`. */
 internal val INLINE_FOOTNOTE_REGEX: Regex = Regex("""(\^\[([^]]*)]|\[\^([^]]*)]|\[(\d+)])""")
 
-
 /**
  * Regex for inline LaTeX: $$…$$ (must come first to avoid matching inner $ of $$x^2$$) and $…$.
  * Non-greedy, no newlines. Block-level $$…$$ on its own line is handled by LatexBlockExtension.
  */
 internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$([^$\n]+?)\$""")
 
-
 /** Regex for \(…\)-form LaTeX. Applied BEFORE CommonMark to preserve formulas (CommonMark strips backslashes). */
 internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex("""\\\(([^()\n]+?)\\\)""")
-
 
 /** Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF). */
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE2FF]""")
 
-
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
-  plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color,
-  editorFontFamily: FontFamily = FontFamily.Default,
+  density: Density? = null,
   latexMeasurer: LatexMeasurerState? = null,
-  density: Density? = null
+  editorFontFamily: FontFamily = FontFamily.Default,
+  plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
@@ -377,12 +383,12 @@ internal fun parseInlineNodes(
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      density = density,
-      linkColor = linkColor,
       fontSizeSp = fontSizeSp,
-      latexMeasurer = latexMeasurer,
+      linkColor = linkColor,
       imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily
+      editorFontFamily = editorFontFamily,
+      latexMeasurer = latexMeasurer,
+      density = density
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
@@ -436,8 +442,8 @@ private fun buildInlineRender(
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      linkColor = linkColor,
       fontSizeSp = fontSizeSp,
+      linkColor = linkColor,
       imageAltColor = imageAltColor,
       editorFontFamily = editorFontFamily,
       parenLatexFormulas = parenLatexFormulas,
@@ -480,13 +486,12 @@ private class RenderState(
   val imageAltColor: Color,
   val editorFontFamily: FontFamily = FontFamily.Default,
   var chipCounter: Int = 0,
+  var latexCounter: Int = 0,
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
-  var latexCounter: Int = 0,
   var currentStyle: SpanStyle = SpanStyle(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
-  /** Side table from preprocessParenLatexFormulas: PUA marker → formula text. */
   val parenLatexFormulas: Map<String, String> = emptyMap(),
   private val latexMeasurer: LatexMeasurerState? = null,
   val density: Density? = null
@@ -532,7 +537,7 @@ private class RenderState(
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
     inlineContent[placeholder] = InlineTextContent(placeholder = placeholderShape) {
-      org.jetbrains.jewel.ui.component.Icon(
+      Icon(
         contentDescription = null,
         modifier = Modifier.size(iconSize.dp),
         key = gradum.idea.icons.GradumIcons.Image
@@ -542,7 +547,7 @@ private class RenderState(
   }
 
   /** Consume a fresh footnote placeholder + register [FootnoteMark]. */
-  fun allocateFootnote(footnoteText: String): String {
+  fun allocateFootnote(footnoteText: String, isDefinition: Boolean = false): String {
     val placeholderKey: String = FOOTNOTE_PLACEHOLDER_BASE.toString().repeat(footnoteCounter + 1)
     footnoteCounter += 1
     val numberFontSizeSp: Float = fontSizeSp - 1f
@@ -554,7 +559,7 @@ private class RenderState(
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
-      FootnoteMark(text = footnoteText, fontSizeSp = numberFontSizeSp)
+      FootnoteMark(text = footnoteText, fontSizeSp = numberFontSizeSp, isDefinition = isDefinition)
     }
     return placeholderKey
   }
@@ -639,7 +644,7 @@ private fun renderInlineNode(
     is Text -> renderTextInline(inlineNode, renderState, annotatedStringBuilder)
     is Emphasis -> renderEmphasisInline(inlineNode, renderState, annotatedStringBuilder)
     is StrongEmphasis -> renderStrongEmphasisInline(inlineNode, annotatedStringBuilder, renderState)
-    is Code -> renderCodeInline(inlineNode, annotatedStringBuilder, renderState)
+    is Code -> renderCodeInline(inlineNode, renderState, annotatedStringBuilder)
     is Link -> renderLinkInline(inlineNode, renderState, annotatedStringBuilder)
     is Image -> renderImageInline(inlineNode, renderState, annotatedStringBuilder)
     is SoftLineBreak -> annotatedStringBuilder.withStyle(renderState.currentStyle) { append(' ') }
@@ -697,13 +702,14 @@ private fun renderTextInline(
       else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(preText) }
     }
 
-    when {
-      match in footnoteMatches -> {
+    when (match) {
+      in footnoteMatches -> {
         val footnoteText: String = match.groupValues[2]
           .ifEmpty { match.groupValues[3] }
           .ifEmpty { match.groupValues[4] }
         if (footnoteText.isNotEmpty()) {
-          val placeholderKey: String = renderState.allocateFootnote(footnoteText)
+          val isDefinition: Boolean = literal.getOrNull(match.range.last + 1) == ':'
+          val placeholderKey: String = renderState.allocateFootnote(footnoteText, isDefinition)
           annotatedStringBuilder.pushStringAnnotation(tag = FOOTNOTE_TEXT_TAG, annotation = footnoteText)
           annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
           annotatedStringBuilder.pushStyle(SpanStyle())
@@ -713,7 +719,8 @@ private fun renderTextInline(
           annotatedStringBuilder.pop()
         }
       }
-      match in parenLatexMatches -> {
+
+      in parenLatexMatches -> {
         val formulaText: String = renderState.parenLatexFormulas[match.value].orEmpty()
         if (formulaText.isNotEmpty()) {
           val placeholderKey: String = renderState.allocateLatex(formulaText)
@@ -724,7 +731,8 @@ private fun renderTextInline(
           annotatedStringBuilder.pop()
         }
       }
-      match in urlMatches -> {
+
+      in urlMatches -> {
         val url: String = match.value
         val urlStart: Int = annotatedStringBuilder.length
         annotatedStringBuilder.pushStringAnnotation(tag = INLINE_URL_TAG, annotation = url)
@@ -735,6 +743,7 @@ private fun renderTextInline(
           renderState.urlAnnotations += UrlAnnotation(start = urlStart, end = urlEnd, url = url)
         }
       }
+
       else -> {
         val formulaText: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
         if (formulaText.isNotEmpty()) {
@@ -771,18 +780,18 @@ private fun renderEmphasisInline(
 }
 
 private fun renderStrongEmphasisInline(
-  strongEmphasisNode: StrongEmphasis,
-  annotatedStringBuilder: AnnotatedString.Builder,
-  renderState: RenderState,
+  strongEmphasisNode: StrongEmphasis, annotatedStringBuilder: AnnotatedString.Builder, renderState: RenderState
 ) {
   val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.SemiBold)
-  renderState.withStyle(boldStyle) { renderInlineChildren(strongEmphasisNode, renderState, annotatedStringBuilder) }
+  renderState.withStyle(boldStyle) {
+    renderInlineChildren(strongEmphasisNode, renderState, annotatedStringBuilder)
+  }
 }
 
 private fun renderCodeInline(
   codeNode: Code,
-  annotatedStringBuilder: AnnotatedString.Builder,
   renderState: RenderState,
+  annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val codeText: String = codeNode.literal.orEmpty()
   if (codeText.isEmpty()) return
@@ -805,9 +814,7 @@ private fun renderCodeInline(
 }
 
 private fun renderLinkInline(
-  linkNode: Link,
-  renderState: RenderState,
-  annotatedStringBuilder: AnnotatedString.Builder
+  linkNode: Link, renderState: RenderState, annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val linkStyle: SpanStyle = renderState.currentStyle.copy(
     color = renderState.linkColor,
@@ -941,7 +948,6 @@ private fun InlineCodeChip(
   text: String, fontSizeSp: Float
 ) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val textColor: Color = JewelTheme.globalColors.text.normal
   val badgeColor: Color = JewelTheme.globalColors.text.info
   val chipStyle = TextStyle(
     color = badgeColor,
@@ -968,47 +974,105 @@ private fun InlineCodeChip(
       text = text,
       maxLines = 1,
       softWrap = false,
-      style = chipStyle,
-      color = textColor,
+      style = chipStyle
     )
   }
 }
 
 
-/** Footnote marker composable. */
+/**
+ * Footnote marker composable.
+ *
+ * A *definition* chip (`[^2]: ...`) registers its on-screen position with
+ * [LocalFootnoteRegistry] so references can jump to it. A *reference* chip
+ * (`[^2]` in prose) is clickable and smooth-scrolls to its matching definition.
+ */
 @Composable
-private fun FootnoteMark(text: String, fontSizeSp: Float) {
+private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean = false) {
   val badgeColor: Color = JewelTheme.linkStyle.colors.content
   val infoColor: Color = JewelTheme.globalColors.text.info
+  val registry: FootnoteRegistry = LocalFootnoteRegistry.current
+  val footnoteFlashBackground: Color = rememberBadgeBlueColor()
+  val definitionChipId: Any = remember(text, isDefinition) { Any() }
+
+  val normalBackground: Color = infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+
+  val flashTarget: FootnoteRegistry.FlashTarget? = registry.flashTarget
+  val footnoteFlashTriggerKey = if (isDefinition) flashTarget?.takeIf { it.label == text } else null
+
+  var isFlashing by remember { mutableStateOf(false) }
+  LaunchedEffect(footnoteFlashTriggerKey) {
+    if (footnoteFlashTriggerKey != null) {
+      isFlashing = true
+      delay((FootnoteFlashInMillis.toLong() + FootnoteFlashHoldMillis).milliseconds)
+      isFlashing = false
+    }
+  }
+
+  val backgroundColor by animateColorAsState(
+    targetValue = if (isFlashing) footnoteFlashBackground else normalBackground,
+    animationSpec = tween(if (isFlashing) FootnoteFlashInMillis else FootnoteFlashOutMillis),
+    label = "footnoteFlashBackground"
+  )
+  val foregroundColor by animateColorAsState(
+    targetValue = if (isFlashing) Color.White else badgeColor,
+    animationSpec = tween(if (isFlashing) FootnoteFlashInMillis else FootnoteFlashOutMillis),
+    label = "footnoteFlashText"
+  )
+
+  val hoverInteractionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+  val isHovered by hoverInteractionSource.collectIsHoveredAsState()
+
   val chipStyle = TextStyle(
-    color = badgeColor,
+    color = foregroundColor,
     fontSize = fontSizeSp.sp,
     lineHeight = fontSizeSp.sp,
     fontWeight = FontWeight.Medium,
     fontFamily = JewelTheme.editorTextStyle.fontFamily,
-    textDecoration = TextDecoration.Underline
+    textDecoration = if (isHovered) TextDecoration.Underline else null
   )
   Box(
     modifier = Modifier
       .background(
         shape = RoundedCornerShape(inlineCodeCornerRadius),
-        color = infoColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+        color = backgroundColor
       )
       .padding(
         vertical = inlineCodePaddingVertical,
         horizontal = inlineCodePaddingHorizontal
+      )
+      .hoverable(hoverInteractionSource)
+      .then(
+        if (isDefinition) {
+          Modifier.onGloballyPositioned { coordinates ->
+            registry.updateDefinitionPosition(
+              text,
+              definitionChipId,
+              coordinates.localToWindow(Offset.Zero)
+            )
+          }
+        } else {
+          Modifier
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = hoverInteractionSource) {
+              registry.scrollToFootnote(text)
+            }
+        }
       )
   ) {
     Text(
       text = text,
       maxLines = 1,
       softWrap = false,
-      style = chipStyle,
-      color = badgeColor
+      style = chipStyle
     )
   }
 }
 
+/** Flash timing for a definition chip that has just been jumped to. */
+private const val FootnoteFlashInMillis: Int = 200
+private const val FootnoteFlashHoldMillis: Long = 150
+private const val FootnoteFlashOutMillis: Int = 300
 
 /**
  * Chip tint from `JewelTheme.linkStyle` (solid `Color` — not the badge's transparent
