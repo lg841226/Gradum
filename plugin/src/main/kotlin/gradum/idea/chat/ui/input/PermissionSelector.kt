@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-07-29 22:03:14 Changed by gwy
+ * PermissionSelector.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -38,14 +38,14 @@ object PermissionMode {
  * that maps between the two. The previous implementation stored the
  * label in [gradum.idea.chat.state.GradumChatSession.selectedPermission]
  * and translated to wire inside the tool window factory, which meant
- * the initial state was always the label and the translation was
+ * the initial scanState was always the label and the translation was
  * never run — a silent default back to "write" on every fresh session.
  */
 fun permissionLabel(wire: String): String = when (wire) {
   PermissionMode.READONLY -> message("gradum.read")
   PermissionMode.EDIT -> message("gradum.edit")
   PermissionMode.AGENT -> message("gradum.agent")
-  PermissionMode.DEBUG -> message("gradum.debug")
+  PermissionMode.DEBUG -> message("gradum.debug.mode")
   else -> wire
 }
 
@@ -180,12 +180,12 @@ fun PermissionSelector(
           ) {
             Icon(
               key = AllIconsKeys.Toolwindows.ToolWindowDebugger,
-              contentDescription = message("gradum.debug")
+              contentDescription = message("gradum.debug.mode")
             )
             Spacer(modifier = Modifier.width(GradumSpacing.md))
             Column(modifier = Modifier.weight(1f)) {
               Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = message("gradum.debug"))
+                Text(text = message("gradum.debug.mode"))
                 Spacer(modifier = Modifier.width(GradumSpacing.sm))
                 Badge(
                   content = { Text(message("gradum.new")) },

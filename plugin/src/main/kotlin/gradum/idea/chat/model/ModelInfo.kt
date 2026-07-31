@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ModelInfo.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -28,7 +29,7 @@ data class ModelInfo(
    * The plugin UI filters out `available = false` entries in
    * `GradumChatSession.applyModelList` before they ever reach
    * the popup, so this flag is only meaningful at the
-   * session-state boundary; nothing in the renderer reads it.
+   * session-scanState boundary; nothing in the renderer reads it.
    *
    * Defaults to `true` so a `ModelInfo` constructed from a
    * partial / older payload (e.g. cached in the IDE) still

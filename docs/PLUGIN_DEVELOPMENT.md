@@ -10,7 +10,7 @@ This document explains how to develop new skills (Skill) for Gradum.
 2. [Skill Type System](#2-skill-type-system)
 3. [Skill Abstract Base Class](#3-skill-abstract-base-class)
 4. [SkillResult Output Format](#4-skillresult-output-format)
-5. [getSchema() Format](#5-getschema-format)
+5. [getSchema () Format](#5-getschema-format)
 6. [Developing a New Skill: Step-by-Step Guide](#6-developing-a-new-skill-step-by-step-guide)
 7. [Complete Example: File Counter Skill](#7-complete-example-file-counter-skill)
 8. [Best Practices](#8-best-practices)
@@ -186,7 +186,7 @@ abstract class Skill {
      * per-session SkillContext (tool mode + project root).
      *
      * @param arguments LLM-supplied tool-call arguments.
-     * @param context per-session state owned by the agent — see §11.
+     * @param context per-session scanState owned by the agent — see §11.
      */
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
@@ -347,7 +347,7 @@ flowchart LR
 
 ---
 
-## 5. getSchema() Format
+## 5. getSchema () Format
 
 Return a Kotlin `Map<String, Any>` whose structure is fully compatible with the OpenAI function calling schema. Use
 Kotlin Map literals — do not embed a JSON string:
@@ -438,7 +438,7 @@ class YourSkill : Skill() {
      * @param arguments LLM-supplied tool-call arguments. The
      *   `projectRoot` is provided by the agent; do NOT read it from
      *   here — use [context].projectRoot instead.
-     * @param context per-session state (tool mode + project root).
+     * @param context per-session scanState (tool mode + project root).
      */
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val inputValue: String = arguments["input"] as? String ?: ""
@@ -471,8 +471,8 @@ class YourSkill : Skill() {
 
 ### 6.2 Register the Skill
 
-**No registration required!** The `SkillRegistry` automatically discovers all classes
-in the `gradum.skill` package that extend `Skill`. Just place your class file in
+**No registration required!** The `SkillRegistry` automatically discovers all classes in the `gradum.skill` package that
+extend `Skill`. Just place your class file in
 `src/main/kotlin/gradum/skill/` and it will be found at startup.
 
 ### 6.3 Build and Test
@@ -760,9 +760,8 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 ## 10. Declaring `allowedToolModes` — The Three-Tier Permission Model
 
 Gradum exposes **three permission tiers** through a single field on every
-`Skill` — `allowedToolModes`. The agent enforces it twice (schema filter at
-LLM time, runtime gate at execution time) so the two views can never drift.
-The `SkillRegistrySchemaTest` pins this invariant.
+`Skill` — `allowedToolModes`. The agent enforces it twice (schema filter at LLM time, runtime gate at execution time) so
+the two views can never drift. The `SkillRegistrySchemaTest` pins this invariant.
 
 ### 10.1 The three tiers
 
@@ -772,8 +771,8 @@ The `SkillRegistrySchemaTest` pins this invariant.
 | `SINGLE_STEP` | `"single_step"` | Edit mode  | Single-shot edits (`edit_file`, `save_file`) — no multi-step planning           |
 | `WRITE`       | `"write"`       | Agent mode | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
 
-A skill should declare the **narrowest** set of tiers that covers what it does.
-Anything else weakens the safety net for the user.
+A skill should declare the **narrowest** set of tiers that covers what it does. Anything else weakens the safety net for
+the user.
 
 ### 10.2 Decision table
 
@@ -810,25 +809,22 @@ class EditFileSkill : Skill() {
 
 ### 10.4 How the gate is enforced
 
-The agent runs the same `toolMode in skill.allowedToolModes` check at two
-points, so the LLM cannot bypass it:
+The agent runs the same `toolMode in skill.allowedToolModes` check at two points, so the LLM cannot bypass it:
 
-1. **Schema filter** (LLM side). `SkillRegistry.getSchemas(toolMode)` returns
-   only the tools whose `allowedToolModes` includes the active tier. The LLM
-   is never told the tool exists in modes where it is forbidden.
-2. **Runtime gate** (Agent side). `Agent.executeSingleTool` does the same
-   check before dispatch. If the LLM hallucinates an `edit_file` call in
-   `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk
-   is byte-for-byte unchanged.
+1. **Schema filter** (LLM side). `SkillRegistry.getSchemas(toolMode)` returns only the tools whose `allowedToolModes`
+   includes the active tier. The LLM is never told the tool exists in modes where it is forbidden.
+2. **Runtime gate** (Agent side). `Agent.executeSingleTool` does the same check before dispatch. If the LLM hallucinates
+   an `edit_file` call in
+   `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
 For a `READ_ONLY` `run_cmd`, the agent also runs `classifyCommand(...)`
-with the active `ToolMode` so `touch`, `rm`, `git commit` etc. are blocked
-with `COMMAND_BLOCKED` even when the schema filter let them through.
+with the active `ToolMode` so `touch`, `rm`, `git commit` etc. are blocked with `COMMAND_BLOCKED` even when the schema
+filter let them through.
 
 ### 10.5 Testing your tier declaration
 
-`SkillRegistrySchemaTest` (5 cases) and `ToolModeGateTest` (6 cases) pin
-the contract. A new skill that declares a tier set must satisfy both:
+`SkillRegistrySchemaTest` (5 cases) and `ToolModeGateTest` (6 cases) pin the contract. A new skill that declares a tier
+set must satisfy both:
 
 ```kotlin
 // SkillRegistrySchemaTest style:
@@ -848,8 +844,7 @@ if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.SINGLE_STEP
 
 ## 11. Using `SkillContext` for Project Root, Mode, and Model Info
 
-`SkillContext` is a small data class the agent constructs **once per
-session** and hands to every `Skill.execute` call:
+`SkillContext` is a small data class the agent constructs **once per session** and hands to every `Skill.execute` call:
 
 ```kotlin
 data class SkillContext(
@@ -860,31 +855,25 @@ data class SkillContext(
 )
 ```
 
-It replaces the legacy process-global `ProjectPaths.setProjectRoot` (and
-removes the previous blind spot: Skills had no way to read `toolMode` at
-all). The four properties are immutable for the lifetime of the session, and
-the agent guarantees every Skill in that session sees the same instance.
+It replaces the legacy process-global `ProjectPaths.setProjectRoot` (and removes the previous blind spot: Skills had no
+way to read `toolMode` at all). The four properties are immutable for the lifetime of the session, and the agent
+guarantees every Skill in that session sees the same instance.
 
 ### 11.1 Why a parameter, not a global
 
 Three reasons — the third one is the one that bit us before this refactor:
 
-1. **Sessions can run concurrently.** Two `/events` requests in flight at
-   once would have shared `ProjectPaths` and overwritten each other's
-   project root. With `SkillContext` constructed per `Agent`, sessions are
-   fully isolated.
-2. **Auditability.** Reading `context.projectRoot` in a Skill makes the
-   dependency visible in the function signature. There is no way to
+1. **Sessions can run concurrently.** Two `/events` requests in flight at once would have shared `ProjectPaths` and
+   overwritten each other's project root. With `SkillContext` constructed per `Agent`, sessions are fully isolated.
+2. **Auditability.** Reading `context.projectRoot` in a Skill makes the dependency visible in the function signature.
+   There is no way to
    "forget" to pass it, and unit tests can construct a deterministic
    `SkillContext` without touching process-globals.
-3. **The bug this fixes.** Before this refactor, `ContextManager` was
-   constructed from `ProjectPaths.outputDirectory()` — which defaulted to
-   the server's CWD, not the IDE's project. So if the developer started
-   the server from a workspace different from the project they had open
-   in IntelliJ, `context.json` would silently be written to the wrong
-   project. With `SkillContext.projectRoot` flowing from `Project.basePath`
-   all the way down, every file path in the agent loop resolves against
-   the project the user is actually working on.
+3. **The bug this fixes.** Before this refactor, `ContextManager` was constructed from
+   `ProjectPaths.outputDirectory()` — which defaulted to the server's CWD, not the IDE's project. So if the developer
+   started the server from a workspace different from the project they had open in IntelliJ, `context.json` would
+   silently be written to the wrong project. With `SkillContext.projectRoot` flowing from `Project.basePath`
+   all the way down, every file path in the agent loop resolves against the project the user is actually working on.
 
 ### 11.2 Where the values come from
 
@@ -904,8 +893,8 @@ sequenceDiagram
     Note over Skill: read context.projectRoot for file ops<br/>read context.modelName for schema adaptation
 ```
 
-The plugin is the **only** source of truth for `projectRoot`. The server
-has no fallback — if the plugin forgets to send it, `Routes` returns
+The plugin is the **only** source of truth for `projectRoot`. The server has no fallback — if the plugin forgets to send
+it, `Routes` returns
 `400 INVALID_PARAMETER` instead of guessing from CWD.
 
 ### 11.3 How to use it in your Skill
@@ -936,7 +925,7 @@ override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillR
 ```kotlin
 // WRONG — reads from arguments. The agent injects projectRoot for
 // audit/NDJSON reasons, but Skills should treat the arguments as
-// "what the LLM sent us" and read session state from context.
+// "what the LLM sent us" and read session scanState from context.
 val projectRoot: String = arguments["projectRoot"] as? String ?: ""
 
 // WRONG — process-global. Two concurrent sessions will overwrite
@@ -952,8 +941,7 @@ val projectRoot: String = context.projectRoot
 
 ### 11.5 Using `provider` and `modelName` for Schema Adaptation
 
-The `provider` and `modelName` fields allow Skills to adapt their behavior
-based on the model's capabilities:
+The `provider` and `modelName` fields allow Skills to adapt their behavior based on the model's capabilities:
 
 ```kotlin
 override fun getSchema(context: SkillContext?): Map<String, Any> {
@@ -1079,19 +1067,16 @@ messages. This prevents local LLMs from being overwhelmed.
 ### "Tool not permitted" / "Command blocked" in read-only mode
 
 - The skill's `allowedToolModes` excludes `READ_ONLY`, or `classifyCommand`
-  rejected the command. Either switch the IDE to `SINGLE_STEP`/`WRITE` mode
-  (user action) or declare a broader `allowedToolModes` (skill author action).
-  The agent's gate is the same on both sides — the LLM is told the tool
+  rejected the command. Either switch the IDE to `SINGLE_STEP`/`WRITE` mode (user action) or declare a broader
+  `allowedToolModes` (skill author action). The agent's gate is the same on both sides — the LLM is told the tool
   doesn't exist AND the runtime rejects the call if it tries anyway.
 
 ### Context file is written to the wrong project
 
-- Check that the plugin sends `projectRoot` in the `/events` body — without
-  it, `Routes` returns 400 and the agent is never constructed. If it does
-  send it, but the file still lands in the wrong directory, the Skill is
-  reading from `arguments["projectRoot"]` (deprecated) or from a process
-  global — both are the legacy paths this refactor replaces. Update the
-  Skill to read `context.projectRoot`.
+- Check that the plugin sends `projectRoot` in the `/events` body — without it, `Routes` returns 400 and the agent is
+  never constructed. If it does send it, but the file still lands in the wrong directory, the Skill is reading from
+  `arguments["projectRoot"]` (deprecated) or from a process global — both are the legacy paths this refactor replaces.
+  Update the Skill to read `context.projectRoot`.
 
 ### NDJSON event fields are wrong
 
@@ -1117,8 +1102,8 @@ Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 
 ## 15. SchemaVariant API Reference
 
-Gradum adapts tool schemas and prompt content based on model capability. This
-section documents the API for plugin developers.
+Gradum adapts tool schemas and prompt content based on model capability. This section documents the API for plugin
+developers.
 
 ### 15.1 `SchemaVariant` Enum
 
@@ -1181,8 +1166,8 @@ Prompt XML files support conditional sections based on `SchemaVariant`:
 ```
 
 The agent filters these sections at prompt load time using
-`filterConditionalSections()`. Sections wrapped in `<!-- if SIMPLE -->` are
-kept only when `SchemaVariant` is `SIMPLE`. Sections wrapped in `<!-- if FULL -->`
+`filterConditionalSections()`. Sections wrapped in `<!-- if SIMPLE -->` are kept only when `SchemaVariant` is `SIMPLE`.
+Sections wrapped in `<!-- if FULL -->`
 are kept only when `SchemaVariant` is `FULL`.
 
 ### 15.4 Per-Skill Behavior
@@ -1308,16 +1293,14 @@ class AdaptiveFileWriterSkill : Skill() {
 > IDE-plugin authors.
 
 The Gradum IntelliJ plugin exposes one interface for the chat UI:
-[`ToolCallRenderer`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt).
-A renderer is responsible for turning a server-side `tool_call` event
-into the row the user sees in the chat timeline — its icon, its
+[`ToolCallRenderer`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt). A renderer is
+responsible for turning a server-side `tool_call` event into the row the user sees in the chat timeline — its icon, its
 localized label, its body, and the action buttons (`Open in editor`,
 `View diff`, `Copy`, etc.) it offers.
 
 This is the same mechanism the built-in `RanRenderer`, `EditedRenderer`,
 `ReadRenderer`, `SavedRenderer`, `ExploredRenderer`, `PlannedRenderer`,
-`CompletedRenderer`, and the wildcard `DefaultRenderer` use. Each
-renderer is a single file at
+`CompletedRenderer`, and the wildcard `DefaultRenderer` use. Each renderer is a single file at
 `chat/ui/chat/skill/<Alias>Renderer.kt` and is registered in
 [
 `ToolCallRendererRegistry`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
@@ -1327,34 +1310,26 @@ by appending one line to the `RENDERERS` list.
 
 Earlier revisions of the chat panel used an IntelliJ Platform
 `ExtensionPoint` (`<extensionPoint name="toolCallRenderer" …/>` in
-`META-INF/plugin.xml`) to register renderers. We migrated away from
-that approach because the Platform's `ExtensionPointName` lookup
-path has several practical drawbacks:
+`META-INF/plugin.xml`) to register renderers. We migrated away from that approach because the Platform's
+`ExtensionPointName` lookup path has several practical drawbacks:
 
-- **Strict placement.** The `<extensionPoint>` element must be a
-  direct child of `<idea-plugin>` — putting it inside an
-  `<extensions>` block (or a comment that wraps one) triggers a
-  Platform parse error. The dependency-resolution error
+- **Strict placement.** The `<extensionPoint>` element must be a direct child of `<idea-plugin>` — putting it inside an
+  `<extensions>` block (or a comment that wraps one) triggers a Platform parse error. The dependency-resolution error
   "Unable to resolve extension point … in plugin dependencies"
   is the most common form of this and is hard to debug.
-- **Hard runtime crash on misconfiguration.** EP resolution goes
-  through the IDE's `Extensions` area, which throws
-  `IllegalArgumentException: Missing extension point` at the first
-  chat render if anything is misconfigured. The exception is
-  caught by the IDE's `CoroutineExceptionHandler` and surfaced
-  as an `UnhandledException` dialog — the chat panel is dead
-  until the user restarts the IDE.
+- **Hard runtime crash on misconfiguration.** EP resolution goes through the IDE's `Extensions` area, which throws
+  `IllegalArgumentException: Missing extension point` at the first chat render if anything is misconfigured. The
+  exception is caught by the IDE's `CoroutineExceptionHandler` and surfaced as an `UnhandledException` dialog — the chat
+  panel is dead until the user restarts the IDE.
 - **Classloader isolation between Gradum and third-party plugins.**
-  A third-party plugin that depends on `com.gradum.idea` cannot
-  reliably resolve an EP declared in Gradum's `plugin.xml` because
-  Platform EP lookups go through a classloader-aware `Extensions`
+  A third-party plugin that depends on `com.gradum.idea` cannot reliably resolve an EP declared in Gradum's `plugin.xml`
+  because Platform EP lookups go through a classloader-aware `Extensions`
   area that may not see both ends of the dependency at runtime.
-- **Discoverability.** A developer has to read the EP interface
-  and the Gradum source to learn the convention. There is no
+- **Discoverability.** A developer has to read the EP interface and the Gradum source to learn the convention. There is
+  no
   "render this alias" stub to find.
 
-A plain `val RENDERERS: List<ToolCallRenderer>` solves all four
-problems at the cost of one line of code per new alias:
+A plain `val RENDERERS: List<ToolCallRenderer>` solves all four problems at the cost of one line of code per new alias:
 
 ```kotlin
 // ToolCallRendererRegistry.kt
@@ -1369,9 +1344,8 @@ private val RENDERERS: List<ToolCallRenderer> = listOf(
 )
 ```
 
-There is no `plugin.xml` change. There is no Platform EP. There
-is no IDE-side parse-time validation. The list is read on the
-first chat render and cached in-memory.
+There is no `plugin.xml` change. There is no Platform EP. There is no IDE-side parse-time validation. The list is read
+on the first chat render and cached in-memory.
 
 ### 16.2 The `ToolCallRenderer` interface
 
@@ -1414,8 +1388,8 @@ data class ToolCallContent(
 ```
 
 `fieldMap` is an arbitrary `Map<String, Any?>` you read from inside
-`render`. The convention is to put the same string keys here that
-the server-side skill puts in its `SkillResult` payload — e.g.
+`render`. The convention is to put the same string keys here that the server-side skill puts in its `SkillResult`
+payload — e.g.
 `"command"`, `"path"`, `"linesAdded"`, `"reason"`.
 
 `actionList` is a list of `ToolCallAction`s the row exposes:
@@ -1447,13 +1421,11 @@ sealed class ToolCallAction {
 }
 ```
 
-`Custom` is reserved for renderers that want to surface a
-renderer-specific button (e.g. "Run test in current file"). The
-chat panel does not auto-dispatch `Custom` actions for you — your
-renderer's `render` composable is responsible for matching the
-`customId` and dispatching the click (typically by reading the
-active `Project` from `ctx.project` or by registering a callback
-during plugin initialization).
+`Custom` is reserved for renderers that want to surface a renderer-specific button (e.g. "Run test in current file").
+The chat panel does not auto-dispatch `Custom` actions for you — your renderer's `render` composable is responsible for
+matching the
+`customId` and dispatching the click (typically by reading the active `Project` from `ctx.project` or by registering a
+callback during plugin initialization).
 
 ### 16.4 The render context
 
@@ -1468,19 +1440,15 @@ data class ToolCallRenderContext(
 )
 ```
 
-`onOpenInEditor` and `onViewDiff` are the chat-level handlers —
-invoke them with the right `filePath` / line range and the chat
-panel will pop an editor tab (or diff viewer) at the right place.
-`onCopy` is wired to the chat-level "copied" snackbar (no-op in
-the current build, but stable).
+`onOpenInEditor` and `onViewDiff` are the chat-level handlers — invoke them with the right `filePath` / line range and
+the chat panel will pop an editor tab (or diff viewer) at the right place.
+`onCopy` is wired to the chat-level "copied" snackbar (no-op in the current build, but stable).
 
-`project` is the active IntelliJ `Project`, or `null` if the chat
-panel is detached (e.g. rendering in a preview); renderers that
-need an IDE service should null-check it. `isError` /
+`project` is the active IntelliJ `Project`, or `null` if the chat panel is detached (e.g. rendering in a preview);
+renderers that need an IDE service should null-check it. `isError` /
 `errorDetail` mirror the `success: false` and `errorDetail`
 fields of the wire `tool_call` event — pass them to
-`ToolCallCapsule` (or your custom row) so the row renders in its
-error state.
+`ToolCallCapsule` (or your custom row) so the row renders in its error state.
 
 ### 16.5 Worked example: a "tests passed" renderer
 
@@ -1555,11 +1523,9 @@ class TestsPassedRenderer : ToolCallRenderer {
 ```
 
 `ToolCallCapsule` is the shared composable in
-`gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule` that all
-built-in renderers use. It handles the row layout (icon + label +
-body + error state + trailing text) for you. Import it directly
-— it is `internal` to the Gradum plugin module, but a plugin that
-depends on `com.gradum.idea` (via `<depends>com.gradum.idea</depends>`
+`gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule` that all built-in renderers use. It handles the row layout
+(icon + label + body + error state + trailing text) for you. Import it directly — it is `internal` to the Gradum plugin
+module, but a plugin that depends on `com.gradum.idea` (via `<depends>com.gradum.idea</depends>`
 in its `plugin.xml`) can still call it.
 
 **Step 3 — register it in the Gradum source.** Open
@@ -1593,26 +1559,19 @@ edit, no Platform EP, no classloader dance.
 ### 16.6 Conventions
 
 - **One folder per alias** — `chat/ui/chat/skill/ran/`,
-  `chat/ui/chat/skill/edited/`, etc. The folder contains the
-  renderer class (`RanRenderer.kt`).
+  `chat/ui/chat/skill/edited/`, etc. The folder contains the renderer class (`RanRenderer.kt`).
 - **Aliases are first-listed-wins.** The first renderer in
-  `RENDERERS` whose `alias()` matches is used; the rest are
-  ignored for that alias. Put more specific entries above
-  more general ones. The wildcard catch-all (`*`) must be the
-  last entry.
-- **Don't swallow exceptions in `parseContent`.** If a field is
-  missing or has the wrong type, surface it via `errorDetail` on
-  the context so the model can react. The same rule applies to
-  the server-side `SkillResult` payloads — see
+  `RENDERERS` whose `alias()` matches is used; the rest are ignored for that alias. Put more specific entries above more
+  general ones. The wildcard catch-all (`*`) must be the last entry.
+- **Don't swallow exceptions in `parseContent`.** If a field is missing or has the wrong type, surface it via
+  `errorDetail` on the context so the model can react. The same rule applies to the server-side `SkillResult` payloads —
+  see
   `RunCommandSkill.readStreamOutput` for the canonical example.
 - **Reuse `ToolCallCapsule` and the action button helpers in
-  `chat/ui/chat/skill/internal/`.** They are `internal` to the
-  plugin module, so a third-party plugin depending on
-  `com.gradum.idea` can still call them. Re-implementing the row
-  layout from scratch will drift from the rest of the chat
-  panel.
+  `chat/ui/chat/skill/internal/`.** They are `internal` to the plugin module, so a third-party plugin depending on
+  `com.gradum.idea` can still call them. Re-implementing the row layout from scratch will drift from the rest of the
+  chat panel.
 - **Localisation goes through the `labelKey()` resource bundle.**
-  A renderer that hard-codes an English string will not
-  localize. Use a Gradum bundle key (or your own plugin's
-  bundle) and look it up via `message("myplugin.tool.testsPassed")`
+  A renderer that hard-codes an English string will not localize. Use a Gradum bundle key (or your own plugin's bundle)
+  and look it up via `message("myplugin.tool.testsPassed")`
   inside `render`.

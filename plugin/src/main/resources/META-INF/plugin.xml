@@ -2,7 +2,7 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-07-20 19:26:21 Changed by gwy
+  ~ plugin.xml  2026-07-31 15:54:30 Changed by gwy
   -->
 
 <idea-plugin>
@@ -29,10 +29,16 @@
       anchor="right"
       factoryClass="gradum.idea.GradumToolWindowFactory"/>
 
+    <toolWindow
+      id="Gradum Git"
+      icon="/icons/logo/logo.svg"
+      anchor="bottom"
+      factoryClass="gradum.idea.GradumGitAnalysisToolWindowFactory"/>
+
     <!--
-        Project-scoped chat state. The IntelliJ Platform disposes tool
+        Project-scoped chat scanState. The IntelliJ Platform disposes tool
         window content when the user collapses the sidebar, so any
-        in-Compose state is lost on the next expand; holding it in a
+        in-Compose scanState is lost on the next expand; holding it in a
         project service keeps the conversation alive across that
         round-trip.
     -->

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-07-30 13:52:23 Changed by gwy
+ * ChatInputPanel.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -41,7 +41,7 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * The main chat input panel containing a text area and a toolbar.
  *
- * Long-paste-to-context: when the text state grows by more than 200 chars
+ * Long-paste-to-context: when the text scanState grows by more than 200 chars
  * in a single settled snapshot, treat the appended run as a context
  * attachment and strip it back out of the input.
  */

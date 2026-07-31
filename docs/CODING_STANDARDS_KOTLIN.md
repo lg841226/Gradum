@@ -1,7 +1,7 @@
 # Gradum Kotlin Coding Standards
 
-This document defines the coding standards for the Gradum Kotlin implementation.
-All Kotlin code must follow the conventions below.
+This document defines the coding standards for the Gradum Kotlin implementation. All Kotlin code must follow the
+conventions below.
 
 ```mermaid
 flowchart TD
@@ -26,8 +26,8 @@ flowchart TD
 
 ## 1. Source File Header
 
-Source files begin with the `package` declaration, followed by import groups.
-**Do not** include copyright headers or boilerplate file-level comments.
+Source files begin with the `package` declaration, followed by import groups. **Do not** include copyright headers or
+boilerplate file-level comments.
 
 ```kotlin
 package gradum.skill
@@ -89,10 +89,9 @@ val str: String = arguments["name"] as? String ?: ""
 
 ### 2.3 Two-Word Minimum for Variable Names
 
-Every local variable, property, parameter, and function name must contain
-**at least two English words** (camelCase). Single-word or single-letter
-names are forbidden — they are not self-documenting and cost the next
-reader a context switch.
+Every local variable, property, parameter, and function name must contain **at least two English words** (camelCase).
+Single-word or single-letter names are forbidden — they are not self-documenting and cost the next reader a context
+switch.
 
 **Correct:**
 
@@ -124,10 +123,9 @@ catch (e: IOException) { ... }         // 'e' / 'ex' are forbidden
 
 ### 2.4 Boolean Variables Require a Predicate Prefix
 
-Boolean properties, locals, parameters, and function names must begin
-with a predicate: `is`, `has`, `can`, `should`, `will`, `must`, or `need`.
-Bare adjectives or verbs (`enabled`, `valid`, `ok`, `active`) are
-forbidden — they don't read as questions.
+Boolean properties, locals, parameters, and function names must begin with a predicate: `is`, `has`, `can`, `should`,
+`will`, `must`, or `need`. Bare adjectives or verbs (`enabled`, `valid`, `ok`, `active`) are forbidden — they don't read
+as questions.
 
 **Correct:**
 
@@ -238,23 +236,21 @@ when (val result: SkillResult = skill.execute(arguments)) {
 }
 ```
 
-**Rule:** Only `throw` on "programmer errors" (e.g. impossible states). Business
-failures must return `SkillResult.Failure`.
+**Rule:** Only `throw` on "programmer errors" (e.g. impossible states). Business failures must return
+`SkillResult.Failure`.
 
 ### 5.1 LLM-Visible vs User-Visible Errors
 
-Tool failure payloads are routed to **two distinct audiences**, and they
-must be kept separate. Conflating them leaks stack traces into the chat
-or strips the technical detail the LLM needs to self-correct.
+Tool failure payloads are routed to **two distinct audiences**, and they must be kept separate. Conflating them leaks
+stack traces into the chat or strips the technical detail the LLM needs to self-correct.
 
-- **LLM-visible (`errorMessage` / `errorDetail`)** — the technical cause
-  the model reads to decide its next action. Includes exception class,
-  the failing line / argument, the raw reason string. Goes into the
-  tool result body the LLM will see on the next turn.
-- **User-visible** — the *short* localized message shown in the IDE
-  toast / popup / status bar. Always goes through `GradumBundle.message`
-  (see `plugin/src/main/resources/messages/`). Never contains stack
-  traces, raw class names, or file paths the user did not open.
+- **LLM-visible (`errorMessage` / `errorDetail`)** — the technical cause the model reads to decide its next action.
+  Includes exception class, the failing line / argument, the raw reason string. Goes into the tool result body the LLM
+  will see on the next turn.
+- **User-visible** — the *short* localized message shown in the IDE toast / popup / status bar. Always goes through
+  `GradumBundle.message`
+  (see `plugin/src/main/resources/messages/`). Never contains stack traces, raw class names, or file paths the user did
+  not open.
 
 ```kotlin
 // correct — split between the two audiences
@@ -266,16 +262,14 @@ val userMessage: String = "ReadFile failed: ${ioException.message}"
 ```
 
 The boundary layer (e.g. `AssistantChatBubble.ToolCallBlock`,
-`formatToolDetails`) is the **only** place where these two are joined
-into the rendered chat bubble. Domain code never composes a "user-facing
-error string" — it always returns both halves, and the renderer picks.
+`formatToolDetails`) is the **only** place where these two are joined into the rendered chat bubble. Domain code never
+composes a "user-facing error string" — it always returns both halves, and the renderer picks.
 
 ---
 
 ## 6. Serialization
 
-Use `kotlinx.serialization` for JSON parsing in the LLM client and for
-request/response models in HTTP routes:
+Use `kotlinx.serialization` for JSON parsing in the LLM client and for request/response models in HTTP routes:
 
 ```
 @Serializable
@@ -474,8 +468,8 @@ targetFile.bufferedReader(Charsets.UTF_8).use { reader ->
 - Between methods inside a class: **1** blank line.
 - No blank line after KDoc; the code starts immediately.
 - Between import groups: **1** blank line.
-- Within a function body, add a blank line between distinct logical steps so
-  the function does not read as a single dense block. Common split points:
+- Within a function body, add a blank line between distinct logical steps so the function does not read as a single
+  dense block. Common split points:
     - After input parsing / parameter extraction
     - After the main computation, before building the return value
     - Before the final `return` statement
@@ -533,13 +527,12 @@ private fun runDiagnostics(conn: LspConnection, path: Path, languageId: String):
 
 ## 14. Line Width
 
-Prefer long lines (Apple kernel style). Do not break chains or natural
-sequences unnecessarily. Break only when one of the following applies:
+Prefer long lines (Apple kernel style). Do not break chains or natural sequences unnecessarily. Break only when one of
+the following applies:
 
 - A function signature has more than 4 parameters (see section 10)
 - The line exceeds ~200 characters
-- Breaking improves readability, e.g. for deeply nested `mapOf` structures
-  with 5+ keys
+- Breaking improves readability, e.g. for deeply nested `mapOf` structures with 5+ keys
 
 ```kotlin
 // correct - long line for a chain
@@ -568,8 +561,7 @@ val friendlyDiagnostics: List<Map<String, Any?>> = items
 
 ## 15. Explicit Type Annotations
 
-All declarations require full type annotations. **Do not** rely on type
-inference to save keystrokes.
+All declarations require full type annotations. **Do not** rely on type inference to save keystrokes.
 
 ```kotlin
 // correct
@@ -583,15 +575,14 @@ val tokens = command.trim().split("\\s+".toRegex())
 val filePath = Path.of(path).toAbsolutePath().normalize()
 ```
 
-Properties in `@Serializable` data classes may rely on compile-time inference
-(this is the only exception).
+Properties in `@Serializable` data classes may rely on compile-time inference (this is the only exception).
 
 ---
 
 ## 16. File Organization
 
-Organize files from highest to lowest level of abstraction — the reader sees
-the high-level flow first, then the details:
+Organize files from highest to lowest level of abstraction — the reader sees the high-level flow first, then the
+details:
 
 ```kotlin
 // 1. Main entry point (public API)
@@ -609,8 +600,8 @@ private fun readLinesInRange(lines: List<String>, startLine: Int, endLine: Int):
 }
 ```
 
-Private helper functions used only within a single class belong at the
-bottom of the same file, after all public class definitions.
+Private helper functions used only within a single class belong at the bottom of the same file, after all public class
+definitions.
 
 ---
 
@@ -734,9 +725,8 @@ Use Gradle:
 
 ## 20. Try-Catch
 
-In important error handling locations, **always** add logging in `catch` blocks.
-The exception variable **must** be named after the exception type — never the
-generic `e` / `ex` / `exception` / `throwable`. The name itself documents the
+In important error handling locations, **always** add logging in `catch` blocks. The exception variable **must** be
+named after the exception type — never the generic `e` / `ex` / `exception` / `throwable`. The name itself documents the
 failure mode at the call site.
 
 ```kotlin
@@ -751,8 +741,8 @@ try {
 try {
     val state: LoadState = parseState(rawText)
 } catch (stateException: IllegalStateException) {
-    logger.error("Invalid state in $statePath", stateException)
-    return makeFailure("INVALID_STATE", stateException.message ?: "Invalid state")
+    logger.error("Invalid scanState in $statePath", stateException)
+    return makeFailure("INVALID_STATE", stateException.message ?: "Invalid scanState")
 }
 
 try {
@@ -779,15 +769,14 @@ try {
 ```
 
 **Rule:** Every `catch` block in domain code MUST log via `logger.warn` /
-`logger.error` / `logger.info`. Bare `return makeFailure(...)` without
-logging silently swallows the cause and is a lint violation.
+`logger.error` / `logger.info`. Bare `return makeFailure(...)` without logging silently swallows the cause and is a lint
+violation.
 
 ---
 
 ## 21. Single-Line Function Bodies
 
-When a function body consists of a single statement, place the body on the
-same line as the function declaration:
+When a function body consists of a single statement, place the body on the same line as the function declaration:
 
 ```kotlin
 // correct - single statement on same line
@@ -817,23 +806,20 @@ fun processItem(item: Item): Result {
 ## 22. Class Public-Method Count
 
 A single class exposes **at most 20 public methods / properties** (detekt
-`TooManyFunctions.thresholdInClasses = 20`, restrict to public visibility
-via `@Suppress("MemberVisibilityCanBePrivate")` carve-outs only).
+`TooManyFunctions.thresholdInClasses = 20`, restrict to public visibility via
+`@Suppress("MemberVisibilityCanBePrivate")` carve-outs only).
 
-When a class grows beyond 20 public surface members, the cause is almost
-always one of:
+When a class grows beyond 20 public surface members, the cause is almost always one of:
 
 - **Mixed responsibilities** — extract a `FooFormatter` / `FooValidator`
   collaborator.
 - **Wide parameter lists** — group related parameters into a
   `FooRequest` data class.
-- **`object` used as a namespace** — promote to a top-level file with
-  private internal helpers.
+- **`object` used as a namespace** — promote to a top-level file with private internal helpers.
 
-Lint-enforced by detekt `TooManyFunctions`. A class that legitimately
-needs more (e.g. a sealed-class hierarchy of 30 narrow `when` cases)
-should annotate the class with `@Suppress("TooManyFunctions")` and a
-KDoc explaining why.
+Lint-enforced by detekt `TooManyFunctions`. A class that legitimately needs more (e.g. a sealed-class hierarchy of 30
+narrow `when` cases)
+should annotate the class with `@Suppress("TooManyFunctions")` and a KDoc explaining why.
 
 ---
 
@@ -844,35 +830,28 @@ The rules in this document are enforced automatically by **detekt**
 `gradlew check`. Configured by `config/detekt/detekt.yml`.
 
 - **detekt (core)** — naming (`BooleanPropertyNaming` /
-  `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`),
-  complexity (cyclomatic / nested depth / function count via
-  `TooManyFunctions`), error-handling antipatterns
-  (`SwallowedException` / `TooGenericExceptionCaught` /
+  `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`), complexity (cyclomatic / nested depth / function
+  count via
+  `TooManyFunctions`), error-handling antipatterns (`SwallowedException` / `TooGenericExceptionCaught` /
   `PrintStackTrace`), style (`MagicNumber` / `WildcardImport` /
   `UnusedImports`), comments (`UndocumentedPublicClass` /
   `UndocumentedPublicFunction`).
-- **detekt-formatting** — formatting subset equivalent to ktlint
-  standard rules: indent, import order, line length, brace placement
-  on single-line `if` / `for` / `while` (we disable the
+- **detekt-formatting** — formatting subset equivalent to ktlint standard rules: indent, import order, line length,
+  brace placement on single-line `if` / `for` / `while` (we disable the
   `BracesOnIfStatements` rule, see §9), trailing comma, etc.
 
-**Why not ktlint as a separate tool?** ktlint's bundled parser does
-not understand Kotlin 2.1+ syntax (guarded `when` patterns), so
-running it produces hard parse errors against our existing code
-(`utils/ContextManager.kt`). detekt-formatting covers the same
-ground with a much wider rule set and our chosen detekt baseline
-format, so the second tool is redundant.
+**Why not ktlint as a separate tool?** ktlint's bundled parser does not understand Kotlin 2.1+ syntax (guarded `when`
+patterns), so running it produces hard parse errors against our existing code (`utils/ContextManager.kt`).
+detekt-formatting covers the same ground with a much wider rule set and our chosen detekt baseline format, so the second
+tool is redundant.
 
-CI must run `gradlew detekt`. New code must produce **zero** new
-violations; legacy violations are recorded in
+CI must run `gradlew detekt`. New code must produce **zero** new violations; legacy violations are recorded in
 `config/detekt/baseline.xml` and tracked down by `// detekt:ignore` /
 `@Suppress` only when there is a real reason.
 
 Adding a new lint rule is a **two-step change**:
 
 1. Add the rule + a recommended-fix section to this document.
-2. Update `config/detekt/detekt.yml` with the rule, regenerate the
-   baseline (`gradlew detektBaseline`) if the codebase has many
-   pre-existing violations, and add a unit test under
-   `src/test/kotlin/.../lint/` that exercises the new rule on a
-   positive and negative example.
+2. Update `config/detekt/detekt.yml` with the rule, regenerate the baseline (`gradlew detektBaseline`) if the codebase
+   has many pre-existing violations, and add a unit test under
+   `src/test/kotlin/.../lint/` that exercises the new rule on a positive and negative example.

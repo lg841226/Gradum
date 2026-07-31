@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-07-30 11:52:24 Changed by gwy
+ * GradumCallbacks.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -33,8 +33,6 @@ import kotlinx.io.IOException
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import java.awt.Toolkit
-import java.awt.datatransfer.DataFlavor
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -100,7 +98,7 @@ data class EventCallbacks(
 /**
  * Creates and remembers all Gradum callbacks.
  *
- * @param session The chat session state
+ * @param session The chat session scanState
  * @param toolWindow The IntelliJ tool window (nullable for testing)
  * @param coroutineScope Scope for launching coroutines
  */
@@ -167,10 +165,6 @@ private fun rememberEventCallbacks(
           it is AttachedText && it.content == attachedContext.content
         }
 
-        is AttachedQuote -> session.attachedFiles.removeAll {
-          it is AttachedQuote && it.content == attachedContext.content
-        }
-
         is AttachedImage -> session.attachedFiles.removeAll {
           it is AttachedImage && it.id == attachedContext.id
         }
@@ -220,7 +214,6 @@ private fun uploadImageCallback(
               imageFile.length == existing.originalSizeBytes
 
             is AttachedText -> false
-            is AttachedQuote -> false
           }
         }
       }

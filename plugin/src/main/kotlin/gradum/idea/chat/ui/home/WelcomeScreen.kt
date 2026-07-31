@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-07-29 18:32:58 Changed by gwy
+ * WelcomeScreen.kt  2026-07-31 12:42:48 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -81,13 +81,15 @@ fun WelcomeScreen(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
       ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+        ) {
           Icon(
             contentDescription = null,
             key = GradumIcons.ColorLogo,
             modifier = Modifier.size(28.dp)
           )
-          Spacer(modifier = Modifier.width(GradumSpacing.md))
           Text(
             fontWeight = FontWeight.Medium,
             fontFamily = titleFontFamily,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-31 09:55:31 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-31 14:02:08 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -14,10 +14,12 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -44,6 +46,15 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
+/** Corner radius (8 dp bottom corners, square top corners) for fenced
+ *  code blocks and tables. */
+internal val CodeBlockCornerRadius: RoundedCornerShape =
+  RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = GradumSpacing.md, bottomEnd = GradumSpacing.md)
+
+/** Top-only corner radius for the sticky toolbar / header overlays. */
+internal val StickySectionTopCorners: RoundedCornerShape =
+  RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp)
+
 private const val CODE_COLLAPSE_LIMIT: Int = 20
 private val CollapseStripPadding = GradumSpacing.sm
 
@@ -69,6 +80,7 @@ class GradumCodeBlockRenderer(
       .collectAsState(AnnotatedString(block.content))
 
     val containerModifier = modifier
+      .clip(CodeBlockCornerRadius)
       .background(styling.background)
       .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
@@ -104,6 +116,7 @@ class GradumCodeBlockRenderer(
         Box(
           modifier = Modifier
             .fillMaxWidth()
+            .clip(StickySectionTopCorners)
             .background(styling.background)
         ) {
           DisableSelection {
@@ -196,9 +209,9 @@ class GradumCodeBlockRenderer(
 
             if (isCollapsible) {
               DisableSelection {
-                val hiddenLinesCount = lineCount - CODE_COLLAPSE_LIMIT
-                val collapseBarColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.15f)
                 val textColor = JewelTheme.globalColors.text.info
+                val hiddenLinesCount = lineCount - CODE_COLLAPSE_LIMIT
+                val collapseBarColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.2f)
 
                 Row(
                   modifier = Modifier
@@ -212,8 +225,9 @@ class GradumCodeBlockRenderer(
                   Icon(
                     tint = textColor,
                     contentDescription = null,
-                    key = if (isCollapsed) AllIconsKeys.General.ChevronDown
-                    else AllIconsKeys.General.ChevronUp
+                    key =
+                      if (isCollapsed) AllIconsKeys.General.ChevronDown
+                      else AllIconsKeys.General.ChevronUp
                   )
                   Spacer(Modifier.width(CollapseStripPadding))
                   Text(

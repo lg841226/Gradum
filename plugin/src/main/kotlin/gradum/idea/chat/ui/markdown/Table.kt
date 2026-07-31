@@ -14,10 +14,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -333,6 +335,7 @@ fun ScrollableTable(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
+      .clip(CodeBlockCornerRadius)
       .background(tableBackground)
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
@@ -356,6 +359,7 @@ fun ScrollableTable(
         Box(
           modifier = Modifier
             .fillMaxWidth()
+            .clip(StickySectionTopCorners)
             .background(tableBackground)
         ) {
           DisableSelection {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-29 21:20:06 Changed by gwy
+ * Styling.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -89,7 +89,7 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
 
 /**
  * Returns a `LinkColors` with `content` overridden and the other 5
- * state colors (disabled / focused / hovered / pressed / visited)
+ * scanState colors (disabled / focused / hovered / pressed / visited)
  * carried through unchanged. `LinkColors` is a plain class (not
  * a data class) so it has no `copy(...)` — we hand-roll a small
  * `withContent` for the chat's "thinking-mode link color"
@@ -107,7 +107,7 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 /**
  * Build an [InlinesStyling] for the chat's `Markdown(...)` fallback
  * path. Link colors are pulled directly from [linkColors] — the
- * official Jewel API already provides 6 state-aware Color fields
+ * official Jewel API already provides 6 scanState-aware Color fields
  * (`content` / `contentDisabled` / `contentFocused` /
  * `contentHovered` / `contentPressed` / `contentVisited`), and
  * there is no need to re-implement them in the chat. Centralized

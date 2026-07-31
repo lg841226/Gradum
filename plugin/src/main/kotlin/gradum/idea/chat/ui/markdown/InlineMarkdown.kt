@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-31 11:32:57 Changed by gwy
+ * InlineMarkdown.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -478,7 +478,7 @@ private fun buildInlineRender(
 }
 
 
-/** Mutable state threaded through the recursive walker. UI-thread-only by design (Compose `remember`). */
+/** Mutable scanState threaded through the recursive walker. UI-thread-only by design (Compose `remember`). */
 @Suppress("LongParameterList")
 private class RenderState(
   val fontSizeSp: Float,

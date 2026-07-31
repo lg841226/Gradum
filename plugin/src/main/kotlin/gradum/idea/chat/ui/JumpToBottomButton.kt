@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-07-29 21:36:45 Changed by gwy
+ * JumpToBottomButton.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -90,7 +90,7 @@ fun JumpToBottomButton(
   var isAlternativeMode by remember { mutableStateOf(false) }
   // The pill is visible when the user could benefit from its
   // current action. The rule flips on mode: in alternative
-  // mode (jump to top), being at the top is the "done" state
+  // mode (jump to top), being at the top is the "done" scanState
   // so the pill hides there.
   val isVisible: Boolean = if (isAlternativeMode) !isAtTop else !isAtBottom
   val textAlpha: Float = rememberTextRevealAlpha(isVisible)

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-07-29 21:41:52 Changed by gwy
+ * GradumUI.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -37,11 +37,11 @@ import kotlin.time.Duration.Companion.milliseconds
  * This function orchestrates the entire chat UI by:
  * - Setting up effects for tab name updates and model polling
  * - Creating callbacks for user interactions
- * - Building input state from session data
+ * - Building input scanState from session data
  * - Rendering either ChatScreen or WelcomeScreen
  *
  * @param toolWindow The IntelliJ tool window (nullable for testing)
- * @param session The chat session state manager
+ * @param session The chat session scanState manager
  */
 @Composable
 fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
@@ -54,7 +54,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
   TabNameEffect(session, toolWindow)
   ModelPollingEffect(session, coroutineScope)
 
-  // Create callbacks and state
+  // Create callbacks and scanState
   val callbacks = rememberGradumCallbacks(session, toolWindow, coroutineScope)
   val state = rememberGradumState(session, editorContext, callbacks)
 
@@ -93,7 +93,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 }
 
 /**
- * Updates the tool window tab name based on session state.
+ * Updates the tool window tab name based on session scanState.
  *
  * Shows a spinner animation while sending, otherwise displays
  * "Welcome" or "New Chat" depending on whether messages have been sent.
@@ -105,7 +105,7 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
     val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
 
     if (session.selectedPermission == PermissionMode.DEBUG) {
-      tabContent.displayName = message("gradum.debug")
+      tabContent.displayName = message("gradum.debug.mode")
       return@LaunchedEffect
     }
 

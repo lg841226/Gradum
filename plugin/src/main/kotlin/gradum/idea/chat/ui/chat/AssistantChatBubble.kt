@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-07-30 23:24:20 Changed by gwy
+ * AssistantChatBubble.kt  2026-07-31 11:44:30 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -46,6 +46,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
 
+private val SEGMENT_RISE_DP: Dp = 8.dp
 private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_MS: Int = 100
@@ -58,7 +59,6 @@ private const val SEGMENT_STAGGER_MAX_MS: Long = 300
 private const val SEGMENT_BASE_DURATION_MS: Int = 150
 private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
 private const val SEGMENT_MAX_EXTRA_MS: Int = 400
-private val SEGMENT_RISE_DP: Dp = 8.dp
 
 /**
  * Left-aligned assistant message bubble.
@@ -71,12 +71,12 @@ fun AssistantChatBubble(
   message: ChatMessage,
   modifier: Modifier = Modifier,
   sendingPhase: String = "",
-  selectedPermission: String = PermissionMode.READONLY,
-  isLoading: Boolean = false,
-  actionsEnabled: Boolean = true,
   onRetry: () -> Unit = {},
   onContentChange: () -> Unit = {},
   onUrlClick: (String) -> Unit = {},
+  isLoading: Boolean = false,
+  actionsEnabled: Boolean = true,
+  selectedPermission: String = PermissionMode.READONLY,
   onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
   onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {

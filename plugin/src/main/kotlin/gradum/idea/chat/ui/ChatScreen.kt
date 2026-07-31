@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-07-30 19:07:51 Changed by gwy
+ * ChatScreen.kt  2026-07-31 11:42:08 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -201,9 +201,6 @@ fun ChatScreen(
                   AssistantChatBubble(
                     message = message,
                     sendingPhase = if (isLastAssistant) sendingPhase else "",
-                    selectedPermission = selectedPermission,
-                    isLoading = isLastAssistant,
-                    actionsEnabled = !isWaitingForResponse,
                     onRetry = { onRetryMessage(index) },
                     onContentChange = {
                       coroutineScope.launch {
@@ -220,8 +217,11 @@ fun ChatScreen(
                         logger.warn("Failed to open URL: $url", iOException)
                       }
                     },
-                    onViewDiff = onViewDiff,
+                    isLoading = isLastAssistant,
+                    actionsEnabled = !isWaitingForResponse,
+                    selectedPermission = selectedPermission,
                     onOpenInEditor = onOpenInEditor,
+                    onViewDiff = onViewDiff,
                   )
                 }
               }

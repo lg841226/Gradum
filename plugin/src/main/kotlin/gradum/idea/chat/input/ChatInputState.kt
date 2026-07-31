@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ChatInputState.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.input
@@ -12,7 +13,7 @@ import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.PendingMessage
 
-/** UI state for the chat input area. */
+/** UI scanState for the chat input area. */
 data class ChatInputState(
   val models: List<ModelInfo> = emptyList(),
   val pinnedModels: List<ModelInfo> = emptyList(),
@@ -34,7 +35,7 @@ data class ChatInputState(
   /**
    * `true` if the currently selected model can accept image
    * attachments. Used by the `Upload Image` row in the add-menu
-   * popup to switch to the disabled state with a `gradum.model.no.vision`
+   * popup to switch to the disabled scanState with a `gradum.model.no.vision`
    * tooltip. Auto-select falls through to the recommended model,
    * which may or may not be a vision model — if it is not, the
    * same rule still applies, so we read directly from

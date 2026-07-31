@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-30 11:37:29 Changed by gwy
+ * GradumChatSession.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -51,9 +51,9 @@ private data class ModelsListResponse(
 )
 
 /**
- * Project-level service that manages the chat session state.
+ * Project-level service that manages the chat session scanState.
  *
- * This class serves as the central state holder for the Gradum chat interface,
+ * This class serves as the central scanState holder for the Gradum chat interface,
  * coordinating between the UI layer (JetBrains Compose) and the backend server.
  * It manages message history, model selection, file attachments, and the message
  * queue for handling concurrent requests.
@@ -62,7 +62,7 @@ private data class ModelsListResponse(
  * fetch available models and send chat messages. Responses are streamed back
  * as NDJSON events and progressively update the assistant's message content.
  *
- * Registered as a project-level service in `plugin.xml` so that state persists
+ * Registered as a project-level service in `plugin.xml` so that scanState persists
  * across tool window open/close cycles within the same project.
  */
 @Service(Service.Level.PROJECT)
@@ -81,7 +81,7 @@ class GradumChatSession {
    */
   var project: Project? = null
 
-  /** The text field state for the chat input area. */
+  /** The text field scanState for the chat input area. */
   val textState: TextFieldState = TextFieldState()
 
   /** The list of chat messages displayed in the conversation view. */
@@ -127,7 +127,7 @@ class GradumChatSession {
    * silently defaulted to `"write"` and read-only was a no-op. The
    * session is now created with the wire format directly, and
    * [toolMode] is a pure derivation of this value — no parallel mutable
-   * state to drift.
+   * scanState to drift.
    */
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
@@ -200,7 +200,7 @@ class GradumChatSession {
   private var pollingJob: Job? = null
 
   /**
-   * Resets the entire session to its initial state.
+   * Resets the entire session to its initial scanState.
    *
    * Clears all messages, attachments, pending items, and the input field.
    * Called when the user clicks "New Chat" or when the session needs to be
@@ -343,7 +343,7 @@ class GradumChatSession {
                 newRecommended?.serverName != recommendedModel?.serverName
             if (modelsChanged || recommendedChanged) {
               applyModelList(newModels, newRecommended)
-              log.info("Model state updated: ${newModels.size} models, recommended = ${newRecommended?.name ?: "<none>"}")
+              log.info("Model scanState updated: ${newModels.size} models, recommended = ${newRecommended?.name ?: "<none>"}")
             }
           }.onFailure { exception ->
             log.debug("Failed to decode /models response, skipping this tick", exception)
@@ -473,12 +473,10 @@ class GradumChatSession {
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
     val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
-    val quoteAttachments: List<AttachedQuote> = attachments.filterIsInstance<AttachedQuote>()
     val prefix: String = buildString {
       if (contextPath.isNotEmpty()) append("<Context path=\"$contextPath\"/>")
       if (attachmentPaths.isNotEmpty()) append("<Attachments paths=\"${attachmentPaths.joinToString(", ")}\"/>")
       textAttachments.forEach { append("<Context text=\"${it.content}\"/>") }
-      quoteAttachments.forEach { append("<quote text=\"${it.content}\"/>") }
     }
 
     val systemRule = """

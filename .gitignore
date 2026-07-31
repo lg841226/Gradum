@@ -51,8 +51,9 @@ main.txt
 gradum.properties
 
 # Sensitive words (user-defined, do not commit)
-red_line_keywords.txtscripts/__pycache__/
+red_line_keywords.txt
 scripts/__pycache__/
+**/__pycache__/
 git_stats_*.csv
 quality_report_*.zip
 src/main/resources/red_line_keywords.txt

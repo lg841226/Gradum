@@ -199,7 +199,7 @@ color = LocalColorPalette.current.greenOrNull(9) ?: Color.Green
 When there are more than 3 related parameters, they MUST be encapsulated as State / Actions objects.
 
 ```kotlin
-// Correct — state encapsulation
+// Correct — scanState encapsulation
 data class ModelBarState(
     val models: List<Model>,
     val selectedModel: Model?,

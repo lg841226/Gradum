@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineMarkdownTest.kt  2026-07-31 11:05:53 Changed by gwy
+ * GradumInlineMarkdownTest.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -260,7 +260,7 @@ class GradumInlineMarkdownTest {
     // the `Markdown(...)` fallback path (and the legacy
     // `UrlAnnotation` + `pointerInput` path on the prose
     // `Text`) paint a stable underline, even when the IDE LaF
-    // hover state is unreliable. The hover-affordance is added
+    // hover scanState is unreliable. The hover-affordance is added
     // by the `ExternalLink` path via `LinkUnderlineBehavior`,
     // not by the inline span. The walker's contribution here is
     // color + underline.

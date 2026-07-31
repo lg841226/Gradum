@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-07-29 21:24:44 Changed by gwy
+ * ChatMessageList.kt  2026-07-31 11:42:08 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -61,9 +61,9 @@ fun ChatMessageList(
         else -> AssistantChatBubble(
           message = message,
           sendingPhase = if (isLastAssistant) sendingPhase else "",
-          selectedPermission = selectedPermission,
+          onRetry = { onRetryMessage(index) },
           isLoading = isLastAssistant,
-          onRetry = { onRetryMessage(index) }
+          selectedPermission = selectedPermission
         )
       }
     }

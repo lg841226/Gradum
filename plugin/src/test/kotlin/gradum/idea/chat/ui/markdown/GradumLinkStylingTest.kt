@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumLinkStylingTest.kt  2026-07-17 23:06:55 Changed by gwy
+ * GradumLinkStylingTest.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -19,14 +19,14 @@ import org.junit.Test
 
 /**
  * Tests for `gradumInlinesStyling` — the single source of truth for
- * the chat's `Markdown(...)` fallback path's per-state link colors
+ * the chat's `Markdown(...)` fallback path's per-scanState link colors
  * and inline emphasis.
  *
  * The v1 implementation kept a hand-rolled `LinkStateStyles` data
  * class with 6 SpanStyle fields; the v2 replacement (LANDED
  * 2026-07-15, after reading Jewel 0.37.0's `LinkColors` source)
  * pulls link colors directly from `JewelTheme.linkStyle.colors` —
- * the official Jewel API already provides 6 state-aware Color
+ * the official Jewel API already provides 6 scanState-aware Color
  * fields (`content` / `contentDisabled` / `contentFocused` /
  * `contentHovered` / `contentPressed` / `contentVisited`). The
  * hand-rolled re-implementation duplicated them and added a layer
@@ -89,7 +89,7 @@ class GradumLinkStylingTest {
       styling.linkVisited.color,
     )
     assertEquals(
-      "all 6 link state colors should be preserved as distinct values",
+      "all 6 link scanState colors should be preserved as distinct values",
       6,
       distinctColors.size,
     )

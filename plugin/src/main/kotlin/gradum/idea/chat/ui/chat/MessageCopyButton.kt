@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageCopyButton.kt  2026-07-29 18:32:58 Changed by gwy
+ * MessageCopyButton.kt  2026-07-31 15:54:30 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -71,7 +71,7 @@ fun MessageCopyButton(
  * Copies [text] to the system clipboard and fires callbacks.
  *
  * @param onCopied  Invoked immediately after the copy succeeds.
- * @param onReset   Invoked after [delayMillis] to revert any visual state.
+ * @param onReset   Invoked after [delayMillis] to revert any visual scanState.
  */
 fun copyToClipboard(
   text: String,

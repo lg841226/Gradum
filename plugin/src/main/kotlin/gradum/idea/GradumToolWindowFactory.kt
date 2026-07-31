@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-07-29 21:57:53 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-07-31 16:22:46 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -45,16 +45,16 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
   @Suppress("UnstableApiUsage")
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-    val session: GradumChatSession = project.getService(GradumChatSession::class.java)
+    val chatSession: GradumChatSession = project.getService(GradumChatSession::class.java)
       ?: error("GradumChatSession is not registered in plugin.xml")
-    session.project = project
+    chatSession.project = project
 
     toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
       SwingBridgeTheme {
-        val scope: CoroutineScope = rememberCoroutineScope()
-        session.scope = scope
-        val codeHighlighter = remember(project, scope) {
-          CodeHighlighterFactory(project, scope).createHighlighter()
+        val uiCoroutineScope: CoroutineScope = rememberCoroutineScope()
+        chatSession.scope = uiCoroutineScope
+        val codeHighlighter = remember(project, uiCoroutineScope) {
+          CodeHighlighterFactory(project, uiCoroutineScope).createHighlighter()
         }
         val markdownStyling = rememberGradumMarkdownStyling()
         val blockRenderer = remember(markdownStyling) {
@@ -72,7 +72,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
           codeHighlighter = codeHighlighter,
         ) {
           CompositionLocalProvider(LocalCodeHighlighter provides codeHighlighter) {
-            GradumUI(toolWindow = toolWindow, session = session)
+            GradumUI(toolWindow = toolWindow, session = chatSession)
           }
         }
       }
@@ -88,11 +88,11 @@ class GradumToolWindowFactory : ToolWindowFactory {
         val toolWindow: ToolWindow =
           ToolWindowManager.getInstance(project).getToolWindow("Gradum") ?: return
         val session: GradumChatSession = project.getService(GradumChatSession::class.java) ?: return
-        val tabContent = toolWindow.contentManager.contents.firstOrNull() ?: return
+        val welcomeTabContent = toolWindow.contentManager.contents.firstOrNull() ?: return
 
         session.reset()
 
-        tabContent.displayName = message("gradum.toolwindow.welcome")
+        welcomeTabContent.displayName = message("gradum.toolwindow.welcome")
       }
     }
     toolWindow.setTitleActions(listOf(newChatAction))
