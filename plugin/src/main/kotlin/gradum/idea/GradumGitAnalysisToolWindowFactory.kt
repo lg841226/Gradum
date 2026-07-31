@@ -2,27 +2,28 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-07-31 18:57:47 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-07-31 20:50:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
@@ -55,15 +56,39 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
         val scanState = GradumGitAnalysisService.scanState
         val infoTextColor = LocalGlobalColors.current.text.info
+        val focusRequester = remember { FocusRequester() }
 
-        Column(
-          modifier = Modifier.fillMaxSize(),
-          verticalArrangement = Arrangement.Center,
-          horizontalAlignment = Alignment.CenterHorizontally
+        DisposableEffect(project, toolWindow) {
+          val connection = project.messageBus.connect()
+          connection.subscribe(ToolWindowManagerListener.TOPIC, object : ToolWindowManagerListener {
+            override fun toolWindowShown(shownToolWindow: ToolWindow) {
+              if (shownToolWindow.id != toolWindow.id) return
+              ApplicationManager.getApplication().invokeLater {
+                focusRequester.requestFocus()
+              }
+            }
+          })
+          onDispose { connection.dispose() }
+        }
+
+        Box(
+          modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusTarget()
         ) {
+          if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
+            GitAuditActionBar(
+              onClose = { GradumGitAnalysisService.goHome() },
+              onRefresh = { GradumGitAnalysisService.startScan(project) },
+              enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING,
+              modifier = Modifier.align(Alignment.TopStart)
+            )
+          }
           when (scanState) {
             GradumGitAnalysisService.ScanState.SCANNING -> {
               Column(
+                modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
               ) {
@@ -82,6 +107,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
 
             GradumGitAnalysisService.ScanState.FAILED -> {
               Column(
+                modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
               ) {
@@ -89,7 +115,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   color = infoTextColor,
                   text = message("gradum.toolwindow.git.analysis.interrupted")
                 )
-                GradumGitAnalysisService.lastError?.let { error ->
+                GradumGitAnalysisService.lastErrorMessage?.let { error ->
                   Text(
                     text = error,
                     color = infoTextColor,
@@ -97,31 +123,29 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   )
                 }
                 Spacer(Modifier.height(GradumSpacing.sm))
-                OutlinedButton(onClick = { GradumGitAnalysisService.cancelScan() }) {
+                OutlinedButton(onClick = { GradumGitAnalysisService.goHome() }) {
                   Text(message("gradum.toolwindow.git.analysis.back"))
                 }
               }
             }
 
             GradumGitAnalysisService.ScanState.SUCCESS -> {
-              Box(Modifier.fillMaxSize()) {
-                GitAuditActionBar(modifier = Modifier.align(Alignment.TopStart))
-                Text(
-                  color = infoTextColor,
-                  text = message(
-                    "gradum.toolwindow.git.analysis.success",
-                    GradumGitAnalysisService.totalCommits
-                  ),
-                  modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(horizontal = GradumSpacing.lg),
-                  textAlign = TextAlign.Center
-                )
-              }
+              Text(
+                color = infoTextColor,
+                text = message(
+                  "gradum.toolwindow.git.analysis.success",
+                  GradumGitAnalysisService.totalCommits
+                ),
+                modifier = Modifier
+                  .align(Alignment.Center)
+                  .padding(horizontal = GradumSpacing.lg),
+                textAlign = TextAlign.Center
+              )
             }
 
             else -> {
               Column(
+                modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
               ) {
@@ -172,9 +196,13 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
  * backed by [gradum.idea.chat.ui.common.IconTooltipButton] with an
  * internationalized tooltip and accessibility description.
  */
-@androidx.compose.runtime.Composable
-private fun GitAuditActionBar(modifier: Modifier = Modifier) {
-  val lineColor = JewelTheme.globalColors.borders.normal
+@Composable
+private fun GitAuditActionBar(
+  onClose: () -> Unit,
+  onRefresh: () -> Unit,
+  enabled: Boolean = true,
+  modifier: Modifier = Modifier
+) {
   var isAllExpanded by remember { mutableStateOf(false) }
   val currentTooltip = if (isAllExpanded) {
     message("gradum.toolwindow.git.analysis.action.collapse")
@@ -190,28 +218,22 @@ private fun GitAuditActionBar(modifier: Modifier = Modifier) {
           tooltip = message("gradum.toolwindow.git.analysis.action.close"),
           iconKey = AllIconsKeys.General.Close,
           contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
-          onClick = {},
+          onClick = onClose,
+          enabled = enabled,
           modifier = Modifier.iconButtonPadding()
         )
         IconTooltipButton(
           tooltip = message("gradum.toolwindow.git.analysis.action.refresh"),
           iconKey = AllIconsKeys.General.Refresh,
           contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
-          onClick = {},
+          onClick = onRefresh,
+          enabled = enabled,
           modifier = Modifier.iconButtonPadding()
         )
         IconTooltipButton(
           tooltip = message("gradum.toolwindow.git.analysis.action.preview"),
           iconKey = AllIconsKeys.General.LayoutEditorPreview,
           contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
-          onClick = {},
-          enabled = false,
-          modifier = Modifier.iconButtonPadding()
-        )
-        IconTooltipButton(
-          tooltip = message("gradum.toolwindow.git.analysis.action.show"),
-          iconKey = AllIconsKeys.General.Show,
-          contentDescription = message("gradum.toolwindow.git.analysis.action.show"),
           onClick = {},
           enabled = false,
           modifier = Modifier.iconButtonPadding()
@@ -224,13 +246,15 @@ private fun GitAuditActionBar(modifier: Modifier = Modifier) {
           enabled = false,
           modifier = Modifier.iconButtonPadding()
         )
+        IconTooltipButton(
+          tooltip = message("gradum.toolwindow.git.analysis.action.show"),
+          iconKey = AllIconsKeys.General.Show,
+          contentDescription = message("gradum.toolwindow.git.analysis.action.show"),
+          onClick = {},
+          enabled = false,
+          modifier = Modifier.iconButtonPadding()
+        )
       }
-      Box(
-        modifier = Modifier
-          .width(1.dp)
-          .fillMaxHeight()
-          .background(lineColor)
-      )
     }
   }
 }
@@ -245,7 +269,7 @@ private fun Modifier.iconButtonPadding() = this
  * `globalColors.text.info`, a 20 dp right-aligned marker column with an
  * `sm` gap, and `md` vertical spacing between items.
  */
-@androidx.compose.runtime.Composable
+@Composable
 private fun GitAuditFeatureList(
   bullet: Char, bulletStyle: TextStyle, contentStyle: TextStyle
 ) {

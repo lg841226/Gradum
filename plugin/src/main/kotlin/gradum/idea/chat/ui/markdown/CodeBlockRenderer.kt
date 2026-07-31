@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-31 14:02:08 Changed by gwy
+ * CodeBlockRenderer.kt  2026-07-31 21:33:26 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -268,39 +268,38 @@ class GradumCodeBlockRenderer(
 
   @Composable
   private fun LineNumberColumn(
-    textLayout: TextLayoutResult,
-    textStyle: TextStyle
+    textLayout: TextLayoutResult, textStyle: TextStyle
   ) {
-    val textColor = JewelTheme.globalColors.text.disabled
+    val lineNumberColor = JewelTheme.globalColors.text.disabled
 
     val displayText = remember(textLayout) {
-      val input = textLayout.layoutInput.text.text
-      val lineCount = textLayout.lineCount
-      val newlineOffsets = buildList {
-        input.forEachIndexed { i, c ->
-          if (c == '\n') add(i)
+      val sourceText = textLayout.layoutInput.text.text
+      val totalDisplayLines = textLayout.lineCount
+      val newlinePositions = buildList {
+        sourceText.forEachIndexed { index, char ->
+          if (char == '\n') add(index)
         }
       }
 
-      buildString(lineCount * 4) {
-        var nlIndex = 0
-        var prevSrcLine = 0
+      buildString(totalDisplayLines * 4) {
+        var newlineIndex = 0
+        var previousSourceLine = 0
 
-        for (displayLine in 0 until lineCount) {
-          val offset = textLayout.getLineStart(displayLine)
+        for (displayLineIndex in 0 until totalDisplayLines) {
+          val lineStartOffset = textLayout.getLineStart(displayLineIndex)
 
-          while (nlIndex < newlineOffsets.size && newlineOffsets[nlIndex] < offset) {
-            nlIndex++
+          while (newlineIndex < newlinePositions.size && newlinePositions[newlineIndex] < lineStartOffset) {
+            newlineIndex++
           }
 
-          val srcLine = nlIndex + 1
+          val sourceLineNumber = newlineIndex + 1
 
-          if (srcLine != prevSrcLine) {
-            append(srcLine.toString())
-            prevSrcLine = srcLine
+          if (sourceLineNumber != previousSourceLine) {
+            append(sourceLineNumber.toString())
+            previousSourceLine = sourceLineNumber
           }
 
-          if (displayLine < lineCount - 1) {
+          if (displayLineIndex < totalDisplayLines - 1) {
             append('\n')
           }
         }
@@ -309,7 +308,7 @@ class GradumCodeBlockRenderer(
 
     Text(
       text = displayText,
-      color = textColor,
+      color = lineNumberColor,
       style = textStyle,
       textAlign = TextAlign.End,
       modifier = Modifier
@@ -326,11 +325,8 @@ private fun ContainerOrScrollable(
   isSoftWrapEnabled: Boolean,
   content: @Composable () -> Unit
 ) {
-  if (!isSoftWrapEnabled) {
-    HorizontalScrollContainer { content() }
-  } else {
-    Box { content() }
-  }
+  if (!isSoftWrapEnabled) HorizontalScrollContainer { content() }
+  else Box { content() }
 }
 
 @Composable
@@ -443,16 +439,17 @@ private fun CodeBlockToolbar(
 }
 
 private fun truncateAnnotatedString(annotated: AnnotatedString): AnnotatedString {
-  val truncateIndex = annotated.text
+  val collapseThreshold = CODE_COLLAPSE_LIMIT - 1
+  val newlineIndices = annotated.text
     .withIndex()
     .filter { it.value == '\n' }
-    .drop(CODE_COLLAPSE_LIMIT - 1)
-    .firstOrNull()
-    ?.index ?: annotated.text.length
+    .map { it.index }
 
-  return if (truncateIndex < annotated.text.length) {
+  val truncateIndex = if (newlineIndices.size >= CODE_COLLAPSE_LIMIT)
+    newlineIndices[collapseThreshold]
+  else annotated.text.length
+
+  return if (truncateIndex < annotated.text.length)
     annotated.subSequence(0, truncateIndex)
-  } else {
-    annotated
-  }
+  else annotated
 }
