@@ -108,7 +108,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
                 }
                 @Suppress("DEPRECATION")
-                InformationDefaultBanner(
+                SuccessDefaultBanner(
                   text = bannerText,
                   actions = {
                     Row(
