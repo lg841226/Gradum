@@ -90,16 +90,16 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         ) {
           if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
             var bannerDismissed by remember(scanState) { mutableStateOf(false) }
-            val overallLevel = GradumGitAnalysisService.overallLevel
+            val qualityBand = GradumGitAnalysisService.qualityBand
             Column(modifier = Modifier.fillMaxSize()) {
-              if (!bannerDismissed && overallLevel != null) {
-                val bandLabel = when (overallLevel) {
-                  "critical" -> message("gradum.toolwindow.git.analysis.band.critical")
-                  "alert" -> message("gradum.toolwindow.git.analysis.band.alert")
-                  "watch" -> message("gradum.toolwindow.git.analysis.band.watch")
-                  "normal" -> message("gradum.toolwindow.git.analysis.band.normal")
-                  "clean" -> message("gradum.toolwindow.git.analysis.band.clean")
-                  else -> overallLevel
+              if (!bannerDismissed && qualityBand != null) {
+                val bandLabel = when (qualityBand) {
+                  "Excellent" -> message("gradum.toolwindow.git.analysis.band.excellent")
+                  "Good" -> message("gradum.toolwindow.git.analysis.band.good")
+                  "Fair" -> message("gradum.toolwindow.git.analysis.band.fair")
+                  "Needs Attention" -> message("gradum.toolwindow.git.analysis.band.needs.attention")
+                  "Caution" -> message("gradum.toolwindow.git.analysis.band.caution")
+                  else -> qualityBand
                 }
                 val bannerText = message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
                 @Suppress("DEPRECATION")
