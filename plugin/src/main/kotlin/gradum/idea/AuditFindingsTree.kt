@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-07 16:04:18 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-07 23:40:41 Changed by gwy
  */
 
-@file:OptIn(InternalJewelApi::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(InternalJewelApi::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
 
 package gradum.idea
 
@@ -23,9 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
+import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
@@ -33,7 +33,6 @@ import org.jetbrains.jewel.foundation.lazy.tree.buildTree
 import org.jetbrains.jewel.foundation.lazy.tree.rememberTreeState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import java.util.*
 
@@ -81,7 +80,6 @@ internal fun buildAuditFindingsTree(
  * finding count; an empty findings list falls back to the "no suspicious
  * issues" message.
  */
-@OptIn(InternalJewelApi::class, ExperimentalComposeUiApi::class)
 @Composable
 internal fun AuditFindingsTree(
   isAllExpanded: Boolean,
@@ -151,6 +149,11 @@ internal fun AuditFindingsTree(
             auditGroupOf(it.code) == item.group && findingKey(it) in reviewedFindings
           }
           val formattedCount = "%,d".format(Locale.ROOT, minOf(activeCount, 9999))
+          val countKey = if (activeCount == 1) {
+            "gradum.toolwindow.git.analysis.problem"
+          } else {
+            "gradum.toolwindow.git.analysis.problems"
+          }
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -167,7 +170,7 @@ internal fun AuditFindingsTree(
             )
             Text(
               style = regularStyle,
-              text = message("gradum.toolwindow.git.analysis.problems", formattedCount),
+              text = message(countKey, formattedCount),
               color = LocalGlobalColors.current.text.info,
               maxLines = 1,
               overflow = TextOverflow.Ellipsis
@@ -180,6 +183,9 @@ internal fun AuditFindingsTree(
             it.level == item.level && findingKey(it) in reviewedFindings
           }
           val formattedCount = "%,d".format(Locale.ROOT, minOf(activeCount, 9999))
+          val countKey =
+            if (activeCount == 1) "gradum.toolwindow.git.analysis.problem"
+            else "gradum.toolwindow.git.analysis.problems"
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -203,7 +209,7 @@ internal fun AuditFindingsTree(
               style = regularStyle,
               overflow = TextOverflow.Ellipsis,
               color = LocalGlobalColors.current.text.info,
-              text = message("gradum.toolwindow.git.analysis.problems", formattedCount)
+              text = message(countKey, formattedCount)
             )
           }
         }
@@ -237,7 +243,7 @@ internal fun AuditFindingsTree(
                   ) {
                     Icon(
                       contentDescription = null,
-                      key = AllIconsKeys.General.GreenCheckmark
+                      key = severityOutlineIcon(finding.level)
                     )
                     AnimatedVisibility(
                       visible = isHovered,
@@ -250,8 +256,8 @@ internal fun AuditFindingsTree(
                     ) {
                       Text(
                         maxLines = 1,
-                        color = linesAddedColor(),
-                        text = message("gradum.toolwindow.git.analysis.reviewed")
+                        text = message("gradum.toolwindow.git.analysis.reviewed"),
+                        color = androidx.compose.ui.graphics.Color(0xFFFFA500)
                       )
                     }
                   }

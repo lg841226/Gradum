@@ -2,13 +2,18 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 21:53:54 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 23:43:52 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class)
+@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,16 +42,16 @@ import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.defaultBannerStyle
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
+
+private const val BANNER_ANIMATION_DURATION_MS = 300
 
 /**
  * Factory for creating the Gradum Git Analysis tool window.
  *
  * Docked at the bottom of the IDE, next to the Problems panel.
  */
-@OptIn(ExperimentalJewelApi::class)
 class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
 
   @Suppress("UnstableApiUsage")
@@ -88,10 +93,11 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
             .focusTarget()
         ) {
           if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
-            var bannerDismissed by remember(scanState) { mutableStateOf(false) }
+            val bannerDismissed = GradumGitAnalysisService.bannerDismissed
+            var bannerClosed by remember(scanState) { mutableStateOf(false) }
             val qualityBand = GradumGitAnalysisService.qualityBand
             Column(modifier = Modifier.fillMaxSize()) {
-              if (!bannerDismissed && qualityBand != null) {
+              if (qualityBand != null) {
                 val bandLabel = when (qualityBand) {
                   "Excellent" -> message("gradum.toolwindow.git.analysis.band.excellent")
                   "Good" -> message("gradum.toolwindow.git.analysis.band.good")
@@ -106,34 +112,47 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 } else {
                   message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
                 }
-                val bannerStyle = JewelTheme.defaultBannerStyle.success
-                DefaultSuccessBanner(
-                  text = bannerText,
-                  modifier = Modifier.fillMaxWidth(),
-                  icon = {
-                    Icon(
-                      contentDescription = null,
-                      modifier = Modifier.size(16.dp),
-                      key = AllIconsKeys.Status.Success
-                    )
-                  },
-                  linkActions = {
-                    action(message("gradum.toolwindow.git.analysis.banner.dismiss")) {
-                      bannerDismissed = true
+                AnimatedVisibility(
+                  visible = !bannerDismissed && !bannerClosed,
+                  enter = slideInVertically(
+                    animationSpec = tween(BANNER_ANIMATION_DURATION_MS),
+                    initialOffsetY = { -it }
+                  ) + fadeIn(animationSpec = tween(BANNER_ANIMATION_DURATION_MS))
+                ) {
+                  GradumBanner(
+                    text = bannerText,
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(horizontal = GradumSpacing.md),
+                    icon = {
+                      Icon(
+                        contentDescription = null,
+                        key = AllIconsKeys.Status.Success
+                      )
+                    },
+                    linkContent = {
+                      Link(
+                        text = message("gradum.toolwindow.git.analysis.banner.dismiss"),
+                        onClick = { GradumGitAnalysisService.bannerDismissed = true }
+                      )
+                    },
+                    iconContent = {
+                      Tooltip(
+                        tooltip = {
+                          Text(text = message("gradum.toolwindow.git.analysis.banner.close"))
+                        }
+                      ) {
+                        IconButton(onClick = { bannerClosed = true }) {
+                          Icon(
+                            AllIconsKeys.General.Close,
+                            contentDescription = message("gradum.toolwindow.git.analysis.banner.close"),
+                            modifier = Modifier.size(16.dp)
+                          )
+                        }
+                      }
                     }
-                  },
-                  iconActions = {
-                    iconAction(
-                      AllIconsKeys.General.Close,
-                      message("gradum.toolwindow.git.analysis.banner.dismiss"),
-                      message("gradum.toolwindow.git.analysis.banner.dismiss")
-                    ) {
-                      bannerDismissed = true
-                    }
-                  },
-                  style = bannerStyle,
-                  textStyle = JewelTheme.typography.regular
-                )
+                  )
+                }
               }
               Row(modifier = Modifier.weight(1f).fillMaxSize()) {
                 GitAuditActionBar(
@@ -266,7 +285,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 Icon(
                   contentDescription = null,
                   key = GradumIcons.ColorLogo,
-                  modifier = Modifier.size(28.dp)
+                  modifier = Modifier.size(26.dp)
                 )
                 Text(
                   style = JewelTheme.typography.h4TextStyle,

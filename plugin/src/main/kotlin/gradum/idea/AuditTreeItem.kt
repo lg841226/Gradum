@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * AuditTreeItem.kt  2026-08-07 22:57:30 Changed by gwy
  */
 
 package gradum.idea
@@ -20,6 +22,13 @@ internal fun severityIcon(level: String): IntelliJIconKey = when (level) {
   "critical" -> AllIconsKeys.General.Error
   "alert" -> AllIconsKeys.General.Warning
   else -> AllIconsKeys.General.Information
+}
+
+/** Outline version of the severity icon, used for reviewed findings. */
+internal fun severityOutlineIcon(level: String): IntelliJIconKey = when (level) {
+  "critical" -> AllIconsKeys.Ide.FatalErrorRead
+  "alert" -> AllIconsKeys.General.ShowWarning
+  else -> AllIconsKeys.General.Note
 }
 
 /** Severity levels in display order, most severe first. */

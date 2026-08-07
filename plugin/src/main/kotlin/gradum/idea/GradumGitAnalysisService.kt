@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-08-07 16:04:18 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-07 23:23:25 Changed by gwy
  */
 package gradum.idea
 
@@ -363,8 +363,11 @@ object GradumGitAnalysisService {
     private set
 
   /** Timestamp (epoch millis) when the last scan completed successfully. */
-  var scanCompletedAt by mutableStateOf<Long>(0L)
+  var scanCompletedAt by mutableStateOf(0L)
     private set
+
+  /** Whether the user has dismissed the banner (persists across scans). */
+  var bannerDismissed by mutableStateOf(false)
 
 
   /** The running analysis process, if any. */
@@ -539,8 +542,7 @@ object GradumGitAnalysisService {
         if (exitCode == 0) {
           scanCompletedAt = System.currentTimeMillis()
           scanState = ScanState.SUCCESS
-        }
-        else handleFailure(exitCode, errorFile)
+        } else handleFailure(exitCode, errorFile)
 
       } catch (exception: Exception) {
         log.warn("Gradum Git scan failed: ", exception)
@@ -606,8 +608,7 @@ object GradumGitAnalysisService {
         if (exitCode == 0) {
           scanCompletedAt = System.currentTimeMillis()
           scanState = ScanState.SUCCESS
-        }
-        else handleFailure(exitCode, errorLogFile)
+        } else handleFailure(exitCode, errorLogFile)
       } catch (exception: Exception) {
         log.warn("Gradum Git analysis failed: ", exception)
         lastErrorMessage = exception.message
@@ -851,13 +852,14 @@ internal fun scanCompletedAgo(millis: Long): String {
       val minutes = (seconds / 60).toInt()
       message("gradum.toolwindow.git.analysis.time.minutes.ago", minutes)
     }
+
     seconds < 86400 -> {
       val hours = (seconds / 3600).toInt()
       message("gradum.toolwindow.git.analysis.time.hours.ago", hours)
     }
+
     else -> {
-      val days = (seconds / 86400).toInt()
-      when (days) {
+      when (val days = (seconds / 86400).toInt()) {
         1 -> message("gradum.toolwindow.git.analysis.time.day.ago")
         else -> message("gradum.toolwindow.git.analysis.time.days.ago", days)
       }
