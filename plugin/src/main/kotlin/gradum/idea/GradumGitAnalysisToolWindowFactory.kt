@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 21:48:06 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 21:50:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -110,7 +110,13 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 DefaultSuccessBanner(
                   text = bannerText,
                   modifier = Modifier.fillMaxWidth(),
-                  icon = {},
+                  icon = {
+                    Icon(
+                      contentDescription = null,
+                      modifier = Modifier.size(16.dp),
+                      key = AllIconsKeys.General.GreenCheckmark
+                    )
+                  },
                   linkActions = {
                     action(message("gradum.toolwindow.git.analysis.banner.dismiss")) {
                       bannerDismissed = true
@@ -119,7 +125,6 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   iconActions = {
                     iconAction(
                       AllIconsKeys.General.Close,
-                      message("gradum.toolwindow.git.analysis.banner.dismiss"),
                       message("gradum.toolwindow.git.analysis.banner.dismiss")
                     ) {
                       bannerDismissed = true
