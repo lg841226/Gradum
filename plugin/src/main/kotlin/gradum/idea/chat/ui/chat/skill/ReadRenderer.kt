@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-08-04 00:38:23 Changed by gwy
+ * ReadRenderer.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -17,13 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text

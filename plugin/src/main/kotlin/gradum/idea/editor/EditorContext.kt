@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-07-30 10:58:38 Changed by gwy
+ * EditorContext.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -13,7 +13,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 

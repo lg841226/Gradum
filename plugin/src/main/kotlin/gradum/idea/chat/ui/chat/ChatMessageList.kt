@@ -18,8 +18,8 @@ import androidx.compose.ui.Modifier
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.input.PermissionMode
+import gradum.idea.utils.GradumSpacing
 
 private val TimestampSpacing = GradumSpacing.xs
 

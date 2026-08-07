@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-07-29 18:32:58 Changed by gwy
+ * AddContextPopup.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -18,12 +18,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
-import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys

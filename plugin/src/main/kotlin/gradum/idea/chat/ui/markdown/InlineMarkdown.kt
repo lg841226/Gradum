@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-07-31 15:54:30 Changed by gwy
+ * InlineMarkdown.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -40,7 +40,8 @@ import com.hrm.latex.renderer.measure.LatexMeasurerState
 import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
-import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -540,7 +541,7 @@ private class RenderState(
       Icon(
         contentDescription = null,
         modifier = Modifier.size(iconSize.dp),
-        key = gradum.idea.icons.GradumIcons.Image
+        key = GradumIcons.Image
       )
     }
     return placeholder

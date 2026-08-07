@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageCopyButton.kt  2026-07-31 15:54:30 Changed by gwy
+ * MessageCopyButton.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -13,8 +13,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-07-31 15:54:30 Changed by gwy
+ * PermissionSelector.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.SelectorButton
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.component.styling.LocalBadgeStyle

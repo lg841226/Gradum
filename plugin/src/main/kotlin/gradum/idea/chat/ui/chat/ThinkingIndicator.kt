@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-07-29 18:32:58 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -20,9 +20,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.markdown.*
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.LocalContentColor

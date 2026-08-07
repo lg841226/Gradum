@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonActionButtons.kt  2026-08-05 14:39:45 Changed by gwy
+ * CommonActionButtons.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -13,7 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-07-28 20:50:32 Changed by gwy
+ * UserChatBubble.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -26,14 +26,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ChatMessage
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.AttachedImage
 import gradum.idea.editor.AttachedText
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.JewelTheme.Companion.globalColors
 import org.jetbrains.jewel.ui.component.*

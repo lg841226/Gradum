@@ -2,17 +2,17 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-07-29 18:32:58 Changed by gwy
+ * CompletedRenderer.kt  2026-08-07 16:04:17 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.runtime.Composable
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 

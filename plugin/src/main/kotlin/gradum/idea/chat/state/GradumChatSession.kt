@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-07-31 15:54:30 Changed by gwy
+ * GradumChatSession.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -18,13 +18,13 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.api.GradumApiClient
 import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch

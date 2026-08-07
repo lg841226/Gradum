@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ErrorMessages.kt  2026-08-07 16:04:17 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
 
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.model.ErrorCode
+import gradum.idea.utils.GradumBundle.message
 
 /**
  * Maps server-side error codes to user-friendly display messages.

@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-08-04 18:26:14 Changed by gwy
+ * GradumIcons.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
-package gradum.idea.icons
+package gradum.idea.utils
 
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icon.PathIconKey

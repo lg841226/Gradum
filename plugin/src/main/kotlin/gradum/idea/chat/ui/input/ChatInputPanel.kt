@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-07-31 15:54:30 Changed by gwy
+ * ChatInputPanel.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -19,12 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.SweepLightText
 import gradum.idea.chat.ui.common.IconTooltipButton
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.Stroke

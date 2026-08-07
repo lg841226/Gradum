@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 16:01:18 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -25,10 +25,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.addComposeTab
@@ -37,6 +37,7 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
@@ -105,11 +106,23 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 InformationDefaultBanner(
                   text = bannerText,
                   actions = {
-                    Text(
-                      text = message("gradum.toolwindow.git.analysis.banner.dismiss"),
-                      modifier = Modifier.clickable { bannerDismissed = true },
-                      color = JewelTheme.linkStyle.colors.content
-                    )
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+                    ) {
+                      Text(
+                        text = message("gradum.toolwindow.git.analysis.banner.dismiss"),
+                        modifier = Modifier.clickable { bannerDismissed = true },
+                        color = JewelTheme.linkStyle.colors.content
+                      )
+                      Icon(
+                        key = AllIconsKeys.General.Close,
+                        contentDescription = message("gradum.toolwindow.git.analysis.banner.dismiss"),
+                        modifier = Modifier
+                          .clickable { bannerDismissed = true }
+                          .size(16.dp)
+                      )
+                    }
                   },
                   modifier = Modifier.fillMaxWidth()
                 )

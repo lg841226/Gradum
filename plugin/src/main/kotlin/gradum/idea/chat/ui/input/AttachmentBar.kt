@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AttachmentBar.kt  2026-07-30 13:52:23 Changed by gwy
+ * AttachmentBar.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -14,10 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.editor.AttachedContext
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text

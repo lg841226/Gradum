@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-08-07 16:01:18 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-07 16:04:18 Changed by gwy
  */
 package gradum.idea
 
@@ -21,7 +21,7 @@ import gradum.idea.GradumGitAnalysisService.FINDING_CODE_PREFIX
 import gradum.idea.GradumGitAnalysisService.handleFailure
 import gradum.idea.GradumGitAnalysisService.isScanCompleted
 import gradum.idea.GradumGitAnalysisService.restoreStateBeforeScan
-import gradum.idea.bundle.GradumBundle.message
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.serialization.json.*
 import java.io.BufferedReader
 import java.io.File

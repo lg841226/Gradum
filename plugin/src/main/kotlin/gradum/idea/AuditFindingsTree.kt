@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * AuditFindingsTree.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(InternalJewelApi::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
@@ -9,21 +11,21 @@ package gradum.idea
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.InternalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.lazy.tree.Tree

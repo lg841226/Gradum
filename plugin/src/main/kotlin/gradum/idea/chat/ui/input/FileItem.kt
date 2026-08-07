@@ -14,8 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.getLanguageIconKey
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys

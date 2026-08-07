@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
-import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.utils.GradumSpacing
 
 /**
  * Wraps [ChatInputPanel] with a model selector bar below it.

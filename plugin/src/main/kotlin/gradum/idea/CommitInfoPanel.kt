@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommitInfoPanel.kt  2026-08-07 16:01:18 Changed by gwy
+ * CommitInfoPanel.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -29,12 +29,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.openapi.project.Project
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.chat.ui.chat.skill.internal.linesAddedColor
 import gradum.idea.chat.ui.chat.skill.internal.toolCallErrorColor
 import gradum.idea.chat.ui.markdown.*
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*

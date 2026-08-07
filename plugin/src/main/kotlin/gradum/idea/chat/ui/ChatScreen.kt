@@ -34,6 +34,7 @@ import gradum.idea.chat.ui.markdown.FootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalFootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
 import gradum.idea.chat.ui.markdown.StickySectionRegistry
+import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.io.IOException

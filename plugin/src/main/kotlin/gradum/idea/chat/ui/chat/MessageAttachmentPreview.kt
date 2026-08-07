@@ -26,9 +26,9 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedImage
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
 import org.jetbrains.jewel.ui.component.Icon

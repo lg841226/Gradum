@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-07-31 10:00:18 Changed by gwy
+ * Table.kt  2026-08-07 16:04:18 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -14,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,10 +32,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import gradum.idea.bundle.GradumBundle.message
-import gradum.idea.chat.ui.GradumSpacing
 import gradum.idea.chat.ui.chat.copyToClipboard
-import gradum.idea.icons.GradumIcons
+import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumIcons
+import gradum.idea.utils.GradumSpacing
 import org.commonmark.ext.gfm.tables.*
 import org.commonmark.node.Node
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi

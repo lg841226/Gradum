@@ -5,7 +5,7 @@
  * Spacing.kt  2026-07-29 18:32:58 Changed by gwy
  */
 
-package gradum.idea.chat.ui
+package gradum.idea.utils
 
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp

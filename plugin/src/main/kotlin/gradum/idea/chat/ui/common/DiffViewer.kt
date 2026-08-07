@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * DiffViewer.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.common
@@ -18,7 +19,7 @@ import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.bundle.GradumBundle
+import gradum.idea.utils.GradumBundle
 import java.io.File
 
 /**

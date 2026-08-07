@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-07-31 16:22:46 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -19,13 +19,13 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
 import gradum.idea.chat.ui.markdown.GradumMarkdownProcessor
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
 import gradum.idea.editor.EditorUtils
 import gradum.idea.ui.GradumUI
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory

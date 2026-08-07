@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-07-31 15:54:30 Changed by gwy
+ * GradumUI.kt  2026-08-07 16:04:18 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -18,13 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.wm.ToolWindow
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.ui.ChatScreen
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.EditorUtils
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

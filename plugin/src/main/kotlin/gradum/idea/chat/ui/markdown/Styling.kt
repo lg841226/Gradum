@@ -22,7 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors

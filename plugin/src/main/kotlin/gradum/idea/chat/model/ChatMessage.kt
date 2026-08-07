@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * ChatMessage.kt  2026-08-07 16:04:17 Changed by gwy
  */
 
 package gradum.idea.chat.model
 
-import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.editor.AttachedContext
+import gradum.idea.utils.GradumBundle.message
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit

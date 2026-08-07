@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import gradum.idea.chat.ui.GradumSpacing
+import gradum.idea.utils.GradumSpacing
 import org.commonmark.ext.gfm.tables.TableBlock
 import org.commonmark.node.*
 import org.commonmark.parser.Parser
