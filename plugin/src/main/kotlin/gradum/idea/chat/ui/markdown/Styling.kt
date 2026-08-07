@@ -9,6 +9,7 @@ package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -69,6 +70,16 @@ private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
  * spacing between any two regular paragraphs.
  */
 private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
+
+/**
+ * Optional override for the markdown body/paragraph text style, applied by
+ * [rememberGradumMarkdownStyling] when present. Lets a non-chat surface
+ * (e.g. the commit-details panel) render the markdown renderer's body text
+ * in a custom font — such as the editor font — while reusing the full
+ * block/inline pipeline. When `null`, the chat's default paragraph style
+ * ([rememberGradumParagraphTextStyle]) is used.
+ */
+val LocalMarkdownBodyTextStyle = compositionLocalOf<TextStyle?> { null }
 
 /**
  * The chat panel's body text style. Slightly tighter than the LaF default
@@ -180,7 +191,8 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     background = globalColors.text.info.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
-  val bodyTextStyle: TextStyle = rememberGradumParagraphTextStyle()
+  val bodyTextStyle: TextStyle = LocalMarkdownBodyTextStyle.current
+    ?: rememberGradumParagraphTextStyle()
 
   val paragraphTextStyle: TextStyle = if (thinkingMode) {
     bodyTextStyle.copy(

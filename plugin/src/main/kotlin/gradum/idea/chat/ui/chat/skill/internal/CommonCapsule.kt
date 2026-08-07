@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-07-29 18:32:58 Changed by gwy
+ * CommonCapsule.kt  2026-08-03 21:01:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
@@ -91,9 +91,9 @@ internal fun ToolCallCapsule(
     if (trailingText.isNotBlank()) {
       Text(
         maxLines = 1,
+        color = infoColor,
         text = trailingText,
         overflow = TextOverflow.Ellipsis,
-        color = infoColor,
         modifier = Modifier
           .horizontalScroll(rememberScrollState())
           .widthIn(max = REASON_MAX_WIDTH_DP)

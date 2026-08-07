@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-07-29 18:32:58 Changed by gwy
+ * ReadRenderer.kt  2026-08-04 00:38:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -117,8 +117,6 @@ class ReadRenderer : ToolCallRenderer {
       }
       OpenInEditorButton(
         filePath = filePath,
-        startLine = startLine,
-        endLine = endLine,
         onClick = {
           ctx.onOpenInEditor?.invoke(
             filePath,

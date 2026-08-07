@@ -1,6 +1,6 @@
 # Gradum
 
-## Local-First AI Code Assistant (Kotlin Edition)
+## Local-First AI Coding Agent (Kotlin Edition)
 
 ### Technical Architecture White Paper
 
@@ -437,8 +437,8 @@ flowchart TD
     - Append the assistant message (including `tool_calls[]` or function list)
     - **FOR each processedCall**:
         - Get the skill via `skillRegistry.getSkill(name)`
-        - Convert raw `functionArguments: Map<String, JsonElement>` to `MutableMap<String, Any>` (
-          strings/booleans/numbers)
+        - Convert raw `functionArguments: Map<String, JsonElement>` to `MutableMap<String, Any>`
+          (strings/booleans/numbers)
         - For `read_file` requests without `lineRange`, add the path to `fullyReadFiles` (for subsequent context
           optimization)
         - Call `skill.execute(convertedArguments)` → `SkillResult`
@@ -454,8 +454,7 @@ flowchart TD
 3. **Session End**:
     - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by
       guardrail)
-    - `contextManager.saveContext(history, model)` — **skipped** when `aborted: true` (revoked sessions
-      leave no trace)
+    - `contextManager.saveContext(history, model)` — **skipped** when `aborted: true` (revoked sessions leave no trace)
         - Filter system/tool messages, simplify `user/assistant` messages
         - Encrypt the content field of each user/assistant message (set `_encrypted=true`)
         - Write to `output/context.json`
@@ -1587,9 +1586,8 @@ flowchart TB
 ### 8.1 Overview
 
 The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool
-window.
-It communicates with the standalone Gradum server over HTTP at runtime — there is **no compile-time dependency** between
-the plugin and the server module.
+window. It communicates with the standalone Gradum server over HTTP at runtime — there is **no compile-time dependency**
+between the plugin and the server module.
 
 ### 8.2 Module Dependencies
 
@@ -1751,11 +1749,10 @@ gradum.idea/
 
 ## 9. Three-Tier Permission Model and SkillContext
 
-The permission model and session-scoped project context are the two pillars that
-hold the whole "tools can only act on the project the IDE has open, and only
-under the tier the user picked" invariant. They are wired through one
-data class — `SkillContext` — and one interface field — `Skill.allowedToolModes`.
-This section documents the end-to-end contract.
+The permission model and session-scoped project context are the two pillars that hold the whole "tools can only act on
+the project the IDE has open, and only under the tier the user picked" invariant. They are wired through one data
+class — `SkillContext` — and one interface field — `Skill.allowedToolModes`. This section documents the end-to-end
+contract.
 
 ### 9.1 The Three Tiers (`ToolMode`)
 
@@ -1765,13 +1762,12 @@ This section documents the end-to-end contract.
 | `SINGLE_STEP` | `"single_step"` | READ_ONLY tools + `edit_file`, `save_file`                                         | Local 7B-14B models that can edit but cannot reliably plan        |
 | `WRITE`       | `"write"`       | SINGLE_STEP tools + `to_do`, `finish_to_do_item` (everything)                      | Code generation, planning, full autonomy                          |
 
-The tier is a **client choice** — the IDE never infers it from the provider,
-because Ollama runs both 7B laptops and 70B cloud models, and the same backend
-deserves different surfaces depending on what the user is doing. The plugin's
-`PermissionSelector` writes the wire-format string into the `/events` request
-body; `Routes` parses it via `ToolMode.fromStringOrDefault(it)`. The default is
-`READ_ONLY` for safety — a user who has not actively opted into write access
-physically cannot mutate the project, even if the LLM hallucinates an `edit_file`
+The tier is a **client choice** — the IDE never infers it from the provider, because Ollama runs both 7B laptops and 70B
+cloud models, and the same backend deserves different surfaces depending on what the user is doing. The plugin's
+`PermissionSelector` writes the wire-format string into the `/events` request body; `Routes` parses it via
+`ToolMode.fromStringOrDefault(it)`. The default is
+`READ_ONLY` for safety — a user who has not actively opted into write access physically cannot mutate the project, even
+if the LLM hallucinates an `edit_file`
 call.
 
 ### 9.2 Per-Skill `allowedToolModes` (single source of truth)
@@ -1789,43 +1785,37 @@ class EditFileSkill : Skill() {
 }
 ```
 
-This set is the **only** place the tier → skill mapping lives. Two consumers
-read it:
+This set is the **only** place the tier → skill mapping lives. Two consumers read it:
 
-- **`SkillRegistry.getSchemas(toolMode)`** filters the LLM's tool list to
-  skills whose `allowedToolModes` includes the active tier. The LLM never sees
-  a tool it cannot actually call.
-- **`Agent.executeSingleTool`** performs the same membership check at runtime
-  before invoking `skill.execute(...)`. If the LLM hallucinates a `edit_file`
-  call under `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file
-  on disk is byte-for-byte unchanged.
+- **`SkillRegistry.getSchemas(toolMode)`** filters the LLM's tool list to skills whose `allowedToolModes` includes the
+  active tier. The LLM never sees a tool it cannot actually call.
+- **`Agent.executeSingleTool`** performs the same membership check at runtime before invoking `skill.execute(...)`. If
+  the LLM hallucinates a `edit_file`
+  call under `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
-The two views were previously two separate sources of truth (a hardcoded set
-in `SkillRegistry` plus per-skill mode metadata), and they drifted. Today the
-runtime gate and the schema filter are both `toolMode in skill.allowedToolModes`,
+The two views were previously two separate sources of truth (a hardcoded set in `SkillRegistry` plus per-skill mode
+metadata), and they drifted. Today the runtime gate and the schema filter are both `toolMode in skill.allowedToolModes`,
 which makes a future regression impossible without breaking
 `SkillRegistrySchemaTest` (5 cases pin the contract).
 
 ### 9.3 The Three Layers of Defense
 
-1. **Schema filter** (LLM-side). The LLM only sees tools it is allowed to call.
-   Removes the easy-path bypass — the model has to work to call a forbidden tool.
+1. **Schema filter** (LLM-side). The LLM only sees tools it is allowed to call. Removes the easy-path bypass — the model
+   has to work to call a forbidden tool.
 2. **Runtime mode gate** (Agent-side). `Agent.executeSingleTool` checks
-   `configuration.toolMode in skillInstance.allowedToolModes` before dispatch.
-   Defeats LLM hallucination — the model may have seen `edit_file` in training
-   data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
+   `configuration.toolMode in skillInstance.allowedToolModes` before dispatch. Defeats LLM hallucination — the model may
+   have seen `edit_file` in training data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
 3. **Command re-classification** (Read-only `run_cmd` only). The `READ_ONLY`
-   mode still exposes `run_cmd`, because `cat`/`ls`/`grep` are essential for
-   inspection. The agent re-runs `classifyCommand(...)` against the active
+   mode still exposes `run_cmd`, because `cat`/`ls`/`grep` are essential for inspection. The agent re-runs
+   `classifyCommand(...)` against the active
    `ToolMode` before `ProcessBuilder.start()`, so `touch`, `rm`, and `git commit`
-   are blocked with `COMMAND_BLOCKED` even if the schema filter let them
-   through. (See [§3.2](#32-commandfilter-command-safety-filter) for the full
-   filter and `CommandFilterTest` for the 6 pinned cases.)
+   are blocked with `COMMAND_BLOCKED` even if the schema filter let them through.
+   (See [§3.2](#32-commandfilter-command-safety-filter) for the full filter and `CommandFilterTest` for the 6 pinned
+   cases.)
 
 ### 9.4 `SkillContext` — per-session state handed to every Skill
 
-`SkillContext` is the single per-session data class the agent constructs once
-and passes to every `Skill.execute` call:
+`SkillContext` is the single per-session data class the agent constructs once and passes to every `Skill.execute` call:
 
 ```kotlin
 data class SkillContext(
@@ -1838,25 +1828,21 @@ data class SkillContext(
 
 Four properties, all of which used to be either process-globals or invisible:
 
-- **`toolMode`** — the active tier. Skills can read it for mode-aware behavior
-  (e.g. `RunCommandSkill` chooses a different log directory in `READ_ONLY`).
-  The gate is still the agent's, not the skill's; this is informational.
-- **`projectRoot`** — the absolute, validated path to the project the IDE has
-  open. The plugin is the single source of truth: `Project.basePath` →
-  HTTP request body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot`.
-  The server has no other way to learn which project is open.
+- **`toolMode`** — the active tier. Skills can read it for mode-aware behavior (e.g. `RunCommandSkill` chooses a
+  different log directory in `READ_ONLY`). The gate is still the agent's, not the skill's; this is informational.
+- **`projectRoot`** — the absolute, validated path to the project the IDE has open. The plugin is the single source of
+  truth: `Project.basePath` → HTTP request body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot`. The
+  server has no other way to learn which project is open.
 - **`provider`** — which LLM backend is driving this session (e.g. `OLLAMA`,
-  `OPENAI`, `ANTHROPIC`). Used by provider-aware skills and by the agent
-  to fill the `{{SCHEMA_VARIANT}}` template variable.
-- **`modelName`** — the model name string (e.g. `"qwen2.5:14b"`, `"gpt-4o"`).
-  Used by `SchemaVariant.resolve()` to infer model capability and choose
-  appropriate tool schemas.
+  `OPENAI`, `ANTHROPIC`). Used by provider-aware skills and by the agent to fill the `{{SCHEMA_VARIANT}}` template
+  variable.
+- **`modelName`** — the model name string (e.g. `"qwen2.5:14b"`, `"gpt-4o"`). Used by `SchemaVariant.resolve()` to infer
+  model capability and choose appropriate tool schemas.
 
-`SkillContext` replaces the legacy `ProjectPaths.setProjectRoot` process-global
-and gives Skills a way to read `toolMode` at all. It also fixes a class of
-cross-session bugs: two concurrent `/events` requests used to share the same
-`ProjectPaths` static, so one session could leak its project root into another.
-With `SkillContext` constructed per `Agent`, sessions are fully isolated.
+`SkillContext` replaces the legacy `ProjectPaths.setProjectRoot` process-global and gives Skills a way to read
+`toolMode` at all. It also fixes a class of cross-session bugs: two concurrent `/events` requests used to share the same
+`ProjectPaths` static, so one session could leak its project root into another. With `SkillContext` constructed per
+`Agent`, sessions are fully isolated.
 
 ### 9.5 Lifecycle of `SkillContext`
 
@@ -1877,9 +1863,8 @@ sequenceDiagram
 ```
 
 The `SkillContext` is frozen for the lifetime of the `Agent` (one `Agent` per
-`/events` request). Every Skill in that session sees the same instance, so
-file paths, log directories, and context files all resolve against the same
-project root without any process-globals.
+`/events` request). Every Skill in that session sees the same instance, so file paths, log directories, and context
+files all resolve against the same project root without any process-globals.
 
 ### 9.6 `Skill` interface contract
 
@@ -1896,25 +1881,22 @@ abstract class Skill {
 }
 ```
 
-A skill that mutates the project MUST exclude `READ_ONLY`. A skill that
-multistep plans MUST exclude `SINGLE_STEP`. Anything else (pure inspection
-like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier
-is allowed.
+A skill that mutates the project MUST exclude `READ_ONLY`. A skill that multistep plans MUST exclude `SINGLE_STEP`.
+Anything else (pure inspection like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier is allowed.
 
-The `Skill.execute` signature requires `context: SkillContext`. Skills that
-need the project root read `context.projectRoot`; the previous behavior of
-reading `arguments["projectRoot"]` is gone (the agent still injects it for
-audit / NDJSON-event reasons, but no Skill should rely on it).
+The `Skill.execute` signature requires `context: SkillContext`. Skills that need the project root read
+`context.projectRoot`; the previous behavior of reading `arguments["projectRoot"]` is gone (the agent still injects it
+for audit / NDJSON-event reasons, but no Skill should rely on it).
 
-The `getSchema()` method now accepts an optional `context` parameter. Skills
-that offer different parameter structures for local vs cloud models can check
-`SchemaVariant.resolve(context.modelName)` and return the appropriate schema.
-Skills that don't need provider-aware schemas may ignore this parameter.
+The `getSchema()` method now accepts an optional `context` parameter. Skills that offer different parameter structures
+for local vs cloud models can check
+`SchemaVariant.resolve(context.modelName)` and return the appropriate schema. Skills that don't need provider-aware
+schemas may ignore this parameter.
 
 ### 9.7 SchemaVariant and ModelCapability
 
-Gradum adapts tool schemas and prompt content based on model capability. The
-system is built around two components in `SchemaVariant.kt`:
+Gradum adapts tool schemas and prompt content based on model capability. The system is built around two components in
+`SchemaVariant.kt`:
 
 **`SchemaVariant` enum:**
 
@@ -1994,18 +1976,16 @@ flowchart LR
 
 ### 9.8 Why this design
 
-- **One source of truth, two enforcement points.** `allowedToolModes` is read
-  by both `SkillRegistry.getSchemas` (LLM-side) and `Agent.executeSingleTool`
+- **One source of truth, two enforcement points.** `allowedToolModes` is read by both `SkillRegistry.getSchemas`
+  (LLM-side) and `Agent.executeSingleTool`
   (runtime-side). The previous design had two separate sets; the contract test
-  `SkillRegistrySchemaTest.`allowedToolModes and getSchemas are the same
-  source of truth`` pins the invariant so a regression breaks CI.
-- **No process-globals for per-session state.** `SkillContext` is constructed
-  per `Agent` and travels with the call, so concurrent sessions can target
-  different projects without interfering with each other.
-- **Plugin is the only source of projectRoot.** `Project.basePath` →
-  HTTP body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot` →
-  every Skill in the session. The server has no fallback; if the plugin forgets
-  to send it, `Routes` returns 400 instead of guessing from CWD.
+  `SkillRegistrySchemaTest.`allowedToolModes and getSchemas are the same source of truth`` pins the invariant so a
+  regression breaks CI.
+- **No process-globals for per-session state.** `SkillContext` is constructed per `Agent` and travels with the call, so
+  concurrent sessions can target different projects without interfering with each other.
+- **Plugin is the only source of projectRoot.** `Project.basePath` → HTTP body → `AgentConfiguration.projectRoot` →
+  `SkillContext.projectRoot` → every Skill in the session. The server has no fallback; if the plugin forgets to send it,
+  `Routes` returns 400 instead of guessing from CWD.
 
 ### 9.8 Test pinning
 

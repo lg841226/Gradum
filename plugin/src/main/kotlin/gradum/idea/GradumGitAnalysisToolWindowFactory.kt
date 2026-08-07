@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-07-31 20:50:07 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 16:01:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,17 +27,19 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import gradum.idea.bundle.GradumBundle.message
 import gradum.idea.chat.ui.GradumSpacing
-import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
 import gradum.idea.icons.GradumIcons
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.addComposeTab
 import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Factory for creating the Gradum Git Analysis tool window.
@@ -57,6 +60,13 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         val scanState = GradumGitAnalysisService.scanState
         val infoTextColor = LocalGlobalColors.current.text.info
         val focusRequester = remember { FocusRequester() }
+        var isAllExpanded by remember { mutableStateOf(false) }
+        var selectedFinding by remember { mutableStateOf<AuditFinding?>(null) }
+        var showCommitInfo by remember { mutableStateOf(false) }
+        var groupBySeverity by remember { mutableStateOf(false) }
+        var isGroupingTransition by remember { mutableStateOf(false) }
+        var reviewedFindings by remember { mutableStateOf(setOf<String>()) }
+        val groupingScope = rememberCoroutineScope()
 
         DisposableEffect(project, toolWindow) {
           val connection = project.messageBus.connect()
@@ -78,109 +88,187 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
             .focusTarget()
         ) {
           if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
-            GitAuditActionBar(
-              onClose = { GradumGitAnalysisService.goHome() },
-              onRefresh = { GradumGitAnalysisService.startScan(project) },
-              enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING,
-              modifier = Modifier.align(Alignment.TopStart)
-            )
-          }
-          when (scanState) {
-            GradumGitAnalysisService.ScanState.SCANNING -> {
-              Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-              ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                Text(
-                  color = infoTextColor,
-                  text = message("gradum.toolwindow.git.analysis.scanning"),
-                  style = JewelTheme.typography.regular
-                )
-                Spacer(Modifier.height(GradumSpacing.sm))
-                OutlinedButton(onClick = { GradumGitAnalysisService.cancelScan() }) {
-                  Text(message("gradum.toolwindow.git.analysis.cancel"))
+            var bannerDismissed by remember { mutableStateOf(false) }
+            val overallLevel = GradumGitAnalysisService.overallLevel
+            Column(modifier = Modifier.fillMaxSize()) {
+              if (!bannerDismissed && overallLevel != null) {
+                val bandLabel = when (overallLevel) {
+                  "critical" -> message("gradum.toolwindow.git.analysis.band.critical")
+                  "alert" -> message("gradum.toolwindow.git.analysis.band.alert")
+                  "watch" -> message("gradum.toolwindow.git.analysis.band.watch")
+                  "normal" -> message("gradum.toolwindow.git.analysis.band.normal")
+                  "clean" -> message("gradum.toolwindow.git.analysis.band.clean")
+                  else -> overallLevel
                 }
+                val bannerText = message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
+                @Suppress("DEPRECATION")
+                InformationDefaultBanner(
+                  text = bannerText,
+                  actions = {
+                    Text(
+                      text = message("gradum.toolwindow.git.analysis.banner.dismiss"),
+                      modifier = Modifier.clickable { bannerDismissed = true },
+                      color = JewelTheme.linkStyle.colors.content
+                    )
+                  },
+                  modifier = Modifier.fillMaxWidth()
+                )
               }
-            }
-
-            GradumGitAnalysisService.ScanState.FAILED -> {
-              Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-              ) {
-                Text(
-                  color = infoTextColor,
-                  text = message("gradum.toolwindow.git.analysis.interrupted")
+              Row(modifier = Modifier.weight(1f).fillMaxSize()) {
+                GitAuditActionBar(
+                  onClose = { GradumGitAnalysisService.goHome() },
+                  onRefresh = { GradumGitAnalysisService.startScan(project) },
+                  onTogglePreview = { showCommitInfo = !showCommitInfo },
+                  onToggleReviewed = {
+                    if (selectedFinding != null) {
+                      val key = findingKey(selectedFinding!!)
+                      reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
+                      else reviewedFindings + key
+                    }
+                  },
+                  onToggleExpandAll = { isAllExpanded = !isAllExpanded },
+                  onToggleGroupBySeverity = {
+                    if (!isGroupingTransition) {
+                      isGroupingTransition = true
+                      groupingScope.launch {
+                        delay(300.milliseconds)
+                        groupBySeverity = !groupBySeverity
+                        isGroupingTransition = false
+                      }
+                    }
+                  },
+                  isAllExpanded = isAllExpanded,
+                  enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING,
+                  groupBySeverity = groupBySeverity,
+                  isGroupingTransition = isGroupingTransition,
+                  reviewedFindings = reviewedFindings,
+                  selectedFinding = selectedFinding,
+                  modifier = Modifier.fillMaxHeight()
                 )
-                GradumGitAnalysisService.lastErrorMessage?.let { error ->
-                  Text(
-                    text = error,
-                    color = infoTextColor,
-                    textAlign = TextAlign.Center
-                  )
-                }
-                Spacer(Modifier.height(GradumSpacing.sm))
-                OutlinedButton(onClick = { GradumGitAnalysisService.goHome() }) {
-                  Text(message("gradum.toolwindow.git.analysis.back"))
-                }
-              }
-            }
+                Box(modifier = Modifier.weight(1f)) {
+                  when (scanState) {
+                    GradumGitAnalysisService.ScanState.SCANNING -> {
+                      Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                      ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.height(GradumSpacing.sml))
+                        Text(
+                          color = infoTextColor,
+                          text = message("gradum.toolwindow.git.analysis.scanning"),
+                          style = JewelTheme.typography.regular
+                        )
+                        Spacer(Modifier.height(GradumSpacing.md))
+                        OutlinedButton(onClick = { GradumGitAnalysisService.cancelScan() }) {
+                          Text(message("gradum.toolwindow.git.analysis.cancel"))
+                        }
+                      }
+                    }
 
-            GradumGitAnalysisService.ScanState.SUCCESS -> {
-              Text(
-                color = infoTextColor,
-                text = message(
-                  "gradum.toolwindow.git.analysis.success",
-                  GradumGitAnalysisService.totalCommits
-                ),
-                modifier = Modifier
-                  .align(Alignment.Center)
-                  .padding(horizontal = GradumSpacing.lg),
-                textAlign = TextAlign.Center
-              )
-            }
+                    GradumGitAnalysisService.ScanState.FAILED -> {
+                      Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                      ) {
+                        Text(
+                          color = infoTextColor,
+                          text = message("gradum.toolwindow.git.analysis.interrupted")
+                        )
+                        GradumGitAnalysisService.lastErrorMessage?.let { error ->
+                          Spacer(Modifier.height(GradumSpacing.sml))
+                          Text(
+                            text = error,
+                            color = infoTextColor,
+                            textAlign = TextAlign.Center
+                          )
+                        }
+                        Spacer(Modifier.height(GradumSpacing.md))
+                        OutlinedButton(onClick = { GradumGitAnalysisService.goHome() }) {
+                          Text(message("gradum.toolwindow.git.analysis.back"))
+                        }
+                      }
+                    }
 
-            else -> {
-              Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.Start,
-                verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
-              ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
-                ) {
-                  Icon(
-                    contentDescription = null,
-                    key = GradumIcons.ColorLogo,
-                    modifier = Modifier.size(28.dp)
-                  )
-                  Text(
-                    style = JewelTheme.typography.h4TextStyle,
-                    text = message("gradum.toolwindow.git.analysis.title")
-                  )
-                }
-                GitAuditFeatureList(
-                  bullet = bullet,
-                  bulletStyle = bulletStyle,
-                  contentStyle = contentStyle
-                )
-                Spacer(modifier = Modifier.height(GradumSpacing.sm))
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
-                ) {
-                  DefaultButton(onClick = { GradumGitAnalysisService.startScan(project) }) {
-                    Text(message("gradum.toolwindow.git.analysis.begin"))
+                    GradumGitAnalysisService.ScanState.SUCCESS -> {
+                      var commitInfoWidth by remember { mutableStateOf(CommitInfoPanelWidth) }
+                      var pinnedFinding by remember { mutableStateOf<AuditFinding?>(null) }
+                      val displayFinding = pinnedFinding ?: selectedFinding
+                      Row(modifier = Modifier.fillMaxSize()) {
+                        AuditFindingsTree(
+                          isAllExpanded = isAllExpanded,
+                          groupBySeverity = groupBySeverity,
+                          reviewedFindings = reviewedFindings,
+                          modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) { selectedFinding = it }
+                        if (showCommitInfo && displayFinding?.hasRealCommitHash() == true) {
+                          CommitInfoPanelResizeHandle(
+                            commitInfoWidth = commitInfoWidth,
+                            onResize = { commitInfoWidth = it },
+                            modifier = Modifier.fillMaxHeight()
+                          )
+                          CommitInfoPanel(
+                            finding = displayFinding,
+                            project = project,
+                            isPinned = pinnedFinding != null,
+                            onTogglePin = {
+                              pinnedFinding = if (pinnedFinding == null) displayFinding else null
+                            },
+                            onToggleReviewed = {
+                              val key = findingKey(displayFinding)
+                              reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
+                              else reviewedFindings + key
+                            },
+                            modifier = Modifier
+                              .fillMaxHeight()
+                              .width(commitInfoWidth)
+                          )
+                        }
+                      }
+                    }
                   }
-                  ExternalLink(
-                    onClick = {},
-                    text = message("gradum.toolwindow.git.analysis.view.full")
-                  )
                 }
+              }
+            }
+          } else {
+            Column(
+              horizontalAlignment = Alignment.Start,
+              modifier = Modifier.align(Alignment.Center),
+              verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+              ) {
+                Icon(
+                  contentDescription = null,
+                  key = GradumIcons.ColorLogo,
+                  modifier = Modifier.size(28.dp)
+                )
+                Text(
+                  style = JewelTheme.typography.h4TextStyle,
+                  text = message("gradum.toolwindow.git.analysis.title")
+                )
+              }
+              GitAuditFeatureList(
+                bullet = bullet,
+                bulletStyle = bulletStyle,
+                contentStyle = contentStyle
+              )
+              Spacer(modifier = Modifier.height(GradumSpacing.sm))
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
+              ) {
+                DefaultButton(onClick = { GradumGitAnalysisService.startScan(project) }) {
+                  Text(message("gradum.toolwindow.git.analysis.begin"))
+                }
+                ExternalLink(
+                  onClick = {},
+                  text = message("gradum.toolwindow.git.analysis.view.full")
+                )
               }
             }
           }
@@ -189,79 +277,6 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
     }
   }
 }
-
-
-/**
- * Reusable vertical action bar shown after a successful scan. Every action is
- * backed by [gradum.idea.chat.ui.common.IconTooltipButton] with an
- * internationalized tooltip and accessibility description.
- */
-@Composable
-private fun GitAuditActionBar(
-  onClose: () -> Unit,
-  onRefresh: () -> Unit,
-  enabled: Boolean = true,
-  modifier: Modifier = Modifier
-) {
-  var isAllExpanded by remember { mutableStateOf(false) }
-  val currentTooltip = if (isAllExpanded) {
-    message("gradum.toolwindow.git.analysis.action.collapse")
-  } else {
-    message("gradum.toolwindow.git.analysis.action.expand")
-  }
-
-  Column(modifier = modifier) {
-    Row {
-      Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(GradumSpacing.sml))
-        IconTooltipButton(
-          tooltip = message("gradum.toolwindow.git.analysis.action.close"),
-          iconKey = AllIconsKeys.General.Close,
-          contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
-          onClick = onClose,
-          enabled = enabled,
-          modifier = Modifier.iconButtonPadding()
-        )
-        IconTooltipButton(
-          tooltip = message("gradum.toolwindow.git.analysis.action.refresh"),
-          iconKey = AllIconsKeys.General.Refresh,
-          contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
-          onClick = onRefresh,
-          enabled = enabled,
-          modifier = Modifier.iconButtonPadding()
-        )
-        IconTooltipButton(
-          tooltip = message("gradum.toolwindow.git.analysis.action.preview"),
-          iconKey = AllIconsKeys.General.LayoutEditorPreview,
-          contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
-          onClick = {},
-          enabled = false,
-          modifier = Modifier.iconButtonPadding()
-        )
-        IconTooltipButton(
-          tooltip = currentTooltip,
-          iconKey = if (isAllExpanded) GradumIcons.ExpandAll else GradumIcons.CollapseAll,
-          contentDescription = currentTooltip,
-          onClick = { isAllExpanded = !isAllExpanded },
-          enabled = false,
-          modifier = Modifier.iconButtonPadding()
-        )
-        IconTooltipButton(
-          tooltip = message("gradum.toolwindow.git.analysis.action.show"),
-          iconKey = AllIconsKeys.General.Show,
-          contentDescription = message("gradum.toolwindow.git.analysis.action.show"),
-          onClick = {},
-          enabled = false,
-          modifier = Modifier.iconButtonPadding()
-        )
-      }
-    }
-  }
-}
-
-private fun Modifier.iconButtonPadding() = this
-  .padding(horizontal = GradumSpacing.sml)
-  .padding(bottom = GradumSpacing.xs)
 
 /**
  * Renders the `-` markdown list as plain Compose rows, matching the chat's
@@ -281,9 +296,7 @@ private fun GitAuditFeatureList(
       message("gradum.toolwindow.git.analysis.feature.1"),
       message("gradum.toolwindow.git.analysis.feature.2"),
     ).forEach { item ->
-      Row(
-        verticalAlignment = Alignment.Top,
-      ) {
+      Row(verticalAlignment = Alignment.Top) {
         Box(
           contentAlignment = Alignment.CenterEnd,
           modifier = Modifier.padding(end = GradumSpacing.sm)

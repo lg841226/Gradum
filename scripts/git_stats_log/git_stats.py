@@ -2,9 +2,12 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-07-31 14:47:15 Changed by gwy
+#  git_stats.py  2026-08-04 14:45:22 Changed by gwy
 #
-#  git_stats.py  2026-07-31 14:47:03 Changed by gwy
+#  git_stats.py  2026-08-01 22:11:46 Changed by gwy
+#
+#  git_stats.py  2026-07-31 14:47:15 Changed by gwy
+
 import functools
 import itertools
 import json
@@ -20,9 +23,14 @@ import time
 import zipfile
 from collections import defaultdict, deque
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 __version__ = "1.1.0"
+
+# Matches git short hashes (7-40 hex chars). Used to filter finding records
+# that carry a real per-commit hash vs placeholders like `-`, `Cluster #N`,
+# `Recent Spike`.
+_SHORT_HASH_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 # Severity word -> log level for audit findings.
 _SEVERITY_TO_LOG = {
@@ -95,12 +103,14 @@ def _parse_commit_entry(current_hash, current_iso, current_subject, current_auth
     commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
     additions, deletions = _parse_numstat("\n".join(numstat_lines))
     is_claude = current_trailer and "Claude <noreply@anthropic.com>" in current_trailer
+    is_opencode = current_trailer and "opencode <opencode@opencode.ai>" in current_trailer
     file_paths = [line.split("\t")[2] for line in numstat_lines if line.count("\t") >= 2]
     return {
         "hash": current_hash[:8], "date": commit_date,
         "additions": additions, "deletions": deletions,
         "files_changed": len(numstat_lines), "files_changed_list": file_paths,
-        "is_claude": is_claude,
+        "is_claude": is_claude, "is_opencode": is_opencode,
+        "is_ai": is_claude or is_opencode,
         "author_name": current_author, "author_email": current_email,
         "subject": current_subject,
     }
@@ -142,6 +152,34 @@ def _stream_git_log(repo_path: str, git_args: str, on_commit=None, progress_offs
 
     proc.stdout.close()
     proc.wait()
+
+
+def _fetch_commit_bodies(repo_path: str, hashes: Iterable[str]) -> Dict[str, str]:
+    """Batch-fetch the full original commit message for each given hash.
+
+    Returns a map of short hash -> full message (subject + body). Commits that
+    cannot be resolved are omitted. Used to enrich per-commit audit findings
+    with their complete original message text.
+    """
+    unique = sorted({h for h in hashes if _SHORT_HASH_RE.match(h or "")})
+    if not unique:
+        return {}
+    try:
+        proc = subprocess.run(
+            f'git log --no-walk --format="%H%x00%B%x00" {" ".join(unique)}',
+            cwd=repo_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, bufsize=1, timeout=30,
+        )
+    except subprocess.SubprocessError:
+        return {}
+    parts = proc.stdout.split("\x00")
+    messages: Dict[str, str] = {}
+    for i in range(0, len(parts) - 1, 2):
+        full_hash = parts[i].strip()
+        message = parts[i + 1]
+        if full_hash:
+            messages[full_hash[:8]] = message.rstrip("\n")
+    return messages
 
 
 def all_commits(repo_path: str, all_branches: bool = False, since_date: str = None, on_commit=None) -> List[Dict]:
@@ -233,6 +271,8 @@ class QualityModel:
         commits_per_day = total_commits / active_days
 
         claude_commit_count = sum(1 for entry in entries if entry.get("is_claude"))
+        opencode_commit_count = sum(1 for entry in entries if entry.get("is_opencode"))
+        ai_commit_count = sum(1 for entry in entries if entry.get("is_ai"))
         all_additions = [entry["additions"] for entry in entries]
         average_files_changed = (
             statistics.mean([entry["files_changed"] for entry in entries])
@@ -251,6 +291,8 @@ class QualityModel:
             average_additions=average_additions,
             commits_per_day=commits_per_day,
             claude_commit_count=claude_commit_count,
+            opencode_commit_count=opencode_commit_count,
+            ai_commit_count=ai_commit_count,
             all_additions=all_additions,
             average_files_changed=average_files_changed,
         )
@@ -323,9 +365,9 @@ class QualityModel:
             return 0.0
         return min(len(detected) / 3.0, 1.0)
 
-    def score_ai_claude(self, claude_commit_count: int, total_commits: int) -> float:
-        claude_ratio = claude_commit_count / max(total_commits, 1)
-        return min(claude_ratio * self._params["aiClaudeFactor"], 1.0)
+    def score_ai_claude(self, ai_commit_count: int, total_commits: int) -> float:
+        ai_ratio = ai_commit_count / max(total_commits, 1)
+        return min(ai_ratio * self._params["aiClaudeFactor"], 1.0)
 
     def score_deletion_health(self, total_additions: int, total_deletions: int) -> float:
         if total_additions == 0:
@@ -433,7 +475,7 @@ class QualityModel:
         firework_score = self.score_firework(metrics["commits_per_day"], metrics["active_days"])
         agent_artifact_score = self.score_agent_artifacts(repo)
         ai_claude_score = self.score_ai_claude(
-            metrics["claude_commit_count"], metrics["total_commits"]
+            metrics["ai_commit_count"], metrics["total_commits"]
         )
 
         suspicion = self.aggregate_suspicion([
@@ -502,7 +544,7 @@ class QualityModel:
             band=band_name,
             band_color=band_color,
             avg_files_changed=round(metrics["average_files_changed"], 2),
-            claude_commits=metrics["claude_commit_count"],
+            claude_commits=metrics["ai_commit_count"],
         )
 
     def evaluate_period_batch(
@@ -652,80 +694,44 @@ _SUSPICION_THRESHOLDS = {}
 for internal, (config_key, default) in _AUDIT_PARAM_KEYS.items():
     _SUSPICION_THRESHOLDS[internal] = _AUDIT_PARAMS.get(config_key, default)
 
+# Audit finding codes -> (type, level). The human-readable message is
+# produced on the plugin side from the code + params; the script only
+# carries the raw values needed to render it.
 _AUDIT_CODES = {
     # Critical (S1000-S1999)
-    "S1001": ("High-Risk Refactoring", "critical",
-              "A single commit changed +{add}/-{dels} lines, exceeding the threshold of {threshold}"),
-    "S1002": ("Net Reduction", "critical",
-              "The codebase shows a net loss of {ratio:.0f}% ({dels} deletions vs {add} additions)"),
-    "S1003": ("Single-Author Project", "critical",
-              "Only \"{author}\" authored all {total} commits, giving a bus factor of 1"),
-    "S1004": ("Mass Rewrite", "critical",
-              "A single commit rewrote {lines} lines, which is {pct:.0f}% of the total codebase"),
-    "S1005": ("Zero Activity", "critical",
-              "The repository has no commits"),
+    "S1001": ("High-Risk Refactoring", "critical"),
+    "S1002": ("Net Reduction", "critical"),
+    "S1003": ("Single-Author Project", "critical"),
+    "S1004": ("Mass Rewrite", "critical"),
+    "S1005": ("Zero Activity", "critical"),
     # Alert (S2000-S2999)
-    "S2001": ("Deletion Cluster", "alert",
-              "There were {count} consecutive deletion-heavy commits, removing {lines} lines at positions {start_idx} to {end_idx}"),
-    "S2002": ("Mature Churn", "alert",
-              "Across {total} total commits, {count} heavy deletions occurred within {days} days"),
-    "S2003": ("Core Net Deletion", "alert",
-              "A commit removed {lines} lines from core source files"),
-    "S2004": ("Accumulation-Only", "alert",
-              "The deletion ratio is {ratio:.1f}% over {total} commits, with almost no cleanup"),
-    "S2005": ("AI Volume Spike", "alert",
-              "The average of {avg:.0f} lines per commit exceeds the AI threshold of {threshold}"),
-    "S2006": ("AI Bootstrap", "alert",
-              "The first {n} commits have an add/delete ratio of {ratio:.1f}x, which matches an AI boilerplate pattern"),
-    "S2007": ("AI Uniformity", "alert",
-              "The CV of {cv:.3f} is below the threshold of {threshold:.2f}, indicating suspiciously uniform commit sizes"),
-    "S2008": ("AI Focus Deviation", "alert",
-              "The average of {avg:.1f} files per commit deviates from the target of {target}; AI tends to touch fewer files"),
-    "S2009": ("Firework Burst", "alert",
-              "{density:.1f} commits per day over {days:.0f} days resemble an AI rapid-fire pattern"),
-    "S2010": ("Claude Flood", "alert",
-              "{pct:.0f}% of commits ({count} out of {total}) carry a Claude Co-Authored-By trailer"),
-    "S2011": ("Bus Factor", "alert",
-              "The top {n} contributors own {pct:.0f}% of {total} commits, posing a bus factor risk"),
-    "S2012": ("Abandoned", "alert",
-              "The last commit was {days:.0f} days ago with a half-life of {half} days, so the project may be inactive"),
+    "S2001": ("Deletion Cluster", "alert"),
+    "S2002": ("Mature Churn", "alert"),
+    "S2003": ("Core Net Deletion", "alert"),
+    "S2004": ("Accumulation-Only", "alert"),
+    "S2005": ("AI Volume Spike", "alert"),
+    "S2006": ("AI Bootstrap", "alert"),
+    "S2007": ("AI Uniformity", "alert"),
+    "S2008": ("AI Focus Deviation", "alert"),
+    "S2009": ("Firework Burst", "alert"),
+    "S2010": ("Claude Flood", "alert"),
+    "S2011": ("Bus Factor", "alert"),
+    "S2012": ("Abandoned", "alert"),
     # Watch (S3000-S3999)
-    "S3001": ("Non-Core Deletion", "watch",
-              "A commit deleted {lines} lines, and {core} of {files} changed files are source code"),
-    "S3002": ("Heavy Churn", "watch",
-              "There were {dels} deletions versus {add} additions, giving a deletion ratio of {ratio:.0f}%"),
-    "S3003": ("Bot-like Author", "watch",
-              "\"{author}\" matches the bot pattern \"{pattern}\""),
-    "S3004": ("Weekend Warrior", "watch",
-              "{pct:.0f}% of commits ({count} out of {total}) happened on weekends, suggesting a possible personal project"),
-    "S3005": ("Day Burst", "watch",
-              "{count} commits on that day, an unusually high level of single-day activity"),
-    "S3006": ("No Merges", "watch",
-              "No merge commits in {total} total commits, indicating a purely linear history"),
-    "S3007": ("Tiny Commits", "watch",
-              "{count} out of {total} commits ({pct:.0f}%) are under {limit} lines, suggesting possible WIP or generated content"),
-    "S3008": ("Vague Messages", "watch",
-              "{count} out of {total} commits ({pct:.0f}%) have generic subjects of 5 characters or fewer"),
+    "S3001": ("Non-Core Deletion", "watch"),
+    "S3002": ("Heavy Churn", "watch"),
+    "S3003": ("Bot-like Author", "watch"),
+    "S3004": ("Weekend Warrior", "watch"),
+    "S3005": ("Day Burst", "watch"),
+    "S3006": ("No Merges", "watch"),
+    "S3007": ("Tiny Commits", "watch"),
+    "S3008": ("Vague Messages", "watch"),
     # Normal (S4000-S4999)
-    "S4001": ("Low Cleanup", "normal",
-              "The deletion ratio is {ratio:.1f}%, which is below the ideal range"),
-    "S4002": ("Small Project", "normal",
-              "{lines} lines across {files} files suggest an early-stage project or tiny utility"),
-    "S4003": ("Compact History", "normal",
-              "{days} days of active development"),
+    "S4001": ("Low Cleanup", "normal"),
+    "S4002": ("Small Project", "normal"),
     # Clean (S5000-S5999)
-    "S5001": ("Balanced Churn", "clean",
-              "The deletion ratio is {ratio:.1f}%, indicating a healthy cleanup rate"),
-    "S5002": ("Multiple Contributors", "clean",
-              "{count} distinct authors: {names}"),
-    "S2013": ("AI Agent Artifacts", "alert",
-              "{count} tool{plural} detected across {files} tracked files"),
-    "S5003": ("Gradual Growth", "clean",
-              "{lines} lines were added over {days} days, indicating steady organic growth"),
+    "S2013": ("AI Agent Artifacts", "alert"),
 }
-
-# Pre-built lookup: code to (type, level)
-_AUDIT_CODE_META = {key: (value[0], value[1]) for key, value in _AUDIT_CODES.items()}
 
 # Agent artifact file/directory patterns for AI tool detection (S2013)
 _AGENT_ARTIFACT_PATTERNS = {
@@ -759,7 +765,7 @@ def _ai_participation_per_author(repo: str, entries: List[Dict]) -> Dict[str, in
     result: Dict[str, int] = defaultdict(int)
 
     for e in entries:
-        if e.get("is_claude"):
+        if e.get("is_ai"):
             result[e.get("author_name", "Unknown")] += 1
 
     artifacts = _detect_agent_artifacts(repo)
@@ -779,12 +785,6 @@ def _ai_participation_per_author(repo: str, entries: List[Dict]) -> Dict[str, in
                         result[author] += 1
 
     return dict(result)
-
-
-def _audit_msg(code: str, **kwargs) -> str:
-    """Format the audit message for a given code with keyword args."""
-    template = _AUDIT_CODES[code][2]
-    return template.format(**kwargs)
 
 
 def _is_bot_author(name: str, patterns: List[str] = None) -> bool:
@@ -831,6 +831,8 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "subject": entry.get("subject", ""),
             "files_changed": entry.get("files_changed", 0),
             "is_claude": entry.get("is_claude", False),
+            "is_opencode": entry.get("is_opencode", False),
+            "is_ai": entry.get("is_ai", False),
             "is_recent": (now - entry["date"]).total_seconds() / 86400.0 < thresholds["recent_days"],
         })
 
@@ -863,8 +865,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(commit["date"].date()),
                 "time_since": int((now - commit["date"]).total_seconds() / 86400),
                 "type": "Non-Core Deletion", "level": "watch",
-                "note": _audit_msg("S3001",
-                                   lines=-commit["net"], files=total_files, core=core_count),
+                "subject": commit.get("subject", ""), "author": commit.get("author", ""),
+                "params": {
+                    "lines": -commit["net"], "files": total_files, "core": core_count,
+                },
             })
         elif both_large:
             suspicion.append({
@@ -872,9 +876,11 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(commit["date"].date()),
                 "time_since": int((now - commit["date"]).total_seconds() / 86400),
                 "type": "High-Risk Refactoring", "level": "critical",
-                "note": _audit_msg("S1001",
-                                   add=commit["additions"], dels=commit["deletions"],
-                                   threshold=thresholds["both_large"]),
+                "subject": commit.get("subject", ""), "author": commit.get("author", ""),
+                "params": {
+                    "add": commit["additions"], "dels": commit["deletions"],
+                    "threshold": thresholds["both_large"],
+                },
             })
         else:
             suspicion.append({
@@ -882,7 +888,8 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(commit["date"].date()),
                 "time_since": int((now - commit["date"]).total_seconds() / 86400),
                 "type": "Core Net Deletion", "level": "alert",
-                "note": _audit_msg("S2003", lines=-commit["net"]),
+                "subject": commit.get("subject", ""), "author": commit.get("author", ""),
+                "params": {"lines": -commit["net"]},
             })
 
     for index, cluster in enumerate(clusters):
@@ -893,9 +900,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "date": str(cluster_commits[0]["date"].date()) if cluster_commits else "",
             "time_since": "-",
             "type": "Deletion Cluster", "level": "alert",
-            "note": _audit_msg("S2001",
-                               count=len(cluster), lines=total_del,
-                               start_idx=cluster[0], end_idx=cluster[-1]),
+            "params": {
+                "count": len(cluster), "lines": total_del,
+                "start_idx": cluster[0], "end_idx": cluster[-1],
+            },
         })
 
     if total >= thresholds["mature_commits"]:
@@ -906,15 +914,17 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2002", "hash": "Recent Spike", "index": recent_heavy[-1]["index"],
                 "date": str(recent_heavy[-1]["date"].date()), "time_since": "-",
                 "type": "Mature Project Churn", "level": "alert",
-                "note": _audit_msg("S2002", total=total, count=len(recent_heavy),
-                                   days=thresholds["recent_days"]),
+                "params": {
+                    "total": total, "count": len(recent_heavy),
+                    "days": thresholds["recent_days"],
+                },
             })
 
     total_additions = sum(entry["additions"] for entry in entries)
     total_deletions = sum(entry["deletions"] for entry in entries)
     total_lines_all = total_additions + total_deletions
 
-    # S1002 / S2004 / S3002 / S4001 / S5001: churn ratios
+    # S1002 / S2004 / S3002 / S4001: churn ratios
     if total_additions == 0 and total_deletions == 0:
         ratio_label = "No Changes"
         ratio_level = "normal"
@@ -925,7 +935,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S2004", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Accumulation-Only", "level": "alert",
-            "note": _audit_msg("S2004", ratio=0.0, total=total),
+            "params": {"ratio": 0.0, "total": total},
         })
     else:
         ratio = total_deletions / total_additions
@@ -936,7 +946,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2004", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Accumulation-Only", "level": "alert",
-                "note": _audit_msg("S2004", ratio=ratio * 100, total=total),
+                "params": {"ratio": ratio * 100, "total": total},
             })
         elif ratio < 0.25:
             ratio_label = "Low Cleanup"
@@ -945,17 +955,11 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S4001", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Low Cleanup", "level": "normal",
-                "note": _audit_msg("S4001", ratio=ratio * 100),
+                "params": {"ratio": ratio * 100},
             })
         elif ratio < 0.50:
             ratio_label = "Balanced Churn"
             ratio_level = "clean"
-            suspicion.append({
-                "code": "S5001", "hash": "-", "index": -1,
-                "date": str(now.date()), "time_since": "-",
-                "type": "Balanced Churn", "level": "clean",
-                "note": _audit_msg("S5001", ratio=ratio * 100),
-            })
         elif ratio < 1.0:
             ratio_label = "Heavy Churn"
             ratio_level = "watch"
@@ -963,8 +967,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S3002", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Heavy Churn", "level": "watch",
-                "note": _audit_msg("S3002", ratio=ratio * 100,
-                                   dels=total_deletions, add=total_additions),
+                "params": {
+                    "ratio": ratio * 100,
+                    "dels": total_deletions, "add": total_additions,
+                },
             })
         else:
             ratio_label = "Net Reduction"
@@ -973,20 +979,32 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S1002", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Net Reduction", "level": "critical",
-                "note": _audit_msg("S1002", dels=total_deletions, add=total_additions,
-                                   ratio=total_deletions / max(total_additions, 1) * 100),
+                "params": {
+                    "dels": total_deletions, "add": total_additions,
+                    "ratio": total_deletions / max(total_additions, 1) * 100,
+                },
             })
 
     # S1003: Single-Author Project
-    authors = set(e["author"] for e in enriched)
-    non_bot_authors = [a for a in authors if not _is_bot_author(a)]
-    if len(non_bot_authors) <= 1 and total >= 10:
-        author_name = non_bot_authors[0] if non_bot_authors else "unknown"
+    # Identify authors by email (stable identity) so the same person using
+    # multiple display names counts as one contributor; fall back to the
+    # display name when no email is available.
+    def _author_identity(entry: Dict) -> str:
+        email = entry.get("email", "").strip()
+        return email.lower() if email else entry.get("author", "Unknown").lower()
+
+    author_ids = {_author_identity(e) for e in enriched}
+    non_bot_author_ids = [aid for aid in author_ids if not _is_bot_author(aid)]
+    if len(non_bot_author_ids) <= 1 and total >= 10:
+        author_name = "unknown"
+        if non_bot_author_ids:
+            match = next((e["author"] for e in enriched if _author_identity(e) == non_bot_author_ids[0]), "")
+            author_name = match or non_bot_author_ids[0]
         suspicion.append({
             "code": "S1003", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Single-Author Project", "level": "critical",
-            "note": _audit_msg("S1003", author=author_name, total=total),
+            "params": {"author": author_name, "total": total},
         })
 
     # S1004: Mass Rewrite
@@ -999,7 +1017,8 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "date": str(max_single["date"].date()),
             "time_since": int((now - max_single["date"]).total_seconds() / 86400),
             "type": "Mass Rewrite", "level": "critical",
-            "note": _audit_msg("S1004", lines=single_total, pct=pct_of_total),
+            "subject": max_single.get("subject", ""), "author": max_single.get("author", ""),
+            "params": {"lines": single_total, "pct": pct_of_total},
         })
 
     if scores:
@@ -1010,8 +1029,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2005", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Volume Spike", "level": "alert",
-                "note": _audit_msg("S2005", avg=avg_add,
-                                   threshold=audit_params.get("aiAdditionsPerCommitThreshold", 500)),
+                "params": {
+                    "avg": avg_add,
+                    "threshold": audit_params.get("aiAdditionsPerCommitThreshold", 500),
+                },
             })
         # S2006: AI Initiative
         if scores.get("ai_initiative", 0) > 0.5:
@@ -1023,7 +1044,9 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2006", "hash": enriched[0]["hash"] if enriched else "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Bootstrap", "level": "alert",
-                "note": _audit_msg("S2006", n=n, ratio=early_ratio),
+                "subject": enriched[0].get("subject", "") if enriched else "",
+                "author": enriched[0].get("author", "") if enriched else "",
+                "params": {"n": n, "ratio": early_ratio},
             })
         # S2007: AI Repetition
         if scores.get("ai_repetition", 0) > 0.5:
@@ -1034,8 +1057,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2007", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Uniformity", "level": "alert",
-                "note": _audit_msg("S2007", cv=cv,
-                                   threshold=audit_params.get("aiRepetitionCvThreshold", 0.5)),
+                "params": {
+                    "cv": cv,
+                    "threshold": audit_params.get("aiRepetitionCvThreshold", 0.5),
+                },
             })
         # S2008: AI Focus
         if scores.get("ai_focus", 0) > 0.5:
@@ -1044,8 +1069,10 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2008", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "AI Focus Deviation", "level": "alert",
-                "note": _audit_msg("S2008", avg=avg_files, n=total,
-                                   target=audit_params.get("aiFocusTargetFiles", 3.0)),
+                "params": {
+                    "avg": avg_files, "n": total,
+                    "target": audit_params.get("aiFocusTargetFiles", 3.0),
+                },
             })
         # S2009: Firework Burst
         if scores.get("firework", 0) > 0.5:
@@ -1056,17 +1083,28 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2009", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Firework Burst", "level": "alert",
-                "note": _audit_msg("S2009", density=density, days=days_active),
+                "params": {"density": density, "days": days_active},
             })
-        # S2010: Claude Flood
+        # S2010: Claude Flood / AI Co-author Flood
         if scores.get("ai_claude", 0) > 0.25:
+            ai_coauthor_count = sum(1 for e in enriched if e.get("is_ai", False))
             claude_count = sum(1 for e in enriched if e.get("is_claude", False))
+            opencode_count = sum(1 for e in enriched if e.get("is_opencode", False))
+            coauthors = []
+            if claude_count > 0:
+                coauthors.append("Claude")
+            if opencode_count > 0:
+                coauthors.append("OpenCode")
+            coauthors_str = " & ".join(coauthors) if coauthors else "AI"
             suspicion.append({
                 "code": "S2010", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Claude Flood", "level": "alert",
-                "note": _audit_msg("S2010", pct=claude_count / max(total, 1) * 100,
-                                   count=claude_count, total=total),
+                "params": {
+                    "pct": ai_coauthor_count / max(total, 1) * 100,
+                    "count": ai_coauthor_count, "total": total,
+                    "coauthors": coauthors_str,
+                },
             })
         # S2011: Hero Dependency
         if scores.get("hero", 1.0) < 0.5:
@@ -1083,7 +1121,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "code": "S2011", "hash": "-", "index": -1,
                 "date": str(now.date()), "time_since": "-",
                 "type": "Hero Dependency", "level": "alert",
-                "note": _audit_msg("S2011", n=hero_n, pct=hero_pct, total=total),
+                "params": {"n": hero_n, "pct": hero_pct, "total": total},
             })
         # S2012: Abandoned
         days_since = (now - enriched[-1]["date"]).total_seconds() / 86400 if enriched else 9999
@@ -1094,7 +1132,9 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(enriched[-1]["date"].date()) if enriched else str(now.date()),
                 "time_since": int(days_since),
                 "type": "Abandoned", "level": "alert",
-                "note": _audit_msg("S2012", days=days_since, half=half_life),
+                "subject": enriched[-1].get("subject", "") if enriched else "",
+                "author": enriched[-1].get("author", "") if enriched else "",
+                "params": {"days": days_since, "half": half_life},
             })
 
     # S3003: Bot-like Author
@@ -1106,8 +1146,11 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "date": str(e["date"].date()),
                 "time_since": int((now - e["date"]).total_seconds() / 86400),
                 "type": "Bot-like Author", "level": "watch",
-                "note": _audit_msg("S3003", author=e["author"],
-                                   pattern=matched_pattern),
+                "subject": e.get("subject", ""), "author": e.get("author", ""),
+                "params": {
+                    "author": e["author"],
+                    "pattern": matched_pattern,
+                },
             })
             break
 
@@ -1119,7 +1162,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S3004", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Weekend Warrior", "level": "watch",
-            "note": _audit_msg("S3004", pct=weekend_pct, count=weekend_count, total=total),
+            "params": {"pct": weekend_pct, "count": weekend_count, "total": total},
         })
 
     # S3005: Day Burst
@@ -1135,7 +1178,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
                 "hash"],
             "index": -1, "date": str(max_day), "time_since": "-",
             "type": "Day Burst", "level": "watch",
-            "note": _audit_msg("S3005", count=max_day_count),
+            "params": {"count": max_day_count},
         })
 
     # S3006: No Merges
@@ -1145,7 +1188,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S3006", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "No Merges", "level": "watch",
-            "note": _audit_msg("S3006", total=total),
+            "params": {"total": total},
         })
 
     # S3007: Tiny Commits
@@ -1157,7 +1200,9 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S3007", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Tiny Commits", "level": "watch",
-            "note": _audit_msg("S3007", count=tiny_count, total=total, pct=tiny_pct, limit=tiny_threshold),
+            "params": {
+                "count": tiny_count, "total": total, "pct": tiny_pct, "limit": tiny_threshold,
+            },
         })
 
     # S3008: Vague Messages (≤5 chars + regex)
@@ -1180,7 +1225,7 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S3008", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Vague Messages", "level": "watch",
-            "note": _audit_msg("S3008", count=vague_count, total=total, pct=vague_pct),
+            "params": {"count": vague_count, "total": total, "pct": vague_pct},
         })
 
     # S4002: Small Project
@@ -1192,58 +1237,23 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             "code": "S4002", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "Small Project", "level": "normal",
-            "note": _audit_msg("S4002", lines=total_lines_all, files=len(all_files)),
+            "params": {"lines": total_lines_all, "files": len(all_files)},
         })
-
-    # S4003: Compact History
-    if enriched:
-        active_span = (enriched[-1]["date"] - enriched[0]["date"]).total_seconds() / 86400
-        if active_span < 30 and total >= 5:
-            suspicion.append({
-                "code": "S4003", "hash": "-", "index": -1,
-                "date": str(now.date()), "time_since": "-",
-                "type": "Compact History", "level": "normal",
-                "note": _audit_msg("S4003", days=round(active_span)),
-            })
 
     # S2013: AI Agent Artifacts
     agent_traces = _detect_agent_artifacts(repo)
     if agent_traces:
-        file_list = []
-        for agent_name, files in sorted(agent_traces.items()):
-            file_list.extend(files[:2])
-        display = ", ".join(file_list[:5])
+        agents = sorted(agent_traces.keys())
+        display = ", ".join(agents[:5])
         suspicion.append({
             "code": "S2013", "hash": "-", "index": -1,
             "date": str(now.date()), "time_since": "-",
             "type": "AI Agent Artifacts", "level": "alert",
-            "note": _audit_msg("S2013", files=display,
-                               count=len(agent_traces),
-                               plural="s" if len(agent_traces) > 1 else ""),
+            "params": {
+                "agents": display,
+                "count": len(agent_traces),
+            },
         })
-
-    # S5002: Multiple Contributors
-    if len(non_bot_authors) > 3:
-        author_list = ", ".join(non_bot_authors[:5])
-        if len(non_bot_authors) > 5:
-            author_list += f" and {len(non_bot_authors) - 5} more"
-        suspicion.append({
-            "code": "S5002", "hash": "-", "index": -1,
-            "date": str(now.date()), "time_since": "-",
-            "type": "Multiple Contributors", "level": "clean",
-            "note": _audit_msg("S5002", count=len(non_bot_authors), names=author_list),
-        })
-
-    # S5003: Gradual Growth
-    if enriched:
-        active_span = (enriched[-1]["date"] - enriched[0]["date"]).total_seconds() / 86400
-        if active_span > 90 and total_lines_all > 5000 and total_deletions / max(total_additions, 1) < 0.5:
-            suspicion.append({
-                "code": "S5003", "hash": "-", "index": -1,
-                "date": str(now.date()), "time_since": "-",
-                "type": "Gradual Growth", "level": "clean",
-                "note": _audit_msg("S5003", lines=total_lines_all, days=round(active_span)),
-            })
 
     highest_level = "clean"
     for suspect in suspicion:
@@ -1256,6 +1266,19 @@ def audit_deletions(repo: str, entries: List[Dict], now: datetime,
             highest_level = "watch"
         elif level == "normal" and highest_level not in ("critical", "alert", "watch"):
             highest_level = "normal"
+
+    bodies = _fetch_commit_bodies(
+        repo, (suspect.get("hash", "") for suspect in suspicion)
+    )
+    for suspect in suspicion:
+        suspect_hash = suspect.get("hash", "")
+        message = bodies.get(suspect_hash, "")
+        if message:
+            subject = suspect.get("subject", "")
+            body = message
+            if subject and message.startswith(subject):
+                body = message[len(subject):].lstrip("\n")
+            suspect["body"] = body
 
     return {
         "total_commits": total,
@@ -1379,7 +1402,7 @@ def main():
 
             for suspect in audit.get("suspicion", []):
                 fields = dict(
-                    message=suspect["note"],
+                    params=suspect["params"],
                     code=suspect["code"],
                     level=suspect["level"],
                     type=suspect["type"],
@@ -1387,6 +1410,9 @@ def main():
                     index=suspect["index"],
                     date=suspect["date"],
                     days=suspect["time_since"],
+                    subject=suspect.get("subject", ""),
+                    author=suspect.get("author", ""),
+                    body=suspect.get("body", ""),
                 )
                 log(_SEVERITY_TO_LOG.get(suspect["level"], "INFO"), **fields)
 

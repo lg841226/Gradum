@@ -2,19 +2,25 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-07-31 20:53:01 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-07 16:01:18 Changed by gwy
  */
 package gradum.idea
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
+import gradum.idea.GradumGitAnalysisService.FINDING_CODE_PREFIX
+import gradum.idea.GradumGitAnalysisService.handleFailure
+import gradum.idea.GradumGitAnalysisService.isScanCompleted
+import gradum.idea.GradumGitAnalysisService.restoreStateBeforeScan
 import gradum.idea.bundle.GradumBundle.message
 import kotlinx.serialization.json.*
 import java.io.BufferedReader
@@ -25,50 +31,371 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.util.*
 
+/**
+ * A single audit finding (SXXXX code) reported by the analysis script.
+ *
+ * Every finding record carries the raw script fields verbatim; presentation
+ * and localization are left to the UI layer. [params] holds the raw values
+ * that were previously baked into a message string, so the UI can render a
+ * localized message via [formatMessage].
+ */
+data class AuditFinding(
+  val code: String,
+  val level: String,
+  val type: String,
+  val params: Map<String, Any?>,
+  val hash: String,
+  val index: Int,
+  val date: String,
+  val days: String,
+  val subject: String = "",
+  val author: String = "",
+  val body: String = ""
+) {
+  /**
+   * Renders this finding in an MSVC-style diagnostic line, e.g.
+   * `critical S1001: A single commit changed +500/-200 lines, exceeding the
+   * threshold of 500`. The numeric params are formatted with the same
+   * precision the script's Python templates used.
+   */
+  fun formatMessage(): String = "$level $code: ${formatBody()}"
+
+  /**
+   * Renders only the localized body of this finding, e.g. `A single commit
+   * changed +500/-200 lines, exceeding the threshold of 500`. The severity
+   * and code are left out so a status icon can convey them instead. For the
+   * codes in [AUDIT_HASH_WEAVED_CODES] the commit hash is appended as the
+   * final message argument so it reads naturally inside the sentence.
+   */
+  fun formatBody(): String {
+    val args = AUDIT_PARAM_ORDER[code].orEmpty().map { spec ->
+      formatAuditParam(params[spec.name], spec.decimals)
+    }.toMutableList()
+    if (code in AUDIT_HASH_WEAVED_CODES) args.add(hash)
+    return message("$AUDIT_MESSAGE_PREFIX$code", *args.toTypedArray())
+  }
+}
+
+/**
+ * Codes whose bundle templates weave the commit hash into the sentence
+ * (as the last placeholder). Only these findings carry a real per-commit
+ * hash; aggregate/statistical findings keep their original wording.
+ */
+private val AUDIT_HASH_WEAVED_CODES = setOf(
+  "S1001", "S1004", "S2003", "S2006", "S2012", "S3001", "S3003"
+)
+
+/**
+ * True when this finding is tied to a specific commit and carries a usable
+ * commit hash. Aggregate/statistical findings (`hash` is `-`, `Cluster #N`,
+ * `Recent Spike`, …) return false. This is what gates the "show commit
+ * details" action button in the tool window.
+ */
+internal fun AuditFinding.hasRealCommitHash(): Boolean =
+  code in AUDIT_HASH_WEAVED_CODES && hash.isNotBlank() && hash != "-"
+
+/** Stable string key for a finding, used for reviewed-set tracking. */
+internal fun findingKey(f: AuditFinding) = "${f.code}|${f.hash}|${f.index}"
+
+/**
+ * Opens the given commit hash on GitHub. Resolves the `origin` remote of
+ * the project's git repository (`git remote get-url origin`) on a
+ * background thread, converts the URL into a browsable web link, and
+ * opens it with [BrowserUtil.browse]. A short hash works on GitHub, so
+ * [AuditFinding.hash] is used as-is. SSH forms (`git@github.com:o/r.git`)
+ * and `https://github.com/o/r.git` both resolve.
+ */
+internal fun openCommitOnGitHub(project: Project, hash: String) {
+  if (hash.isBlank()) return
+  val basePath = project.basePath ?: return
+  Thread {
+    val remoteUrl = runCatching {
+      ProcessBuilder("git", "remote", "get-url", "origin")
+        .directory(File(basePath))
+        .redirectErrorStream(true)
+        .start()
+        .let { process ->
+          val output = process.inputStream.bufferedReader().readText().trim()
+          process.waitFor()
+          output
+        }
+    }.getOrNull().orEmpty()
+    val webUrl = githubWebUrl(remoteUrl, hash)
+    if (webUrl != null) {
+      ApplicationManager.getApplication().invokeLater { BrowserUtil.browse(webUrl) }
+    }
+  }.apply { isDaemon = true; name = "gradum-open-commit-on-github" }.start()
+}
+
+/** Converts a git remote URL + short hash into a GitHub commit URL, or null. */
+internal fun githubWebUrl(remoteUrl: String, hash: String): String? {
+  val trimmed = remoteUrl.trim().removeSuffix(".git")
+  val hostPath = when {
+    trimmed.startsWith("git@") && trimmed.contains(':') ->
+      trimmed.removePrefix("git@").replaceFirst(':', '/')
+
+    trimmed.startsWith("https://github.com/") || trimmed.startsWith("http://github.com/") ->
+      trimmed.substringAfter("://")
+
+    else -> return null
+  }
+  val (host, path) = hostPath.split('/', limit = 2).let {
+    if (it.size < 2) return null else it[0] to it[1]
+  }
+  if (host != "github.com") return null
+  return "https://github.com/$path/commit/$hash"
+}
+
+private const val AUDIT_MESSAGE_PREFIX = "gradum.audit."
+
+/**
+ * Ordered parameter spec for one SXXXX finding, mirroring the placeholder
+ * order of its bundle template. `decimals` is null for string params.
+ */
+private data class AuditParamSpec(val name: String, val decimals: Int?)
+
+/** String param, rendered verbatim. */
+private fun str(name: String): AuditParamSpec = AuditParamSpec(name, null)
+
+/** Numeric param rounded to [decimals] decimal places. */
+private fun dec(name: String, decimals: Int): AuditParamSpec = AuditParamSpec(name, decimals)
+
+/**
+ * DSL builder for [AUDIT_PARAM_ORDER]. Each `S(code, ...)` line lists the
+ * params in placeholder order; plain strings become int params (0 decimals).
+ */
+private class AuditParamOrderBuilder {
+  private val entries = LinkedHashMap<String, List<AuditParamSpec>>()
+
+  fun s(code: String, vararg params: Any) {
+    entries[code] = params.map { param ->
+      when (param) {
+        is String -> AuditParamSpec(param, 0)
+        is AuditParamSpec -> param
+        else -> error("unsupported audit param spec: $param")
+      }
+    }
+  }
+
+  fun build(): Map<String, List<AuditParamSpec>> = entries
+}
+
+private fun auditParamOrder(block: AuditParamOrderBuilder.() -> Unit): Map<String, List<AuditParamSpec>> =
+  AuditParamOrderBuilder().apply(block).build()
+
+/**
+ * code -> ordered params to substitute into `gradum.audit.<code>`. Decimals
+ * match the Python format spec that used to produce the message (e.g. `:.1f`).
+ */
+private val AUDIT_PARAM_ORDER: Map<String, List<AuditParamSpec>> = auditParamOrder {
+  s("S1001", "add", "dels", "threshold")
+  s("S1002", "ratio", "dels", "add")
+  s("S1003", str("author"), "total")
+  s("S1004", "lines", "pct")
+  s("S2001", "count", "lines", "start_idx", "end_idx")
+  s("S2002", "total", "count", "days")
+  s("S2003", "lines")
+  s("S2004", dec("ratio", 1), "total")
+  s("S2005", "avg", "threshold")
+  s("S2006", "n", dec("ratio", 1))
+  s("S2007", dec("cv", 3), dec("threshold", 2))
+  s("S2008", dec("avg", 1), "target")
+  s("S2009", dec("density", 1), "days")
+  s("S2010", "pct", "count", "total", str("coauthors"))
+  s("S2011", "n", "pct", "total")
+  s("S2012", "days", "half")
+  s("S2013", "count", str("agents"))
+  s("S3001", "lines", "core", "files")
+  s("S3002", "dels", "add", "ratio")
+  s("S3003", str("author"), str("pattern"))
+  s("S3004", "pct", "count", "total")
+  s("S3005", "count")
+  s("S3006", "total")
+  s("S3007", "count", "total", "pct", "limit")
+  s("S3008", "count", "total", "pct")
+  s("S4001", dec("ratio", 1))
+  s("S4002", "lines", "files")
+}
+
+private fun formatAuditParam(value: Any?, decimals: Int?): String {
+  if (value == null) return ""
+  if (decimals == null) return value.toString()
+  return String.format(Locale.ROOT, "%.${decimals}f", value.toString().toDoubleOrNull() ?: 0.0)
+}
+
+/**
+ * The four fixed audit groups. Findings are bucketed into these instead of
+ * their many SXXXX `type` labels so the report stays concise. Each group
+ * name is localized via [label].
+ */
+internal enum class AuditGroup(val labelKey: String) {
+  SUSPECTED_AI_CODE("gradum.audit.group.suspected_ai_code"),
+  ENGINEERING_RISK_ISSUES("gradum.audit.group.engineering_risk_issues"),
+  TEAM_PROCESS_WATCH("gradum.audit.group.team_process_watch"),
+  OTHER("gradum.audit.group.other");
+
+  fun label(): String = message(labelKey)
+}
+
+/** Buckets a finding into one of the four [AuditGroup]s by its SXXXX code. */
+internal fun auditGroupOf(code: String): AuditGroup = when (code) {
+  "S2005", "S2006", "S2007", "S2008", "S2009", "S2010", "S2013" -> AuditGroup.SUSPECTED_AI_CODE
+  "S1001", "S1002", "S1004", "S2001", "S2002", "S2003", "S2004",
+  "S3001", "S3002", "S3007", "S4001" -> AuditGroup.ENGINEERING_RISK_ISSUES
+
+  "S1003", "S2011", "S2012", "S3003", "S3004", "S3005", "S3006",
+  "S3008", "S4002" -> AuditGroup.TEAM_PROCESS_WATCH
+
+  else -> AuditGroup.OTHER
+}
+
+/** Severity ordering used to sort findings most-severe-first. */
+internal fun severityRank(level: String): Int = when (level) {
+  "critical" -> 0
+  "alert" -> 1
+  "watch" -> 2
+  "normal" -> 3
+  else -> 4
+}
+
+/**
+ * Drives the Git history audit end to end.
+ *
+ * The pipeline has two stages, both running off the same child process:
+ *
+ * 1. [ScanCommitsTask] walks every commit and forwards progress lines from
+ *    the script to a [ProgressIndicator]. When the script emits the
+ *    `scanned` marker it hands the remaining work to stage 2.
+ * 2. [AnalyzeDataTask] keeps reading the script's stdout, now collecting the
+ *    SXXXX finding records and applying the project-wide audits, until the
+ *    process exits.
+ *
+ * Findings are captured incrementally into [auditFindings] so the UI can
+ * render them live; the final result only depends on the records that were
+ * emitted before the process finished. Script stdout is one JSON object per
+ * line (JSONL); stderr is captured to a temp file for error reporting.
+ */
 object GradumGitAnalysisService {
+
+  /**
+   * The lifecycle of a scan, surfaced to the UI via Compose state.
+   *
+   * - [IDLE]      the report is not open.
+   * - [SCANNING]  the child process is running (progress is streamed).
+   * - [SUCCESS]   the process exited cleanly and findings are available.
+   * - [FAILED]    the process errored; [GradumGitAnalysisService.lastErrorMessage] explains why.
+   */
   enum class ScanState { IDLE, SCANNING, SUCCESS, FAILED }
 
+  /** Sentinel log level that marks a fatal script error in the output stream. */
   private const val LEVEL_ERROR = "ERROR"
+
+  /** JSON field names, shared between the script output and the Kotlin parser. */
   private const val FIELD_MESSAGE = "message"
   private const val FIELD_LEVEL = "level"
   private const val FIELD_CURRENT = "current"
   private const val FIELD_TOTAL = "total"
   private const val FIELD_HASH = "hash"
+  private const val FIELD_CODE = "code"
+  private const val FIELD_TYPE = "type"
+  private const val FIELD_INDEX = "index"
+  private const val FIELD_DATE = "date"
+  private const val FIELD_DAYS = "days"
+  private const val FIELD_SUBJECT = "subject"
+  private const val FIELD_AUTHOR = "author"
+  private const val FIELD_BODY = "body"
+  private const val FIELD_PARAMS = "params"
   private const val FIELD_ERROR = "error"
-  private const val ERROR_CODE_PREFIX = "gradum.gitstats.error."
+
+  /** Every audit finding code starts with this prefix (e.g. `S1001`). */
+  private const val FINDING_CODE_PREFIX = "S"
+
+  /** Script message that reports per-commit scanning progress. */
   private const val SCANNING_MESSAGE = "scanning commit"
+
+  /** Script message that marks the end of the per-commit scan pass. */
   private const val SCANNED_MESSAGE = "scanned"
+
+  /** Bundle key prefix for script error messages (`gradum.gitstats.error.<code>`). */
+  private const val ERROR_CODE_PREFIX = "gradum.gitstats.error."
+
+  /** Path of the analysis script, relative to a project or the plugin resources. */
   private const val SCRIPT_RELATIVE_PATH = "scripts/git_stats_log/git_stats.py"
+
+  /** Path of the script config, extracted alongside it when running from a jar. */
   private const val CONFIG_RELATIVE_PATH = "scripts/configs.jsonc"
 
   private val log: Logger = Logger.getInstance(GradumGitAnalysisService::class.java)
 
+
+  /** Current scan lifecycle state; drives the whole tool window. */
   var scanState by mutableStateOf(ScanState.IDLE)
     private set
+
+  /** Hash of the commit currently being walked during [ScanState.SCANNING]. */
   var currentHash by mutableStateOf("")
     private set
+
+  /** 1-based index of the commit currently being walked. */
   var currentCommit by mutableStateOf(0)
     private set
+
+  /** Total number of commits the script expects to walk. */
   var totalCommits by mutableStateOf(0)
     private set
+
+  /** Human-readable failure message, set when [scanState] is [ScanState.FAILED]. */
   var lastErrorMessage by mutableStateOf<String?>(null)
     private set
 
+  /** All SXXXX findings collected so far, appended as records arrive. */
+  var auditFindings by mutableStateOf<List<AuditFinding>>(emptyList())
+    private set
+
+  /** Overall quality level emitted by the script's "analyzed" record. */
+  var overallLevel by mutableStateOf<String?>(null)
+    private set
+
+  /** Quality band emitted by the script's "quality" record. */
+  var qualityBand by mutableStateOf<String?>(null)
+    private set
+
+
+  /** The running analysis process, if any. */
   private var currentProcess: Process? = null
+
+  /** Stream reader for the process stdout (JSONL). */
   private var analysisReader: BufferedReader? = null
+
+  /** Temp file capturing the process stderr, read on failure. */
   private var currentErrorFile: File? = null
 
+  /** Set to request an orderly cancellation of the current scan. */
   @Volatile
   private var isScanCancelled: Boolean = false
 
+  /**
+   * Set once the script reports the `scanned` marker; triggers the hand-off
+   * from [ScanCommitsTask] to [AnalyzeDataTask].
+   */
   @Volatile
   private var isScanCompleted: Boolean = false
 
   private var totalCommitsBeforeScan = 0
+  private var findingsBeforeScan: List<AuditFinding> = emptyList()
   private var stateBeforeScan = ScanState.IDLE
   private var lastErrorBeforeScan: String? = null
 
+  /**
+   * Starts a full analysis of the given project.
+   *
+   * The script is resolved (project copy first, then jar-adjacent copy, then
+   * the bundled resource), the project is checked for a `.git` directory,
+   * the previous state is snapshotted, and the two-phase scan is launched via
+   * [ProgressManager]. A scan that is already running is ignored.
+   */
   fun startScan(project: Project) {
     if (scanState == ScanState.SCANNING) return
 
@@ -94,6 +421,7 @@ object GradumGitAnalysisService {
 
     stateBeforeScan = scanState
     totalCommitsBeforeScan = totalCommits
+    findingsBeforeScan = auditFindings
     lastErrorBeforeScan = lastErrorMessage
     resetScanState()
 
@@ -102,6 +430,11 @@ object GradumGitAnalysisService {
     )
   }
 
+  /**
+   * Cancels the running scan and restores the state that existed before
+   * [startScan] was called. The process is destroyed and the snapshot from
+   * [restoreStateBeforeScan] is reapplied.
+   */
   fun cancelScan() {
     isScanCancelled = true
     currentProcess?.destroy()
@@ -109,6 +442,10 @@ object GradumGitAnalysisService {
     restoreStateBeforeScan()
   }
 
+  /**
+   * Closes the report and returns the tool window to its idle home screen.
+   * Unlike [cancelScan], the pre-scan state is deliberately discarded.
+   */
   fun goHome() {
     isScanCancelled = true
     currentProcess?.destroy()
@@ -117,15 +454,22 @@ object GradumGitAnalysisService {
     scanState = ScanState.IDLE
   }
 
+  /**
+   * Reverts observable state to the snapshot taken before the scan started.
+   * Only the parts that actually changed during the scan are restored, so a
+   * canceled scan never leaves stale findings or errors behind.
+   */
   private fun restoreStateBeforeScan() {
     scanState = stateBeforeScan
     if (scanState == ScanState.SUCCESS) {
       totalCommits = totalCommitsBeforeScan
+      auditFindings = findingsBeforeScan
     } else if (scanState == ScanState.FAILED) {
       lastErrorMessage = lastErrorBeforeScan
     }
   }
 
+  /** Clears scan-related state and transitions to [ScanState.SCANNING]. */
   private fun resetScanState() {
     currentHash = ""
     scanState = ScanState.SCANNING
@@ -134,12 +478,23 @@ object GradumGitAnalysisService {
     isScanCompleted = false
     currentCommit = 0
     totalCommits = 0
+    auditFindings = emptyList()
+    overallLevel = null
+    qualityBand = null
   }
 
+  /**
+   * Stage one: walks every commit in the repository.
+   *
+   * The script is launched with `--jsonl`; its stdout is consumed line by
+   * line. Per-commit `scanning commit` records update the progress indicator,
+   * and any premature SXXXX findings are collected too. When the script emits
+   * the `scanned` marker, [isScanCompleted] is set and control is handed to
+   * [AnalyzeDataTask] via [onSuccess]; the process handle is left running and
+   * resource cleanup is deferred so stage two can keep reading stdout.
+   */
   private class ScanCommitsTask(
-    project: Project,
-    private val analysisScript: File,
-    private val projectRootPath: String
+    project: Project, private val analysisScript: File, private val projectRootPath: String
   ) : Task.Backgroundable(project, message("gradum.toolwindow.git.analysis.scan.title")) {
 
     override fun run(indicator: ProgressIndicator) {
@@ -177,13 +532,11 @@ object GradumGitAnalysisService {
         }
         analysisProcess.waitFor()
         val exitCode = analysisProcess.exitValue()
-        if (exitCode == 0) {
-          scanState = ScanState.SUCCESS
-        } else {
-          handleFailure(exitCode, errorFile)
-        }
+        if (exitCode == 0) scanState = ScanState.SUCCESS
+        else handleFailure(exitCode, errorFile)
+
       } catch (exception: Exception) {
-        log.warn("Gradum Git scan failed", exception)
+        log.warn("Gradum Git scan failed: ", exception)
         lastErrorMessage = exception.message
         scanState = ScanState.FAILED
       } finally {
@@ -194,20 +547,27 @@ object GradumGitAnalysisService {
     override fun onSuccess() {
       if (isScanCompleted) {
         isScanCompleted = false
-        ProgressManager.getInstance().run(
-          AnalyzeDataTask(project)
-        )
+        ProgressManager.getInstance().run(AnalyzeDataTask(project))
       }
     }
 
     override fun onThrowable(error: Throwable) {
-      log.warn("Scan task failed", error)
+      log.warn("Scan task failed: ", error)
       lastErrorMessage = error.message
       scanState = ScanState.FAILED
       cleanupScanResources()
     }
   }
 
+  /**
+   * Stage two: consumes the project-wide analysis output.
+   *
+   * Runs after [ScanCommitsTask] reports the `scanned` marker, continuing to
+   * read the same process stdout until EOF. This pass collects the findings
+   * that live on the `scanned`/`quality`/period records the script emits after
+   * the per-commit walk. On a clean exit the state is set to
+   * [ScanState.SUCCESS]; otherwise [handleFailure] surfaces the error.
+   */
   private class AnalyzeDataTask(project: Project) :
     Task.Backgroundable(project, message("gradum.toolwindow.git.analysis.scan.title")) {
 
@@ -239,7 +599,7 @@ object GradumGitAnalysisService {
         if (exitCode == 0) scanState = ScanState.SUCCESS
         else handleFailure(exitCode, errorLogFile)
       } catch (exception: Exception) {
-        log.warn("Gradum Git analysis failed", exception)
+        log.warn("Gradum Git analysis failed: ", exception)
         lastErrorMessage = exception.message
         scanState = ScanState.FAILED
       } finally {
@@ -248,13 +608,14 @@ object GradumGitAnalysisService {
     }
 
     override fun onThrowable(error: Throwable) {
-      log.warn("Analysis task failed", error)
+      log.warn("Analysis task failed: ", error)
       lastErrorMessage = error.message
       scanState = ScanState.FAILED
       cleanupScanResources()
     }
   }
 
+  /** Releases the child process and its temp stderr file. */
   private fun cleanupScanResources() {
     currentProcess = null
     analysisReader = null
@@ -262,6 +623,7 @@ object GradumGitAnalysisService {
     currentErrorFile = null
   }
 
+  /** Parses a single JSONL output line into a [JsonObject], or null if invalid. */
   private fun parseRecord(line: String): JsonObject? = try {
     Json.parseToJsonElement(line).jsonObject
   } catch (exception: Exception) {
@@ -269,16 +631,34 @@ object GradumGitAnalysisService {
     null
   }
 
+  /** True when the record is the script's end-of-walk marker. */
   private fun isScannedRecord(record: JsonObject): Boolean =
     record[FIELD_MESSAGE]?.jsonPrimitive?.contentOrNull?.equals(SCANNED_MESSAGE, ignoreCase = true) == true
 
+  /**
+   * Routes one JSONL record to its handler: audit findings are appended to
+   * [auditFindings], `scanning commit` records update progress, and error
+   * records set [lastErrorMessage].
+   */
   private fun handleJsonRecord(record: JsonObject, indicator: ProgressIndicator) {
+    val auditFinding = parseAuditFinding(record)
+    if (auditFinding != null) {
+      auditFindings = auditFindings + auditFinding
+      return
+    }
+
     val messageType = record[FIELD_MESSAGE]?.jsonPrimitive?.contentOrNull ?: return
 
     if (messageType.equals(SCANNING_MESSAGE, ignoreCase = true)) {
       updateScanningProgress(record, indicator)
       return
     }
+
+    if (messageType.equals("analyzed", ignoreCase = true))
+      overallLevel = record["overall_level"]?.jsonPrimitive?.contentOrNull
+
+    if (messageType.equals("quality", ignoreCase = true))
+      qualityBand = record["band"]?.jsonPrimitive?.contentOrNull
 
     val errorCode = record[FIELD_ERROR]?.jsonPrimitive?.contentOrNull
     if (errorCode != null) {
@@ -289,15 +669,57 @@ object GradumGitAnalysisService {
     }
   }
 
-  private fun friendlyErrorMessage(errorCode: String, fallback: String): String {
-    val localized = message("$ERROR_CODE_PREFIX$errorCode")
-    return if (localized.isNotBlank() && !localized.startsWith("???")) {
-      localized
-    } else {
-      fallback
-    }
+  /**
+   * Builds an [AuditFinding] from a record whose `code` starts with [FINDING_CODE_PREFIX].
+   * Any other record (progress, error, quality) returns null.
+   */
+  private fun parseAuditFinding(jsonRecord: JsonObject): AuditFinding? {
+    val findingCode = jsonRecord[FIELD_CODE]?.jsonPrimitive?.contentOrNull ?: return null
+    if (!findingCode.startsWith(FINDING_CODE_PREFIX)) return null
+    return AuditFinding(
+      code = findingCode,
+      params = parseAuditParams(jsonRecord),
+      index = jsonRecord[FIELD_INDEX]?.jsonPrimitive?.intOrNull ?: -1,
+      level = jsonRecord[FIELD_LEVEL]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      type = jsonRecord[FIELD_TYPE]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      hash = jsonRecord[FIELD_HASH]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      date = jsonRecord[FIELD_DATE]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      days = jsonRecord[FIELD_DAYS]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      subject = jsonRecord[FIELD_SUBJECT]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      author = jsonRecord[FIELD_AUTHOR]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      body = jsonRecord[FIELD_BODY]?.jsonPrimitive?.contentOrNull.orEmpty()
+    )
   }
 
+  /** Extracts the `params` object of a finding record as a plain [Map]. */
+  private fun parseAuditParams(jsonRecord: JsonObject): Map<String, Any?> {
+    val paramsElement = jsonRecord[FIELD_PARAMS] as? JsonObject ?: return emptyMap()
+    return paramsElement.mapValues { (_, value) -> parseParamValue(value) }
+  }
+
+  /** Converts a JSON value into a Kotlin scalar: string, boolean, long, or double. */
+  private fun parseParamValue(element: JsonElement): Any? = when (element) {
+    is JsonPrimitive -> when {
+      element.isString -> element.content
+      element.booleanOrNull != null -> element.boolean
+      element.longOrNull != null -> element.long
+      else -> element.doubleOrNull
+    }
+
+    else -> element.toString()
+  }
+
+  /**
+   * Resolves a script error code to a localized message, falling back to the
+   * raw script message when the bundle key is missing.
+   */
+  private fun friendlyErrorMessage(errorCode: String, fallback: String): String {
+    val localized = message("$ERROR_CODE_PREFIX$errorCode")
+    return if (localized.isNotBlank() && !localized.startsWith("???"))
+      localized else fallback
+  }
+
+  /** Updates the progress indicator and scan counters from a progress record. */
   private fun updateScanningProgress(record: JsonObject, indicator: ProgressIndicator) {
     val currentCommitIndex = record[FIELD_CURRENT]?.jsonPrimitive?.intOrNull ?: return
     val totalCommitCount = record[FIELD_TOTAL]?.jsonPrimitive?.intOrNull ?: return
@@ -311,6 +733,11 @@ object GradumGitAnalysisService {
     indicator.text = message("gradum.toolwindow.git.analysis.progress", currentCommitIndex, totalCommitCount)
   }
 
+  /**
+   * Marks the scan as failed, preferring a script-level error message that was
+   * already captured; otherwise it falls back to the stderr log file and,
+   * last, to a generic exit-code message.
+   */
   private fun handleFailure(exitCode: Int, errorFile: File?) {
     if (lastErrorMessage == null) {
       lastErrorMessage = readErrorFile(errorFile) ?: "The analysis script exited with code $exitCode."
@@ -318,11 +745,17 @@ object GradumGitAnalysisService {
     scanState = ScanState.FAILED
   }
 
+  /** Reads the trimmed content of a temp error file, or null if empty/missing. */
   private fun readErrorFile(errorFile: File?): String? {
     if (errorFile == null || !errorFile.exists() || errorFile.length() == 0L) return null
     return errorFile.readText().trim().ifBlank { null }
   }
 
+  /**
+   * Resolves the analysis script, preferring an executable copy next to the
+   * project, then one next to the running plugin jar, and finally extracts the
+   * bundled resource into the temp directory.
+   */
   private fun resolveScript(project: Project): File? {
     val jarPath = PathManager.getJarPathForClass(GradumGitAnalysisService::class.java) ?: ""
     findScriptUpFrom(File(jarPath))
@@ -330,6 +763,7 @@ object GradumGitAnalysisService {
       ?: findScriptUpFrom(File(jarPath)) ?: extractBundledScript()
   }
 
+  /** Walks up from [startDirectory] looking for an executable script file. */
   private fun findScriptUpFrom(startDirectory: File?): File? {
     var currentSearchDir: File? = startDirectory
     while (currentSearchDir != null) {
@@ -340,6 +774,11 @@ object GradumGitAnalysisService {
     return null
   }
 
+  /**
+   * Copies the script and its config out of the plugin jar into the temp
+   * directory and marks the script executable, so the bundled copy can run on
+   * any project.
+   */
   private fun extractBundledScript(): File? {
     return try {
       val tempRoot: Path = Paths.get(PathManager.getTempDir().toString(), "gradum", "gitstats")
@@ -358,9 +797,73 @@ object GradumGitAnalysisService {
     }
   }
 
+  /** Copies a classpath resource to [target], replacing any existing file. */
   private fun copyResource(resourcePath: String, target: Path) {
     GradumGitAnalysisService::class.java.getResourceAsStream(resourcePath)?.use { inputStream ->
       Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING)
     }
   }
+}
+
+/** Human-readable severity label, localized via the bundle. */
+internal fun severityLabel(level: String): String = when (level) {
+  "critical" -> message("gradum.toolwindow.git.analysis.severity.very.high")
+  "alert" -> message("gradum.toolwindow.git.analysis.severity.high")
+  "watch" -> message("gradum.toolwindow.git.analysis.severity.watch")
+  else -> message("gradum.toolwindow.git.analysis.severity.information")
+}
+
+/** Formats a date string as relative time (e.g. "3 days ago" or "just now"). */
+internal fun relativeTime(dateString: String): String {
+  if (dateString.isBlank() || dateString == "-") return ""
+  return try {
+    val date = java.time.LocalDate.parse(dateString, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+    val days = java.time.temporal.ChronoUnit.DAYS.between(date, java.time.LocalDate.now())
+    when {
+      days <= 0 -> message("gradum.toolwindow.git.analysis.time.just.now")
+      days == 1L -> message("gradum.toolwindow.git.analysis.time.day.ago")
+      else -> message("gradum.toolwindow.git.analysis.time.days.ago", days)
+    }
+  } catch (_: Exception) {
+    ""
+  }
+}
+
+/** Serializes a list of [AuditFinding]s into a JSON document. */
+internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
+  val records = findings.map { finding ->
+    buildJsonObject {
+      put("code", finding.code)
+      put("level", finding.level)
+      put("type", finding.type)
+      put("hash", finding.hash)
+      put("index", finding.index)
+      put("date", finding.date)
+      put("days", finding.days)
+      put("subject", finding.subject)
+      put("author", finding.author)
+      put("body", finding.body)
+      putJsonObject("params") {
+        finding.params.forEach { (key, value) ->
+          put(key, value.toJsonElement())
+        }
+      }
+      put("message", finding.formatMessage())
+    }
+  }
+  return buildJsonObject {
+    put("totalCommits", GradumGitAnalysisService.totalCommits)
+    putJsonArray("findings") { records.forEach { add(it) } }
+  }.toString()
+}
+
+/** Converts an [AuditFinding] param value into a JSON element. */
+private fun Any?.toJsonElement(): JsonElement = when (this) {
+  null -> JsonNull
+  is String -> JsonPrimitive(this)
+  is Boolean -> JsonPrimitive(this)
+  is Int -> JsonPrimitive(this)
+  is Long -> JsonPrimitive(this)
+  is Double -> JsonPrimitive(this)
+  else -> JsonPrimitive(toString())
 }

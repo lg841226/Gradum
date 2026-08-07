@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-07-31 21:33:26 Changed by gwy
+ * CodeBlockRenderer.kt  2026-08-01 16:04:17 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -46,10 +46,9 @@ import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/** Corner radius (8 dp bottom corners, square top corners) for fenced
- *  code blocks and tables. */
+
 internal val CodeBlockCornerRadius: RoundedCornerShape =
-  RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = GradumSpacing.md, bottomEnd = GradumSpacing.md)
+  RoundedCornerShape(GradumSpacing.md)
 
 /** Top-only corner radius for the sticky toolbar / header overlays. */
 internal val StickySectionTopCorners: RoundedCornerShape =

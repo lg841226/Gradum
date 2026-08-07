@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
+ * CommonActionButtons.kt  2026-08-05 14:39:45 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -26,10 +27,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun OpenInEditorButton(
-  filePath: String,
-  startLine: Int? = null,
-  endLine: Int? = null,
-  onClick: () -> Unit
+  filePath: String, onClick: () -> Unit
 ) {
   if (filePath.isNotBlank()) {
     Tooltip(tooltip = { Text(text = message("gradum.tool.open.in.editor")) }) {
