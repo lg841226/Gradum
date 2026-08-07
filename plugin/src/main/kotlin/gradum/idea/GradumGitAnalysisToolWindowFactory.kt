@@ -89,7 +89,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
             .focusTarget()
         ) {
           if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
-            var bannerDismissed by remember { mutableStateOf(false) }
+            var bannerDismissed by remember(scanState) { mutableStateOf(false) }
             val overallLevel = GradumGitAnalysisService.overallLevel
             Column(modifier = Modifier.fillMaxSize()) {
               if (!bannerDismissed && overallLevel != null) {
