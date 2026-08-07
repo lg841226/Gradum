@@ -362,6 +362,10 @@ object GradumGitAnalysisService {
   var qualityBand by mutableStateOf<String?>(null)
     private set
 
+  /** Timestamp (epoch millis) when the last scan completed successfully. */
+  var scanCompletedAt by mutableStateOf<Long>(0L)
+    private set
+
 
   /** The running analysis process, if any. */
   private var currentProcess: Process? = null
@@ -532,7 +536,10 @@ object GradumGitAnalysisService {
         }
         analysisProcess.waitFor()
         val exitCode = analysisProcess.exitValue()
-        if (exitCode == 0) scanState = ScanState.SUCCESS
+        if (exitCode == 0) {
+          scanCompletedAt = System.currentTimeMillis()
+          scanState = ScanState.SUCCESS
+        }
         else handleFailure(exitCode, errorFile)
 
       } catch (exception: Exception) {
@@ -596,7 +603,10 @@ object GradumGitAnalysisService {
         }
         analysisProcess.waitFor()
         val exitCode = analysisProcess.exitValue()
-        if (exitCode == 0) scanState = ScanState.SUCCESS
+        if (exitCode == 0) {
+          scanCompletedAt = System.currentTimeMillis()
+          scanState = ScanState.SUCCESS
+        }
         else handleFailure(exitCode, errorLogFile)
       } catch (exception: Exception) {
         log.warn("Gradum Git analysis failed: ", exception)
@@ -826,6 +836,32 @@ internal fun relativeTime(dateString: String): String {
     }
   } catch (_: Exception) {
     ""
+  }
+}
+
+/** Formats an epoch-millis timestamp as relative time with minute/hour precision. */
+internal fun scanCompletedAgo(millis: Long): String {
+  if (millis <= 0L) return ""
+  val elapsed = System.currentTimeMillis() - millis
+  if (elapsed < 0L) return ""
+  val seconds = elapsed / 1000
+  return when {
+    seconds < 60 -> message("gradum.toolwindow.git.analysis.time.just.now")
+    seconds < 3600 -> {
+      val minutes = (seconds / 60).toInt()
+      message("gradum.toolwindow.git.analysis.time.minutes.ago", minutes)
+    }
+    seconds < 86400 -> {
+      val hours = (seconds / 3600).toInt()
+      message("gradum.toolwindow.git.analysis.time.hours.ago", hours)
+    }
+    else -> {
+      val days = (seconds / 86400).toInt()
+      when (days) {
+        1 -> message("gradum.toolwindow.git.analysis.time.day.ago")
+        else -> message("gradum.toolwindow.git.analysis.time.days.ago", days)
+      }
+    }
   }
 }
 

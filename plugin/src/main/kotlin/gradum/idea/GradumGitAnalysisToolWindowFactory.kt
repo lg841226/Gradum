@@ -101,7 +101,13 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   "Caution" -> message("gradum.toolwindow.git.analysis.band.caution")
                   else -> qualityBand
                 }
-                val bannerText = message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
+                val scanTime = scanCompletedAgo(GradumGitAnalysisService.scanCompletedAt)
+                val bannerText = if (scanTime.isNotBlank()) {
+                  message("gradum.toolwindow.git.analysis.banner.complete", bandLabel) +
+                    " (" + message("gradum.toolwindow.git.analysis.banner.scanned", scanTime) + ")"
+                } else {
+                  message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
+                }
                 @Suppress("DEPRECATION")
                 InformationDefaultBanner(
                   text = bannerText,
