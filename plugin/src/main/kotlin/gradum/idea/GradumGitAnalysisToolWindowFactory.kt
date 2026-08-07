@@ -103,8 +103,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 }
                 val scanTime = scanCompletedAgo(GradumGitAnalysisService.scanCompletedAt)
                 val bannerText = if (scanTime.isNotBlank()) {
-                  message("gradum.toolwindow.git.analysis.banner.complete", bandLabel) +
-                    " (" + message("gradum.toolwindow.git.analysis.banner.scanned", scanTime) + ")"
+                  message("gradum.toolwindow.git.analysis.banner.complete.with.time", bandLabel, scanTime)
                 } else {
                   message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
                 }
