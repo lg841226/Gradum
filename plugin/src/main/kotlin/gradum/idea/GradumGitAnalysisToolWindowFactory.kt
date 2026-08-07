@@ -2,14 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 16:04:18 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 21:48:06 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
 
 package gradum.idea
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +37,7 @@ import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.theme.linkStyle
+import org.jetbrains.jewel.ui.theme.defaultBannerStyle
 import org.jetbrains.jewel.ui.typography
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -107,29 +106,27 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 } else {
                   message("gradum.toolwindow.git.analysis.banner.complete", bandLabel)
                 }
-                @Suppress("DEPRECATION")
-                SuccessDefaultBanner(
+                val bannerStyle = JewelTheme.defaultBannerStyle.success
+                DefaultSuccessBanner(
                   text = bannerText,
-                  actions = {
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-                    ) {
-                      Text(
-                        text = message("gradum.toolwindow.git.analysis.banner.dismiss"),
-                        modifier = Modifier.clickable { bannerDismissed = true },
-                        color = JewelTheme.linkStyle.colors.content
-                      )
-                      Icon(
-                        key = AllIconsKeys.General.Close,
-                        contentDescription = message("gradum.toolwindow.git.analysis.banner.dismiss"),
-                        modifier = Modifier
-                          .clickable { bannerDismissed = true }
-                          .size(16.dp)
-                      )
+                  modifier = Modifier.fillMaxWidth(),
+                  icon = {},
+                  linkActions = {
+                    action(message("gradum.toolwindow.git.analysis.banner.dismiss")) {
+                      bannerDismissed = true
                     }
                   },
-                  modifier = Modifier.fillMaxWidth()
+                  iconActions = {
+                    iconAction(
+                      AllIconsKeys.General.Close,
+                      message("gradum.toolwindow.git.analysis.banner.dismiss"),
+                      message("gradum.toolwindow.git.analysis.banner.dismiss")
+                    ) {
+                      bannerDismissed = true
+                    }
+                  },
+                  style = bannerStyle,
+                  textStyle = JewelTheme.typography.regular
                 )
               }
               Row(modifier = Modifier.weight(1f).fillMaxSize()) {
