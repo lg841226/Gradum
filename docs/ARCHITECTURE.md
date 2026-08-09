@@ -6,7 +6,7 @@
 
 | Field              | Value                                                            |
 |--------------------|------------------------------------------------------------------|
-| **Version**        | 0.9.0                                                            |
+| **Version**        | 0.9.2                                                            |
 | **Status**         | Active Development                                               |
 | **Language**       | Kotlin 2.0.21 (JVM 21)                                           |
 | **HTTP Framework** | Ktor 3.0.3 + Netty                                               |
@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.25                                           |
 | **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-07-14                                                       |
+| **Last Updated**   | 2026-08-09                                                       |
 
 ---
 
@@ -1585,16 +1585,17 @@ flowchart TB
 
 ### 8.1 Overview
 
-The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool
-window. It communicates with the standalone Gradum server over HTTP at runtime — there is **no compile-time dependency**
-between the plugin and the server module.
+The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool window
+and a self-contained Git-analysis tool window in a bottom tool window. The chat communicates with the standalone Gradum
+server over HTTP at runtime — there is **no compile-time dependency** between the plugin and the server module. The
+Git-analysis tool window (see [§8.6](#86-git-analysis-tool-window-subsystem)) is independent of the server.
 
 ### 8.2 Module Dependencies
 
 ```
 plugin (IntelliJ Plugin)
     │
-    ├─── IntelliJ Platform SDK (IU 2026.1.3)
+    ├─── IntelliJ Platform SDK (IU 2026.2)
     │       └── com.intellij.modules.platform (bundled)
     │
     ├─── Compose for Desktop (local JARs)
@@ -1638,30 +1639,41 @@ plugin (IntelliJ Plugin)
 
 ```
 gradum.idea/
-├── GradumToolWindowFactory.kt        # Entry point, registers tool window
-├── ImageUpload.kt                    # Image-attachment upload helper (paste / drop → file on disk)
+├── GradumToolWindowFactory.kt          # Chat tool-window factory, "New Chat" action, top-level Compose tab
+├── GradumGitAnalysisToolWindowFactory.kt # Git-analysis tool-window factory: home screen, scan states, banner (§8.6)
+├── GradumGitAnalysisService.kt         # Process-wide audit engine: two-phase scan, JSONL parser, AuditFinding model (§8.6)
+├── AuditFindingsTree.kt                # Jewel Tree of audit findings: branch wrapper, grouping, load-more, reviewed strike-through
+├── AuditTreeItem.kt                    # Sealed audit-tree node model: Branch / Group / SeverityGroup / Finding / LoadMore
+├── GitAuditActionBar.kt                # Vertical action rail: close / refresh / preview / expand-all / group-by / mark / copy
+├── CommitInfoPanel.kt                  # Resizable commit-details side panel (subject, body, time bar, pin, GitHub)
+├── GradumBanner.kt                     # Reusable Jewel-based banner (Success / Warning / Error) with dismiss link
+├── ImageUpload.kt                      # Image-attachment upload helper (paste / drop → file on disk)
 ├── chat/
 │   ├── api/
 │   │   └── GradumApiClient.kt        # HTTP client for server communication
 │   ├── input/
-│   │   ├── ChatInputPanel.kt         # Text input + send/stop buttons
-│   │   ├── ChatInputSection.kt       # Input panel + model selector
-│   │   ├── ChatInputState.kt         # ChatInputState + ChatInputActions data classes
-│   │   └── ModelSelectorBar.kt       # Model dropdown with pin/auto
+│   │   └── ChatInputState.kt         # ChatInputState + ChatInputActions data classes
 │   ├── model/
 │   │   ├── ChatMessage.kt            # ChatEvent / RenderBlock / ChatMessage + formatTimestamp
 │   │   ├── ErrorCode.kt              # Shared 16-code error enum
 │   │   └── ModelInfo.kt              # Model data class (name, serverName)
 │   ├── state/
-│   │   └── GradumChatSession.kt      # Project-level service, holds chat state
+│   │   └── GradumChatSession.kt      # Project-level service, holds chat state + model poller
 │   └── ui/
 │       ├── ChatScreen.kt             # Main chat layout
-│       ├── Spacing.kt                # GradumSpacing token object
-│       ├── GradumCodeBlockRenderer.kt  # Markdown fenced code renderer (Layer 1 of the rendering pipeline)
-│       ├── GradumInlineMarkdown.kt     # Custom CommonMark inline parser + chip renderer (Layer 3; ~520 lines)
-│       ├── GradumMarkdownStyling.kt    # Markdown styling + rememberGradumParagraphTextStyle()
-│       ├── GradumMarkdownTable.kt      # GFM table parser + ScrollableTable Compose (Layer 2)
-│       ├── JumpToBottomButton.kt       # Solid-background jump-to-bottom button with 0.5dp border
+│       ├── JumpToBottomButton.kt     # Solid-background jump-to-bottom button with 0.5dp border
+│       ├── markdown/                 # The layered Markdown rendering pipeline (§8.4 note + docs §6)
+│       │   ├── BlockSplit.kt         #   splitMarkdownAtBlocks: tables / blocks / plain segments
+│       │   ├── CodeBlockRenderer.kt  #   Fenced code renderer (Layer 1) — copy, soft-wrap, line numbers, collapse
+│       │   ├── Table.kt              #   GFM table parser + ScrollableTable (Layer 2)
+│       │   ├── InlineMarkdown.kt  #   Custom CommonMark inline parser + chip renderer (Layer 3; ~520 lines)
+│       │   ├── Styling.kt            #   Markdown styling + rememberGradumParagraphTextStyle()
+│       │   ├── StickySection.kt      #   StickySectionRegistry for sticky code toolbars / table headers
+│       │   ├── FootnoteRegistry.kt   #   Footnote label → definition-position registry
+│       │   ├── BlockRenderer.kt      #   Custom block renderer (headings, blockquotes, task-list items)
+│       │   ├── LatexBlockExtension.kt #   CommonMark block parser for $$ LaTeX blocks
+│       │   ├── LatexRenderer.kt      #   Latex(...) renderer wrappers for block + inline formulas
+│       │   └── NodeChildren.kt       #   Shared children helpers for the block renderer
 │       ├── chat/
 │       │   ├── AssistantChatBubble.kt        # Renders the event timeline (thinking / tool_call / response / error); drives the four-layer Markdown pipeline in ResponseBlock
 │       │   ├── UserChatBubble.kt             # User message bubble
@@ -1690,28 +1702,37 @@ gradum.idea/
 │       │   ├── QuickStartSection.kt   # Welcome quick-start tiles (4 × 5 variants)
 │       │   └── WelcomeScreen.kt       # Welcome screen composable
 │       ├── input/
-│       │   ├── AddContextPopup.kt
-│       │   ├── AttachmentBar.kt
-│       │   ├── ChatInputPanel.kt
-│       │   ├── ChatInputSection.kt
-│       │   ├── ChatToolbar.kt
-│       │   ├── FileItem.kt
-│       │   ├── ModelNameFormatter.kt
-│       │   ├── ModelSelectorBar.kt
-│       │   ├── PermissionSelector.kt
-│       │   └── PreviewText.kt
+│       │   ├── AddContextPopup.kt     # File / directory add menu
+│       │   ├── AttachmentBar.kt      # Pending attachments row
+│       │   ├── ChatInputPanel.kt     # Composes toolbar + textarea + bar
+│       │   ├── ChatInputSection.kt   # Top-level chat input section
+│       │   ├── ChatToolbar.kt        # Add menu, permission selector, send/stop
+│       │   ├── FileItem.kt            # Single attachment chip
+│       │   ├── ModelNameFormatter.kt  # Raw-name → display-name lookup
+│       │   ├── ModelSelectorBar.kt   # Model selector with Auto/Pinned/All
+│       │   ├── PermissionSelector.kt # Three-tier permission dropdown
+│       │   └── PreviewText.kt        # Text-field preview / hint composable
 │       └── common/
 │           ├── DiffViewer.kt          # Side-by-side / unified diff viewer used by ViewDiffButton
-│           ├── IconTooltipButton.kt
-│           └── SelectorButton.kt
+│           ├── IconTooltipButton.kt   # Canonical icon button with tooltip
+│           └── SelectorButton.kt      # Canonical selector button (icon + label + chevron)
 ├── editor/
-│   ├── EditorContext.kt              # Editor state (attachments, pending)
-│   ├── Attachments.kt                # AttachedContext model + file/dir freezing
-│   └── PendingMessage.kt             # Queued message model
-├── bundle/
-│   └── GradumBundle.properties       # i18n (en, zh_CN)
-└── icons/
-    └── GradumIcons.kt                # Custom SVG icon registry
+│   ├── EditorContext.kt               # Current editor selection / file snapshot
+│   ├── Attachments.kt                 # AttachedContext model + file/dir freezing
+│   └── PendingMessage.kt              # In-flight queued message
+├── ui/
+│   ├── GradumState.kt                 # Shared chat UI state holder
+│   ├── GradumCallbacks.kt             # Callback facade wiring chat actions to the session
+│   └── GradumUI.kt                    # Top-level shared UI composition
+├── utils/
+│   ├── GradumBundle.kt                # i18n bundle (startup probe + per-key fallback)
+│   ├── GradumIcons.kt                 # Custom icon registry + provider / model lookups
+│   └── Spacing.kt                     # GradumSpacing token object
+└── resources/
+    ├── META-INF/plugin.xml            # Plugin descriptor (tool windows, extensions, actions)
+    ├── messages/                      # GradumBundle.properties + GradumBundle_zh_CN.properties
+    ├── icons/                         # ~103 SVG icons + GoogleSans.ttf font
+    └── scripts/                       # git_stats_log/git_stats.py + configs.jsonc (audit engine)
 ```
 
 > **Tool-call rendering is an SPI.** Any third-party IDE plugin can
@@ -1719,31 +1740,76 @@ gradum.idea/
 > register it under the `com.gradum.idea.toolCallRenderer` extension
 > point. The chat panel will dispatch server `tool_call` events to the
 > matching renderer by `alias()`. See
-> [`docs/PLUGIN_DEVELOPMENT.md`](../PLUGIN_DEVELOPMENT.md) section 16
+> [`docs/PLUGIN_DEVELOPMENT.md`](../docs/ARCHITECTURE.md) section 16
 > for the full tutorial.
 
 > **Markdown rendering is a four-layer pipeline.** The chat does not
-> call `Markdown(...)` on the raw response text. It first splits GFM
-> tables out via `GradumMarkdownTable.splitMarkdownAtTables`; for each
-> `Plain` segment it then attempts the custom CommonMark inline parser
-> in `GradumInlineMarkdown` (using `commonmark-java` from Jewel's
+> call `Markdown(...)` on the raw response text. It first splits the raw
+> text into tables / blocks / plain segments via
+> `BlockSplit.splitMarkdownAtBlocks`; for each `Plain` segment it then
+> attempts the custom CommonMark inline parser in `InlineMarkdown` (using `commonmark-java` from Jewel's
 > `intellij.platform.jewel.markdown.core` — zero new dependency);
 > segments that contain lists / headings / blockquotes / fenced code,
 > or that fail to parse, fall through to Jewel's native `Markdown(...)`.
-> Fenced code blocks reach the `GradumCodeBlockRenderer` either way.
-> See [`docs/PLUGIN_FEATURES.md`](../PLUGIN_FEATURES.md) section 6 for
+> Fenced code blocks reach the `CodeBlockRenderer` either way.
+> See [`docs/PLUGIN_FEATURES.md`](../docs/PLUGIN_FEATURES.md) section 6 for
 > the full pipeline description, bail-out conditions, chip visual spec,
-> and the 28 pinned unit tests in `GradumInlineMarkdownTest.kt`.
+> and the 49 pinned unit tests in `GradumInlineMarkdownTest.kt`.
 
 ### 8.5 Key Dependencies Summary
 
-| Dependency                 | Version  | Purpose                        |
-|----------------------------|----------|--------------------------------|
-| IntelliJ Platform (IU)     | 2026.1.3 | IDE SDK                        |
-| Compose for Desktop        | bundled  | UI framework                   |
-| Jewel                      | bundled  | IntelliJ-themed UI components  |
-| kotlinx-serialization-json | 1.7.3    | JSON parsing for API responses |
-| Gradum Server (runtime)    | 0.9.0    | AI agent backend (HTTP only)   |
+| Dependency                 | Version | Purpose                        |
+|----------------------------|---------|--------------------------------|
+| IntelliJ Platform (IU)     | 2026.2  | IDE SDK                        |
+| Compose for Desktop        | bundled | UI framework                   |
+| Jewel                      | bundled | IntelliJ-themed UI components  |
+| kotlinx-serialization-json | 1.7.3   | JSON parsing for API responses |
+| Gradum Server (runtime)    | 0.9.2   | AI agent backend (HTTP only)   |
+
+### 8.6 Git Analysis Tool Window Subsystem
+
+Since July 2026 (service commits `65c5441`, `76de538`) the plugin ships a second tool window — **Gradum Git** (bottom) —
+that audits the project's Git history and renders SXXXX findings plus a project quality band. It is entirely separate
+from the chat: it does **not** talk to the Gradum server, has zero chat dependencies, and runs a bundled pure-stdlib
+Python script against the local repository.
+
+#### 8.6.1 Delegation: two-phase scan
+
+`GradumGitAnalysisService` (a process-wide `object`) drives the scan as a child process:
+
+1. **`ScanCommitsTask`** (determinate) launches
+   `scripts/git_stats_log/git_stats.py --jsonl` with cwd = project root, reads stdout line by line, and drives the
+   determinate progress bar from
+   `scanning commit {n} / {total}` records. On the `scanned` marker it reads the branch, sets `isScanCompleted`, and
+   **hands the still-live process** to phase two.
+2. **`AnalyzeDataTask`** (indeterminate) keeps reading the same stdout to EOF, collecting `analyzed` / `quality` /
+   `period` records and the SXXXX findings. A clean exit -> `SUCCESS` + `scanCompletedAt`; anything else routes through
+   `handleFailure` (reads the redirect stderr temp file).
+
+The outcome (findings, quality band, branch, overall level) is published as Compose `mutableStateOf` fields on the
+service, so the tool window recomposes without an explicit refresh.
+
+#### 8.6.2 Findings model and tree
+
+Each finding is the `AuditFinding` data class (code, level, type, hash, index, date, days, subject, author, body,
+params). The tree in `AuditFindingsTree.kt`
+renders them grouped either by audit group (four buckets) or by severity, wrapped in an optional branch row;
+`findingKey = "<code>|<hash>|<index>"` makes reviewed markings stable. `GitAuditActionBar.kt` provides close / rescan /
+commit-preview / expand-all / group-by / mark-reviewed / copy-JSON actuators.
+`CommitInfoPanel.kt` renders the selected commit (subject, body through the chat Markdown pipeline, authored + relative
+date, `+N`/`-N` diff stats, Open on GitHub). `GradumBanner.kt` is the reusable success/warning/error banner.
+
+#### 8.6.3 The audit script contract
+
+The bundled Python script (`plugin/src/main/resources/scripts/git_stats_log/git_stats.py`, duplicated at repo-root
+`scripts/`) emits JSONL: `INFO` /`start` /`scanning
+commit` / `scanned` / `analyzed` / `quality` / `period` / per-finding
+`<S-code>` records / `complete`. Findings carry the raw `params`; the Kotlin side localizes the visible text from
+`gradum.audit.<code>` bundle keys with
+`AUDIT_PARAM_ORDER`. The quality band (Excellent / Good / Fair / Needs Attention / Caution, or Archived for an empty
+repo) is computed from per-commit factors (recency, AI-signals, deletion health, scale, hero) with a confidence
+correction. Full protocol + S-code catalog: see
+[`docs/PLUGIN_FEATURES.md`](../docs/PLUGIN_FEATURES.md) section 19.
 
 ---
 
@@ -1960,7 +2026,7 @@ flowchart LR
 <Example>read_file(path="src/main.py", line_range="200-230")</Example>
         <!-- endif -->
         <!-- if SIMPLE -->
-        Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})}
+        <!-- Returns: {path, totalLines, contentHash, content (map: {lineNumber: lineContent})} -->
         <!-- endif -->
 ```
 

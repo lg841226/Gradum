@@ -4,8 +4,8 @@ A lightweight Kotlin Agent Framework for building LLM-powered tools with functio
 
 ## What is Gradum?
 
-Gradum provides a pluggable skill system, streaming NDJSON events, and encrypted context
-persistence — everything you need to build agents that interact with the local filesystem and shell.
+Gradum provides a pluggable skill system, streaming NDJSON events, and encrypted context persistence — everything you
+need to build agents that interact with the local filesystem and shell.
 
 ```kotlin
 // Add a skill in minutes
@@ -38,10 +38,10 @@ class MySkill : Skill() {
 ./gradlew build
 
 # Run server (default port 8765)
-java -jar build/libs/gradum@0.9.0.jar
+java -jar build/libs/gradum@0.9.2.jar
 
 # Or with custom options
-java -jar build/libs/gradum@0.9.0.jar --port 9000 --model qwen2.5-coder:7b --think
+java -jar build/libs/gradum@0.9.2.jar --port 9000 --model qwen2.5-coder:7b --think
 ```
 
 ### Command-Line Options
@@ -104,7 +104,7 @@ ollama serve  # default http://localhost:11434
 Any server supporting the OpenAI-compatible `chat/completions` endpoint works.
 
 ```bash
-java -jar build/libs/gradum@0.9.0.jar --provider openai --base-url http://localhost:1234
+java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url http://localhost:1234
 ```
 
 Model auto-discovery scans ports: 11434 (Ollama), 1234 (LM Studio), 8000 (vLLM), 8080 (LocalAI).
@@ -203,7 +203,12 @@ that showcases the framework's capabilities.
 - **Context toggle**: Eye icon sends your current editor file to the agent automatically
 - **File & image attachments**: Attach multiple files or images from the project, with a unified limit of 10 items
 - **Streaming responses**: Real-time rendering of thinking blocks, tool calls, and the final response
+- **Rich Markdown rendering**: Tables, code blocks (with copy / soft-wrap / line numbers / collapse), links, task lists,
+  footnotes, and inline & block LaTeX
 - **Dark/Light themes**: Fully integrated with IntelliJ's theme system using Jewel components
+- **Git analysis**: Bottom tool window that audits the project's Git history, surfaces SXXXX risk findings grouped by
+  theme or severity, computes a project quality band, and lets you review individual commits — all local via a bundled
+  Python scan script
 
 The plugin is built with Kotlin and the Jetpack Compose-based Jewel UI toolkit. It runs entirely locally — no cloud
 dependencies.
@@ -223,10 +228,13 @@ Install via `Settings > Plugins > Install Plugin from Disk`.
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — system design, data flow, modules
+- [Plugin Features](docs/PLUGIN_FEATURES.md) — detailed feature index: chat, Markdown pipeline, git analysis, i18n,
+  icons
 - [Coding Standards](docs/CODING_STANDARDS_KOTLIN.md) — Kotlin conventions
 - [Skill Development](docs/PLUGIN_DEVELOPMENT.md) — creating custom skills
 - [UI Conventions](docs/CONVENTIONS.md) — IntelliJ plugin patterns
-- [Infrastructure Pitfalls](docs/INFRASTRUCTURE_PITFALLS_EN.md) — Jewel / Compose / Classloader integration traps, API pitfalls, and engineering lessons
+- [Infrastructure Pitfalls](docs/INFRASTRUCTURE_PITFALLS_EN.md) — Jewel / Compose / Classloader integration traps, API
+  pitfalls, and engineering lessons
 
 ## Contributing
 
@@ -241,4 +249,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-0.9.0
+0.9.2

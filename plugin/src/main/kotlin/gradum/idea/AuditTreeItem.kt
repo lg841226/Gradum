@@ -10,11 +10,15 @@ package gradum.idea
 import org.jetbrains.jewel.ui.icon.IntelliJIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/** A row in the audit list: a fixed group, a severity group, or a finding child. */
+/** A row in the audit list: the branch wrapper, a group, a finding, or load-more. */
 internal sealed interface AuditTreeItem {
+  data class Branch(val name: String, val count: Int) : AuditTreeItem
   data class Group(val group: AuditGroup, val count: Int) : AuditTreeItem
   data class SeverityGroup(val level: String, val count: Int) : AuditTreeItem
   data class Finding(val finding: AuditFinding) : AuditTreeItem
+
+  /** Row inserted after a group's visible findings when more remain. */
+  data class LoadMore(val group: AuditTreeItem, val remaining: Int) : AuditTreeItem
 }
 
 /** Status icon shown next to a finding, matching its severity. */

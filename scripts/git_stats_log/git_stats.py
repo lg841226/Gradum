@@ -79,6 +79,31 @@ def _git(repo: str, cmd: str) -> Optional[str]:
         return None
 
 
+def current_branch(repo_path: str) -> str:
+    """Best-effort current branch name, or the detached HEAD short hash.
+
+    Returns an empty string when the branch name cannot be resolved.
+    """
+    try:
+        result = subprocess.run(
+            "git rev-parse --abbrev-ref HEAD",
+            cwd=repo_path, shell=True, capture_output=True, text=True, timeout=15,
+        )
+        name = result.stdout.strip() if result.returncode == 0 else ""
+        if name and name != "HEAD":
+            return name
+        if name == "HEAD":
+            short = subprocess.run(
+                "git rev-parse --short HEAD",
+                cwd=repo_path, shell=True, capture_output=True, text=True, timeout=15,
+            )
+            if short.returncode == 0 and short.stdout.strip():
+                return short.stdout.strip()
+    except subprocess.SubprocessError:
+        pass
+    return ""
+
+
 def _parse_numstat(numstat: str) -> Tuple[int, int]:
     lines = [line.strip() for line in numstat.strip().split("\n") if line.strip()]
     additions = deletions = 0
@@ -1356,7 +1381,8 @@ def main():
 
     elapsed = time.time() - scan_start
     elapsed_ms = int(elapsed * 1000)
-    log("INFO", message="scanned", commits=total, repo=repo_name(repo), elapsed_ms=elapsed_ms)
+    log("INFO", message="scanned", commits=total, repo=repo_name(repo), elapsed_ms=elapsed_ms,
+        branch=current_branch(repo))
 
     if fd.get("enableQualityAnalysis", False):
         quality_params = dict(_QUALITY_PARAMS)

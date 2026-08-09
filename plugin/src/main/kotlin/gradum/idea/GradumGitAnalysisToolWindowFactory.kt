@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-07 23:43:52 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-08 12:24:04 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -59,19 +59,19 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
     toolWindow.addComposeTab(message("gradum.toolwindow.git.analysis")) {
       SwingBridgeTheme {
         val styling = rememberGradumMarkdownStyling()
+        val scanState = GradumGitAnalysisService.scanState
         val bullet = styling.list.unordered.bullet ?: '\u2022'
+        val infoTextColor = LocalGlobalColors.current.text.info
         val bulletStyle: TextStyle = styling.list.unordered.bulletStyle
         val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-        val scanState = GradumGitAnalysisService.scanState
-        val infoTextColor = LocalGlobalColors.current.text.info
+        val groupingScope = rememberCoroutineScope()
         val focusRequester = remember { FocusRequester() }
         var isAllExpanded by remember { mutableStateOf(false) }
-        var selectedFinding by remember { mutableStateOf<AuditFinding?>(null) }
         var showCommitInfo by remember { mutableStateOf(false) }
         var groupBySeverity by remember { mutableStateOf(false) }
         var isGroupingTransition by remember { mutableStateOf(false) }
         var reviewedFindings by remember { mutableStateOf(setOf<String>()) }
-        val groupingScope = rememberCoroutineScope()
+        var selectedFinding by remember { mutableStateOf<AuditFinding?>(null) }
 
         DisposableEffect(project, toolWindow) {
           val connection = project.messageBus.connect()
@@ -123,7 +123,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                     text = bannerText,
                     modifier = Modifier
                       .fillMaxWidth()
-                      .padding(horizontal = GradumSpacing.md),
+                      .padding(horizontal = GradumSpacing.sml),
                     icon = {
                       Icon(
                         contentDescription = null,
@@ -306,8 +306,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   Text(message("gradum.toolwindow.git.analysis.begin"))
                 }
                 ExternalLink(
-                  onClick = {},
-                  text = message("gradum.toolwindow.git.analysis.view.full")
+                  onClick = {}, text = message("gradum.toolwindow.git.analysis.view.full")
                 )
               }
             }

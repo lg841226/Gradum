@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBanner.kt  2026-08-07 23:44:17 Changed by gwy
+ * GradumBanner.kt  2026-08-08 12:24:48 Changed by gwy
  */
 
 package gradum.idea
@@ -50,7 +50,7 @@ internal fun GradumBanner(
   linkContent: @Composable (() -> Unit)? = null,
   iconContent: (@Composable (() -> Unit))? = null,
   severity: BannerSeverity = BannerSeverity.Success,
-  textStyle: TextStyle = JewelTheme.typography.regular,
+  textStyle: TextStyle = JewelTheme.typography.regular
 ) {
   val originalStyle = when (severity) {
     BannerSeverity.Success -> JewelTheme.defaultBannerStyle.success

@@ -2,10 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-07 23:40:41 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-09 17:56:56 Changed by gwy
  */
 
-@file:OptIn(InternalJewelApi::class, ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
+@file:OptIn(
+  InternalJewelApi::class,
+  ExperimentalJewelApi::class,
+  ExperimentalComposeUiApi::class,
+  ExperimentalFoundationApi::class
+)
 
 package gradum.idea
 
@@ -29,20 +34,27 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.InternalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.lazy.tree.Tree
+import org.jetbrains.jewel.foundation.lazy.tree.TreeGeneratorScope
 import org.jetbrains.jewel.foundation.lazy.tree.buildTree
 import org.jetbrains.jewel.foundation.lazy.tree.rememberTreeState
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import java.util.*
 
+/** Default number of findings shown per group before a load-more row appears. */
+private const val DEFAULT_FINDING_LIMIT = 50
+
 /**
- * Builds a [Tree] of [AuditTreeItem] nodes for the findings list. Groups
- * with zero findings are skipped; each node's children are its findings,
- * sorted most-severe-first.
+ * Builds a [Tree] of [AuditTreeItem] nodes for the findings list. When a
+ * non-blank [branchName] is available the group rows are wrapped in a single
+ * branch node on top; groups with zero findings are still skipped, and each
+ * group's children are its findings, sorted most-severe-first.
  */
 internal fun buildAuditFindingsTree(
-  findings: List<AuditFinding>, groupBySeverity: Boolean
+  findings: List<AuditFinding>, groupBySeverity: Boolean, branchName: String?,
+  groupLimits: Map<AuditTreeItem, Int>
 ): Tree<AuditTreeItem> =
   buildTree {
     val groupItems: List<AuditTreeItem> = if (groupBySeverity) {
@@ -56,21 +68,34 @@ internal fun buildAuditFindingsTree(
         if (grouped.isEmpty()) null else AuditTreeItem.Group(group, grouped.size)
       }
     }
-    groupItems.forEach { groupItem ->
-      val grouped = when (groupItem) {
-        is AuditTreeItem.Group -> findings.filter { auditGroupOf(it.code) == groupItem.group }
-        is AuditTreeItem.SeverityGroup -> findings.filter { it.level == groupItem.level }
-        is AuditTreeItem.Finding -> emptyList()
-      }
-      addNode(groupItem, groupItem) {
-        grouped
-          .sortedWith(compareBy { severityRank(it.level) })
-          .forEach { finding ->
+
+    fun TreeGeneratorScope<AuditTreeItem>.addGroupRows() {
+      groupItems.forEach { groupItem ->
+        val grouped = when (groupItem) {
+          is AuditTreeItem.Group -> findings.filter { auditGroupOf(it.code) == groupItem.group }
+          is AuditTreeItem.SeverityGroup -> findings.filter { it.level == groupItem.level }
+          is AuditTreeItem.Branch, is AuditTreeItem.Finding, is AuditTreeItem.LoadMore -> emptyList()
+        }
+        addNode(groupItem, groupItem) {
+          val sorted = grouped.sortedWith(compareBy { severityRank(it.level) })
+          val limit = groupLimits[groupItem] ?: DEFAULT_FINDING_LIMIT
+          sorted.take(limit).forEach { finding ->
             val findingKey = AuditTreeItem.Finding(finding)
             addLeaf(findingKey, findingKey)
           }
+          val remaining = sorted.size - limit
+          if (remaining > 0) {
+            val moreRow = AuditTreeItem.LoadMore(groupItem, remaining)
+            addLeaf(moreRow, moreRow)
+          }
+        }
       }
     }
+
+    val branchKey = branchName?.takeIf { it.isNotBlank() }
+      ?.let { AuditTreeItem.Branch(it, findings.size) }
+    if (branchKey == null) addGroupRows()
+    else addNode(branchKey, branchKey) { addGroupRows() }
   }
 
 /**
@@ -104,8 +129,13 @@ internal fun AuditFindingsTree(
 
   val treeState = rememberTreeState()
   val regularStyle = JewelTheme.typography.regular
-  val problemTree = remember(findings, groupBySeverity) {
-    buildAuditFindingsTree(findings, groupBySeverity)
+  val branchName = GradumGitAnalysisService.currentBranch
+  var groupLimits by remember { mutableStateOf<Map<AuditTreeItem, Int>>(emptyMap()) }
+  val branchKey = remember(branchName, findings) {
+    branchName?.takeIf { it.isNotBlank() }?.let { AuditTreeItem.Branch(it, findings.size) }
+  }
+  val problemTree = remember(findings, groupBySeverity, branchName, groupLimits) {
+    buildAuditFindingsTree(findings, groupBySeverity, branchName, groupLimits)
   }
   val groupKeys = remember(findings, groupBySeverity) {
     val groupItems = if (groupBySeverity) {
@@ -122,8 +152,14 @@ internal fun AuditFindingsTree(
     groupItems.toSet()
   }
 
-  LaunchedEffect(isAllExpanded, groupKeys) {
-    treeState.openNodes = if (isAllExpanded) groupKeys else emptySet()
+  LaunchedEffect(isAllExpanded, groupKeys, branchKey) {
+    // On scan completion the branch wrapper is expanded together with all of
+    // its group rows, so the four groups are visible without extra clicks.
+    treeState.openNodes = if (branchKey == null) {
+      if (isAllExpanded) groupKeys else emptySet()
+    } else {
+      groupKeys + branchKey
+    }
   }
 
   Row(modifier = modifier.fillMaxSize()) {
@@ -132,7 +168,15 @@ internal fun AuditFindingsTree(
       tree = problemTree,
       treeState = treeState,
       onElementClick = { element ->
-        onFindingSelected((element.data as? AuditTreeItem.Finding)?.finding)
+        when (val data = element.data) {
+          is AuditTreeItem.Finding -> onFindingSelected(data.finding)
+          is AuditTreeItem.LoadMore -> {
+            val key = data.group
+            groupLimits = groupLimits + (key to ((groupLimits[key] ?: DEFAULT_FINDING_LIMIT) + DEFAULT_FINDING_LIMIT))
+          }
+
+          else -> Unit
+        }
       },
       onSelectionChange = { elements ->
         onFindingSelected(
@@ -144,6 +188,42 @@ internal fun AuditFindingsTree(
       modifier = Modifier.weight(1f).fillMaxHeight()
     ) { element ->
       when (val item = element.data) {
+        is AuditTreeItem.Branch -> {
+          val formattedCount = "%,d".format(Locale.ROOT, minOf(item.count, 9999))
+          val countKey =
+            if (item.count == 1) "gradum.toolwindow.git.analysis.problem"
+            else "gradum.toolwindow.git.analysis.problems"
+
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(
+                vertical = GradumSpacing.sm,
+                horizontal = GradumSpacing.sml
+              ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+          ) {
+            Icon(
+              contentDescription = null,
+              key = AllIconsKeys.Vcs.Branch
+            )
+            Text(
+              maxLines = 1,
+              text = item.name,
+              overflow = TextOverflow.Ellipsis,
+              style = regularStyle.copy(fontWeight = FontWeight.SemiBold),
+            )
+            Text(
+              maxLines = 1,
+              style = regularStyle,
+              overflow = TextOverflow.Ellipsis,
+              color = LocalGlobalColors.current.text.info,
+              text = message(countKey, formattedCount)
+            )
+          }
+        }
+
         is AuditTreeItem.Group -> {
           val activeCount = item.count - findings.count {
             auditGroupOf(it.code) == item.group && findingKey(it) in reviewedFindings
@@ -166,7 +246,7 @@ internal fun AuditFindingsTree(
           ) {
             Text(
               text = item.group.label(),
-              style = regularStyle.copy(fontWeight = FontWeight.SemiBold)
+              style = regularStyle
             )
             Text(
               style = regularStyle,
@@ -202,7 +282,7 @@ internal fun AuditFindingsTree(
             )
             Text(
               text = severityLabel(item.level),
-              style = regularStyle.copy(fontWeight = FontWeight.SemiBold)
+              style = regularStyle
             )
             Text(
               maxLines = 1,
@@ -212,6 +292,19 @@ internal fun AuditFindingsTree(
               text = message(countKey, formattedCount)
             )
           }
+        }
+
+        is AuditTreeItem.LoadMore -> {
+          Text(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = GradumSpacing.sm, horizontal = GradumSpacing.sml),
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = LocalGlobalColors.current.text.info,
+            text = message("gradum.toolwindow.git.analysis.load.more", item.remaining)
+          )
         }
 
         is AuditTreeItem.Finding -> {

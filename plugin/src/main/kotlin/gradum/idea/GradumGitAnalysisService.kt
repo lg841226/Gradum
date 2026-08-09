@@ -362,6 +362,10 @@ object GradumGitAnalysisService {
   var qualityBand by mutableStateOf<String?>(null)
     private set
 
+  /** Current branch name reported by the script's "scanned" record. */
+  var currentBranch by mutableStateOf<String?>(null)
+    private set
+
   /** Timestamp (epoch millis) when the last scan completed successfully. */
   var scanCompletedAt by mutableStateOf(0L)
     private set
@@ -488,6 +492,7 @@ object GradumGitAnalysisService {
     auditFindings = emptyList()
     overallLevel = null
     qualityBand = null
+    currentBranch = null
   }
 
   /**
@@ -526,6 +531,7 @@ object GradumGitAnalysisService {
           if (outputLine.isBlank()) continue
           val jsonRecord = parseRecord(outputLine) ?: continue
           if (isScannedRecord(jsonRecord)) {
+            currentBranch = jsonRecord["branch"]?.jsonPrimitive?.contentOrNull
             isScanCompleted = true
             hasTransferredControl = true
             return
