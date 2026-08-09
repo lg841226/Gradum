@@ -52,8 +52,8 @@ private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
 
-/** Pacing interval between blocks in the shared serial reveal queue. */
-private const val BLOCK_REVEAL_STAGGER_MS: Long = 120
+/** Pacing interval between reveal units in the shared serial queue. */
+private const val REVEAL_STAGGER_MS: Long = 120
 
 private const val SEGMENT_BASE_DURATION_MS: Int = 150
 private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
@@ -83,25 +83,51 @@ fun AssistantChatBubble(
   val renderBlocks = message.renderBlocks
   val hasContent = renderBlocks.isNotEmpty()
 
-  // Shared serial "reveal" queue for ALL block types (thinking, tool calls,
-  // responses, errors). Only the newest AI message animates this way so
-  // blocks appear one at a time in event order; historical messages render
-  // in full instantly. This keeps interleaved playback scenarios readable
-  // instead of letting tool capsules pop in while response text still paces.
-  var revealedCount by remember { mutableIntStateOf(0) }
-  LaunchedEffect(renderBlocks.size, animateReveal) {
+  // Every block is flattened into reveal units sharing ONE serial queue:
+  // a thinking / tool / error capsule counts as a single unit, while a
+  // response block contributes one unit per markdown segment. So a long
+  // text-only answer still pages in paragraph by paragraph, and in an
+  // interleaved scenario each tool capsule AND each narration paragraph
+  // appear strictly one after another instead of all at once.
+  val blockUnits: List<Int> = remember(renderBlocks) {
+    renderBlocks.map { block ->
+      when (block) {
+        is RenderBlock.Response -> splitMarkdown(block.content).size.coerceAtLeast(1)
+        else -> 1
+      }
+    }
+  }
+  val blockStarts: List<Int> = remember(blockUnits) {
+    val starts = IntArray(blockUnits.size)
+    var running = 0
+    blockUnits.forEachIndexed { index, count ->
+      starts[index] = running
+      running += count
+    }
+    starts.toList()
+  }
+  val totalUnits: Int = remember(blockUnits) { blockUnits.sum() }
+
+  // Reveal units one at a time for the newest AI message; historical
+  // messages render fully. Playback scenarios flood all server events in a
+  // single frame, so pacing must not hinge on isLoading.
+  var revealedUnits by remember { mutableIntStateOf(0) }
+  LaunchedEffect(totalUnits, animateReveal, isLoading) {
     if (!animateReveal || message.revealComplete) {
-      revealedCount = renderBlocks.size
+      revealedUnits = totalUnits
       return@LaunchedEffect
     }
-    while (revealedCount < renderBlocks.size) {
-      delay(BLOCK_REVEAL_STAGGER_MS.milliseconds)
-      revealedCount = revealedCount + 1
+    while (revealedUnits < totalUnits) {
+      delay(REVEAL_STAGGER_MS.milliseconds)
+      revealedUnits = revealedUnits + 1
       onContentChange()
     }
-    // Once a non-empty message has fully stepped through its queue, remember
-    // it so reopening the window does not replay the paced reveal.
-    if (renderBlocks.isNotEmpty()) {
+    // Once a message has finished streaming/playing (loading cleared) and
+    // fully stepped through its queue, remember it so reopening the window
+    // does not replay the paced reveal. While still loading we must NOT
+    // mark it complete: streaming content grows unit-by-unit and a transient
+    // "totalUnits == revealedUnits" is not the real end of the turn.
+    if (totalUnits > 0 && !isLoading) {
       message.revealComplete = true
     }
     onContentChange()
@@ -130,12 +156,15 @@ fun AssistantChatBubble(
       }
       Spacer(Modifier.height(GradumSpacing.lg))
       renderBlocks.forEachIndexed { index, block ->
-        if (index >= revealedCount) return@forEachIndexed
+        val blockStart: Int = blockStarts[index]
+        val blockUnitCount: Int = blockUnits[index]
+        if (revealedUnits <= blockStart) return@forEachIndexed
+        val visibleUnits: Int = (revealedUnits - blockStart).coerceAtMost(blockUnitCount)
         key(block.key(index)) {
           when (block) {
             is RenderBlock.Thinking -> ThinkingBlock(block, isLoading, onUrlClick)
             is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
-            is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
+            is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange, visibleSegments = visibleUnits)
             is RenderBlock.Error -> ErrorBlock(block)
           }
           Spacer(modifier = Modifier.height(GradumSpacing.lrl))
@@ -199,13 +228,14 @@ private fun ResponseBlock(
   block: RenderBlock.Response,
   onUrlClick: (String) -> Unit,
   onContentChange: () -> Unit = {},
+  visibleSegments: Int = Int.MAX_VALUE,
 ) {
   val segments = remember(block.content) { splitMarkdown(block.content) }
   val paragraphStyle = rememberGradumParagraphTextStyle()
 
   SelectionContainer {
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-      segments.forEach { segment ->
+      segments.take(visibleSegments).forEach { segment ->
         AnimatedSegment(segment, paragraphStyle, onUrlClick)
       }
     }
