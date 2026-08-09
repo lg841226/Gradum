@@ -1,0 +1,206 @@
+**Gradum Data Security and Privacy Statement**
+
+**Effective Date:** August 9, 2026
+**Version:** 1.0
+
+**1. Scope and Application**
+
+This Data Security and Privacy Statement ("Statement") governs the
+handling of all data, code, and metadata by the Gradum plugin
+("Plugin") across all supported integrated development environments
+(IDEs) and platforms. By installing, accessing, or using the Plugin,
+you ("User") acknowledge that you have read, understood, and agree to
+be bound by the terms of this Statement. If you do not agree with any
+provision of this Statement, you must immediately cease using the
+Plugin and uninstall it from all your devices.
+
+**2. Local-First Architecture and Zero Network Transmission**
+
+Gradum is engineered with a strict "local-first" privacy paradigm.
+All code analysis, commit history parsing, metric calculation, and
+result generation occur exclusively on the User's local machine (the
+"Current Device"). The Plugin does not establish any outbound network
+connections to transmit analysis results, intermediate data, or any
+derivative information to Gradum's developers, third-party analytics
+services, cloud infrastructures, or any external entities. The
+analysis results are rendered solely within the User's local IDE
+interface and are accessible only to the User. No data is ever stored
+on any remote server, content delivery network, or logging service
+controlled by Gradum or its affiliates. This architecture ensures that
+the User retains complete physical and logical control over their
+proprietary source code and development metadata at all times.
+
+**3. Explicit User Activation and Purpose Limitation**
+
+The Plugin operates strictly on an "opt-in" and "action-triggered"
+basis. The Plugin does not perform any background scanning, passive
+monitoring, or automatic data collection. The reading of a
+repository's commit history — the only data operation performed by the
+Plugin — is initiated solely and deliberately by the User through a
+specific UI command or keyboard shortcut. This action is never
+automated, scheduled, or performed without the User's clear and
+unambiguous affirmative consent at the moment of execution. The commit
+history data is accessed for the singular, limited purpose of
+generating productivity and contribution metrics relevant to the
+User's immediate analytical needs. The Plugin explicitly disclaims any
+use of the repository's source code, commit messages, author
+information, or timestamps for:
+
+(a) training machine learning or large language models;
+
+(b) profiling, advertising, or marketing purposes;
+
+(c) any form of behavioral or performance benchmarking against other
+users; or
+
+(d) any data aggregation or anonymization for external research.
+
+No portion of the codebase is ever uploaded, copied, or transferred
+outside the local environment.
+
+**4. Ephemeral Data Retention and Non-Persistent Storage**
+
+Any audit trail, intermediate computation cache, or session-specific
+data generated during the Plugin's operation is stored exclusively in
+temporary operating system files designated for the current user
+session. These temporary files are subject to the following strict
+lifecycle policies:
+
+- **Retention:** Data persists only for the duration of the active
+  IDE session.
+- **Automatic Deletion:** Upon the normal or forced termination of
+  the IDE session, the Plugin executes a secure erasure routine that
+  deletes all temporary files and associated data structures.
+- **No Residual Data:** The Plugin does not write any logs,
+  configuration files, or persistent caches to the User's file system
+  beyond the transient session scope.
+- **Immutable Project State:** The Plugin strictly prohibits any
+  modification, insertion, deletion, or alteration of files within the
+  User's project directories, including but not limited to source code
+  files, configuration files (e.g., `.git`, `.gradle`,
+  `package.json`), documentation, or build artifacts. The Plugin is a
+  read-only analytical tool with no write privileges to the repository
+  or its working tree.
+
+**5. Full Source Code Transparency and Open-Source Auditability**
+
+In furtherance of Gradum's commitment to trust and verifiability, the
+complete and unabridged source code of the Plugin is made publicly
+available in a dedicated open-source repository. This repository
+contains the full build scripts, dependency manifests, and all
+functional modules. This transparency enables independent security
+researchers, enterprise audit teams, and individual Users to inspect,
+compile, and verify every line of code executed by the Plugin. The
+public availability of the source code ensures that the security and
+privacy claims made in this Statement are objectively verifiable and
+not merely aspirational. The GitHub repository serves as the
+authoritative distribution channel for all versions of the Plugin, and
+Users are encouraged to review the source code prior to installation.
+
+**6. Authoritative Version and Modification Policy**
+
+This Statement takes effect on the date indicated above and supersedes
+all prior verbal or written representations regarding data handling.
+Gradum reserves the right to update or amend this Statement to reflect
+changes in legal requirements, operational practices, or Plugin
+functionality. The most current, legally binding version of this
+Statement is maintained and version-controlled within the Gradum
+open-source repository. Any modifications to this Statement will be
+clearly documented through commit history and semantic versioning. In
+the event of any discrepancy, ambiguity, or conflict between the text
+of this Statement as displayed in any third-party marketplace, IDE
+plugin repository, or offline documentation, and the text of the
+authoritative version stored in the official Gradum GitHub repository,
+the latter shall prevail and control.
+
+**7. User Acknowledgment and Acceptance**
+
+By continuing to use the Plugin after the effective date, the User
+acknowledges and accepts the terms of this Statement. The User
+understands that Gradum does not provide warranties regarding the
+completeness of analysis but guarantees the privacy and security of
+the underlying data as articulated herein.
+
+**Gradum Official Repository:**
+[https://github.com/gradum/gradum](https://github.com/gradum/gradum)
+
+**Gradum 数据安全与隐私声明**
+
+**生效日期：** 2026 年 8 月 9 日
+**版本号：** 1.0
+
+**第一条 声明范围与适用对象**
+
+本《数据安全与隐私声明》（以下简称“本声明”）适用于 Gradum 插件
+（以下简称“本插件”）在全部支持的集成开发环境及平台中对所有数据、
+代码及元数据的处理行为。凡安装、访问或使用本插件的用户（以下简称
+“用户”）即视为已阅读、理解并同意接受本声明全部条款的约束。若用户
+不同意本声明任何内容，应立即停止使用本插件并从所有设备中予以卸载。
+
+**第二条 本地优先架构与零网络传输**
+
+Gradum 采用严格的“本地优先”隐私设计范式。所有代码分析、提交历史
+解析、指标计算及结果生成，均仅在用户当前设备的本地环境中执行。本
+插件不会建立任何向外的网络连接，不会将分析结果、中间数据或任何
+衍生信息传输至 Gradum 开发者、第三方分析服务商、云端基础设施或
+任何外部实体。分析结果仅渲染于用户本地的 IDE 界面，仅供用户本人
+查阅。任何数据均不存储于 Gradum 或其关联方控制的远程服务器、内容
+分发网络或日志服务中。此架构确保用户对其专有源代码及开发元数据
+始终保持完全的物理和逻辑控制权。
+
+**第三条 用户主动触发与目的限制**
+
+本插件严格基于“选择加入”及“操作触发”机制运行。本插件不会执行任何
+后台扫描、被动监控或自动数据收集行为。对代码仓库提交历史的读取，
+系本插件执行的唯一数据操作，仅在用户通过特定界面命令或键盘快捷键
+明确且主动发起后执行。该操作绝不自动执行、定时执行或在未获得用户
+明确肯定同意的情况下执行。读取提交历史的目的仅限于生成与用户当前
+分析需求直接相关的生产力及贡献度指标。本插件明确声明，绝不将代码、
+提交信息、作者信息或时间戳用于以下任何目的：（一）训练机器学习或
+大型语言模型；（二）用户画像、广告或营销推送；（三）针对其他用户
+的任何形式的行为或性能基准比较；或（四）为外部研究进行数据聚合。
+代码的任何部分均不予以上传、复制或转移至本地环境之外的任何位置。
+
+**第四条 临时数据留存与非持久化存储**
+
+本插件运行期间生成的任何审计轨迹、中间计算缓存或会话数据，均仅存储
+于当前用户会话指定的操作系统临时文件中。上述临时文件适用以下严格的
+生存周期政策：
+
+- **留存期限：** 数据仅在当前 IDE 会话期间存续。
+- **自动删除：** 会话结束时，本插件将执行安全擦除，彻底删除所有
+  相关文件。
+- **无残留数据：** 本插件不会在用户系统中写入任何日志、配置文件
+  或持久化缓存。
+- **项目状态不可变：** 本插件严格禁止对用户项目目录内的任何文件进行
+  修改、插入、删除或变更，包括但不限于源代码文件、配置文件（如
+  `.git`、`.gradle`、`package.json`）、文档或构建产物。本插件为
+  只读分析工具，对代码及其工程没有任何写入。
+
+**第五条 完整源代码透明与开源可审计性**
+
+为进一步提升信任和可验证性，本插件的完整、未删节源代码已在公开的
+代码仓库中向公众开放。该仓库提供完整的构建脚本、依赖配置及全部
+功能模块。此透明性使安全研究人员、审计团队及个人用户能够审查、
+编译并验证本插件的每一行代码。源代码的公开性确保本声明所述的安全
+与隐私主张真实可验证，而非仅为愿景。代码仓库系本插件所有版本的
+权威发布渠道，建议用户在安装前查阅源代码。
+
+**第六条 权威文本与修改政策**
+
+本声明自文首所载日期起生效，并取代先前任何关于数据处理的口头或书面
+说明。Gradum 保留根据法律法规、运营实践或插件功能变化更新或修订本
+声明的权利。本声明的最新、具有约束力的版本，以 Gradum 开源仓库中
+维护并版本控制的文本为准。对本声明的任何修改将通过提交历史及版本号
+明确记录。如本声明在第三方插件市场、IDE 文档或本地等界面显示的文本
+与官方代码仓库所维护的权威版本存在任何差异或冲突，均以对外发布版本
+为准。
+
+**第七条 用户确认与接受**
+
+用户在本声明生效后继续使用本插件，即视为确认并接受本声明全部条款。
+用户理解 Gradum 不就分析结果的完整性提供担保，但就本文所述的数据
+安全与隐私承诺给予充分保证。
+
+**Gradum 官方代码仓库：**
+[https://github.com/gradum/gradum](https://github.com/gradum/gradum)

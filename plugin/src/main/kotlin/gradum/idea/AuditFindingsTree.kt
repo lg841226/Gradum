@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-09 17:56:56 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-09 18:12:47 Changed by gwy
  */
 
 @file:OptIn(
@@ -153,12 +153,13 @@ internal fun AuditFindingsTree(
   }
 
   LaunchedEffect(isAllExpanded, groupKeys, branchKey) {
-    // On scan completion the branch wrapper is expanded together with all of
-    // its group rows, so the four groups are visible without extra clicks.
+    // The branch wrapper, when present, is always the visible top level; the
+    // expand/collapse toggle controls the group rows below it. On a fresh scan
+    // `isAllExpanded` starts true so the groups are visible without extra clicks.
     treeState.openNodes = if (branchKey == null) {
       if (isAllExpanded) groupKeys else emptySet()
     } else {
-      groupKeys + branchKey
+      if (isAllExpanded) groupKeys + branchKey else setOf(branchKey)
     }
   }
 
@@ -349,8 +350,8 @@ internal fun AuditFindingsTree(
                     ) {
                       Text(
                         maxLines = 1,
-                        text = message("gradum.toolwindow.git.analysis.reviewed"),
-                        color = androidx.compose.ui.graphics.Color(0xFFFFA500)
+                        color = JewelTheme.globalColors.text.info,
+                        text = message("gradum.toolwindow.git.analysis.reviewed")
                       )
                     }
                   }

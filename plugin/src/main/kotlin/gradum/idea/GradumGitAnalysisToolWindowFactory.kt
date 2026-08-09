@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-08 12:24:04 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-09 19:56:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -25,7 +25,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.PathManager
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
@@ -43,9 +47,14 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val BANNER_ANIMATION_DURATION_MS = 300
+private const val LEGAL_STATEMENT_RESOURCE = "/legal/data_security.txt"
 
 /**
  * Factory for creating the Gradum Git Analysis tool window.
@@ -66,7 +75,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
         val groupingScope = rememberCoroutineScope()
         val focusRequester = remember { FocusRequester() }
-        var isAllExpanded by remember { mutableStateOf(false) }
+        var isAllExpanded by remember { mutableStateOf(true) }
         var showCommitInfo by remember { mutableStateOf(false) }
         var groupBySeverity by remember { mutableStateOf(false) }
         var isGroupingTransition by remember { mutableStateOf(false) }
@@ -305,14 +314,66 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 DefaultButton(onClick = { GradumGitAnalysisService.startScan(project) }) {
                   Text(message("gradum.toolwindow.git.analysis.begin"))
                 }
-                ExternalLink(
-                  onClick = {}, text = message("gradum.toolwindow.git.analysis.view.full")
-                )
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+                ) {
+                  Icon(
+                    contentDescription = null,
+                    key = AllIconsKeys.Toolwindows.ToolWindowCoverage
+                  )
+                  ExternalLink(
+                    onClick = { openDataSecurityAndPrivacy(project) },
+                    text = message("gradum.toolwindow.git.analysis.data.security")
+                  )
+                }
               }
             }
           }
         }
       }
+    }
+  }
+}
+
+/**
+ * Opens the bundled data security and privacy statement in an editor tab.
+ *
+ * The statement ships with the plugin as the `legal/data_security.txt`
+ * classpath resource, so the wording is versioned and reviewed together with
+ * the plugin build. On first click the resource is materialized to a stable
+ * path under the platform temp directory:
+ * `<temp>/gradum/legal/data_security.txt`.
+ *
+ * Because the target path is deterministic, a repeated click while the tab is
+ * already open jumps to the existing editor instead of opening a second tab:
+ * [FileEditorManager.openFile] reuses the already registered editor for the
+ * same [VirtualFile] and simply brings it to the front.
+ *
+ * The bundled text is bilingual (English block on top, Chinese block at the
+ * bottom), written in a neutral, statute-like tone without decorative
+ * separators. The last lines carry the GitHub repository link.
+ */
+private fun openDataSecurityAndPrivacy(project: Project) {
+  val statementPath: Path? = try {
+    val targetDir = Paths.get(PathManager.getTempDir().toString(), "gradum", "legal")
+    Files.createDirectories(targetDir)
+    val target = targetDir.resolve("data_security.txt")
+    GradumGitAnalysisToolWindowFactory::class.java.getResourceAsStream(LEGAL_STATEMENT_RESOURCE)
+      ?.use { inputStream ->
+        Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING)
+      }
+    target
+  } catch (_: Exception) {
+    null
+  }
+
+  if (statementPath == null) return
+
+  val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(statementPath.toFile())
+  if (virtualFile != null) {
+    ApplicationManager.getApplication().invokeLater {
+      FileEditorManager.getInstance(project).openFile(virtualFile, true)
     }
   }
 }
