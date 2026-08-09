@@ -468,7 +468,8 @@ class GradumChatSession {
    * @param userMessage The text content of the user's message.
    */
   suspend fun sendMessage(
-    userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = ""
+    userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = "",
+    toolCallXml: String? = null
   ) {
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
@@ -577,7 +578,8 @@ class GradumChatSession {
         loadContext = loadContext,
         toolMode = toolMode,
         projectRoot = project?.basePath,
-        imageAttachments = imageAttachments
+        imageAttachments = imageAttachments,
+        toolCallXml = toolCallXml
       ).catch { exception ->
         if (exception is CancellationException) {
           val assistantIndex: Int = messages.lastIndex
@@ -623,6 +625,10 @@ class GradumChatSession {
           }
 
           "tool_call" -> handleToolCallEvent(payload)
+
+          "tool_expect_mismatch" -> {
+            isWaitingForResponse = false; handleToolExpectMismatch(payload)
+          }
 
           "error" -> handleErrorEvent(payload)
 
@@ -740,6 +746,33 @@ class GradumChatSession {
       }
     } catch (exception: Exception) {
       log.warn("Failed to parse tool_call event", exception)
+    }
+  }
+
+  /**
+   * Handles a `tool_expect_mismatch` event from debug tool-call playback:
+   * the recorded outcome of a scenario step did not match the author's
+   * `exp="success"|"error"` assertion. Surfaced as an error on the
+   * current assistant message so the mismatch is visible in the chat.
+   *
+   * @param data The event data with `tool`, `expectSuccess`, and
+   *   `actualSuccess` (>fields).
+   */
+  private fun handleToolExpectMismatch(data: JsonObject?) {
+    val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+    val expectSuccess: String =
+      data?.get("expectSuccess")?.jsonPrimitive?.content ?: "?"
+    val actualSuccess: String =
+      data?.get("actualSuccess")?.jsonPrimitive?.content ?: "?"
+
+    val message: String =
+      "Playback assertion mismatch on tool '$toolName': expected success=$expectSuccess, " +
+        "actual=$actualSuccess"
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(
+        ChatEvent.Error(message, code = "TOOL_EXPECT_MISMATCH")
+      )
     }
   }
 

@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Gradum Tests" type="GradleRunConfiguration" factoryName="Gradle">
+  <configuration default="false" name="Gradum Server Tests" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
       <option name="externalProjectPath" value="$PROJECT_DIR$" />
@@ -10,7 +10,7 @@
       </option>
       <option name="taskNames">
         <list>
-          <option value=":plugin:test" />
+          <option value=":test" />
         </list>
       </option>
       <option name="vmOptions" />

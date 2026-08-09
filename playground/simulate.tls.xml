@@ -1,0 +1,84 @@
+<!--
+  Debug tool-call playback scenario — Gradum.
+
+  This file simulates what the LLM "would do" on a normal agent task.
+  Paste its contents into the `toolCallXml` field (or open this file with
+  the plugin debug tab) to replay it through the REAL skill pipeline:
+
+  Two elements interleave freely, mixing AI reply text with tool calls:
+  - <tt msg="AI says this between calls"/>  — assistant response text.
+  - <t .../>                                  — a real tool call.
+
+  Workflow a real agent turn would follow:
+      1. AI explains its plan          (<tt>)
+      2. explore_project  — scan the project layout
+      3. AI notes what it found        (<tt>)
+      4. grep             — find a relevant symbol
+      5. AI picks a file to read       (<tt>)
+      6. read_file         — open the file it cares about (this path exists)
+      7. glob              — double-check which files match a pattern
+      8. run_cmd           — execute a safe read-only command
+      9. save_file         — write a small artifact (needs AGENT/EDIT mode)
+     10. exp="error"       — bonus: assert this tool FAILS (file missing)
+
+  `<tls>` root. Optional `name` names the recording file.
+  Each `<t>` self-closes. All shorthand attributes are three letters:
+
+    msg   AI reply content (on <tt>)
+    nam   tool name: read_file | edit_file | save_file | explore_project |
+          grep | glob | run_cmd | to_do | finish_to_do_item
+    pth   path (project-relative or absolute)
+    lin   lineRange for read_file, "start-end" (e.g. lin="1-50")
+    ctl   content for save_file
+    ptr   pattern for grep/glob
+    dep   depth for explore_project
+    cmd   command for run_cmd
+    exp   optional assertion: "success" (default) or "error"
+
+  Every other attribute is passed straight to the tool as-is, so any
+  schema key (include="*.kt", caseSensitive="true", limit="10", ...)
+  just works.
+
+  Play from the project root with:
+    curl -s localhost:<port>/events -X POST -H 'Content-Type: application/json' \
+      -d '{"message":"simulate", "projectRoot":"<ABSOLUTE_PROJECT_PATH>", "toolCallXml": "@this-file"}'
+  The recording lands in <projectRoot>/.gradum/recordings/storyboard-<timestamp>.json
+-->
+<tls name="storyboard">
+  <!-- 0. AI opens with its plan -->
+  <tt msg="Let me inspect how Gradum's skills are wired up."/>
+
+  <!-- 1. Scan the project structure first -->
+  <t nam="explore_project" dep="1"/>
+
+  <!-- 2. AI reflects on the scan -->
+  <tt msg="There is a java file that defines the error codes; finding it."/>
+
+  <!-- 3. Locate the definition of ErrorCode in this repo -->
+  <t nam="grep" pth="src/main" ptr="enum class ErrorCode" include="*.java" limit="10"/>
+
+  <!-- 4. AI picks a specific range to read -->
+  <tt msg="Opening the matched file's header."/>
+
+  <!-- 5. Open the file that matched (this exact path exists in the repo) -->
+  <t nam="read_file" pth="src/main/java/gradum/ErrorCode.java" lin="1-20"/>
+
+  <!-- 6. Double-check which files match -->
+  <t nam="glob" pth="src/main/kotlin" ptr="**/Skill*.kt" include="*.kt"/>
+
+  <!-- 7. AI runs a harmless command for context -->
+  <t nam="run_cmd" cmd="git branch --show-current" reason="curiosity"/>
+
+  <!-- 8. Write a tiny report. Needs mode agent/edit. -->
+  <t nam="save_file"
+     pth=".gradum/debug-report.txt"
+     ctl="Simulated run OK."/>
+
+  <!-- 9. Negative case: assert that reading a nonexistent path errors.
+       This PASSES when the tool fails, so the assertion checks that
+       FileNotFound is what actually happens. -->
+  <t nam="read_file" pth=".gradum/no-such-record.txt" exp="error"/>
+
+  <!-- 10. AI closes the turn -->
+  <tt msg="The missing file failed as expected; scenario finished."/>
+</tls>

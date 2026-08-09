@@ -43,6 +43,11 @@ fun ChatMessageList(
   ) {
     messages.forEachIndexed { index, message ->
       val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
+      // Reveal blocks one at a time only for the newest assistant message,
+      // regardless of isLoading: playback scenarios flood all server events in
+      // a single frame (session_end clears loading before the UI even renders),
+      // so pacing must not hinge on it.
+      val animateReveal: Boolean = index == messages.lastIndex && !message.isUserMessage
       val shouldShowTimestamp: Boolean = index == 0 ||
         formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)
       if (shouldShowTimestamp) {
@@ -63,6 +68,7 @@ fun ChatMessageList(
           sendingPhase = if (isLastAssistant) sendingPhase else "",
           onRetry = { onRetryMessage(index) },
           isLoading = isLastAssistant,
+          animateReveal = animateReveal,
           selectedPermission = selectedPermission
         )
       }

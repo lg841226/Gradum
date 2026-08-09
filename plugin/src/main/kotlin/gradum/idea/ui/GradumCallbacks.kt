@@ -20,6 +20,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import gradum.idea.GradumToolWindowFactory
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.MarkdownTlsScenario
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.input.PermissionMode
@@ -44,6 +45,11 @@ private val MARKDOWN_EXTENSIONS = setOf(
   ".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdwn"
 )
 
+/** Files treated as tool-call debug playable scenarios in DEBUG mode. */
+private val SCENARIO_EXTENSIONS = setOf(
+  ".tls", ".tls.xml", ".xml"
+)
+
 /** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
 private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L
 
@@ -56,6 +62,81 @@ private fun truncateToMaxLines(content: String): String {
     lines.take(MAX_MARKDOWN_LINES).joinToString("\n") +
       "**Truncated to $MAX_MARKDOWN_LINES lines — this Markdown file has ${lines.size} lines**"
   } else content
+}
+
+/**
+ * Sends an already-compiled tool-call scenario XML to the server for
+ * playback. The server replays it through the real skill pipeline (no
+ * LLM tokens), streams `playback_start` / `response` (AI reply text) /
+ * `tool_call` / `tool_expect_mismatch` / `playback_end` NDJSON events
+ * that the normal chat bubble already renders, and records a result file
+ * under the project's `.gradum/recordings/`.
+ *
+ * @param preserveUserMessage when true the caller already restored the
+ *   user bubble (retry path) so this only appends the assistant bubble;
+ *   when false a fresh "Play scenario" user message is added (send path).
+ */
+private fun sendPlaybackXml(
+  session: GradumChatSession,
+  scenarioLabel: String,
+  scenarioXml: String,
+  coroutineScope: CoroutineScope,
+  preserveUserMessage: Boolean = false,
+) {
+  val displayName: String = session.selectedModel?.name ?: "Auto"
+  val providerName: String = session.selectedModel?.provider ?: ""
+  val serverLabel: String = session.selectedModel?.serverName ?: ""
+
+  if (!preserveUserMessage) {
+    session.messages.add(ChatMessage(role = "user", content = "Play scenario: $scenarioLabel"))
+  }
+  session.messages.add(
+    ChatMessage(
+      role = "assistant",
+      content = "",
+      modelName = displayName,
+      provider = providerName,
+      serverName = serverLabel
+    )
+  )
+  session.hasSentMessage = true
+  session.isSending = true
+  session.isWaitingForResponse = true
+  logger.info("Sending tool-call scenario '$scenarioLabel' to server for playback")
+
+  coroutineScope.launch {
+    session.sendMessage(
+      userMessage = "Play scenario: $scenarioLabel",
+      attachments = emptyList(),
+      contextPath = "",
+      toolCallXml = scenarioXml
+    )
+  }
+}
+
+/**
+ * Sends the focused `.tls` / `.xml` file's content to the server as a
+ * hand-written tool-call scenario.
+ */
+private fun sendPlaybackScenario(
+  session: GradumChatSession,
+  toolProject: com.intellij.openapi.project.Project?,
+  currentFile: VirtualFile,
+  coroutineScope: CoroutineScope,
+) {
+  val scenarioXml: String = try {
+    String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+  } catch (ioError: IOException) {
+    logger.error("IO error reading scenario file: ${currentFile.name}", ioError)
+    return
+  } catch (securityError: SecurityException) {
+    logger.error("Security error accessing scenario file: ${currentFile.name}", securityError)
+    return
+  } catch (generalError: Exception) {
+    logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError)
+    return
+  }
+  sendPlaybackXml(session, currentFile.name, scenarioXml, coroutineScope)
 }
 
 /**
@@ -280,7 +361,15 @@ private fun rememberRetryMessageCallback(
             repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
             session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content))
             session.hasSentMessage = true
-            session.loadDebugMarkdown(content)
+
+            // Retrying a Markdown doc that embeds <tls> blocks replays the
+            // whole turn through the real tool pipeline, matching the send path.
+            val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
+            if (compiled != null) {
+              sendPlaybackXml(session, currentFile.name, compiled, coroutineScope, preserveUserMessage = true)
+            } else {
+              session.loadDebugMarkdown(content)
+            }
           } catch (ioError: IOException) {
             logger.error("IO error reading file: ${currentFile.path}", ioError)
           } catch (securityError: SecurityException) {
@@ -349,31 +438,42 @@ private fun rememberSendCallback(
     val rawText: String = session.textState.text.toString()
     val hasModel = session.selectedModel != null || session.isAutoSelected
 
-    // Debug mode: load focused Markdown file directly without calling LLM
+    // Debug mode: load focused Markdown file directly without calling LLM,
+    // or run a focused tool-call scenario (.tls/.xml) through real playback.
     if (session.selectedPermission == PermissionMode.DEBUG) {
       if (rawText.isNotBlank()) {
         val toolProject = toolWindow?.project
         val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
         val currentFile = editorContext?.currentFile
-        if (currentFile != null &&
-          MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }
-        ) {
-          try {
-            val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
-            val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-            val content = truncateToMaxLines(
-              textEditor?.editor?.document?.text
-                ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
-            )
-            session.messages.add(ChatMessage(role = "user", content = rawText))
-            session.hasSentMessage = true
-            session.loadDebugMarkdown(content)
-          } catch (ioError: IOException) {
-            logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
-          } catch (securityError: SecurityException) {
-            logger.error("Security error accessing markdown file: ${currentFile.name}", securityError)
-          } catch (generalError: Exception) {
-            logger.warn("Unexpected error processing markdown file: ${currentFile.name}", generalError)
+        if (currentFile != null) {
+          if (SCENARIO_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            sendPlaybackScenario(session, toolProject, currentFile, coroutineScope)
+          } else if (MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            try {
+              val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
+              val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
+              val content = truncateToMaxLines(
+                textEditor?.editor?.document?.text
+                  ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+              )
+              // Markdown with embedded <tls> blocks replays as a scenario:
+              // narration between blocks becomes AI reply text, blocks become
+              // real tool calls. Plain Markdown still renders directly.
+              val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
+              if (compiled != null) {
+                sendPlaybackXml(session, currentFile.name, compiled, coroutineScope)
+              } else {
+                session.messages.add(ChatMessage(role = "user", content = rawText))
+                session.hasSentMessage = true
+                session.loadDebugMarkdown(content)
+              }
+            } catch (ioError: IOException) {
+              logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
+            } catch (securityError: SecurityException) {
+              logger.error("Security error accessing markdown file: ${currentFile.name}", securityError)
+            } catch (generalError: Exception) {
+              logger.warn("Unexpected error processing markdown file: ${currentFile.name}", generalError)
+            }
           }
         }
       }

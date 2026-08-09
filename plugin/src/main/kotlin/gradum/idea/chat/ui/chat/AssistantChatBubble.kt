@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -53,9 +52,9 @@ private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
 
-private const val SEGMENT_BASE_STAGGER_MS: Long = 95
-private const val SEGMENT_STAGGER_PER_100DP_MS: Int = 50
-private const val SEGMENT_STAGGER_MAX_MS: Long = 300
+/** Pacing interval between blocks in the shared serial reveal queue. */
+private const val BLOCK_REVEAL_STAGGER_MS: Long = 120
+
 private const val SEGMENT_BASE_DURATION_MS: Int = 150
 private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
 private const val SEGMENT_MAX_EXTRA_MS: Int = 400
@@ -75,6 +74,7 @@ fun AssistantChatBubble(
   onContentChange: () -> Unit = {},
   onUrlClick: (String) -> Unit = {},
   isLoading: Boolean = false,
+  animateReveal: Boolean = false,
   actionsEnabled: Boolean = true,
   selectedPermission: String = PermissionMode.READONLY,
   onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
@@ -82,6 +82,30 @@ fun AssistantChatBubble(
 ) {
   val renderBlocks = message.renderBlocks
   val hasContent = renderBlocks.isNotEmpty()
+
+  // Shared serial "reveal" queue for ALL block types (thinking, tool calls,
+  // responses, errors). Only the newest AI message animates this way so
+  // blocks appear one at a time in event order; historical messages render
+  // in full instantly. This keeps interleaved playback scenarios readable
+  // instead of letting tool capsules pop in while response text still paces.
+  var revealedCount by remember { mutableIntStateOf(0) }
+  LaunchedEffect(renderBlocks.size, animateReveal) {
+    if (!animateReveal || message.revealComplete) {
+      revealedCount = renderBlocks.size
+      return@LaunchedEffect
+    }
+    while (revealedCount < renderBlocks.size) {
+      delay(BLOCK_REVEAL_STAGGER_MS.milliseconds)
+      revealedCount = revealedCount + 1
+      onContentChange()
+    }
+    // Once a non-empty message has fully stepped through its queue, remember
+    // it so reopening the window does not replay the paced reveal.
+    if (renderBlocks.isNotEmpty()) {
+      message.revealComplete = true
+    }
+    onContentChange()
+  }
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -106,6 +130,7 @@ fun AssistantChatBubble(
       }
       Spacer(Modifier.height(GradumSpacing.lg))
       renderBlocks.forEachIndexed { index, block ->
+        if (index >= revealedCount) return@forEachIndexed
         key(block.key(index)) {
           when (block) {
             is RenderBlock.Thinking -> ThinkingBlock(block, isLoading, onUrlClick)
@@ -178,22 +203,9 @@ private fun ResponseBlock(
   val segments = remember(block.content) { splitMarkdown(block.content) }
   val paragraphStyle = rememberGradumParagraphTextStyle()
 
-  var visibleCount by rememberSaveable { mutableIntStateOf(0) }
-  LaunchedEffect(segments.size) {
-    if (segments.size > visibleCount) {
-      for (i in visibleCount until segments.size) {
-        val estimatedHeightDp = estimateContentHeightDp(segments[i])
-        val staggerMs = calculateStaggerMs(estimatedHeightDp)
-        delay(staggerMs.milliseconds)
-        visibleCount = i + 1
-        onContentChange()
-      }
-    }
-  }
-
   SelectionContainer {
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-      segments.take(visibleCount).forEach { segment ->
+      segments.forEach { segment ->
         AnimatedSegment(segment, paragraphStyle, onUrlClick)
       }
     }
@@ -263,28 +275,6 @@ private fun AnimatedSegment(
     }
   }
 }
-
-private fun estimateContentHeightDp(segment: MarkdownSegment): Float = when (segment) {
-  is MarkdownSegment.Plain -> {
-    val lines = (segment.text.length / 80f).coerceAtLeast(1f)
-    lines * 22f
-  }
-
-  is MarkdownSegment.NonProseBlock -> {
-    val lines = segment.text.lines().size.coerceAtLeast(1)
-    lines * 22f
-  }
-
-  is MarkdownSegment.Table -> {
-    val rows = segment.rows.size.coerceAtLeast(1)
-    (rows + 1) * 30f + 40f
-  }
-}
-
-private fun calculateStaggerMs(estimatedHeightDp: Float): Long =
-  (SEGMENT_BASE_STAGGER_MS + (estimatedHeightDp / 100f * SEGMENT_STAGGER_PER_100DP_MS))
-    .toLong()
-    .coerceAtMost(SEGMENT_STAGGER_MAX_MS)
 
 private fun animationDurationMs(segment: MarkdownSegment, measuredHeightDp: Dp): Int {
   val typeWeight = when (segment) {
