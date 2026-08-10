@@ -52,7 +52,8 @@ fun ModelSelectorBar(
       SelectorButton(
         text = resolveSelectorText(selectedModel, isAutoSelected),
         onClick = { showModelMenu = true },
-        contentDescription = message("gradum.model.select")
+        contentDescription = message("gradum.model.select"),
+        isButtonEnabled = models.isNotEmpty()
       )
       if (showModelMenu) {
         PopupMenu(

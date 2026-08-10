@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-07 16:04:18 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-10 13:26:20 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -50,9 +50,9 @@ private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
 
+private const val SEGMENT_MAX_EXTRA_MS: Int = 400
 private const val SEGMENT_BASE_DURATION_MS: Int = 150
 private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
-private const val SEGMENT_MAX_EXTRA_MS: Int = 400
 
 /**
  * Left-aligned assistant message bubble.
@@ -113,7 +113,7 @@ fun AssistantChatBubble(
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
             is RenderBlock.Error -> ErrorBlock(block)
           }
-          Spacer(modifier = Modifier.height(GradumSpacing.lrl))
+          Spacer(modifier = Modifier.height(GradumSpacing.lg))
         }
       }
 
@@ -137,7 +137,7 @@ fun AssistantChatBubble(
       }
 
       if (!isLoading) {
-        Spacer(modifier = Modifier.height(GradumSpacing.md))
+        Spacer(modifier = Modifier.height(GradumSpacing.sml))
         MessageActionsRow(
           message = message,
           isLoading = isLoading,
@@ -190,7 +190,7 @@ private fun ResponseBlock(
   SelectionContainer {
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
       segments.forEach { segment ->
-        AnimatedSegment(segment, paragraphStyle, onUrlClick)
+        AnimatedSegment(segment, onUrlClick, paragraphStyle)
       }
     }
   }
@@ -199,8 +199,8 @@ private fun ResponseBlock(
 @Composable
 private fun AnimatedSegment(
   segment: MarkdownSegment,
-  paragraphStyle: androidx.compose.ui.text.TextStyle,
   onUrlClick: (String) -> Unit,
+  paragraphStyle: androidx.compose.ui.text.TextStyle,
 ) {
   val density = LocalDensity.current
   var contentHeightPx by remember { mutableIntStateOf(0) }
