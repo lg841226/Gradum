@@ -15,16 +15,8 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import javax.xml.parsers.DocumentBuilderFactory
 
-/** A single scenario step: either an AI reply segment or a tool call. */
-sealed interface ScenarioStep {
-  /**
-   * Human-composed AI reply text. During a real agent run this is what the
-   * LLM says between tool calls; in the debug playback the author types it
-   * by hand so text and tools interleave the way they do on a real turn
-   * (`<tt msg="..."/>`).
-   */
-  data class AiReply(val content: String) : ScenarioStep
-}
+/** A single scenario step: a tool call. */
+sealed interface ScenarioStep
 
 /**
  * A single parsed tool-call entry plus its expected outcome. Mirrors
@@ -58,26 +50,22 @@ data class ToolCallScenario(
  *
  * ```
  * <tls>
- *   <tt msg="Let me look at the configuration first."/>
  *   <t nam="read_file" pth="src/main/kotlin/gradum/AgentConfiguration.kt" lin="10-30"/>
- *   <tt msg="Found one TODO; searching for more."/>
- *   <t nam="grep" pth="src/main" pat="TODO"/>
+ *   <t nam="grep" pth="src/main" ptr="TODO"/>
  *   <t nam="save_file" pth="/tmp/out.txt" ctl="hello" exp="error"/>
  * </tls>
  * ```
  *
- * Two elements may be interleaved freely in document order, mixing the
- * AI's reply text with its tool calls exactly like a real agent turn:
- *  - `<tt msg="..."/>`  — AI reply segment rendered as assistant text.
- *  - `<t .../>`          — a real tool call (see attribute map below).
+ * AI reply narration is NOT authored here: the scenario only declares tool
+ * calls, and assistant text comes from the real LLM stream. Markdown callers
+ * keep their narration outside the `<tls>` blocks.
  *
  * All shorthand attributes are uniformly three letters, matching the
- * terse `<tls>/<t>/<tt>` element naming; every other attribute is passed
+ * terse `<tls>/<t>` element naming; every other attribute is passed
  * through verbatim under its own key, so full schema keys like
  * `include="*.kt"` or `caseSensitive="true"` just work as-is.
  *
  * The abbreviation map (attribute -> real argument key):
- *  - `msg` message text          (on `<tt>`, the AI reply content)
  *  - `nam` tool name            (real tool name, e.g. `read_file`)
  *  - `pth` path
  *  - `lin` lineRange           (`start-end`, see ReadFileSkill)
@@ -134,9 +122,12 @@ object ToolCallScenarioParser {
       if (child !is org.w3c.dom.Element) continue
       when (child.tagName) {
         "t" -> calls.add(parseToolElement(child))
-        "tt" -> calls.add(parseReplyElement(child))
+        "tt" -> throw ToolCallScenarioParseException(
+          "AI reply narration (<tt>) is not supported in tool-call scenarios; " +
+            "scenarios declare tool calls only and assistant text comes from the LLM"
+        )
         else -> throw ToolCallScenarioParseException(
-          "Unexpected element <${child.tagName}> inside <tls>; expected <t> or <tt>"
+          "Unexpected element <${child.tagName}> inside <tls>; expected <t>"
         )
       }
     }
@@ -149,20 +140,6 @@ object ToolCallScenarioParser {
       steps = calls,
       scenarioName = toolName,
     )
-  }
-
-  private fun parseReplyElement(element: org.w3c.dom.Element): ScenarioStep.AiReply {
-    val content: String = element.getAttribute("msg").trim()
-    if (content.isEmpty()) {
-      // Fall back to the element's text so `<tt>free text</tt>` and
-      // CDATA blocks also work, not just the `msg="..."` attribute.
-      val textContent: String = element.textContent?.trim().orEmpty()
-      if (textContent.isEmpty()) {
-        throw ToolCallScenarioParseException("A <tt> element is missing the required msg=\"...\" attribute")
-      }
-      return ScenarioStep.AiReply(textContent)
-    }
-    return ScenarioStep.AiReply(content)
   }
 
   private fun parseToolElement(element: org.w3c.dom.Element): ParsedToolCall {

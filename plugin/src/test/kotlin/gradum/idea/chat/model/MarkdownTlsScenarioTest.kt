@@ -21,7 +21,7 @@ class MarkdownTlsScenarioTest {
   }
 
   @Test
-  fun `narration before and after a tls block becomes tt segments`() {
+  fun `narration is dropped and only tool blocks are carried over`() {
     val xml: String = MarkdownTlsScenario.compile(
       """
       Let me inspect the config.
@@ -36,10 +36,11 @@ class MarkdownTlsScenarioTest {
     )!!
 
     assertTrue(xml.startsWith("<tls nam=\"intro\">"))
-    assertTrue(xml.contains("<tt><![CDATA[Let me inspect the config.]]></tt>"))
     assertTrue(xml.contains("<t nam=\"read_file\" pth=\"a.txt\" lin=\"1-10\"/>"))
-    assertTrue(xml.contains("<tt><![CDATA[Found something; searching for more.]]></tt>"))
     assertTrue(xml.endsWith("</tls>"))
+    assertFalse(xml.contains("Let me inspect the config"))
+    assertFalse(xml.contains("Found something"))
+    assertFalse(xml.contains("<tt>"))
   }
 
   @Test
@@ -53,26 +54,19 @@ class MarkdownTlsScenarioTest {
     )!!
 
     val globIndex = xml.indexOf("glob")
-    val betweenIndex = xml.indexOf("between")
     val grepIndex = xml.indexOf("grep")
-    assertTrue("glob tool should precede narration", globIndex in 0..<betweenIndex)
-    assertTrue("narration should precede grep tool", betweenIndex in 0..<grepIndex)
+    assertTrue("glob tool should come first", globIndex in 0..<grepIndex)
+    assertFalse("narration must not be embedded", xml.contains("between"))
   }
 
   @Test
-  fun `empty narration segments are skipped`() {
+  fun `a single tls block compiles intact`() {
     val xml: String = MarkdownTlsScenario.compile(
       "<tls><t nam=\"glob\" pth=\"src\" ptr=\"**\"/></tls>"
     )!!
-    assertEquals("<tls>\n<t nam=\"glob\" pth=\"src\" ptr=\"**\"/>\n</tls>", xml)
-  }
-
-  @Test
-  fun `literal cdata terminator inside narration is escaped`() {
-    val xml: String = MarkdownTlsScenario.compile(
-      "See a]]>b\n\n<tls><t nam=\"glob\"/></tls>"
-    )!!
-    assertTrue(xml.contains("<tt><![CDATA[See a]]]]><![CDATA[>b]]></tt>"))
+    assertTrue(xml.contains("<t nam=\"glob\" pth=\"src\" ptr=\"**\"/>"))
+    assertTrue(xml.startsWith("<tls"))
+    assertTrue(xml.endsWith("</tls>"))
   }
 
   @Test
@@ -84,6 +78,5 @@ class MarkdownTlsScenarioTest {
     assertTrue(xml.contains("nam=\"a &quot;weird&quot; &amp; &lt;name&gt;\""))
     assertTrue(xml.startsWith("<tls"))
     assertTrue(xml.endsWith("</tls>"))
-    assertFalse(xml.contains("\n  <tt>"))
   }
 }

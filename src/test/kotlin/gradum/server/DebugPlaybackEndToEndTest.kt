@@ -33,12 +33,9 @@ class DebugPlaybackEndToEndTest {
 
     val scenarioXml = """
       <tls>
-        <tt msg="Let me look at the ErrorCode list first."/>
         <t nam="read_file" pth="src/main/java/gradum/ErrorCode.java" lin="1-10"/>
-        <tt msg="Found the tool-not-permitted code; verifying its only usage."/>
         <t nam="grep" pth="src/main" ptr="TOOL_NOT_PERMITTED" include="*.java" limit="5"/>
         <t nam="read_file" pth="gradum-does-not-exist.txt" exp="error"/>
-        <tt msg="The missing file errors as predicted."/>
       </tls>
     """.trimIndent()
 
@@ -59,17 +56,12 @@ class DebugPlaybackEndToEndTest {
     val body: String = response.bodyAsText()
 
     assertTrue(body.lines().any { it.contains("\"type\":\"playback_start\"") }, "missing playback_start")
-    assertTrue(body.lines().any { it.contains("\"type\":\"response\"") }, "missing AI reply response events")
     assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
     assertTrue(body.lines().any { it.contains("\"type\":\"playback_end\"") }, "missing playback_end")
     assertTrue(body.lines().any { it.contains("\"type\":\"session_end\"") }, "missing session_end")
     assertTrue(
       body.lines().any { it.contains("playback_2") && it.contains("\"tool\":\"grep\"") },
       "grep tool_call event should carry the playback call id"
-    )
-    assertTrue(
-      body.lines().any { it.contains("\"type\":\"response\"") && it.contains("Let me look at") },
-      "first AiReply should stream as a response event"
     )
   }
 }

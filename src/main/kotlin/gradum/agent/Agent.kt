@@ -684,10 +684,9 @@ class Agent(
    * (default `success`). A mismatch is surfaced as a
    * `tool_expect_mismatch` event instead of silently passing.
    *
-   * AI reply segments (`<tt msg="..."/>`) are streamed as ordinary
-   * `response` events interleaved between tool calls, so the plugin
-   * renders text and tool capsules in the same assistant bubble — the
-   * same visual the real LLM loop produces.
+   * Scenarios declare tool calls only — the author does not hand-write
+   * AI reply text (`<tt>` is rejected by the parser). Assistant text is
+   * produced by the real LLM stream, which is out of scope here.
    *
    * Note: history appended in [emitToolResult] uses the real skill
    * `alias`, exactly as in normal mode, so a future LLM turn could
@@ -726,19 +725,6 @@ class Agent(
       if (sessionAborted) break
 
       when (step) {
-        is ScenarioStep.AiReply -> {
-          if (step.content.isNotBlank()) {
-            emitEvent(
-              "response", mapOf(
-                "content" to step.content,
-                "promptTokens" to 0,
-                "completionTokens" to 0,
-                "totalTokens" to 0
-              )
-            )
-          }
-        }
-
         is ParsedToolCall -> {
           val toolIndex: Int = recordings.size
           val callEntry: ToolCallEntry = ToolCallEntry(

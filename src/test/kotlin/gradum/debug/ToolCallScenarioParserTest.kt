@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ToolCallScenarioParserTest {
 
@@ -40,47 +41,41 @@ class ToolCallScenarioParserTest {
   }
 
   @Test
-  fun `interleaves ai reply text and tools in document order`(): Unit {
+  fun `tool calls are kept in document order`(): Unit {
     val scenario: ToolCallScenario = ToolCallScenarioParser.parse(
       """
       <tls>
-        <tt msg="Let me read the config first."/>
         <t nam="read_file" pth="a.txt"/>
-        <tt msg="Now I'll search for TODOs."/>
         <t nam="grep" pth="src/main" ptr="TODO"/>
-        <tt msg="All done."/>
-      </tls>
-      """.trimIndent()
-    )
-
-    assertEquals(5, scenario.steps.size)
-    assertEquals(2, scenario.toolCalls.size)
-
-    assertIs<ScenarioStep.AiReply>(scenario.steps[0])
-    assertEquals("Let me read the config first.", (scenario.steps[0] as ScenarioStep.AiReply).content)
-    assertIs<ParsedToolCall>(scenario.steps[1])
-    assertEquals("read_file", (scenario.steps[1] as ParsedToolCall).functionName)
-    assertIs<ScenarioStep.AiReply>(scenario.steps[2])
-    assertEquals("Now I'll search for TODOs.", (scenario.steps[2] as ScenarioStep.AiReply).content)
-    assertIs<ParsedToolCall>(scenario.steps[3])
-    assertEquals("grep", (scenario.steps[3] as ParsedToolCall).functionName)
-    assertIs<ScenarioStep.AiReply>(scenario.steps[4])
-    assertEquals("All done.", (scenario.steps[4] as ScenarioStep.AiReply).content)
-  }
-
-  @Test
-  fun `reply can use element text instead of msg attribute`(): Unit {
-    val scenario: ToolCallScenario = ToolCallScenarioParser.parse(
-      """
-      <tls>
-        <tt><![CDATA[Searching the tree now.]]></tt>
         <t nam="glob" pth="src" ptr="**/*.kt"/>
       </tls>
       """.trimIndent()
     )
 
-    assertIs<ScenarioStep.AiReply>(scenario.steps[0])
-    assertEquals("Searching the tree now.", (scenario.steps[0] as ScenarioStep.AiReply).content)
+    assertEquals(3, scenario.steps.size)
+    assertEquals(3, scenario.toolCalls.size)
+
+    assertIs<ParsedToolCall>(scenario.steps[0])
+    assertEquals("read_file", (scenario.steps[0] as ParsedToolCall).functionName)
+    assertIs<ParsedToolCall>(scenario.steps[1])
+    assertEquals("grep", (scenario.steps[1] as ParsedToolCall).functionName)
+    assertIs<ParsedToolCall>(scenario.steps[2])
+    assertEquals("glob", (scenario.steps[2] as ParsedToolCall).functionName)
+  }
+
+  @Test
+  fun `ai reply tt element is rejected`(): Unit {
+    val exception: ToolCallScenarioParseException = assertFailsWith {
+      ToolCallScenarioParser.parse(
+        """
+        <tls>
+          <tt msg="AI narration is no longer authored here."/>
+          <t nam="glob" pth="src" ptr="**/*.kt"/>
+        </tls>
+        """.trimIndent()
+      )
+    }
+    assertTrue(exception.message.orEmpty().contains("<tt>"))
   }
 
   @Test
@@ -157,19 +152,6 @@ class ToolCallScenarioParserTest {
   fun `scenario with no tool entries is rejected`(): Unit {
     assertFailsWith<ToolCallScenarioParseException> {
       ToolCallScenarioParser.parse("<tls nam=\"empty\"/>")
-    }
-  }
-
-  @Test
-  fun `reply without content and without msg attribute throws`(): Unit {
-    assertFailsWith<ToolCallScenarioParseException> {
-      ToolCallScenarioParser.parse(
-        """
-        <tls>
-          <tt/>
-        </tls>
-        """.trimIndent()
-      )
     }
   }
 
