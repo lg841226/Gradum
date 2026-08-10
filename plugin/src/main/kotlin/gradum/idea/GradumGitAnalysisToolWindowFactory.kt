@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-10 09:04:32 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-10 21:04:05 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -245,8 +245,8 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                         AuditFindingsTree(
                           isAllExpanded = isAllExpanded,
                           groupBySeverity = groupBySeverity,
-                          reviewedFindings = reviewedFindings,
-                          modifier = Modifier.weight(1f).fillMaxHeight()
+                          modifier = Modifier.weight(1f).fillMaxHeight(),
+                          reviewedFindings = reviewedFindings
                         ) { selectedFinding = it }
                         if (showCommitInfo && displayFinding?.hasRealCommitHash() == true) {
                           CommitInfoPanelResizeHandle(

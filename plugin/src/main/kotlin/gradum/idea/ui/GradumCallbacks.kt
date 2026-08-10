@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-08-10 13:26:20 Changed by gwy
+ * GradumCallbacks.kt  2026-08-10 21:08:41 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -78,18 +78,26 @@ private fun truncateToMaxLines(content: String): String {
  *   when false a fresh "Play scenario" user message is added (send path).
  */
 private fun sendPlaybackXml(
-  session: GradumChatSession,
-  scenarioLabel: String,
   scenarioXml: String,
+  scenarioLabel: String,
+  session: GradumChatSession,
   coroutineScope: CoroutineScope,
-  preserveUserMessage: Boolean = false,
+  preserveUserMessage: Boolean = false
 ) {
   val displayName: String = message("gradum.debug.model.name")
   val providerName: String = session.selectedModel?.provider ?: ""
   val serverLabel: String = session.selectedModel?.serverName ?: ""
 
   if (!preserveUserMessage)
-    session.messages.add(ChatMessage(role = "user", content = message("gradum.debug.play", scenarioLabel)))
+    session.messages.add(
+      ChatMessage(
+        role = "user",
+        content = message(
+          "gradum.debug.play",
+          scenarioLabel
+        )
+      )
+    )
 
   session.messages.add(
     ChatMessage(
@@ -134,7 +142,7 @@ private fun sendPlaybackScenario(
     logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError)
     return
   }
-  sendPlaybackXml(session, currentFile.name, scenarioXml, coroutineScope)
+  sendPlaybackXml(scenarioXml, currentFile.name, session, coroutineScope)
 }
 
 /**
@@ -151,27 +159,27 @@ data class GradumCallbacks(
   val onAttachmentClick: (VirtualFile) -> Unit,
   val onOpenInEditor: (String, Int, Int) -> Unit,
   val onViewDiff: (String, String, String) -> Unit,
-  val eventCallbacks: EventCallbacks,
+  val eventCallbacks: EventCallbacks
 )
 
 /**
  * Low-level UI event callbacks for menu, focus, and file operations.
  */
 data class EventCallbacks(
-  val onFocusChange: (Boolean) -> Unit,
-  val onToggleExpanded: () -> Unit,
+  val onClearText: () -> Unit,
   val onToggleMenu: () -> Unit,
   val onDismissMenu: () -> Unit,
-  val onSelectPermission: (String) -> Unit,
-  val onToggleAddMenu: () -> Unit,
-  val onDismissAddMenu: () -> Unit,
-  val onSelectFile: (VirtualFile) -> Unit,
-  val onRemoveFile: (AttachedContext) -> Unit,
   val onUploadImage: () -> Unit,
+  val onToggleAddMenu: () -> Unit,
+  val onToggleExpanded: () -> Unit,
+  val onDismissAddMenu: () -> Unit,
+  val onFocusChange: (Boolean) -> Unit,
   val onCopyAsContext: (String) -> Unit,
   val onPasteAsContext: (String) -> Unit,
-  val onClearText: () -> Unit,
-  val onRemovePending: (PendingMessage) -> Unit,
+  val onSelectFile: (VirtualFile) -> Unit,
+  val onSelectPermission: (String) -> Unit,
+  val onRemoveFile: (AttachedContext) -> Unit,
+  val onRemovePending: (PendingMessage) -> Unit
 )
 
 /**
@@ -183,9 +191,7 @@ data class EventCallbacks(
  */
 @Composable
 fun rememberGradumCallbacks(
-  session: GradumChatSession,
-  toolWindow: ToolWindow?,
-  coroutineScope: CoroutineScope,
+  session: GradumChatSession, toolWindow: ToolWindow?, coroutineScope: CoroutineScope
 ): GradumCallbacks {
   val onViewDiff = rememberViewDiffCallback(toolWindow)
   val onStop = rememberStopCallback(session, coroutineScope)
@@ -199,12 +205,12 @@ fun rememberGradumCallbacks(
   return GradumCallbacks(
     onSend = onSend,
     onStop = onStop,
-    onRetryMessage = onRetryMessage,
-    onDeleteMessage = onDeleteMessage,
-    onAttachmentClick = onAttachmentClick,
-    onOpenInEditor = onOpenInEditor,
     onViewDiff = onViewDiff,
-    eventCallbacks = eventCallbacks
+    eventCallbacks = eventCallbacks,
+    onRetryMessage = onRetryMessage,
+    onOpenInEditor = onOpenInEditor,
+    onDeleteMessage = onDeleteMessage,
+    onAttachmentClick = onAttachmentClick
   )
 }
 
@@ -213,16 +219,26 @@ private fun rememberEventCallbacks(
   toolWindow: ToolWindow?, session: GradumChatSession
 ): EventCallbacks {
   return EventCallbacks(
-    onFocusChange = { session.isFocused = it },
-    onToggleExpanded = { session.isExpanded = !session.isExpanded },
-    onToggleMenu = { session.isMenuVisible = !session.isMenuVisible },
     onDismissMenu = { session.isMenuVisible = false },
-    onSelectPermission = { permission ->
-      session.selectedPermission = permission
-      session.isMenuVisible = false
-    },
-    onToggleAddMenu = { session.showAddMenu = !session.showAddMenu },
     onDismissAddMenu = { session.showAddMenu = false },
+    onToggleMenu = { session.isMenuVisible = !session.isMenuVisible },
+    onToggleAddMenu = { session.showAddMenu = !session.showAddMenu },
+    onToggleExpanded = { session.isExpanded = !session.isExpanded },
+    onClearText = { session.textState.edit { delete(0, length) } },
+    onUploadImage = uploadImageCallback(toolWindow, session),
+    onFocusChange = { session.isFocused = it },
+    onCopyAsContext = { text ->
+      if (session.attachedFiles.size < MAX_ATTACHMENTS) {
+        val previewText = if (text.length > 30) text.take(30) + "..." else text
+        session.attachedFiles.add(AttachedText(content = text, preview = previewText))
+      }
+    },
+    onPasteAsContext = { text ->
+      if (session.attachedFiles.size < MAX_ATTACHMENTS) {
+        val previewText = if (text.length > 30) text.take(30) + "..." else text
+        session.attachedFiles.add(AttachedText(content = text, preview = previewText))
+      }
+    },
     onSelectFile = { file ->
       if (session.attachedFiles.size < MAX_ATTACHMENTS &&
         session.attachedFiles.none { it is AttachedFile && it.file.path == file.path }
@@ -233,6 +249,10 @@ private fun rememberEventCallbacks(
           getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown
         session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
       }
+    },
+    onSelectPermission = { permission ->
+      session.selectedPermission = permission
+      session.isMenuVisible = false
     },
     onRemoveFile = { attachedContext ->
       when (attachedContext) {
@@ -249,27 +269,10 @@ private fun rememberEventCallbacks(
         }
       }
     },
-    onUploadImage = uploadImageCallback(toolWindow, session),
-    onCopyAsContext = { text ->
-      if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-        val previewText = if (text.length > 30) text.take(30) + "..." else text
-        session.attachedFiles.add(AttachedText(content = text, preview = previewText))
-      }
-    },
-    onPasteAsContext = { text ->
-      if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-        val previewText = if (text.length > 30) text.take(30) + "..." else text
-        session.attachedFiles.add(AttachedText(content = text, preview = previewText))
-      }
-    },
-    onClearText = { session.textState.edit { delete(0, length) } },
-    onRemovePending = { pending -> session.pendingMessages.remove(pending) },
-  )
+  ) { pending -> session.pendingMessages.remove(pending) }
 }
 
-private fun uploadImageCallback(
-  toolWindow: ToolWindow?, session: GradumChatSession
-): () -> Unit = Unit@{
+private fun uploadImageCallback(toolWindow: ToolWindow?, session: GradumChatSession): () -> Unit = Unit@{
   val remainingSlots: Int = MAX_ATTACHMENTS - session.attachedFiles.size
   if (remainingSlots <= 0) return@Unit
   val currentProject = toolWindow?.project ?: return@Unit
@@ -316,11 +319,11 @@ private fun rememberDeleteMessageCallback(
 
     session.messages.removeAt(userMessageIndex)
     if (session.messages.isEmpty()) {
-      session.hasSentMessage = false
-      session.isSending = false
       session.sendingPhase = ""
-      session.pendingMessages.clear()
+      session.isSending = false
+      session.hasSentMessage = false
       session.attachedFiles.clear()
+      session.pendingMessages.clear()
       session.textState.edit { delete(0, length) }
     }
   }
@@ -337,7 +340,6 @@ private fun rememberRetryMessageCallback(
     if (userMessageIndex != null) {
       val userMessage = session.messages[userMessageIndex]
 
-      // Debug mode: re-read file from editor instead of sending to LLM
       if (PermissionMode.isDebugMode(session.selectedPermission)) {
         val toolProject = toolWindow?.project
         val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
@@ -361,7 +363,7 @@ private fun rememberRetryMessageCallback(
             // whole turn through the real tool pipeline, matching the send path.
             val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
             if (compiled != null) {
-              sendPlaybackXml(session, currentFile.name, compiled, coroutineScope, preserveUserMessage = true)
+              sendPlaybackXml(compiled, currentFile.name, session, coroutineScope, preserveUserMessage = true)
             } else {
               session.loadDebugMarkdown(content)
             }
@@ -454,7 +456,7 @@ private fun rememberSendCallback(
               // real tool calls. Plain Markdown still renders directly.
               val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
               if (compiled != null) {
-                sendPlaybackXml(session, currentFile.name, compiled, coroutineScope)
+                sendPlaybackXml(compiled, currentFile.name, session, coroutineScope)
               } else {
                 session.hasSentMessage = true
                 session.messages.add(ChatMessage(role = "user", content = rawText))
@@ -504,8 +506,8 @@ private fun rememberSendCallback(
             serverName = serverLabel
           )
         )
-        session.hasSentMessage = true
         session.isSending = true
+        session.hasSentMessage = true
         session.isWaitingForResponse = true
         session.currentJob = coroutineScope.launch {
           val contextPath = if (session.isExpanded && !anyReplaced) {

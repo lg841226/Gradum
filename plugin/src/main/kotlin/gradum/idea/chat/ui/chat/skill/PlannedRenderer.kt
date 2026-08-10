@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PlannedRenderer.kt  2026-08-07 16:04:18 Changed by gwy
+ * PlannedRenderer.kt  2026-08-10 15:45:04 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -26,13 +26,11 @@ class PlannedRenderer : ToolCallRenderer {
 
   override fun alias(): String = ALIAS
 
-  override fun iconKey(): IconKey = GradumIcons.NumberList
+  override fun iconKey(): IconKey = GradumIcons.BulletList
 
   override fun labelKey(): String = LABEL_KEY
 
-  override fun parseContent(
-    arguments: Map<String, Any?>, result: Map<String, Any?>
-  ): ToolCallContent {
+  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
     @Suppress("UNCHECKED_CAST")
     val taskList: List<String> = (result["tasks"] as? List<String>)
       ?: (arguments["tasks"] as? List<String>) ?: emptyList()
@@ -58,7 +56,7 @@ class PlannedRenderer : ToolCallRenderer {
       errorMessage = ctx.errorDetail.orEmpty(),
       toolDetails = ctx.toolDetails.orEmpty(),
       label = message(LABEL_KEY),
-      iconKey = GradumIcons.NumberList
+      iconKey = GradumIcons.BulletList
     )
   }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-09 18:12:47 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-10 21:04:05 Changed by gwy
  */
 
 @file:OptIn(
@@ -45,6 +45,21 @@ import java.util.*
 
 /** Default number of findings shown per group before a load-more row appears. */
 private const val DEFAULT_FINDING_LIMIT = 50
+
+/** Cap for the displayed count so rows never overflow with huge numbers. */
+private const val MAX_DISPLAY_COUNT = 9999
+
+/**
+ * Builds the displayed count text and its singular/plural message key from
+ * [count]. Shared by every row that shows a finding total so the number
+ * formatting and key selection stay in one place.
+ */
+private fun findingCountPresentation(count: Int): Pair<String, String> {
+  val formatted = "%,d".format(Locale.ROOT, minOf(count, MAX_DISPLAY_COUNT))
+  val key = if (count == 1) "gradum.toolwindow.git.analysis.problem"
+  else "gradum.toolwindow.git.analysis.problems"
+  return formatted to key
+}
 
 /**
  * Builds a [Tree] of [AuditTreeItem] nodes for the findings list. When a
@@ -109,8 +124,8 @@ internal fun buildAuditFindingsTree(
 internal fun AuditFindingsTree(
   isAllExpanded: Boolean,
   groupBySeverity: Boolean,
-  reviewedFindings: Set<String>,
   modifier: Modifier = Modifier,
+  reviewedFindings: Set<String>,
   onFindingSelected: (AuditFinding?) -> Unit
 ) {
   val findings = GradumGitAnalysisService.auditFindings
@@ -153,14 +168,11 @@ internal fun AuditFindingsTree(
   }
 
   LaunchedEffect(isAllExpanded, groupKeys, branchKey) {
-    // The branch wrapper, when present, is always the visible top level; the
-    // expand/collapse toggle controls the group rows below it. On a fresh scan
-    // `isAllExpanded` starts true so the groups are visible without extra clicks.
-    treeState.openNodes = if (branchKey == null) {
-      if (isAllExpanded) groupKeys else emptySet()
-    } else {
-      if (isAllExpanded) groupKeys + branchKey else setOf(branchKey)
-    }
+    treeState.openNodes =
+      if (branchKey == null)
+        if (isAllExpanded) groupKeys else emptySet()
+      else
+        if (isAllExpanded) groupKeys + branchKey else setOf(branchKey)
   }
 
   Row(modifier = modifier.fillMaxSize()) {
@@ -190,10 +202,7 @@ internal fun AuditFindingsTree(
     ) { element ->
       when (val item = element.data) {
         is AuditTreeItem.Branch -> {
-          val formattedCount = "%,d".format(Locale.ROOT, minOf(item.count, 9999))
-          val countKey =
-            if (item.count == 1) "gradum.toolwindow.git.analysis.problem"
-            else "gradum.toolwindow.git.analysis.problems"
+          val (formattedCount, countKey) = findingCountPresentation(item.count)
 
           Row(
             modifier = Modifier
@@ -219,8 +228,8 @@ internal fun AuditFindingsTree(
               maxLines = 1,
               style = regularStyle,
               overflow = TextOverflow.Ellipsis,
-              color = LocalGlobalColors.current.text.info,
-              text = message(countKey, formattedCount)
+              text = message(countKey, formattedCount),
+              color = LocalGlobalColors.current.text.info
             )
           }
         }
@@ -229,12 +238,8 @@ internal fun AuditFindingsTree(
           val activeCount = item.count - findings.count {
             auditGroupOf(it.code) == item.group && findingKey(it) in reviewedFindings
           }
-          val formattedCount = "%,d".format(Locale.ROOT, minOf(activeCount, 9999))
-          val countKey = if (activeCount == 1) {
-            "gradum.toolwindow.git.analysis.problem"
-          } else {
-            "gradum.toolwindow.git.analysis.problems"
-          }
+          val (formattedCount, countKey) = findingCountPresentation(activeCount)
+
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -246,15 +251,15 @@ internal fun AuditFindingsTree(
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
           ) {
             Text(
-              text = item.group.label(),
-              style = regularStyle
+              style = regularStyle,
+              text = item.group.label()
             )
             Text(
-              style = regularStyle,
-              text = message(countKey, formattedCount),
-              color = LocalGlobalColors.current.text.info,
               maxLines = 1,
-              overflow = TextOverflow.Ellipsis
+              style = regularStyle,
+              overflow = TextOverflow.Ellipsis,
+              text = message(countKey, formattedCount),
+              color = LocalGlobalColors.current.text.info
             )
           }
         }
@@ -263,10 +268,7 @@ internal fun AuditFindingsTree(
           val activeCount = item.count - findings.count {
             it.level == item.level && findingKey(it) in reviewedFindings
           }
-          val formattedCount = "%,d".format(Locale.ROOT, minOf(activeCount, 9999))
-          val countKey =
-            if (activeCount == 1) "gradum.toolwindow.git.analysis.problem"
-            else "gradum.toolwindow.git.analysis.problems"
+          val (formattedCount, countKey) = findingCountPresentation(activeCount)
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -282,15 +284,15 @@ internal fun AuditFindingsTree(
               key = severityIcon(item.level)
             )
             Text(
-              text = severityLabel(item.level),
-              style = regularStyle
+              style = regularStyle,
+              text = severityLabel(item.level)
             )
             Text(
               maxLines = 1,
               style = regularStyle,
               overflow = TextOverflow.Ellipsis,
-              color = LocalGlobalColors.current.text.info,
-              text = message(countKey, formattedCount)
+              text = message(countKey, formattedCount),
+              color = LocalGlobalColors.current.text.info
             )
           }
         }
@@ -299,9 +301,12 @@ internal fun AuditFindingsTree(
           Text(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(vertical = GradumSpacing.sm, horizontal = GradumSpacing.sml),
-            textAlign = TextAlign.Center,
+              .padding(
+                vertical = GradumSpacing.sm,
+                horizontal = GradumSpacing.sml
+              ),
             maxLines = 1,
+            textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis,
             color = LocalGlobalColors.current.text.info,
             text = message("gradum.toolwindow.git.analysis.load.more", item.remaining)

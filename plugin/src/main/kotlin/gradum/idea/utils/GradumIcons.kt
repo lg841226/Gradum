@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-08-07 16:04:18 Changed by gwy
+ * GradumIcons.kt  2026-08-10 15:16:53 Changed by gwy
  */
 
 package gradum.idea.utils
@@ -60,7 +60,7 @@ object GradumIcons {
   val SoftWarp = PathIconKey("/icons/soft-wrap/softwrap.svg", GradumIcons::class.java)
   val CollapseAll = PathIconKey("/icons/collapse-all/collapse-all.svg", GradumIcons::class.java)
   val ExpandAll = PathIconKey("/icons/expand-all/expand-all.svg", GradumIcons::class.java)
-  val NumberList = PathIconKey("/icons/numbered-list/numbered-list.svg", GradumIcons::class.java)
+  val BulletList = PathIconKey("/icons/bullet-list/bullet-list.svg", GradumIcons::class.java)
 
   private val PROVIDER_KEYWORD_MAP = mapOf(
     "qwen" to ProviderAlibaba,
