@@ -1,0 +1,85 @@
+<!--
+  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ skills-demo.tls.xml  2026-08-10 09:17:57 Changed by gwy
+  -->
+
+<!--
+  Debug tool-call playback scenario — one example per registered skill.
+
+  Play it through the REAL skill pipeline by opening this file with the
+  plugin debug tab. Assistant reply text is NOT authored here — it comes
+  from the real LLM stream.
+
+  Skills covered, in order:
+      1. explore_project    — scan the project layout
+      2. to_do              — initialize a task list (AGENT-only)
+      3. finish_to_do_item  — mark a task completed
+      4. grep               — find a symbol in file contents
+      5. glob               — find files by name pattern
+      6. read_file          — read a file (or a line range)
+      7. edit_file          — search/replace edits (JSON edits array)
+      8. run_cmd            — execute a safe read-only command
+      9. save_file          — write a small artifact (needs AGENT/EDIT)
+     10. exp="error"        — bonus: assert a tool FAILS (file missing)
+
+  `<tls>` root. Optional `name` names the recording file.
+  Each `<t>` self-closes. All shorthand attributes are three letters:
+
+    nam   tool name: read_file | edit_file | save_file | explore_project |
+          grep | glob | run_cmd | to_do | finish_to_do_item
+    pth   path (project-relative or absolute)
+    lin   lineRange for read_file, "start-end" (e.g. lin="1-50")
+    ctl   content for save_file
+    ptr   pattern for grep/glob
+    dep   depth for explore_project
+    cmd   command for run_cmd
+    exp   optional assertion: "success" (default) or "error"
+
+  Every other attribute is passed straight to the tool as-is, so any
+  schema key (include="*.kt", caseSensitive="true", limit="10", ...)
+  just works. Array/object arguments (to_do tasks, edit_file edits) are
+  written as inline JSON, e.g. tasks='["read config", "scan skills"]'.
+
+  Play from the project root with:
+    curl -s localhost:<port>/events -X POST -H 'Content-Type: application/json' \
+      -d '{"message":"simulate", "projectRoot":"<ABSOLUTE_PROJECT_PATH>", "toolCallXml": "@this-file"}'
+  The recording lands in <projectRoot>/.gradum/recordings/storyboard-<timestamp>.json
+-->
+<tls name="storyboard">
+  <!-- 1. Scan the project structure first -->
+  <t nam="explore_project" dep="1"/>
+
+  <!-- 2. Plan the session (task planning is an AGENT-only skill) -->
+  <t nam="to_do" tasks='["find ErrorCode", "write debug report"]'/>
+
+  <!-- 3. Complete the first planned task -->
+  <t nam="finish_to_do_item" task="find ErrorCode" action="complete"/>
+
+  <!-- 4. Locate the definition of ErrorCode in this repo -->
+  <t nam="grep" pth="src/main" ptr="enum class ErrorCode" include="*.java" limit="10"/>
+
+  <!-- 5. Double-check which files match -->
+  <t nam="glob" pth="src/main/kotlin" ptr="**/Skill*.kt"/>
+
+  <!-- 6. Open the file that matched (this exact path exists in the repo) -->
+  <t nam="read_file" pth="src/main/java/gradum/ErrorCode.java" lin="1-20"/>
+
+  <!-- 7. Create a scratch file, then replace text via search/replace
+       (FULL schema: edits array). Editing our own scratch file keeps
+       the run fully self-contained and side effect free. -->
+  <t nam="save_file" pth=".gradum/demo-edit.txt" ctl="Frontmatter v0"/>
+  <t nam="edit_file" pth=".gradum/demo-edit.txt" edits='[{"oldString":"v0","newString":"v1"}]'/>
+
+  <!-- 8. AI runs a harmless command for context -->
+  <t nam="run_cmd" cmd="git branch --show-current" reason="curiosity"/>
+
+  <!-- 9. Write a tiny report. Needs mode agent/edit. -->
+  <t nam="save_file" pth=".gradum/debug-report.txt" ctl="Simulated run OK."/>
+
+  <!-- 10. Negative case: assert that reading a nonexistent path errors.
+       This PASSES when the tool fails, so the assertion checks that
+       FileNotFound is what actually happens. -->
+  <t nam="read_file" pth=".gradum/no-such-record.txt" exp="error"/>
+</tls>

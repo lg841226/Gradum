@@ -684,9 +684,11 @@ class Agent(
    * (default `success`). A mismatch is surfaced as a
    * `tool_expect_mismatch` event instead of silently passing.
    *
-   * Scenarios declare tool calls only — the author does not hand-write
-   * AI reply text (`<tt>` is rejected by the parser). Assistant text is
-   * produced by the real LLM stream, which is out of scope here.
+   * Narration is carried over from Markdown documents as `<tt>` segments
+   * and emitted as `response` events, so a compiled `.md` replays as a
+   * full agent turn: text streams like assistant output and `<tls>` blocks
+   * execute at the exact position the author placed them. Hand-written
+   * scenarios declare tool calls only.
    *
    * Note: history appended in [emitToolResult] uses the real skill
    * `alias`, exactly as in normal mode, so a future LLM turn could
@@ -707,14 +709,14 @@ class Agent(
     }
 
     val scenarioName: String = scenario.scenarioName.ifBlank { "playback" }
-    val toolSteps: List<ParsedToolCall> = scenario.steps.filterIsInstance<ParsedToolCall>()
+    val toolCalls: List<ParsedToolCall> = scenario.toolCalls
 
     emitEvent(
       "playback_start", mapOf(
         "mode" to configuration.toolMode.name,
         "scenario" to scenarioName,
         "steps" to scenario.steps.size,
-        "toolCalls" to toolSteps.size,
+        "toolCalls" to toolCalls.size,
       )
     )
 
@@ -725,6 +727,19 @@ class Agent(
       if (sessionAborted) break
 
       when (step) {
+        is ScenarioStep.AiReply -> {
+          if (step.content.isNotBlank()) {
+            emitEvent(
+              "response", mapOf(
+                "content" to step.content,
+                "promptTokens" to 0,
+                "completionTokens" to 0,
+                "totalTokens" to 0
+              )
+            )
+          }
+        }
+
         is ParsedToolCall -> {
           val toolIndex: Int = recordings.size
           val callEntry: ToolCallEntry = ToolCallEntry(
@@ -733,7 +748,7 @@ class Agent(
             functionArguments = step.functionArguments,
           )
           val processedCall: ProcessedToolCall = prepareToolCalls(listOf(callEntry)).first()
-          val isLastToolCall: Boolean = recordings.size == toolSteps.lastIndex
+          val isLastToolCall: Boolean = recordings.size == toolCalls.lastIndex
 
           val startedAtMillis: Long = System.currentTimeMillis()
           val executionResult: Map<String, Any> = executeSingleTool(processedCall, isLastToolCall)
@@ -786,7 +801,7 @@ class Agent(
     val recordingSummary: Map<String, Any> = mapOf(
       "scenario" to scenarioName,
       "recordedAt" to java.time.LocalDateTime.now().toString(),
-      "totalCalls" to toolSteps.size,
+      "totalCalls" to toolCalls.size,
       "executedCalls" to recordings.size,
       "mismatchCount" to mismatches.size,
       "mismatches" to mismatches,

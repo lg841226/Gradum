@@ -38,11 +38,11 @@ import java.util.concurrent.ConcurrentHashMap
 @Serializable
 data class EventsRequestBody(
   val message: String,
-  val model: String? = null,
-  val config: Map<String, String>? = null,
   val loadContext: Boolean = true,
+  val model: String? = null,
   val toolMode: String? = null,
   val promptVariant: String? = null,
+  val config: Map<String, String>? = null,
   /**
    * Optional tool-call scenario XML (`<tls>` format) that bypasses the LLM
    * entirely: the server executes the described tool calls through the same

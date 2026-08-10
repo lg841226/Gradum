@@ -7,6 +7,7 @@
 
 package gradum.server
 
+import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -14,33 +15,230 @@ import io.ktor.server.testing.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import java.nio.file.Files
+import java.nio.file.Path
 
 /**
- * Verifies the debug tool-call playback mode end-to-end: a handwritten
- * `<tls>` scenario posted to `/events` runs through the real skill
- * pipeline (no LLM), streams the expected NDJSON events, and records a
+ * Verifies the debug tool-call playback mode end-to-end: manuscript
+ * `<tls>` scenarios posted to `/events` run through the real skill
+ * pipeline (no LLM), stream the expected NDJSON events, and record a
  * result file under the project's `.gradum/recordings/`.
  *
- * Uses a trimmed copy of the playground scenario so the test does not
- * depend on repo layout, Git, or write access outside the test dir.
+ * Most cases run against a throwaway temp directory so they neither
+ * depend on the repo layout nor touch real source files; the happy-path
+ * case reuses the current working directory so `read_file`/`grep` can
+ * open a real file.
  */
 class DebugPlaybackEndToEndTest {
 
   @Test
   fun `plays a scenario and streams playback events`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
     val projectRoot = System.getProperty("user.dir")
-    require(java.io.File(projectRoot).isDirectory)
 
     val scenarioXml = """
       <tls>
+        <tt>Let me inspect the error codes first.</tt>
         <t nam="read_file" pth="src/main/java/gradum/ErrorCode.java" lin="1-10"/>
+        <tt>Found them; searching for usages.</tt>
         <t nam="grep" pth="src/main" ptr="TOOL_NOT_PERMITTED" include="*.java" limit="5"/>
         <t nam="read_file" pth="gradum-does-not-exist.txt" exp="error"/>
       </tls>
     """.trimIndent()
 
-    application { module(ServerConfiguration()) }
+    val body = postScenario(client, Path.of(projectRoot), scenarioXml)
 
+    assertTrue(body.lines().any { it.contains("\"type\":\"playback_start\"") }, "missing playback_start")
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"response\"") && it.contains("Let me inspect the error codes first.") },
+      "missing response narration"
+    )
+    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
+    assertTrue(body.lines().any { it.contains("\"type\":\"playback_end\"") }, "missing playback_end")
+    assertTrue(body.lines().any { it.contains("\"type\":\"session_end\"") }, "missing session_end")
+    assertTrue(
+      body.lines().any { it.contains("playback_2") && it.contains("\"tool\":\"grep\"") },
+      "grep tool_call event should carry the playback call id"
+    )
+  }
+
+  @Test
+  fun `invalid scenario xml surfaces an INVALID_SCENARIO_XML error`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client, temporaryProject(), "this is not xml")
+
+    assertNoPlayback(body)
+    assertTrue(
+      body.lines().any { it.contains("\"code\":\"INVALID_SCENARIO_XML\"") },
+      "missing INVALID_SCENARIO_XML error event"
+    )
+  }
+
+  @Test
+  fun `wrong root element is rejected`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <scenario>
+        <t nam="glob" pth="src" ptr="*"/>
+      </scenario>
+      """.trimIndent()
+    )
+
+    assertNoPlayback(body)
+    assertTrue(
+      body.lines().any { it.contains("\"code\":\"INVALID_SCENARIO_XML\"") && it.contains("Expected root element") },
+      "root mismatch should produce an INVALID_SCENARIO_XML error"
+    )
+  }
+
+  @Test
+  fun `scenario with no tools is rejected`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client, temporaryProject(), "<tls nam=\"empty\"/>")
+
+    assertNoPlayback(body)
+    assertTrue(
+      body.lines().any { it.contains("\"code\":\"INVALID_SCENARIO_XML\"") && it.contains("no <t> tool entries") },
+      "empty scenario should be rejected as INVALID_SCENARIO_XML"
+    )
+  }
+
+  @Test
+  fun `unknown tool streams a SKILL_NOT_FOUND tool_call and error`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <tls>
+        <t nam="no_such_skill" pth="x"/>
+      </tls>
+      """.trimIndent()
+    )
+
+    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") && it.contains("no_such_skill") }, "missing tool_call")
+    assertTrue(
+      body.lines().any { it.contains("\"code\":\"SKILL_NOT_FOUND\"") },
+      "missing SKILL_NOT_FOUND error event"
+    )
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"tool_expect_mismatch\"") },
+      "default (success) expectation on a failing call should be a mismatch"
+    )
+  }
+
+  @Test
+  fun `expected failure passes without a mismatch`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <tls>
+        <t nam="read_file" pth="does-not-exist.txt" exp="error"/>
+      </tls>
+      """.trimIndent()
+    )
+
+    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
+    assertTrue(body.lines().any { it.contains("\"code\":\"FILE_NOT_FOUND\"") }, "missing FILE_NOT_FOUND error")
+    assertTrue(
+      body.lines().none { it.contains("\"type\":\"tool_expect_mismatch\"") },
+      "expected failure must not be a mismatch"
+    )
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"mismatchCount\":0") },
+      "playback_end should report zero mismatches"
+    )
+  }
+
+  @Test
+  fun `unexpected failure surfaces as a tool_expect_mismatch`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <tls>
+        <t nam="read_file" pth="does-not-exist.txt"/>
+      </tls>
+      """.trimIndent()
+    )
+
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"tool_expect_mismatch\"") },
+      "missing tool_expect_mismatch for an unexpected failure"
+    )
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"mismatchCount\":1") },
+      "playback_end should report one mismatch"
+    )
+  }
+
+  @Test
+  fun `narration-only scenario streams response but no tool_call`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <tls>
+        <tt>Just talking about the plan.</tt>
+      </tls>
+      """.trimIndent()
+    )
+
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"response\"") && it.contains("Just talking about the plan.") },
+      "missing response narration"
+    )
+    assertTrue(
+      body.lines().none { it.contains("\"type\":\"tool_call\"") },
+      "narration-only scenario must not emit tool_call"
+    )
+    assertTrue(
+      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"executedCalls\":0") },
+      "playback_end should report zero executed calls"
+    )
+  }
+
+  @Test
+  fun `tools keep document order across narration`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val body = postScenario(client,
+      temporaryProject(),
+      """
+      <tls>
+        <tt>first</tt>
+        <t nam="read_file" pth="a.txt" exp="error"/>
+        <tt>second</tt>
+        <t nam="read_file" pth="b.txt" exp="error"/>
+      </tls>
+      """.trimIndent()
+    )
+
+    val toolLines: List<String> = body.lines().filter { it.contains("\"type\":\"tool_call\"") }
+    assertTrue(toolLines.size == 2, "expected exactly two tool_call events, got ${toolLines.size}")
+    assertTrue(toolLines[0].contains("a.txt"), "first tool_call should be the first tool")
+    assertTrue(toolLines[1].contains("b.txt"), "second tool_call should be the second tool")
+  }
+
+  @Test
+  fun `recording file is written under gradum recordings dir`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val project = Files.createTempDirectory("gradum_playback_rec_")
+    postScenario(client, project, """<tls nam="recording_probe"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
+
+    val recordingsDir = project.resolve(".gradum").resolve("recordings")
+    assertTrue(Files.isDirectory(recordingsDir), "recordings dir should exist under the project root")
+    val files = Files.list(recordingsDir).use { stream -> stream.toList() }
+    assertTrue(files.isNotEmpty(), "expected at least one recording file")
+    assertTrue(
+      files.any { it.fileName.toString().startsWith("recording_probe-") },
+      "recording file should be prefixed with the scenario name"
+    )
+  }
+
+  private suspend fun postScenario(client: HttpClient, project: Path, scenarioXml: String): String {
+    val projectRoot = project.toAbsolutePath().toString()
     val response: HttpResponse = client.post("/events") {
       contentType(ContentType.Application.Json)
       setBody(
@@ -51,19 +249,17 @@ class DebugPlaybackEndToEndTest {
         }"""
       )
     }
-
     assertEquals(HttpStatusCode.OK, response.status)
-    val body: String = response.bodyAsText()
-
-    assertTrue(body.lines().any { it.contains("\"type\":\"playback_start\"") }, "missing playback_start")
-    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
-    assertTrue(body.lines().any { it.contains("\"type\":\"playback_end\"") }, "missing playback_end")
-    assertTrue(body.lines().any { it.contains("\"type\":\"session_end\"") }, "missing session_end")
-    assertTrue(
-      body.lines().any { it.contains("playback_2") && it.contains("\"tool\":\"grep\"") },
-      "grep tool_call event should carry the playback call id"
-    )
+    return response.bodyAsText()
   }
+
+  private fun assertNoPlayback(body: String) {
+    assertTrue(body.lines().none { it.contains("\"type\":\"playback_start\"") }, "no playback_start on parse failure")
+    assertTrue(body.lines().none { it.contains("\"type\":\"playback_end\"") }, "no playback_end on parse failure")
+    assertTrue(body.lines().none { it.contains("\"type\":\"tool_call\"") }, "no tool_call on parse failure")
+  }
+
+  private fun temporaryProject(): Path = Files.createTempDirectory("gradum_playback_e2e_")
 }
 
 private fun sceneEscape(raw: String): String {
