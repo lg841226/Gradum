@@ -104,26 +104,6 @@ private fun MenuScope.buildMenu(
     }
   }
 
-  if (models.isEmpty()) {
-    passiveItem {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(
-            vertical = GradumSpacing.sm,
-            horizontal = GradumSpacing.sml
-          ),
-        horizontalArrangement = Arrangement.Center
-      ) {
-        Text(
-          text = message("gradum.model.none"),
-          color = JewelTheme.globalColors.text.info
-        )
-      }
-    }
-    return
-  }
-
   selectableItem(selected = isAutoSelected, onClick = onSelectAuto) {
     AutoModelItem()
   }
