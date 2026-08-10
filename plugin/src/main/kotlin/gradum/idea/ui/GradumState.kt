@@ -91,8 +91,8 @@ private fun rememberInputActions(
       session.isAutoSelected = false
     },
     onTogglePin = { model ->
-      if (session.pinnedModels.any { it.name == model.name && it.serverName == model.serverName })
-        session.pinnedModels.removeAll { it.name == model.name && it.serverName == model.serverName }
+      if (session.pinnedModels.any { it.sameAs(model) })
+        session.pinnedModels.removeAll { it.sameAs(model) }
       else
         session.pinnedModels.add(model)
     },

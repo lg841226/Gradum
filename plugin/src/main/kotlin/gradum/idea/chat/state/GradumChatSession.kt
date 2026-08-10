@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-10 12:54:46 Changed by gwy
+ * GradumChatSession.kt  2026-08-10 15:06:23 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -282,7 +282,7 @@ class GradumChatSession {
         isAutoSelected = true
       }
 
-      models.none { it.name == selectedEntry.name && it.serverName == selectedEntry.serverName } -> {
+      models.none { selectedEntry.sameAs(it) } -> {
         selectedModel = recommendedModel ?: models.first()
         isAutoSelected = true
       }
@@ -290,7 +290,7 @@ class GradumChatSession {
     }
 
     pinnedModels.removeAll { pinned ->
-      models.none { it.name == pinned.name && it.serverName == pinned.serverName }
+      models.none { pinned.sameAs(it) }
     }
   }
 
@@ -445,7 +445,10 @@ class GradumChatSession {
       }
       sessionId = null
     }
-    isSending = false; sendingPhase = ""; isWaitingForResponse = false; processPendingQueue()
+    sendingPhase = ""
+    isSending = false
+    isWaitingForResponse = false
+    processPendingQueue()
   }
 
   /**
@@ -882,30 +885,44 @@ class GradumChatSession {
 
   /**
    * Converts a kotlinx.serialization JsonObject to a plain Map<String, Any>.
-   * Handles nested objects/arrays as strings and infers primitive types
-   * (string, boolean, int, long, double) from JSON values.
+   * Recursively converts nested objects/arrays to plain Kotlin types.
+   * Infers primitive types (string, boolean, int, long, double) from JSON values.
+   * Returns empty map on any parse error to prevent UI crashes.
    */
   private fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
     if (jsonObject == null) return emptyMap()
 
-    return jsonObject.mapValues { (_, jsonElement) ->
-      when (jsonElement) {
-        // Nested structures: keep as string representation
-        is JsonObject -> jsonElement.toMap()
-        is JsonArray -> jsonElement.toList()
-        else -> {
-          // Infer the most specific primitive type
-          val jsonPrimitive = jsonElement.jsonPrimitive
-          when {
-            jsonPrimitive.isString -> jsonPrimitive.content
-            jsonPrimitive.booleanOrNull != null -> jsonPrimitive.boolean
-            jsonPrimitive.intOrNull != null -> jsonPrimitive.int
-            jsonPrimitive.longOrNull != null -> jsonPrimitive.long
-            jsonPrimitive.doubleOrNull != null -> jsonPrimitive.double
-            else -> jsonPrimitive.content
-          }
+    return try {
+      jsonObject.mapValues { (_, jsonElement) -> convertJsonElement(jsonElement) ?: "" }
+    } catch (exception: Exception) {
+      log.warn("Failed to parse tool arguments", exception)
+      emptyMap()
+    }
+  }
+
+  /**
+   * Recursively converts a JsonElement to a plain Kotlin type.
+   * - JsonObject -> Map<String, Any>
+   * - JsonArray -> List<Any>
+   * - JsonPrimitive -> String, Boolean, Int, Long, or Double
+   * - JsonNull -> null
+   */
+  private fun convertJsonElement(jsonElement: JsonElement): Any? {
+    return when (jsonElement) {
+      is JsonObject -> jsonElement.mapValues { (_, value) -> convertJsonElement(value) }
+      is JsonArray -> jsonElement.map { convertJsonElement(it) }
+      is JsonPrimitive -> {
+        when {
+          jsonElement.isString -> jsonElement.content
+          jsonElement.booleanOrNull != null -> jsonElement.boolean
+          jsonElement.intOrNull != null -> jsonElement.int
+          jsonElement.longOrNull != null -> jsonElement.long
+          jsonElement.doubleOrNull != null -> jsonElement.double
+          else -> jsonElement.content
         }
       }
+
+      is JsonNull -> null
     }
   }
 

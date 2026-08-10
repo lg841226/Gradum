@@ -37,4 +37,13 @@ data class ModelInfo(
    * proves otherwise.
    */
   val available: Boolean = true
-)
+) {
+  /**
+   * True when this entry identifies the same model as [other] — same
+   * display name on the same server. Used everywhere the code needs a
+   * stable key (pinning, selection preservation, toggle-off) without
+   * repeating the dual-field comparison.
+   */
+  fun sameAs(other: ModelInfo): Boolean =
+    name == other.name && serverName == other.serverName
+}

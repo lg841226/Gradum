@@ -104,7 +104,7 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   LaunchedEffect(session.hasSentMessage, session.isSending, session.selectedPermission) {
     val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
 
-    if (session.selectedPermission == PermissionMode.DEBUG) {
+    if (PermissionMode.isDebugMode(session.selectedPermission)) {
       tabContent.displayName = message("gradum.debug.mode")
       return@LaunchedEffect
     }

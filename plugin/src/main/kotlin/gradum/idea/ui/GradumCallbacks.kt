@@ -89,7 +89,7 @@ private fun sendPlaybackXml(
   val serverLabel: String = session.selectedModel?.serverName ?: ""
 
   if (!preserveUserMessage)
-    session.messages.add(ChatMessage(role = "user", content = "Play scenario, $scenarioLabel"))
+    session.messages.add(ChatMessage(role = "user", content = message("gradum.debug.play", scenarioLabel)))
 
   session.messages.add(
     ChatMessage(
@@ -110,7 +110,7 @@ private fun sendPlaybackXml(
       contextPath = "",
       attachments = emptyList(),
       toolCallXml = scenarioXml,
-      userMessage = "Play scenario, $scenarioLabel"
+      userMessage = message("gradum.debug.play", scenarioLabel)
     )
   }
 }
@@ -338,7 +338,7 @@ private fun rememberRetryMessageCallback(
       val userMessage = session.messages[userMessageIndex]
 
       // Debug mode: re-read file from editor instead of sending to LLM
-      if (session.selectedPermission == PermissionMode.DEBUG) {
+      if (PermissionMode.isDebugMode(session.selectedPermission)) {
         val toolProject = toolWindow?.project
         val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
         val currentFile = editorContext?.currentFile
@@ -433,7 +433,7 @@ private fun rememberSendCallback(
 
     // Debug mode: load focused Markdown file directly without calling LLM,
     // or run a focused tool-call scenario (.tls/.xml) through real playback.
-    if (session.selectedPermission == PermissionMode.DEBUG) {
+    if (PermissionMode.isDebugMode(session.selectedPermission)) {
       if (rawText.isNotBlank()) {
         val toolProject = toolWindow?.project
         val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }

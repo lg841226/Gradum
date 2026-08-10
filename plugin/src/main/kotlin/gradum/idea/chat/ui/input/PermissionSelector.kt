@@ -30,6 +30,9 @@ object PermissionMode {
   const val EDIT = "edit"
   const val AGENT = "agent"
   const val DEBUG = "debug"
+
+  /** True when [permission] is the debug wire value, e.g. for scanState gating. */
+  fun isDebugMode(permission: String): Boolean = permission == DEBUG
 }
 
 /**

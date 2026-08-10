@@ -75,7 +75,7 @@ fun ChatToolbar(
       selectedPermission = state.selectedPermission,
       isMenuVisible = state.isMenuVisible,
       hasSentMessage = hasSentMessage,
-      isPermissionLocked = hasSentMessage && selectedPermission == PermissionMode.DEBUG
+      isPermissionLocked = hasSentMessage && PermissionMode.isDebugMode(selectedPermission)
     )
 
     Spacer(modifier = Modifier.weight(1f))

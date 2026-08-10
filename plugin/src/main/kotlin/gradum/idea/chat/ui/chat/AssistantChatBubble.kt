@@ -76,6 +76,7 @@ fun AssistantChatBubble(
 ) {
   val renderBlocks = message.renderBlocks
   val hasContent = renderBlocks.isNotEmpty()
+  val isDebugMode = selectedPermission == PermissionMode.DEBUG
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -96,7 +97,7 @@ fun AssistantChatBubble(
             overflow = TextOverflow.Ellipsis,
             // Debug mode shows the i18n label verbatim (e.g. "Debug Mode")
             // instead of running it through model-name formatting.
-            text = if (selectedPermission == PermissionMode.DEBUG) {
+            text = if (isDebugMode) {
               message.modelName
             } else {
               formatModelName(message.modelName)
@@ -122,7 +123,7 @@ fun AssistantChatBubble(
       // hidden once the response is done. In normal mode both the loading
       // phase and the token count are displayed.
       val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
-      val showTokenStatus: Boolean = if (selectedPermission == PermissionMode.DEBUG) {
+      val showTokenStatus: Boolean = if (isDebugMode) {
         isLoading
       } else {
         isLoading || tokenCount > 0

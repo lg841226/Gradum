@@ -109,9 +109,7 @@ private fun MenuScope.buildMenu(
   }
 
   val unpinnedModels = models.filter { model ->
-    pinnedModels.none {
-      it.name == model.name && it.serverName == model.serverName
-    }
+    pinnedModels.none { it.sameAs(model) }
   }
 
   if (pinnedModels.isNotEmpty()) {
