@@ -111,12 +111,21 @@ fun AssistantChatBubble(
         }
       }
 
-      // Hide TokenStatusRow in debug mode
-      if (selectedPermission != PermissionMode.DEBUG && (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0)) {
+      // In debug mode only the sweep-light animation is shown while loading
+      // (e.g. during connection backoff retries); the token status row is
+      // hidden once the response is done. In normal mode both the loading
+      // phase and the token count are displayed.
+      val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
+      val showTokenStatus: Boolean = if (selectedPermission == PermissionMode.DEBUG) {
+        isLoading
+      } else {
+        isLoading || tokenCount > 0
+      }
+      if (showTokenStatus) {
         Spacer(Modifier.height(GradumSpacing.md))
         TokenStatusRow(
           isLoading = isLoading,
-          tokenCount = message.tokenUsage?.totalTokens ?: 0,
+          tokenCount = tokenCount,
           sendingPhase = if (isLoading) sendingPhase else message("gradum.done")
         )
       }
