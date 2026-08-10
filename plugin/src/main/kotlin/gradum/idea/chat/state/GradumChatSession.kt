@@ -491,32 +491,54 @@ class GradumChatSession {
 
     val messageWithHint = "${prefix}${userMessage}\n\n$systemRule"
     // Validate server connectivity and model availability before sending.
+    // The server may not be running yet, so retry with exponential backoff
+    // (2s, 4s, 8s, ...) up to MAX_CONNECT_ATTEMPTS times before surfacing a
+    // connection error. The sweep-light sending phase stays visible so the
+    // UI reads as "still trying" rather than failing instantly.
     sendingPhase = message("gradum.phase.synthesizing")
     val validationStart: Long = System.currentTimeMillis()
-    try {
-      val modelsJson: String = apiClient.getModels()
-      val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
-      val currentModel: ModelInfo? = selectedModel
-
-      if (currentModel != null && response.models.none { it.name == currentModel.name }) {
-        val assistantIndex: Int = messages.lastIndex
-
-        if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-          messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error(
-              code = ErrorCode.CLIENT_ERROR.code,
-              message = "Model ${currentModel.name} is no longer available"
-            )
-          )
+    var response: ModelsListResponse? = null
+    var lastFailure: Exception? = null
+    for (attempt in 1..MAX_CONNECT_ATTEMPTS) {
+      try {
+        val modelsJson: String = apiClient.getModels()
+        response = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
+        break
+      } catch (exception: Exception) {
+        log.warn(
+          "Model validation failed for ${apiClient.baseUrl} (attempt $attempt/" +
+            "$MAX_CONNECT_ATTEMPTS)",
+          exception
+        )
+        lastFailure = exception
+        if (attempt < MAX_CONNECT_ATTEMPTS) {
+          sendingPhase = message("gradum.phase.connecting", attempt, MAX_CONNECT_ATTEMPTS - 1)
+          delay(CONNECT_BACKOFF_MS shl (attempt - 1))
         }
-        isSending = false
-        sendingPhase = ""
-        isWaitingForResponse = false
-        processPendingQueue()
-        return
       }
-    } catch (exception: Exception) {
-      log.warn("Model validation failed for ${apiClient.baseUrl}", exception)
+    }
+    val currentModel: ModelInfo? = selectedModel
+
+    if (response != null && currentModel != null && response.models.none { it.name == currentModel.name }) {
+      val assistantIndex: Int = messages.lastIndex
+
+      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+        messages[assistantIndex] = messages[assistantIndex].appendEvent(
+          ChatEvent.Error(
+            code = ErrorCode.CLIENT_ERROR.code,
+            message = "Model ${currentModel.name} is no longer available"
+          )
+        )
+      }
+      isSending = false
+      sendingPhase = ""
+      isWaitingForResponse = false
+      processPendingQueue()
+      return
+    }
+
+    if (response == null) {
+      log.warn("Cannot reach server at ${apiClient.baseUrl}", lastFailure)
       val assistantIndex: Int = messages.lastIndex
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(
@@ -897,6 +919,12 @@ class GradumChatSession {
 
     /** Interval between model polling requests in milliseconds. */
     const val POLL_INTERVAL_MS: Long = 5_000
+
+    /** Max connection retry attempts before surfacing a server error. */
+    const val MAX_CONNECT_ATTEMPTS: Int = 6
+
+    /** Base backoff delay in ms, doubled after each failed attempt (2s, 4s, 8s, ...). */
+    const val CONNECT_BACKOFF_MS: Long = 2_000
 
     private val FOCUS_FILE_PATTERN: Regex = Regex("@focus")
     private val FILE_REF_PATTERN: Regex = Regex("""@file:(\S+)""")
