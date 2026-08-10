@@ -52,7 +52,8 @@ fun ModelSelectorBar(
       SelectorButton(
         text = resolveSelectorText(selectedModel, isAutoSelected),
         onClick = { showModelMenu = true },
-        contentDescription = message("gradum.model.select")
+        contentDescription = message("gradum.model.select"),
+        isButtonEnabled = models.isNotEmpty()
       )
       if (showModelMenu) {
         PopupMenu(
@@ -101,26 +102,6 @@ private fun MenuScope.buildMenu(
         fontWeight = FontWeight.Bold
       )
     }
-  }
-
-  if (models.isEmpty()) {
-    passiveItem {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(
-            vertical = GradumSpacing.sm,
-            horizontal = GradumSpacing.sml
-          ),
-        horizontalArrangement = Arrangement.Center
-      ) {
-        Text(
-          text = message("gradum.model.none"),
-          color = JewelTheme.globalColors.text.info
-        )
-      }
-    }
-    return
   }
 
   selectableItem(selected = isAutoSelected, onClick = onSelectAuto) {

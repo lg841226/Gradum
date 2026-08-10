@@ -120,7 +120,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     modelParams: Map<String, String>? = null,
     loadContext: Boolean = true, toolMode: String? = null,
     promptVariant: String? = null, projectRoot: String? = null,
-    imageAttachments: List<ApiImageAttachment> = emptyList()
+    imageAttachments: List<ApiImageAttachment> = emptyList(),
+    toolCallXml: String? = null
   ): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
       put("message", message)
@@ -138,6 +139,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (toolMode != null) put("toolMode", toolMode)
       if (promptVariant != null) put("promptVariant", promptVariant)
       if (projectRoot != null) put("projectRoot", projectRoot)
+
+      if (toolCallXml != null) put("toolCallXml", toolCallXml)
 
       if (imageAttachments.isNotEmpty()) {
         // OpenAI-style request: `attachments` array with `type` discriminator.

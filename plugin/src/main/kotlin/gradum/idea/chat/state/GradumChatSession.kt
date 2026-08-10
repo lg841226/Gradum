@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-07 16:04:18 Changed by gwy
+ * GradumChatSession.kt  2026-08-10 12:54:46 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -468,7 +468,8 @@ class GradumChatSession {
    * @param userMessage The text content of the user's message.
    */
   suspend fun sendMessage(
-    userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = ""
+    userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = "",
+    toolCallXml: String? = null
   ) {
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
@@ -490,32 +491,54 @@ class GradumChatSession {
 
     val messageWithHint = "${prefix}${userMessage}\n\n$systemRule"
     // Validate server connectivity and model availability before sending.
+    // The server may not be running yet, so retry with exponential backoff
+    // (2s, 4s, 8s, ...) up to MAX_CONNECT_ATTEMPTS times before surfacing a
+    // connection error. The sweep-light sending phase stays visible so the
+    // UI reads as "still trying" rather than failing instantly.
     sendingPhase = message("gradum.phase.synthesizing")
     val validationStart: Long = System.currentTimeMillis()
-    try {
-      val modelsJson: String = apiClient.getModels()
-      val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
-      val currentModel: ModelInfo? = selectedModel
-
-      if (currentModel != null && response.models.none { it.name == currentModel.name }) {
-        val assistantIndex: Int = messages.lastIndex
-
-        if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-          messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error(
-              code = ErrorCode.CLIENT_ERROR.code,
-              message = "Model ${currentModel.name} is no longer available"
-            )
-          )
+    var response: ModelsListResponse? = null
+    var lastFailure: Exception? = null
+    for (attempt in 1..MAX_CONNECT_ATTEMPTS) {
+      try {
+        val modelsJson: String = apiClient.getModels()
+        response = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
+        break
+      } catch (exception: Exception) {
+        log.warn(
+          "Model validation failed for ${apiClient.baseUrl} (attempt $attempt/" +
+            "$MAX_CONNECT_ATTEMPTS)",
+          exception
+        )
+        lastFailure = exception
+        if (attempt < MAX_CONNECT_ATTEMPTS) {
+          sendingPhase = message("gradum.phase.connecting", attempt, MAX_CONNECT_ATTEMPTS - 1)
+          delay((CONNECT_BACKOFF_MS shl (attempt - 1)).milliseconds)
         }
-        isSending = false
-        sendingPhase = ""
-        isWaitingForResponse = false
-        processPendingQueue()
-        return
       }
-    } catch (exception: Exception) {
-      log.warn("Model validation failed for ${apiClient.baseUrl}", exception)
+    }
+    val currentModel: ModelInfo? = selectedModel
+
+    if (response != null && currentModel != null && response.models.none { it.name == currentModel.name }) {
+      val assistantIndex: Int = messages.lastIndex
+
+      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+        messages[assistantIndex] = messages[assistantIndex].appendEvent(
+          ChatEvent.Error(
+            code = ErrorCode.CLIENT_ERROR.code,
+            message = "Model ${currentModel.name} is no longer available"
+          )
+        )
+      }
+      isSending = false
+      sendingPhase = ""
+      isWaitingForResponse = false
+      processPendingQueue()
+      return
+    }
+
+    if (response == null) {
+      log.warn("Cannot reach server at ${apiClient.baseUrl}", lastFailure)
       val assistantIndex: Int = messages.lastIndex
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(
@@ -577,7 +600,8 @@ class GradumChatSession {
         loadContext = loadContext,
         toolMode = toolMode,
         projectRoot = project?.basePath,
-        imageAttachments = imageAttachments
+        imageAttachments = imageAttachments,
+        toolCallXml = toolCallXml
       ).catch { exception ->
         if (exception is CancellationException) {
           val assistantIndex: Int = messages.lastIndex
@@ -623,6 +647,10 @@ class GradumChatSession {
           }
 
           "tool_call" -> handleToolCallEvent(payload)
+
+          "tool_expect_mismatch" -> {
+            isWaitingForResponse = false; handleToolExpectMismatch(payload)
+          }
 
           "error" -> handleErrorEvent(payload)
 
@@ -740,6 +768,33 @@ class GradumChatSession {
       }
     } catch (exception: Exception) {
       log.warn("Failed to parse tool_call event", exception)
+    }
+  }
+
+  /**
+   * Handles a `tool_expect_mismatch` event from debug tool-call playback:
+   * the recorded outcome of a scenario step did not match the author's
+   * `exp="success"|"error"` assertion. Surfaced as an error on the
+   * current assistant message so the mismatch is visible in the chat.
+   *
+   * @param data The event data with `tool`, `expectSuccess`, and
+   *   `actualSuccess` (>fields).
+   */
+  private fun handleToolExpectMismatch(data: JsonObject?) {
+    val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+    val expectSuccess: String =
+      data?.get("expectSuccess")?.jsonPrimitive?.content ?: "?"
+    val actualSuccess: String =
+      data?.get("actualSuccess")?.jsonPrimitive?.content ?: "?"
+
+    val message: String =
+      "Playback assertion mismatch on tool '$toolName': expected success=$expectSuccess, " +
+        "actual=$actualSuccess"
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(
+        ChatEvent.Error(message, code = "TOOL_EXPECT_MISMATCH")
+      )
     }
   }
 
@@ -864,6 +919,12 @@ class GradumChatSession {
 
     /** Interval between model polling requests in milliseconds. */
     const val POLL_INTERVAL_MS: Long = 5_000
+
+    /** Max connection retry attempts before surfacing a server error. */
+    const val MAX_CONNECT_ATTEMPTS: Int = 6
+
+    /** Base backoff delay in ms, doubled after each failed attempt (2s, 4s, 8s, ...). */
+    const val CONNECT_BACKOFF_MS: Long = 2_000
 
     private val FOCUS_FILE_PATTERN: Regex = Regex("@focus")
     private val FILE_REF_PATTERN: Regex = Regex("""@file:(\S+)""")

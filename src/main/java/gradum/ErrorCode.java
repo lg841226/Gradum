@@ -31,7 +31,14 @@ public enum ErrorCode {
      * vs. "this shell command would mutate the filesystem".
      */
     TOOL_NOT_PERMITTED("TOOL_NOT_PERMITTED"),
-    CONCURRENT_MODIFICATION("CONCURRENT_MODIFICATION");
+    CONCURRENT_MODIFICATION("CONCURRENT_MODIFICATION"),
+    /**
+     * Returned when the debug tool-call playback mode receives scenario
+     * XML that cannot be parsed into a valid {@code <tls>} document.
+     * Distinct from the skill-level INVALID_PARAMETER so the plugin can
+     * surface "the scenario file is malformed" instead of blaming a tool.
+     */
+    INVALID_SCENARIO_XML("INVALID_SCENARIO_XML");
 
     private final String code;
 

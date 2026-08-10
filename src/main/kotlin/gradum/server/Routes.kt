@@ -38,11 +38,19 @@ import java.util.concurrent.ConcurrentHashMap
 @Serializable
 data class EventsRequestBody(
   val message: String,
-  val model: String? = null,
-  val config: Map<String, String>? = null,
   val loadContext: Boolean = true,
+  val model: String? = null,
   val toolMode: String? = null,
   val promptVariant: String? = null,
+  val config: Map<String, String>? = null,
+  /**
+   * Optional tool-call scenario XML (`<tls>` format) that bypasses the LLM
+   * entirely: the server executes the described tool calls through the same
+   * real `executeSingleTool` pipeline and records each result. Used by the
+   * debug tool-call playback mode — the developer authors the scenario
+   * instead of spending LLM tokens.
+   */
+  val toolCallXml: String? = null,
   /**
    * Absolute path to the project the IDE has open. The server uses this
    * as the root for every file/process tool in this session. The plugin
@@ -201,11 +209,18 @@ fun Application.registerAllRoutes() {
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
       val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
+      val resolvedToolMode: ToolMode = if (requestBody.toolCallXml != null) {
+        // Debug tool-call playback always runs in Full Agent mode so every
+        // skill is reachable; the scenario author chooses the tool list.
+        ToolMode.AGENT
+      } else {
+        requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
+      }
       val agentConfiguration = AgentConfiguration(
         provider = resolvedProvider,
         modelName = requestBody.model ?: "minimax-m2.5:cloud",
         baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
-        toolMode = requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT,
+        toolMode = resolvedToolMode,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
         enableThinking = configOverrides.think ?: false,
         temperatureValue = configOverrides.temperature ?: 0.7,
@@ -241,6 +256,7 @@ fun Application.registerAllRoutes() {
           agentInstance.executeTask(
             userInput = requestBody.message,
             loadPreviousContext = requestBody.loadContext,
+            toolCallXml = requestBody.toolCallXml,
             attachments = requestBody.attachments.map { attachment ->
               gradum.agent.AttachmentPayload(
                 type = attachment.type,

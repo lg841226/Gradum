@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-07 16:04:18 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-10 13:26:20 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -36,7 +35,6 @@ import gradum.idea.chat.ui.markdown.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -44,7 +42,6 @@ import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-import kotlin.time.Duration.Companion.milliseconds
 
 private val SEGMENT_RISE_DP: Dp = 8.dp
 private val RISE_DISTANCE_DP: Dp = 24.dp
@@ -53,12 +50,9 @@ private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
 
-private const val SEGMENT_BASE_STAGGER_MS: Long = 95
-private const val SEGMENT_STAGGER_PER_100DP_MS: Int = 50
-private const val SEGMENT_STAGGER_MAX_MS: Long = 300
+private const val SEGMENT_MAX_EXTRA_MS: Int = 400
 private const val SEGMENT_BASE_DURATION_MS: Int = 150
 private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
-private const val SEGMENT_MAX_EXTRA_MS: Int = 400
 
 /**
  * Left-aligned assistant message bubble.
@@ -100,7 +94,13 @@ fun AssistantChatBubble(
           Text(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            text = formatModelName(message.modelName)
+            // Debug mode shows the i18n label verbatim (e.g. "Debug Mode")
+            // instead of running it through model-name formatting.
+            text = if (selectedPermission == PermissionMode.DEBUG) {
+              message.modelName
+            } else {
+              formatModelName(message.modelName)
+            }
           )
         }
       }
@@ -113,22 +113,31 @@ fun AssistantChatBubble(
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
             is RenderBlock.Error -> ErrorBlock(block)
           }
-          Spacer(modifier = Modifier.height(GradumSpacing.lrl))
+          Spacer(modifier = Modifier.height(GradumSpacing.lg))
         }
       }
 
-      // Hide TokenStatusRow in debug mode
-      if (selectedPermission != PermissionMode.DEBUG && (isLoading || (message.tokenUsage?.totalTokens ?: 0) > 0)) {
+      // In debug mode only the sweep-light animation is shown while loading
+      // (e.g. during connection backoff retries); the token status row is
+      // hidden once the response is done. In normal mode both the loading
+      // phase and the token count are displayed.
+      val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
+      val showTokenStatus: Boolean = if (selectedPermission == PermissionMode.DEBUG) {
+        isLoading
+      } else {
+        isLoading || tokenCount > 0
+      }
+      if (showTokenStatus) {
         Spacer(Modifier.height(GradumSpacing.md))
         TokenStatusRow(
           isLoading = isLoading,
-          tokenCount = message.tokenUsage?.totalTokens ?: 0,
+          tokenCount = tokenCount,
           sendingPhase = if (isLoading) sendingPhase else message("gradum.done")
         )
       }
 
       if (!isLoading) {
-        Spacer(modifier = Modifier.height(GradumSpacing.md))
+        Spacer(modifier = Modifier.height(GradumSpacing.sml))
         MessageActionsRow(
           message = message,
           isLoading = isLoading,
@@ -178,23 +187,10 @@ private fun ResponseBlock(
   val segments = remember(block.content) { splitMarkdown(block.content) }
   val paragraphStyle = rememberGradumParagraphTextStyle()
 
-  var visibleCount by rememberSaveable { mutableIntStateOf(0) }
-  LaunchedEffect(segments.size) {
-    if (segments.size > visibleCount) {
-      for (i in visibleCount until segments.size) {
-        val estimatedHeightDp = estimateContentHeightDp(segments[i])
-        val staggerMs = calculateStaggerMs(estimatedHeightDp)
-        delay(staggerMs.milliseconds)
-        visibleCount = i + 1
-        onContentChange()
-      }
-    }
-  }
-
   SelectionContainer {
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-      segments.take(visibleCount).forEach { segment ->
-        AnimatedSegment(segment, paragraphStyle, onUrlClick)
+      segments.forEach { segment ->
+        AnimatedSegment(segment, onUrlClick, paragraphStyle)
       }
     }
   }
@@ -203,8 +199,8 @@ private fun ResponseBlock(
 @Composable
 private fun AnimatedSegment(
   segment: MarkdownSegment,
-  paragraphStyle: androidx.compose.ui.text.TextStyle,
   onUrlClick: (String) -> Unit,
+  paragraphStyle: androidx.compose.ui.text.TextStyle,
 ) {
   val density = LocalDensity.current
   var contentHeightPx by remember { mutableIntStateOf(0) }
@@ -263,28 +259,6 @@ private fun AnimatedSegment(
     }
   }
 }
-
-private fun estimateContentHeightDp(segment: MarkdownSegment): Float = when (segment) {
-  is MarkdownSegment.Plain -> {
-    val lines = (segment.text.length / 80f).coerceAtLeast(1f)
-    lines * 22f
-  }
-
-  is MarkdownSegment.NonProseBlock -> {
-    val lines = segment.text.lines().size.coerceAtLeast(1)
-    lines * 22f
-  }
-
-  is MarkdownSegment.Table -> {
-    val rows = segment.rows.size.coerceAtLeast(1)
-    (rows + 1) * 30f + 40f
-  }
-}
-
-private fun calculateStaggerMs(estimatedHeightDp: Float): Long =
-  (SEGMENT_BASE_STAGGER_MS + (estimatedHeightDp / 100f * SEGMENT_STAGGER_PER_100DP_MS))
-    .toLong()
-    .coerceAtMost(SEGMENT_STAGGER_MAX_MS)
 
 private fun animationDurationMs(segment: MarkdownSegment, measuredHeightDp: Dp): Int {
   val typeWeight = when (segment) {

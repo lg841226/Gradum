@@ -12,6 +12,11 @@ package gradum.agent
 import gradum.*
 import gradum.PromptVariant.*
 import gradum.client.*
+import gradum.debug.ParsedToolCall
+import gradum.debug.ScenarioStep
+import gradum.debug.ToolCallScenario
+import gradum.debug.ToolCallScenarioParseException
+import gradum.debug.ToolCallScenarioParser
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
@@ -26,6 +31,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
 import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
@@ -138,6 +144,7 @@ class Agent(
   fun executeTask(
     userInput: String,
     loadPreviousContext: Boolean = false,
+    toolCallXml: String? = null,
     attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
     sessionStartTimeMillis = System.currentTimeMillis()
@@ -169,6 +176,12 @@ class Agent(
     )
 
     conversationHistory.add(buildUserMessage(userInput, attachments))
+
+    if (toolCallXml != null) {
+      playToolCallScenario(toolCallXml)
+      finishSession()
+      return
+    }
 
     val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
       toolMode = configuration.toolMode,
@@ -557,8 +570,11 @@ class Agent(
     conversationHistory.add(assistantMessage)
   }
 
-  private fun executeSingleTool(processedCall: ProcessedToolCall, isLastToolCall: Boolean = true): Unit {
-    if (sessionAborted) return
+  private fun executeSingleTool(
+    processedCall: ProcessedToolCall,
+    isLastToolCall: Boolean = true
+  ): Map<String, Any> {
+    if (sessionAborted) return emptyMap()
 
     val functionName: String = processedCall.callData.functionName
     val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
@@ -647,6 +663,182 @@ class Agent(
     }
 
     logToolResult(executionResult)
+    return executionResult
+  }
+
+  /**
+   * Debug tool-call playback mode.
+   *
+   * Instead of asking the LLM to decide which tools to call (spending
+   * tokens on every attempt), the developer authors a scenario as a
+   * short `<tls>` XML block — playing the part of the model. The server
+   * parses it, runs every listed call through the *real*
+   * [executeSingleTool] pipeline (permission gates, project-root
+   * injection, skill execution, history stamping all included), streams
+   * the same `tool_call` NDJSON events the plugin already renders, then
+   * writes a machine-readable recording to
+   * `<projectRoot>/.gradum/recordings/<scenario>.json` so results can
+   * be diffed between runs.
+   *
+   * Each tool may carry an `exp="success"|"error"` assertion
+   * (default `success`). A mismatch is surfaced as a
+   * `tool_expect_mismatch` event instead of silently passing.
+   *
+   * Narration is carried over from Markdown documents as `<tt>` segments
+   * and emitted as `response` events, so a compiled `.md` replays as a
+   * full agent turn: text streams like assistant output and `<tls>` blocks
+   * execute at the exact position the author placed them. Hand-written
+   * scenarios declare tool calls only.
+   *
+   * Note: history appended in [emitToolResult] uses the real skill
+   * `alias`, exactly as in normal mode, so a future LLM turn could
+   * resume from the playback results if the tool-loop ever reappears.
+   */
+  private fun playToolCallScenario(toolCallXml: String): Unit {
+    val scenario: ToolCallScenario = try {
+      ToolCallScenarioParser.parse(toolCallXml)
+    } catch (exception: ToolCallScenarioParseException) {
+      emitEvent(
+        "error", mapOf(
+          "code" to ErrorCode.INVALID_SCENARIO_XML.name,
+          "message" to (exception.message ?: "Failed to parse tool-call scenario"),
+          "source" to "debug_playback"
+        )
+      )
+      return
+    }
+
+    val scenarioName: String = scenario.scenarioName.ifBlank { "playback" }
+    val toolCalls: List<ParsedToolCall> = scenario.toolCalls
+
+    emitEvent(
+      "playback_start", mapOf(
+        "mode" to configuration.toolMode.name,
+        "scenario" to scenarioName,
+        "steps" to scenario.steps.size,
+        "toolCalls" to toolCalls.size,
+      )
+    )
+
+    val recordings: MutableList<Map<String, Any>> = mutableListOf()
+    val mismatches: MutableList<Map<String, Any>> = mutableListOf()
+
+    for ((stepIndex: Int, step: ScenarioStep) in scenario.steps.withIndex()) {
+      if (sessionAborted) break
+
+      when (step) {
+        is ScenarioStep.AiReply -> {
+          if (step.content.isNotBlank()) {
+            emitEvent(
+              "response", mapOf(
+                "content" to step.content,
+                "promptTokens" to 0,
+                "completionTokens" to 0,
+                "totalTokens" to 0
+              )
+            )
+          }
+        }
+
+        is ParsedToolCall -> {
+          val toolIndex: Int = recordings.size
+          val callEntry: ToolCallEntry = ToolCallEntry(
+            callIdentifier = "playback_${toolIndex + 1}",
+            functionName = step.functionName,
+            functionArguments = step.functionArguments,
+          )
+          val processedCall: ProcessedToolCall = prepareToolCalls(listOf(callEntry)).first()
+          val isLastToolCall: Boolean = recordings.size == toolCalls.lastIndex
+
+          val startedAtMillis: Long = System.currentTimeMillis()
+          val executionResult: Map<String, Any> = executeSingleTool(processedCall, isLastToolCall)
+          val durationMillis: Long = System.currentTimeMillis() - startedAtMillis
+          val actualSuccess: Boolean = executionResult["success"] as? Boolean ?: false
+
+          val expectMatched: Boolean = actualSuccess == step.expectSuccess
+
+          recordings.add(
+            mapOf(
+              "stepIndex" to (stepIndex + 1),
+              "tool" to step.functionName,
+              "arguments" to step.functionArguments,
+              "expectSuccess" to step.expectSuccess,
+              "success" to actualSuccess,
+              "expectMatched" to expectMatched,
+              "durationMs" to durationMillis,
+              "result" to executionResult,
+            )
+          )
+
+          if (!expectMatched) {
+            @Suppress("UNCHECKED_CAST")
+            val errorInfo: Map<String, Any> =
+              executionResult["error"] as? Map<String, Any> ?: emptyMap()
+            emitEvent(
+              "tool_expect_mismatch", mapOf(
+                "tool" to step.functionName,
+                "index" to (stepIndex + 1),
+                "expectSuccess" to step.expectSuccess,
+                "actualSuccess" to actualSuccess,
+                "result" to executionResult,
+                "errorCode" to (errorInfo["code"] ?: ""),
+                "errorMessage" to (errorInfo["message"] ?: ""),
+              )
+            )
+            mismatches.add(
+              mapOf(
+                "index" to (stepIndex + 1),
+                "tool" to step.functionName,
+                "expectSuccess" to step.expectSuccess,
+                "actualSuccess" to actualSuccess,
+              )
+            )
+          }
+        }
+      }
+    }
+
+    val recordingSummary: Map<String, Any> = mapOf(
+      "scenario" to scenarioName,
+      "recordedAt" to java.time.LocalDateTime.now().toString(),
+      "totalCalls" to toolCalls.size,
+      "executedCalls" to recordings.size,
+      "mismatchCount" to mismatches.size,
+      "mismatches" to mismatches,
+      "calls" to recordings,
+    )
+
+    savePlaybackRecording(scenarioName, recordingSummary)
+
+    emitEvent(
+      "playback_end", mapOf(
+        "scenario" to scenarioName,
+        "executedCalls" to recordings.size,
+        "mismatchCount" to mismatches.size,
+      )
+    )
+  }
+
+  /**
+   * Writes a debug playback recording to
+   * `<project>/.gradum/recordings/<scenario>-<timestamp>.json`.
+   * The project-relative `.gradum` dir mirrors [contextManager]'s
+   * choice of output location so recordings live inside the user's
+   * project (per-IDE session) rather than the server's CWD.
+   */
+  private fun savePlaybackRecording(scenarioName: String, summary: Map<String, Any>) {
+    try {
+      val recordingsDir: Path = Path.of(configuration.projectRoot, ".gradum", "recordings")
+      Files.createDirectories(recordingsDir)
+      val safeName: String = scenarioName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+      val recordingFile: Path = recordingsDir.resolve(
+        "${safeName}-${System.currentTimeMillis()}.json"
+      )
+      Files.writeString(recordingFile, JsonUtil.encodeMap(summary, prettyPrint = true))
+      logger.info("Playback recording written to $recordingFile")
+    } catch (exception: Exception) {
+      logger.error("Failed to write playback recording: ${exception.message}")
+    }
   }
 
   private fun executeSkill(

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-07-31 15:54:30 Changed by gwy
+ * GradumCallbacks.kt  2026-08-10 13:26:20 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -20,11 +20,13 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import gradum.idea.GradumToolWindowFactory
 import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.MarkdownTlsScenario
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
 import gradum.idea.encodeImageToAttachment
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -44,6 +46,11 @@ private val MARKDOWN_EXTENSIONS = setOf(
   ".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdwn"
 )
 
+/** Files treated as tool-call debug playable scenarios in DEBUG mode. */
+private val SCENARIO_EXTENSIONS = setOf(
+  ".tls", ".tls.xml", ".xml"
+)
+
 /** Maximum size of the *original* (pre-encoding) image file in bytes (5 MB). */
 private const val MAX_IMAGE_BYTES: Long = 5L * 1024L * 1024L
 
@@ -59,19 +66,91 @@ private fun truncateToMaxLines(content: String): String {
 }
 
 /**
+ * Sends an already-compiled tool-call scenario XML to the server for
+ * playback. The server replays it through the real skill pipeline (no
+ * LLM tokens), streams `playback_start` / `response` (AI reply text) /
+ * `tool_call` / `tool_expect_mismatch` / `playback_end` NDJSON events
+ * that the normal chat bubble already renders, and records a result file
+ * under the project's `.gradum/recordings/`.
+ *
+ * @param preserveUserMessage when true the caller already restored the
+ *   user bubble (retry path) so this only appends the assistant bubble;
+ *   when false a fresh "Play scenario" user message is added (send path).
+ */
+private fun sendPlaybackXml(
+  session: GradumChatSession,
+  scenarioLabel: String,
+  scenarioXml: String,
+  coroutineScope: CoroutineScope,
+  preserveUserMessage: Boolean = false,
+) {
+  val displayName: String = message("gradum.debug.model.name")
+  val providerName: String = session.selectedModel?.provider ?: ""
+  val serverLabel: String = session.selectedModel?.serverName ?: ""
+
+  if (!preserveUserMessage)
+    session.messages.add(ChatMessage(role = "user", content = "Play scenario, $scenarioLabel"))
+
+  session.messages.add(
+    ChatMessage(
+      content = "",
+      role = "assistant",
+      modelName = displayName,
+      provider = providerName,
+      serverName = serverLabel
+    )
+  )
+  session.hasSentMessage = true
+  session.isSending = true
+  session.isWaitingForResponse = true
+  logger.info("Sending tool-call scenario '$scenarioLabel' to server for playback")
+
+  coroutineScope.launch {
+    session.sendMessage(
+      contextPath = "",
+      attachments = emptyList(),
+      toolCallXml = scenarioXml,
+      userMessage = "Play scenario, $scenarioLabel"
+    )
+  }
+}
+
+/**
+ * Sends the focused `.tls` / `.xml` file's content to the server as a
+ * handwritten tool-call scenario.
+ */
+private fun sendPlaybackScenario(
+  session: GradumChatSession, currentFile: VirtualFile, coroutineScope: CoroutineScope
+) {
+  val scenarioXml: String = try {
+    String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+  } catch (ioError: IOException) {
+    logger.error("IO error reading scenario file: ${currentFile.name}", ioError)
+    return
+  } catch (securityError: SecurityException) {
+    logger.error("Security error accessing scenario file: ${currentFile.name}", securityError)
+    return
+  } catch (generalError: Exception) {
+    logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError)
+    return
+  }
+  sendPlaybackXml(session, currentFile.name, scenarioXml, coroutineScope)
+}
+
+/**
  * Holds all UI event callbacks for the Gradum chat interface.
  *
  * Separated from the main [GradumUI] composable to keep callback logic
  * independent of UI rendering.
  */
 data class GradumCallbacks(
-  val onDeleteMessage: (Int) -> Unit,
-  val onRetryMessage: (Int) -> Unit,
   val onSend: () -> Unit,
   val onStop: () -> Unit,
+  val onRetryMessage: (Int) -> Unit,
+  val onDeleteMessage: (Int) -> Unit,
+  val onAttachmentClick: (VirtualFile) -> Unit,
   val onOpenInEditor: (String, Int, Int) -> Unit,
   val onViewDiff: (String, String, String) -> Unit,
-  val onAttachmentClick: (VirtualFile) -> Unit,
   val eventCallbacks: EventCallbacks,
 )
 
@@ -115,17 +194,17 @@ fun rememberGradumCallbacks(
   val onAttachmentClick = rememberAttachmentClickCallback(toolWindow)
   val onSend = rememberSendCallback(toolWindow, session, coroutineScope)
   val onOpenInEditor = rememberOpenInEditorCallback(toolWindow, coroutineScope)
-  val onRetryMessage = rememberRetryMessageCallback(session, toolWindow, coroutineScope)
+  val onRetryMessage = rememberRetryMessageCallback(toolWindow, session, coroutineScope)
 
   return GradumCallbacks(
     onSend = onSend,
     onStop = onStop,
-    onViewDiff = onViewDiff,
-    onOpenInEditor = onOpenInEditor,
-    eventCallbacks = eventCallbacks,
     onRetryMessage = onRetryMessage,
     onDeleteMessage = onDeleteMessage,
-    onAttachmentClick = onAttachmentClick
+    onAttachmentClick = onAttachmentClick,
+    onOpenInEditor = onOpenInEditor,
+    onViewDiff = onViewDiff,
+    eventCallbacks = eventCallbacks
   )
 }
 
@@ -189,8 +268,7 @@ private fun rememberEventCallbacks(
 }
 
 private fun uploadImageCallback(
-  toolWindow: ToolWindow?,
-  session: GradumChatSession
+  toolWindow: ToolWindow?, session: GradumChatSession
 ): () -> Unit = Unit@{
   val remainingSlots: Int = MAX_ATTACHMENTS - session.attachedFiles.size
   if (remainingSlots <= 0) return@Unit
@@ -250,9 +328,7 @@ private fun rememberDeleteMessageCallback(
 
 @Composable
 private fun rememberRetryMessageCallback(
-  session: GradumChatSession,
-  toolWindow: ToolWindow?,
-  coroutineScope: CoroutineScope,
+  toolWindow: ToolWindow?, session: GradumChatSession, coroutineScope: CoroutineScope
 ): (Int) -> Unit = remember(session, toolWindow, coroutineScope) {
   { assistantMessageIndex: Int ->
     val userMessageIndex = (assistantMessageIndex - 1 downTo 0)
@@ -280,7 +356,15 @@ private fun rememberRetryMessageCallback(
             repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
             session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content))
             session.hasSentMessage = true
-            session.loadDebugMarkdown(content)
+
+            // Retrying a Markdown doc that embeds <tls> blocks replays the
+            // whole turn through the real tool pipeline, matching the send path.
+            val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
+            if (compiled != null) {
+              sendPlaybackXml(session, currentFile.name, compiled, coroutineScope, preserveUserMessage = true)
+            } else {
+              session.loadDebugMarkdown(content)
+            }
           } catch (ioError: IOException) {
             logger.error("IO error reading file: ${currentFile.path}", ioError)
           } catch (securityError: SecurityException) {
@@ -321,8 +405,8 @@ private fun rememberRetryMessageCallback(
       session.messages.add(
         userMessageIndex + 1,
         ChatMessage(
-          role = "assistant",
           content = "",
+          role = "assistant",
           modelName = displayName,
           provider = providerName,
           serverName = serverLabel
@@ -332,9 +416,7 @@ private fun rememberRetryMessageCallback(
       session.isSending = true
       session.isWaitingForResponse = true
       coroutineScope.launch {
-        val contextPath = if (session.isExpanded && !anyReplaced) {
-          focusedPath
-        } else ""
+        val contextPath = if (session.isExpanded && !anyReplaced) focusedPath else ""
         session.sendMessage(resolvedText, userMessage.attachments, contextPath)
       }
     }
@@ -349,31 +431,42 @@ private fun rememberSendCallback(
     val rawText: String = session.textState.text.toString()
     val hasModel = session.selectedModel != null || session.isAutoSelected
 
-    // Debug mode: load focused Markdown file directly without calling LLM
+    // Debug mode: load focused Markdown file directly without calling LLM,
+    // or run a focused tool-call scenario (.tls/.xml) through real playback.
     if (session.selectedPermission == PermissionMode.DEBUG) {
       if (rawText.isNotBlank()) {
         val toolProject = toolWindow?.project
         val editorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
         val currentFile = editorContext?.currentFile
-        if (currentFile != null &&
-          MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }
-        ) {
-          try {
-            val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
-            val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-            val content = truncateToMaxLines(
-              textEditor?.editor?.document?.text
-                ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
-            )
-            session.messages.add(ChatMessage(role = "user", content = rawText))
-            session.hasSentMessage = true
-            session.loadDebugMarkdown(content)
-          } catch (ioError: IOException) {
-            logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
-          } catch (securityError: SecurityException) {
-            logger.error("Security error accessing markdown file: ${currentFile.name}", securityError)
-          } catch (generalError: Exception) {
-            logger.warn("Unexpected error processing markdown file: ${currentFile.name}", generalError)
+        if (currentFile != null) {
+          if (SCENARIO_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            sendPlaybackScenario(session, currentFile, coroutineScope)
+          } else if (MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            try {
+              val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
+              val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
+              val content = truncateToMaxLines(
+                textEditor?.editor?.document?.text
+                  ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+              )
+              // Markdown with embedded <tls> blocks replays as a scenario:
+              // narration between blocks becomes AI reply text, blocks become
+              // real tool calls. Plain Markdown still renders directly.
+              val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
+              if (compiled != null) {
+                sendPlaybackXml(session, currentFile.name, compiled, coroutineScope)
+              } else {
+                session.hasSentMessage = true
+                session.messages.add(ChatMessage(role = "user", content = rawText))
+                session.loadDebugMarkdown(content)
+              }
+            } catch (ioError: IOException) {
+              logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
+            } catch (securityError: SecurityException) {
+              logger.error("Security error accessing markdown file: ${currentFile.name}", securityError)
+            } catch (generalError: Exception) {
+              logger.warn("Unexpected error processing markdown file: ${currentFile.name}", generalError)
+            }
           }
         }
       }
@@ -404,8 +497,8 @@ private fun rememberSendCallback(
         session.messages.add(ChatMessage(role = "user", content = rawText, attachments = attachedList))
         session.messages.add(
           ChatMessage(
-            role = "assistant",
             content = "",
+            role = "assistant",
             modelName = displayName,
             provider = providerName,
             serverName = serverLabel
@@ -429,16 +522,14 @@ private fun rememberSendCallback(
 
 @Composable
 private fun rememberStopCallback(
-  session: GradumChatSession,
-  coroutineScope: CoroutineScope,
+  session: GradumChatSession, coroutineScope: CoroutineScope
 ): () -> Unit = remember(session, coroutineScope) {
   { coroutineScope.launch { session.stopSession() } }
 }
 
 @Composable
 private fun rememberOpenInEditorCallback(
-  toolWindow: ToolWindow?,
-  coroutineScope: CoroutineScope,
+  toolWindow: ToolWindow?, coroutineScope: CoroutineScope
 ): (String, Int, Int) -> Unit = remember(toolWindow, coroutineScope) {
   { filePath, startLine, _ ->
     val project = toolWindow?.project
@@ -489,18 +580,17 @@ private fun rememberViewDiffCallback(
 ): (String, String, String) -> Unit = remember(toolWindow) {
   { filePath, originalContent, modifiedContent ->
     gradum.idea.chat.ui.common.DiffViewer.showFileDiff(
-      project = toolWindow?.project,
       path = filePath,
+      project = toolWindow?.project,
       originalContent = originalContent,
-      modifiedContent = modifiedContent,
+      modifiedContent = modifiedContent
     )
   }
 }
 
 @Composable
-private fun rememberAttachmentClickCallback(
-  toolWindow: ToolWindow?,
-): (VirtualFile) -> Unit = remember(toolWindow) {
+private fun rememberAttachmentClickCallback(toolWindow: ToolWindow?):
+    (VirtualFile) -> Unit = remember(toolWindow) {
   { file ->
     val project = toolWindow?.project
     if (project != null && file.isValid) {

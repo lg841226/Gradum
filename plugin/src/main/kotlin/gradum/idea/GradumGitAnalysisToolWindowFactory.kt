@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-09 19:56:55 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-10 09:04:32 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -146,11 +146,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                       )
                     },
                     iconContent = {
-                      Tooltip(
-                        tooltip = {
-                          Text(text = message("gradum.toolwindow.git.analysis.banner.close"))
-                        }
-                      ) {
+                      Tooltip(tooltip = { Text(text = message("gradum.toolwindow.git.analysis.banner.close")) }) {
                         IconButton(onClick = { bannerClosed = true }) {
                           Icon(
                             AllIconsKeys.General.Close,
@@ -385,9 +381,7 @@ private fun openDataSecurityAndPrivacy(project: Project) {
  * `sm` gap, and `md` vertical spacing between items.
  */
 @Composable
-private fun GitAuditFeatureList(
-  bullet: Char, bulletStyle: TextStyle, contentStyle: TextStyle
-) {
+private fun GitAuditFeatureList(bullet: Char, bulletStyle: TextStyle, contentStyle: TextStyle) {
   Column(
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
   ) {
