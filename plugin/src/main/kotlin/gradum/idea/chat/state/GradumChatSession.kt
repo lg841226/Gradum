@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-07 16:04:18 Changed by gwy
+ * GradumChatSession.kt  2026-08-10 12:54:46 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -513,7 +513,7 @@ class GradumChatSession {
         lastFailure = exception
         if (attempt < MAX_CONNECT_ATTEMPTS) {
           sendingPhase = message("gradum.phase.connecting", attempt, MAX_CONNECT_ATTEMPTS - 1)
-          delay(CONNECT_BACKOFF_MS shl (attempt - 1))
+          delay((CONNECT_BACKOFF_MS shl (attempt - 1)).milliseconds)
         }
       }
     }

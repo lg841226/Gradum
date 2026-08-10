@@ -26,6 +26,7 @@ import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
 import gradum.idea.encodeImageToAttachment
+import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,7 +84,7 @@ private fun sendPlaybackXml(
   coroutineScope: CoroutineScope,
   preserveUserMessage: Boolean = false,
 ) {
-  val displayName: String = session.selectedModel?.name ?: "Auto"
+  val displayName: String = message("gradum.debug.model.name")
   val providerName: String = session.selectedModel?.provider ?: ""
   val serverLabel: String = session.selectedModel?.serverName ?: ""
 

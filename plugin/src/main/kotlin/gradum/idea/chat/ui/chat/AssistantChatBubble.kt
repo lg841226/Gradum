@@ -94,7 +94,13 @@ fun AssistantChatBubble(
           Text(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            text = formatModelName(message.modelName)
+            // Debug mode shows the i18n label verbatim (e.g. "Debug Mode")
+            // instead of running it through model-name formatting.
+            text = if (selectedPermission == PermissionMode.DEBUG) {
+              message.modelName
+            } else {
+              formatModelName(message.modelName)
+            }
           )
         }
       }
