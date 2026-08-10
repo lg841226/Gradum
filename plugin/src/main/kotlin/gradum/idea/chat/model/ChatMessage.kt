@@ -106,13 +106,6 @@ data class ChatMessage(
 ) {
   val isUserMessage: Boolean get() = role == "user"
 
-  /**
-   * Set once the bubble has finished revealing this message's blocks, so
-   * reopening the tool window does not replay the paced reveal animation.
-   * Not part of the constructor: copied messages reset it, which is fine.
-   */
-  var revealComplete: Boolean = false
-
   /** Aggregated response content from all Response events. */
   val responseContent: String
     get() = events.filterIsInstance<ChatEvent.Response>().joinToString("") { it.content }
