@@ -222,13 +222,9 @@ class ContextManager(private val outputDirectory: Path) {
   /**
    * Runtime-safe coercion of a `Any?` value (typically read from a
    * `Map<String, Any>` produced by [convertJsonElement]) into a
-   * `Map<String, Any>`. The previous `as? Map<String, Any>` shortcut
-   * compiled with an unchecked-cast warning at L149 because Kotlin
-   * can't prove the key/value types at the call site. This helper
-   * walks the map at runtime: non-`String` keys are dropped, null
-   * values become empty strings. Returns an empty map if the input
-   * is not a map at all, so callers can use `?.let { }` or a simple
-   * `isEmpty()` check rather than `?: continue`.
+   * `Map<String, Any>`. Non-`String` keys are dropped, null values
+   * become empty strings. Returns an empty map if the input is not a
+   * map at all.
    */
   private fun readStringMap(rawMap: Any?): Map<String, Any> {
     if (rawMap !is Map<*, *>) return emptyMap()
@@ -240,8 +236,6 @@ class ContextManager(private val outputDirectory: Path) {
       .toMap()
   }
 
-  /** Runtime-safe coercion of a `Any?` into a `List<Map<String, Any>>`.
-   *  Non-map elements are dropped; see [readStringMap] for the per-map rules. */
   private fun readListOfMaps(rawList: Any?): List<Map<String, Any>> {
     if (rawList !is List<*>) return emptyList()
     val parsedMaps: MutableList<Map<String, Any>> = mutableListOf()
@@ -258,7 +252,6 @@ class ContextManager(private val outputDirectory: Path) {
     return parsedMap
   }
 
-  /** Recursively converts a kotlinx.serialization JsonElement to a plain Kotlin/Java object. */
   private fun convertJsonElement(element: JsonElement): Any {
     return when (element) {
       is JsonPrimitive if element.isString -> element.content

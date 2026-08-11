@@ -165,7 +165,6 @@ class ExploreProjectSkill : Skill() {
       else -> DEFAULT_DEPTH
     }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
 
-    // Parse filter parameters
     val filterType = "all"
     val filterExtension = ""
     val filterDirectory = ""
@@ -176,7 +175,6 @@ class ExploreProjectSkill : Skill() {
     val sortBy: String = (arguments["sort_by"] as? String ?: "name").lowercase()
     val limit: Int = DEFAULT_LIMIT
 
-    // Parse extension and directory filters into sets
     val extensionFilters: Set<String> = if (filterExtension.isBlank()) emptySet()
     else filterExtension.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
     val directoryFilters: Set<String> = if (filterDirectory.isBlank()) emptySet()
@@ -244,7 +242,6 @@ class ExploreProjectSkill : Skill() {
     val visitedPaths: Set<Path> = setOf(resolvedPath)
     scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult, filterConfig)
 
-    // Apply filters and sorting
     val filteredConfigFiles = applyFilters(scanResult.configFiles, "config", filterConfig)
     val filteredCodeFiles = applyCodeFilters(scanResult.codeFiles, filterConfig)
     val filteredOtherFiles = applyFilters(scanResult.otherFiles, "other", filterConfig)
@@ -469,7 +466,6 @@ private fun scanDirectory(
     if (directoryEntry.isDirectory) {
       if (shouldTruncate(directoryEntry.name)) continue
 
-      // Apply directory filter
       if (filterConfig.directoryFilters.isNotEmpty()) {
         val dirPath = targetDirectory.relativize(directoryEntry.toPath()).toString()
         if (!filterConfig.directoryFilters.any { dirPath.startsWith(it) || it in dirPath }) continue
@@ -483,7 +479,6 @@ private fun scanDirectory(
       val updatedVisited: Set<Path> = visitedPaths.plusElement(normalizedChild)
       scanDirectory(childPath, remainingDepth - 1, updatedVisited, scanResult, filterConfig)
     } else {
-      // Apply to exclude pattern filter
       if (filterConfig.excludePatterns.isNotEmpty()) {
         val relativePath = targetDirectory.relativize(directoryEntry.toPath()).toString()
         if (matchesExcludePattern(relativePath, filterConfig.excludePatterns)) continue
@@ -508,7 +503,6 @@ private fun scanDirectory(
 
 private fun matchesExcludePattern(relativePath: String, patterns: List<String>): Boolean {
   for (pattern in patterns) {
-    // Simple glob matching
     val regexPattern = pattern
       .replace(".", "\\.")
       .replace("**/", ".*/")
@@ -526,11 +520,9 @@ private fun matchesExcludePattern(relativePath: String, patterns: List<String>):
 private fun applyFilters(files: List<String>, fileType: String, config: FilterConfig): List<String> {
   var filtered = files
 
-  // Apply filter_type
   if (config.filterType != "all" && config.filterType != fileType)
     return emptyList()
 
-  // Apply extension filter
   if (config.extensionFilters.isNotEmpty()) {
     filtered = filtered.filter { fileName ->
       val ext = fileName.substringAfterLast('.', "")
@@ -538,7 +530,6 @@ private fun applyFilters(files: List<String>, fileType: String, config: FilterCo
     }
   }
 
-  // Apply to exclude pattern
   if (config.excludePatterns.isNotEmpty())
     filtered = filtered.filter { !matchesExcludePattern(it, config.excludePatterns) }
 
@@ -548,11 +539,9 @@ private fun applyFilters(files: List<String>, fileType: String, config: FilterCo
 private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig): List<Map<String, Any>> {
   var filtered = files
 
-  // Apply filter_type
   if (config.filterType != "all" && config.filterType != "code")
     return emptyList()
 
-  // Apply extension filter
   if (config.extensionFilters.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->
       val path = fileInfo["path"] as? String ?: ""
@@ -561,7 +550,6 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
     }
   }
 
-  // Apply line count filter
   if (config.minLines > 0 || config.maxLines != null) {
     filtered = filtered.filter { fileInfo ->
       val lines = fileInfo["lines"] as? Int ?: 0
@@ -569,7 +557,6 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
     }
   }
 
-  // Apply to exclude pattern
   if (config.excludePatterns.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->
       val path = fileInfo["path"] as? String ?: ""
@@ -577,7 +564,6 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
     }
   }
 
-  // Apply sorting
   filtered = when (config.sortBy) {
     "lines" -> filtered.sortedByDescending { (it["lines"] as? Int) ?: 0 }
     "size" -> filtered.sortedByDescending { (it["path"] as? String)?.length ?: 0 }

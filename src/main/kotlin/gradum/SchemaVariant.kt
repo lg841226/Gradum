@@ -53,7 +53,6 @@ object ModelCapability {
    */
   private val PARAMETER_SIZE_PATTERN: Regex = Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""")
 
-  /** Keywords indicating a cloud or large model */
   private val CLOUD_KEYWORDS: Set<String> = setOf(
     "cloud", "api", "gpt", "claude", "gemini",
     "sonnet", "haiku", "opus", "pro", "flash",
@@ -61,21 +60,15 @@ object ModelCapability {
   )
 
   /**
-   * Infers whether a model is small based on its name.
-   *
-   * @param modelName the model identifier string
-   * @return true if the model appears to be small (≤32B parameters),
-   *         false if large or unrecognized
+   * Infers whether a model is small (≤32B parameters) based on its name.
    */
   fun isSmall(modelName: String): Boolean {
     if (modelName.isBlank()) return false
 
     val lowerName = modelName.lowercase()
 
-    // Check cloud/API indicators first
     if (CLOUD_KEYWORDS.any { lowerName.contains(it) }) return false
 
-    // Extract and evaluate parameter size
     val sizeMatch = PARAMETER_SIZE_PATTERN.find(lowerName) ?: return false
     val parameterCountBillions: Double = sizeMatch.groupValues[1].toDoubleOrNull() ?: return false
 

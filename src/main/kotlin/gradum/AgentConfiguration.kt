@@ -8,9 +8,7 @@
 package gradum
 
 /**
- * LLM backend selection. Replaces the previous free-form `providerName: String`
- * field which forced every consumer to perform string equality checks and
- * silently accepted typos.
+ * LLM backend selection, parsed from free-form user input.
  */
 enum class Provider {
   OLLAMA,
@@ -18,10 +16,8 @@ enum class Provider {
 
   companion object {
     /**
-     * Parse a [Provider] from a free-form string (typically user input
-     * from the HTTP `config` map). Returns [default] when [rawValue] is
-     * null, blank, or unknown — matching the previous best-effort
-     * behavior where unrecognized providers fell back to Ollama.
+     * Parse a [Provider] from a free-form string, returning [default]
+     * when [rawValue] is null, blank, or unknown.
      */
     fun fromStringOrDefault(rawValue: String?, default: Provider = OLLAMA): Provider {
       if (rawValue.isNullOrBlank())
@@ -79,10 +75,7 @@ enum class PromptVariant {
       return entries.firstOrNull { it.name.equals(rawValue, ignoreCase = true) } ?: default
     }
 
-    /**
-     * Resolve an [AUTO] request to a concrete variant based on the
-     * configured [provider]. OPENAI → CLOUD, OLLAMA → LOCAL.
-     */
+    /** Resolve an [AUTO] request to a concrete variant: OPENAI → CLOUD, OLLAMA → LOCAL. */
     fun resolveAuto(provider: Provider): PromptVariant = when (provider) {
       Provider.OPENAI -> CLOUD
       Provider.OLLAMA -> LOCAL

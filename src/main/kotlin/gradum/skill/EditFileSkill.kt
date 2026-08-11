@@ -126,10 +126,6 @@ class EditFileSkill : Skill() {
     return if (useSimpleSchema) executeLocal(arguments, context) else executeCloud(arguments, context)
   }
 
-  /**
-   * Local model execution: single search/replace edit.
-   * Simplified schema with flat parameters for small models.
-   */
   private fun executeLocal(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
     val oldString: String = arguments["oldString"] as? String ?: ""
@@ -182,9 +178,6 @@ class EditFileSkill : Skill() {
     }
   }
 
-  /**
-   * Cloud model execution: multiple search/replace edits via array.
-   */
   private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
     val rawEdits: List<Map<String, Any>> = try {
@@ -423,21 +416,12 @@ class EditFileSkill : Skill() {
   }
 }
 
-/**
- * Matching strategy used by the matching process.
- */
 private enum class MatchStrategy { EXACT, NORMALIZED, STRIPPED, NONE }
 
-/**
- * Result of a single match.
- */
 private data class MatchResult(
   val startIndex: Int, val endIndex: Int, val strategy: MatchStrategy
 )
 
-/**
- * Result of the matching process.
- */
 private sealed class FindResult {
   data class Found(val matches: List<MatchResult>) : FindResult()
   data class NotFound(
@@ -445,14 +429,6 @@ private sealed class FindResult {
   ) : FindResult()
 }
 
-/**
- * Matching for search blocks.
- *
- * Step 1: EXACT - trimEnd() comparison (handles \r\n vs \n)
- * Step 2: NORMALIZED - trim() comparison (ignore leading/trailing whitespace)
- * Step 3: STRIPPED - remove all whitespace (handles different indentation)
- * Step 4: NONE - return detailed error
- */
 private fun findMatchesWithFallback(
   fileLines: List<String>, searchLines: List<String>
 ): FindResult {

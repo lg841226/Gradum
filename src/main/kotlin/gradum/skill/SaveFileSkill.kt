@@ -42,28 +42,13 @@ class SaveFileSkill : Skill() {
   )
 
   /**
-   * Keep only the current call's `content` in history. After the
-   * first `save_file`, the model knows what it wrote (the call's
-   * arguments are still in the preceding assistant message) and
-   * can re-`read_file` the path on disk if it later needs the
-   * bytes back — so the `content` field of older `save_file`
-   * results is purely context bloat. Stripped from older tool
-   * messages by [gradum.skill.Skill.compactHistory]'s default
-   * implementation; the current call's `content` is always
-   * returned to the LLM in full.
+   * Keep only the current call's `content` in history. The LLM already
+   * holds the bytes it wrote (in the call's arguments) and can re-read
+   * the path on disk, so older results' `content` is context bloat.
    */
   override val historyKeepCount: Int = 1
   override val historyVolatileKeys: List<String> = listOf("content")
 
-  /**
-   * Returns the OpenAI-style function schema for this skill.
-   *
-   * Defines four parameters:
-   * - `path` (required): file path to write
-   * - `content` (required): content to write
-   * - `mode` (optional): `overwrite` or `append`
-   * - `encoding` (optional): character encoding, defaults to `UTF-8`
-   */
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
     return mapOf(
@@ -115,16 +100,6 @@ class SaveFileSkill : Skill() {
     ),
   )
 
-  /**
-   * Writes content to a file at the given path.
-   *
-   * Validates the path, checks content size against [MAXIMUM_CONTENT_SIZE],
-   * then writes according to writeMode. Creates parent directories
-   * automatically if they don't exist.
-   *
-   * @param arguments Map containing `path`, `content`, and optional `mode`, `encoding`
-   * @return [SkillResult.Success] with path, bytesWritten, totalLines, created, mode, encoding
-   */
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
     val fileContent: String = arguments["content"] as? String ?: ""

@@ -463,7 +463,6 @@ class GrepSkill : Skill() {
         }
       }
     } catch (_: Exception) {
-      // Skip unreadable files
     }
   }
 }
@@ -565,10 +564,7 @@ class GlobSkill : Skill() {
     // (`**` matching zero path segments, `*` not crossing '/', `?` not
     // crossing '/', literal regex metacharacters in filenames, brace
     // alternation, character classes) without us having to translate
-    // glob to regex by hand. The previous hand-rolled translator
-    // routed user input through `Regex.escape` (which is `Pattern.quote`
-    // under the hood) and turned every glob into a literal substring
-    // match, so Glob returned zero files regardless of the pattern.
+    // glob to regex by hand.
     val globMatcher = try {
       FileSystems.getDefault().getPathMatcher("glob:$patternStr")
     } catch (_: Exception) {

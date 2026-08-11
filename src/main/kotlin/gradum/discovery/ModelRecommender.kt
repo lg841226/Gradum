@@ -81,9 +81,8 @@ fun recommend(
  * 1. Context window: baseline, capped at 200K to prevent outliers from dominating.
  * 2. Cloud bonus: +200 for cloud models (strictly stronger than local).
  * 3. Local size: +1.5 per billion params (70B beats 7B, but doesn't drown out cloud).
- * 4. Memory gate: -500 if estimated VRAM exceeds available memory.
- *    Drops it below all cloud and smaller local models, but keeps it selectable.
- *    Softer warning tier was rejected (caused ambiguous rankings without preventing OOM).
+ * 4. Memory gate: -500 if estimated VRAM exceeds available memory — drops it below
+ *    all cloud and smaller local models, but keeps it selectable.
  * 5. Capability bonuses: +20 reasoning, +10 tool-call, +5 vision.
  */
 internal fun score(model: ModelEntry, context: RecommendationContext): Double {
@@ -97,8 +96,6 @@ internal fun score(model: ModelEntry, context: RecommendationContext): Double {
     val parameterCountInBillions: Double = parameterCountInBillions(model)
     modelScore += parameterCountInBillions * 1.5
 
-    // Local models that exceed available memory get -500, dropping them below all cloud and smaller local alternatives.
-    // A softer warning tier was tried but caused ambiguous rankings (e.g. 32B on 32GB) without preventing OOM.
     val estimatedMemoryGB: Double = parameterCountInBillions * 0.8
     if (estimatedMemoryGB > context.availableRamGB) modelScore -= 500.0
   }

@@ -26,26 +26,12 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/**
- * Read [key] from this object as a string, returning "" when the key is missing
- * or the value is not a primitive. Centralizes the pattern that is repeated
- * across the streaming parsers below.
- */
 private fun JsonObject.optString(key: String): String =
   this[key]?.jsonPrimitive?.contentOrNull ?: ""
 
-/**
- * Read [key] from this object as an int, returning 0 when the key is missing
- * or the value is not a numeric primitive. Mirrors [optString] for integers.
- */
 private fun JsonObject.optInt(key: String): Int =
   this[key]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
 
-/**
- * Read [key] from this object as a nested [JsonObject], returning an empty
- * object when the key is missing or the value is not an object. Avoids the
- * noisy `?: JsonObject(emptyMap())` at every call site.
- */
 private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
@@ -99,41 +85,15 @@ interface LlmClient : TokenUsageProvider {
 private enum class MultimodalTarget { OLLAMA, OPENAI_COMPATIBLE }
 
 /**
- * Project a single `Map<String, Any>` message into the wire shape
- * the target LLM backend expects.
+ * Project a single `Map<String, Any>` message into the wire shape the
+ * target LLM backend expects.
  *
- * The conversation history uses the OpenAI-style content-array
- * intermediate shape for any user message that carries image
- * attachments:
- *
- *     {"role": "user", "content": [
- *         {"type": "text", "text": "..."},
- *         {"type": "image", "data": "<base64>", "mime": "image/jpeg", "filename": "..."},
- *         ...
- *     ]}
- *
- * The two backends disagree on the wire shape, so the
- * translation lives here rather than in the per-client request
- * payload builder:
- *
- *  - **Ollama** (`/api/chat`): collapses all `text` parts into
- *    a single `content: string` and lifts `image` parts into a
- *    top-level `images: [base64, ...]` field on the same message
- *    map. This is Ollama's native multimodal format documented
- *    in ollama/docs/api.md.
- *
- *  - **OpenAI-compatible** (`/v1/chat/completions`): keeps the
- *    content as an array but re-shapes each `image` part into
- *    `{"type": "image_url", "image_url": {"url": "data:<mime>;base64,..."}}`.
- *    Text parts pass through unchanged. This is the OpenAI vision
- *    standard also used by Hunyuan, Anthropic-via-proxy, and
- *    most 2026-era LLM gateways.
- *
- * Non-user messages and user messages with a plain `String`
- * content (no attachments) pass through untouched, so the
- * rewriter is a no-op for text-only turns — backwards-compatible
- * with persisted conversation history from before the image
- * upload feature.
+ * The conversation history uses an OpenAI-style content-array shape for
+ * user messages carrying image attachments. The two backends disagree on
+ * the wire format: Ollama collapses text parts into a single `content`
+ * string and lifts images into a top-level `images` array; OpenAI keeps
+ * the array but re-shapes each image part into `image_url`. Text-only
+ * messages pass through untouched.
  */
 private fun projectMessageForBackend(
   message: Map<String, Any>,
@@ -211,14 +171,6 @@ private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
   return mapOf("role" to "user", "content" to projectedContentParts)
 }
 
-/**
- * Walk a full conversation history, projecting only the user
- * messages that use the multimodal content-array shape. The
- * `LLMClient` implementations call this once per `sendChat`
- * call to keep the request payload aligned with their backend's
- * wire format without forcing the conversation history
- * (persisted to disk) to know about provider quirks.
- */
 private fun projectHistoryForBackend(
   messageHistory: List<Map<String, Any>>, target: MultimodalTarget
 ): List<Map<String, Any>> = messageHistory.map { message ->
@@ -240,17 +192,6 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
     val requestUrl = "${configuration.baseUrl}/api/chat"
     val shouldThink: Boolean = configuration.enableThinking
 
-    /**
-     * Converts the intermediate content-array format into Ollama's native shape.
-     *
-     * Ollama expects:
-     * - text as a plain string in `content`
-     * - images as a top-level `images: [...]` array of base64 strings
-     *
-     * Part types other than "text" and "image" are dropped.
-     *
-     * @see projectHistoryForBackend
-     */
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, MultimodalTarget.OLLAMA)
 
@@ -368,11 +309,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
 
-    // Translate the intermediate (OpenAI-style) content-array
-    // shape into the OpenAI vision wire format: text parts
-    // pass through, image parts become
-    // `{type: "image_url", image_url: {url: "data:..."}}`.
-    // See `projectHistoryForBackend` KDoc.
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, MultimodalTarget.OPENAI_COMPATIBLE)
 
@@ -536,11 +472,8 @@ private fun buildHttpClient(): HttpClient {
 
 /**
  * Common error formatter shared by every [LlmClient] implementation.
- *
- * The previous design inlined a near-identical `formatXxxError` method in
- * both `OllamaClient` and `OpenAICompatibleClient`; the only difference was
- * the human-readable server label and the "is it running?" hint. Pass those
- * in as parameters and the rest of the logic is shared.
+ * The only per-provider differences are the server label and the
+ * "is it running?" hint.
  */
 private fun formatLlmError(
   exception: Exception,
@@ -561,13 +494,9 @@ private fun formatLlmError(
 /**
  * Common token-usage accumulator shared by every [LlmClient] implementation.
  *
- * Each provider reports token usage under different field names (Ollama uses
- * `prompt_eval_count` / `eval_count`, OpenAI-compatible uses `prompt_tokens`
- * / `completion_tokens`). Pass the field names in; the accumulation logic is
- * identical.
- *
- * @return the next [TokenUsageSnapshot] to assign back, or [currentUsage]
- *   unchanged when neither field is positive.
+ * Each provider reports usage under different field names (Ollama:
+ * `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
+ * Returns [currentUsage] unchanged when neither field is positive.
  */
 private fun recordTokenUsage(
   usageStats: JsonObject,

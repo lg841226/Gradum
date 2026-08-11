@@ -25,11 +25,8 @@ private val logger: Logger = LoggerFactory.getLogger("SkillRegistry")
 /**
  * Central registry for all available skills.
  *
- * Uses classpath scanning to discover Skill implementations at runtime.
- * Skills are automatically discovered by scanning the `gradum.skill` package
- * for concrete classes that extend [Skill]. No manual registration required.
- *
- * @see Skill
+ * Discovers [Skill] implementations at runtime by scanning the
+ * `gradum.skill` package for concrete classes extending [Skill].
  */
 object SkillRegistry {
 
@@ -46,37 +43,20 @@ object SkillRegistry {
     return registeredSkills.values
   }
 
-  /**
-   * Retrieves a skill by its name.
-   *
-   * @param skillName the unique identifier of the skill
-   * @return the Skill instance, or null if not found
-   */
+  /** Returns the skill registered under [skillName], or null. */
   fun getSkill(skillName: String): Skill? {
     return registeredSkills[skillName]
   }
 
   /**
    * Returns function schemas for every skill that allows the given
-   * [toolMode]. Used to build the tools definition sent to the LLM.
+   * [toolMode].
    *
-   * The filter is `toolMode in skill.allowedToolModes` — the same
-   * membership check [gradum.agent.Agent] uses at runtime to gate
-   * tool calls. The two checks must agree: if a tool's schema is in
-   * the LLM's tool list, the LLM can call it, so the runtime gate
-   * must not reject it. If a tool is not in the LLM's tool list, the
-   * runtime gate might still be hit (LLM-hallucinated calls), so the
-   * runtime gate must not let it through.
-   *
-   * @param toolMode Which mode the LLM is being started in. Defaults
-   *   to [ToolMode.AGENT] (unrestricted).
-   * @param provider Which LLM backend is in use. Passed through to
-   *   each skill's [Skill.getSchema] so that provider-aware skills
-   *   (e.g. [EditFileSkill]) can return a schema tailored to local
-   *   or cloud models.
-   * @param modelName Model name string for capability inference.
-   * @return list of schema maps from every registered skill that
-   *   declares [toolMode] in its [Skill.allowedToolModes]
+   * The filter mirrors the runtime gate in [gradum.agent.Agent] —
+   * `toolMode in skill.allowedToolModes`. The two checks must agree:
+   * a tool whose schema is in the LLM's list must pass the runtime
+   * gate, and a tool left out of the list must still be gated (the
+   * model can hallucinate calls regardless of the schema filter).
    */
   fun getSchemas(
     toolMode: ToolMode = ToolMode.AGENT,
@@ -89,27 +69,11 @@ object SkillRegistry {
       .map { skill: Skill -> skill.getSchema(schemaContext) }
   }
 
-  /**
-   * Registers a single skill in the registry.
-   *
-   * @param skill the skill instance to register
-   */
   private fun registerSkill(skillInstance: Skill) {
     registeredSkills[skillInstance.skillName] = skillInstance
     logger.info("Registered skill: ${skillInstance.skillName} (${skillInstance.alias})")
   }
 
-  /**
-   * Discovers and registers all available skills via classpath scanning.
-   *
-   * Scans the `gradum.skill` package for all concrete classes that
-   * extend [Skill]. Each discovered class is instantiated via its
-   * no-argument constructor and registered.
-   *
-   * This approach requires no manual configuration — just place your
-   * skill class in the `gradum.skill` package (or a sub-package) and
-   * it will be automatically discovered.
-   */
   private fun discoverSkills() {
     val discoveredClasses = findClassesInPackage()
 
@@ -132,11 +96,6 @@ object SkillRegistry {
       logger.info("Discovered ${registeredSkills.size} skills via classpath scanning")
   }
 
-  /**
-   * Finds all concrete classes in the given package.
-   *
-   * @return list of Class objects for concrete classes in the package
-   */
   private fun findClassesInPackage(): List<Class<*>> {
     val packageName = SKILL_PACKAGE
 
@@ -164,9 +123,6 @@ object SkillRegistry {
     return discoveredClasses
   }
 
-  /**
-   * Finds classes in a directory (for development/IDE environments).
-   */
   private fun findClassesInDirectory(targetDirectory: Path): List<Class<*>> {
     val discoveredClasses = mutableListOf<Class<*>>()
 
@@ -180,7 +136,6 @@ object SkillRegistry {
                 discoveredClasses.add(matchedClass)
               }
             } catch (_: ClassNotFoundException) {
-              // Skip classes that can't be loaded
             }
           }
         }
@@ -188,9 +143,6 @@ object SkillRegistry {
     return discoveredClasses
   }
 
-  /**
-   * Finds classes in a JAR file (for packaged environments).
-   */
   private fun findClassesInJar(jarUri: URI, packagePath: String): List<Class<*>> {
     val discoveredClasses = mutableListOf<Class<*>>()
 
@@ -214,7 +166,6 @@ object SkillRegistry {
                   discoveredClasses.add(matchedClass)
                 }
               } catch (_: ClassNotFoundException) {
-                // Skip classes that can't be loaded
               }
             }
         }
@@ -226,9 +177,6 @@ object SkillRegistry {
     return discoveredClasses
   }
 
-  /**
-   * Converts a class file path to a fully qualified class name.
-   */
   private fun getClassName(classFilePath: Path, baseDirectory: Path): String? {
     val packageName = SKILL_PACKAGE
     val relativePath = baseDirectory.relativize(classFilePath).toString()
