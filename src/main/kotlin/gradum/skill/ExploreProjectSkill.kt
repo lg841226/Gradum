@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-07-17 09:35:23 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-11 23:10:24 Changed by gwy
  */
 
 package gradum.skill
@@ -158,20 +158,11 @@ class ExploreProjectSkill : Skill() {
       else -> DEFAULT_DEPTH
     }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
 
-    val filterType = "all"
-    val filterExtension = ""
-    val filterDirectory = ""
     val excludePattern: String = (arguments["exclude"] as? String
       ?: arguments["exclude_pattern"] as? String ?: "").lowercase()
-    val minLines = 0
-    val maxLines: Int? = null
     val sortBy: String = (arguments["sort_by"] as? String ?: "name").lowercase()
     val limit: Int = DEFAULT_LIMIT
 
-    val extensionFilters: Set<String> = if (filterExtension.isBlank()) emptySet()
-    else filterExtension.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
-    val directoryFilters: Set<String> = if (filterDirectory.isBlank()) emptySet()
-    else filterDirectory.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
     val excludePatterns: List<String> = if (excludePattern.isBlank()) emptyList()
     else excludePattern.split(",").map { it.trim() }.filter { it.isNotBlank() }
 
@@ -222,12 +213,7 @@ class ExploreProjectSkill : Skill() {
       )
 
     val filterConfig = FilterConfig(
-      filterType = filterType,
-      extensionFilters = extensionFilters,
-      directoryFilters = directoryFilters,
       excludePatterns = excludePatterns,
-      minLines = minLines,
-      maxLines = maxLines,
       sortBy = sortBy,
       limit = limit
     )
@@ -236,10 +222,34 @@ class ExploreProjectSkill : Skill() {
     val visitedPaths: Set<Path> = setOf(resolvedPath)
     scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult, filterConfig)
 
-    val filteredConfigFiles = applyFilters(scanResult.configFiles, "config", filterConfig)
+    val filteredConfigFiles = applyFilters(scanResult.configFiles, filterConfig)
     val filteredCodeFiles = applyCodeFilters(scanResult.codeFiles, filterConfig)
-    val filteredOtherFiles = applyFilters(scanResult.otherFiles, "other", filterConfig)
+    val filteredOtherFiles = applyFilters(scanResult.otherFiles, filterConfig)
 
+    return buildOutput(
+      resolvedPath = resolvedPath,
+      requestedDepth = requestedDepth,
+      scanResult = scanResult,
+      filteredConfigFiles = filteredConfigFiles,
+      filteredCodeFiles = filteredCodeFiles,
+      filteredOtherFiles = filteredOtherFiles,
+      excludePattern = excludePattern,
+      filterConfig = filterConfig,
+      useSimpleOutput = useSimpleOutput,
+    )
+  }
+
+  private fun buildOutput(
+    resolvedPath: Path,
+    requestedDepth: Int,
+    scanResult: ScanResult,
+    filteredConfigFiles: List<String>,
+    filteredCodeFiles: List<Map<String, Any>>,
+    filteredOtherFiles: List<String>,
+    excludePattern: String,
+    filterConfig: FilterConfig,
+    useSimpleOutput: Boolean,
+  ): SkillResult {
     if (useSimpleOutput) {
       val codeFileDetails: List<String> = filteredCodeFiles
         .sortedBy { (it["path"] as? String) ?: "" }
@@ -253,7 +263,7 @@ class ExploreProjectSkill : Skill() {
           "config_files" to filteredConfigFiles.size,
           "code_files" to filteredCodeFiles.size,
           "other_files" to filteredOtherFiles.size,
-          "code_file_details" to codeFileDetails.take(limit),
+          "code_file_details" to codeFileDetails.take(filterConfig.limit),
           "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" },
         )
       )
@@ -264,19 +274,14 @@ class ExploreProjectSkill : Skill() {
         "project_root" to resolvedPath.toString(),
         "depth" to requestedDepth,
         "total_size" to formatSize(scanResult.totalSize),
-        "config_files" to filteredConfigFiles.sorted().take(limit),
-        "code_files" to filteredCodeFiles.sortedBy { (it["path"] as? String) ?: "" }.take(limit),
-        "other_files" to filteredOtherFiles.sorted().take(limit),
-        "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" }.take(limit),
+        "config_files" to filteredConfigFiles.sorted().take(filterConfig.limit),
+        "code_files" to filteredCodeFiles.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
+        "other_files" to filteredOtherFiles.sorted().take(filterConfig.limit),
+        "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
         "filter_applied" to linkedMapOf(
-          "filter_type" to filterType,
-          "filter_extension" to filterExtension,
-          "filter_directory" to filterDirectory,
           "exclude_pattern" to excludePattern,
-          "min_lines" to minLines,
-          "max_lines" to maxLines,
-          "sort_by" to sortBy,
-          "limit" to limit,
+          "sort_by" to filterConfig.sortBy,
+          "limit" to filterConfig.limit,
         ),
         "result_count" to linkedMapOf(
           "config_files" to filteredConfigFiles.size,
@@ -415,12 +420,7 @@ private data class ScanResult(
 )
 
 private data class FilterConfig(
-  val filterType: String,
-  val extensionFilters: Set<String>,
-  val directoryFilters: Set<String>,
   val excludePatterns: List<String>,
-  val minLines: Int,
-  val maxLines: Int?,
   val sortBy: String,
   val limit: Int
 )
@@ -444,7 +444,7 @@ private fun scanDirectory(
     val relativePath: String = try {
       scanResult.relativeRoot.relativize(targetDirectory).toString()
     } catch (relativizeException: IllegalArgumentException) {
-      logger.debug("Failed to relativize $targetDirectory: ${relativizeException.message}", relativizeException)
+      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message, relativizeException)
       targetDirectory.toString()
     }
     scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
@@ -461,11 +461,6 @@ private fun scanDirectory(
   for (directoryEntry in limitedEntries) {
     if (directoryEntry.isDirectory) {
       if (shouldTruncate(directoryEntry.name)) continue
-
-      if (filterConfig.directoryFilters.isNotEmpty()) {
-        val dirPath = targetDirectory.relativize(directoryEntry.toPath()).toString()
-        if (!filterConfig.directoryFilters.any { dirPath.startsWith(it) || it in dirPath }) continue
-      }
 
       val childPath: Path = directoryEntry.toPath()
       val normalizedChild: Path = childPath.toAbsolutePath().normalize()
@@ -488,7 +483,7 @@ private fun scanDirectory(
         isConfigFile(directoryEntry.name) -> scanResult.configFiles.add(relativePath)
         isCodeFile(directoryEntry.name) -> {
           val lineCount = countLines(directoryEntry)
-          scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to (lineCount ?: "unknown")))
+          scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lineCount))
         }
 
         else -> scanResult.otherFiles.add(relativePath)
@@ -513,18 +508,8 @@ private fun matchesExcludePattern(relativePath: String, patterns: List<String>):
   return false
 }
 
-private fun applyFilters(files: List<String>, fileType: String, config: FilterConfig): List<String> {
+private fun applyFilters(files: List<String>, config: FilterConfig): List<String> {
   var filtered = files
-
-  if (config.filterType != "all" && config.filterType != fileType)
-    return emptyList()
-
-  if (config.extensionFilters.isNotEmpty()) {
-    filtered = filtered.filter { fileName ->
-      val ext = fileName.substringAfterLast('.', "")
-      ext in config.extensionFilters
-    }
-  }
 
   if (config.excludePatterns.isNotEmpty())
     filtered = filtered.filter { !matchesExcludePattern(it, config.excludePatterns) }
@@ -534,24 +519,6 @@ private fun applyFilters(files: List<String>, fileType: String, config: FilterCo
 
 private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig): List<Map<String, Any>> {
   var filtered = files
-
-  if (config.filterType != "all" && config.filterType != "code")
-    return emptyList()
-
-  if (config.extensionFilters.isNotEmpty()) {
-    filtered = filtered.filter { fileInfo ->
-      val path = fileInfo["path"] as? String ?: ""
-      val ext = path.substringAfterLast('.', "")
-      ext in config.extensionFilters
-    }
-  }
-
-  if (config.minLines > 0 || config.maxLines != null) {
-    filtered = filtered.filter { fileInfo ->
-      val lines = fileInfo["lines"] as? Int ?: 0
-      lines >= config.minLines && (config.maxLines == null || lines <= config.maxLines)
-    }
-  }
 
   if (config.excludePatterns.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->

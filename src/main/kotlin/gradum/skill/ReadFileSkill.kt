@@ -2,20 +2,19 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-29 18:32:58 Changed by gwy
+ * ReadFileSkill.kt  2026-08-11 23:13:18 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.*
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
+import gradum.ErrorCode
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
-
-private val logger: Logger = LoggerFactory.getLogger("ReadFileSkill")
 
 private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 private const val MAXIMUM_LINES: Int = 10000
@@ -135,50 +134,20 @@ class ReadFileSkill : Skill() {
         }
         Triple(1, allLines.size, allLines)
       } else {
-        val rangeParts = lineRange.split("-")
-        if (rangeParts.size != 2) {
-          return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
-              fixHint = "Provide lineRange in the format 'start-end' with numeric values."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
-        }
+        val range: LineRange = parseLineRange(lineRange) ?: return makeFailure(
+          ErrorCode.INVALID_PARAMETER,
+          buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
+            fixHint = "Provide lineRange in the format 'start-end' with numeric values."
+          ),
+          mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
+        )
 
-        val rawStart = parseRangeBound(rangeParts[0])
-          ?: return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange start value: ${rangeParts[0]}",
-              fixHint = "Provide a valid integer for the start line number."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
+        val lines = targetFile.useLines { it.drop(range.start - 1).take(range.end - range.start + 1).toList() }
+        val actualEndLine = range.start + lines.size - 1
 
-        val rawEnd = parseRangeBound(rangeParts[1])
-          ?: return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange end value: ${rangeParts[1]}",
-              fixHint = "Provide a valid integer for the end line number."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
-
-        val actualStart = rawStart.coerceAtLeast(1)
-        val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
-        val start = minOf(actualStart, actualEnd)
-        val end = maxOf(actualStart, actualEnd)
-
-        val lines = targetFile.useLines { it.drop(start - 1).take(end - start + 1).toList() }
-        val actualEndLine = start + lines.size - 1
-
-        Triple(start, actualEndLine, lines)
+        Triple(range.start, actualEndLine, lines)
       }
 
       if (useSimpleOutput) {
@@ -207,7 +176,7 @@ class ReadFileSkill : Skill() {
           )
         )
       }
-    } catch (missingFileException: FileNotFoundException) {
+    } catch (_: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND,
         buildXmlError(
@@ -231,4 +200,30 @@ class ReadFileSkill : Skill() {
   }
 }
 
-private fun parseRangeBound(rawValue: String): Int? = rawValue.trim().toIntOrNull()
+/**
+ * A validated, normalized `start..end` line range. Both bounds are
+ * clamped to the document (start ≥ 1) and ordered so `start ≤ end`.
+ */
+private data class LineRange(
+  val start: Int,
+  val end: Int,
+)
+
+/**
+ * Parses a `"start-end"` line-range string. Returns null when the format
+ * is malformed or either bound is not a positive integer.
+ */
+private fun parseLineRange(rawValue: String): LineRange? {
+  val rangeParts = rawValue.split("-")
+  if (rangeParts.size != 2) return null
+
+  val rawStart = rangeParts[0].trim().toIntOrNull() ?: return null
+  val rawEnd = rangeParts[1].trim().toIntOrNull() ?: return null
+
+  val actualStart = rawStart.coerceAtLeast(1)
+  val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
+  return LineRange(
+    start = minOf(actualStart, actualEnd),
+    end = maxOf(actualStart, actualEnd),
+  )
+}

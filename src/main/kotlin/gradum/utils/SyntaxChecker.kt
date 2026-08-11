@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-07-18 10:36:05 Changed by gwy
+ * SyntaxChecker.kt  2026-08-11 23:10:24 Changed by gwy
  */
 
 package gradum.utils
@@ -364,6 +364,9 @@ private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePa
 }
 
 
+/** Matches a file-ish token like `src/main.kt` or `path/to/file.rs`. */
+private val codeReferencePattern: Regex = Regex("""[\w/]+\.\w+""")
+
 /** Filters cross-file noise when multi-file compilation produces errors for other files. */
 private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): List<SyntaxIssue> {
   val absolutePath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -371,9 +374,10 @@ private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): Li
   return issues.filter { issue: SyntaxIssue ->
     if (issue.line != null) return@filter true
     val message: String = issue.message
-    message.contains(absolutePath.toString()) || message.contains(fileName) || (
-      !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
-      )
+    val referencesCurrentFile: Boolean =
+      message.contains(absolutePath.toString()) || message.contains(fileName)
+    val referencesAnyFile: Boolean = codeReferencePattern.containsMatchIn(message)
+    referencesCurrentFile || !referencesAnyFile
   }
 }
 

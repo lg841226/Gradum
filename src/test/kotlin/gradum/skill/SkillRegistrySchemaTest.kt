@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistrySchemaTest.kt  2026-07-10 18:35:41 Changed by gwy
+ * SkillRegistrySchemaTest.kt  2026-08-11 23:23:16 Changed by gwy
  */
 
 package gradum.skill
@@ -33,19 +33,19 @@ class SkillRegistrySchemaTest {
 
   @Test
   fun `agent mode exposes every registered skill`() {
-    val names: List<String> = SkillRegistry.getSchemas(ToolMode.AGENT).map { nameOf(it) }
+    val names: List<String> = SkillRegistry.getSchemas().map { nameOf(it) }
     assertEquals(EXPECTED_ALL, names.toSet(), "AGENT must expose every registered skill, got: $names")
   }
 
   @Test
   fun `read-only mode exposes only inspection skills`() {
-    val names: Set<String> = SkillRegistry.getSchemas(ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
+    val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
     assertEquals(EXPECTED_READ_ONLY, names, "READ_ONLY must expose only inspection skills, got: $names")
   }
 
   @Test
   fun `edit mode exposes write skills but not task planning`() {
-    val names: Set<String> = SkillRegistry.getSchemas(ToolMode.EDIT).map { nameOf(it) }.toSet()
+    val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.EDIT).map { nameOf(it) }.toSet()
     assertEquals(EXPECTED_EDIT, names, "EDIT must exclude task-planning skills, got: $names")
   }
 
@@ -55,7 +55,7 @@ class SkillRegistrySchemaTest {
     // skillName, the LLM would see one name and the runtime would
     // route to another. Pin the contract.
     for (mode in ToolMode.entries) {
-      for (schema in SkillRegistry.getSchemas(mode)) {
+      for (schema in SkillRegistry.getSchemas(toolMode = mode)) {
         val schemaName: String = nameOf(schema)
         val registered: Skill? = SkillRegistry.getSkill(schemaName)
         assertTrue(registered != null, "Schema $schemaName in mode $mode is not registered, mode=$mode")
@@ -71,7 +71,7 @@ class SkillRegistrySchemaTest {
     // this test ever fails, somebody has split the two views again
     // (e.g. reintroduced a hardcoded set in getSchemas).
     for (mode in ToolMode.entries) {
-      val schemaNames: Set<String> = SkillRegistry.getSchemas(mode).map { nameOf(it) }.toSet()
+      val schemaNames: Set<String> = SkillRegistry.getSchemas(toolMode = mode).map { nameOf(it) }.toSet()
       val allowedNames: Set<String> = SkillRegistry.getAllSkills()
         .filter { mode in it.allowedToolModes }
         .map { it.skillName }

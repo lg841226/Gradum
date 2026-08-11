@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-07-14 21:27:12 Changed by gwy
+ * SkillRegistry.kt  2026-08-11 23:23:16 Changed by gwy
  */
 
 package gradum.skill
@@ -59,9 +59,9 @@ object SkillRegistry {
    * calls regardless of the schema filter).
    */
   fun getSchemas(
-    toolMode: ToolMode = ToolMode.AGENT,
-    provider: Provider = Provider.OLLAMA,
     modelName: String = "",
+    toolMode: ToolMode = ToolMode.AGENT,
+    provider: Provider = Provider.OLLAMA
   ): List<Map<String, Any>> {
     val schemaContext = SkillContext(toolMode, "", provider, modelName)
     return registeredSkills.values
@@ -129,16 +129,8 @@ object SkillRegistry {
     Files.walk(targetDirectory).use { paths ->
       paths.filter { it.toString().endsWith(".class") }
         .forEach { classFilePath ->
-          if (getClassName(classFilePath, targetDirectory) != null) {
-            try {
-              val matchedClass = Class.forName(getClassName(classFilePath, targetDirectory))
-              if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
-                discoveredClasses.add(matchedClass)
-              }
-            } catch (loadException: ClassNotFoundException) {
-                logger.debug("Skipping unloadable class ${getClassName(classFilePath, targetDirectory)}: ${loadException.message}", loadException)
-              }
-          }
+          loadConcreteClass(getClassName(classFilePath, targetDirectory))
+            ?.let { discoveredClasses.add(it) }
         }
     }
     return discoveredClasses
@@ -161,14 +153,7 @@ object SkillRegistry {
                 .replace('/', '.')
                 .removeSuffix(".class")
 
-              try {
-                val matchedClass = Class.forName(className)
-                if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
-                  discoveredClasses.add(matchedClass)
-                }
-              } catch (loadException: ClassNotFoundException) {
-                logger.debug("Skipping unloadable class $className: ${loadException.message}", loadException)
-              }
+              loadConcreteClass(className)?.let { discoveredClasses.add(it) }
             }
         }
       }
@@ -177,6 +162,24 @@ object SkillRegistry {
     }
 
     return discoveredClasses
+  }
+
+  /**
+   * Loads [className] and returns it only when it is a concrete (non-interface,
+   * non-abstract) class, or null when unloadable. Shared by the directory and
+   * JAR scanners so both apply the identical filter.
+   */
+  private fun loadConcreteClass(className: String?): Class<*>? {
+    if (className == null) return null
+    return try {
+      val matchedClass: Class<*> = Class.forName(className)
+      if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers))
+        matchedClass
+      else null
+    } catch (loadException: ClassNotFoundException) {
+      logger.debug("Skipping unloadable class $className: ${loadException.message}", loadException)
+      null
+    }
   }
 
   private fun getClassName(classFilePath: Path, baseDirectory: Path): String? {

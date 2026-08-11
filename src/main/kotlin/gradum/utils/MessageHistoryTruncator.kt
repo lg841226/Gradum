@@ -85,16 +85,8 @@ private fun findTurnStart(messages: List<Map<String, Any>>, tailIndex: Int): Int
 
   if (lastRole == "tool") {
     var toolRunStart: Int = tailIndex
-    var foundBoundary = true
-
-    while (foundBoundary) {
-      val previousIndex: Int = toolRunStart - 1
-      if (previousIndex < 0)
-        foundBoundary = false
-      else if (roleOf(messages[previousIndex]) == "tool")
-        toolRunStart = previousIndex
-      else foundBoundary = false
-    }
+    while (toolRunStart > 0 && roleOf(messages[toolRunStart - 1]) == "tool")
+      toolRunStart--
 
     val assistantIndex: Int = toolRunStart - 1
     if (assistantIndex >= 0 && roleOf(messages[assistantIndex]) == "assistant")

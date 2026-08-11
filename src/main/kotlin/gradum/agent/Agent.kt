@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-11 21:58:16 Changed by gwy
+ * Agent.kt  2026-08-11 23:23:16 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -177,9 +177,9 @@ class Agent(
     }
 
     val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
+      modelName = configuration.modelName,
       toolMode = configuration.toolMode,
-      provider = configuration.provider,
-      modelName = configuration.modelName
+      provider = configuration.provider
     )
 
     while (true) {
@@ -203,23 +203,22 @@ class Agent(
       if (matchedRedLineKeywords.isNotEmpty()) {
         redLineHitCounter++
         redLineHitKeywords.addAll(matchedRedLineKeywords)
-        emitEvent(
-          "guardrail", mapOf(
-            "type" to "red_line_hit",
-            "keywords" to matchedRedLineKeywords,
-            "hitCount" to redLineHitCounter,
-            "maxAllowed" to configuration.maxRedLineHits,
-          )
+        recordGuardrail(
+          type = "red_line_hit",
+          guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
+          hitCount = redLineHitCounter,
+          maxAllowed = configuration.maxRedLineHits,
         )
-        if (redLineHitCounter >= configuration.maxRedLineHits) {
-          result.responseText?.let { text -> appendAssistantMessage(text, null) }
-          emitRevoked(
-            "red_line_violation", mapOf(
+        if (redLineHitCounter >= configuration.maxRedLineHits &&
+          handleGuardrailExceeded(
+            responseText = result.responseText,
+            revokeReason = "red_line_violation",
+            revokeDetails = mapOf(
               "hitCount" to redLineHitCounter,
               "keywords" to redLineHitKeywords.toList(),
-            )
+            ),
           )
-          abortSession()
+        ) {
           break
         }
       }
@@ -229,23 +228,22 @@ class Agent(
         repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
       if (isDuplicate || isAbnormalResponse(result.responseText)) {
         repeatedResponseTracker.add(currentResponse)
-        emitEvent(
-          "guardrail", mapOf(
-            "type" to "repeated_response",
-            "detail" to (result.responseText ?: ""),
-            "repeatedCount" to repeatedResponseTracker.size,
-            "maxAllowed" to configuration.maxRepeatedResponses,
-          )
+        recordGuardrail(
+          type = "repeated_response",
+          guardrailDetails = mapOf("detail" to (result.responseText ?: "")),
+          hitCount = repeatedResponseTracker.size,
+          maxAllowed = configuration.maxRepeatedResponses,
         )
-        if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses) {
-          result.responseText?.let { text -> appendAssistantMessage(text, null) }
-          emitRevoked(
-            "repetitive_loop", mapOf(
+        if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses &&
+          handleGuardrailExceeded(
+            responseText = result.responseText,
+            revokeReason = "repetitive_loop",
+            revokeDetails = mapOf(
               "repeatedCount" to repeatedResponseTracker.size,
               "responses" to repeatedResponseTracker.toList(),
-            )
+            ),
           )
-          abortSession()
+        ) {
           break
         }
       } else repeatedResponseTracker.clear()
@@ -274,8 +272,8 @@ class Agent(
     }
     val primaryPath: String = when (resolvedVariant) {
       CLOUD -> "/prompts/system/cloud.xml"
-      LOCAL -> "/prompts/system/local.xml"
-      AUTO -> "/prompts/system/local.xml"
+      // AUTO is fully resolved to CLOUD/LOCAL above, so this arm is unreachable.
+      else -> "/prompts/system/local.xml"
     }
 
     val promptContent: String = try {
@@ -570,7 +568,6 @@ class Agent(
 
     if (checkToolRunaway(functionName, convertedArguments)) {
       logger.error("Result: TOOL_RUNAWAY — repeated call ($repeatedToolCallCount times), aborting")
-      executionResult = emptyMap()
       emitRevoked(
         "tool_runaway", mapOf(
           "tool" to functionName,
@@ -579,7 +576,10 @@ class Agent(
         )
       )
       abortSession()
-    } else if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
+      return emptyMap()
+    }
+
+    if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
       val commandText: String = convertedArguments["command"] as? String ?: ""
       val verdict: gradum.utils.CommandVerdict =
         gradum.utils.classifyCommand(commandText, configuration.toolMode)
@@ -603,30 +603,22 @@ class Agent(
           executionResult,
           isLastToolCall
         )
-      } else {
-        skillInstance = SkillRegistry.getSkill(functionName)
-        executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-        emitToolResult(
-          processedCall,
-          functionName,
-          convertedArguments,
-          skillInstance,
-          executionResult,
-          isLastToolCall
-        )
+        logToolResult(executionResult)
+        return executionResult
       }
-    } else {
-      skillInstance = SkillRegistry.getSkill(functionName)
-      executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-      emitToolResult(
-        processedCall,
-        functionName,
-        convertedArguments,
-        skillInstance,
-        executionResult,
-        isLastToolCall
-      )
     }
+
+    skillInstance = SkillRegistry.getSkill(functionName)
+    executionResult = executeSkill(skillInstance, functionName, convertedArguments)
+
+    emitToolResult(
+      processedCall,
+      functionName,
+      convertedArguments,
+      skillInstance,
+      executionResult,
+      isLastToolCall
+    )
 
     logToolResult(executionResult)
     return executionResult
@@ -696,7 +688,7 @@ class Agent(
 
         is ParsedToolCall -> {
           val toolIndex: Int = recordings.size
-          val callEntry: ToolCallEntry = ToolCallEntry(
+          val callEntry = ToolCallEntry(
             callIdentifier = "playback_${toolIndex + 1}",
             functionName = step.functionName,
             functionArguments = step.functionArguments,
@@ -998,6 +990,42 @@ class Agent(
         "details" to details,
       )
     )
+  }
+
+  /**
+   * Emits a `guardrail` event. Shared by the red-line and repeated-response
+   * escalations so both hit the same wire shape.
+   */
+  private fun recordGuardrail(
+    type: String,
+    guardrailDetails: Map<String, Any>,
+    hitCount: Int,
+    maxAllowed: Int,
+  ): Unit {
+    emitEvent(
+      "guardrail",
+      mapOf(
+        "type" to type,
+        "hitCount" to hitCount,
+        "maxAllowed" to maxAllowed,
+      ) + guardrailDetails,
+    )
+  }
+
+  /**
+   * Escalates an exhausted guardrail: persist the offending assistant
+   * message, emit `mission_revoked`, and abort the session. Returns true
+   * so the caller can `break` out of the agent loop.
+   */
+  private fun handleGuardrailExceeded(
+    responseText: String?,
+    revokeReason: String,
+    revokeDetails: Map<String, Any>,
+  ): Boolean {
+    responseText?.let { text -> appendAssistantMessage(text, null) }
+    emitRevoked(revokeReason, revokeDetails)
+    abortSession()
+    return true
   }
 
   private fun abortSession(): Unit {

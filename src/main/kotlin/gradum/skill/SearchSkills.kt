@@ -265,9 +265,35 @@ class GrepSkill : Skill() {
   )
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleSchema = context.isSimpleModel
-    return if (useSimpleSchema) executeLocal(arguments, context)
-    else executeCloud(arguments, context)
+    val ignoreCase = if (context.isSimpleModel) {
+      false
+    } else {
+      val caseSensitive = when (val v = arguments["caseSensitive"]) {
+        is Boolean -> v
+        is String -> v.toBooleanStrictOrNull() ?: false
+        else -> false
+      }
+      !caseSensitive
+    }
+    return executeInternal(arguments, context, ignoreCase)
+  }
+
+  private fun executeInternal(
+    arguments: Map<String, Any>,
+    context: SkillContext,
+    ignoreCase: Boolean,
+  ): SkillResult {
+    val params = when (val result = prepareSearch(arguments, context, ignoreCase)) {
+      is Either.Success -> result.value
+      is Either.Failure -> return result.error
+    }
+
+    val includeMatcher = buildIncludeMatcher(params.includeFilter)
+    val files = collectFiles(params.rootFile, includeMatcher)
+    if (files.isEmpty()) return buildEmptyResult(params)
+
+    val results = searchFiles(files, params.regex, params.limit)
+    return buildSearchResult(params, results, files.size)
   }
 
   private fun prepareSearch(
@@ -328,40 +354,6 @@ class GrepSkill : Skill() {
         limit = limit
       )
     )
-  }
-
-  private fun executeLocal(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val params = when (val result = prepareSearch(arguments, context, ignoreCase = false)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
-
-    val includeMatcher = buildIncludeMatcher(params.includeFilter)
-    val files = collectFiles(params.rootFile, includeMatcher)
-    if (files.isEmpty()) return buildEmptyResult(params)
-
-    val results = searchFiles(files, params.regex, params.limit)
-    return buildSearchResult(params, results, files.size)
-  }
-
-  private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val caseSensitive = when (val v = arguments["caseSensitive"]) {
-      is Boolean -> v
-      is String -> v.toBooleanStrictOrNull() ?: false
-      else -> false
-    }
-
-    val params = when (val result = prepareSearch(arguments, context, ignoreCase = !caseSensitive)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
-
-    val includeMatcher = buildIncludeMatcher(params.includeFilter)
-    val files = collectFiles(params.rootFile, includeMatcher)
-    if (files.isEmpty()) return buildEmptyResult(params)
-
-    val results = searchFiles(files, params.regex, params.limit)
-    return buildSearchResult(params, results, files.size)
   }
 
   private fun buildEmptyResult(params: SearchParams): SkillResult {
@@ -531,9 +523,33 @@ class GlobSkill : Skill() {
   )
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleSchema = context.isSimpleModel
-    return if (useSimpleSchema) executeLocal(arguments, context)
-    else executeCloud(arguments, context)
+    return executeInternal(arguments, context)
+  }
+
+  private fun executeInternal(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+    val params = when (val result = prepareGlobSearch(arguments, context)) {
+      is Either.Success -> result.value
+      is Either.Failure -> return result.error
+    }
+
+    val matchedFiles = globSearch(
+      params.rootFile,
+      params.projectRoot,
+      params.globMatcher,
+      params.fallbackMatcher,
+      params.limit,
+    )
+    val limitApplied = matchedFiles.size >= params.limit
+
+    return makeSuccess(
+      linkedMapOf(
+        "pattern" to params.pattern,
+        "search_path" to params.resolvedPath.toString(),
+        "total_files" to matchedFiles.size,
+        "files" to matchedFiles,
+        "limit_applied" to limitApplied
+      )
+    )
   }
 
   private fun prepareGlobSearch(
@@ -610,58 +626,6 @@ class GlobSkill : Skill() {
         resolvedPath = resolvedPath,
         projectRoot = projectRoot,
         limit = limit
-      )
-    )
-  }
-
-  private fun executeLocal(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val params = when (val result = prepareGlobSearch(arguments, context)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
-
-    val matchedFiles = globSearch(
-      params.rootFile,
-      params.projectRoot,
-      params.globMatcher,
-      params.fallbackMatcher,
-      params.limit,
-    )
-    val limitApplied = matchedFiles.size >= params.limit
-
-    return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_files" to matchedFiles.size,
-        "files" to matchedFiles,
-        "limit_applied" to limitApplied
-      )
-    )
-  }
-
-  private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val params = when (val result = prepareGlobSearch(arguments, context)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
-
-    val matchedFiles = globSearch(
-      params.rootFile,
-      params.projectRoot,
-      params.globMatcher,
-      params.fallbackMatcher,
-      params.limit,
-    )
-    val limitApplied = matchedFiles.size >= params.limit
-
-    return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_files" to matchedFiles.size,
-        "files" to matchedFiles,
-        "limit_applied" to limitApplied
       )
     )
   }
