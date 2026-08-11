@@ -515,8 +515,8 @@ object SyntaxChecker {
 
         configuration.outputParser.parse(compilerOutput, resolvedFilePath)
           .map { issue: SyntaxIssue -> issue.toMap() }
-      } catch (exception: Exception) {
-        logger.warn("Syntax check failed for $executableName: ${exception.message}")
+      } catch (syntaxCheckException: Exception) {
+        logger.warn("Syntax check failed for $executableName: ${syntaxCheckException.message}", syntaxCheckException)
         continue
       }
     }

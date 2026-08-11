@@ -20,9 +20,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.IOException
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
+
+private val logger: Logger = LoggerFactory.getLogger("LLMClient")
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
@@ -383,7 +387,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
       val parsedPayload: JsonObject = try {
         jsonParser.parseToJsonElement(eventBody).jsonObject
-      } catch (_: Exception) {
+      } catch (jsonParseException: Exception) {
+        logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
         continue
       }
 
@@ -446,7 +451,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
       val parsedArguments: Map<String, JsonElement> = try {
         jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
-      } catch (_: Exception) {
+      } catch (jsonParseException: Exception) {
+        logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
         emptyMap()
       }
 

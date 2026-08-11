@@ -10,10 +10,6 @@ package gradum.server
 import gradum.*
 import gradum.Version
 import gradum.agent.Agent
-import gradum.discovery.ModelEntry
-import gradum.discovery.RecommendationContext
-import gradum.discovery.discoverModels
-import gradum.discovery.recommend
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
 import gradum.utils.JsonUtil
@@ -219,7 +215,7 @@ fun Application.registerAllRoutes() {
       val agentConfiguration = AgentConfiguration(
         provider = resolvedProvider,
         modelName = requestBody.model
-          ?: discoverModels().firstOrNull { it.available }?.modelName
+          ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
           ?: "",
         baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
         toolMode = resolvedToolMode,
@@ -323,13 +319,13 @@ fun Application.registerAllRoutes() {
     }
 
     get("/models") {
-      val discoveredModels: List<ModelEntry> = discoverModels()
+      val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
       // Re-snapshot free memory on every request so a freshly
       // opened IDE / browser does not push the local ranking
       // past a user's available headroom. Per-request cost is
       // one getFreeMemorySize() syscall — negligible.
       val recommendationContext: RecommendationContext = RecommendationContext.fromSystemMemory()
-      val recommended: ModelEntry? = recommend(discoveredModels, recommendationContext)
+      val recommended: ModelEntry? = ModelIdentity.recommend(discoveredModels, recommendationContext)
       application.log.info(
         "Discovered ${discoveredModels.size} models; available RAM headroom " +
           "= ${"%.1f".format(recommendationContext.availableRamGB)} GB; " +

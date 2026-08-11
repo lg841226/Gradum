@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.Path
@@ -21,6 +23,8 @@ import java.nio.file.Paths
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.PatternSyntaxException
+
+private val logger: Logger = LoggerFactory.getLogger("SearchSkills")
 
 private const val MAX_CONCURRENCY: Int = 4
 private const val MAX_FILE_SIZE: Long = 2L * 1024 * 1024
@@ -92,7 +96,8 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
   if (relativePath.isNullOrBlank()) {
     return try {
       Paths.get(projectRoot).toAbsolutePath().normalize()
-    } catch (_: Exception) {
+    } catch (pathException: Exception) {
+      logger.debug("Invalid project root '$projectRoot': ${pathException.message}", pathException)
       null
     }
   }
@@ -100,7 +105,8 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
   val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
   return try {
     resolved.resolved
-  } catch (_: Exception) {
+  } catch (pathException: Exception) {
+    logger.debug("Failed to resolve search path '$relativePath': ${pathException.message}", pathException)
     null
   }
 }
@@ -163,7 +169,8 @@ private fun walkFilteredImpl(
 ) {
   val entries = try {
     dir.listFiles()?.toList() ?: emptyList()
-  } catch (_: SecurityException) {
+  } catch (securityIssueException: SecurityException) {
+    logger.debug("SecurityException listing ${dir.path}: ${securityIssueException.message}", securityIssueException)
     return
   }
 
@@ -397,11 +404,12 @@ class GrepSkill : Skill() {
     if (includeFilter.isBlank()) return null
     return try {
       FileSystems.getDefault().getPathMatcher("glob:$includeFilter")
-    } catch (_: Exception) {
+    } catch (matcherException: Exception) {
       // If the user's include glob is malformed, fall back to a
       // permissive filter (match every file) rather than silently
       // returning no files. The LLM will still get the matches from
       // any unfiltered files in the tree.
+      logger.debug("Malformed include glob '$includeFilter': ${matcherException.message}", matcherException)
       FileSystems.getDefault().getPathMatcher("glob:**")
     }
   }
@@ -462,7 +470,8 @@ class GrepSkill : Skill() {
           }
         }
       }
-    } catch (_: Exception) {
+    } catch (readException: Exception) {
+      logger.debug("Failed to search ${file.path}: ${readException.message}", readException)
     }
   }
 }
@@ -567,7 +576,8 @@ class GlobSkill : Skill() {
     // glob to regex by hand.
     val globMatcher = try {
       FileSystems.getDefault().getPathMatcher("glob:$patternStr")
-    } catch (_: Exception) {
+    } catch (matcherException: Exception) {
+      logger.debug("Invalid glob pattern '$patternStr': ${matcherException.message}", matcherException)
       null
     } ?: return Either.Failure(
       makeFailure(
@@ -589,7 +599,8 @@ class GlobSkill : Skill() {
       val stripped = patternStr.removePrefix("**/")
       try {
         FileSystems.getDefault().getPathMatcher("glob:$stripped")
-      } catch (_: Exception) {
+      } catch (matcherException: Exception) {
+        logger.debug("Invalid fallback glob pattern '$stripped': ${matcherException.message}", matcherException)
         null
       }
     } else null

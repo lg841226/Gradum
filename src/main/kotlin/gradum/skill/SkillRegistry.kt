@@ -135,8 +135,9 @@ object SkillRegistry {
               if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
                 discoveredClasses.add(matchedClass)
               }
-            } catch (_: ClassNotFoundException) {
-            }
+            } catch (loadException: ClassNotFoundException) {
+                logger.debug("Skipping unloadable class ${getClassName(classFilePath, targetDirectory)}: ${loadException.message}", loadException)
+              }
           }
         }
     }
@@ -165,7 +166,8 @@ object SkillRegistry {
                 if (!matchedClass.isInterface && !Modifier.isAbstract(matchedClass.modifiers)) {
                   discoveredClasses.add(matchedClass)
                 }
-              } catch (_: ClassNotFoundException) {
+              } catch (loadException: ClassNotFoundException) {
+                logger.debug("Skipping unloadable class $className: ${loadException.message}", loadException)
               }
             }
         }

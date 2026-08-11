@@ -8,7 +8,11 @@
 package gradum.utils
 
 import gradum.ToolMode
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.nio.file.Paths
+
+private val logger: Logger = LoggerFactory.getLogger("CommandFilter")
 
 sealed class CommandVerdict {
 
@@ -201,7 +205,8 @@ private fun extractPathArguments(commandTokens: List<String>): List<String> {
 private fun resolveAbsolutePath(pathString: String): String {
   return try {
     Paths.get(pathString).toAbsolutePath().normalize().toString()
-  } catch (_: Exception) {
+  } catch (pathException: Exception) {
+    logger.debug("Failed to resolve path '$pathString': ${pathException.message}", pathException)
     pathString
   }
 }

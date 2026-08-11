@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-07-15 22:41:33 Changed by gwy
+ * EditFileSkill.kt  2026-08-11 19:26:35 Changed by gwy
  */
 
 package gradum.skill
@@ -16,10 +16,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+
+private val logger: Logger = LoggerFactory.getLogger("EditFileSkill")
 
 /**
  * Search-and-replace file editing. Local models edit one file at a time with
@@ -159,7 +163,7 @@ class EditFileSkill : Skill() {
       val originalContent: String = targetFile.readText(Charsets.UTF_8)
       val singleEdit = listOf(EditOperation(oldString, newString, 0))
       applySequentialEdits(resolvedPath, originalContent, singleEdit)
-    } catch (_: FileNotFoundException) {
+    } catch (missingFileException: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
           code = "FILE_NOT_FOUND",
@@ -167,11 +171,11 @@ class EditFileSkill : Skill() {
           fixHint = "Check the current file path. you could run_cmd to find the correct path."
         ), mapOf("path" to resolvedPath.toString())
       )
-    } catch (exception: Exception) {
+    } catch (editException: Exception) {
       makeFailure(
         ErrorCode.IO_ERROR, buildXmlError(
           code = "IO_ERROR",
-          message = exception.message ?: "Unknown error during edit.",
+          message = editException.message ?: "Unknown error during edit.",
           fixHint = "Check file permissions and disk space. Stop editing."
         ), mapOf("path" to resolvedPath.toString())
       )
@@ -236,7 +240,7 @@ class EditFileSkill : Skill() {
         )
       }
       applySequentialEdits(resolvedPath, originalContent, parsedEdits)
-    } catch (_: FileNotFoundException) {
+    } catch (missingFileException: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
           code = "FILE_NOT_FOUND",
@@ -244,11 +248,11 @@ class EditFileSkill : Skill() {
           fixHint = "Check the file path. Use run_cmd tool to find the correct path."
         ), mapOf("path" to resolvedPath.toString())
       )
-    } catch (exception: Exception) {
+    } catch (editException: Exception) {
       makeFailure(
         ErrorCode.IO_ERROR, buildXmlError(
           code = "IO_ERROR",
-          message = exception.message ?: "Unknown error during edit.",
+          message = editException.message ?: "Unknown error during edit.",
           fixHint = "Check file permissions and disk space. Stop editing."
         ), mapOf("path" to resolvedPath.toString())
       )
@@ -289,7 +293,8 @@ class EditFileSkill : Skill() {
 
           val bestMatch = matchResult.matches.first()
           val replaceLines =
-            if (editOperation.replaceText.isBlank()) emptyList() else editOperation.replaceText.lines()
+            if (editOperation.replaceText.isBlank()) emptyList()
+            else editOperation.replaceText.lines()
 
           linesRemoved += searchLines.size
           linesAdded += replaceLines.size
@@ -302,7 +307,13 @@ class EditFileSkill : Skill() {
         }
 
         is FindResult.NotFound -> {
-          writeWithLock(fileMutation, resolvedPath, currentContent, originalContent, appliedEdits.size)
+          writeWithLock(
+            fileMutation,
+            resolvedPath,
+            currentContent,
+            originalContent,
+            appliedEdits.size
+          )
             ?.let { return it }
 
           val failureStep = when (matchResult.failedAtStep) {
@@ -408,7 +419,8 @@ class EditFileSkill : Skill() {
               } else null
             }
           }
-        } catch (_: Exception) { /* Fall through to empty */
+        } catch (jsonParseException: Exception) { // Fall through to empty
+          logger.debug("Failed to parse 'edits' argument: ${jsonParseException.message}", jsonParseException)
         }
       }
       return emptyList()

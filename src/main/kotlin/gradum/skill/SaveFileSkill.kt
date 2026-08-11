@@ -9,8 +9,12 @@ package gradum.skill
 
 import gradum.*
 import io.ktor.utils.io.charsets.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
+
+private val logger: Logger = LoggerFactory.getLogger("SaveFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = 512 * 1024
 
@@ -120,7 +124,8 @@ class SaveFileSkill : Skill() {
 
     val fileCharset: Charset = try {
       Charsets.forName(encodingName)
-    } catch (_: Exception) {
+    } catch (encodingException: Exception) {
+      logger.warn("Unsupported encoding '$encodingName': ${encodingException.message}", encodingException)
       return makeFailure(
         ErrorCode.INVALID_PARAMETER, buildXmlError(
           code = "INVALID_PARAMETER",

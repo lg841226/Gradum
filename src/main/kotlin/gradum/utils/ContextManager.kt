@@ -89,8 +89,8 @@ class ContextManager(private val outputDirectory: Path) {
 
       logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
       decryptedMessages
-    } catch (exception: Exception) {
-      logger.error("Failed to load context: ${exception.message}", exception)
+    } catch (loadException: Exception) {
+      logger.error("Failed to load context: ${loadException.message}", loadException)
       emptyList()
     }
   }
@@ -123,15 +123,15 @@ class ContextManager(private val outputDirectory: Path) {
           StandardCopyOption.REPLACE_EXISTING,
           StandardCopyOption.ATOMIC_MOVE,
         )
-      } catch (_: AtomicMoveNotSupportedException) {
-        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back")
+      } catch (moveException: AtomicMoveNotSupportedException) {
+        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back", moveException)
         Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
       }
       val writtenSize: Long = contextFilePath.toFile().length()
 
       logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted"); true
-    } catch (exception: Exception) {
-      logger.error("Failed to save context: ${exception.message}", exception); false
+    } catch (saveException: Exception) {
+      logger.error("Failed to save context: ${saveException.message}", saveException); false
     }
   }
 
@@ -270,8 +270,8 @@ class ContextManager(private val outputDirectory: Path) {
       message["content"] = decryptMessageContent(encryptedContent)
       message.remove("_encrypted")
       message
-    } catch (exception: Exception) {
-      logger.warn("Failed to decrypt message: ${exception.message}"); null
+    } catch (decryptException: Exception) {
+      logger.warn("Failed to decrypt message: ${decryptException.message}", decryptException); null
     }
   }
 

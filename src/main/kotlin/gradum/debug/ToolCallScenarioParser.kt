@@ -14,9 +14,13 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.w3c.dom.Attr
 import org.w3c.dom.Element
 import org.w3c.dom.NamedNodeMap
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import javax.xml.parsers.DocumentBuilderFactory
+
+private val logger: Logger = LoggerFactory.getLogger("ToolCallScenarioParser")
 
 /** A single scenario step: either an AI reply segment or a tool call. */
 sealed interface ScenarioStep {
@@ -97,8 +101,9 @@ object ToolCallScenarioParser {
       documentBuilderFactory.setFeature(
         "http://apache.org/xml/features/nonvalidating/load-external-dtd", false
       )
-    } catch (_: Exception) {
+    } catch (featureException: Exception) {
       // Parser implementations without this feature just parse as-is.
+      logger.debug("Parser does not support the anti-DTD feature, parsing without it", featureException)
     }
 
     val documentBuilder = documentBuilderFactory.newDocumentBuilder()

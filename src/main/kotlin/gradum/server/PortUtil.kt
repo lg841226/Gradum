@@ -22,8 +22,8 @@ fun isPortAvailable(checkPort: Int, hostAddress: String = "localhost"): Boolean 
       socket.connect(InetSocketAddress(hostAddress, checkPort), TIME_OUT)
       false
     }
-  } catch (exception: Exception) {
-    logger.warn("Could not connect to $checkPort - ${exception.message}")
+  } catch (connectException: Exception) {
+    logger.warn("Could not connect to $checkPort - ${connectException.message}", connectException)
     true
   }
 }

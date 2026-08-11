@@ -5,7 +5,7 @@
  * ModelRecommenderTest.kt  2026-07-04 23:12:12 Changed by gwy
  */
 
-package gradum.discovery
+package gradum
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -60,7 +60,7 @@ class ModelRecommenderTest {
 
   @Test
   fun `empty model list returns null`() {
-    val result: ModelEntry? = recommend(emptyList(), RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(emptyList(), RecommendationContext(availableRamGB = 16.0))
     assertNull(result)
   }
 
@@ -70,7 +70,7 @@ class ModelRecommenderTest {
       localModel("qwen", paramsB = 7.0),
       cloudModel("gpt-4o"),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("gpt-4o", result?.modelName)
   }
 
@@ -81,7 +81,7 @@ class ModelRecommenderTest {
       localModel("qwen", paramsB = 7.0),
       localModel("qwen", paramsB = 32.0),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 32.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 32.0))
     assertEquals("qwen-32b", result?.modelName)
   }
 
@@ -92,7 +92,7 @@ class ModelRecommenderTest {
       localModel("qwen", paramsB = 32.0),
       localModel("qwen", paramsB = 7.0),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("qwen-7b", result?.modelName)
   }
 
@@ -109,7 +109,7 @@ class ModelRecommenderTest {
       ),
       localModel("qwen", paramsB = 7.0),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("minimax-m2.5:cloud", result?.modelName)
   }
 
@@ -122,7 +122,7 @@ class ModelRecommenderTest {
       ModelEntry("llama-3-70b", "openai", "https://api.together.xyz", "TogetherAI"),
       localModel("qwen", paramsB = 7.0),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("llama-3-70b", result?.modelName)
   }
 
@@ -132,7 +132,7 @@ class ModelRecommenderTest {
       cloudModel("gpt-3.5-turbo", context = 16_000),
       cloudModel("gpt-4o", context = 128_000),
     )
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("gpt-4o", result?.modelName)
   }
 
@@ -141,26 +141,26 @@ class ModelRecommenderTest {
     val plain: ModelEntry = cloudModel("plain-model")
     val capable: ModelEntry = cloudModel("capable-model", reasoning = true, toolCall = true)
     val models: List<ModelEntry> = listOf(plain, capable)
-    val result: ModelEntry? = recommend(models, RecommendationContext(availableRamGB = 16.0))
+    val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))
     assertEquals("capable-model", result?.modelName)
   }
 
   @Test
   fun `parseParamsB parses integer size suffix`() {
     val model: ModelEntry = localModel("qwen", paramsB = 32.0)
-    assertEquals(32.0, parameterCountInBillions(model), 0.001)
+    assertEquals(32.0, ModelIdentity.parameterCountInBillions(model), 0.001)
   }
 
   @Test
   fun `parseParamsB parses decimal size suffix`() {
     val model: ModelEntry = localModel("qwen", paramsB = 0.5)
-    assertEquals(0.5, parameterCountInBillions(model), 0.001)
+    assertEquals(0.5, ModelIdentity.parameterCountInBillions(model), 0.001)
   }
 
   @Test
   fun `parseParamsB returns zero when no size suffix is present`() {
     val model: ModelEntry = localModel("qwen2.5", paramsB = null)
-    assertEquals(0.0, parameterCountInBillions(model), 0.001)
+    assertEquals(0.0, ModelIdentity.parameterCountInBillions(model), 0.001)
   }
 
   @Test

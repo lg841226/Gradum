@@ -285,8 +285,8 @@ class Agent(
       Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
         stream.reader(Charsets.UTF_8).readText()
       } ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
-    } catch (exception: Exception) {
-      logger.warn("Could not load system prompt, reason: ${exception.message}")
+    } catch (promptLoadException: Exception) {
+      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}", promptLoadException)
       "You are a helpful AI assistant. You can't call any tool and report it"
     }
 
@@ -301,8 +301,8 @@ class Agent(
       Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
         stream.reader(Charsets.UTF_8).readText()
       } ?: "You have no tools available in this session."
-    } catch (exception: Exception) {
-      logger.warn("Could not load mode section $modeSectionPath: ${exception.message}")
+    } catch (modeSectionException: Exception) {
+      logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}", modeSectionException)
       "You have no tools available in this session."
     }
 
@@ -353,7 +353,8 @@ class Agent(
 
           val conditionVariant = try {
             SchemaVariant.valueOf(conditionName)
-          } catch (_: IllegalArgumentException) {
+          } catch (variantException: IllegalArgumentException) {
+            logger.debug("Unknown conditional variant '$conditionName': ${variantException.message}", variantException)
             null
           }
 
@@ -655,11 +656,11 @@ class Agent(
   private fun playToolCallScenario(toolCallXml: String): Unit {
     val scenario: ToolCallScenario = try {
       ToolCallScenarioParser.parse(toolCallXml)
-    } catch (exception: ToolCallScenarioParseException) {
+    } catch (scenarioException: ToolCallScenarioParseException) {
       emitEvent(
         "error", mapOf(
           "code" to ErrorCode.INVALID_SCENARIO_XML.name,
-          "message" to (exception.message ?: "Failed to parse tool-call scenario"),
+          "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
           "source" to "debug_playback"
         )
       )
@@ -792,8 +793,8 @@ class Agent(
       )
       Files.writeString(recordingFile, JsonUtil.encodeMap(summary, prettyPrint = true))
       logger.info("Playback recording written to $recordingFile")
-    } catch (exception: Exception) {
-      logger.error("Failed to write playback recording: ${exception.message}")
+    } catch (recordingException: Exception) {
+      logger.error("Failed to write playback recording", recordingException)
     }
   }
 
@@ -971,8 +972,8 @@ class Agent(
         logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
         emptyList()
       }
-    } catch (exception: Exception) {
-      logger.warn("Failed to load red_line_keywords.txt: ${exception.message}")
+    } catch (keywordLoadException: Exception) {
+      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}", keywordLoadException)
       emptyList()
     }
   }

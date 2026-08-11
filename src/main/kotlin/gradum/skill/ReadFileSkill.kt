@@ -8,10 +8,14 @@
 package gradum.skill
 
 import gradum.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
+
+private val logger: Logger = LoggerFactory.getLogger("ReadFileSkill")
 
 private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 private const val MAXIMUM_LINES: Int = 10000
@@ -211,7 +215,7 @@ class ReadFileSkill : Skill() {
           )
         )
       }
-    } catch (_: FileNotFoundException) {
+    } catch (missingFileException: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND,
         buildXmlError(

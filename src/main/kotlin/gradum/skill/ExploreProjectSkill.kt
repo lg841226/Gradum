@@ -76,8 +76,9 @@ class ExploreProjectSkill : Skill() {
     val content: String = message["content"] as? String ?: return message
     val parsed: Map<String, Any?> = try {
       gradum.utils.JsonUtil.decodeMap(content)
-    } catch (_: Exception) {
+    } catch (jsonParseException: Exception) {
       // Not a JSON object (plain string, error marker, etc.) — leave alone.
+      logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
       return message
     }
 
@@ -194,7 +195,8 @@ class ExploreProjectSkill : Skill() {
 
     val resolvedPath: Path = try {
       Paths.get(projectRoot).toAbsolutePath().normalize()
-    } catch (_: Exception) {
+    } catch (pathException: Exception) {
+      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}", pathException)
       return makeFailure(
         ErrorCode.INVALID_PARAMETER,
         buildXmlError(
@@ -396,7 +398,8 @@ private fun countLines(targetFile: File): Int {
     targetFile.bufferedReader().use { bufferedReader ->
       bufferedReader.lines().count().toInt()
     }
-  } catch (_: Exception) {
+  } catch (readException: Exception) {
+    logger.debug("Failed to count lines in ${targetFile.path}: ${readException.message}", readException)
     0
   }
 }
@@ -448,7 +451,8 @@ private fun scanDirectory(
     logger.warn("SecurityException listing $targetDirectory: $reason", securityException)
     val relativePath: String = try {
       scanResult.relativeRoot.relativize(targetDirectory).toString()
-    } catch (_: IllegalArgumentException) {
+    } catch (relativizeException: IllegalArgumentException) {
+      logger.debug("Failed to relativize $targetDirectory: ${relativizeException.message}", relativizeException)
       targetDirectory.toString()
     }
     scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
