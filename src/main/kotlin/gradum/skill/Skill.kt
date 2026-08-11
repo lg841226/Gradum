@@ -221,7 +221,12 @@ abstract class Skill {
   ) {
     if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return
     if (ownMessageIndices.isEmpty()) return
-    val dropCount: Int = (callCount - historyKeepCount).coerceAtLeast(0)
+    // Use the actual remaining own-message count (not the session-global
+    // callCount) so that truncation by [Agent.truncateHistory] doesn't
+    // cause over-stripping.  `ownMessageIndices.size + 1` accounts for
+    // the current call (not yet appended when this runs).  In the normal
+    // no-truncation case `size + 1 == callCount`, so behaviour is unchanged.
+    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
     val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
     if (dropEndIndex == 0) return
     for (i in 0 until dropEndIndex) {

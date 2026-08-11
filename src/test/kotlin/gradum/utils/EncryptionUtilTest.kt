@@ -2,24 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EncryptionUtilTest.kt  2026-07-13  Changed by gwy
- *
- * Locked in by these cases: changing the wire format (version byte,
- * nonce size, HMAC size, block size, KDF domain-separation labels,
- * tag placement) requires updating both this test and EncryptionUtil
- * — the test will fail loudly if any of the structural assumptions
- * shift, which is exactly what we want for a security boundary.
- *
- * Threat model assumed by these tests: the attacker can read and
- * write the on-disk ciphertext but does not have the encryption /
- * authentication key. Tampering tests cover bit-flip, byte-drop,
- * byte-insert, and key-rotation scenarios.
+ * EncryptionUtilTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.utils
 
 import java.lang.reflect.Field
-import java.util.Base64
+import java.util.*
 import kotlin.test.*
 
 class EncryptionUtilTest {
@@ -205,12 +194,10 @@ class EncryptionUtilTest {
     )
   }
 
-  // ---- token format ----
-
   @Test
   fun `token shorter than minimum is rejected with clear error`() {
     // 1 (version) + 16 (nonce) + 32 (HMAC) = 49 bytes minimum.
-    val tooShort: ByteArray = ByteArray(10)
+    val tooShort = ByteArray(10)
     val token: String = Base64.getEncoder().encodeToString(tooShort)
     val error: Throwable = assertFails {
       decryptMessageContent(token)
@@ -226,7 +213,7 @@ class EncryptionUtilTest {
     // The function should not crash on garbage input — it should
     // surface a clear error.
     val error: Throwable = assertFails {
-      decryptMessageContent("not!valid!base64!@#\$")
+      decryptMessageContent("not!valid!base64!@#$")
     }
     // Either IllegalArgumentException from Base64 decoder, or
     // SecurityException from the version-byte check — both are
@@ -319,8 +306,8 @@ class EncryptionUtilTest {
     val tokenBytes: ByteArray = Base64.getDecoder().decode(ciphertext)
     // Layout: 1 byte version + 16 bytes nonce + N bytes ciphertext + 32 bytes HMAC.
     val versionByte: Byte = tokenBytes[0]
-    val nonceLength: Int = 16
-    val hmacLength: Int = 32
+    val nonceLength = 16
+    val hmacLength = 32
     val ciphertextLength: Int = plaintext.toByteArray(Charsets.UTF_8).size // CTR preserves length
     assertEquals(
       1 + nonceLength + ciphertextLength + hmacLength,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkillsEndToEndTest.kt  2026-07-10 19:23:40 Changed by gwy
+ * SearchSkillsEndToEndTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.skill
@@ -21,7 +21,7 @@ import kotlin.test.*
  *
  *   1. Build a small project tree in a JUnit temp dir.
  *   2. Construct a [SkillContext] pointing at that tree.
- *   3. Invoke the skill's `execute` with a real [arguments] map.
+ *   3. Invoke the skill's `execute` with a real `arguments` map.
  *   4. Assert the result's `files` / `matches` reflect what the user
  *      would actually see in the chat panel.
  *
@@ -92,7 +92,7 @@ class SearchSkillsEndToEndTest {
    * case-insensitive matching — small models can't reliably use
    * `caseSensitive`. The CLOUD/FULL path is what actually honors the
    * `caseSensitive` argument, so the case-sensitivity tests must run
-   * with a model that resolves to [SchemaVariant.FULL].
+   * with a model that resolves to `SchemaVariant.FULL`.
    */
   private fun cloudContext(): SkillContext = SkillContext(
     toolMode = ToolMode.READ_ONLY,

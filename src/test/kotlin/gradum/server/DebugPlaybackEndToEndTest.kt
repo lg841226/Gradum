@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DebugPlaybackEndToEndTest.kt  2026-08-10 00:12:09 Changed by gwy
+ * DebugPlaybackEndToEndTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.server
@@ -216,7 +216,7 @@ class DebugPlaybackEndToEndTest {
     )
 
     val toolLines: List<String> = body.lines().filter { it.contains("\"type\":\"tool_call\"") }
-    assertTrue(toolLines.size == 2, "expected exactly two tool_call events, got ${toolLines.size}")
+    assertEquals(toolLines.size, 2, "expected exactly two tool_call events, got ${toolLines.size}")
     assertTrue(toolLines[0].contains("a.txt"), "first tool_call should be the first tool")
     assertTrue(toolLines[1].contains("b.txt"), "second tool_call should be the second tool")
   }

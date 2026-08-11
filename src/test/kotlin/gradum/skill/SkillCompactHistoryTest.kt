@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillCompactHistoryTest.kt
+ * SkillCompactHistoryTest.kt  2026-08-10 23:11:18 Changed by gwy
  */
 
 package gradum.skill
@@ -11,7 +11,10 @@ import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.utils.JsonUtil
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+
 /**
  * Coverage for the new "strip OLDER history, keep current call" contract
  * defined by [Skill.recordAndCompactHistory] and [Skill.compactHistory].
@@ -20,12 +23,12 @@ import kotlin.test.*
  * (silent LLM blinding). This test exercises the corrected path: across
  * many calls on the same skill instance, the current call always
  * returns in full, while older history messages in
- * [conversationHistory] get [Skill.historyVolatileKeys] stripped
+ * `conversationHistory` get [Skill.historyVolatileKeys] stripped
  * after [Skill.historyKeepCount] is exceeded.
  *
  * The fix is in [Skill] itself, so a tiny inline skill in the test
  * exercises the framework behavior end-to-end. The skill's
- * [execute] returns a success with a `content` key so the default
+ * `execute` returns a success with a `content` key so the default
  * [Skill.compactHistory] can strip it from older messages.
  */
 class SkillCompactHistoryTest {
@@ -62,7 +65,7 @@ class SkillCompactHistoryTest {
   private fun testContext(): SkillContext = SkillContext(
     toolMode = ToolMode.READ_ONLY,
     projectRoot = "/tmp",
-    provider = gradum.Provider.OLLAMA,
+    provider = Provider.OLLAMA,
     modelName = "qwen2.5:7b"
   )
 
@@ -229,9 +232,9 @@ class SkillCompactHistoryTest {
     }
 
     // Nothing should ever be stripped when historyKeepCount = MAX_VALUE
-    for (i in 0 until parsed.size) {
+    for ((i, element) in parsed.withIndex()) {
       assertEquals(
-        "body-${i + 1}", parsed[i]["content"],
+        "body-${i + 1}", element["content"],
         "call ${i + 1}: content should NOT be stripped with keepCount=MAX_VALUE"
       )
     }
@@ -338,5 +341,61 @@ class SkillCompactHistoryTest {
       ownFirstParsed.containsKey("content"),
       "skill's own first call should have `content` stripped after second call"
     )
+  }
+
+  @Test
+  fun `compactHistory does not over-strip when truncation has removed older own messages`() {
+    // Simulates the scenario where truncateHistory evicts old messages,
+    // leaving fewer own messages than the session callCount would imply.
+    val skill = ContentSkill(historyKeepCount = 2, historyVolatileKeys = listOf("content"))
+    val history: MutableList<Map<String, Any>> = mutableListOf()
+
+    fun callBody(bodyValue: String) {
+      val data: Map<String, Any> = mapOf("content" to bodyValue, "metadata" to "m-$bodyValue")
+      val ownIndices: List<Int> = history.withIndex()
+        .filter { (_, entry) ->
+          (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+        }.map { it.index }
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      appendToolMessage(history, skill.alias, historyResult)
+    }
+
+    // Build 5 own messages: body-1 ... body-5
+    for (i in 1..5) callBody("body-$i")
+
+    // Simulate truncateHistory removing the first 2 own messages.
+    // In production takeLastTurns may strip a mix of roles, but for
+    // this regression test we only need to remove own messages so that
+    // ownMessageIndices.size < callCount - 1.
+    val ownIndices = history.withIndex()
+      .filter { (_, entry) ->
+        (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
+      }
+    // Remove the first two own messages (indices 0 and 1).
+    history.removeAt(ownIndices[1].index)
+    history.removeAt(ownIndices[0].index)
+
+    // History now contains only body-3, body-4, body-5.  callCount was 5,
+    // so old formula dropCount = 5 - 2 = 3, which would strip ALL three
+    // remaining old messages.  New formula: ownMessageIndices.size + 1 - 2
+    // = 3 + 1 - 2 = 2, which correctly strips only the two oldest
+    // remaining messages and keeps body-5.
+
+    // Now make a 6th call — this is where the bug would trigger.
+    callBody("body-6")
+
+    val parsed: List<Map<String, Any?>> = history.map { msg ->
+      val content: String = msg["content"] as String
+      JsonUtil.decodeMap(content)
+    }
+
+    // body-3 should be stripped (oldest remaining after truncation)
+    assertFalse(parsed[0].containsKey("content"), "body-3 should be stripped")
+    // body-4 should also be stripped (2nd oldest)
+    assertFalse(parsed[1].containsKey("content"), "body-4 should be stripped")
+    // body-5 must survive — it is within keepCount=2 of the final state
+    assertEquals("body-5", parsed[2]["content"], "body-5 must survive (within keepCount window)")
+    // body-6 (current call) must always survive
+    assertEquals("body-6", parsed[3]["content"], "body-6 is the current call and must survive")
   }
 }

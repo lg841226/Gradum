@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolverTest.kt  2026-07-13  Changed by gwy
+ * PathResolverTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.skill
@@ -157,8 +157,6 @@ class PathResolverTest {
 
   @Test
   fun `back-slash separator is recognised on input`() {
-    // On Windows the LLM may emit back-slashes; the strip
-    // must recognise the prefix either way.
     val result = resolveProjectPath(
       "${tempRoot.name}\\src\\demo.js",
       rootPath()

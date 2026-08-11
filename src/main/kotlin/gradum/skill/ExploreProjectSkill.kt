@@ -60,7 +60,7 @@ class ExploreProjectSkill : Skill() {
     callCount: Int
   ) {
     if (ownMessageIndices.isEmpty()) return
-    val dropCount: Int = (callCount - historyKeepCount).coerceAtLeast(0)
+    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
     val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
     if (dropEndIndex == 0) return
     for (i in 0 until dropEndIndex) {

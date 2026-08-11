@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-07-14 21:27:12 Changed by gwy
+ * AgentConfiguration.kt  2026-08-10 23:11:18 Changed by gwy
  */
 
 package gradum
@@ -92,23 +92,25 @@ enum class PromptVariant {
 
 data class AgentConfiguration(
   val provider: Provider = Provider.OLLAMA,
-  val modelName: String = "minimax-m2.5:cloud",
+  val modelName: String = "",
   val baseUrl: String = "http://localhost:11434",
 
+  val enableThinking: Boolean = false,
   val toolMode: ToolMode = ToolMode.AGENT,
   val promptVariant: PromptVariant = PromptVariant.AUTO,
-  val enableThinking: Boolean = false,
 
-  val temperatureValue: Double = 0.7,
   val topPValue: Double = 0.9,
-  val maxTokensToGenerate: Int = 2048 * 12,
-  val contextWindowSize: Int = 8192 * 2,
+  val temperatureValue: Double = 0.7,
 
   val timeoutSeconds: Int = 3000,
 
-  val maxRepeatedResponses: Int = 3,
   val maxRedLineHits: Int = 3,
+  val maxRepeatedResponses: Int = 3,
   val maxRepeatedToolCalls: Int = 5,
+  val maxTokensToGenerate: Int = 2048 * 12,
+
+  val contextWindowSize: Int = DEFAULT_CONTEXT_WINDOW_SIZE,
+
   /**
    * Absolute, validated, normalized path to the project the current
    * session is operating on. Resolved by `Routes` from the
@@ -118,4 +120,14 @@ data class AgentConfiguration(
    * project is actually open in the IDE.
    */
   val projectRoot: String = "",
-)
+) {
+  companion object {
+    /**
+     * Default context window size (num_ctx) used by the Ollama backend
+     * and as the fallback when the client does not supply a `numCtx`
+     * value.  Must stay in sync with the value in
+     * [gradum.server.Routes] — the canonical source of truth is here.
+     */
+    const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = 8192
+  }
+}
