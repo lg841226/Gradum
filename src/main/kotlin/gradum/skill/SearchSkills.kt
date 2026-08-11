@@ -212,20 +212,12 @@ class GrepSkill : Skill() {
   override val historyVolatileKeys: List<String> = listOf("matches")
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema =
-      context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context?.isSimpleModel == true
 
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to listOf("pattern")
-        )
-      )
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = listOf("pattern"),
     )
   }
 
@@ -273,7 +265,7 @@ class GrepSkill : Skill() {
   )
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleSchema = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context.isSimpleModel
     return if (useSimpleSchema) executeLocal(arguments, context)
     else executeCloud(arguments, context)
   }
@@ -498,20 +490,12 @@ class GlobSkill : Skill() {
   override val historyVolatileKeys: List<String> = listOf("files")
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema =
-      context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context?.isSimpleModel == true
 
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to listOf("pattern")
-        )
-      )
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = listOf("pattern"),
     )
   }
 
@@ -547,7 +531,7 @@ class GlobSkill : Skill() {
   )
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleSchema = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context.isSimpleModel
     return if (useSimpleSchema) executeLocal(arguments, context)
     else executeCloud(arguments, context)
   }

@@ -21,11 +21,11 @@ private val jsonFormatter: Json = Json { prettyPrint = true }
 /**
  * Maximum number of messages to keep in persisted context history.
  *
- * Mirrors `Agent.maxHistoryMessages` so in-memory and persisted
- * truncation use the same budget. If you change one, change the other
- * — or refactor both to read from a single source of truth.
+ * Single source of truth is [MAX_HISTORY_MESSAGES] in
+ * [gradum.utils.MessageHistoryTruncator], shared with the in-memory
+ * truncation in `Agent` so both budgets can never drift apart.
  */
-const val MAX_CONTEXT_MESSAGES: Int = 30
+const val MAX_CONTEXT_MESSAGES: Int = MAX_HISTORY_MESSAGES
 
 /**
  * Persists the agent's conversation history and the set of files that have

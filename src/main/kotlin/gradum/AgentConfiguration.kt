@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-08-10 23:11:18 Changed by gwy
+ * AgentConfiguration.kt  2026-08-11 21:54:32 Changed by gwy
  */
 
 package gradum
@@ -13,6 +13,14 @@ package gradum
 enum class Provider {
   OLLAMA,
   OPENAI;
+
+  /**
+   * Wire-level identifier used in model discovery payloads and the
+   * `providerType` field of [gradum.ModelEntry]. Single source of truth
+   * for the lowercase provider string — call sites must not hard-code
+   * `"ollama"` / `"openai"` literals.
+   */
+  val wireType: String get() = name.lowercase()
 
   companion object {
     /**
@@ -84,23 +92,23 @@ enum class PromptVariant {
 }
 
 data class AgentConfiguration(
-  val provider: Provider = Provider.OLLAMA,
   val modelName: String = "",
-  val baseUrl: String = "http://localhost:11434",
+  val provider: Provider = Provider.OLLAMA,
+  val baseUrl: String = DEFAULT_OLLAMA_BASE_URL,
 
-  val enableThinking: Boolean = false,
   val toolMode: ToolMode = ToolMode.AGENT,
   val promptVariant: PromptVariant = PromptVariant.AUTO,
+  val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
 
-  val topPValue: Double = 0.9,
-  val temperatureValue: Double = 0.7,
+  val topPValue: Double = DEFAULT_TOP_P,
+  val temperatureValue: Double = DEFAULT_TEMPERATURE,
 
-  val timeoutSeconds: Int = 3000,
+  val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
 
   val maxRedLineHits: Int = 3,
   val maxRepeatedResponses: Int = 3,
   val maxRepeatedToolCalls: Int = 5,
-  val maxTokensToGenerate: Int = 2048 * 12,
+  val maxTokensToGenerate: Int = DEFAULT_MAX_TOKENS_TO_GENERATE,
 
   val contextWindowSize: Int = DEFAULT_CONTEXT_WINDOW_SIZE,
 
@@ -115,11 +123,18 @@ data class AgentConfiguration(
   val projectRoot: String = "",
 ) {
   companion object {
+
+    const val DEFAULT_TOP_P: Double = 0.9
+    const val DEFAULT_TEMPERATURE: Double = 0.7
+    const val DEFAULT_TIMEOUT_SECONDS: Int = 3000
+    const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = 2048 * 12
+    const val DEFAULT_ENABLE_THINKING: Boolean = false
+    const val DEFAULT_OLLAMA_BASE_URL: String = "http://localhost:11434"
+
     /**
      * Default context window size (num_ctx) used by the Ollama backend
      * and as the fallback when the client does not supply a `numCtx`
-     * value.  Must stay in sync with the value in
-     * [gradum.server.Routes] — the canonical source of truth is here.
+     * value.  The canonical source of truth is here.
      */
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = 8192
   }

@@ -48,13 +48,11 @@ private data class ServerArguments(
   val hostAddress: String,
   val portNumber: Int,
   val autoDetectPort: Boolean,
-  val providerName: String,
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
-  var hostAddress = "localhost"
-  var providerName = "ollama"
-  var portNumber = 8765
+  var hostAddress = ServerConfiguration.DEFAULT_HOST_ADDRESS
+  var portNumber = ServerConfiguration.DEFAULT_PORT_NUMBER
   var autoDetectPort = false
 
   val iterator: Iterator<String> = arguments.iterator()
@@ -63,7 +61,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
       "--host" -> hostAddress = iterator.next()
       "--port" -> portNumber = iterator.next().toIntOrNull() ?: portNumber
       "--auto-port" -> autoDetectPort = true
-      "--provider" -> providerName = iterator.next()
       "--help" -> {
         printUsage()
       }
@@ -74,7 +71,6 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
     hostAddress = hostAddress,
     portNumber = portNumber,
     autoDetectPort = autoDetectPort,
-    providerName = providerName,
   )
 }
 
@@ -86,11 +82,10 @@ private fun printUsage() {
         |Usage: java -jar gradum@<version>.jar [options]
         |
         |Available Options:
-        |  --host <host>          Host to bind (default: localhost)
-        |  --port <port>          Port to bind (default: 8765)
+        |  --host <host>          Host to bind (default: ${ServerConfiguration.DEFAULT_HOST_ADDRESS})
+        |  --port <port>          Port to bind (default: ${ServerConfiguration.DEFAULT_PORT_NUMBER})
         |  --auto-port            Auto-find available port
-        |  --provider <name>      LLM provider: ollama or openai (default: ollama)
-        |  --base-url <url>       Provider base URL (default: http://localhost:11434)
+        |  --base-url <url>       Provider base URL (default: ${gradum.AgentConfiguration.DEFAULT_OLLAMA_BASE_URL})
         |  --model <name>         Default model name
         |  --think                Enable thinking mode (default: off)
         |  --project-root <path>  Project root path for the session

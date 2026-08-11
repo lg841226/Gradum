@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-10 23:11:18 Changed by gwy
+ * Routes.kt  2026-08-11 21:54:32 Changed by gwy
  */
 
 package gradum.server
@@ -213,20 +213,20 @@ fun Application.registerAllRoutes() {
         requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
       }
       val agentConfiguration = AgentConfiguration(
-        provider = resolvedProvider,
         modelName = requestBody.model
           ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
           ?: "",
-        baseUrl = configOverrides.baseUrl ?: "http://localhost:11434",
+        provider = resolvedProvider,
+        baseUrl = configOverrides.baseUrl ?: AgentConfiguration.DEFAULT_OLLAMA_BASE_URL,
         toolMode = resolvedToolMode,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-        enableThinking = configOverrides.think ?: false,
-        topPValue = configOverrides.topP ?: 0.9,
-        temperatureValue = configOverrides.temperature ?: 0.7,
-        timeoutSeconds = configOverrides.timeout ?: 3000,
+        enableThinking = configOverrides.think ?: AgentConfiguration.DEFAULT_ENABLE_THINKING,
+        topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
+        temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
+        timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         // Tool mode is a client decision, not inferred from provider.
         // Defaults to AGENT (all tools) when client doesn't specify.
-        maxTokensToGenerate = configOverrides.numPredict ?: 24576,
+        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
         // The plugin owns project selection; the server is just a per-session executor. We resolved + validated above so
         // AgentConfiguration can require a non-null String.

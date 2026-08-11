@@ -38,18 +38,11 @@ class RunCommandSkill : Skill() {
   override val historyVolatileKeys: List<String> = listOf("output")
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimple) "Execute a shell command" else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimple) simpleProperties() else cloudProperties(),
-          "required" to listOf("command"),
-        ),
-      ),
+    val useSimple = context?.isSimpleModel == true
+    return buildFunctionSchema(
+      description = if (useSimple) "Execute a shell command" else description,
+      properties = if (useSimple) simpleProperties() else cloudProperties(),
+      required = listOf("command"),
     )
   }
 
@@ -69,7 +62,7 @@ class RunCommandSkill : Skill() {
     val commandText: String = arguments["command"] as? String ?: ""
     val runDetached: Boolean = arguments["detached"] as? Boolean ?: false
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     if (commandText.isBlank())
       return makeFailure(

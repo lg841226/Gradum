@@ -51,20 +51,12 @@ class ReadFileSkill : Skill() {
   override val historyVolatileKeys: List<String> = emptyList()
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema =
-      context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context?.isSimpleModel == true
 
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to listOf("path"),
-        ),
-      ),
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = listOf("path"),
     )
   }
 
@@ -99,7 +91,7 @@ class ReadFileSkill : Skill() {
     val lineRange: String = (arguments["lineRange"] as? String ?: "")
       .ifBlank { arguments["line_range"] as? String ?: "" }
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     if (filePath.isBlank())
       return makeFailure(

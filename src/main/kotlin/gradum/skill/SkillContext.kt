@@ -8,6 +8,7 @@
 package gradum.skill
 
 import gradum.Provider
+import gradum.SchemaVariant
 import gradum.ToolMode
 
 /**
@@ -23,4 +24,12 @@ data class SkillContext(
   val projectRoot: String,
   val provider: Provider = Provider.OLLAMA,
   val modelName: String = "",
-)
+) {
+  /**
+   * True when the active model wants the SIMPLE schema variant (small /
+   * local models). Single source of truth for the per-skill
+   * `SchemaVariant.resolve(modelName) == SIMPLE` checks.
+   */
+  val isSimpleModel: Boolean
+    get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
+}

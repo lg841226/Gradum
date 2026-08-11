@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-08-07 23:23:25 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-11 21:03:51 Changed by gwy
  */
 package gradum.idea
 
@@ -17,7 +17,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import gradum.idea.GradumGitAnalysisService.FINDING_CODE_PREFIX
 import gradum.idea.GradumGitAnalysisService.handleFailure
 import gradum.idea.GradumGitAnalysisService.isScanCompleted
 import gradum.idea.GradumGitAnalysisService.restoreStateBeforeScan

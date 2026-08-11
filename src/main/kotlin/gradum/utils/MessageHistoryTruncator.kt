@@ -8,6 +8,14 @@
 package gradum.utils
 
 /**
+ * Maximum number of messages kept in conversation history — the single
+ * source of truth for both the in-memory truncation in
+ * [gradum.agent.Agent] and the persisted-context truncation in
+ * [ContextManager]. Do not define a separate budget elsewhere.
+ */
+const val MAX_HISTORY_MESSAGES: Int = 30
+
+/**
  * Returns the longest tail of [messages] that:
  *  1. starts at a turn boundary (a `user` message, an `assistant`
  *     message with or without `tool_calls`, or a leading run of

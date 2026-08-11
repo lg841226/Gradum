@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-11 19:26:35 Changed by gwy
+ * EditFileSkill.kt  2026-08-11 19:37:37 Changed by gwy
  */
 
 package gradum.skill
@@ -64,21 +64,14 @@ class EditFileSkill : Skill() {
   }
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to listOf("path") + if (useSimpleSchema) listOf(
-            "oldString",
-            "newString"
-          ) else listOf("edits"),
-        ),
-      ),
+    val useSimpleSchema = context?.isSimpleModel == true
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = listOf("path") + if (useSimpleSchema) listOf(
+        "oldString",
+        "newString"
+      ) else listOf("edits"),
     )
   }
 
@@ -126,7 +119,7 @@ class EditFileSkill : Skill() {
   )
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleSchema = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context.isSimpleModel
     return if (useSimpleSchema) executeLocal(arguments, context) else executeCloud(arguments, context)
   }
 
@@ -536,9 +529,9 @@ class FileMutation {
   ): Result<Unit> {
     return withLock(path) {
       val targetFile = path.toFile()
-      if (!targetFile.exists()) {
+      if (!targetFile.exists())
         return@withLock Result.failure(StaleContentError(path.toString()))
-      }
+
       val current = targetFile.readBytes()
       if (!current.contentEquals(expected)) {
         return@withLock Result.failure(StaleContentError(path.toString()))

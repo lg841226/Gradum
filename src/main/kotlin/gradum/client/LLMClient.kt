@@ -8,6 +8,7 @@
 package gradum.client
 
 import gradum.AgentConfiguration
+import gradum.Provider
 import gradum.utils.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.plugins.*
@@ -82,13 +83,6 @@ interface LlmClient : TokenUsageProvider {
 }
 
 /**
- * Provider enum used by the multimodal rewriter to pick the
- * right projection without coupling the helper to either of the
- * two concrete `LlmClient` implementations.
- */
-private enum class MultimodalTarget { OLLAMA, OPENAI_COMPATIBLE }
-
-/**
  * Project a single `Map<String, Any>` message into the wire shape the
  * target LLM backend expects.
  *
@@ -98,10 +92,13 @@ private enum class MultimodalTarget { OLLAMA, OPENAI_COMPATIBLE }
  * string and lifts images into a top-level `images` array; OpenAI keeps
  * the array but re-shapes each image part into `image_url`. Text-only
  * messages pass through untouched.
+ *
+ * The target is expressed via the canonical [gradum.Provider] enum, not a
+ * parallel multimodal vocabulary.
  */
 private fun projectMessageForBackend(
   message: Map<String, Any>,
-  target: MultimodalTarget
+  target: Provider
 ): Map<String, Any> {
   if (message["role"] != "user") return message
 
@@ -109,8 +106,8 @@ private fun projectMessageForBackend(
   if (contentParts.isEmpty()) return message
 
   return when (target) {
-    MultimodalTarget.OLLAMA -> projectToOllama(contentParts)
-    MultimodalTarget.OPENAI_COMPATIBLE -> projectToOpenAi(contentParts)
+    Provider.OLLAMA -> projectToOllama(contentParts)
+    Provider.OPENAI -> projectToOpenAi(contentParts)
   }
 }
 
@@ -176,7 +173,7 @@ private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
 }
 
 private fun projectHistoryForBackend(
-  messageHistory: List<Map<String, Any>>, target: MultimodalTarget
+  messageHistory: List<Map<String, Any>>, target: Provider
 ): List<Map<String, Any>> = messageHistory.map { message ->
   projectMessageForBackend(message, target)
 }
@@ -197,7 +194,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
     val shouldThink: Boolean = configuration.enableThinking
 
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, MultimodalTarget.OLLAMA)
+      projectHistoryForBackend(messageHistory, Provider.OLLAMA)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "model" to configuration.modelName,
@@ -314,7 +311,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
 
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, MultimodalTarget.OPENAI_COMPATIBLE)
+      projectHistoryForBackend(messageHistory, Provider.OPENAI)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "model" to configuration.modelName,

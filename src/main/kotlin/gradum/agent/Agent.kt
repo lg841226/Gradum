@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-07-29 18:32:58 Changed by gwy
+ * Agent.kt  2026-08-11 21:58:16 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -12,17 +12,14 @@ package gradum.agent
 import gradum.*
 import gradum.PromptVariant.*
 import gradum.client.*
-import gradum.debug.ParsedToolCall
-import gradum.debug.ScenarioStep
-import gradum.debug.ToolCallScenario
-import gradum.debug.ToolCallScenarioParseException
-import gradum.debug.ToolCallScenarioParser
+import gradum.debug.*
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.utils.MAX_HISTORY_MESSAGES
 import gradum.utils.takeLastTurns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
@@ -118,7 +115,7 @@ class Agent(
 
   private var sessionAborted: Boolean = false
 
-  private val maxHistoryMessages: Int = 30
+  private val maxHistoryMessages: Int = MAX_HISTORY_MESSAGES
 
   init {
     activeClient = when (configuration.provider) {
@@ -290,8 +287,6 @@ class Agent(
       "You are a helpful AI assistant. You can't call any tool and report it"
     }
 
-    // Prompt must match ToolMode. SkillRegistry hides certain tools in smaller modes.
-    // Otherwise, the model may call tools not in its list.
     val modeSectionPath: String = when (configuration.toolMode) {
       ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
       ToolMode.EDIT -> "/prompts/modes/edit.xml"
@@ -810,7 +805,7 @@ class Agent(
         "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
       )
     }
-    if (configuration.toolMode !in skillInstance.allowedToolModes) {
+    if (!skillInstance.allows(configuration.toolMode)) {
       val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
       logger.error(
         "Result: TOOL_NOT_PERMITTED — '${functionName}' not allowed in ${configuration.toolMode} (allowed: ${

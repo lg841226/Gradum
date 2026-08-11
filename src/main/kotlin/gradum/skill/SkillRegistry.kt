@@ -52,11 +52,11 @@ object SkillRegistry {
    * Returns function schemas for every skill that allows the given
    * [toolMode].
    *
-   * The filter mirrors the runtime gate in [gradum.agent.Agent] —
-   * `toolMode in skill.allowedToolModes`. The two checks must agree:
-   * a tool whose schema is in the LLM's list must pass the runtime
-   * gate, and a tool left out of the list must still be gated (the
-   * model can hallucinate calls regardless of the schema filter).
+   * The filter mirrors the runtime gate in [gradum.agent.Agent] — both
+   * delegate to [Skill.allows]. The two checks must agree: a tool whose
+   * schema is in the LLM's list must pass the runtime gate, and a tool
+   * left out of the list must still be gated (the model can hallucinate
+   * calls regardless of the schema filter).
    */
   fun getSchemas(
     toolMode: ToolMode = ToolMode.AGENT,
@@ -65,7 +65,7 @@ object SkillRegistry {
   ): List<Map<String, Any>> {
     val schemaContext = SkillContext(toolMode, "", provider, modelName)
     return registeredSkills.values
-      .filter { skill: Skill -> toolMode in skill.allowedToolModes }
+      .filter { skill: Skill -> skill.allows(toolMode) }
       .map { skill: Skill -> skill.getSchema(schemaContext) }
   }
 

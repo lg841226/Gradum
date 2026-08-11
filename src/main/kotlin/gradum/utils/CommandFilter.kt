@@ -29,20 +29,70 @@ private val blockedExecutables: Set<String> = setOf(
   "sudo", "su", "doas", "pkexec"
 )
 
-private val protectedPrefixes: List<String> = listOf(
-  "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
-  "/lib", "/lib64", "/opt",
-  "/System", "/Library", "/Applications", "/private"
-)
+/**
+ * System and home paths that destructive operations must never touch.
+ *
+ * Single source of truth for the protected-path check, shared by
+ * [classifyCommand] (rm / recursive chmod) and the file-writing
+ * skills (e.g. SaveFileSkill). If a path needs protecting, add it
+ * here — not in a per-skill copy.
+ */
+object ProtectedPaths {
 
-private val protectedHomeSubdirectories: List<String> = listOf(
-  ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
-  ".pypirc", ".npmrc", ".docker",
-)
+  private val systemPrefixes: List<String> = listOf(
+    "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
+    "/lib", "/lib64", "/opt",
+    "/System", "/Library", "/Applications", "/private"
+  )
 
-private val safePathPrefixes: List<String> = listOf("/tmp")
+  private val protectedHomeSubdirectories: List<String> = listOf(
+    ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
+    ".pypirc", ".npmrc", ".docker",
+  )
 
-private val exactProtectedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
+  private val safePathPrefixes: List<String> = listOf("/tmp")
+
+  private val exactProtectedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
+
+  /**
+   * True when [targetPath] resolves to a system path, a protected home
+   * subdirectory, or an exact protected path. Paths under [safePathPrefixes]
+   * (e.g. `/tmp`) are always considered safe.
+   */
+  fun isProtected(targetPath: String): Boolean {
+    val resolvedTarget: String = resolveAbsolutePath(targetPath)
+
+    for (safePrefix in safePathPrefixes) {
+      if (resolvedTarget == safePrefix || resolvedTarget.startsWith("$safePrefix/"))
+        return false
+    }
+
+    for (systemPrefix in systemPrefixes) {
+      val resolvedPrefix: String = resolveAbsolutePath(systemPrefix)
+      if (resolvedTarget == resolvedPrefix || resolvedTarget.startsWith("$resolvedPrefix/"))
+        return true
+    }
+
+    val homeDirectory: String = System.getProperty("user.home") ?: return false
+
+    for (protectedSubdirectory in protectedHomeSubdirectories) {
+      val protectedPath = "$homeDirectory/$protectedSubdirectory"
+      if (resolvedTarget == protectedPath || resolvedTarget.startsWith("$protectedPath/"))
+        return true
+    }
+
+    return resolvedTarget in exactProtectedPaths
+  }
+
+  private fun resolveAbsolutePath(pathString: String): String {
+    return try {
+      Paths.get(pathString).toAbsolutePath().normalize().toString()
+    } catch (pathException: Exception) {
+      logger.debug("Failed to resolve path '$pathString': ${pathException.message}", pathException)
+      pathString
+    }
+  }
+}
 
 /**
  * Executables that are safe to invoke when the active [ToolMode] is
@@ -202,36 +252,5 @@ private fun extractPathArguments(commandTokens: List<String>): List<String> {
   return commandTokens.drop(1).filter { token: String -> !token.startsWith("-") }
 }
 
-private fun resolveAbsolutePath(pathString: String): String {
-  return try {
-    Paths.get(pathString).toAbsolutePath().normalize().toString()
-  } catch (pathException: Exception) {
-    logger.debug("Failed to resolve path '$pathString': ${pathException.message}", pathException)
-    pathString
-  }
-}
-
-private fun isCriticalPath(targetPath: String): Boolean {
-  val resolvedTarget: String = resolveAbsolutePath(targetPath)
-
-  for (safePrefix in safePathPrefixes) {
-    if (resolvedTarget == safePrefix || resolvedTarget.startsWith("$safePrefix/"))
-      return false
-  }
-
-  for (systemPrefix in protectedPrefixes) {
-    val resolvedPrefix: String = resolveAbsolutePath(systemPrefix)
-    if (resolvedTarget == resolvedPrefix || resolvedTarget.startsWith("$resolvedPrefix/"))
-      return true
-  }
-
-  val homeDirectory: String = System.getProperty("user.home") ?: return false
-
-  for (protectedSubdirectory in protectedHomeSubdirectories) {
-    val protectedPath = "$homeDirectory/$protectedSubdirectory"
-    if (resolvedTarget == protectedPath || resolvedTarget.startsWith("$protectedPath/"))
-      return true
-  }
-
-  return resolvedTarget in exactProtectedPaths
-}
+private fun isCriticalPath(targetPath: String): Boolean =
+  ProtectedPaths.isProtected(targetPath)

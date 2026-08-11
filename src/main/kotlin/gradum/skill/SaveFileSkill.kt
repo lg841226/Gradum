@@ -8,6 +8,7 @@
 package gradum.skill
 
 import gradum.*
+import gradum.utils.ProtectedPaths
 import io.ktor.utils.io.charsets.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -54,18 +55,11 @@ class SaveFileSkill : Skill() {
   override val historyVolatileKeys: List<String> = listOf("content")
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimple) "Create or overwrite a file" else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimple) simpleProperties() else cloudProperties(),
-          "required" to listOf("path", "content"),
-        ),
-      ),
+    val useSimple = context?.isSimpleModel == true
+    return buildFunctionSchema(
+      description = if (useSimple) "Create or overwrite a file" else description,
+      properties = if (useSimple) simpleProperties() else cloudProperties(),
+      required = listOf("path", "content"),
     )
   }
 
@@ -110,7 +104,7 @@ class SaveFileSkill : Skill() {
     val writeMode: String = arguments["mode"] as? String ?: "overwrite"
     val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     if (filePath.isBlank()) {
       return makeFailure(
@@ -223,34 +217,5 @@ class SaveFileSkill : Skill() {
   }
 }
 
-private val blockedPathPrefixes: List<String> = listOf(
-  "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
-  "/lib", "/lib64", "/opt",
-  "/System", "/Library", "/Applications", "/private"
-)
-
-private val blockedHomeSubdirectories: List<String> = listOf(
-  ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
-  ".pypirc", ".npmrc", ".docker",
-)
-
-private val exactBlockedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
-
-private fun isBlockedPaths(targetPath: Path): Boolean {
-  val absolutePath = targetPath.toAbsolutePath().normalize()
-  val pathString = absolutePath.toString()
-
-  if (pathString in exactBlockedPaths) return true
-
-  for (blockedPrefix in blockedPathPrefixes) {
-    if (pathString.startsWith(blockedPrefix)) return true
-  }
-
-  val homeDirectory: String = System.getProperty("user.home") ?: return false
-  for (protectedSubdir in blockedHomeSubdirectories) {
-    val protectedPath = "$homeDirectory/$protectedSubdir"
-    if (pathString.startsWith(protectedPath)) return true
-  }
-
-  return false
-}
+private fun isBlockedPaths(targetPath: Path): Boolean =
+  ProtectedPaths.isProtected(targetPath.toString())

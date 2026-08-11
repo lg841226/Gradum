@@ -33,23 +33,16 @@ class TodoSkill : Skill() {
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.AGENT)
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to mapOf(
-            "tasks" to mapOf(
-              "type" to "array",
-              "items" to mapOf("type" to "string"),
-              "description" to "List of tasks to complete",
-            ),
-          ),
-          "required" to listOf("tasks"),
+    return buildFunctionSchema(
+      description = description,
+      properties = mapOf(
+        "tasks" to mapOf(
+          "type" to "array",
+          "items" to mapOf("type" to "string"),
+          "description" to "List of tasks to complete",
         ),
       ),
+      required = listOf("tasks"),
     )
   }
 
@@ -89,24 +82,17 @@ class CompletePlanSkill : Skill() {
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.AGENT)
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to mapOf(
-            "task" to mapOf("type" to "string", "description" to "Task that was completed"),
-            "action" to mapOf(
-              "type" to "string",
-              "description" to "'complete' (default) marks task done; 'skip' advances without completing",
-              "enum" to listOf("complete", "skip")
-            ),
-          ),
-          "required" to emptyList<String>(),
+    return buildFunctionSchema(
+      description = description,
+      properties = mapOf(
+        "task" to mapOf("type" to "string", "description" to "Task that was completed"),
+        "action" to mapOf(
+          "type" to "string",
+          "description" to "'complete' (default) marks task done; 'skip' advances without completing",
+          "enum" to listOf("complete", "skip")
         ),
       ),
+      required = emptyList(),
     )
   }
 

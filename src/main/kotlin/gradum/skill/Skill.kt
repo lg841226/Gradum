@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-07-15 20:19:37 Changed by gwy
+ * Skill.kt  2026-08-11 22:18:53 Changed by gwy
  */
 
 package gradum.skill
@@ -29,6 +29,15 @@ abstract class Skill {
   )
 
   /**
+   * Whether this skill may execute under [toolMode].
+   *
+   * The single authority for the tool-mode gate — both the schema filter
+   * in [gradum.skill.SkillRegistry] and the runtime gate in
+   * [gradum.agent.Agent] call this so the two checks can never disagree.
+   */
+  fun allows(toolMode: ToolMode): Boolean = toolMode in allowedToolModes
+
+  /**
    * Execute the skill with the LLM's tool-call arguments and the
    * per-session [SkillContext] (tool mode + project root).
    */
@@ -42,6 +51,30 @@ abstract class Skill {
    * a schema tailored to the active [gradum.Provider].
    */
   abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
+
+  /**
+   * Builds the standard OpenAI function-schema envelope
+   * (`{"type":"function","function":{...}}`) around this skill's
+   * [skillName]. Single source of truth for the wrapper shape — every
+   * skill schema is composed through this helper instead of hand-rolling
+   * the `mapOf` envelope.
+   */
+  protected fun buildFunctionSchema(
+    description: String,
+    properties: Map<String, Any>,
+    required: List<String>,
+  ): Map<String, Any> = mapOf(
+    "type" to "function",
+    "function" to mapOf(
+      "name" to skillName,
+      "description" to description,
+      "parameters" to mapOf(
+        "type" to "object",
+        "properties" to properties,
+        "required" to required,
+      ),
+    ),
+  )
 
   /**
    * How many recent calls of this skill keep their result fields in
@@ -122,7 +155,7 @@ abstract class Skill {
     // callCount) so that truncation by [Agent.truncateHistory] doesn't
     // cause over-stripping.  `ownMessageIndices.size + 1` accounts for
     // the current call (not yet appended when this runs).  In the normal
-    // no-truncation case `size + 1 == callCount`, so behaviour is unchanged.
+    // no-truncation case `size + 1 == callCount`, so behavior is unchanged.
     val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
     val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
     if (dropEndIndex == 0) return
@@ -139,7 +172,7 @@ abstract class Skill {
     val content: String = message["content"] as? String ?: return message
     val parsed: Map<String, Any?>? = try {
       gradum.utils.JsonUtil.decodeMap(content)
-    } catch (jsonDecodeException: Exception) {
+    } catch (_: Exception) {
       // Not a JSON object (plain string, error marker, etc.) —
       // leave the message as-is.
       return message

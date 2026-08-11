@@ -104,20 +104,12 @@ class ExploreProjectSkill : Skill() {
   }
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema =
-      context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context?.isSimpleModel == true
 
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to emptyList<String>(),
-        ),
-      ),
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = emptyList(),
     )
   }
 
@@ -158,7 +150,7 @@ class ExploreProjectSkill : Skill() {
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     val requestedDepth: Int = when (val depthValue: Any? = arguments["depth"]) {
       is Number -> depthValue.toInt()

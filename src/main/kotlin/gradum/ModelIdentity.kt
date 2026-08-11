@@ -122,10 +122,10 @@ object ModelIdentity {
     )
 
     private val knownServers = listOf(
-      ServerDef("Ollama", "ollama", "http://localhost:11434", "/api/tags"),
-      ServerDef("LM Studio", "openai", "http://localhost:1234", "/v1/models"),
-      ServerDef("vLLM", "openai", "http://localhost:8000", "/v1/models"),
-      ServerDef("LocalAI", "openai", "http://localhost:8080", "/v1/models"),
+      ServerDef("Ollama", Provider.OLLAMA.wireType, AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags"),
+      ServerDef("LM Studio", Provider.OPENAI.wireType, "http://localhost:1234", "/v1/models"),
+      ServerDef("vLLM", Provider.OPENAI.wireType, "http://localhost:8000", "/v1/models"),
+      ServerDef("LocalAI", Provider.OPENAI.wireType, "http://localhost:8080", "/v1/models"),
     )
 
     private val jsonParser = Json { ignoreUnknownKeys = true }
@@ -188,7 +188,7 @@ object ModelIdentity {
         val responseJson = jsonParser.parseToJsonElement(responseBody).jsonObject
 
         val modelNames = when (server.providerType) {
-          "ollama" -> responseJson["models"]?.jsonArray?.map {
+          Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
             it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
           }?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -205,7 +205,7 @@ object ModelIdentity {
     }
 
     private fun isOllamaCloudModel(entry: ModelEntry): Boolean =
-      entry.providerType == "ollama" && isCloudTagged(entry.modelName)
+      entry.providerType == Provider.OLLAMA.wireType && isCloudTagged(entry.modelName)
 
     private fun probeCloudModel(entry: ModelEntry): UnavailableReason? = try {
       HttpClient().use { client ->
