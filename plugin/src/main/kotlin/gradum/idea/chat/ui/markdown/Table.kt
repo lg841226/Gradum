@@ -646,15 +646,10 @@ fun SafeMarkdownText(
   @Suppress("UNUSED_PARAMETER") paragraphStyling: MarkdownStyling.Paragraph =
     rememberGradumMarkdownStyling().paragraph,
 ) {
-  // Cell rendering now goes through the chip-aware inline text renderer
-  // ([RenderInlineTextWithChips]) so inline code (`` `update()` `` etc.)
-  // renders as a rounded `InlineCodeChip` — the same chip used in the
-  // message body. The previous `MarkdownText` path used Jewel's
-  // `SpanStyle` for inline code (monospace text + background) which the
-  // user reported as "default styling" in 2026-07-14. The
-  // `processor` / `blockRenderer` / `paragraphStyling` parameters are
-  // kept for source-compat (the call site in ScrollableTable passes
-  // them) but are no longer used.
+  // Cell text goes through the chip-aware inline renderer so inline code
+  // renders as an `InlineCodeChip` like in the message body. The
+  // `processor` / `blockRenderer` / `paragraphStyling` params are kept for
+  // source-compat with the ScrollableTable call site but are unused.
   if (text.isBlank()) {
     Text(
       text = "",

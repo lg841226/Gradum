@@ -51,36 +51,11 @@ private val FootnoteScrollPadding: androidx.compose.ui.unit.Dp = GradumSpacing.x
 /**
  * Active conversation: scrollable history + input pinned to bottom.
  *
- * ## Jump-to-bottom button
- * A `JumpToBottomButton` floats above the input, fading in when the user scrolls past
- * `NearBottomThresholdDp` and fading out on return. 256dp tolerance prevents flicker.
- *
- * ### Show/hide rules
- * - **Default** ("Jump to bottom"): hidden when within 256dp of bottom; visible otherwise.
- * - **Alt** ("Jump to top"): hidden when within 256dp of top; visible otherwise.
- * - **Startup**: hidden (auto-scroll to bottom on first render).
- *
- * Toggling modes via Option key (see `JumpToBottomButton`; captured via `LocalWindowInfo.keyboardModifiers`).
- * "Near bottom/top" checks are `derivedStateOf` — see `isNearBottom` / `isNearTop`.
- *
- * ### Auto-scroll
- * `animateScrollTo(maxValue)` fires when new content arrives **and** the user was near bottom
- * at the moment of arrival. If the user scrolled up, content doesn't yank them back — the
- * button appears instead. This is "force scroll to bottom" priority: locked by default, break
- * out by scrolling up, return via button.
- *
- * ### Why `wasAtBottom` snapshot (not live `isNearBottom`)
- * Reading `scrollState.value` inside the effect would flip to "not at bottom" when `maxValue`
- * grows during the layout pass preceding the effect, even if the user was at the bottom.
- * The effect reads `wasAtBottom`, a snapshot of `isNearBottom` taken at the user's last scroll.
- *
- * ### Fresh-user-message exception
- * New user messages always force-scroll to bottom regardless of position. Hitting Enter is
- * unambiguous "I want to see the conversation from now" intent.
- *
- * ## Layout
- * Messages Column + input section are siblings. The button sits in a Box overlay above the input,
- * anchored `BottomCenter` with `GradumSpacing.lg` bottom padding.
+ * Auto-scrolls to the bottom when new content arrives and the user was at
+ * the bottom; otherwise a `JumpToBottomButton` appears. The scroll decision
+ * uses a `wasAtBottom` snapshot taken at the user's last scroll — reading
+ * `scrollState.value` live would flip to "not at bottom" while `maxValue`
+ * grows during the layout pass. New user messages always force-scroll.
  */
 @Composable
 fun ChatScreen(

@@ -21,20 +21,12 @@ data class ModelInfo(
   val openWeights: Boolean = false,
   val attachment: Boolean = false,
   /**
-   * `true` while the model is reachable. The server's
-   * `ModelDiscovery` flips this to `false` when the most recent
-   * health check failed (stale Ollama signin, exhausted quota,
-   * 5xx upstream, or a network blip).
+   * `true` while the model is reachable. The server's `ModelDiscovery`
+   * flips it to `false` on a failed health check; the plugin filters out
+   * `available = false` entries in `GradumChatSession.applyModelList`.
    *
-   * The plugin UI filters out `available = false` entries in
-   * `GradumChatSession.applyModelList` before they ever reach
-   * the popup, so this flag is only meaningful at the
-   * session-scanState boundary; nothing in the renderer reads it.
-   *
-   * Defaults to `true` so a `ModelInfo` constructed from a
-   * partial / older payload (e.g. cached in the IDE) still
-   * behaves as a usable model until the next `/models` poll
-   * proves otherwise.
+   * Defaults to `true` so a `ModelInfo` built from a partial/older payload
+   * behaves as usable until the next `/models` poll proves otherwise.
    */
   val available: Boolean = true
 ) {

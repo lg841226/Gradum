@@ -50,15 +50,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
   } ?: EditorContext.EMPTY
   val coroutineScope = rememberCoroutineScope()
 
-  // Effects
   TabNameEffect(session, toolWindow)
   ModelPollingEffect(session, coroutineScope)
 
-  // Create callbacks and scanState
   val callbacks = rememberGradumCallbacks(session, toolWindow, coroutineScope)
   val state = rememberGradumState(session, editorContext, callbacks)
 
-  // Render UI
   Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
     if (session.hasSentMessage) {
       ChatScreen(
