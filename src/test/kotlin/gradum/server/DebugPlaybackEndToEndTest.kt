@@ -237,14 +237,53 @@ class DebugPlaybackEndToEndTest {
     )
   }
 
+  @Test
+  fun `context is written under gradum sessions dir when sessionId is sent`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val project = Files.createTempDirectory("gradum_playback_session_")
+    postScenario(client, project, """<tls nam="ctx_session"><t nam="read_file" pth="x.txt" exp="error"/></tls>""", "20260812-131500-a1b2c3")
+
+    val sessionDir = project.resolve(".gradum").resolve("sessions").resolve("20260812-131500-a1b2c3")
+    assertTrue(
+      Files.isRegularFile(sessionDir.resolve("context.json")),
+      "context.json should be written under .gradum/sessions/<sessionId>/"
+    )
+    assertTrue(
+      Files.notExists(project.resolve(".gradum").resolve("context.json")),
+      "legacy .gradum/context.json should not be used when a sessionId is sent"
+    )
+  }
+
+  @Test
+  fun `context falls back to legacy file when sessionId is absent`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
+    val project = Files.createTempDirectory("gradum_playback_legacy_")
+    postScenario(client, project, """<tls nam="ctx_legacy"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
+
+    assertTrue(
+      Files.isRegularFile(project.resolve(".gradum").resolve("context.json")),
+      "legacy .gradum/context.json should still be used when no sessionId is sent"
+    )
+    assertTrue(
+      Files.notExists(project.resolve(".gradum").resolve("sessions")),
+      "no sessions dir should be created when no sessionId is sent"
+    )
+  }
+
   private suspend fun postScenario(client: HttpClient, project: Path, scenarioXml: String): String {
+    return postScenario(client, project, scenarioXml, null)
+  }
+
+  private suspend fun postScenario(client: HttpClient, project: Path, scenarioXml: String, sessionId: String?): String {
     val projectRoot = project.toAbsolutePath().toString()
+    val sessionField: String = if (sessionId != null) """"sessionId": "$sessionId",""" else ""
     val response: HttpResponse = client.post("/events") {
       contentType(ContentType.Application.Json)
       setBody(
         """{
           "message": "play it back",
           "projectRoot": "$projectRoot",
+          $sessionField
           "toolCallXml": "${sceneEscape(scenarioXml)}"
         }"""
       )

@@ -83,8 +83,14 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         suggestionVariants = session.suggestionVariants,
         modifier = Modifier.fillMaxSize(),
         inputActions = state.inputActions,
-        selectedPermission = session.selectedPermission
-      ) { session.suggestionVariants = List(4) { Random.nextInt(5) } }
+        selectedPermission = session.selectedPermission,
+        sessions = session.sessions.toList(),
+        onOpenSession = { sessionId ->
+          coroutineScope.launch { session.switchSession(sessionId) }
+        },
+        onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
+        onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } }
+      )
     }
   }
 }

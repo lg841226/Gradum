@@ -121,6 +121,16 @@ data class AgentConfiguration(
    * project is actually open in the IDE.
    */
   val projectRoot: String = "",
+
+  /**
+   * Stable conversation id sent by the plugin on every `/events` request
+   * of the same chat thread. The `ContextManager` writes this session's
+   * context to `<projectRoot>/.gradum/sessions/<sessionId>/context.json`,
+   * so switching sessions switches model memory and "New Chat" (a fresh
+   * sessionId) genuinely forgets. Null/blank falls back to the legacy
+   * `<projectRoot>/.gradum/context.json` for old-clients compatibility.
+   */
+  val sessionId: String? = null,
 ) {
   companion object {
 

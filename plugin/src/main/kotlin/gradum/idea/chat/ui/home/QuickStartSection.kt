@@ -73,7 +73,7 @@ fun QuickStartSection(
         }
       }
     }
-    Spacer(modifier = Modifier.height(GradumSpacing.lg))
+    Spacer(modifier = Modifier.height(GradumSpacing.sml))
     FlowRow(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),

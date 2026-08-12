@@ -281,10 +281,33 @@ src/main/resources/
         └── read_only.xml          # Read-only mode (inspection only)
 
 <projectRoot>/.gradum/             # Generated at runtime inside the user's project
-├── context.json                   # Encrypted conversation context (written by ContextManager)
+├── context.json                   # Legacy/default-session context (blank sessionId fallback)
 ├── run_cmd/{timestamp}.log        # Detached-mode command logs
-└── recordings/{scenario}.json     # Debug tool-call playback recordings
+├── recordings/{scenario}.json     # Debug tool-call playback recordings
+└── sessions/{sessionId}/          # One conversation = one directory
+    ├── conversation.md            # Plugin · structured Markdown transcript (read/write)
+    └── context.json               # Server · this session's model context
 ```
+
+**Session path rule (server and plugin MUST agree — see `docs/CHAT_HISTORY_PLAN.md §1`):**
+
+```
+sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
+```
+
+- `sessionId` is a client-generated `yyyyMMdd-HHmmss-xxxxxx` id sent in every
+  `POST /events` request of the same chat thread. The `ContextManager`
+  (`contextOutputDirectory` in `Agent.kt`) writes that session's context to
+  `.gradum/sessions/<sessionId>/context.json`, so switching conversation
+  switches model memory and "New Chat" (a fresh id) genuinely forgets.
+- A blank/`null` `sessionId` falls back to the legacy
+  `<projectRoot>/.gradum/context.json` for old-clients compatibility.
+- The plugin persists a full-detail transcript per session
+  (`ChatSessionStore` + `ChatTranscript`) that restores the exact bubble UI
+  (thinking, tool calls + results, errors, token usage).
+- `POST /session/delete` removes a whole session directory on the server
+  (path-traversal guarded); the plugin cascades locally first.
+
 
 ### 2.4 Runtime Data Flow (End-to-End)
 

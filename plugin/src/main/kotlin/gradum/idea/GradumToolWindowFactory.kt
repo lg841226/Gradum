@@ -48,6 +48,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
     val chatSession: GradumChatSession = project.getService(GradumChatSession::class.java)
       ?: error("GradumChatSession is not registered in plugin.xml")
     chatSession.project = project
+    chatSession.refreshSessions()
 
     toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
       SwingBridgeTheme {

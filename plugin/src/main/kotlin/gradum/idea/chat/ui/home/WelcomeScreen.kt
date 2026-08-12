@@ -8,7 +8,9 @@
 package gradum.idea.chat.ui.home
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.dp
+import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.ui.input.ChatInputSection
@@ -55,7 +58,8 @@ private val WelcomeGradient: Brush = Brush.linearGradient(
 
 /**
  * Landing screen shown before the user has sent any message. Renders a
- * centered brand header and a single chat input section.
+ * centered brand header, the chat input, quick-start suggestions, and (when
+ * available) the recent-sessions list.
  */
 @Composable
 fun WelcomeScreen(
@@ -66,6 +70,9 @@ fun WelcomeScreen(
   inputActions: ChatInputActions,
   selectedPermission: String = PermissionMode.READONLY,
   onRefreshSuggestions: () -> Unit,
+  sessions: List<SessionMeta> = emptyList(),
+  onOpenSession: (String) -> Unit = {},
+  onDeleteSession: (String) -> Unit = {},
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
@@ -74,7 +81,9 @@ fun WelcomeScreen(
     contentAlignment = Alignment.Center
   ) {
     Column(
-      modifier = Modifier.widthIn(max = 600.dp),
+      modifier = Modifier
+        .verticalScroll(rememberScrollState())
+        .widthIn(max = 600.dp),
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
     ) {
       Column(
@@ -112,6 +121,13 @@ fun WelcomeScreen(
         suggestionVariants = suggestionVariants,
         onRefreshSuggestions = onRefreshSuggestions
       )
+      if (sessions.isNotEmpty()) {
+        RecentChatsSection(
+          sessions = sessions,
+          onOpenSession = onOpenSession,
+          onDeleteSession = onDeleteSession
+        )
+      }
     }
     Row(
       modifier = Modifier

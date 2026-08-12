@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ChatSessionStore.kt  2026-08-12 12:38:25 Changed by gwy
+ */
+
+package gradum.idea.chat.history
+
+import com.intellij.openapi.diagnostic.Logger
+import gradum.idea.chat.model.ChatMessage
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.stream.Stream
+import kotlin.random.Random
+
+/**
+ * Lightweight metadata for one persisted chat session, shown in the
+ * Welcome screen's "Recent Chats" list.
+ */
+data class SessionMeta(
+  val sessionId: String,
+  val title: String,
+  val createdAt: Long,
+  val updatedAt: Long,
+  val modelName: String
+)
+
+/**
+ * Project-scoped file store for chat session transcripts.
+ *
+ * Every session lives under `<projectRoot>/.gradum/sessions/<sessionId>/`
+ * (the same directory rule the server uses for that session's `context.json`
+ * — see [docs/CHAT_HISTORY_PLAN.md §1]). The plugin writes a
+ * [ChatTranscript] `conversation.md` into it; [deleteSession] removes the
+ * whole directory so server context is cascaded away too.
+ *
+ * @param projectRoot Absolute path of the IntelliJ project (from
+ *   `Project.basePath`). All file operations are relative to it, never
+ *   absolute-from-user-input, so [deleteSession] cannot escape the
+ *   `.gradum/sessions/` root.
+ */
+class ChatSessionStore(private val projectRoot: Path) {
+
+  private val log: Logger = Logger.getInstance(ChatSessionStore::class.java)
+
+  /** Root directory holding all session directories: `<root>/.gradum/sessions`. */
+  val sessionsRoot: Path get() = projectRoot.resolve(".gradum").resolve("sessions")
+
+  /** Resolves the directory for one session. Callers must not trust [sessionId] blindly. */
+  fun sessionDir(sessionId: String): Path = sessionsRoot.resolve(sessionId)
+
+  /** Whether a session with [sessionId] currently has a saved transcript. */
+  fun hasSession(sessionId: String): Boolean =
+    Files.exists(sessionDir(sessionId).resolve(TRANSCRIPT_FILE))
+
+  /**
+   * Persists [messages] as a [ChatTranscript] for session [sessionMeta.sessionId].
+   *
+   * Atomic write (temp file + rename, like the server's `ContextManager`)
+   * so a crash mid-write never leaves a half-written transcript.
+   */
+  fun saveSession(sessionMeta: SessionMeta, messages: List<ChatMessage>) {
+    val sessionDirectory: Path = sessionDir(sessionMeta.sessionId)
+    try {
+      Files.createDirectories(sessionDirectory)
+      val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
+      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp")
+      val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
+      Files.writeString(tempFile, content, Charsets.UTF_8)
+      try {
+        Files.move(
+          tempFile, targetFile,
+          StandardCopyOption.REPLACE_EXISTING,
+          StandardCopyOption.ATOMIC_MOVE
+        )
+      } catch (atomicMoveException: AtomicMoveNotSupportedException) {
+        log.warn("ATOMIC_MOVE not supported on this filesystem; falling back", atomicMoveException)
+        Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
+      }
+    } catch (saveException: Exception) {
+      log.error("Failed to save session ${sessionMeta.sessionId}", saveException)
+    }
+  }
+
+  /**
+   * Lists all sessions, most recently updated first.
+   *
+   * Reads only each transcript's header metadata ([ChatTranscript.parseMeta]),
+   * so listing stays cheap even for large conversations.
+   */
+  fun listSessions(): List<SessionMeta> {
+    if (!Files.isDirectory(sessionsRoot)) return emptyList()
+
+    val sessionList: MutableList<SessionMeta> = mutableListOf()
+    Files.list(sessionsRoot).use { dirStream: Stream<Path> ->
+      dirStream
+        .filter { Files.isDirectory(it) }
+        .forEach { sessionDirectory: Path ->
+          val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
+          if (!Files.isRegularFile(transcriptFile)) return@forEach
+          try {
+            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(Files.readString(transcriptFile, Charsets.UTF_8))
+            if (sessionMeta.sessionId.isNotEmpty()) sessionList.add(sessionMeta)
+          } catch (listException: Exception) {
+            log.warn("Skipping unreadable session transcript at $transcriptFile", listException)
+          }
+        }
+    }
+    return sessionList.sortedByDescending { it.updatedAt }
+  }
+
+  /**
+   * Loads one session's [ChatTranscript.ParsedTranscript] from disk.
+   *
+   * @return The parsed transcript, or `null` when the session does not exist
+   *   or its transcript is unreadable.
+   */
+  fun loadSession(sessionId: String): ChatTranscript.ParsedTranscript? {
+    val transcriptFile: Path = sessionDir(sessionId).resolve(TRANSCRIPT_FILE)
+    if (!Files.isRegularFile(transcriptFile)) return null
+    return try {
+      ChatTranscript.parseTranscript(Files.readString(transcriptFile, Charsets.UTF_8))
+    } catch (loadException: Exception) {
+      log.warn("Failed to load session $sessionId", loadException)
+      null
+    }
+  }
+
+  /**
+   * Deletes a session's entire directory (transcript included).
+   *
+   * The path is re-verified against [sessionsRoot] after resolution as a
+   * belt-and-suspenders guard against path traversal — a session id coming
+   * from the UI is trusted, but this must never be able to reach outside
+   * `.gradum/sessions/`.
+   *
+   * @return `true` when the directory existed and was removed.
+   */
+  fun deleteSession(sessionId: String): Boolean {
+    val sessionDirectory: Path = sessionDir(sessionId).normalize()
+    if (!sessionDirectory.startsWith(sessionsRoot.normalize())) {
+      log.warn("Refusing to delete session outside sessions root: $sessionDirectory")
+      return false
+    }
+    if (!Files.isDirectory(sessionDirectory)) return false
+    return try {
+      Files.walk(sessionDirectory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) } }
+      log.info("Deleted session directory $sessionDirectory")
+      true
+    } catch (deleteException: Exception) {
+      log.error("Failed to delete session $sessionId", deleteException)
+      false
+    }
+  }
+
+  companion object {
+    const val TRANSCRIPT_FILE: String = "conversation.md"
+
+    /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
+    private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+
+    private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()
+
+    private const val SUFFIX_CHARS: Int = 6
+
+    /**
+     * Generates a session id: `yyyyMMdd-HHmmss-xxxxxx` (see
+     * [docs/CHAT_HISTORY_PLAN.md §1.2]). The 6-char hex suffix keeps
+     * same-second collision probability negligible (~0.03% for 100 ids in
+     * one second, birthday-paradox) while the time prefix keeps the id
+     * lexicographically sortable.
+     */
+    fun nextSessionId(): String {
+      val timeStamp: String = LocalDateTime.now().format(SESSION_ID_FORMAT)
+      val suffixChars: CharArray = CharArray(SUFFIX_CHARS) { HEX_CHARS[Random.nextInt(HEX_CHARS.size)] }
+      return "$timeStamp-${String(suffixChars)}"
+    }
+  }
+}

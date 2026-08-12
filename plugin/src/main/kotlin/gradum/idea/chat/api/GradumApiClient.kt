@@ -103,6 +103,38 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
+   * Deletes a session's entire directory on the server (transcript cascade
+   * is handled locally by [gradum.idea.chat.history.ChatSessionStore]).
+   *
+   * @param projectRoot The project the session belongs to.
+   * @param sessionId The client-generated conversation session id.
+   * @return `true` when the server confirmed deletion, `false` when the
+   *   session was not found or the request failed.
+   */
+  suspend fun deleteSession(projectRoot: String, sessionId: String): Boolean =
+    withContext(Dispatchers.IO) {
+      val requestBody: JsonObject = buildJsonObject {
+        put("projectRoot", projectRoot)
+        put("sessionId", sessionId)
+      }
+
+      val request: HttpRequest = HttpRequest.newBuilder()
+        .uri(URI.create("$baseUrl/session/delete"))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+        .build()
+
+      try {
+        val response: HttpResponse<String> =
+          client.send(request, HttpResponse.BodyHandlers.ofString())
+        response.statusCode() == 200
+      } catch (deleteException: Exception) {
+        log.warn("Failed to delete session $sessionId on server", deleteException)
+        false
+      }
+    }
+
+  /**
    * Sends a chat message and returns a streaming response of pre-parsed NDJSON events.
    *
    * Server processes through an agent loop (tool calls, file editing, search, etc.)
@@ -113,6 +145,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * connection-level failures abort the flow (caught by caller's `.catch`).
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
+   * @param sessionId The client-generated conversation session id that scopes
+   *   this session's model context on the server. `null` keeps the legacy
+   *   single `.gradum/context.json` behavior for old clients / servers.
    * @return A [Flow] of [JsonObject] events. Failed lines are skipped silently.
    */
   fun sendMessage(
@@ -121,7 +156,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     loadContext: Boolean = true, toolMode: String? = null,
     promptVariant: String? = null, projectRoot: String? = null,
     imageAttachments: List<ApiImageAttachment> = emptyList(),
-    toolCallXml: String? = null
+    toolCallXml: String? = null,
+    sessionId: String? = null
   ): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
       put("message", message)
@@ -139,6 +175,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (toolMode != null) put("toolMode", toolMode)
       if (promptVariant != null) put("promptVariant", promptVariant)
       if (projectRoot != null) put("projectRoot", projectRoot)
+      if (sessionId != null) put("sessionId", sessionId)
 
       if (toolCallXml != null) put("toolCallXml", toolCallXml)
 

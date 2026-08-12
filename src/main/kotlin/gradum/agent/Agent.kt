@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-12 12:38:25 Changed by gwy
+ * Agent.kt  2026-08-12 14:35:15 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -34,6 +34,24 @@ import java.nio.file.Path
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
 private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
+
+/**
+ * Resolves the ContextManager output directory for an agent run.
+ *
+ * Single source of truth for the `.gradum/sessions/<sessionId>/` layout:
+ * a non-blank [sessionId] scopes this conversation's context file to its
+ * own directory; blank falls back to the legacy single
+ * `<projectRoot>/.gradum/context.json` directory.
+ */
+internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
+  val sessionKey: String = configuration.sessionId?.trim().orEmpty()
+  val projectRootPath: Path = Path.of(configuration.projectRoot)
+  return if (sessionKey.isEmpty()) {
+    projectRootPath.resolve(".gradum")
+  } else {
+    projectRootPath.resolve(".gradum").resolve("sessions").resolve(sessionKey)
+  }
+}
 
 /**
  * A single user-supplied attachment (currently only `image`) for
@@ -78,6 +96,12 @@ class Agent(
    * Per-session ContextManager that stores .gradum output inside the IDE's
    * open project, not the server's CWD.
    *
+   * When the plugin supplies a stable `sessionId`, context is written to
+   * `<projectRoot>/.gradum/sessions/<sessionId>/context.json` so model
+   * memory is isolated per conversation thread ("New Chat" forgets). A
+   * blank sessionId falls back to the legacy single
+   * `<projectRoot>/.gradum/context.json` for old-client compatibility.
+   *
    * The plugin provides `projectRoot` over HTTP, and Routes validates it
    * before Agent construction, so this is never empty in production.
    *
@@ -86,7 +110,7 @@ class Agent(
    * user's target project.
    */
   private val contextManager: ContextManager = ContextManager(
-    Path.of(configuration.projectRoot).resolve(".gradum")
+    contextOutputDirectory(configuration)
   )
 
   /**

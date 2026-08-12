@@ -19,6 +19,9 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.api.GradumApiClient
+import gradum.idea.chat.history.ChatSessionStore
+import gradum.idea.chat.history.ChatTranscript
+import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
@@ -33,6 +36,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.io.IOException
+import java.nio.file.Path
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -184,6 +188,29 @@ class GradumChatSession {
   /** The session ID returned by the server, used for stop requests. */
   var sessionId: String? by mutableStateOf(null)
 
+  /**
+   * The client-generated conversation session id (`yyyyMMdd-HHmmss-xxxxxx`).
+   *
+   * Distinct from [sessionId] (the server's agent-session id used for stop):
+   * this one scopes model context on the server (`.gradum/sessions/<id>/`)
+   * and names the local `conversation.md` transcript. Null until the first
+   * message of a session is sent.
+   */
+  var activeSessionId: String? by mutableStateOf(null)
+
+  /** Title of the active conversation (first user message, truncated). */
+  var currentSessionTitle: String by mutableStateOf("")
+
+  /** All saved sessions, most recently updated first (Welcome "Recent Chats"). */
+  val sessions: SnapshotStateList<SessionMeta> = mutableStateListOf()
+
+  /**
+   * Lazily created transcript store, rooted at the current project's base
+   * path. Null until [project] is set by the tool-window factory.
+   */
+  private val chatStore: ChatSessionStore?
+    get() = project?.basePath?.let { ChatSessionStore(Path.of(it)) }
+
   /** Current phase label shown during sending (e.g. "Synthesizing...", "Distilling..."). */
   var sendingPhase: String by mutableStateOf("")
 
@@ -193,11 +220,18 @@ class GradumChatSession {
   /**
    * Resets the entire session to its initial state.
    *
-   * Clears all messages, attachments, pending items, and the input field.
+   * Persists the current conversation (if any messages exist) to its
+   * session transcript before clearing, so "New Chat" truly starts a fresh
+   * session — both in the UI and in the server's per-session model context.
+   * Then clears all messages, attachments, pending items, and the input
+   * field, and assigns a brand-new [activeSessionId] for the next
+   * conversation.
+   *
    * Called when the user clicks "New Chat" or when the session needs to be
    * discarded and started fresh.
    */
   fun reset() {
+    saveCurrentSession()
     val job = currentJob
     currentJob = null
     if (job != null) {
@@ -209,12 +243,116 @@ class GradumChatSession {
     }
     sendingPhase = ""
     sessionId = null
+    activeSessionId = chatStore?.let { ChatSessionStore.nextSessionId() }
+    currentSessionTitle = ""
     isSending = false
     hasSentMessage = false
     messages.clear()
     attachedFiles.clear()
     pendingMessages.clear()
     textState.edit { delete(0, length) }
+    refreshSessions()
+  }
+
+  /**
+   * Saves the current in-memory conversation to its session transcript
+   * (only when it has at least one message and a session id is available).
+   */
+  private fun saveCurrentSession() {
+    if (messages.isEmpty()) return
+    val sessionStore: ChatSessionStore = chatStore ?: return
+    val targetSessionId: String = activeSessionId ?: ChatSessionStore.nextSessionId().also { activeSessionId = it }
+    val createdAt: Long = messages.firstOrNull { it.isUserMessage }?.timestamp ?: System.currentTimeMillis()
+    val modelName: String = messages.lastOrNull()?.modelName.orEmpty()
+    sessionStore.saveSession(
+      SessionMeta(
+        sessionId = targetSessionId,
+        title = ChatTranscript.titleFor(messages),
+        createdAt = createdAt,
+        updatedAt = System.currentTimeMillis(),
+        modelName = modelName
+      ),
+      messages.toList()
+    )
+  }
+
+  /** Re-scans [ChatSessionStore.listSessions] into [sessions] (most recent first). */
+  fun refreshSessions() {
+    val sessionStore: ChatSessionStore = chatStore ?: return
+    val listedSessions: List<SessionMeta> = sessionStore.listSessions()
+    sessions.clear()
+    sessions.addAll(listedSessions)
+  }
+
+  /**
+   * Starts a fresh conversation: saves the current one, returns to the
+   * Welcome screen, and assigns a new [activeSessionId].
+   */
+  fun newSession() = reset()
+
+  /**
+   * Switches the UI to a saved session: loads its transcript into
+   * [messages] and restores [activeSessionId] / [currentSessionTitle].
+   *
+   * @return `true` when the session existed and was restored.
+   */
+  suspend fun switchSession(targetSessionId: String): Boolean {
+    if (isSending) return false
+    val sessionStore: ChatSessionStore = chatStore ?: return false
+    val loadedTranscript: ChatTranscript.ParsedTranscript = withContext(Dispatchers.IO) {
+      sessionStore.loadSession(targetSessionId)
+    } ?: return false
+
+    val job = currentJob
+    currentJob = null
+    if (job != null) {
+      try {
+        job.cancel(CancellationException("Gradum: switch session"))
+      } catch (cancelException: CancellationException) {
+        log.warn("Failed to cancel current job on switchSession", cancelException)
+      }
+    }
+    sessionId = null
+    isSending = false
+    isWaitingForResponse = false
+    sendingPhase = ""
+    messages.clear()
+    messages.addAll(loadedTranscript.messages)
+    activeSessionId = targetSessionId
+    currentSessionTitle = loadedTranscript.sessionMeta.title
+    hasSentMessage = loadedTranscript.messages.isNotEmpty()
+    attachedFiles.clear()
+    pendingMessages.clear()
+    textState.edit { delete(0, length) }
+    return true
+  }
+
+  /**
+   * Deletes a session locally (transcript directory) and cascades to the
+   * server (`POST /session/delete`) so its model context is removed too.
+   *
+   * If the deleted session is the active one, returns to a fresh Welcome.
+   */
+  fun deleteSession(targetSessionId: String) {
+    val sessionStore: ChatSessionStore = chatStore ?: return
+    sessionStore.deleteSession(targetSessionId)
+
+    val projectRoot: String? = project?.basePath
+    if (projectRoot != null) {
+      scope?.launch {
+        apiClient.deleteSession(projectRoot, targetSessionId)
+      }
+    }
+
+    sessions.removeAll { it.sessionId == targetSessionId }
+    if (activeSessionId == targetSessionId) {
+      // The active conversation is gone; return to a fresh Welcome without
+      // letting reset()'s saveCurrentSession resurrect the deleted directory.
+      activeSessionId = null
+      messages.clear()
+      reset()
+    }
+    refreshSessions()
   }
 
   /**
@@ -513,6 +651,11 @@ class GradumChatSession {
       val loadContext = true
       sendingPhase = message("gradum.phase.distilling")
 
+      // First message of a conversation: assign a session id so the model
+      // context stays scoped to this conversation on the server and the
+      // transcript has a home once the turn completes.
+      if (activeSessionId == null) activeSessionId = ChatSessionStore.nextSessionId()
+
       // Extract images pre-serialization. Validate against current model —
       // stale vision attachments may remain after switching to a text-only model.
       val imageAttachments: List<GradumApiClient.ApiImageAttachment> =
@@ -549,7 +692,8 @@ class GradumChatSession {
         toolMode = toolMode,
         projectRoot = project?.basePath,
         imageAttachments = imageAttachments,
-        toolCallXml = toolCallXml
+        toolCallXml = toolCallXml,
+        sessionId = activeSessionId
       ).catch { exception ->
         if (exception is CancellationException) {
           val assistantIndex: Int = messages.lastIndex
@@ -605,6 +749,7 @@ class GradumChatSession {
           "session_end" -> {
             isSending = false; sendingPhase = ""
             isWaitingForResponse = false; currentJob = null; sessionId = null
+            saveCurrentSession()
             processPendingQueue()
           }
         }

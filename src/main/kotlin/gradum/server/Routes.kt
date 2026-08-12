@@ -34,6 +34,14 @@ import java.util.concurrent.ConcurrentHashMap
 @Serializable
 data class EventsRequestBody(
   val message: String,
+  /**
+   * Stable conversation id supplied by the plugin on every request of the
+   * same chat thread. The server scopes this session's persisted context
+   * to `.gradum/sessions/<sessionId>/`; a blank value falls back to the
+   * legacy `.gradum/context.json`. Optional so older plugin builds keep
+   * working against this server.
+   */
+  val sessionId: String? = null,
   val loadContext: Boolean = true,
   val model: String? = null,
   val toolMode: String? = null,
@@ -107,6 +115,16 @@ data class AttachmentDto(
 
 @Serializable
 data class StopRequestBody(
+  val sessionId: String
+)
+
+/**
+ * Body of `POST /session/delete` — deletes an entire session directory
+ * (transcript + server context) for the given project.
+ */
+@Serializable
+data class DeleteSessionRequestBody(
+  val projectRoot: String,
   val sessionId: String
 )
 
@@ -197,6 +215,10 @@ fun Application.registerAllRoutes() {
         return@post
       }
 
+      // Blank/whitespace sessionId is treated as "no session" so the agent
+      // falls back to the legacy single context file.
+      val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
+
       // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
       // emit rate is bounded by LLM response size. Reconsider if user input ever flows
       // through this channel unfiltered.
@@ -231,6 +253,7 @@ fun Application.registerAllRoutes() {
         // The plugin owns project selection; the server is just a per-session executor. We resolved + validated above so
         // AgentConfiguration can require a non-null String.
         projectRoot = projectRootPath.toString(),
+        sessionId = resolvedSessionId,
       )
 
       launch(Dispatchers.IO) {
@@ -300,6 +323,60 @@ fun Application.registerAllRoutes() {
           contentType = ContentType.Application.Json
         )
       }
+    }
+
+    post("/session/delete") {
+      val requestBody = call.receive<DeleteSessionRequestBody>()
+      val rawProjectRoot: String = requestBody.projectRoot
+      if (rawProjectRoot.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val sessionKey: String = requestBody.sessionId.trim()
+      if (sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      // Delete only inside the sessions root; resolve + verify containment to
+      // block path-traversal (`../` or absolute paths smuggled in sessionId).
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
+      val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
+
+      if (!sessionDir.startsWith(sessionsRoot)) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "invalid sessionId")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val sessionFile: java.io.File = sessionDir.toFile()
+      if (!sessionFile.exists()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val isDeleted: Boolean = sessionFile.deleteRecursively()
+      val resultStatus: String = if (isDeleted) "deleted" else "partial_failure"
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("status" to resultStatus, "sessionId" to sessionKey)),
+        contentType = ContentType.Application.Json,
+      )
     }
 
     get("/health") {
