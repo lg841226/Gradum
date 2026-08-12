@@ -2,14 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-12 16:01:51 Changed by gwy
+ * RecentChatsSection.kt  2026-08-12 16:04:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -133,20 +134,8 @@ private fun RecentSessionRow(
     }
     AnimatedVisibility(
       visible = isHovered,
-      enter = slideInHorizontally(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMedium
-        ),
-        initialOffsetX = { it / -2 }
-      ) + fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMedium)),
-      exit = slideOutHorizontally(
-        animationSpec = spring(
-          dampingRatio = Spring.DampingRatioMediumBouncy,
-          stiffness = Spring.StiffnessMedium
-        ),
-        targetOffsetX = { it / -2 }
-      ) + fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMedium))
+      enter = fadeIn(animationSpec = tween(150)) +
+        scaleIn(initialScale = 0.6f, animationSpec = tween(150))
     ) {
       Spacer(modifier = Modifier.width(GradumSpacing.sm))
       Tooltip(tooltip = { Text(text = message("gradum.recent.delete")) }) {
