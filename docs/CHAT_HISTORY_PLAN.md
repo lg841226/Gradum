@@ -122,7 +122,7 @@ Project-scoped file store (uses `project.basePath`):
 | Method                               | Behavior                                                                               |
 |--------------------------------------|----------------------------------------------------------------------------------------|
 | `saveSession(id, messages, meta)`    | Write `conversation.md` (atomic temp+move, like `ContextManager`)                      |
-| `listSessions(): List<SessionMeta>`  | Scan `.gradum/sessions/`, read MD header metadata                                      |
+| `listSessions(): List<SessionMeta>`  | Scan `.gradum/sessions/`, read only the MD header (first few lines, never the body)    |
 | `loadSession(id): List<ChatMessage>` | Parse `conversation.md` back to bubbles                                                |
 | `deleteSession(id)`                  | Delete entire `.gradum/sessions/<id>` dir locally + call server `POST /session/delete` |
 | `nextSessionId(): String`            | `yyyyMMdd-HHmmss-xxxxxx`                                                               |
@@ -152,7 +152,8 @@ Structured MD generation + parsing.
 - New methods: `newSession()` / `switchSession(id)` / `deleteSession(id)`.
 - `reset()` **keeps its meaning** (clear UI, return to Welcome) and becomes the entry point of `newSession()` — New
   Chat → `session.reset()` → fresh sessionId + save.
-- On tool-window init: `listSessions()` to populate the recent-chats region.
+- On tool-window init: `listSessions()` to populate the recent-chats region (async on `Dispatchers.IO`, cancelled
+  when superseded; the empty state and a `formatTimestamp(updatedAt)` title fallback are rendered inline).
 
 ### 3.4 `GradumApiClient.sendMessage()`
 

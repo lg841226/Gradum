@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatSessionStore.kt  2026-08-12 17:29:26 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -90,8 +90,9 @@ class ChatSessionStore(private val projectRoot: Path) {
   /**
    * Lists all sessions, most recently updated first.
    *
-   * Reads only each transcript's header metadata ([ChatTranscript.parseMeta]),
-   * so listing stays cheap even for large conversations.
+   * Reads only each transcript's leading header lines
+   * ([ChatTranscript.parseMeta]), so listing stays cheap even for large
+   * conversations: the full body is never loaded from disk.
    */
   fun listSessions(): List<SessionMeta> {
     if (!Files.isDirectory(sessionsRoot)) return emptyList()
@@ -104,7 +105,7 @@ class ChatSessionStore(private val projectRoot: Path) {
           val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
           if (!Files.isRegularFile(transcriptFile)) return@forEach
           try {
-            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(Files.readString(transcriptFile, Charsets.UTF_8))
+            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(readHeaderLines(transcriptFile))
             if (sessionMeta.sessionId.isNotEmpty()) sessionList.add(sessionMeta)
           } catch (listException: Exception) {
             log.warn("Skipping unreadable session transcript at $transcriptFile", listException)
@@ -112,6 +113,21 @@ class ChatSessionStore(private val projectRoot: Path) {
         }
     }
     return sessionList.sortedByDescending { it.updatedAt }
+  }
+
+  /** Reads only the leading [HEADER_LINE_LIMIT] lines of a transcript file. */
+  private fun readHeaderLines(transcriptFile: Path): String {
+    val headerBuilder: StringBuilder = StringBuilder()
+    Files.newBufferedReader(transcriptFile, Charsets.UTF_8).use { reader ->
+      var line: String? = reader.readLine()
+      var lineCount: Int = 0
+      while (line != null && lineCount < HEADER_LINE_LIMIT) {
+        headerBuilder.append(line).append('\n')
+        line = reader.readLine()
+        lineCount++
+      }
+    }
+    return headerBuilder.toString()
   }
 
   /**
@@ -160,6 +176,9 @@ class ChatSessionStore(private val projectRoot: Path) {
 
   companion object {
     const val TRANSCRIPT_FILE: String = "conversation.md"
+
+    /** The session header always lives in the first lines; no need to read the body. */
+    private const val HEADER_LINE_LIMIT: Int = 8
 
     /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
     private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")

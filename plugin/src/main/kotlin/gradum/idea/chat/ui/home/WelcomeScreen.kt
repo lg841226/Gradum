@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-12 12:38:25 Changed by gwy
+ * WelcomeScreen.kt  2026-08-12 17:29:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -121,13 +121,11 @@ fun WelcomeScreen(
         suggestionVariants = suggestionVariants,
         onRefreshSuggestions = onRefreshSuggestions
       )
-      if (sessions.isNotEmpty()) {
-        RecentChatsSection(
-          sessions = sessions,
-          onOpenSession = onOpenSession,
-          onDeleteSession = onDeleteSession
-        )
-      }
+      RecentChatsSection(
+        sessions = sessions,
+        onOpenSession = onOpenSession,
+        onDeleteSession = onDeleteSession
+      )
     }
     Row(
       modifier = Modifier

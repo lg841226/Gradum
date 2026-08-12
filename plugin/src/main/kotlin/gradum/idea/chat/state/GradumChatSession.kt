@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumChatSession.kt  2026-08-12 17:29:26 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -204,6 +204,9 @@ class GradumChatSession {
   /** All saved sessions, most recently updated first (Welcome "Recent Chats"). */
   val sessions: SnapshotStateList<SessionMeta> = mutableStateListOf()
 
+  /** In-flight [refreshSessions] scan; cancelled before starting a newer one. */
+  private var sessionRefreshJob: Job? = null
+
   /**
    * Lazily created transcript store, rooted at the current project's base
    * path. Null until [project] is set by the tool-window factory.
@@ -276,12 +279,32 @@ class GradumChatSession {
     )
   }
 
-  /** Re-scans [ChatSessionStore.listSessions] into [sessions] (most recent first). */
+  /**
+   * Re-scans [ChatSessionStore.listSessions] into [sessions] (most recent first).
+   *
+   * The disk scan runs on [Dispatchers.IO] so tool-window creation and
+   * new-session actions never block the UI thread. The previous in-flight
+   * scan is cancelled first so a slower, older result can never overwrite
+   * a newer one.
+   */
   fun refreshSessions() {
     val sessionStore: ChatSessionStore = chatStore ?: return
-    val listedSessions: List<SessionMeta> = sessionStore.listSessions()
-    sessions.clear()
-    sessions.addAll(listedSessions)
+    val coroutineScope: CoroutineScope? = scope
+    if (coroutineScope == null) {
+      // No UI scope yet (tool-window init runs before the Compose tab);
+      // fall back to a synchronous scan — headers-only reads keep it cheap.
+      sessions.clear()
+      sessions.addAll(sessionStore.listSessions())
+      return
+    }
+    sessionRefreshJob?.cancel()
+    sessionRefreshJob = coroutineScope.launch {
+      val listedSessions: List<SessionMeta> = withContext(Dispatchers.IO) {
+        sessionStore.listSessions()
+      }
+      sessions.clear()
+      sessions.addAll(listedSessions)
+    }
   }
 
   /**
