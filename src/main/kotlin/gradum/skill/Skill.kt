@@ -170,6 +170,10 @@ abstract class Skill {
 
   private fun stripVolatileKeys(message: Map<String, Any>): Map<String, Any> {
     val content: String = message["content"] as? String ?: return message
+    // Cheap substring pre-check: when none of the volatile keys appear
+    // in the payload, the filter below would be a no-op, so skip the
+    // JSON decode/re-encode round-trip entirely.
+    if (historyVolatileKeys.none { key -> key in content }) return message
     val parsed: Map<String, Any?>? = try {
       gradum.utils.JsonUtil.decodeMap(content)
     } catch (_: Exception) {

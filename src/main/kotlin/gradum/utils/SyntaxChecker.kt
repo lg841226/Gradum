@@ -42,6 +42,11 @@ private data class LanguageSyntaxConfig(
   val outputParser: SyntaxParser
 )
 
+private val errorCodePattern: Regex = Regex("""\[(.+?)]""")
+private val indentedNotePattern: Regex = Regex("""^\s+(note|warning|error):\s(.+)$""")
+private val codePrefixPattern: Regex = Regex("""^[A-Z]\d+\s""")
+private val lineNumberPattern: Regex = Regex("""(?:line\s+)?(\d+)""")
+
 
 private fun interface SyntaxParser {
   fun parse(output: String, filePath: String): List<SyntaxIssue>
@@ -72,14 +77,14 @@ private val standardParser: SyntaxParser = SyntaxParser { output: String, filePa
       val matchedColumn: Int? = match.groupValues[3].toIntOrNull()
       val errorCode: String? = when {
         severity == "error" || severity == "warning" -> {
-          Regex("""\[(.+?)]""").find(message)?.groupValues?.get(1)
+          errorCodePattern.find(message)?.groupValues?.get(1)
         }
 
         else -> null
       }
       currentIssue = PendingIssue(severity, message, matchedLine, matchedColumn, errorCode)
     } else if (currentIssue != null) {
-      val noteMatch: MatchResult? = Regex("""^\s+(note|warning|error):\s(.+)$""").matchEntire(trimmedLine)
+      val noteMatch: MatchResult? = indentedNotePattern.matchEntire(trimmedLine)
       if (noteMatch != null) {
         currentNotes.add(noteMatch.groupValues[2])
       }
@@ -237,7 +242,7 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
     val flatMatch: MatchResult? = flatPattern.matchEntire(trimmedLine)
     if (flatMatch != null) {
       val rawMessage: String = flatMatch.groupValues[4]
-      val codePrefix: MatchResult? = Regex("""^[A-Z]\d+\s""").find(rawMessage)
+      val codePrefix: MatchResult? = codePrefixPattern.find(rawMessage)
       val cleanMessage: String = codePrefix?.let { rawMessage.removePrefix(it.value) } ?: rawMessage
       issues.add(
         SyntaxIssue(
@@ -346,7 +351,7 @@ private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePa
     .mapNotNull { line: String ->
       val trimmedLine: String = line.trimEnd()
       if (trimmedLine.isBlank()) return@mapNotNull null
-      val lineMatch: MatchResult? = Regex("""(?:line\s+)?(\d+)""").find(trimmedLine)
+      val lineMatch: MatchResult? = lineNumberPattern.find(trimmedLine)
       val severity: String = when {
         "error" in trimmedLine.lowercase() -> "error"
         "warning" in trimmedLine.lowercase() -> "warning"

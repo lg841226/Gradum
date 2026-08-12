@@ -142,7 +142,7 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
 fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): CommandVerdict {
   if (commandText.isBlank()) return CommandVerdict.Safe
 
-  val tokens: List<String> = commandText.trim().split("\\s+".toRegex())
+  val tokens: List<String> = commandText.trim().split(WHITESPACE_PATTERN)
   if (tokens.isEmpty()) return CommandVerdict.Safe
 
   val executableName: String = Paths.get(tokens[0]).fileName.toString()
@@ -166,7 +166,7 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
     for (subcommand: String in commandText.split(SHELL_OPERATOR_PATTERN)) {
       val trimmed: String = subcommand.trim()
       if (trimmed.isEmpty()) continue
-      val subTokens: List<String> = trimmed.split("\\s+".toRegex())
+      val subTokens: List<String> = trimmed.split(WHITESPACE_PATTERN)
       val subcommandExecutable: String = Paths.get(subTokens[0]).fileName.toString()
       if (subcommandExecutable !in readOnlyAllowedExecutables) {
         return CommandVerdict.Blocked(
@@ -194,18 +194,18 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
 /** Pipeline / chain operators that split a shell command into subcommands. */
 private val SHELL_OPERATOR_PATTERN: Regex = Regex("""[|;&]""")
 
+private val WHITESPACE_PATTERN: Regex = Regex("""\s+""")
+
 /**
  * True when [commandText] contains an output redirect to a file
  * (`> file`, `>> file`, `<> file`, `>| file`). Does NOT match fd-only
  * redirections (`>&`, `&>`, `2>&1`) so common read-only idioms like
  * `cmd 2>&1` still pass.
  */
+private val SHELL_REDIRECT_PATTERN: Regex = Regex("""(?<![0-9&])>>?(?![0-9&])""")
+
 private fun hasShellFileRedirect(commandText: String): Boolean {
-  // We look for ">" or ">>" that is NOT preceded by a digit (so `2>`
-  // for stderr is not flagged) and NOT followed by `&` or a digit
-  // (so `>&` and `>2` are not flagged). Trailing `>` with no
-  // following token also matches (e.g. `echo hi >`).
-  return Regex("""(?<![0-9&])>>?(?![0-9&])""").containsMatchIn(commandText)
+  return SHELL_REDIRECT_PATTERN.containsMatchIn(commandText)
 }
 
 private fun classifyDeviceWrite(commandTokens: List<String>): CommandVerdict {

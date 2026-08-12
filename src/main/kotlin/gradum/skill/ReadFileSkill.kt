@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-08-11 23:13:18 Changed by gwy
+ * ReadFileSkill.kt  2026-08-11 23:36:09 Changed by gwy
  */
 
 package gradum.skill
@@ -16,8 +16,8 @@ import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
 
-private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 private const val MAXIMUM_LINES: Int = 10000
+private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 
 /**
  * Reads file content for the agent.
@@ -162,8 +162,9 @@ class ReadFileSkill : Skill() {
           )
         )
       } else {
+        val selectedContent: String = selectedLines.joinToString("\n")
         val contentHash = MessageDigest.getInstance("MD5")
-          .digest(selectedLines.joinToString("\n").toByteArray(Charsets.UTF_8))
+          .digest(selectedContent.toByteArray(Charsets.UTF_8))
           .joinToString("") { "%02x".format(it) }
 
         makeSuccess(
@@ -172,7 +173,7 @@ class ReadFileSkill : Skill() {
             "lineRange" to "$startLineNumber-$endLineNumber",
             "totalLines" to endLineNumber,
             "contentHashShort" to contentHash.take(5),
-            "content" to selectedLines.joinToString("\n"),
+            "content" to selectedContent,
           )
         )
       }
@@ -205,8 +206,7 @@ class ReadFileSkill : Skill() {
  * clamped to the document (start ≥ 1) and ordered so `start ≤ end`.
  */
 private data class LineRange(
-  val start: Int,
-  val end: Int,
+  val start: Int, val end: Int,
 )
 
 /**

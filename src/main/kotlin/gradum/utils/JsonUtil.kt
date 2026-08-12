@@ -28,9 +28,13 @@ import kotlinx.serialization.json.*
  */
 object JsonUtil {
 
+  private val compactJson: Json = Json { }
+
+  private val prettyJson: Json = Json { prettyPrint = true }
+
   /** Encodes a heterogeneous [Map] to a JSON string (optionally pretty-printed). */
   fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
-    val jsonFormatter = Json { this.prettyPrint = prettyPrint }
+    val jsonFormatter: Json = if (prettyPrint) prettyJson else compactJson
     return jsonFormatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
   }
 

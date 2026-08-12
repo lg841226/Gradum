@@ -33,6 +33,8 @@ import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
 
+private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
+
 /**
  * A single user-supplied attachment (currently only `image`) for
  * a chat turn. Agent-side mirror of
@@ -102,6 +104,7 @@ class Agent(
   )
 
   private var redLineKeywords: List<String> = emptyList()
+  private var redLineKeywordsLowercase: List<String> = emptyList()
   private val redLineHitKeywords: MutableList<String> = mutableListOf()
   private val repeatedResponseTracker: MutableList<String> = mutableListOf()
   private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
@@ -123,6 +126,7 @@ class Agent(
       Provider.OLLAMA -> ollamaClient
     }
     redLineKeywords = loadRedLineKeywords()
+    redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
   }
 
   internal constructor(
@@ -132,6 +136,7 @@ class Agent(
   ) : this(configuration, emitEvent) {
     activeClient = llmClient
     this.redLineKeywords = redLineKeywords
+    this.redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
   }
 
   fun executeTask(
@@ -561,7 +566,7 @@ class Agent(
     convertedArguments["projectRoot"] = configuration.projectRoot
 
     logger.info("Skill: $functionName")
-    logger.info("Args: ${JsonUtil.encodeMap(convertedArguments, prettyPrint = true)}")
+    if (logger.isDebugEnabled) logger.debug("Args: ${truncateToolArguments(convertedArguments)}")
 
     val executionResult: Map<String, Any>
     val skillInstance: Skill?
@@ -970,8 +975,9 @@ class Agent(
       return emptyList()
     }
 
-    return redLineKeywords.filter { keyword: String ->
-      text.lowercase().contains(keyword.lowercase())
+    val lowercasedText: String = text.lowercase()
+    return redLineKeywords.filterIndexed { index: Int, keyword: String ->
+      lowercasedText.contains(redLineKeywordsLowercase[index])
     }
   }
 
@@ -981,6 +987,13 @@ class Agent(
     repeatedToolCallCount = if (callSignature == lastToolCallKey) repeatedToolCallCount + 1 else 1
     lastToolCallKey = callSignature
     return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
+  }
+
+  private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
+    val maxValueLength: Int = 512
+    val serialized: String = JsonUtil.encodeMap(toolArguments, prettyPrint = true)
+    return if (serialized.length <= maxValueLength) serialized
+    else serialized.take(maxValueLength) + "... [truncated, ${serialized.length} chars total]"
   }
 
   private fun emitRevoked(reason: String, details: Map<String, Any>): Unit {
@@ -1057,7 +1070,7 @@ class Agent(
       if (responseText.isNullOrBlank()) return false
       val trimmedText = responseText.trim()
 
-      val sentenceList = trimmedText.split(Regex("(?<=[.!?])\\s+"))
+      val sentenceList = trimmedText.split(SENTENCE_SPLIT_PATTERN)
         .map { it.trim() }
         .filter { it.isNotBlank() && it.length > 3 }
 

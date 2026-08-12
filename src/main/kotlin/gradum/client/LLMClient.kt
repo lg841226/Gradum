@@ -31,6 +31,13 @@ private val logger: Logger = LoggerFactory.getLogger("LLMClient")
 
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
+/** Shared across clients to reuse connections instead of building a client per turn. */
+private val sharedHttpClient: HttpClient = HttpClient {
+  install(HttpTimeout) {
+    requestTimeoutMillis = 600_000L
+  }
+}
+
 private fun JsonObject.optString(key: String): String =
   this[key]?.jsonPrimitive?.contentOrNull ?: ""
 
@@ -211,12 +218,11 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true
 
-    val httpClient: HttpClient = buildHttpClient()
     var lastError: Exception? = null
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
         }
@@ -274,8 +280,6 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
       }
     }
 
-    httpClient.close()
-
     lastError?.let { error ->
       emit(
         LLMResponseChunk.ErrorMessage(
@@ -324,12 +328,11 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
-    val httpClient: HttpClient = buildHttpClient()
     var lastError: Exception? = null
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
         }
@@ -347,8 +350,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
           break
       }
     }
-
-    httpClient.close()
 
     lastError?.let { error ->
       emit(
@@ -423,7 +424,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       val callIndex: Int = toolCallObject.optInt("index")
 
       val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(callIndex) {
-        mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to "")
+        mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to StringBuilder())
       }
 
       val newId: String = toolCallObject.optString("id")
@@ -435,8 +436,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
         val argumentDelta: String = functionDelta.optString("arguments")
         if (argumentDelta.isNotBlank()) {
-          val existingBuffer: String = storedEntry["argumentsBuffer"] as? String ?: ""
-          storedEntry["argumentsBuffer"] = existingBuffer + argumentDelta
+          val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
+            ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }
+          argumentsBuffer.append(argumentDelta)
         }
       }
     }
@@ -445,8 +447,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
   private fun buildCompletedCalls(accumulator: MutableMap<Int, MutableMap<String, Any>>): List<ToolCallEntry> {
     return accumulator.entries.sortedBy { entry -> entry.key }.map { entry ->
       val callData: MutableMap<String, Any> = entry.value
-      val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
-      val parsedArguments: Map<String, JsonElement> = try {
+      val argumentsBuffer: StringBuilder = callData["argumentsBuffer"] as? StringBuilder ?: StringBuilder()
+      val argumentsText: String = argumentsBuffer.toString()
+      val parsedArguments: Map<String, JsonElement> = if (argumentsText.isBlank()) emptyMap() else try {
         jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
       } catch (jsonParseException: Exception) {
         logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
@@ -464,14 +467,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is kotlinx.coroutines.TimeoutCancellationException
-
-private fun buildHttpClient(): HttpClient {
-  return HttpClient {
-    install(HttpTimeout) {
-      requestTimeoutMillis = 600_000L
-    }
-  }
-}
 
 /**
  * Common error formatter shared by every [LlmClient] implementation.

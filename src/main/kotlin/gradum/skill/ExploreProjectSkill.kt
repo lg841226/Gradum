@@ -165,6 +165,7 @@ class ExploreProjectSkill : Skill() {
 
     val excludePatterns: List<String> = if (excludePattern.isBlank()) emptyList()
     else excludePattern.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    val excludeMatchers: List<ExcludeMatcher> = excludePatterns.map { compileExcludePattern(it) }
 
     if (projectRoot.isBlank())
       return makeFailure(
@@ -213,13 +214,13 @@ class ExploreProjectSkill : Skill() {
       )
 
     val filterConfig = FilterConfig(
-      excludePatterns = excludePatterns,
+      excludeMatchers = excludeMatchers,
       sortBy = sortBy,
       limit = limit
     )
 
     val scanResult = ScanResult(relativeRoot = resolvedPath)
-    val visitedPaths: Set<Path> = setOf(resolvedPath)
+    val visitedPaths: MutableSet<Path> = mutableSetOf(resolvedPath)
     scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult, filterConfig)
 
     val filteredConfigFiles = applyFilters(scanResult.configFiles, filterConfig)
@@ -420,15 +421,33 @@ private data class ScanResult(
 )
 
 private data class FilterConfig(
-  val excludePatterns: List<String>,
+  val excludeMatchers: List<ExcludeMatcher>,
   val sortBy: String,
   val limit: Int
 )
 
+private data class ExcludeMatcher(
+  val regex: Regex,
+  val containsLiteral: String
+)
+
+private fun compileExcludePattern(pattern: String): ExcludeMatcher {
+  val regexPattern = pattern
+    .replace(".", "\\.")
+    .replace("**/", ".*/")
+    .replace("**", ".*")
+    .replace("*", "[^/]*")
+    .replace("?", "[^/]")
+  return ExcludeMatcher(
+    regex = Regex("^$regexPattern$"),
+    containsLiteral = pattern.replace("**/", "").replace("**", "")
+  )
+}
+
 private fun scanDirectory(
   targetDirectory: Path,
   remainingDepth: Int,
-  visitedPaths: Set<Path>,
+  visitedPaths: MutableSet<Path>,
   scanResult: ScanResult,
   filterConfig: FilterConfig
 ) {
@@ -465,14 +484,13 @@ private fun scanDirectory(
       val childPath: Path = directoryEntry.toPath()
       val normalizedChild: Path = childPath.toAbsolutePath().normalize()
 
-      if (normalizedChild in visitedPaths) continue
+      if (!visitedPaths.add(normalizedChild)) continue
 
-      val updatedVisited: Set<Path> = visitedPaths.plusElement(normalizedChild)
-      scanDirectory(childPath, remainingDepth - 1, updatedVisited, scanResult, filterConfig)
+      scanDirectory(childPath, remainingDepth - 1, visitedPaths, scanResult, filterConfig)
     } else {
-      if (filterConfig.excludePatterns.isNotEmpty()) {
+      if (filterConfig.excludeMatchers.isNotEmpty()) {
         val relativePath = targetDirectory.relativize(directoryEntry.toPath()).toString()
-        if (matchesExcludePattern(relativePath, filterConfig.excludePatterns)) continue
+        if (matchesExcludePattern(relativePath, filterConfig.excludeMatchers)) continue
       }
 
       scanResult.totalSize += directoryEntry.length()
@@ -492,17 +510,10 @@ private fun scanDirectory(
   }
 }
 
-private fun matchesExcludePattern(relativePath: String, patterns: List<String>): Boolean {
-  for (pattern in patterns) {
-    val regexPattern = pattern
-      .replace(".", "\\.")
-      .replace("**/", ".*/")
-      .replace("**", ".*")
-      .replace("*", "[^/]*")
-      .replace("?", "[^/]")
-
-    if (relativePath.matches(Regex("^$regexPattern$")) ||
-      relativePath.contains(pattern.replace("**/", "").replace("**", ""))
+private fun matchesExcludePattern(relativePath: String, matchers: List<ExcludeMatcher>): Boolean {
+  for (matcher in matchers) {
+    if (matcher.regex.matches(relativePath) ||
+      relativePath.contains(matcher.containsLiteral)
     ) return true
   }
   return false
@@ -511,8 +522,8 @@ private fun matchesExcludePattern(relativePath: String, patterns: List<String>):
 private fun applyFilters(files: List<String>, config: FilterConfig): List<String> {
   var filtered = files
 
-  if (config.excludePatterns.isNotEmpty())
-    filtered = filtered.filter { !matchesExcludePattern(it, config.excludePatterns) }
+  if (config.excludeMatchers.isNotEmpty())
+    filtered = filtered.filter { !matchesExcludePattern(it, config.excludeMatchers) }
 
   return filtered
 }
@@ -520,10 +531,10 @@ private fun applyFilters(files: List<String>, config: FilterConfig): List<String
 private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig): List<Map<String, Any>> {
   var filtered = files
 
-  if (config.excludePatterns.isNotEmpty()) {
+  if (config.excludeMatchers.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->
       val path = fileInfo["path"] as? String ?: ""
-      !matchesExcludePattern(path, config.excludePatterns)
+      !matchesExcludePattern(path, config.excludeMatchers)
     }
   }
 

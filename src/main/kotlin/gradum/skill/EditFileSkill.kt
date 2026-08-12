@@ -462,7 +462,7 @@ private fun findMatchesWithFallback(
   if (normalizedMatches.isNotEmpty()) return FindResult.Found(normalizedMatches)
 
   val strippedMatches = findMatchesByStrategy(fileLines, searchNonBlank) { fileLine, searchLine ->
-    fileLine.replace(Regex("\\s"), "") == searchLine.replace(Regex("\\s"), "")
+    fileLine.filterNot { it.isWhitespace() } == searchLine.filterNot { it.isWhitespace() }
   }
   if (strippedMatches.isNotEmpty()) return FindResult.Found(strippedMatches)
 

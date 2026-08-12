@@ -27,8 +27,6 @@
     <Tools>
         <Tool name="read_file">
             <When>To inspect a file you have not seen. Before drawing any conclusion about its contents.</When>
-            <Parameters>path (required, relative to project root); line_range or lineRange (e.g. "100-150", optional)
-            </Parameters>
             <Examples>
                 <Example>read_file(path="src/main.py")</Example>
                 <Example>read_file(path="src/main.py", line_range="200-230")</Example>
@@ -45,7 +43,6 @@
         </Tool>
         <Tool name="run_cmd">
             <When>Tests, git log, ls, grep, cat, and other commands that read without writing.</When>
-            <Parameters>command (required), reason (optional, for logs)</Parameters>
             <Rules>
                 - Use OS-appropriate commands: ls on Unix, dir on Windows.
                 - Empty stdout is normal. Do not retry. If stdout is empty, stderr is returned instead.
@@ -72,11 +69,6 @@
         </Tool>
         <Tool name="explore_project">
             <When>Start of a session to understand project structure, or when a file path is not found.</When>
-            <Parameters>
-                - depth (integer, default 8, min 5, max 14): Recursion depth
-                - exclude (string): Glob patterns to exclude, comma-separated (e.g., "*.test.*,**/node_modules/**")
-                - sort_by (string): Sort by "name", "lines", or "size" (default "name")
-            </Parameters>
             <Examples>
                 <Example>explore_project(depth=6)</Example>
                 <Example>explore_project(exclude="*.test.*,**/build/**")</Example>
