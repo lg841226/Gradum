@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-12 17:29:26 Changed by gwy
+ * RecentChatsSection.kt  2026-08-12 17:54:03 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -68,19 +68,12 @@ fun RecentChatsSection(
       style = JewelTheme.typography.h4TextStyle
     )
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
-    if (sessions.isEmpty()) {
-      Text(
-        text = message("gradum.recent.empty"),
-        color = JewelTheme.globalColors.text.info
+    sessions.take(MAX_RECENT_SESSIONS).forEach { session ->
+      RecentSessionRow(
+        session = session,
+        onOpenSession = onOpenSession,
+        onDeleteSession = onDeleteSession
       )
-    } else {
-      sessions.take(MAX_RECENT_SESSIONS).forEach { session ->
-        RecentSessionRow(
-          session = session,
-          onOpenSession = onOpenSession,
-          onDeleteSession = onDeleteSession
-        )
-      }
     }
   }
 }

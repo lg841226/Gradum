@@ -153,7 +153,7 @@ Structured MD generation + parsing.
 - `reset()` **keeps its meaning** (clear UI, return to Welcome) and becomes the entry point of `newSession()` — New
   Chat → `session.reset()` → fresh sessionId + save.
 - On tool-window init: `listSessions()` to populate the recent-chats region (async on `Dispatchers.IO`, cancelled
-  when superseded; the empty state and a `formatTimestamp(updatedAt)` title fallback are rendered inline).
+  when superseded). The section renders only when sessions exist; blank titles fall back to `formatTimestamp(updatedAt)`.
 
 ### 3.4 `GradumApiClient.sendMessage()`
 
@@ -183,11 +183,10 @@ Structured MD generation + parsing.
 
 ### 4.3 i18n keys (`GradumBundle.properties` + `GradumBundle_zh_CN.properties`)
 
-| Key                    | en                        | zh_CN        |
-|------------------------|---------------------------|--------------|
-| `gradum.recent.chats`  | Recent Chats              | 最近会话     |
-| `gradum.recent.empty`  | No previous conversations | 暂无历史会话 |
-| `gradum.recent.delete` | Delete conversation       | 删除会话     |
+| Key                    | en                 | zh_CN    |
+|------------------------|--------------------|----------|
+| `gradum.recent.chats`  | Recent Chats       | 最近会话 |
+| `gradum.recent.delete` | Delete conversation | 删除会话 |
 
 > The row's relative time reuses the existing `gradum.timestamp.*` keys via
 > `formatTimestamp` (today → `HH:mm`, yesterday, `MMM d`, `N days ago`).
