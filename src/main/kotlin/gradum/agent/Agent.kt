@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-11 23:23:16 Changed by gwy
+ * Agent.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -976,7 +976,7 @@ class Agent(
     }
 
     val lowercasedText: String = text.lowercase()
-    return redLineKeywords.filterIndexed { index: Int, keyword: String ->
+    return redLineKeywords.filterIndexed { index: Int, _: String ->
       lowercasedText.contains(redLineKeywordsLowercase[index])
     }
   }
@@ -990,7 +990,7 @@ class Agent(
   }
 
   private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
-    val maxValueLength: Int = 512
+    val maxValueLength = 512
     val serialized: String = JsonUtil.encodeMap(toolArguments, prettyPrint = true)
     return if (serialized.length <= maxValueLength) serialized
     else serialized.take(maxValueLength) + "... [truncated, ${serialized.length} chars total]"

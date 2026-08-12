@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-07-31 15:54:30 Changed by gwy
+ * Styling.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -72,9 +72,9 @@ private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
 private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 
 /**
- * Optional override for the markdown body/paragraph text style, applied by
+ * Optional override for the Markdown body/paragraph text style, applied by
  * [rememberGradumMarkdownStyling] when present. Lets a non-chat surface
- * (e.g. the commit-details panel) render the markdown renderer's body text
+ * (e.g. the commit-details panel) render the Markdown renderer's body text
  * in a custom font — such as the editor font — while reusing the full
  * block/inline pipeline. When `null`, the chat's default paragraph style
  * ([rememberGradumParagraphTextStyle]) is used.
@@ -163,7 +163,6 @@ fun rememberGradumLinkStyle(): LinkStyle = JewelTheme.linkStyle
  * `SolidColor`, so the `content` is the fallback).
  */
 @Suppress("UnstableApiUsage")
-@OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberBadgeBlueColor(): Color =
   (JewelTheme.badgeStyle.blue.colors.background as? SolidColor)?.value
@@ -179,7 +178,6 @@ fun rememberBadgeBlueColor(): Color =
 @Composable
 fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStyling {
   val globalColors: GlobalColors = LocalGlobalColors.current
-  val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
   val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
   val badgeBlue: Color = rememberBadgeBlueColor()

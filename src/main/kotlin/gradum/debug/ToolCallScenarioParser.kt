@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParser.kt  2026-08-10 09:20:41 Changed by gwy
+ * ToolCallScenarioParser.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 package gradum.debug
@@ -11,11 +11,11 @@ import gradum.client.ToolCallEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.w3c.dom.Attr
 import org.w3c.dom.Element
 import org.w3c.dom.NamedNodeMap
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import javax.xml.parsers.DocumentBuilderFactory
@@ -124,7 +124,7 @@ object ToolCallScenarioParser {
       root.getAttribute("nam").trim()
     }
 
-    val stepList: List<ScenarioStep> = buildList<ScenarioStep> {
+    val stepList = buildList {
       for (child: Element in childElements(root)) {
         when (child.tagName) {
           "t" -> add(parseToolElement(child))

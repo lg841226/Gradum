@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-08-10 15:16:53 Changed by gwy
+ * GradumIcons.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 package gradum.idea.utils
@@ -42,7 +42,6 @@ object GradumIcons {
   val ModelVision = PathIconKey("/icons/vison/vison.svg", GradumIcons::class.java)
   val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)
   val ScrollUp = PathIconKey("icons/scroll-up/scroll-up.svg", GradumIcons::class.java)
-  val User = PathIconKey("/icons/user.svg", GradumIcons::class.java)
 
   val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)
   val ProviderAnthropic = PathIconKey("/icons/model-provider/anthropic.svg", GradumIcons::class.java)

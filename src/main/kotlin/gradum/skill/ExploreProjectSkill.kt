@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-11 23:10:24 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-12 10:06:08 Changed by gwy
  */
 
 package gradum.skill
@@ -511,9 +511,9 @@ private fun scanDirectory(
 }
 
 private fun matchesExcludePattern(relativePath: String, matchers: List<ExcludeMatcher>): Boolean {
-  for (matcher in matchers) {
-    if (matcher.regex.matches(relativePath) ||
-      relativePath.contains(matcher.containsLiteral)
+  for ((regex, containsLiteral) in matchers) {
+    if (regex.matches(relativePath) ||
+      relativePath.contains(containsLiteral)
     ) return true
   }
   return false
