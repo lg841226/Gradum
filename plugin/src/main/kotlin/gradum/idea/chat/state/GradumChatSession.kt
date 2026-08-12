@@ -51,9 +51,9 @@ private data class ModelsListResponse(
 )
 
 /**
- * Project-level service that manages the chat session scanState.
+ * Project-level service that manages the chat session state.
  *
- * This class serves as the central scanState holder for the Gradum chat interface,
+ * This class serves as the central state holder for the Gradum chat interface,
  * coordinating between the UI layer (JetBrains Compose) and the backend server.
  * It manages message history, model selection, file attachments, and the message
  * queue for handling concurrent requests.
@@ -62,7 +62,7 @@ private data class ModelsListResponse(
  * fetch available models and send chat messages. Responses are streamed back
  * as NDJSON events and progressively update the assistant's message content.
  *
- * Registered as a project-level service in `plugin.xml` so that scanState persists
+ * Registered as a project-level service in `plugin.xml` so that state persists
  * across tool window open/close cycles within the same project.
  */
 @Service(Service.Level.PROJECT)
@@ -81,7 +81,7 @@ class GradumChatSession {
    */
   var project: Project? = null
 
-  /** The text field scanState for the chat input area. */
+  /** The text field state for the chat input area. */
   val textState: TextFieldState = TextFieldState()
 
   /** The list of chat messages displayed in the conversation view. */
@@ -119,15 +119,6 @@ class GradumChatSession {
    * string the server understands (`"read_only"`, `"edit"`, or
    * `"agent"`). The UI label is a separate concern, looked up in
    * [gradum.idea.chat.ui.input.permissionLabel] from this value.
-   *
-   * The previous implementation stored the i18n label here (e.g. "Read-only
-   * Permissions" / "只读权限") and translated it to the wire format only
-   * inside [gradum.idea.GradumToolWindowFactory]'s onSelectPermission. The
-   * translation was skipped on session creation, so the initial toolMode
-   * silently defaulted to `"write"` and read-only was a no-op. The
-   * session is now created with the wire format directly, and
-   * [toolMode] is a pure derivation of this value — no parallel mutable
-   * scanState to drift.
    */
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
@@ -200,7 +191,7 @@ class GradumChatSession {
   private var pollingJob: Job? = null
 
   /**
-   * Resets the entire session to its initial scanState.
+   * Resets the entire session to its initial state.
    *
    * Clears all messages, attachments, pending items, and the input field.
    * Called when the user clicks "New Chat" or when the session needs to be
@@ -295,36 +286,16 @@ class GradumChatSession {
   }
 
   /**
-   * Starts background polling for model availability.
-   *
-   * Periodically queries the server for available models and updates the
-   * model list if changes are detected. This allows the plugin to discover
-   * new LLM servers (e.g., Ollama) that start after the plugin is loaded.
-   *
-   * Polling runs on [Dispatchers.IO] to avoid blocking the UI thread.
-   * The polling interval is [POLL_INTERVAL_MS] milliseconds.
-   *
-   * @param scope The coroutine scope to launch the polling job in.
+   * Starts background polling for model availability so the plugin can
+   * discover LLM servers that start after it loads. Runs on
+   * [Dispatchers.IO]; interval is [POLL_INTERVAL_MS].
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   fun startModelPolling(scope: CoroutineScope) {
     stopModelPolling()
 
-    // The polling pipeline is split into two Flow stages so the
-    // architecture reads as "for every tick, fire a single fetch, and
-    // cancel any in-flight fetch if a new tick comes in":
-    //
-    //   tickerFlow ── flatMapLatest ──▶  fetchOnce()  ──▶  collect
-    //     │                                  │
-    //     └── delay POLL_INTERVAL_MS         └── HTTP GET /models
-    //         then emit Unit                  (Dispatchers.IO, swallow transient errors)
-    //
-    // The original `while (true) { delay; try {...} }` worked, but
-    // mixed the two concerns (timing + I/O) into one loop, which
-    // made it impossible to cancel a slow request when the user
-    // closes the tool window or the timer ticks again. With
-    // flatMapLatest, a stale fetch is canceled by the upstream
-    // tick before its result lands in the UI.
+    // tickerFlow ──flatMapLatest──▶ fetchModelsOnce ──▶ collect
+    // flatMapLatest cancels any in-flight fetch when the next tick arrives.
     pollingJob = scope.launch {
       tickerFlow()
         .flatMapLatest { fetchModelsOnce() }
@@ -352,11 +323,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Tick stream that fires one emission per [POLL_INTERVAL_MS]. Suspends
-   * cooperatively and stops emitting when the parent coroutine is
-   * canceled (e.g. tool window closed, project closed).
-   */
   private fun tickerFlow(): Flow<Unit> = flow {
     while (currentCoroutineContext().isActive) {
       delay(POLL_INTERVAL_MS.milliseconds)
@@ -364,12 +330,7 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Single-shot /models fetch wrapped in a Flow so [flatMapLatest] can
-   * cancel it when the next tick arrives. I/O runs on [Dispatchers.IO]
-   * to keep the UI thread free, and transient errors are swallowed —
-   * the ticker will simply fire again.
-   */
+  /** Single-shot /models fetch; errors are swallowed so the ticker just fires again. */
   private fun fetchModelsOnce(): Flow<String> = flow {
     val json: String = try {
       withContext(Dispatchers.IO) { apiClient.getModels() }
@@ -386,26 +347,10 @@ class GradumChatSession {
   /**
    * Stops the background model polling job if it is running.
    *
-   * Implementation note: we explicitly pass a [CancellationException] (instead
-   * of `null` or relying on the default-parameter form `pollingJob?.cancel()`).
-   *
-   * Reason: `pollingJob?.cancel()` would compile to a call to the
-   * Kotlin-generated `kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`
-   * synthetic bridge. The IDE's coroutines library is a JetBrains internal rebuild
-   * (`1.10.2-intellij-1`) whose bytecode differs from upstream. If a future IDE
-   * update ships a coroutines variant where that synthetic is absent (or loads
-   * from a stripped-down path), the call site will throw
-   * `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(...)` and freeze
-   * the UI on the first user click. By calling the **non-synthetic**
-   * `Job.cancel(CancellationException)` overload directly, we always hit a
-   * method that is part of the public `Job` interface and is guaranteed to
-   * exist.
-   *
-   * The catch is a defensive belt-and-braces measure: cancellation is a
-   * no-op cleanup, so it should never crash the app. If anything goes wrong
-   * (e.g. a corrupted classpath, a partial reload), we still want the user
-   * to be able to keep interacting with the UI rather than see a frozen
-   * tool window.
+   * Calls the non-synthetic `Job.cancel(CancellationException)` overload on
+   * purpose: `job.cancel()` compiles to the synthetic `cancel$default`
+   * bridge, which may be missing in the IDE's coroutines rebuild
+   * (`1.10.2-intellij-1`) and would throw `NoSuchMethodError` at runtime.
    */
   fun stopModelPolling() {
     val job = pollingJob
@@ -691,12 +636,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Handles a `response` event by appending the LLM's text content to the
-   * current assistant message.
-   *
-   * @param responseData The event data object containing a `content` field.
-   */
   private fun handleResponseEvent(responseData: JsonObject?) {
     if (responseData == null) return
 
@@ -725,11 +664,6 @@ class GradumChatSession {
     messages[assistantIndex] = updatedMessage
   }
 
-  /**
-   * Handles a `thinking` event by accumulating thinking content and tracking duration.
-   *
-   * @param data The event data object containing a `content` field.
-   */
   private fun handleThinkingEvent(data: JsonObject?) {
     val content: String = data?.get("content")?.jsonPrimitive?.content ?: return
 
@@ -739,12 +673,6 @@ class GradumChatSession {
       messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
   }
 
-  /**
-   * Handles a `tool_call` event by adding a tool invocation to
-   * the current assistant message.
-   *
-   * @param data The event data object containing tool call information.
-   */
   private fun handleToolCallEvent(data: JsonObject?) {
     try {
       val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
@@ -774,15 +702,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Handles a `tool_expect_mismatch` event from debug tool-call playback:
-   * the recorded outcome of a scenario step did not match the author's
-   * `exp="success"|"error"` assertion. Surfaced as an error on the
-   * current assistant message so the mismatch is visible in the chat.
-   *
-   * @param data The event data with `tool`, `expectSuccess`, and
-   *   `actualSuccess` (>fields).
-   */
   private fun handleToolExpectMismatch(data: JsonObject?) {
     val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
     val expectSuccess: String =
@@ -801,12 +720,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Handles an `error` event by appending an error message to the current
-   * assistant message.
-   *
-   * @param data The event data object containing a `message` field with the error description.
-   */
   private fun handleErrorEvent(data: JsonObject?) {
     val rawMessage: String = data?.get("message")?.jsonPrimitive?.content ?: "Unknown error"
     val errorCode: String = data?.get("code")?.jsonPrimitive?.content ?: ""
@@ -827,12 +740,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Processes the next message in the pending queue, if any.
-   *
-   * When the assistant finishes responding to one message, this method
-   * dequeues the next pending message and starts a new send cycle.
-   */
   private fun processPendingQueue() {
     if (pendingMessages.isNotEmpty()) {
       val next: PendingMessage = pendingMessages.removeFirst()
@@ -860,15 +767,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Builds the configuration map to send with the request to the server.
-   *
-   * Currently only sets the `provider` when in auto-select mode.
-   * Additional configuration options (temperature, context window, etc.)
-   * may be added in the future.
-   *
-   * @return A map of configuration key-value pairs, or an empty map if no overrides are needed.
-   */
   private fun buildModelConfig(): Map<String, String> {
     val requestParams = mutableMapOf<String, String>()
 
@@ -883,12 +781,6 @@ class GradumChatSession {
     return requestParams
   }
 
-  /**
-   * Converts a kotlinx.serialization JsonObject to a plain Map<String, Any>.
-   * Recursively converts nested objects/arrays to plain Kotlin types.
-   * Infers primitive types (string, boolean, int, long, double) from JSON values.
-   * Returns empty map on any parse error to prevent UI crashes.
-   */
   private fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
     if (jsonObject == null) return emptyMap()
 
@@ -900,13 +792,6 @@ class GradumChatSession {
     }
   }
 
-  /**
-   * Recursively converts a JsonElement to a plain Kotlin type.
-   * - JsonObject -> Map<String, Any>
-   * - JsonArray -> List<Any>
-   * - JsonPrimitive -> String, Boolean, Int, Long, or Double
-   * - JsonNull -> null
-   */
   private fun convertJsonElement(jsonElement: JsonElement): Any? {
     return when (jsonElement) {
       is JsonObject -> jsonElement.mapValues { (_, value) -> convertJsonElement(value) }

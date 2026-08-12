@@ -12,44 +12,24 @@ package gradum.idea.chat.model
  * blocks into a single, order-preserving tool-call scenario XML.
  *
  * All text between scenario blocks becomes a `<tt>` AI-reply segment, so
- * opening the `.md` in debug playback mode replays a full agent turn:
- * the Markdown narration streams as assistant text and every embedded
- * `<tls>` block executes as real tool calls at exactly the position the
- * author placed it.
+ * opening the `.md` in debug playback mode replays a full agent turn.
  *
  * ```markdown
  * Let me inspect the config first.
- *
  * <tls>
  *   <t nam="read_file" pth="src/main/kotlin/gradum/AgentConfiguration.kt" lin="1-30"/>
  * </tls>
- *
- * Found something; searching for more.
  * ```
  *
- * compiles to:
- *
- * ```
- * <tls name="intro.md">
- *   <tt><![CDATA[Let me inspect the config first.]]></tt>
- *   <t nam="read_file" .../>
- *   <tt><![CDATA[Found something; searching for more.]]></tt>
- * </tls>
- * ```
- *
- * Fenced (` ```tls `) variants are not treated specially; a raw `<tls>`
- * block is the only marker. Text containing the literal `]]>` sequence is
- * escaped so the emitted CDATA stays well-formed.
+ * Fenced (```tls) variants are not treated specially; a raw `<tls>` block
+ * is the only marker. Text containing the literal `]]>` sequence is escaped
+ * so the emitted CDATA stays well-formed.
  */
 object MarkdownTlsScenario {
 
   private val tlsBlockPattern = Regex("<tls\\b[^>]*>.*?</tls>", RegexOption.DOT_MATCHES_ALL)
 
-  /**
-   * @return a combined scenario XML string, or `null` when [markdown]
-   *   contains no `<tls>` blocks (caller should fall back to plain
-   *   Markdown rendering).
-   */
+  /** Returns the combined scenario XML, or `null` when [markdown] has no `<tls>` blocks. */
   fun compile(markdown: String, scenarioName: String? = null): String? {
     val blocks = tlsBlockPattern.findAll(markdown).toList()
     if (blocks.isEmpty()) return null

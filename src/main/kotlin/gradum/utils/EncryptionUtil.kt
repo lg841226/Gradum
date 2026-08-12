@@ -152,8 +152,8 @@ fun decryptMessageContent(encodedCiphertext: String): String {
 
     return decodedResult
 
-  } catch (exception: Exception) {
-    classLogger.severe("Decryption failed: ${exception.message}")
-    throw exception
+  } catch (decryptException: Exception) {
+    classLogger.severe("Decryption failed: ${decryptException.message}")
+    throw decryptException
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkillPrepareHistoryTest.kt
+ * ReadFileSkillPrepareHistoryTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.skill
@@ -102,11 +102,7 @@ class ReadFileSkillPrepareHistoryTest {
         "call #$i: `path` was stripped from the history result — keys present: ${history.keys}"
       )
 
-      // In the SIMPLE path, content is a Map<Int, String>
-      // (line number → text). Normalize to a single string
-      // for the body assertion.
-      val content: Any = history["content"]!!
-      val rendered: String = when (content) {
+      val rendered: String = when (val content: Any = history["content"]!!) {
         is Map<*, *> -> content.values.joinToString("\n") { it.toString() }
         is String -> content
         else -> content.toString()
@@ -144,13 +140,12 @@ class ReadFileSkillPrepareHistoryTest {
         history.containsKey("content"),
         "call #$i (lineRange=2-3): `content` was stripped — keys: ${history.keys}"
       )
-      val content: Any = history["content"]!!
-      val rendered: String = when (content) {
+      val rendered: String = when (val content: Any = history["content"]!!) {
         is Map<*, *> -> content.values.joinToString("\n") { it.toString() }
         is String -> content
         else -> content.toString()
       }
-      // 2-3 covers lines 2 and 3; both must survive every call.
+
       assertTrue(
         rendered.contains("line two"),
         "call #$i: line 2 missing from content: $rendered"

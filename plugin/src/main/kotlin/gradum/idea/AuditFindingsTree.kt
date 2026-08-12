@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-10 21:04:05 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-11 19:16:17 Changed by gwy
  */
 
 @file:OptIn(
@@ -185,7 +185,8 @@ internal fun AuditFindingsTree(
           is AuditTreeItem.Finding -> onFindingSelected(data.finding)
           is AuditTreeItem.LoadMore -> {
             val key = data.group
-            groupLimits = groupLimits + (key to ((groupLimits[key] ?: DEFAULT_FINDING_LIMIT) + DEFAULT_FINDING_LIMIT))
+            groupLimits =
+              groupLimits + (key to ((groupLimits[key] ?: DEFAULT_FINDING_LIMIT) + DEFAULT_FINDING_LIMIT))
           }
 
           else -> Unit
@@ -355,8 +356,8 @@ internal fun AuditFindingsTree(
                     ) {
                       Text(
                         maxLines = 1,
-                        color = JewelTheme.globalColors.text.info,
-                        text = message("gradum.toolwindow.git.analysis.reviewed")
+                        text = message("gradum.toolwindow.git.analysis.reviewed"),
+                        color = JewelTheme.globalColors.text.info
                       )
                     }
                   }

@@ -2,19 +2,22 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-07-29 18:32:58 Changed by gwy
+ * ReadFileSkill.kt  2026-08-11 23:36:09 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.*
+import gradum.ErrorCode
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
 
-private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 private const val MAXIMUM_LINES: Int = 10000
+private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
 
 /**
  * Reads file content for the agent.
@@ -47,20 +50,12 @@ class ReadFileSkill : Skill() {
   override val historyVolatileKeys: List<String> = emptyList()
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema =
-      context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleSchema = context?.isSimpleModel == true
 
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimpleSchema) localDescription() else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimpleSchema) localProperties() else cloudProperties(),
-          "required" to listOf("path"),
-        ),
-      ),
+    return buildFunctionSchema(
+      description = if (useSimpleSchema) localDescription() else description,
+      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
+      required = listOf("path"),
     )
   }
 
@@ -95,7 +90,7 @@ class ReadFileSkill : Skill() {
     val lineRange: String = (arguments["lineRange"] as? String ?: "")
       .ifBlank { arguments["line_range"] as? String ?: "" }
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     if (filePath.isBlank())
       return makeFailure(
@@ -139,50 +134,20 @@ class ReadFileSkill : Skill() {
         }
         Triple(1, allLines.size, allLines)
       } else {
-        val rangeParts = lineRange.split("-")
-        if (rangeParts.size != 2) {
-          return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
-              fixHint = "Provide lineRange in the format 'start-end' with numeric values."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
-        }
+        val range: LineRange = parseLineRange(lineRange) ?: return makeFailure(
+          ErrorCode.INVALID_PARAMETER,
+          buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
+            fixHint = "Provide lineRange in the format 'start-end' with numeric values."
+          ),
+          mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
+        )
 
-        val rawStart = parseRangeBound(rangeParts[0])
-          ?: return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange start value: ${rangeParts[0]}",
-              fixHint = "Provide a valid integer for the start line number."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
+        val lines = targetFile.useLines { it.drop(range.start - 1).take(range.end - range.start + 1).toList() }
+        val actualEndLine = range.start + lines.size - 1
 
-        val rawEnd = parseRangeBound(rangeParts[1])
-          ?: return makeFailure(
-            ErrorCode.INVALID_PARAMETER,
-            buildXmlError(
-              code = "INVALID_PARAMETER",
-              message = "Invalid lineRange end value: ${rangeParts[1]}",
-              fixHint = "Provide a valid integer for the end line number."
-            ),
-            mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
-          )
-
-        val actualStart = rawStart.coerceAtLeast(1)
-        val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
-        val start = minOf(actualStart, actualEnd)
-        val end = maxOf(actualStart, actualEnd)
-
-        val lines = targetFile.useLines { it.drop(start - 1).take(end - start + 1).toList() }
-        val actualEndLine = start + lines.size - 1
-
-        Triple(start, actualEndLine, lines)
+        Triple(range.start, actualEndLine, lines)
       }
 
       if (useSimpleOutput) {
@@ -197,8 +162,9 @@ class ReadFileSkill : Skill() {
           )
         )
       } else {
+        val selectedContent: String = selectedLines.joinToString("\n")
         val contentHash = MessageDigest.getInstance("MD5")
-          .digest(selectedLines.joinToString("\n").toByteArray(Charsets.UTF_8))
+          .digest(selectedContent.toByteArray(Charsets.UTF_8))
           .joinToString("") { "%02x".format(it) }
 
         makeSuccess(
@@ -207,7 +173,7 @@ class ReadFileSkill : Skill() {
             "lineRange" to "$startLineNumber-$endLineNumber",
             "totalLines" to endLineNumber,
             "contentHashShort" to contentHash.take(5),
-            "content" to selectedLines.joinToString("\n"),
+            "content" to selectedContent,
           )
         )
       }
@@ -235,4 +201,29 @@ class ReadFileSkill : Skill() {
   }
 }
 
-private fun parseRangeBound(rawValue: String): Int? = rawValue.trim().toIntOrNull()
+/**
+ * A validated, normalized `start..end` line range. Both bounds are
+ * clamped to the document (start ≥ 1) and ordered so `start ≤ end`.
+ */
+private data class LineRange(
+  val start: Int, val end: Int,
+)
+
+/**
+ * Parses a `"start-end"` line-range string. Returns null when the format
+ * is malformed or either bound is not a positive integer.
+ */
+private fun parseLineRange(rawValue: String): LineRange? {
+  val rangeParts = rawValue.split("-")
+  if (rangeParts.size != 2) return null
+
+  val rawStart = rangeParts[0].trim().toIntOrNull() ?: return null
+  val rawEnd = rangeParts[1].trim().toIntOrNull() ?: return null
+
+  val actualStart = rawStart.coerceAtLeast(1)
+  val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
+  return LineRange(
+    start = minOf(actualStart, actualEnd),
+    end = maxOf(actualStart, actualEnd),
+  )
+}

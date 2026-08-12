@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-07-14 21:27:12 Changed by gwy
+ * ContextManager.kt  2026-08-11 23:10:24 Changed by gwy
  */
 
 package gradum.utils
@@ -21,11 +21,11 @@ private val jsonFormatter: Json = Json { prettyPrint = true }
 /**
  * Maximum number of messages to keep in persisted context history.
  *
- * Mirrors `Agent.maxHistoryMessages` so in-memory and persisted
- * truncation use the same budget. If you change one, change the other
- * — or refactor both to read from a single source of truth.
+ * Single source of truth is [MAX_HISTORY_MESSAGES] in
+ * [gradum.utils.MessageHistoryTruncator], shared with the in-memory
+ * truncation in `Agent` so both budgets can never drift apart.
  */
-const val MAX_CONTEXT_MESSAGES: Int = 30
+const val MAX_CONTEXT_MESSAGES: Int = MAX_HISTORY_MESSAGES
 
 /**
  * Persists the agent's conversation history and the set of files that have
@@ -89,8 +89,8 @@ class ContextManager(private val outputDirectory: Path) {
 
       logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
       decryptedMessages
-    } catch (exception: Exception) {
-      logger.error("Failed to load context: ${exception.message}", exception)
+    } catch (loadException: Exception) {
+      logger.error("Failed to load context: ${loadException.message}", loadException)
       emptyList()
     }
   }
@@ -123,21 +123,49 @@ class ContextManager(private val outputDirectory: Path) {
           StandardCopyOption.REPLACE_EXISTING,
           StandardCopyOption.ATOMIC_MOVE,
         )
-      } catch (_: AtomicMoveNotSupportedException) {
-        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back")
+      } catch (moveException: AtomicMoveNotSupportedException) {
+        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back", moveException)
         Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
       }
       val writtenSize: Long = contextFilePath.toFile().length()
 
       logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted"); true
-    } catch (exception: Exception) {
-      logger.error("Failed to save context: ${exception.message}", exception); false
+    } catch (saveException: Exception) {
+      logger.error("Failed to save context: ${saveException.message}", saveException); false
     }
   }
 
   private fun cleanMessageHistory(messages: List<Map<String, Any>>): List<Map<String, Any>> {
     val cleanedMessages: MutableList<Map<String, Any>> = mutableListOf()
+    val preservedToolCallIds: Set<String> = collectPreservedToolCallIds(messages)
 
+    for (message in messages) {
+      val role: String = message["role"] as? String ?: ""
+      val content: String = message["content"] as? String ?: ""
+      val isSystemOrEmptyAssistant: Boolean = (role == "system") || (role == "assistant" && content.isBlank())
+
+      if (isSystemOrEmptyAssistant) continue
+
+      when (role) {
+        "tool" -> {
+          val callId: String = message["tool_call_id"] as? String ?: ""
+          if (callId in preservedToolCallIds) cleanedMessages.add(message)
+        }
+
+        "assistant" -> cleanAssistantMessage(message, content, preservedToolCallIds, cleanedMessages)
+
+        else -> cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
+      }
+    }
+    return takeLastTurns(cleanedMessages, MAX_CONTEXT_MESSAGES)
+  }
+
+  /**
+   * Collects the call ids of `read_file` / `explore_project` tool calls
+   * that must survive cleanup because the LLM routinely refers back to
+   * their results.
+   */
+  private fun collectPreservedToolCallIds(messages: List<Map<String, Any>>): Set<String> {
     val preservedToolCallIds: MutableSet<String> = mutableSetOf()
     for (message in messages) {
       val role: String = message["role"] as? String ?: ""
@@ -154,81 +182,65 @@ class ContextManager(private val outputDirectory: Path) {
         }
       }
     }
-
-    for (message in messages) {
-      val role: String = message["role"] as? String ?: ""
-      val content: String = message["content"] as? String ?: ""
-      val isSystemOrEmptyAssistant: Boolean = (role == "system") || (role == "assistant" && content.isBlank())
-
-      if (isSystemOrEmptyAssistant) continue
-
-      if (role == "tool") {
-        val callId: String = message["tool_call_id"] as? String ?: ""
-        if (callId in preservedToolCallIds) cleanedMessages.add(message)
-
-        continue
-      }
-
-      if (role == "assistant") {
-        val toolCalls: List<Map<String, Any>> = readListOfMaps(message["tool_calls"])
-        if (toolCalls.isNotEmpty()) {
-          val preservedCalls: List<Map<String, Any>> = toolCalls.filter { toolCall ->
-            val callId: String = toolCall["id"] as? String ?: ""
-            callId in preservedToolCallIds
-          }
-          val trimmedContent: String = content.trim()
-          if (preservedCalls.isNotEmpty()) {
-            val droppedCallCount: Int = toolCalls.size - preservedCalls.size
-            if (droppedCallCount > 0) {
-              logger.info(
-                "Assistant message has $droppedCallCount tool call(s) trimmed " +
-                  "(kept ${preservedCalls.size} of ${toolCalls.size} read_file / " +
-                  "explore_project results); the model can still see the surviving " +
-                  "tool_calls and their results, so the gap is inferable from history"
-              )
-            }
-            cleanedMessages.add(
-              mapOf(
-                "role" to role,
-                "content" to trimmedContent,
-                "tool_calls" to preservedCalls
-              )
-            )
-          } else {
-            val droppedCount: Int = droppedCallCount(toolCalls, preservedToolCallIds)
-            if (droppedCount > 0) {
-              logger.info(
-                "Assistant message lost all $droppedCount tool call(s) during " +
-                  "context cleanup (none were read_file / explore_project); the " +
-                  "model can infer the gap from the missing tool result messages"
-              )
-            }
-            cleanedMessages.add(
-              mapOf("role" to role, "content" to trimmedContent)
-            )
-          }
-        } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
-      } else cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
-    }
-    return takeLastTurns(cleanedMessages, MAX_CONTEXT_MESSAGES)
+    return preservedToolCallIds
   }
 
-  private fun droppedCallCount(
-    toolCalls: List<Map<String, Any>>, preservedToolCallIds: Set<String>
-  ): Int = toolCalls.count {
-    (it["id"] as? String ?: "") !in preservedToolCallIds
+  private fun cleanAssistantMessage(
+    message: Map<String, Any>,
+    content: String,
+    preservedToolCallIds: Set<String>,
+    cleanedMessages: MutableList<Map<String, Any>>,
+  ) {
+    val toolCalls: List<Map<String, Any>> = readListOfMaps(message["tool_calls"])
+    if (toolCalls.isEmpty()) {
+      cleanedMessages.add(mapOf("role" to "assistant", "content" to content.trim()))
+      return
+    }
+
+    val preservedCalls: List<Map<String, Any>> = toolCalls.filter { toolCall ->
+      val callId: String = toolCall["id"] as? String ?: ""
+      callId in preservedToolCallIds
+    }
+    val trimmedContent: String = content.trim()
+
+    if (preservedCalls.isNotEmpty()) {
+      val droppedCallCount: Int = toolCalls.size - preservedCalls.size
+      if (droppedCallCount > 0) {
+        logger.info(
+          "Assistant message has $droppedCallCount tool call(s) trimmed " +
+            "(kept ${preservedCalls.size} of ${toolCalls.size} read_file / " +
+            "explore_project results); the model can still see the surviving " +
+            "tool_calls and their results, so the gap is inferable from history"
+        )
+      }
+      cleanedMessages.add(
+        mapOf(
+          "role" to "assistant",
+          "content" to trimmedContent,
+          "tool_calls" to preservedCalls
+        )
+      )
+    } else {
+      val droppedCount: Int = toolCalls.size - preservedCalls.size
+      if (droppedCount > 0) {
+        logger.info(
+          "Assistant message lost all $droppedCount tool call(s) during " +
+            "context cleanup (none were read_file / explore_project); the " +
+            "model can infer the gap from the missing tool result messages"
+        )
+      }
+      cleanedMessages.add(
+        mapOf("role" to "assistant", "content" to trimmedContent)
+      )
+    }
   }
 
   /**
    * Runtime-safe coercion of a `Any?` value (typically read from a
    * `Map<String, Any>` produced by [convertJsonElement]) into a
-   * `Map<String, Any>`. The previous `as? Map<String, Any>` shortcut
-   * compiled with an unchecked-cast warning at L149 because Kotlin
-   * can't prove the key/value types at the call site. This helper
-   * walks the map at runtime: non-`String` keys are dropped, null
-   * values become empty strings. Returns an empty map if the input
-   * is not a map at all, so callers can use `?.let { }` or a simple
-   * `isEmpty()` check rather than `?: continue`.
+   * `Map<String, Any>`. Non-`String` keys are dropped, null values
+   * become empty strings. Returns an empty map if the input is not a
+   * map at all.
    */
   private fun readStringMap(rawMap: Any?): Map<String, Any> {
     if (rawMap !is Map<*, *>) return emptyMap()
@@ -240,8 +252,6 @@ class ContextManager(private val outputDirectory: Path) {
       .toMap()
   }
 
-  /** Runtime-safe coercion of a `Any?` into a `List<Map<String, Any>>`.
-   *  Non-map elements are dropped; see [readStringMap] for the per-map rules. */
   private fun readListOfMaps(rawList: Any?): List<Map<String, Any>> {
     if (rawList !is List<*>) return emptyList()
     val parsedMaps: MutableList<Map<String, Any>> = mutableListOf()
@@ -258,7 +268,6 @@ class ContextManager(private val outputDirectory: Path) {
     return parsedMap
   }
 
-  /** Recursively converts a kotlinx.serialization JsonElement to a plain Kotlin/Java object. */
   private fun convertJsonElement(element: JsonElement): Any {
     return when (element) {
       is JsonPrimitive if element.isString -> element.content
@@ -277,8 +286,8 @@ class ContextManager(private val outputDirectory: Path) {
       message["content"] = decryptMessageContent(encryptedContent)
       message.remove("_encrypted")
       message
-    } catch (exception: Exception) {
-      logger.warn("Failed to decrypt message: ${exception.message}"); null
+    } catch (decryptException: Exception) {
+      logger.warn("Failed to decrypt message: ${decryptException.message}", decryptException); null
     }
   }
 

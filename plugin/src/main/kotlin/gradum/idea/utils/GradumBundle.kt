@@ -15,11 +15,7 @@ import java.util.*
 /**
  * Resource-bundle accessor for all user-visible Gradum strings.
  *
- * The previous implementation trusted a hard-coded `messages.GradumBundle`
- * path and would throw [MissingResourceException] with no warning when a
- * key was missing — leaving the UI to render an empty label and making
- * "did I spell the key wrong?" bugs invisible. Two small hardening changes
- * are in place:
+ * Two hardening measures beyond the plain `DynamicBundle` base:
  *
  * 1. **Startup probe.** An `init {}` block tries to resolve one well-known
  *    key on object-init. If the resource is missing entirely (renamed folder,
@@ -33,9 +29,7 @@ import java.util.*
  * The hard-coded [BUNDLE_NAME] is the JetBrains-recommended pattern (the
  * class lives in `gradum.idea.bundle` but its resources sit in the
  * `messages` package on purpose, so a class-based path would require
- * moving 132 keys — out of scope for this refactor). The probe and
- * fallback are the right defenses for the "I moved the folder" foot-gun
- * without re-architecting the resource layout.
+ * moving 132 keys — out of scope for this refactor).
  */
 object GradumBundle : DynamicBundle(BUNDLE_NAME) {
 
@@ -48,11 +42,6 @@ object GradumBundle : DynamicBundle(BUNDLE_NAME) {
    * Substituted parameters use the standard Java `MessageFormat` syntax
    * (`{0}`, `{1}`, …). The fallback marker is `???<key>???` so a missing
    * key is obvious in the UI without breaking layout.
-   *
-   * @param key the resource key (IntelliJ's @PropertyKey checks the key
-   *   against [BUNDLE_NAME] at compile time).
-   * @param params format arguments to substitute into the localized
-   *   message template, if any.
    */
   @JvmStatic
   fun message(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any): String {

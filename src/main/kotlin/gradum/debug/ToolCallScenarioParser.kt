@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParser.kt  2026-08-10 09:20:41 Changed by gwy
+ * ToolCallScenarioParser.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 package gradum.debug
@@ -11,6 +11,8 @@ import gradum.client.ToolCallEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.w3c.dom.Attr
 import org.w3c.dom.Element
 import org.w3c.dom.NamedNodeMap
@@ -18,18 +20,14 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import javax.xml.parsers.DocumentBuilderFactory
 
+private val logger: Logger = LoggerFactory.getLogger("ToolCallScenarioParser")
+
 /** A single scenario step: either an AI reply segment or a tool call. */
 sealed interface ScenarioStep {
   /**
-   * AI reply narration. On a real agent turn this is what the LLM says
-   * between tool calls; in the debug playback the narration is carried
-   * over from the Markdown document (`<tt>...</tt>`) so text and tools
-   * interleave exactly like a real turn. It is emitted as a `response`
-   * event and rendered as assistant text.
-   *
-   * Hand-written `.tls.xml` scenarios are expected to declare tool calls
-   * only; `<tt>` is primarily produced by `MarkdownTlsScenario` when it
-   * compiles the narration between `<tls>` blocks.
+   * AI reply narration — what the LLM says between tool calls on a real
+   * turn. In playback it is carried over from the Markdown document
+   * (`<tt>` segments) so text and tools interleave exactly like a turn.
    */
   data class AiReply(val content: String) : ScenarioStep
 }
@@ -50,7 +48,7 @@ data class ToolCallScenario(
   val steps: List<ScenarioStep>,
   val scenarioName: String,
 ) {
-  /** Convenience: only the tool steps, in order. */
+  /** Only the tool steps, in document order. */
   val toolCalls: List<ParsedToolCall> get() = steps.filterIsInstance<ParsedToolCall>()
 }
 
@@ -94,12 +92,7 @@ data class ToolCallScenario(
  */
 object ToolCallScenarioParser {
 
-  /**
-   * Parse a raw scenario XML string into a [ToolCallScenario].
-   *
-   * @throws ToolCallScenarioParseException when the XML cannot be read or
-   * contains no tool call entries.
-   */
+  /** Parses a raw scenario XML string into a [ToolCallScenario]. */
   fun parse(rawXml: String): ToolCallScenario {
     val documentBuilderFactory = DocumentBuilderFactory.newInstance()
     // Best-effort hardening: the scenario is developer-authored, not remote,
@@ -108,8 +101,9 @@ object ToolCallScenarioParser {
       documentBuilderFactory.setFeature(
         "http://apache.org/xml/features/nonvalidating/load-external-dtd", false
       )
-    } catch (_: Exception) {
+    } catch (featureException: Exception) {
       // Parser implementations without this feature just parse as-is.
+      logger.debug("Parser does not support the anti-DTD feature, parsing without it", featureException)
     }
 
     val documentBuilder = documentBuilderFactory.newDocumentBuilder()
@@ -130,7 +124,7 @@ object ToolCallScenarioParser {
       root.getAttribute("nam").trim()
     }
 
-    val stepList: List<ScenarioStep> = buildList<ScenarioStep> {
+    val stepList = buildList {
       for (child: Element in childElements(root)) {
         when (child.tagName) {
           "t" -> add(parseToolElement(child))
@@ -148,7 +142,6 @@ object ToolCallScenarioParser {
     return ToolCallScenario(steps = stepList, scenarioName = scenarioName)
   }
 
-  /** Yields the element children of the given node, skipping text/comments. */
   private fun childElements(parent: Element): List<Element> {
     val children = parent.childNodes
     return (0 until children.length).mapNotNull { index ->
@@ -205,15 +198,6 @@ object ToolCallScenarioParser {
     }
   }
 
-  /**
-   * Decides how a raw attribute string becomes the tool argument value.
-   *
-   * Plain strings pass through verbatim. A value that starts with `[` or
-   * `{` is tried as inline JSON — that is how array/object arguments are
-   * written in a scenario (e.g. `to_do` tasks or `edit_file` edits), since
-   * XML has no native array syntax. If the fragment does not decode, it is
-   * kept as a plain string so a path like `{name}` still works.
-   */
   private fun parseArgumentValue(rawValue: String): JsonElement {
     val trimmed: String = rawValue.trim()
     if (trimmed.firstOrNull() !in ARRAY_OR_OBJECT_MARKERS) return JsonPrimitive(rawValue)

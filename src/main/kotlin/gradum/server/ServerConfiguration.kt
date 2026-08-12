@@ -9,6 +9,14 @@ package gradum.server
 
 /** Configuration for the Gradum embedded HTTP server. */
 data class ServerConfiguration(
-  val hostAddress: String = "localhost",
-  val portNumber: Int = 8765,
-)
+  val hostAddress: String = DEFAULT_HOST_ADDRESS,
+  val portNumber: Int = DEFAULT_PORT_NUMBER,
+) {
+  companion object {
+    /** Default bind host; the single source of truth. */
+    const val DEFAULT_HOST_ADDRESS: String = "localhost"
+
+    /** Default bind port; the single source of truth. */
+    const val DEFAULT_PORT_NUMBER: Int = 8765
+  }
+}

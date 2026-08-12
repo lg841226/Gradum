@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-07-29 18:32:58 Changed by gwy
+ * Agent.kt  2026-08-12 10:05:14 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -12,17 +12,14 @@ package gradum.agent
 import gradum.*
 import gradum.PromptVariant.*
 import gradum.client.*
-import gradum.debug.ParsedToolCall
-import gradum.debug.ScenarioStep
-import gradum.debug.ToolCallScenario
-import gradum.debug.ToolCallScenarioParseException
-import gradum.debug.ToolCallScenarioParser
+import gradum.debug.*
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
+import gradum.utils.MAX_HISTORY_MESSAGES
 import gradum.utils.takeLastTurns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
@@ -35,6 +32,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
+
+private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
 
 /**
  * A single user-supplied attachment (currently only `image`) for
@@ -93,12 +92,9 @@ class Agent(
   /**
    * Per-session [SkillContext] shared by every [Skill.execute] call.
    *
-   * Constructed once from [configuration] and frozen for the lifetime
-   * of this Agent — both `toolMode` and `projectRoot` are immutable
-   * for the duration of a session, so passing the same instance down
-   * means every Skill sees the same values. The previous design
-   * relied on `ProjectPaths.setProjectRoot` (a process-global) and
-   * gave Skills no way to access `toolMode` at all; this replaces both.
+   * Both `toolMode` and `projectRoot` are immutable for the duration of
+   * a session, so passing the same instance down means every Skill sees
+   * the same values.
    */
   private val skillContext: SkillContext = SkillContext(
     toolMode = configuration.toolMode,
@@ -108,6 +104,7 @@ class Agent(
   )
 
   private var redLineKeywords: List<String> = emptyList()
+  private var redLineKeywordsLowercase: List<String> = emptyList()
   private val redLineHitKeywords: MutableList<String> = mutableListOf()
   private val repeatedResponseTracker: MutableList<String> = mutableListOf()
   private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
@@ -121,8 +118,7 @@ class Agent(
 
   private var sessionAborted: Boolean = false
 
-  /** Maximum messages to keep in conversation history sent to LLM. */
-  private val maxHistoryMessages: Int = 30
+  private val maxHistoryMessages: Int = MAX_HISTORY_MESSAGES
 
   init {
     activeClient = when (configuration.provider) {
@@ -130,6 +126,7 @@ class Agent(
       Provider.OLLAMA -> ollamaClient
     }
     redLineKeywords = loadRedLineKeywords()
+    redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
   }
 
   internal constructor(
@@ -139,6 +136,7 @@ class Agent(
   ) : this(configuration, emitEvent) {
     activeClient = llmClient
     this.redLineKeywords = redLineKeywords
+    this.redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
   }
 
   fun executeTask(
@@ -184,9 +182,9 @@ class Agent(
     }
 
     val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
+      modelName = configuration.modelName,
       toolMode = configuration.toolMode,
-      provider = configuration.provider,
-      modelName = configuration.modelName
+      provider = configuration.provider
     )
 
     while (true) {
@@ -210,23 +208,22 @@ class Agent(
       if (matchedRedLineKeywords.isNotEmpty()) {
         redLineHitCounter++
         redLineHitKeywords.addAll(matchedRedLineKeywords)
-        emitEvent(
-          "guardrail", mapOf(
-            "type" to "red_line_hit",
-            "keywords" to matchedRedLineKeywords,
-            "hitCount" to redLineHitCounter,
-            "maxAllowed" to configuration.maxRedLineHits,
-          )
+        recordGuardrail(
+          type = "red_line_hit",
+          guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
+          hitCount = redLineHitCounter,
+          maxAllowed = configuration.maxRedLineHits,
         )
-        if (redLineHitCounter >= configuration.maxRedLineHits) {
-          result.responseText?.let { text -> appendAssistantMessage(text, null) }
-          emitRevoked(
-            "red_line_violation", mapOf(
+        if (redLineHitCounter >= configuration.maxRedLineHits &&
+          handleGuardrailExceeded(
+            responseText = result.responseText,
+            revokeReason = "red_line_violation",
+            revokeDetails = mapOf(
               "hitCount" to redLineHitCounter,
               "keywords" to redLineHitKeywords.toList(),
-            )
+            ),
           )
-          abortSession()
+        ) {
           break
         }
       }
@@ -236,23 +233,22 @@ class Agent(
         repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
       if (isDuplicate || isAbnormalResponse(result.responseText)) {
         repeatedResponseTracker.add(currentResponse)
-        emitEvent(
-          "guardrail", mapOf(
-            "type" to "repeated_response",
-            "detail" to (result.responseText ?: ""),
-            "repeatedCount" to repeatedResponseTracker.size,
-            "maxAllowed" to configuration.maxRepeatedResponses,
-          )
+        recordGuardrail(
+          type = "repeated_response",
+          guardrailDetails = mapOf("detail" to (result.responseText ?: "")),
+          hitCount = repeatedResponseTracker.size,
+          maxAllowed = configuration.maxRepeatedResponses,
         )
-        if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses) {
-          result.responseText?.let { text -> appendAssistantMessage(text, null) }
-          emitRevoked(
-            "repetitive_loop", mapOf(
+        if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses &&
+          handleGuardrailExceeded(
+            responseText = result.responseText,
+            revokeReason = "repetitive_loop",
+            revokeDetails = mapOf(
               "repeatedCount" to repeatedResponseTracker.size,
               "responses" to repeatedResponseTracker.toList(),
-            )
+            ),
           )
-          abortSession()
+        ) {
           break
         }
       } else repeatedResponseTracker.clear()
@@ -281,21 +277,19 @@ class Agent(
     }
     val primaryPath: String = when (resolvedVariant) {
       CLOUD -> "/prompts/system/cloud.xml"
-      LOCAL -> "/prompts/system/local.xml"
-      AUTO -> "/prompts/system/local.xml"
+      // AUTO is fully resolved to CLOUD/LOCAL above, so this arm is unreachable.
+      else -> "/prompts/system/local.xml"
     }
 
     val promptContent: String = try {
       Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
         stream.reader(Charsets.UTF_8).readText()
       } ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
-    } catch (exception: Exception) {
-      logger.warn("Could not load system prompt, reason: ${exception.message}")
+    } catch (promptLoadException: Exception) {
+      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}", promptLoadException)
       "You are a helpful AI assistant. You can't call any tool and report it"
     }
 
-    // Prompt must match ToolMode. SkillRegistry hides certain tools in smaller modes.
-    // Otherwise, the model may call tools not in its list.
     val modeSectionPath: String = when (configuration.toolMode) {
       ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
       ToolMode.EDIT -> "/prompts/modes/edit.xml"
@@ -305,8 +299,8 @@ class Agent(
       Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
         stream.reader(Charsets.UTF_8).readText()
       } ?: "You have no tools available in this session."
-    } catch (exception: Exception) {
-      logger.warn("Could not load mode section $modeSectionPath: ${exception.message}")
+    } catch (modeSectionException: Exception) {
+      logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}", modeSectionException)
       "You have no tools available in this session."
     }
 
@@ -318,7 +312,6 @@ class Agent(
       .replace("{{MODE}}", modeSection)
       .replace("{{SCHEMA_VARIANT}}", schemaVariant.name)
 
-    // Filter conditional sections based on schemaVariant
     val filteredContent: String = filterConditionalSections(substitutedContent, schemaVariant)
 
     conversationHistory.add(0, mapOf("role" to "system", "content" to filteredContent))
@@ -328,17 +321,12 @@ class Agent(
    * Filters conditional sections in the prompt based on [SchemaVariant].
    *
    * Sections wrapped in `<!-- if SIMPLE -->...<!-- endif -->` are kept
-   * only when [schemaVariant] is [SchemaVariant.SIMPLE]. Sections wrapped in
-   * `<!-- if FULL -->...<!-- endif -->` are kept only when [schemaVariant] is [SchemaVariant.FULL].
+   * only for [SchemaVariant.SIMPLE]; `<!-- if FULL -->` only for
+   * [SchemaVariant.FULL].
    *
-   * Edge cases:
-   * - Nested conditionals are NOT supported (outer block wins)
-   * - Malformed tags (missing endif) → section is dropped
-   * - Empty sections are preserved (maybe intentional)
-   *
-   * @param content the prompt content with conditional sections
-   * @param schemaVariant the active schema variant
-   * @return content with only the matching conditional sections
+   * Edge cases: nested conditionals are NOT supported (outer block wins);
+   * malformed tags (missing endif) drop the section; empty sections are
+   * preserved.
    */
   private fun filterConditionalSections(content: String, schemaVariant: SchemaVariant): String {
     if (content.isBlank()) return content
@@ -363,7 +351,8 @@ class Agent(
 
           val conditionVariant = try {
             SchemaVariant.valueOf(conditionName)
-          } catch (_: IllegalArgumentException) {
+          } catch (variantException: IllegalArgumentException) {
+            logger.debug("Unknown conditional variant '$conditionName': ${variantException.message}", variantException)
             null
           }
 
@@ -386,7 +375,6 @@ class Agent(
           lineIndex++
         }
 
-        // Normal line outside conditional
         else -> {
           outputBuffer.appendLine(currentLine)
           lineIndex++
@@ -485,31 +473,12 @@ class Agent(
   }
 
   /**
-   * Build the user message map that gets appended to
-   * [conversationHistory]. The shape is the OpenAI-compatible
-   * `content` array intermediate:
+   * Build the user message appended to [conversationHistory].
    *
-   * ```
-   * {"role": "user", "content": [
-   *   {"type": "text", "text": "What is this?"},
-   *   {"type": "image", "data": "<base64>", "mime": "image/jpeg",
-   *    "filename": "screenshot.png"},
-   *   ...
-   * ]}
-   * ```
-   *
-   * `text` always appears first when there are attachments so
-   * the LLM prompt reads in the natural top-to-bottom order.
-   * When there are no attachments, the message collapses to the
-   * old shape `{"role": "user", "content": "..."}` for
-   * backwards compatibility with persisted conversation
-   * history files and with the per-provider `LLMClient` paths
-   * that have not yet learned the array shape.
-   *
-   * The per-provider clients (`OllamaClient`,
-   * `OpenAICompatibleClient`) are responsible for translating
-   * the array shape into the wire format each backend expects
-   * — see [gradum.client.LlmClient.sendChat].
+   * With attachments the `content` becomes an array whose `text` part
+   * always comes first so the LLM prompt reads top-to-bottom; without
+   * attachments it collapses to the legacy string shape for backwards
+   * compatibility with persisted history and per-provider clients.
    */
   private fun buildUserMessage(text: String, attachments: List<AttachmentPayload>): Map<String, Any> {
     if (attachments.isEmpty()) {
@@ -597,14 +566,13 @@ class Agent(
     convertedArguments["projectRoot"] = configuration.projectRoot
 
     logger.info("Skill: $functionName")
-    logger.info("Args: ${JsonUtil.encodeMap(convertedArguments, prettyPrint = true)}")
+    if (logger.isDebugEnabled) logger.debug("Args: ${truncateToolArguments(convertedArguments)}")
 
     val executionResult: Map<String, Any>
     val skillInstance: Skill?
 
     if (checkToolRunaway(functionName, convertedArguments)) {
       logger.error("Result: TOOL_RUNAWAY — repeated call ($repeatedToolCallCount times), aborting")
-      executionResult = emptyMap()
       emitRevoked(
         "tool_runaway", mapOf(
           "tool" to functionName,
@@ -613,7 +581,10 @@ class Agent(
         )
       )
       abortSession()
-    } else if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
+      return emptyMap()
+    }
+
+    if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
       val commandText: String = convertedArguments["command"] as? String ?: ""
       val verdict: gradum.utils.CommandVerdict =
         gradum.utils.classifyCommand(commandText, configuration.toolMode)
@@ -637,30 +608,22 @@ class Agent(
           executionResult,
           isLastToolCall
         )
-      } else {
-        skillInstance = SkillRegistry.getSkill(functionName)
-        executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-        emitToolResult(
-          processedCall,
-          functionName,
-          convertedArguments,
-          skillInstance,
-          executionResult,
-          isLastToolCall
-        )
+        logToolResult(executionResult)
+        return executionResult
       }
-    } else {
-      skillInstance = SkillRegistry.getSkill(functionName)
-      executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-      emitToolResult(
-        processedCall,
-        functionName,
-        convertedArguments,
-        skillInstance,
-        executionResult,
-        isLastToolCall
-      )
     }
+
+    skillInstance = SkillRegistry.getSkill(functionName)
+    executionResult = executeSkill(skillInstance, functionName, convertedArguments)
+
+    emitToolResult(
+      processedCall,
+      functionName,
+      convertedArguments,
+      skillInstance,
+      executionResult,
+      isLastToolCall
+    )
 
     logToolResult(executionResult)
     return executionResult
@@ -669,39 +632,27 @@ class Agent(
   /**
    * Debug tool-call playback mode.
    *
-   * Instead of asking the LLM to decide which tools to call (spending
-   * tokens on every attempt), the developer authors a scenario as a
-   * short `<tls>` XML block — playing the part of the model. The server
-   * parses it, runs every listed call through the *real*
-   * [executeSingleTool] pipeline (permission gates, project-root
-   * injection, skill execution, history stamping all included), streams
-   * the same `tool_call` NDJSON events the plugin already renders, then
-   * writes a machine-readable recording to
+   * The developer authors a scenario as a short `<tls>` XML block —
+   * playing the part of the model — instead of spending LLM tokens.
+   * Every listed call runs through the real [executeSingleTool]
+   * pipeline, streams the same `tool_call` NDJSON events, then writes a
+   * machine-readable recording to
    * `<projectRoot>/.gradum/recordings/<scenario>.json` so results can
    * be diffed between runs.
    *
-   * Each tool may carry an `exp="success"|"error"` assertion
-   * (default `success`). A mismatch is surfaced as a
-   * `tool_expect_mismatch` event instead of silently passing.
-   *
-   * Narration is carried over from Markdown documents as `<tt>` segments
-   * and emitted as `response` events, so a compiled `.md` replays as a
-   * full agent turn: text streams like assistant output and `<tls>` blocks
-   * execute at the exact position the author placed them. Hand-written
-   * scenarios declare tool calls only.
-   *
-   * Note: history appended in [emitToolResult] uses the real skill
-   * `alias`, exactly as in normal mode, so a future LLM turn could
-   * resume from the playback results if the tool-loop ever reappears.
+   * Each tool may carry `exp="success"|"error"` (default `success`);
+   * a mismatch surfaces as a `tool_expect_mismatch` event. `<tt>`
+   * narration is emitted as `response` events so a compiled `.md`
+   * replays as a full agent turn.
    */
   private fun playToolCallScenario(toolCallXml: String): Unit {
     val scenario: ToolCallScenario = try {
       ToolCallScenarioParser.parse(toolCallXml)
-    } catch (exception: ToolCallScenarioParseException) {
+    } catch (scenarioException: ToolCallScenarioParseException) {
       emitEvent(
         "error", mapOf(
           "code" to ErrorCode.INVALID_SCENARIO_XML.name,
-          "message" to (exception.message ?: "Failed to parse tool-call scenario"),
+          "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
           "source" to "debug_playback"
         )
       )
@@ -742,7 +693,7 @@ class Agent(
 
         is ParsedToolCall -> {
           val toolIndex: Int = recordings.size
-          val callEntry: ToolCallEntry = ToolCallEntry(
+          val callEntry = ToolCallEntry(
             callIdentifier = "playback_${toolIndex + 1}",
             functionName = step.functionName,
             functionArguments = step.functionArguments,
@@ -821,10 +772,8 @@ class Agent(
 
   /**
    * Writes a debug playback recording to
-   * `<project>/.gradum/recordings/<scenario>-<timestamp>.json`.
-   * The project-relative `.gradum` dir mirrors [contextManager]'s
-   * choice of output location so recordings live inside the user's
-   * project (per-IDE session) rather than the server's CWD.
+   * `<project>/.gradum/recordings/<scenario>-<timestamp>.json`, inside
+   * the user's project like [contextManager]'s output.
    */
   private fun savePlaybackRecording(scenarioName: String, summary: Map<String, Any>) {
     try {
@@ -836,8 +785,8 @@ class Agent(
       )
       Files.writeString(recordingFile, JsonUtil.encodeMap(summary, prettyPrint = true))
       logger.info("Playback recording written to $recordingFile")
-    } catch (exception: Exception) {
-      logger.error("Failed to write playback recording: ${exception.message}")
+    } catch (recordingException: Exception) {
+      logger.error("Failed to write playback recording", recordingException)
     }
   }
 
@@ -853,7 +802,7 @@ class Agent(
         "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
       )
     }
-    if (configuration.toolMode !in skillInstance.allowedToolModes) {
+    if (!skillInstance.allows(configuration.toolMode)) {
       val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
       logger.error(
         "Result: TOOL_NOT_PERMITTED — '${functionName}' not allowed in ${configuration.toolMode} (allowed: ${
@@ -898,18 +847,13 @@ class Agent(
 
   /**
    * Emit the post-execution events for a tool call (`tool_call`, optional
-   * `error`) and append the result to [conversationHistory] so the LLM
-   * sees it on the next turn. Shared by the normal skill path and the
-   * Read-only guard so both produce an identical agent-loop trace.
+   * `error`) and append the result to [conversationHistory]. Shared by
+   * the normal skill path and the Read-only guard so both produce an
+   * identical agent-loop trace.
    *
-   * The result is routed through [Skill.recordAndCompactHistory] which
-   * (a) strips [Skill.historyVolatileKeys] from OLDER tool messages
-   * this skill has already produced — those are the entries in
-   * [conversationHistory] whose `alias` matches this skill's
-   * [Skill.alias] — and (b) returns the current call's
-   * history-stamped version to add to history and to return to the
-   * LLM this turn. The current call's primary payload is never
-   * silently stripped.
+   * The result is routed through [Skill.recordAndCompactHistory], which
+   * strips [Skill.historyVolatileKeys] from this skill's OLDER tool
+   * messages while returning the current call's history-stamped version.
    */
   private fun emitToolResult(
     processedCall: ProcessedToolCall,
@@ -976,24 +920,17 @@ class Agent(
 
   /**
    * Truncates conversation history to [maxHistoryMessages] messages,
-   * keeping the system prompt and the most recent messages. This
-   * prevents local LLMs from being overwhelmed by long histories.
+   * keeping the system prompt and the most recent messages.
    *
    * Truncation is **turn-aware**: a "turn" is a user message, OR an
    * assistant message together with all its following `role=tool`
-   * results. Cuts only happen on turn boundaries, so the truncated
-   * list never contains an assistant message whose `tool_calls`
-   * reference tool-result messages that got dropped. The previous
-   * `takeLast(N)` cut messages by raw count, which on small-context
-   * (8K) models produced exactly that broken state — orphan
-   * tool_calls with no results, causing the LLM to either reject
-   * the request or hallucinate the missing tool outputs.
+   * results. Cuts only happen on turn boundaries so the truncated list
+   * never contains an assistant message whose `tool_calls` reference
+   * dropped tool results.
    *
-   * If even one whole turn is larger than the budget (rare — a turn
-   * is normally 1-3 messages), the truncator falls back to a raw
-   * tail cut of the last [maxHistoryMessages] messages within the
-   * most recent turn and logs a warning so the operator can raise
-   * the budget or split the conversation.
+   * If one whole turn is larger than the budget, the truncator falls
+   * back to a raw tail cut within the most recent turn and logs a
+   * warning so the operator can raise the budget.
    */
   private fun truncateHistory() {
     val systemPrompt: Map<String, Any>? =
@@ -1027,8 +964,8 @@ class Agent(
         logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
         emptyList()
       }
-    } catch (exception: Exception) {
-      logger.warn("Failed to load red_line_keywords.txt: ${exception.message}")
+    } catch (keywordLoadException: Exception) {
+      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}", keywordLoadException)
       emptyList()
     }
   }
@@ -1038,23 +975,25 @@ class Agent(
       return emptyList()
     }
 
-    return redLineKeywords.filter { keyword: String ->
-      text.lowercase().contains(keyword.lowercase())
+    val lowercasedText: String = text.lowercase()
+    return redLineKeywords.filterIndexed { index: Int, _: String ->
+      lowercasedText.contains(redLineKeywordsLowercase[index])
     }
   }
 
-  /**
-   * Detects if the same tool is being called repeatedly with identical arguments.
-   * Builds a signature from tool name + sorted args; if it matches the previous call,
-   * increments the counter. Returns true when the repeat count exceeds the threshold.
-   */
   private fun checkToolRunaway(toolName: String, toolArguments: Map<String, Any>): Boolean {
-    // Build a deterministic key: "toolName|arg1=val1,arg2=val2" (sorted by arg name)
     val callSignature =
       "$toolName|${toolArguments.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
     repeatedToolCallCount = if (callSignature == lastToolCallKey) repeatedToolCallCount + 1 else 1
     lastToolCallKey = callSignature
     return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
+  }
+
+  private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
+    val maxValueLength = 512
+    val serialized: String = JsonUtil.encodeMap(toolArguments, prettyPrint = true)
+    return if (serialized.length <= maxValueLength) serialized
+    else serialized.take(maxValueLength) + "... [truncated, ${serialized.length} chars total]"
   }
 
   private fun emitRevoked(reason: String, details: Map<String, Any>): Unit {
@@ -1064,6 +1003,42 @@ class Agent(
         "details" to details,
       )
     )
+  }
+
+  /**
+   * Emits a `guardrail` event. Shared by the red-line and repeated-response
+   * escalations so both hit the same wire shape.
+   */
+  private fun recordGuardrail(
+    type: String,
+    guardrailDetails: Map<String, Any>,
+    hitCount: Int,
+    maxAllowed: Int,
+  ): Unit {
+    emitEvent(
+      "guardrail",
+      mapOf(
+        "type" to type,
+        "hitCount" to hitCount,
+        "maxAllowed" to maxAllowed,
+      ) + guardrailDetails,
+    )
+  }
+
+  /**
+   * Escalates an exhausted guardrail: persist the offending assistant
+   * message, emit `mission_revoked`, and abort the session. Returns true
+   * so the caller can `break` out of the agent loop.
+   */
+  private fun handleGuardrailExceeded(
+    responseText: String?,
+    revokeReason: String,
+    revokeDetails: Map<String, Any>,
+  ): Boolean {
+    responseText?.let { text -> appendAssistantMessage(text, null) }
+    emitRevoked(revokeReason, revokeDetails)
+    abortSession()
+    return true
   }
 
   private fun abortSession(): Unit {
@@ -1085,10 +1060,7 @@ class Agent(
     )
   }
 
-  /**
-   * Public method to abort the session from outside (e.g., via POST /stop endpoint).
-   * Sets the sessionAborted flag which is checked in the main loop.
-   */
+  /** Aborts the session from outside (e.g. via POST /stop). */
   fun abort() {
     sessionAborted = true
   }
@@ -1098,7 +1070,7 @@ class Agent(
       if (responseText.isNullOrBlank()) return false
       val trimmedText = responseText.trim()
 
-      val sentenceList = trimmedText.split(Regex("(?<=[.!?])\\s+"))
+      val sentenceList = trimmedText.split(SENTENCE_SPLIT_PATTERN)
         .map { it.trim() }
         .filter { it.isNotBlank() && it.length > 3 }
 

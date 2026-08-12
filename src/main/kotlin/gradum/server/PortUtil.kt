@@ -16,19 +16,19 @@ private const val TIME_OUT = 5000
 
 private val logger: Logger = LoggerFactory.getLogger("PortUtil")
 
-fun isPortAvailable(checkPort: Int, hostAddress: String = "localhost"): Boolean {
+fun isPortAvailable(checkPort: Int, hostAddress: String = ServerConfiguration.DEFAULT_HOST_ADDRESS): Boolean {
   return try {
     Socket().use { socket ->
       socket.connect(InetSocketAddress(hostAddress, checkPort), TIME_OUT)
       false
     }
-  } catch (exception: Exception) {
-    logger.warn("Could not connect to $checkPort - ${exception.message}")
+  } catch (connectException: Exception) {
+    logger.warn("Could not connect to $checkPort - ${connectException.message}", connectException)
     true
   }
 }
 
-fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String = "localhost"): Int? {
+fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String = ServerConfiguration.DEFAULT_HOST_ADDRESS): Int? {
   for (port in startPort until startPort + maxAttempts) {
     if (isPortAvailable(port, hostAddress)) {
       return port

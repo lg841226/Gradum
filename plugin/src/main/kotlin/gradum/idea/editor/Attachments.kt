@@ -41,15 +41,7 @@ data class AttachedText(
  *    No re-encode, no base64 round trip, no in-memory copy.
  *
  * Splitting the paths keeps the wire format lossless and model-friendly while
- * the UI gets fast hardware-scaled previews. Joined only at construction —
- * wire payload is a one-way trip to server, file path is a one-way trip to UI.
- *
- * @property id Short random id to dedupe identical uploads in the same session.
- * @property mime IANA media type from file extension (not normalized on wire).
- * @property data Base64-encoded original file bytes (wire path only).
- * @property file Original on-disk file (render path only).
- * @property originalName File name shown in chip and LLM prompt.
- * @property originalSizeBytes Size of the original file in bytes.
+ * the UI gets fast hardware-scaled previews.
  */
 @Suppress(
   "SpellCheckingInspection", "SpellCheckingInspection",

@@ -28,24 +28,22 @@ import kotlinx.serialization.json.*
  */
 object JsonUtil {
 
-  /** Public entry point: encode a heterogeneous [Map] to a compact JSON string. */
+  private val compactJson: Json = Json { }
+
+  private val prettyJson: Json = Json { prettyPrint = true }
+
+  /** Encodes a heterogeneous [Map] to a JSON string (optionally pretty-printed). */
   fun encodeMap(input: Map<String, Any?>, prettyPrint: Boolean = false): String {
-    val jsonFormatter = Json { this.prettyPrint = prettyPrint }
+    val jsonFormatter: Json = if (prettyPrint) prettyJson else compactJson
     return jsonFormatter.encodeToString(JsonElement.serializer(), toJsonElement(input))
   }
 
   /**
    * Inverse of [encodeMap]: parse a JSON string back into a plain
-   * `Map<String, Any?>` (and recursively nested `Map` / `List`
-   * values). Used by [gradum.skill.Skill.compactHistory] to
-   * rewrite the `content` of older tool messages so that volatile
-   * keys can be stripped from prior call results while leaving the
-   * current call intact.
+   * `Map<String, Any?>` with nested `Map`/`List` values.
    *
-   * Throws [kotlinx.serialization.SerializationException] if the
-   * input is not a JSON object — callers that pass an unknown
-   * shape (e.g. a plain string tool result) should catch and
-   * skip, leaving the message untouched.
+   * Throws [kotlinx.serialization.SerializationException] if the input
+   * is not a JSON object.
    */
   fun decodeMap(input: String): Map<String, Any?> {
     val jsonElement: JsonElement = Json.parseToJsonElement(input)

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ConfigOverridesTest.kt  2026-08-09 19:59:00 Changed by gwy
+ * ConfigOverridesTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.server
@@ -10,7 +10,6 @@ package gradum.server
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class ConfigOverridesTest {
 
@@ -97,6 +96,6 @@ class ConfigOverridesTest {
       mapOf("think" to "certainly")
     )
 
-    assertTrue(overrides.think == false)
+    assertEquals(overrides.think, false)
   }
 }

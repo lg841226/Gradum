@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentGuardrailTest.kt  2026-07-04 22:43:11 Changed by gwy
+ * AgentGuardrailTest.kt  2026-08-10 23:19:40 Changed by gwy
  */
 
 package gradum.agent
@@ -171,7 +171,7 @@ class AgentGuardrailTest {
   @Test
   fun `same tool call repeated reaches threshold triggers tool_runaway`() {
     val events = mutableListOf<Pair<String, Map<String, Any>>>()
-    val toolCall: ToolCallEntry = ToolCallEntry(
+    val toolCall = ToolCallEntry(
       callIdentifier = "",
       functionName = "read_file",
       functionArguments = mapOf("path" to JsonPrimitive("Agent.kt")),
@@ -226,7 +226,6 @@ class AgentGuardrailTest {
     val mockClient: LlmClient = mockk {
       every { sendChat(any(), any()) } answers {
         sendChatCallCount++
-        val call: ToolCallEntry? = toolCalls[sendChatCallCount]
         if (sendChatCallCount <= 3) {
           flowOf(
             LLMResponseChunk.TextContent("step $sendChatCallCount"),

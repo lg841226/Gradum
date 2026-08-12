@@ -8,9 +8,14 @@
 package gradum.skill
 
 import gradum.*
+import gradum.utils.ProtectedPaths
 import io.ktor.utils.io.charsets.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
+
+private val logger: Logger = LoggerFactory.getLogger("SaveFileSkill")
 
 private const val MAXIMUM_CONTENT_SIZE: Int = 512 * 1024
 
@@ -42,41 +47,19 @@ class SaveFileSkill : Skill() {
   )
 
   /**
-   * Keep only the current call's `content` in history. After the
-   * first `save_file`, the model knows what it wrote (the call's
-   * arguments are still in the preceding assistant message) and
-   * can re-`read_file` the path on disk if it later needs the
-   * bytes back — so the `content` field of older `save_file`
-   * results is purely context bloat. Stripped from older tool
-   * messages by [gradum.skill.Skill.compactHistory]'s default
-   * implementation; the current call's `content` is always
-   * returned to the LLM in full.
+   * Keep only the current call's `content` in history. The LLM already
+   * holds the bytes it wrote (in the call's arguments) and can re-read
+   * the path on disk, so older results' `content` is context bloat.
    */
   override val historyKeepCount: Int = 1
   override val historyVolatileKeys: List<String> = listOf("content")
 
-  /**
-   * Returns the OpenAI-style function schema for this skill.
-   *
-   * Defines four parameters:
-   * - `path` (required): file path to write
-   * - `content` (required): content to write
-   * - `mode` (optional): `overwrite` or `append`
-   * - `encoding` (optional): character encoding, defaults to `UTF-8`
-   */
   override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context != null && SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-    return mapOf(
-      "type" to "function",
-      "function" to mapOf(
-        "name" to skillName,
-        "description" to if (useSimple) "Create or overwrite a file" else description,
-        "parameters" to mapOf(
-          "type" to "object",
-          "properties" to if (useSimple) simpleProperties() else cloudProperties(),
-          "required" to listOf("path", "content"),
-        ),
-      ),
+    val useSimple = context?.isSimpleModel == true
+    return buildFunctionSchema(
+      description = if (useSimple) "Create or overwrite a file" else description,
+      properties = if (useSimple) simpleProperties() else cloudProperties(),
+      required = listOf("path", "content"),
     )
   }
 
@@ -115,23 +98,13 @@ class SaveFileSkill : Skill() {
     ),
   )
 
-  /**
-   * Writes content to a file at the given path.
-   *
-   * Validates the path, checks content size against [MAXIMUM_CONTENT_SIZE],
-   * then writes according to writeMode. Creates parent directories
-   * automatically if they don't exist.
-   *
-   * @param arguments Map containing `path`, `content`, and optional `mode`, `encoding`
-   * @return [SkillResult.Success] with path, bytesWritten, totalLines, created, mode, encoding
-   */
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
     val fileContent: String = arguments["content"] as? String ?: ""
     val writeMode: String = arguments["mode"] as? String ?: "overwrite"
     val encodingName: String = arguments["encoding"] as? String ?: "UTF-8"
     val projectRoot: String = context.projectRoot
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+    val useSimpleOutput = context.isSimpleModel
 
     if (filePath.isBlank()) {
       return makeFailure(
@@ -145,7 +118,8 @@ class SaveFileSkill : Skill() {
 
     val fileCharset: Charset = try {
       Charsets.forName(encodingName)
-    } catch (_: Exception) {
+    } catch (encodingException: Exception) {
+      logger.warn("Unsupported encoding '$encodingName': ${encodingException.message}", encodingException)
       return makeFailure(
         ErrorCode.INVALID_PARAMETER, buildXmlError(
           code = "INVALID_PARAMETER",
@@ -243,34 +217,5 @@ class SaveFileSkill : Skill() {
   }
 }
 
-private val blockedPathPrefixes: List<String> = listOf(
-  "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
-  "/lib", "/lib64", "/opt",
-  "/System", "/Library", "/Applications", "/private"
-)
-
-private val blockedHomeSubdirectories: List<String> = listOf(
-  ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
-  ".pypirc", ".npmrc", ".docker",
-)
-
-private val exactBlockedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
-
-private fun isBlockedPaths(targetPath: Path): Boolean {
-  val absolutePath = targetPath.toAbsolutePath().normalize()
-  val pathString = absolutePath.toString()
-
-  if (pathString in exactBlockedPaths) return true
-
-  for (blockedPrefix in blockedPathPrefixes) {
-    if (pathString.startsWith(blockedPrefix)) return true
-  }
-
-  val homeDirectory: String = System.getProperty("user.home") ?: return false
-  for (protectedSubdir in blockedHomeSubdirectories) {
-    val protectedPath = "$homeDirectory/$protectedSubdir"
-    if (pathString.startsWith(protectedPath)) return true
-  }
-
-  return false
-}
+private fun isBlockedPaths(targetPath: Path): Boolean =
+  ProtectedPaths.isProtected(targetPath.toString())

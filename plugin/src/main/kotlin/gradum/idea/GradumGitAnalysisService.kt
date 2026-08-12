@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-08-07 23:23:25 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-11 21:03:51 Changed by gwy
  */
 package gradum.idea
 
@@ -17,7 +17,6 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
-import gradum.idea.GradumGitAnalysisService.FINDING_CODE_PREFIX
 import gradum.idea.GradumGitAnalysisService.handleFailure
 import gradum.idea.GradumGitAnalysisService.isScanCompleted
 import gradum.idea.GradumGitAnalysisService.restoreStateBeforeScan
@@ -292,7 +291,6 @@ object GradumGitAnalysisService {
   /** Sentinel log level that marks a fatal script error in the output stream. */
   private const val LEVEL_ERROR = "ERROR"
 
-  /** JSON field names, shared between the script output and the Kotlin parser. */
   private const val FIELD_MESSAGE = "message"
   private const val FIELD_LEVEL = "level"
   private const val FIELD_CURRENT = "current"
@@ -309,88 +307,57 @@ object GradumGitAnalysisService {
   private const val FIELD_PARAMS = "params"
   private const val FIELD_ERROR = "error"
 
-  /** Every audit finding code starts with this prefix (e.g. `S1001`). */
   private const val FINDING_CODE_PREFIX = "S"
-
-  /** Script message that reports per-commit scanning progress. */
   private const val SCANNING_MESSAGE = "scanning commit"
-
-  /** Script message that marks the end of the per-commit scan pass. */
   private const val SCANNED_MESSAGE = "scanned"
-
-  /** Bundle key prefix for script error messages (`gradum.gitstats.error.<code>`). */
   private const val ERROR_CODE_PREFIX = "gradum.gitstats.error."
-
-  /** Path of the analysis script, relative to a project or the plugin resources. */
   private const val SCRIPT_RELATIVE_PATH = "scripts/git_stats_log/git_stats.py"
-
-  /** Path of the script config, extracted alongside it when running from a jar. */
   private const val CONFIG_RELATIVE_PATH = "scripts/configs.jsonc"
 
   private val log: Logger = Logger.getInstance(GradumGitAnalysisService::class.java)
 
 
-  /** Current scan lifecycle state; drives the whole tool window. */
   var scanState by mutableStateOf(ScanState.IDLE)
     private set
 
-  /** Hash of the commit currently being walked during [ScanState.SCANNING]. */
   var currentHash by mutableStateOf("")
     private set
 
-  /** 1-based index of the commit currently being walked. */
   var currentCommit by mutableStateOf(0)
     private set
 
-  /** Total number of commits the script expects to walk. */
   var totalCommits by mutableStateOf(0)
     private set
 
-  /** Human-readable failure message, set when [scanState] is [ScanState.FAILED]. */
   var lastErrorMessage by mutableStateOf<String?>(null)
     private set
 
-  /** All SXXXX findings collected so far, appended as records arrive. */
   var auditFindings by mutableStateOf<List<AuditFinding>>(emptyList())
     private set
 
-  /** Overall quality level emitted by the script's "analyzed" record. */
   var overallLevel by mutableStateOf<String?>(null)
     private set
 
-  /** Quality band emitted by the script's "quality" record. */
   var qualityBand by mutableStateOf<String?>(null)
     private set
 
-  /** Current branch name reported by the script's "scanned" record. */
   var currentBranch by mutableStateOf<String?>(null)
     private set
 
-  /** Timestamp (epoch millis) when the last scan completed successfully. */
   var scanCompletedAt by mutableStateOf(0L)
     private set
 
-  /** Whether the user has dismissed the banner (persists across scans). */
   var bannerDismissed by mutableStateOf(false)
 
-
-  /** The running analysis process, if any. */
   private var currentProcess: Process? = null
-
-  /** Stream reader for the process stdout (JSONL). */
   private var analysisReader: BufferedReader? = null
-
-  /** Temp file capturing the process stderr, read on failure. */
   private var currentErrorFile: File? = null
 
   /** Set to request an orderly cancellation of the current scan. */
   @Volatile
   private var isScanCancelled: Boolean = false
 
-  /**
-   * Set once the script reports the `scanned` marker; triggers the hand-off
-   * from [ScanCommitsTask] to [AnalyzeDataTask].
-   */
+  /** Set once the script reports the `scanned` marker; triggers the hand-off to [AnalyzeDataTask]. */
   @Volatile
   private var isScanCompleted: Boolean = false
 
@@ -465,11 +432,6 @@ object GradumGitAnalysisService {
     scanState = ScanState.IDLE
   }
 
-  /**
-   * Reverts observable state to the snapshot taken before the scan started.
-   * Only the parts that actually changed during the scan are restored, so a
-   * canceled scan never leaves stale findings or errors behind.
-   */
   private fun restoreStateBeforeScan() {
     scanState = stateBeforeScan
     if (scanState == ScanState.SUCCESS) {
@@ -480,7 +442,6 @@ object GradumGitAnalysisService {
     }
   }
 
-  /** Clears scan-related state and transitions to [ScanState.SCANNING]. */
   private fun resetScanState() {
     currentHash = ""
     scanState = ScanState.SCANNING
@@ -632,7 +593,6 @@ object GradumGitAnalysisService {
     }
   }
 
-  /** Releases the child process and its temp stderr file. */
   private fun cleanupScanResources() {
     currentProcess = null
     analysisReader = null
@@ -640,7 +600,6 @@ object GradumGitAnalysisService {
     currentErrorFile = null
   }
 
-  /** Parses a single JSONL output line into a [JsonObject], or null if invalid. */
   private fun parseRecord(line: String): JsonObject? = try {
     Json.parseToJsonElement(line).jsonObject
   } catch (exception: Exception) {
@@ -648,15 +607,10 @@ object GradumGitAnalysisService {
     null
   }
 
-  /** True when the record is the script's end-of-walk marker. */
   private fun isScannedRecord(record: JsonObject): Boolean =
     record[FIELD_MESSAGE]?.jsonPrimitive?.contentOrNull?.equals(SCANNED_MESSAGE, ignoreCase = true) == true
 
-  /**
-   * Routes one JSONL record to its handler: audit findings are appended to
-   * [auditFindings], `scanning commit` records update progress, and error
-   * records set [lastErrorMessage].
-   */
+  /** Routes one JSONL record to its handler: findings, progress, quality, or error. */
   private fun handleJsonRecord(record: JsonObject, indicator: ProgressIndicator) {
     val auditFinding = parseAuditFinding(record)
     if (auditFinding != null) {
@@ -686,10 +640,6 @@ object GradumGitAnalysisService {
     }
   }
 
-  /**
-   * Builds an [AuditFinding] from a record whose `code` starts with [FINDING_CODE_PREFIX].
-   * Any other record (progress, error, quality) returns null.
-   */
   private fun parseAuditFinding(jsonRecord: JsonObject): AuditFinding? {
     val findingCode = jsonRecord[FIELD_CODE]?.jsonPrimitive?.contentOrNull ?: return null
     if (!findingCode.startsWith(FINDING_CODE_PREFIX)) return null
@@ -708,13 +658,11 @@ object GradumGitAnalysisService {
     )
   }
 
-  /** Extracts the `params` object of a finding record as a plain [Map]. */
   private fun parseAuditParams(jsonRecord: JsonObject): Map<String, Any?> {
     val paramsElement = jsonRecord[FIELD_PARAMS] as? JsonObject ?: return emptyMap()
     return paramsElement.mapValues { (_, value) -> parseParamValue(value) }
   }
 
-  /** Converts a JSON value into a Kotlin scalar: string, boolean, long, or double. */
   private fun parseParamValue(element: JsonElement): Any? = when (element) {
     is JsonPrimitive -> when {
       element.isString -> element.content
@@ -726,17 +674,13 @@ object GradumGitAnalysisService {
     else -> element.toString()
   }
 
-  /**
-   * Resolves a script error code to a localized message, falling back to the
-   * raw script message when the bundle key is missing.
-   */
+  /** Localizes a script error code, falling back to the raw script message. */
   private fun friendlyErrorMessage(errorCode: String, fallback: String): String {
     val localized = message("$ERROR_CODE_PREFIX$errorCode")
     return if (localized.isNotBlank() && !localized.startsWith("???"))
       localized else fallback
   }
 
-  /** Updates the progress indicator and scan counters from a progress record. */
   private fun updateScanningProgress(record: JsonObject, indicator: ProgressIndicator) {
     val currentCommitIndex = record[FIELD_CURRENT]?.jsonPrimitive?.intOrNull ?: return
     val totalCommitCount = record[FIELD_TOTAL]?.jsonPrimitive?.intOrNull ?: return
@@ -750,11 +694,6 @@ object GradumGitAnalysisService {
     indicator.text = message("gradum.toolwindow.git.analysis.progress", currentCommitIndex, totalCommitCount)
   }
 
-  /**
-   * Marks the scan as failed, preferring a script-level error message that was
-   * already captured; otherwise it falls back to the stderr log file and,
-   * last, to a generic exit-code message.
-   */
   private fun handleFailure(exitCode: Int, errorFile: File?) {
     if (lastErrorMessage == null) {
       lastErrorMessage = readErrorFile(errorFile) ?: "The analysis script exited with code $exitCode."
@@ -762,17 +701,12 @@ object GradumGitAnalysisService {
     scanState = ScanState.FAILED
   }
 
-  /** Reads the trimmed content of a temp error file, or null if empty/missing. */
   private fun readErrorFile(errorFile: File?): String? {
     if (errorFile == null || !errorFile.exists() || errorFile.length() == 0L) return null
     return errorFile.readText().trim().ifBlank { null }
   }
 
-  /**
-   * Resolves the analysis script, preferring an executable copy next to the
-   * project, then one next to the running plugin jar, and finally extracts the
-   * bundled resource into the temp directory.
-   */
+  /** Resolves the script: project copy, then jar-adjacent copy, then the bundled resource. */
   private fun resolveScript(project: Project): File? {
     val jarPath = PathManager.getJarPathForClass(GradumGitAnalysisService::class.java) ?: ""
     findScriptUpFrom(File(jarPath))
@@ -780,7 +714,6 @@ object GradumGitAnalysisService {
       ?: findScriptUpFrom(File(jarPath)) ?: extractBundledScript()
   }
 
-  /** Walks up from [startDirectory] looking for an executable script file. */
   private fun findScriptUpFrom(startDirectory: File?): File? {
     var currentSearchDir: File? = startDirectory
     while (currentSearchDir != null) {
@@ -791,11 +724,7 @@ object GradumGitAnalysisService {
     return null
   }
 
-  /**
-   * Copies the script and its config out of the plugin jar into the temp
-   * directory and marks the script executable, so the bundled copy can run on
-   * any project.
-   */
+  /** Copies the script + config out of the plugin jar and marks the script executable. */
   private fun extractBundledScript(): File? {
     return try {
       val tempRoot: Path = Paths.get(PathManager.getTempDir().toString(), "gradum", "gitstats")
@@ -814,7 +743,6 @@ object GradumGitAnalysisService {
     }
   }
 
-  /** Copies a classpath resource to [target], replacing any existing file. */
   private fun copyResource(resourcePath: String, target: Path) {
     GradumGitAnalysisService::class.java.getResourceAsStream(resourcePath)?.use { inputStream ->
       Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING)

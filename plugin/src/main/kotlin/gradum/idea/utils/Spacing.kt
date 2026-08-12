@@ -17,41 +17,16 @@ import androidx.compose.ui.unit.sp
  * consistent visual rhythm across all components.
  */
 object GradumSpacing {
-  /** Tiny — icon inner padding, tiny gaps. */
   val xs = 2.dp
-
-  /** Small — element-to-element gaps, inline separators. */
   val sm = 4.dp
-
-  /** Small-medium — compact row spacing, tight element gaps. */
   val sml = 6.dp
-
-  /** Medium — block inner padding, row content spacing. */
   val md = 8.dp
-
-  /** Large — block-to-block gaps, section separators. */
   val lg = 12.dp
-
-  /** Extra large — page-level horizontal padding. */
   val xl = 16.dp
-
-  /** Large-medium — between xl and xxl, e.g. popup internal spacing. */
   val lrl = 18.dp
-
-  /** Medium-large — between xl and xxl, e.g. card inner padding. */
   val ml = 20.dp
-
-  /** Extra, extra large — major section gaps. */
   val xxl = 24.dp
 
-  /**
-   * Letter spacing for the welcome heading on the home
-   * screen. Slightly looser than the default tracking
-   * (0.5sp instead of 0sp) so the gradient-swept brand
-   * title — currently "Hi, I'm Gradum" — reads as airy
-   * and brand-distinct, not as just another default
-   * h2 heading. Keep this name in sync with the actual
-   * label rendered by `gradum.welcome.text`
-   */
+  /** Letter spacing for the home-screen welcome heading. */
   val welcomeTitleTracking = 0.5.sp
 }

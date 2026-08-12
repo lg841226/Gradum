@@ -8,6 +8,7 @@
 package gradum.client
 
 import gradum.AgentConfiguration
+import gradum.Provider
 import gradum.utils.JsonUtil
 import io.ktor.client.*
 import io.ktor.client.plugins.*
@@ -20,32 +21,29 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.IOException
 import kotlin.math.pow
 import kotlin.time.Duration.Companion.milliseconds
 
+private val logger: Logger = LoggerFactory.getLogger("LLMClient")
+
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-/**
- * Read [key] from this object as a string, returning "" when the key is missing
- * or the value is not a primitive. Centralizes the pattern that is repeated
- * across the streaming parsers below.
- */
+/** Shared across clients to reuse connections instead of building a client per turn. */
+private val sharedHttpClient: HttpClient = HttpClient {
+  install(HttpTimeout) {
+    requestTimeoutMillis = 600_000L
+  }
+}
+
 private fun JsonObject.optString(key: String): String =
   this[key]?.jsonPrimitive?.contentOrNull ?: ""
 
-/**
- * Read [key] from this object as an int, returning 0 when the key is missing
- * or the value is not a numeric primitive. Mirrors [optString] for integers.
- */
 private fun JsonObject.optInt(key: String): Int =
   this[key]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
 
-/**
- * Read [key] from this object as a nested [JsonObject], returning an empty
- * object when the key is missing or the value is not an object. Avoids the
- * noisy `?: JsonObject(emptyMap())` at every call site.
- */
 private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
@@ -92,52 +90,22 @@ interface LlmClient : TokenUsageProvider {
 }
 
 /**
- * Provider enum used by the multimodal rewriter to pick the
- * right projection without coupling the helper to either of the
- * two concrete `LlmClient` implementations.
- */
-private enum class MultimodalTarget { OLLAMA, OPENAI_COMPATIBLE }
-
-/**
- * Project a single `Map<String, Any>` message into the wire shape
- * the target LLM backend expects.
+ * Project a single `Map<String, Any>` message into the wire shape the
+ * target LLM backend expects.
  *
- * The conversation history uses the OpenAI-style content-array
- * intermediate shape for any user message that carries image
- * attachments:
+ * The conversation history uses an OpenAI-style content-array shape for
+ * user messages carrying image attachments. The two backends disagree on
+ * the wire format: Ollama collapses text parts into a single `content`
+ * string and lifts images into a top-level `images` array; OpenAI keeps
+ * the array but re-shapes each image part into `image_url`. Text-only
+ * messages pass through untouched.
  *
- *     {"role": "user", "content": [
- *         {"type": "text", "text": "..."},
- *         {"type": "image", "data": "<base64>", "mime": "image/jpeg", "filename": "..."},
- *         ...
- *     ]}
- *
- * The two backends disagree on the wire shape, so the
- * translation lives here rather than in the per-client request
- * payload builder:
- *
- *  - **Ollama** (`/api/chat`): collapses all `text` parts into
- *    a single `content: string` and lifts `image` parts into a
- *    top-level `images: [base64, ...]` field on the same message
- *    map. This is Ollama's native multimodal format documented
- *    in ollama/docs/api.md.
- *
- *  - **OpenAI-compatible** (`/v1/chat/completions`): keeps the
- *    content as an array but re-shapes each `image` part into
- *    `{"type": "image_url", "image_url": {"url": "data:<mime>;base64,..."}}`.
- *    Text parts pass through unchanged. This is the OpenAI vision
- *    standard also used by Hunyuan, Anthropic-via-proxy, and
- *    most 2026-era LLM gateways.
- *
- * Non-user messages and user messages with a plain `String`
- * content (no attachments) pass through untouched, so the
- * rewriter is a no-op for text-only turns — backwards-compatible
- * with persisted conversation history from before the image
- * upload feature.
+ * The target is expressed via the canonical [gradum.Provider] enum, not a
+ * parallel multimodal vocabulary.
  */
 private fun projectMessageForBackend(
   message: Map<String, Any>,
-  target: MultimodalTarget
+  target: Provider
 ): Map<String, Any> {
   if (message["role"] != "user") return message
 
@@ -145,8 +113,8 @@ private fun projectMessageForBackend(
   if (contentParts.isEmpty()) return message
 
   return when (target) {
-    MultimodalTarget.OLLAMA -> projectToOllama(contentParts)
-    MultimodalTarget.OPENAI_COMPATIBLE -> projectToOpenAi(contentParts)
+    Provider.OLLAMA -> projectToOllama(contentParts)
+    Provider.OPENAI -> projectToOpenAi(contentParts)
   }
 }
 
@@ -211,16 +179,8 @@ private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
   return mapOf("role" to "user", "content" to projectedContentParts)
 }
 
-/**
- * Walk a full conversation history, projecting only the user
- * messages that use the multimodal content-array shape. The
- * `LLMClient` implementations call this once per `sendChat`
- * call to keep the request payload aligned with their backend's
- * wire format without forcing the conversation history
- * (persisted to disk) to know about provider quirks.
- */
 private fun projectHistoryForBackend(
-  messageHistory: List<Map<String, Any>>, target: MultimodalTarget
+  messageHistory: List<Map<String, Any>>, target: Provider
 ): List<Map<String, Any>> = messageHistory.map { message ->
   projectMessageForBackend(message, target)
 }
@@ -240,19 +200,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
     val requestUrl = "${configuration.baseUrl}/api/chat"
     val shouldThink: Boolean = configuration.enableThinking
 
-    /**
-     * Converts the intermediate content-array format into Ollama's native shape.
-     *
-     * Ollama expects:
-     * - text as a plain string in `content`
-     * - images as a top-level `images: [...]` array of base64 strings
-     *
-     * Part types other than "text" and "image" are dropped.
-     *
-     * @see projectHistoryForBackend
-     */
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, MultimodalTarget.OLLAMA)
+      projectHistoryForBackend(messageHistory, Provider.OLLAMA)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "model" to configuration.modelName,
@@ -269,12 +218,11 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true
 
-    val httpClient: HttpClient = buildHttpClient()
     var lastError: Exception? = null
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
         }
@@ -332,8 +280,6 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
       }
     }
 
-    httpClient.close()
-
     lastError?.let { error ->
       emit(
         LLMResponseChunk.ErrorMessage(
@@ -368,13 +314,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
 
-    // Translate the intermediate (OpenAI-style) content-array
-    // shape into the OpenAI vision wire format: text parts
-    // pass through, image parts become
-    // `{type: "image_url", image_url: {url: "data:..."}}`.
-    // See `projectHistoryForBackend` KDoc.
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, MultimodalTarget.OPENAI_COMPATIBLE)
+      projectHistoryForBackend(messageHistory, Provider.OPENAI)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "model" to configuration.modelName,
@@ -387,12 +328,11 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
-    val httpClient: HttpClient = buildHttpClient()
     var lastError: Exception? = null
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
         }
@@ -410,8 +350,6 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
           break
       }
     }
-
-    httpClient.close()
 
     lastError?.let { error ->
       emit(
@@ -447,7 +385,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
       val parsedPayload: JsonObject = try {
         jsonParser.parseToJsonElement(eventBody).jsonObject
-      } catch (_: Exception) {
+      } catch (jsonParseException: Exception) {
+        logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
         continue
       }
 
@@ -485,7 +424,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       val callIndex: Int = toolCallObject.optInt("index")
 
       val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(callIndex) {
-        mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to "")
+        mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to StringBuilder())
       }
 
       val newId: String = toolCallObject.optString("id")
@@ -497,8 +436,9 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
         val argumentDelta: String = functionDelta.optString("arguments")
         if (argumentDelta.isNotBlank()) {
-          val existingBuffer: String = storedEntry["argumentsBuffer"] as? String ?: ""
-          storedEntry["argumentsBuffer"] = existingBuffer + argumentDelta
+          val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
+            ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }
+          argumentsBuffer.append(argumentDelta)
         }
       }
     }
@@ -507,10 +447,12 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
   private fun buildCompletedCalls(accumulator: MutableMap<Int, MutableMap<String, Any>>): List<ToolCallEntry> {
     return accumulator.entries.sortedBy { entry -> entry.key }.map { entry ->
       val callData: MutableMap<String, Any> = entry.value
-      val argumentsText: String = callData["argumentsBuffer"] as? String ?: "{}"
-      val parsedArguments: Map<String, JsonElement> = try {
+      val argumentsBuffer: StringBuilder = callData["argumentsBuffer"] as? StringBuilder ?: StringBuilder()
+      val argumentsText: String = argumentsBuffer.toString()
+      val parsedArguments: Map<String, JsonElement> = if (argumentsText.isBlank()) emptyMap() else try {
         jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
-      } catch (_: Exception) {
+      } catch (jsonParseException: Exception) {
+        logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
         emptyMap()
       }
 
@@ -526,21 +468,10 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is kotlinx.coroutines.TimeoutCancellationException
 
-private fun buildHttpClient(): HttpClient {
-  return HttpClient {
-    install(HttpTimeout) {
-      requestTimeoutMillis = 600_000L
-    }
-  }
-}
-
 /**
  * Common error formatter shared by every [LlmClient] implementation.
- *
- * The previous design inlined a near-identical `formatXxxError` method in
- * both `OllamaClient` and `OpenAICompatibleClient`; the only difference was
- * the human-readable server label and the "is it running?" hint. Pass those
- * in as parameters and the rest of the logic is shared.
+ * The only per-provider differences are the server label and the
+ * "is it running?" hint.
  */
 private fun formatLlmError(
   exception: Exception,
@@ -561,13 +492,9 @@ private fun formatLlmError(
 /**
  * Common token-usage accumulator shared by every [LlmClient] implementation.
  *
- * Each provider reports token usage under different field names (Ollama uses
- * `prompt_eval_count` / `eval_count`, OpenAI-compatible uses `prompt_tokens`
- * / `completion_tokens`). Pass the field names in; the accumulation logic is
- * identical.
- *
- * @return the next [TokenUsageSnapshot] to assign back, or [currentUsage]
- *   unchanged when neither field is positive.
+ * Each provider reports usage under different field names (Ollama:
+ * `prompt_eval_count`/`eval_count`; OpenAI: `prompt_tokens`/`completion_tokens`).
+ * Returns [currentUsage] unchanged when neither field is positive.
  */
 private fun recordTokenUsage(
   usageStats: JsonObject,

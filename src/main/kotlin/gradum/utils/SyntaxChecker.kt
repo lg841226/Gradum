@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-07-18 10:36:05 Changed by gwy
+ * SyntaxChecker.kt  2026-08-11 23:10:24 Changed by gwy
  */
 
 package gradum.utils
@@ -42,6 +42,11 @@ private data class LanguageSyntaxConfig(
   val outputParser: SyntaxParser
 )
 
+private val errorCodePattern: Regex = Regex("""\[(.+?)]""")
+private val indentedNotePattern: Regex = Regex("""^\s+(note|warning|error):\s(.+)$""")
+private val codePrefixPattern: Regex = Regex("""^[A-Z]\d+\s""")
+private val lineNumberPattern: Regex = Regex("""(?:line\s+)?(\d+)""")
+
 
 private fun interface SyntaxParser {
   fun parse(output: String, filePath: String): List<SyntaxIssue>
@@ -72,14 +77,14 @@ private val standardParser: SyntaxParser = SyntaxParser { output: String, filePa
       val matchedColumn: Int? = match.groupValues[3].toIntOrNull()
       val errorCode: String? = when {
         severity == "error" || severity == "warning" -> {
-          Regex("""\[(.+?)]""").find(message)?.groupValues?.get(1)
+          errorCodePattern.find(message)?.groupValues?.get(1)
         }
 
         else -> null
       }
       currentIssue = PendingIssue(severity, message, matchedLine, matchedColumn, errorCode)
     } else if (currentIssue != null) {
-      val noteMatch: MatchResult? = Regex("""^\s+(note|warning|error):\s(.+)$""").matchEntire(trimmedLine)
+      val noteMatch: MatchResult? = indentedNotePattern.matchEntire(trimmedLine)
       if (noteMatch != null) {
         currentNotes.add(noteMatch.groupValues[2])
       }
@@ -237,7 +242,7 @@ private val pythonLikeParser: SyntaxParser = SyntaxParser { output: String, file
     val flatMatch: MatchResult? = flatPattern.matchEntire(trimmedLine)
     if (flatMatch != null) {
       val rawMessage: String = flatMatch.groupValues[4]
-      val codePrefix: MatchResult? = Regex("""^[A-Z]\d+\s""").find(rawMessage)
+      val codePrefix: MatchResult? = codePrefixPattern.find(rawMessage)
       val cleanMessage: String = codePrefix?.let { rawMessage.removePrefix(it.value) } ?: rawMessage
       issues.add(
         SyntaxIssue(
@@ -346,7 +351,7 @@ private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePa
     .mapNotNull { line: String ->
       val trimmedLine: String = line.trimEnd()
       if (trimmedLine.isBlank()) return@mapNotNull null
-      val lineMatch: MatchResult? = Regex("""(?:line\s+)?(\d+)""").find(trimmedLine)
+      val lineMatch: MatchResult? = lineNumberPattern.find(trimmedLine)
       val severity: String = when {
         "error" in trimmedLine.lowercase() -> "error"
         "warning" in trimmedLine.lowercase() -> "warning"
@@ -364,6 +369,9 @@ private val fallbackParser: SyntaxParser = SyntaxParser { output: String, filePa
 }
 
 
+/** Matches a file-ish token like `src/main.kt` or `path/to/file.rs`. */
+private val codeReferencePattern: Regex = Regex("""[\w/]+\.\w+""")
+
 /** Filters cross-file noise when multi-file compilation produces errors for other files. */
 private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): List<SyntaxIssue> {
   val absolutePath: Path = Path.of(filePath).toAbsolutePath().normalize()
@@ -371,9 +379,10 @@ private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): Li
   return issues.filter { issue: SyntaxIssue ->
     if (issue.line != null) return@filter true
     val message: String = issue.message
-    message.contains(absolutePath.toString()) || message.contains(fileName) || (
-      !Regex("""[\w/]+\.\w+""").containsMatchIn(message)
-      )
+    val referencesCurrentFile: Boolean =
+      message.contains(absolutePath.toString()) || message.contains(fileName)
+    val referencesAnyFile: Boolean = codeReferencePattern.containsMatchIn(message)
+    referencesCurrentFile || !referencesAnyFile
   }
 }
 
@@ -515,8 +524,8 @@ object SyntaxChecker {
 
         configuration.outputParser.parse(compilerOutput, resolvedFilePath)
           .map { issue: SyntaxIssue -> issue.toMap() }
-      } catch (exception: Exception) {
-        logger.warn("Syntax check failed for $executableName: ${exception.message}")
+      } catch (syntaxCheckException: Exception) {
+        logger.warn("Syntax check failed for $executableName: ${syntaxCheckException.message}", syntaxCheckException)
         continue
       }
     }
