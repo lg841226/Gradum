@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-12 12:38:25 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-12 18:17:11 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -296,7 +296,10 @@ private fun resolveSelectorText(selectedModel: ModelInfo?, isAutoSelected: Boole
 
 private fun resolveProviderIcon(model: ModelInfo): IconKey? {
   val providerName = model.provider.lowercase().trim()
-  if (providerName.isNotBlank()) PROVIDER_ICON_MAP[providerName]?.let { return it }
+  if (providerName.isNotBlank()) {
+    PROVIDER_ICON_MAP[providerName]?.let { return it }
+    return AllIconsKeys.Stub
+  }
   return GradumIcons.resolveModelIcon(model.name)
 }
 
