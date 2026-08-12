@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommandFilter.kt  2026-07-14 21:27:12 Changed by gwy
+ * CommandFilter.kt  2026-08-12 12:38:25 Changed by gwy
  */
 
 package gradum.utils
 
 import gradum.ToolMode
+import gradum.utils.ProtectedPaths.safePathPrefixes
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Paths

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputState.kt  2026-07-31 15:54:30 Changed by gwy
+ * ChatInputState.kt  2026-08-12 12:38:25 Changed by gwy
  */
 
 package gradum.idea.chat.input

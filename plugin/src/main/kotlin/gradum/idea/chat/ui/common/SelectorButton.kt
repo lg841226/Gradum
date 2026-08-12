@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SelectorButton.kt  2026-07-29 22:01:18 Changed by gwy
+ * SelectorButton.kt  2026-08-12 12:38:25 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)

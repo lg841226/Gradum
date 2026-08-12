@@ -2,9 +2,9 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ logback-test.xml  2026-06-30 23:35:47 Changed by gwy
+  ~ logback-test.xml  2026-08-12 12:38:25 Changed by gwy
   -->
 
 <configuration>
-  <root level="ERROR"/>
+    <root level="ERROR"/>
 </configuration>

@@ -7,15 +7,9 @@
 
 package gradum.idea.chat.ui.markdown
 
-import org.commonmark.node.BulletList
-import org.commonmark.node.ListItem
-import org.commonmark.node.Node
-import org.commonmark.node.Paragraph
-import org.commonmark.node.Text
+import org.commonmark.node.*
 import org.commonmark.parser.Parser
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.*
 import org.junit.Test
 
 /**

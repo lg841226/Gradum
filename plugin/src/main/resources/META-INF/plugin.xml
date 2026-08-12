@@ -2,54 +2,54 @@
   ~ Copyright (c) 2026 Gradum team, some rights reserved.
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ plugin.xml  2026-07-31 15:54:30 Changed by gwy
+  ~ plugin.xml  2026-08-12 12:38:25 Changed by gwy
   -->
 
 <idea-plugin>
-  <id>com.gradum.idea</id>
-  <name>Gradum</name>
-  <vendor>Gradum Team</vendor>
+    <id>com.gradum.idea</id>
+    <name>Gradum</name>
+    <vendor>Gradum Team</vendor>
 
-  <idea-version since-build="251.2"/>
+    <idea-version since-build="251.2"/>
 
-  <change-notes><![CDATA[N/A]]></change-notes>
+    <change-notes><![CDATA[N/A]]></change-notes>
 
-  <description><![CDATA[
+    <description><![CDATA[
         Local-first AI code assistant for IntelliJ IDEA.
         Supports Ollama and any OpenAI-compatible inference server.
     ]]></description>
 
-  <depends>com.intellij.modules.platform</depends>
-  <depends>com.intellij.modules.compose</depends>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.compose</depends>
 
-  <extensions defaultExtensionNs="com.intellij">
-    <toolWindow
-      id="Gradum"
-      icon="/icons/logo/logo.svg"
-      anchor="right"
-      factoryClass="gradum.idea.GradumToolWindowFactory"/>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+            id="Gradum"
+            icon="/icons/logo/logo.svg"
+            anchor="right"
+            factoryClass="gradum.idea.GradumToolWindowFactory"/>
 
-    <toolWindow
-      id="Gradum Git"
-      icon="/icons/logo/logo.svg"
-      anchor="bottom"
-      factoryClass="gradum.idea.GradumGitAnalysisToolWindowFactory"/>
+        <toolWindow
+            id="Gradum Git"
+            icon="/icons/logo/logo.svg"
+            anchor="bottom"
+            factoryClass="gradum.idea.GradumGitAnalysisToolWindowFactory"/>
 
-    <!--
-        Project-scoped chat scanState. The IntelliJ Platform disposes tool
-        window content when the user collapses the sidebar, so any
-        in-Compose scanState is lost on the next expand; holding it in a
-        project service keeps the conversation alive across that
-        round-trip.
-    -->
-    <projectService serviceImplementation="gradum.idea.chat.state.GradumChatSession"/>
+        <!--
+            Project-scoped chat scanState. The IntelliJ Platform disposes tool
+            window content when the user collapses the sidebar, so any
+            in-Compose scanState is lost on the next expand; holding it in a
+            project service keeps the conversation alive across that
+            round-trip.
+        -->
+        <projectService serviceImplementation="gradum.idea.chat.state.GradumChatSession"/>
 
-    <!--
-        Notification group used by the image upload pipeline to
-        surface size/format/slot-limit errors as IDE balloons. The
-        group id matches the string looked up in
-        NotificationGroupManager.getInstance().getNotificationGroup
-        from `GradumToolWindowFactory`.
-    -->
-  </extensions>
+        <!--
+            Notification group used by the image upload pipeline to
+            surface size/format/slot-limit errors as IDE balloons. The
+            group id matches the string looked up in
+            NotificationGroupManager.getInstance().getNotificationGroup
+            from `GradumToolWindowFactory`.
+        -->
+    </extensions>
 </idea-plugin>

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-20 20:55:32 Changed by gwy
+ * build.gradle.kts  2026-08-12 12:38:25 Changed by gwy
  */
 
 plugins {

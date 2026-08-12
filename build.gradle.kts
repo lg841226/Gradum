@@ -6,6 +6,10 @@
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.TimeUnit
 
 plugins {
   kotlin("jvm") version "2.3.0"
@@ -141,4 +145,152 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
 
 tasks.withType<JavaCompile> {
   options.release.set(21)
+}
+
+// ============================================================================
+// Development & distribution helpers
+// ============================================================================
+
+private val serverFatJarFile: File =
+  layout.buildDirectory.file("libs/gradum@${project.version}.jar").get().asFile
+
+private fun selfContainedServerExecutable(appName: String, destDir: File): File {
+  val osName: String = System.getProperty("os.name").lowercase()
+  return when {
+    osName.contains("mac") -> destDir.resolve("$appName.app/Contents/MacOS/$appName")
+    osName.contains("win") -> destDir.resolve("$appName/$appName.exe")
+    else -> destDir.resolve("bin/$appName")
+  }
+}
+
+private fun waitForServerHealth(baseUrl: String, timeoutSeconds: Long) {
+  val deadline: Long = System.currentTimeMillis() + timeoutSeconds * 1000
+  while (System.currentTimeMillis() < deadline) {
+    try {
+      val connection: HttpURLConnection = URL("$baseUrl/health").openConnection() as HttpURLConnection
+      connection.connectTimeout = 1000
+      connection.readTimeout = 1000
+      try {
+        if (connection.responseCode == 200) return
+      } finally {
+        connection.disconnect()
+      }
+    } catch (_: IOException) {
+      // Server not up yet — poll again.
+    }
+    Thread.sleep(500)
+  }
+  throw GradleException("Gradum server did not become healthy at $baseUrl within ${timeoutSeconds}s")
+}
+
+/**
+ * Self-contained Gradum server executable via `jpackage` (bundled JRE).
+ *
+ * The output is an "app image" — a folder with the launcher plus a private
+ * JVM runtime — so end-user machines that do NOT have Java installed can
+ * still run the server. Run per-target-OS: jpackage cannot cross-compile.
+ *
+ *   ./gradlew serverPackage
+ *
+ * macOS:  build/gradum-server/GradumServer.app/Contents/MacOS/GradumServer
+ * Windows: build/gradum-server/GradumServer/GradumServer.exe
+ * Linux:  build/gradum-server/bin/GradumServer
+ */
+tasks.register("serverPackage", Exec::class.java) {
+  group = "distribution"
+  description = "Package the Gradum server as a self-contained executable (jpackage app-image, bundled JRE)"
+  dependsOn("buildFatJar")
+
+  val appName: String = "GradumServer"
+  val stagingDir: File = layout.buildDirectory.dir("server-package/input").get().asFile
+  val destDir: File = layout.buildDirectory.dir("gradum-server").get().asFile
+  val packagedFatJar: File = stagingDir.resolve("gradum-server.jar")
+  val jpackageBin: String = System.getProperty("java.home") + File.separator + "bin" + File.separator + "jpackage"
+
+  doFirst {
+    stagingDir.mkdirs()
+    serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
+  }
+
+  // macOS (Apple's CFBundleVersion) forbids an app-version whose first
+  // number is zero, so a project version of "0.9.0" would be rejected.
+  // Map a leading "0." to "1." to keep minor/patch meaningful.
+  val jpackageVersion: String =
+    project.version.toString().replaceFirst(Regex("^0\\."), "1.")
+
+  commandLine(
+    jpackageBin,
+    "--type", "app-image",
+    "--name", appName,
+    "--app-version", jpackageVersion,
+    "--input", stagingDir.absolutePath,
+    "--main-jar", packagedFatJar.name,
+    "--main-class", "gradum.server.MainKt",
+    "--java-options", "-Xmx2048m",
+    "--java-options", "-Xms512m",
+    "--dest", destDir.absolutePath,
+  )
+
+  doLast {
+    val executable: File = selfContainedServerExecutable(appName, destDir)
+    logger.lifecycle("Self-contained server executable: ${executable.absolutePath}")
+    logger.lifecycle("  Run it on a machine WITHOUT Java installed; it carries its own JVM.")
+  }
+}
+
+/**
+ * One-command dev loop: start the Gradum server in the background on the
+ * default port (8765), wait for /health, then launch the plugin sandbox
+ * via `:plugin:runIde`. Closes the server when the IDE sandbox exits —
+ * replaces opening the two run configurations by hand.
+ *
+ *   ./gradlew dev
+ */
+tasks.register("dev") {
+  group = "development"
+  description = "Start the Gradum server (background) then launch the plugin sandbox (:plugin:runIde)"
+  dependsOn("buildFatJar", ":plugin:buildPlugin")
+
+  doLast {
+    val javaBin: String = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java"
+    val logFile: File = layout.buildDirectory.file("dev/gradum-server.log").get().asFile
+    logFile.parentFile.mkdirs()
+
+    val serverProcess: Process = ProcessBuilder(
+      javaBin,
+      "-Xmx2048m", "-Xms512m",
+      "-jar", serverFatJarFile.absolutePath,
+      "--port", "8765",
+    )
+      .redirectErrorStream(true)
+      .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+      .start()
+
+    try {
+      logger.lifecycle("Gradum server starting (log: ${logFile.absolutePath}) ...")
+      waitForServerHealth("http://localhost:8765/health", timeoutSeconds = 45)
+      logger.lifecycle("Gradum server healthy on http://localhost:8765 — launching IDE sandbox")
+
+      val isWindows: Boolean = System.getProperty("os.name").lowercase().contains("win")
+      val gradleWrapper: File = rootDir.resolve(if (isWindows) "gradlew.bat" else "gradlew")
+      val ideProcess: Process = ProcessBuilder(
+        gradleWrapper.absolutePath,
+        ":plugin:runIde",
+        "-Pgradum.skipDetektGate=true",
+      )
+        .inheritIO()
+        .start()
+
+      val exitCode: Int = ideProcess.waitFor()
+      if (exitCode != 0) {
+        throw GradleException(":plugin:runIde exited with code $exitCode")
+      }
+    } finally {
+      logger.lifecycle("Stopping Gradum server")
+      serverProcess.destroy()
+      if (!serverProcess.waitFor(5, TimeUnit.SECONDS)) {
+        serverProcess.destroyForcibly()
+      }
+    }
+  }
 }

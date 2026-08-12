@@ -12,35 +12,35 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 
 class StickySectionRegistry {
-    private val _entries = mutableStateListOf<StickySectionEntry>()
-    val entries: List<StickySectionEntry> get() = _entries
+  private val _entries = mutableStateListOf<StickySectionEntry>()
+  val entries: List<StickySectionEntry> get() = _entries
 
-    var columnOriginInWindow: Offset? by mutableStateOf(null)
+  var columnOriginInWindow: Offset? by mutableStateOf(null)
 
-    fun register(id: Any, toolbar: @Composable () -> Unit): StickySectionEntry {
-        val entry = StickySectionEntry(id, toolbar)
-        _entries.add(entry)
-        return entry
-    }
+  fun register(id: Any, toolbar: @Composable () -> Unit): StickySectionEntry {
+    val entry = StickySectionEntry(id, toolbar)
+    _entries.add(entry)
+    return entry
+  }
 
-    fun unregister(entry: StickySectionEntry) {
-        _entries.remove(entry)
-    }
+  fun unregister(entry: StickySectionEntry) {
+    _entries.remove(entry)
+  }
 
-    fun updateBounds(entry: StickySectionEntry, boundsInWindow: Rect) {
-        val origin = columnOriginInWindow ?: return
-        entry.topInColumn = boundsInWindow.top - origin.y
-        entry.bottomInColumn = boundsInWindow.bottom - origin.y
-    }
+  fun updateBounds(entry: StickySectionEntry, boundsInWindow: Rect) {
+    val origin = columnOriginInWindow ?: return
+    entry.topInColumn = boundsInWindow.top - origin.y
+    entry.bottomInColumn = boundsInWindow.bottom - origin.y
+  }
 }
 
 class StickySectionEntry(
-    val id: Any,
-    val toolbar: @Composable () -> Unit,
+  val id: Any,
+  val toolbar: @Composable () -> Unit,
 ) {
-    var topInColumn by mutableStateOf(0f)
-    var bottomInColumn by mutableStateOf(0f)
-    var toolbarHeight by mutableStateOf(0f)
+  var topInColumn by mutableStateOf(0f)
+  var bottomInColumn by mutableStateOf(0f)
+  var toolbarHeight by mutableStateOf(0f)
 }
 
 val LocalStickySectionRegistry = staticCompositionLocalOf { StickySectionRegistry() }
