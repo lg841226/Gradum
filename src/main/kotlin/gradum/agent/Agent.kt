@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-12 14:35:15 Changed by gwy
+ * Agent.kt  2026-08-12 18:57:24 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -39,7 +39,7 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
  * Resolves the ContextManager output directory for an agent run.
  *
  * Single source of truth for the `.gradum/sessions/<sessionId>/` layout:
- * a non-blank [sessionId] scopes this conversation's context file to its
+ * a non-blank `sessionId` scopes this conversation's context file to its
  * own directory; blank falls back to the legacy single
  * `<projectRoot>/.gradum/context.json` directory.
  */

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-11 21:54:32 Changed by gwy
+ * Routes.kt  2026-08-13 11:34:17 Changed by gwy
  */
 
 package gradum.server
@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Duration
@@ -41,10 +42,10 @@ data class EventsRequestBody(
    * legacy `.gradum/context.json`. Optional so older plugin builds keep
    * working against this server.
    */
-  val sessionId: String? = null,
-  val loadContext: Boolean = true,
   val model: String? = null,
   val toolMode: String? = null,
+  val sessionId: String? = null,
+  val loadContext: Boolean = true,
   val promptVariant: String? = null,
   val config: Map<String, String>? = null,
   /**
@@ -118,10 +119,7 @@ data class StopRequestBody(
   val sessionId: String
 )
 
-/**
- * Body of `POST /session/delete` — deletes an entire session directory
- * (transcript + server context) for the given project.
- */
+
 @Serializable
 data class DeleteSessionRequestBody(
   val projectRoot: String,
@@ -187,15 +185,11 @@ fun Application.registerAllRoutes() {
       val requestBody: EventsRequestBody = call.receive<EventsRequestBody>()
       val sessionId: String = UUID.randomUUID().toString()
 
-      // Plugin provides the IDE project root via `projectRoot` in every request.
-      // Reject missing or invalid paths with 400 — no fallback to server CWD,
-      // which previously caused tools to target Gradum itself instead of the
-      // user's project.
       val rawProjectRoot: String? = requestBody.projectRoot
       if (rawProjectRoot.isNullOrBlank()) {
         call.respondText(
           text = JsonUtil.encodeMap(
-            mapOf("error" to "projectRoot is required (the IDE must send the open project's absolute path)")
+            mapOf("error" to "projectRoot is required, the IDE must send the open project's absolute path")
           ),
           status = HttpStatusCode.BadRequest,
           contentType = ContentType.Application.Json,
@@ -203,7 +197,7 @@ fun Application.registerAllRoutes() {
         return@post
       }
       val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
-      val projectRootFile: java.io.File = projectRootPath.toFile()
+      val projectRootFile: File = projectRootPath.toFile()
       if (!projectRootFile.exists() || !projectRootFile.isDirectory) {
         call.respondText(
           text = JsonUtil.encodeMap(
@@ -215,25 +209,16 @@ fun Application.registerAllRoutes() {
         return@post
       }
 
-      // Blank/whitespace sessionId is treated as "no session" so the agent
-      // falls back to the legacy single context file.
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
-
-      // UNLIMITED is safe: the only producer is the agent emitting NDJSON, and the
-      // emit rate is bounded by LLM response size. Reconsider if user input ever flows
-      // through this channel unfiltered.
       val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
 
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
       val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
-      val resolvedToolMode: ToolMode = if (requestBody.toolCallXml != null) {
-        // Debug tool-call playback always runs in Full Agent mode so every
-        // skill is reachable; the scenario author chooses the tool list.
-        ToolMode.AGENT
-      } else {
-        requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
-      }
+      val resolvedToolMode: ToolMode =
+        if (requestBody.toolCallXml != null) ToolMode.AGENT
+        else requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
+
       val agentConfiguration = AgentConfiguration(
         modelName = requestBody.model
           ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
@@ -246,12 +231,8 @@ fun Application.registerAllRoutes() {
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
-        // Tool mode is a client decision, not inferred from provider.
-        // Defaults to AGENT (all tools) when client doesn't specify.
         maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
-        // The plugin owns project selection; the server is just a per-session executor. We resolved + validated above so
-        // AgentConfiguration can require a non-null String.
         projectRoot = projectRootPath.toString(),
         sessionId = resolvedSessionId,
       )
@@ -346,8 +327,6 @@ fun Application.registerAllRoutes() {
         return@post
       }
 
-      // Delete only inside the sessions root; resolve + verify containment to
-      // block path-traversal (`../` or absolute paths smuggled in sessionId).
       val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
@@ -361,12 +340,12 @@ fun Application.registerAllRoutes() {
         return@post
       }
 
-      val sessionFile: java.io.File = sessionDir.toFile()
+      val sessionFile: File = sessionDir.toFile()
       if (!sessionFile.exists()) {
         call.respondText(
-          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
           status = HttpStatusCode.NotFound,
           contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
         )
         return@post
       }
@@ -374,8 +353,8 @@ fun Application.registerAllRoutes() {
       val isDeleted: Boolean = sessionFile.deleteRecursively()
       val resultStatus: String = if (isDeleted) "deleted" else "partial_failure"
       call.respondText(
-        text = JsonUtil.encodeMap(mapOf("status" to resultStatus, "sessionId" to sessionKey)),
         contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(mapOf("status" to resultStatus, "sessionId" to sessionKey)),
       )
     }
 
@@ -386,8 +365,8 @@ fun Application.registerAllRoutes() {
         text = JsonUtil.encodeMap(
           mapOf(
             "status" to "healthy",
-            "version" to Version.GRADUM_VERSION,
             "uptimeSeconds" to uptimeSeconds,
+            "version" to Version.GRADUM_VERSION,
             "timestamp" to LocalDateTime.now().toString()
           )
         ),
@@ -397,10 +376,6 @@ fun Application.registerAllRoutes() {
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
-      // Re-snapshot free memory on every request so a freshly
-      // opened IDE / browser does not push the local ranking
-      // past a user's available headroom. Per-request cost is
-      // one getFreeMemorySize() syscall — negligible.
       val recommendationContext: RecommendationContext = RecommendationContext.fromSystemMemory()
       val recommended: ModelEntry? = ModelIdentity.recommend(discoveredModels, recommendationContext)
       application.log.info(
@@ -409,9 +384,6 @@ fun Application.registerAllRoutes() {
           "recommended = ${recommended?.modelName ?: "<none>"}"
       )
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
-        // `unavailableReason` is null when healthy, non-null when unavailable.
-        // Plugin decodes it as `UnavailableReason?` enum; an empty string would
-        // fail serialization and break the entire `/models` response.
         mapOf(
           "name" to entry.modelName,
           "provider" to entry.providerType,

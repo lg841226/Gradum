@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-12 17:54:03 Changed by gwy
+ * RecentChatsSection.kt  2026-08-12 20:20:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -16,11 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -58,9 +54,9 @@ const val MAX_RECENT_SESSIONS: Int = 2
 @Composable
 fun RecentChatsSection(
   sessions: List<SessionMeta>,
+  modifier: Modifier = Modifier,
   onOpenSession: (String) -> Unit,
-  onDeleteSession: (String) -> Unit,
-  modifier: Modifier = Modifier
+  onDeleteSession: (String) -> Unit
 ) {
   Column(modifier = modifier) {
     Text(
@@ -141,11 +137,11 @@ private fun RecentSessionRow(
           .onPointerEvent(PointerEventType.Enter) { isHovered = true }
           .onPointerEvent(PointerEventType.Exit) { isHovered = false },
       ) {
-        Tooltip(tooltip = { Text(text = message("gradum.recent.delete")) }) {
+        Tooltip(tooltip = { Text(text = message("gradum.delete.action")) }) {
           IconButton(onClick = { onDeleteSession(session.sessionId) }) {
             Icon(
               key = AllIconsKeys.General.Delete,
-              contentDescription = message("gradum.recent.delete"),
+              contentDescription = message("gradum.delete.action"),
             )
           }
         }

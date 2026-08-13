@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-08-12 12:38:25 Changed by gwy
+ * AgentConfiguration.kt  2026-08-12 19:27:08 Changed by gwy
  */
 
 package gradum
@@ -37,12 +37,14 @@ enum class Provider {
   }
 }
 
+
 /**
  * Tool surface selection.
  *
  * - [AGENT] All skills. Full code generation capability.
  * - [READ_ONLY] Inspect only. No file writes. Use for analysis.
- * - [EDIT] All skills except to_do / finish_to_do_item. For local models that can't plan reliably.
+ * - [EDIT] All skills except to_do / finish_to_do_item.
+ * For local models that can't plan reliably.
  *   Task tracking wastes tokens; step-by-step works better.
  */
 enum class ToolMode {

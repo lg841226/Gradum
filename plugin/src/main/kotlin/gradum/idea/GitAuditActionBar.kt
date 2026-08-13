@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GitAuditActionBar.kt  2026-08-12 12:39:42 Changed by gwy
+ * GitAuditActionBar.kt  2026-08-12 20:10:59 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -118,7 +118,9 @@ internal fun GitAuditActionBar(
           }
         }
       }
-      Tooltip(tooltip = { Text(text = message("gradum.toolwindow.git.analysis.action.mark.reviewed")) }) {
+      Tooltip(tooltip = {
+        Text(text = message("gradum.toolwindow.git.analysis.action.mark.reviewed"))
+      }) {
         IconButton(
           onClick = onToggleReviewed,
           enabled = enabled && selectedFinding != null,
