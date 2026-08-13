@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-12 12:38:25 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-14 01:25:52 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -109,7 +109,11 @@ fun AssistantChatBubble(
       renderBlocks.forEachIndexed { index, block ->
         key(block.key(index)) {
           when (block) {
-            is RenderBlock.Thinking -> ThinkingBlock(block, isLoading, onUrlClick)
+            is RenderBlock.Thinking -> {
+              val hasResponseAfter = renderBlocks.drop(index + 1).any { it is RenderBlock.Response }
+              ThinkingBlock(block, isLoading, onUrlClick, hasResponseAfter)
+            }
+
             is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
             is RenderBlock.Error -> ErrorBlock(block)
@@ -118,10 +122,6 @@ fun AssistantChatBubble(
         }
       }
 
-      // In debug mode only the sweep-light animation is shown while loading
-      // (e.g. during connection backoff retries); the token status row is
-      // hidden once the response is done. In normal mode both the loading
-      // phase and the token count are displayed.
       val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
       val showTokenStatus: Boolean = if (isDebugMode) {
         isLoading
@@ -161,7 +161,9 @@ private fun RenderBlock.key(index: Int): String = when (this) {
 }
 
 @Composable
-private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrlClick: (String) -> Unit) {
+private fun ThinkingBlock(
+  block: RenderBlock.Thinking, isLoading: Boolean, onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
+) {
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
     fadeAlpha.animateTo(
@@ -175,6 +177,7 @@ private fun ThinkingBlock(block: RenderBlock.Thinking, isLoading: Boolean, onUrl
       this.alpha = fadeAlpha.value
     },
     isTaskComplete = !isLoading,
+    hasResponseAfter = hasResponseAfter,
     onUrlClick = onUrlClick
   )
 }
@@ -361,7 +364,7 @@ private fun ToolCallBlock(
         modifiedContent.orEmpty(),
       )
     }
-  Box(modifier = animModifier) {
+  Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
     renderer.render(content, ctx)
   }
 }

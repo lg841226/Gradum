@@ -105,7 +105,6 @@ class ReadRenderer : ToolCallRenderer {
         text = fileName,
         color = infoColor,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.horizontalScroll(rememberScrollState())
       )
       if (lineText.isNotEmpty()) {
         Text(

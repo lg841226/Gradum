@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-12 12:38:25 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-14 01:57:18 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -48,6 +48,8 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * @param thinking The accumulated thinking content from the LLM.
  * @param enterTransition Custom enter transition for the outer wrapper.
  * @param isTaskComplete When true, collapses the thinking content.
+ * @param hasResponseAfter When true, auto-collapses because a
+ *   response block follows this thinking block.
  * @param onUrlClick Forwarded to the Markdown renderer for inline
  *   links inside the reasoning block. Same signature as the
  *   response-block renderer so the host (a chat bubble) only has
@@ -58,6 +60,7 @@ fun ThinkingIndicator(
   thinking: String,
   modifier: Modifier = Modifier,
   isTaskComplete: Boolean = false,
+  hasResponseAfter: Boolean = false,
   onUrlClick: (String) -> Unit = {},
   enterTransition: EnterTransition = fadeIn(tween(800))
 ) {
@@ -65,8 +68,8 @@ fun ThinkingIndicator(
 
   var isExpanded by remember { mutableStateOf(true) }
 
-  LaunchedEffect(isTaskComplete) {
-    if (isTaskComplete) isExpanded = false
+  LaunchedEffect(isTaskComplete, hasResponseAfter) {
+    if (isTaskComplete || hasResponseAfter) isExpanded = false
   }
 
   val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
@@ -95,16 +98,14 @@ fun ThinkingIndicator(
       )
     }
 
-    if (isExpanded) {
-      Spacer(modifier = Modifier.height(GradumSpacing.md))
-    }
+    if (isExpanded) Spacer(modifier = Modifier.height(GradumSpacing.md))
 
     AnimatedVisibility(visible = isExpanded) {
       val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
       CompositionLocalProvider(LocalContentColor provides thinkingColor) {
         CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
           val segments = remember(thinking) { splitMarkdown(thinking) }
-          Column {
+          Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
             segments.forEach { segment ->
               when (segment) {
                 is MarkdownSegment.Plain -> Markdown(
@@ -124,8 +125,8 @@ fun ThinkingIndicator(
                 is MarkdownSegment.NonProseBlock -> Markdown(
                   markdown = segment.text,
                   onUrlClick = onUrlClick,
-                  modifier = Modifier.fillMaxWidth(),
                   markdownStyling = thinkingStyling,
+                  modifier = Modifier.fillMaxWidth(),
                   blockRenderer = simplifiedCodeRenderer,
                 )
               }

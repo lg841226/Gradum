@@ -94,9 +94,7 @@ internal fun ToolCallCapsule(
         color = infoColor,
         text = trailingText,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-          .horizontalScroll(rememberScrollState())
-          .widthIn(max = REASON_MAX_WIDTH_DP)
+        modifier = Modifier.widthIn(max = REASON_MAX_WIDTH_DP)
       )
     }
 

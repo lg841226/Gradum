@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-12 12:38:25 Changed by gwy
+ * Table.kt  2026-08-14 01:59:58 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -104,11 +104,14 @@ sealed interface MarkdownSegment {
  * instead of being rendered as a header-only / empty grid. There must be
  * at least one non-blank cell in at least one body row.
  */
-fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row -> row.any { it.isNotBlank() } }
+fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row ->
+  row.any { it.isNotBlank() }
+}
 
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
 private val minCellWidthDp: Dp = 70.dp
+private val maxCellWidthDp: Dp = 260.dp
 private val cellHorizontalPadding: Dp = 10.dp
 private val cellVerticalPadding: Dp = GradumSpacing.md
 private val scrollbarReservedSpace: Dp = GradumSpacing.md
@@ -312,6 +315,7 @@ fun ScrollableTable(
 
   val naturalColumnWidthsPx: IntArray = remember(table) {
     val widths = IntArray(table.header.size.coerceAtLeast(1))
+    val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
 
     fun measure(row: List<String>, style: TextStyle) {
       row.forEachIndexed { columnIndex, cell ->
@@ -322,7 +326,8 @@ fun ScrollableTable(
           softWrap = false,
           text = AnnotatedString(cell)
         ).size.width
-        if (cellWidth > widths[columnIndex]) widths[columnIndex] = cellWidth
+        val cappedWidth: Int = cellWidth.coerceAtMost(maxCellWidthPx)
+        if (cappedWidth > widths[columnIndex]) widths[columnIndex] = cappedWidth
       }
     }
     measure(table.header, headerStyle)
@@ -339,11 +344,13 @@ fun ScrollableTable(
   ) {
     val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
     val minCellWidthPx: Int = with(density) { minCellWidthDp.roundToPx() }
+    val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
     val finalColumnWidthsPx: IntArray = remember(
-      naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, horizontalPaddingPx
+      naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, maxCellWidthPx, horizontalPaddingPx
     ) {
       distributeTableWidth(
         minCellWidthPx = minCellWidthPx,
+        maxCellWidthPx = maxCellWidthPx,
         containerWidthPx = containerWidthPx,
         horizontalPaddingPx = horizontalPaddingPx,
         naturalColumnWidthsPx = naturalColumnWidthsPx
@@ -588,35 +595,64 @@ private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
 }
 
 /**
- * Picks the final column widths for a table. Clamps every column to at
- * least [minCellWidthPx], then if the natural total is wider than the
- * container, returns the clamped natural widths and lets `horizontalScroll`
+ * Picks the final column widths for a table. Clamps every column into
+ * `[minCellWidthPx, maxCellWidthPx]`, then if the clamped total is wider
+ * than the container, returns the clamped widths and lets `horizontalScroll`
  * take over. Otherwise, scales every column up by the same factor so the
- * new total exactly matches the container width; the last column absorbs
- * the round-down residue.
+ * new total exactly matches the container width; no column may exceed
+ * [maxCellWidthPx] after scaling. The leftover residue is given first to
+ * the last column (until it saturates), then spread backward to the
+ * other non-saturated columns.
  */
 internal fun distributeTableWidth(
   naturalColumnWidthsPx: IntArray, containerWidthPx: Int,
-  minCellWidthPx: Int, horizontalPaddingPx: Int
+  minCellWidthPx: Int, maxCellWidthPx: Int, horizontalPaddingPx: Int
 ): IntArray {
   if (naturalColumnWidthsPx.isEmpty()) return naturalColumnWidthsPx
 
   val paddingPerColumn = horizontalPaddingPx * 2
   val columnCount = naturalColumnWidthsPx.size
 
+  // Clamp every column to [min, max] before doing any width math. This
+  // keeps a single very wide cell from forcing the whole table wider than
+  // the chat bubble; columns that hit the cap can still wrap, and columns
+  // that are narrower than the minimum still render at the minimum.
   val clamped = IntArray(columnCount) { index ->
-    maxOf(naturalColumnWidthsPx[index], minCellWidthPx)
+    naturalColumnWidthsPx[index]
+      .coerceIn(minCellWidthPx, maxCellWidthPx)
   }
 
   val naturalTotal = clamped.sum() + paddingPerColumn * columnCount
   if (naturalTotal >= containerWidthPx) return clamped
 
   val scale = containerWidthPx.toFloat() / naturalTotal.toFloat()
-  val scaled = IntArray(columnCount) { index -> (clamped[index] * scale).toInt() }
+  val scaled = IntArray(columnCount) { index ->
+    (clamped[index] * scale).toInt().coerceAtMost(maxCellWidthPx)
+  }
 
   val scaledTotal = scaled.sum() + paddingPerColumn * columnCount
   val leftover = containerWidthPx - scaledTotal
-  if (leftover != 0) scaled[columnCount - 1] += leftover
+  if (leftover != 0) {
+    // If there's leftover room and the last column hasn't already hit the
+    // cap, give it the residue; otherwise distribute it across other
+    // non-saturated columns.
+    val lastIndex = columnCount - 1
+    if (scaled[lastIndex] < maxCellWidthPx) {
+      scaled[lastIndex] = (scaled[lastIndex] + leftover).coerceAtMost(maxCellWidthPx)
+    } else {
+      // Spread leftover to non-saturated columns, last to first
+      var remaining = leftover
+      for (i in (columnCount - 1) downTo 0) {
+        if (remaining == 0) break
+        val headroom = maxCellWidthPx - scaled[i]
+        if (headroom > 0) {
+          val give = headroom.coerceAtMost(remaining)
+          scaled[i] += give
+          remaining -= give
+        }
+      }
+    }
+  }
 
   return scaled
 }
@@ -646,10 +682,6 @@ fun SafeMarkdownText(
   @Suppress("UNUSED_PARAMETER") paragraphStyling: MarkdownStyling.Paragraph =
     rememberGradumMarkdownStyling().paragraph,
 ) {
-  // Cell text goes through the chip-aware inline renderer so inline code
-  // renders as an `InlineCodeChip` like in the message body. The
-  // `processor` / `blockRenderer` / `paragraphStyling` params are kept for
-  // source-compat with the ScrollableTable call site but are unused.
   if (text.isBlank()) {
     Text(
       text = "",
@@ -682,13 +714,27 @@ fun SafeMarkdownText(
  */
 @Composable
 fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
-  val globalColors = org.jetbrains.jewel.foundation.LocalGlobalColors.current
-  Text(
-    text = message("gradum.markdown.table.parse.failed"),
-    style = JewelTheme.typography.regular,
-    color = globalColors.text.disabled,
-    modifier = modifier.padding(vertical = GradumSpacing.sm)
-  )
+  val textErrorColor = JewelTheme.globalColors.text.error
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
+    modifier = modifier
+      .fillMaxWidth()
+      .horizontalScroll(rememberScrollState())
+  ) {
+    Icon(
+      contentDescription = null,
+      key = AllIconsKeys.Status.FailedInProgress
+    )
+    Text(
+      maxLines = 1,
+      color = textErrorColor,
+      text = message("gradum.markdown.table.parse.failed"),
+      style = JewelTheme.typography.editorTextStyle.copy(
+        color = textErrorColor
+      )
+    )
+  }
 }
 
 /**

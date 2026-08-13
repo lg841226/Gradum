@@ -74,7 +74,6 @@ class SearchedRenderer : ToolCallRenderer {
         maxLines = 1,
         color = infoColor,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.horizontalScroll(rememberScrollState())
       )
       Text(
         maxLines = 1,

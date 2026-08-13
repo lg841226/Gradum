@@ -319,6 +319,7 @@ class GradumMarkdownTableTest {
       naturalColumnWidthsPx = intArrayOf(100, 100, 100),
       containerWidthPx = 600,
       minCellWidthPx = 80,
+      maxCellWidthPx = 400,
       horizontalPaddingPx = 0, // strip padding for the test
     )
     assertEquals(3, out.size)
@@ -338,6 +339,7 @@ class GradumMarkdownTableTest {
       naturalColumnWidthsPx = intArrayOf(80, 30, 80),
       containerWidthPx = 200,
       minCellWidthPx = 80,
+      maxCellWidthPx = 400,
       horizontalPaddingPx = 0,
     )
     assertEquals(80, out[0])
@@ -354,6 +356,7 @@ class GradumMarkdownTableTest {
       naturalColumnWidthsPx = intArrayOf(200, 200, 200),
       containerWidthPx = 500,
       minCellWidthPx = 80,
+      maxCellWidthPx = 400,
       horizontalPaddingPx = 0,
     )
     assertEquals(200, out[0])
@@ -373,6 +376,7 @@ class GradumMarkdownTableTest {
       naturalColumnWidthsPx = intArrayOf(150, 200, 90, 110),
       containerWidthPx = containerWidthPx,
       minCellWidthPx = 80,
+      maxCellWidthPx = 600,
       horizontalPaddingPx = horizontalPaddingPx,
     )
     val expectedTotal: Int = containerWidthPx - horizontalPaddingPx * 2 * out.size
@@ -385,9 +389,32 @@ class GradumMarkdownTableTest {
       naturalColumnWidthsPx = intArrayOf(),
       containerWidthPx = 1000,
       minCellWidthPx = 80,
+      maxCellWidthPx = 400,
       horizontalPaddingPx = 0,
     )
     assertEquals(0, out.size)
+  }
+
+  @Test
+  fun `distributeTableWidth - columns exceeding max are clamped before scaling`() {
+    // One very wide column (500px) would normally push the others
+    // narrow during the scale-up step. The max clamp should kick in
+    // so no column ends up wider than `maxCellWidthPx` (200px) after
+    // scaling, and the remaining width is redistributed to the
+    // other non-saturated columns.
+    val out = distributeTableWidth(
+      naturalColumnWidthsPx = intArrayOf(500, 50, 50),
+      containerWidthPx = 400,
+      minCellWidthPx = 40,
+      maxCellWidthPx = 200,
+      horizontalPaddingPx = 0,
+    )
+    out.forEach {
+      assertTrue(
+        it <= 200,
+        "column width $it must not exceed maxCellWidthPx=200 after scaling"
+      )
+    }
   }
 
   @Test

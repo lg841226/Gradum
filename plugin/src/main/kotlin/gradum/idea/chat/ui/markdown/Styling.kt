@@ -308,7 +308,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         )
       ),
       code = MarkdownStyling.Code.createCodeStyling(
+        // In thinking mode, code block text should also be muted gray
+        // (background kept colored per design decision — code stays readable)
         fenced = MarkdownStyling.Code.Fenced.createCodeStyling(
+          textStyle = if (thinkingMode) editorTextStyle.copy(color = thinkingGray) else editorTextStyle,
           infoPosition = MarkdownStyling.Code.Fenced.InfoPosition.Hide
         )
       ),
@@ -323,7 +326,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
           bullet = '\u2022',
           padding = listItemPadding,
           bulletStyle = TextStyle(
-            color = globalColors.text.info,
+            color = if (thinkingMode) thinkingGray else globalColors.text.info,
             fontFamily = editorTextStyle.fontFamily
           )
         )

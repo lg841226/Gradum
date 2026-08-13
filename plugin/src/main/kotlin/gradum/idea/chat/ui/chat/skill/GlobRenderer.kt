@@ -75,7 +75,6 @@ class GlobRenderer : ToolCallRenderer {
         color = infoColor,
         overflow = TextOverflow.Ellipsis,
         style = JewelTheme.editorTextStyle,
-        modifier = Modifier.horizontalScroll(rememberScrollState())
       )
       Text(
         maxLines = 1,
