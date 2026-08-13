@@ -2,14 +2,17 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MergeSessionsBoard.kt  2026-08-13 12:12:11 Changed by gwy
+ * MergeSessionsBoard.kt  2026-08-13 12:15:19 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -108,7 +111,7 @@ fun MergeSessionsBoard(
   }
 }
 
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun MergeSessionRow(
   session: SessionMeta,
@@ -151,7 +154,7 @@ private fun MergeSessionRow(
       Spacer(modifier = Modifier.width(GradumSpacing.md))
       Text(
         text = formatTimestamp(session.updatedAt),
-        color = JewelTheme.globalColors.text.info,
+        color = JewelTheme.globalColors.text.info
       )
     }
   }

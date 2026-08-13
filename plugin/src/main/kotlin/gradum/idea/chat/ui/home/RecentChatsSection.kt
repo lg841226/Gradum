@@ -51,6 +51,7 @@ const val MAX_RECENT_SESSIONS: Int = 2
  * row resumes that session; the delete icon removes it locally + on the
  * server ([gradum.idea.chat.state.GradumChatSession.deleteSession]).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecentChatsSection(
   sessions: List<SessionMeta>,
@@ -70,15 +71,14 @@ fun RecentChatsSection(
         style = JewelTheme.typography.h4TextStyle
       )
       if (onStartMerge != null) {
-        Text(
-          text = message("gradum.recent.merge"),
-          modifier = Modifier
-            .clip(RoundedCornerShape(GradumSpacing.sm))
-            .clickable(onClick = onStartMerge)
-            .padding(horizontal = GradumSpacing.sml, vertical = 4.dp),
-          color = JewelTheme.globalColors.text.info,
-          style = JewelTheme.typography.small
-        )
+        Tooltip(tooltip = { Text(text = message("gradum.recent.manage")) }) {
+          IconButton(onClick = onStartMerge) {
+            Icon(
+              key = AllIconsKeys.General.Settings,
+              contentDescription = message("gradum.recent.manage")
+            )
+          }
+        }
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))

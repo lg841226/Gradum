@@ -303,7 +303,10 @@ class GradumChatSession {
       sessions.addAll(sessionStore.listSessions())
       return
     }
-    sessionRefreshJob?.cancel()
+    // Calls the non-synthetic `cancel(CancellationException)` overload on
+    // purpose: plain `cancel()` compiles to the `cancel$default` bridge, which
+    // is missing in the IDE's coroutines rebuild and throws NoSuchMethodError.
+    sessionRefreshJob?.cancel(CancellationException("Gradum: refresh sessions"))
     sessionRefreshJob = coroutineScope.launch {
       val listedSessions: List<SessionMeta> = withContext(Dispatchers.IO) {
         sessionStore.listSessions()
