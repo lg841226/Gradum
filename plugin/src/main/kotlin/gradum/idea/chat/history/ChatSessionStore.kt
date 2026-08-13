@@ -148,6 +148,37 @@ class ChatSessionStore(private val projectRoot: Path) {
   }
 
   /**
+   * Merges two saved sessions into a brand-new one whose transcript is both
+   * conversations interleaved chronologically by message timestamp ("timeline
+   * weave" — see [interleaveMessages]).
+   *
+   * The two source sessions are left untouched: merge is non-destructive. The
+   * merged session gets a fresh [nextSessionId], a title derived from the
+   * merged messages, an `createdAt` of the earlier origin, and an `updatedAt`
+   * of now so it surfaces at the top of the recent list.
+   *
+   * @return The new session id, or `null` when either source session is
+   *   missing or its transcript cannot be parsed.
+   */
+  fun mergeSessions(firstSessionId: String, secondSessionId: String): String? {
+    val firstTranscript: ChatTranscript.ParsedTranscript = loadSession(firstSessionId) ?: return null
+    val secondTranscript: ChatTranscript.ParsedTranscript = loadSession(secondSessionId) ?: return null
+    val mergedMessages: List<ChatMessage> = interleaveMessages(firstTranscript.messages, secondTranscript.messages)
+    val newSessionId: String = nextSessionId()
+    saveSession(
+      SessionMeta(
+        sessionId = newSessionId,
+        title = ChatTranscript.titleFor(mergedMessages),
+        createdAt = minOf(firstTranscript.sessionMeta.createdAt, secondTranscript.sessionMeta.createdAt),
+        updatedAt = System.currentTimeMillis(),
+        modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
+      ),
+      mergedMessages
+    )
+    return newSessionId
+  }
+
+  /**
    * Deletes a session's entire directory (transcript included).
    *
    * The path is re-verified against [sessionsRoot] after resolution as a
@@ -179,6 +210,16 @@ class ChatSessionStore(private val projectRoot: Path) {
 
     /** The session header always lives in the first lines; no need to read the body. */
     private const val HEADER_LINE_LIMIT: Int = 8
+
+    /**
+     * Chronological interleave of two conversations for [ChatSessionStore.mergeSessions].
+     *
+     * The concatenated lists are stably sorted by [ChatMessage.timestamp], so
+     * the two source orders stay intact whenever timestamps tie (a session's
+     * own messages are already in chronological order on disk).
+     */
+    fun interleaveMessages(first: List<ChatMessage>, second: List<ChatMessage>): List<ChatMessage> =
+      (first + second).sortedWith(compareBy { it.timestamp })
 
     /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
     private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")

@@ -207,6 +207,12 @@ class GradumChatSession {
   /** In-flight [refreshSessions] scan; cancelled before starting a newer one. */
   private var sessionRefreshJob: Job? = null
 
+  /** Whether the Welcome screen is in "merge sessions" selection mode. */
+  var isMergeModeActive: Boolean by mutableStateOf(false)
+
+  /** Session ids ticked for merging on the merge board. Never longer than [MAX_MERGE_SESSIONS]. */
+  val mergeSelection: SnapshotStateList<String> = mutableStateListOf()
+
   /**
    * Lazily created transcript store, rooted at the current project's base
    * path. Null until [project] is set by the tool-window factory.
@@ -305,6 +311,56 @@ class GradumChatSession {
       sessions.clear()
       sessions.addAll(listedSessions)
     }
+  }
+
+  /**
+   * Enters merge mode: shows the full session board (Welcome hides everything
+   * else) and clears any previous selection.
+   */
+  fun enterMergeMode() {
+    isMergeModeActive = true
+    mergeSelection.clear()
+  }
+
+  /** Leaves merge mode unconditionally, dropping the current selection. */
+  fun exitMergeMode() {
+    isMergeModeActive = false
+    mergeSelection.clear()
+  }
+
+  /**
+   * Ticks or unticks [sessionId] on the merge board. The pool never holds
+   * more than [MAX_MERGE_SESSIONS] entries — extra ticks are ignored.
+   */
+  fun toggleMergeSelection(sessionId: String) {
+    if (sessionId in mergeSelection) {
+      mergeSelection.remove(sessionId)
+    } else if (mergeSelection.size < MAX_MERGE_SESSIONS) {
+      mergeSelection.add(sessionId)
+    }
+  }
+
+  /** Whether a merge can be performed right now (exactly [MAX_MERGE_SESSIONS] picked). */
+  val canMergeSelection: Boolean
+    get() = mergeSelection.size == MAX_MERGE_SESSIONS
+
+  /**
+   * Creates the merged session from the two selected ones and opens it.
+   *
+   * @return `true` when both sources merged successfully and the merged
+   *   session was opened.
+   */
+  suspend fun mergeSelectedSessions(): Boolean {
+    if (mergeSelection.size != MAX_MERGE_SESSIONS) return false
+    val sessionStore: ChatSessionStore = chatStore ?: return false
+    val firstSessionId: String = mergeSelection[0]
+    val secondSessionId: String = mergeSelection[1]
+    val mergedSessionId: String = withContext(Dispatchers.IO) {
+      sessionStore.mergeSessions(firstSessionId, secondSessionId)
+    } ?: return false
+    exitMergeMode()
+    refreshSessions()
+    return switchSession(mergedSessionId)
   }
 
   /**
@@ -983,6 +1039,9 @@ class GradumChatSession {
     private val jsonFormat: Json = Json { ignoreUnknownKeys = true }
     const val MAX_ATTACHMENTS: Int = 10
     const val MAX_PENDING_MESSAGES: Int = 2
+
+    /** Number of sessions a single merge combines (checked on the merge board). */
+    const val MAX_MERGE_SESSIONS: Int = 2
 
     /** Minimum milliseconds to display the "Sending" animation before the request fires. */
     const val MIN_SENDING_MS: Long = 400

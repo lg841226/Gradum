@@ -85,6 +85,12 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         inputActions = state.inputActions,
         selectedPermission = session.selectedPermission,
         sessions = session.sessions.toList(),
+        isMergeModeActive = session.isMergeModeActive,
+        mergeSelectedIds = session.mergeSelection.toSet(),
+        onStartMerge = { session.enterMergeMode() },
+        onCancelMerge = { session.exitMergeMode() },
+        onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) },
+        onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
         onOpenSession = { sessionId ->
           coroutineScope.launch { session.switchSession(sessionId) }
         },

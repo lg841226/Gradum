@@ -117,4 +117,56 @@ class ChatSessionStoreTest {
     val pattern = Regex("""^\d{8}-\d{6}-[0-9a-f]{6}$""")
     ids.forEach { assertTrue("id $it does not match format", pattern.matches(it)) }
   }
+
+  private fun chatRecord(marker: String, userTs: Long, assistantTs: Long, reply: String): List<ChatMessage> =
+    listOf(
+      ChatMessage(role = "user", content = "$marker q", timestamp = userTs),
+      ChatMessage(role = "assistant", content = "", timestamp = assistantTs)
+        .appendEvent(ChatEvent.Response("$marker $reply"))
+    )
+
+  @Test
+  fun `merge interleaves two sessions chronologically and keeps originals`() {
+    store.saveSession(
+      SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
+      chatRecord("alpha", 100L, 200L, "a1")
+    )
+    store.saveSession(
+      SessionMeta("b1", "Beta", 300L, 300L, "model-b"),
+      chatRecord("beta", 150L, 250L, "b1")
+    )
+
+    val mergedId: String? = store.mergeSessions("a1", "b1")
+    assertTrue("expected merge to succeed", mergedId != null)
+
+    // Non-destructive: both sources still exist.
+    assertTrue(store.hasSession("a1"))
+    assertTrue(store.hasSession("b1"))
+
+    val merged: ChatTranscript.ParsedTranscript? = store.loadSession(mergedId!!)
+    assertTrue("merged session should load", merged != null)
+    val rendered: List<Pair<String, String>> = merged!!.messages.map {
+      (if (it.isUserMessage) "user" else "assistant") to (if (it.isUserMessage) it.content else it.fullContent)
+    }
+    assertEquals(
+      listOf(
+        "user" to "alpha q",
+        "user" to "beta q",
+        "assistant" to "alpha a1",
+        "assistant" to "beta b1"
+      ),
+      rendered
+    )
+    assertEquals("alpha q", merged.sessionMeta.title)
+  }
+
+  @Test
+  fun `merge returns null when a source session is missing`() {
+    store.saveSession(
+      SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
+      chatRecord("alpha", 100L, 200L, "a1")
+    )
+    assertNull(store.mergeSessions("a1", "nope"))
+    assertNull(store.mergeSessions("nope", "a1"))
+  }
 }

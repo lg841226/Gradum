@@ -55,14 +55,32 @@ const val MAX_RECENT_SESSIONS: Int = 2
 fun RecentChatsSection(
   sessions: List<SessionMeta>,
   modifier: Modifier = Modifier,
+  onStartMerge: (() -> Unit)? = null,
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit
 ) {
   Column(modifier = modifier) {
-    Text(
-      text = message("gradum.recent.chats"),
-      style = JewelTheme.typography.h4TextStyle
-    )
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Text(
+        text = message("gradum.recent.chats"),
+        style = JewelTheme.typography.h4TextStyle
+      )
+      if (onStartMerge != null) {
+        Text(
+          text = message("gradum.recent.merge"),
+          modifier = Modifier
+            .clip(RoundedCornerShape(GradumSpacing.sm))
+            .clickable(onClick = onStartMerge)
+            .padding(horizontal = GradumSpacing.sml, vertical = 4.dp),
+          color = JewelTheme.globalColors.text.info,
+          style = JewelTheme.typography.small
+        )
+      }
+    }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
     sessions.take(MAX_RECENT_SESSIONS).forEach { session ->
       RecentSessionRow(

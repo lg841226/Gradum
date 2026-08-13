@@ -71,6 +71,12 @@ fun WelcomeScreen(
   selectedPermission: String = PermissionMode.READONLY,
   onRefreshSuggestions: () -> Unit,
   sessions: List<SessionMeta> = emptyList(),
+  isMergeModeActive: Boolean = false,
+  mergeSelectedIds: Set<String> = emptySet(),
+  onStartMerge: () -> Unit = {},
+  onCancelMerge: () -> Unit = {},
+  onToggleMergeSelection: (String) -> Unit = {},
+  onMergeSelected: () -> Unit = {},
   onOpenSession: (String) -> Unit = {},
   onDeleteSession: (String) -> Unit = {},
 ) {
@@ -80,53 +86,64 @@ fun WelcomeScreen(
     modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
-    Column(
-      modifier = Modifier
-        .verticalScroll(rememberScrollState())
-        .widthIn(max = 600.dp),
-      verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
-    ) {
+    if (isMergeModeActive) {
+      MergeSessionsBoard(
+        sessions = sessions,
+        selectedIds = mergeSelectedIds,
+        onToggleSelection = onToggleMergeSelection,
+        onMerge = onMergeSelected,
+        onCancel = onCancelMerge
+      )
+    } else {
       Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+          .verticalScroll(rememberScrollState())
+          .widthIn(max = 600.dp),
+        verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
       ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalAlignment = Alignment.CenterHorizontally
         ) {
-          Icon(
-            contentDescription = null,
-            key = GradumIcons.ColorLogo,
-            modifier = Modifier.size(28.dp)
-          )
-          Text(
-            fontWeight = FontWeight.Medium,
-            fontFamily = titleFontFamily,
-            text = message("gradum.welcome.text"),
-            style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
-            letterSpacing = GradumSpacing.welcomeTitleTracking
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+          ) {
+            Icon(
+              contentDescription = null,
+              key = GradumIcons.ColorLogo,
+              modifier = Modifier.size(28.dp)
+            )
+            Text(
+              fontWeight = FontWeight.Medium,
+              fontFamily = titleFontFamily,
+              text = message("gradum.welcome.text"),
+              style = JewelTheme.typography.h2TextStyle.copy(brush = WelcomeGradient),
+              letterSpacing = GradumSpacing.welcomeTitleTracking
+            )
+          }
+          Spacer(modifier = Modifier.height(GradumSpacing.md))
+        }
+        ChatInputSection(
+          state = inputState,
+          textState = textState,
+          actions = inputActions,
+          selectedPermission = selectedPermission,
+          modifier = Modifier.widthIn(max = 600.dp)
+        )
+        QuickStartSection(
+          textState = textState,
+          suggestionVariants = suggestionVariants,
+          onRefreshSuggestions = onRefreshSuggestions
+        )
+        if (sessions.isNotEmpty()) {
+          RecentChatsSection(
+            sessions = sessions,
+            onStartMerge = onStartMerge,
+            onOpenSession = onOpenSession,
+            onDeleteSession = onDeleteSession
           )
         }
-        Spacer(modifier = Modifier.height(GradumSpacing.md))
-      }
-      ChatInputSection(
-        state = inputState,
-        textState = textState,
-        actions = inputActions,
-        selectedPermission = selectedPermission,
-        modifier = Modifier.widthIn(max = 600.dp)
-      )
-      QuickStartSection(
-        textState = textState,
-        suggestionVariants = suggestionVariants,
-        onRefreshSuggestions = onRefreshSuggestions
-      )
-      if (sessions.isNotEmpty()) {
-        RecentChatsSection(
-          sessions = sessions,
-          onOpenSession = onOpenSession,
-          onDeleteSession = onDeleteSession
-        )
       }
     }
     Row(
