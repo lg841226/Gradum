@@ -118,10 +118,26 @@ class WebSearchSkill : Skill() {
         }
       }
 
+      if (response.status == HttpStatusCode.TooManyRequests)
+        return makeFailure("SEARCH_FAILED",
+          buildXmlError(code = "SEARCH_FAILED", message = "Tavily rate limit exceeded (HTTP 429).",
+            fixHint = "Wait a moment and try again."))
+      if (response.status.value >= 500)
+        return makeFailure("SEARCH_FAILED",
+          buildXmlError(code = "SEARCH_FAILED", message = "Tavily server error (HTTP ${response.status.value}).",
+            fixHint = "The service is temporarily down. Try again later."))
+
       val bodyText = runBlocking { response.bodyAsText() }
       logger.debug("Tavily response status={} bodyLength={}", response.status, bodyText.length)
 
-      val json = jsonParser.parseToJsonElement(bodyText).jsonObject
+      val json = try {
+        jsonParser.parseToJsonElement(bodyText).jsonObject
+      } catch (parseException: Exception) {
+        logger.error("Failed to parse Tavily response: {}", parseException.message)
+        return makeFailure("SEARCH_FAILED",
+          buildXmlError(code = "SEARCH_FAILED", message = "Invalid response from Tavily API.",
+            fixHint = "The API returned unexpected data. Try again."))
+      }
 
       val results = json["results"]?.jsonArray?.take(maxResults)?.mapNotNull { element ->
         val obj = element.jsonObject
@@ -139,10 +155,10 @@ class WebSearchSkill : Skill() {
         "search_depth" to searchDepth,
         "results" to results
       ))
-    } catch (exception: Exception) {
-      logger.error("Web search failed for query='{}': {}", query, exception.message, exception)
+    } catch (networkException: Exception) {
+      logger.error("Web search failed for query='{}': {}", query, networkException.message, networkException)
       makeFailure("SEARCH_FAILED",
-        buildXmlError(code = "SEARCH_FAILED", message = "Web search failed: ${exception.message}",
+        buildXmlError(code = "SEARCH_FAILED", message = "Web search failed: ${networkException.message}",
           fixHint = "Check your API key and network connection."))
     }
   }
