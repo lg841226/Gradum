@@ -2,31 +2,25 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-13 13:30:40 Changed by gwy
+ * WelcomeScreen.kt  2026-08-13 17:05:03 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
@@ -77,19 +71,20 @@ fun WelcomeScreen(
   suggestionVariants: List<Int>,
   modifier: Modifier = Modifier,
   inputActions: ChatInputActions,
-  selectedPermission: String = PermissionMode.READONLY,
-  onRefreshSuggestions: () -> Unit,
-  sessions: List<SessionMeta> = emptyList(),
   isMergeModeActive: Boolean = false,
+  sessions: List<SessionMeta> = emptyList(),
   mergeSelectedIds: Set<String> = emptySet(),
+  selectedPermission: String = PermissionMode.READONLY,
   onStartMerge: () -> Unit = {},
-  onClearMergeSelection: () -> Unit = {},
-  onToggleMergeSelection: (String) -> Unit = {},
+  onCancelMerge: () -> Unit = {},
   onMergeSelected: () -> Unit = {},
-  onRenameSession: (String, String) -> Unit = { _, _ -> },
   onDeleteSelected: () -> Unit = {},
+  onRefreshSuggestions: () -> Unit,
   onOpenSession: (String) -> Unit = {},
   onDeleteSession: (String) -> Unit = {},
+  onClearMergeSelection: () -> Unit = {},
+  onToggleMergeSelection: (String) -> Unit = {},
+  onRenameSession: (String, String) -> Unit = { _, _ -> },
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
@@ -104,6 +99,7 @@ fun WelcomeScreen(
         onMerge = onMergeSelected,
         onClearSelection = onClearMergeSelection,
         onDeleteSelected = onDeleteSelected,
+        onBack = onCancelMerge,
         onToggleSelection = onToggleMergeSelection,
         onRenameSession = onRenameSession,
         onDeleteSession = onDeleteSession
@@ -147,8 +143,8 @@ fun WelcomeScreen(
           modifier = Modifier.widthIn(max = 600.dp)
         )
         AnimatedVisibility(
-          visible = !isInputFocused,
-          exit = fadeOut(tween(200)) + shrinkVertically(animationSpec = tween(200))
+          visible = !isInputFocused || sessions.isEmpty(),
+          exit = shrinkVertically(animationSpec = tween(200))
         ) {
           QuickStartSection(
             textState = textState,
@@ -180,8 +176,8 @@ fun WelcomeScreen(
         Text(
           text = message("gradum.disclaimer"),
           style = JewelTheme.typography.small,
-          fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
-          color = JewelTheme.globalColors.text.info
+          color = JewelTheme.globalColors.text.info,
+          fontFamily = JewelTheme.typography.editorTextStyle.fontFamily
         )
       }
     }

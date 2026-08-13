@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ManageSessionsBoard.kt  2026-08-13 15:51:53 Changed by gwy
+ * ManageSessionsBoard.kt  2026-08-13 18:05:01 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -25,7 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,6 +40,7 @@ import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.theme.linkStyle
 import org.jetbrains.jewel.ui.typography
 import java.time.Instant
 import java.time.LocalDate
@@ -67,6 +70,7 @@ fun ManageSessionsBoard(
   onClearSelection: () -> Unit,
   onDeleteSelected: () -> Unit,
   modifier: Modifier = Modifier,
+  onBack: () -> Unit = {},
   onToggleSelection: (String) -> Unit,
   onRenameSession: (String, String) -> Unit,
   onDeleteSession: (String) -> Unit = {}
@@ -88,7 +92,11 @@ fun ManageSessionsBoard(
     TextFieldState(session?.title.orEmpty())
   }
 
-  Column(modifier = modifier.fillMaxHeight()) {
+  Column(
+    modifier = modifier
+      .fillMaxHeight()
+      .widthIn(max = 400.dp)
+  ) {
     Spacer(Modifier.height(GradumSpacing.md))
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -139,10 +147,37 @@ fun ManageSessionsBoard(
           .fillMaxWidth(),
         contentAlignment = Alignment.Center
       ) {
-        Text(
-          text = message("gradum.manage.search.empty"),
-          color = JewelTheme.globalColors.text.info
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          if (sessions.isEmpty()) {
+            Text(
+              text = message("gradum.manage.empty"),
+              color = JewelTheme.globalColors.text.info
+            )
+            Spacer(Modifier.height(GradumSpacing.sml))
+            Text(
+              text = message("gradum.manage.back"),
+              color = JewelTheme.linkStyle.colors.content,
+              modifier = Modifier
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable { onBack() }
+            )
+          } else {
+            Text(
+              text = message("gradum.manage.search.empty"),
+              color = JewelTheme.globalColors.text.info
+            )
+            Spacer(Modifier.height(GradumSpacing.sml))
+            Text(
+              text = message("gradum.manage.search.clear"),
+              color = JewelTheme.linkStyle.colors.content,
+              modifier = Modifier
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable {
+                  searchState.edit { replace(0, length, "") }
+                }
+            )
+          }
+        }
       }
     } else {
       val lastSelectedIndex: Int = filteredSessions.indexOfLast {
@@ -186,12 +221,12 @@ fun ManageSessionsBoard(
               ) {
                 Spacer(modifier = Modifier.height(GradumSpacing.sm))
                 Row(
-                  modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = GradumSpacing.md),
+                  modifier = Modifier.fillMaxWidth(),
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
                 ) {
+                  Text(text = message("gradum.manage.selected.many", selectedCount.toString()))
+                  Spacer(modifier = Modifier.width(GradumSpacing.sm))
                   Tooltip(tooltip = { Text(text = message("gradum.manage.merge")) }) {
                     IconButton(onClick = onMerge) {
                       Icon(

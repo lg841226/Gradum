@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-12 12:38:25 Changed by gwy
+ * SearchSkills.kt  2026-08-13 21:07:46 Changed by gwy
  */
 package gradum.skill
 
@@ -279,9 +279,7 @@ class GrepSkill : Skill() {
   }
 
   private fun executeInternal(
-    arguments: Map<String, Any>,
-    context: SkillContext,
-    ignoreCase: Boolean,
+    arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean,
   ): SkillResult {
     val params = when (val result = prepareSearch(arguments, context, ignoreCase)) {
       is Either.Success -> result.value
@@ -297,9 +295,7 @@ class GrepSkill : Skill() {
   }
 
   private fun prepareSearch(
-    arguments: Map<String, Any>,
-    context: SkillContext,
-    ignoreCase: Boolean
+    arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean
   ): Either<SearchParams, SkillResult> {
     val patternStr = (arguments["pattern"] as? String)?.trim() ?: ""
     if (patternStr.length < MIN_PATTERN_LENGTH) {
@@ -389,10 +385,6 @@ class GrepSkill : Skill() {
     return try {
       FileSystems.getDefault().getPathMatcher("glob:$includeFilter")
     } catch (matcherException: Exception) {
-      // If the user's include glob is malformed, fall back to a
-      // permissive filter (match every file) rather than silently
-      // returning no files. The LLM will still get the matches from
-      // any unfiltered files in the tree.
       logger.debug("Malformed include glob '$includeFilter': ${matcherException.message}", matcherException)
       FileSystems.getDefault().getPathMatcher("glob:**")
     }
@@ -407,9 +399,7 @@ class GrepSkill : Skill() {
     return collectedFiles
   }
 
-  private fun searchFiles(
-    files: List<File>, regex: Regex, limit: Int
-  ): List<Map<String, Any>> {
+  private fun searchFiles(files: List<File>, regex: Regex, limit: Int): List<Map<String, Any>> {
     val searchMatches: ConcurrentLinkedQueue<Map<String, Any>> = ConcurrentLinkedQueue()
     val matchCount = AtomicInteger(0)
 
@@ -569,11 +559,6 @@ class GlobSkill : Skill() {
       )
     }
 
-    // Java's built-in `glob:` PathMatcher handles the corner cases
-    // (`**` matching zero path segments, `*` not crossing '/', `?` not
-    // crossing '/', literal regex metacharacters in filenames, brace
-    // alternation, character classes) without us having to translate
-    // glob to regex by hand.
     val globMatcher = try {
       FileSystems.getDefault().getPathMatcher("glob:$patternStr")
     } catch (matcherException: Exception) {
@@ -590,11 +575,6 @@ class GlobSkill : Skill() {
       )
     )
 
-    // Java's PathMatcher only honors `**` when at least one directory
-    // segment follows it, so a pattern like `**/*.kt` never matches
-    // `gradum_kotlin.kt` at the project root. Strip a leading `**/` and
-    // try the suffix as a second matcher so that root-level files are
-    // reachable too.
     val fallbackMatcher = if (patternStr.startsWith("**/")) {
       val stripped = patternStr.removePrefix("**/")
       try {
@@ -631,11 +611,7 @@ class GlobSkill : Skill() {
   }
 
   private fun globSearch(
-    root: File,
-    projectRoot: Path,
-    matcher: PathMatcher,
-    fallbackMatcher: PathMatcher?,
-    limit: Int
+    root: File, projectRoot: Path, matcher: PathMatcher, fallbackMatcher: PathMatcher?, limit: Int
   ): List<String> {
     val result = mutableListOf<String>()
     walkFiltered(root) { file ->

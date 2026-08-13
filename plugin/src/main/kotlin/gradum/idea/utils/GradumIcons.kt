@@ -61,6 +61,7 @@ object GradumIcons {
   val ExpandAll = PathIconKey("/icons/expand-all/expand-all.svg", GradumIcons::class.java)
   val BulletList = PathIconKey("/icons/bullet-list/bullet-list.svg", GradumIcons::class.java)
   val Chat = PathIconKey("/icons/chat-mode/chat-mode.svg", GradumIcons::class.java)
+  val Web = PathIconKey("/icons/web/web.svg", GradumIcons::class.java)
 
   private val PROVIDER_KEYWORD_MAP = mapOf(
     "qwen" to ProviderAlibaba,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-12 20:20:23 Changed by gwy
+ * RecentChatsSection.kt  2026-08-13 17:09:45 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -135,12 +135,15 @@ private fun RecentSessionRow(
         overflow = TextOverflow.Ellipsis,
         text = session.title.ifBlank { formatTimestamp(session.updatedAt) }
       )
-      if (session.title.isNotBlank()) {
-        Text(
-          text = formatTimestamp(session.updatedAt),
-          color = JewelTheme.globalColors.text.info
-        )
-      }
+      Text(
+        text = formatTimestamp(session.updatedAt),
+        color = JewelTheme.globalColors.text.info
+      )
+      Spacer(modifier = Modifier.width(GradumSpacing.sm))
+      Icon(
+        contentDescription = null,
+        key = AllIconsKeys.Actions.MoveToWindow
+      )
     }
     AnimatedVisibility(
       visible = isHovered,

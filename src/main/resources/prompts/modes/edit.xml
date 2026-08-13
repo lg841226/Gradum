@@ -85,6 +85,14 @@
             <!-- endif -->
             Errors: COMMAND_BLOCKED, TIMEOUT, NON_ZERO_EXIT
 
+        search_web: Search the web for information. Use when you need up-to-date information,
+            documentation, or answers about current events, libraries, or APIs.
+            Returns: {query, max_results, search_depth, results: [{title, snippet, url}]}
+            Parameters: query (required), max_results (optional, 1-10, default 5), search_depth (optional: basic|advanced, default basic)
+            Examples: search_web(query="Kotlin Flow best practices")
+                      search_web(query="JUnit 5 migration guide", max_results=3, search_depth="advanced")
+            Note: Requires TAVILY_API_KEY environment variable.
+
         explore_project: View project structure and basic info. Use when a file path is not found.
             Returns: project_root, depth, total_size, config_files, code_files (nested tree with line counts), other_files.
             Note: Results are saved to session history. No need to rescan.

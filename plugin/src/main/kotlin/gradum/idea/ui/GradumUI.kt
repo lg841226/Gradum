@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumUI.kt  2026-08-13 17:05:03 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -83,24 +83,24 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         suggestionVariants = session.suggestionVariants,
         modifier = Modifier.fillMaxSize(),
         inputActions = state.inputActions,
-        selectedPermission = session.selectedPermission,
-        sessions = session.sessions.toList(),
         isMergeModeActive = session.isMergeModeActive,
+        sessions = session.sessions.toList(),
         mergeSelectedIds = session.mergeSelection.toSet(),
+        selectedPermission = session.selectedPermission,
         onStartMerge = { session.enterMergeMode() },
-        onClearMergeSelection = { session.mergeSelection.clear() },
-        onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) },
+        onCancelMerge = { session.exitMergeMode() },
         onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
-        onRenameSession = { sessionId, newTitle ->
-          coroutineScope.launch { session.renameSession(sessionId, newTitle) }
-        },
         onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
+        onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
         onOpenSession = { sessionId ->
           coroutineScope.launch { session.switchSession(sessionId) }
         },
         onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
-        onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } }
-      )
+        onClearMergeSelection = { session.mergeSelection.clear() },
+        onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) }
+      ) { sessionId, newTitle ->
+        coroutineScope.launch { session.renameSession(sessionId, newTitle) }
+      }
     }
   }
 }

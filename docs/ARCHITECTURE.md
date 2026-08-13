@@ -298,16 +298,14 @@ sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
 - `sessionId` is a client-generated `yyyyMMdd-HHmmss-xxxxxx` id sent in every
   `POST /events` request of the same chat thread. The `ContextManager`
   (`contextOutputDirectory` in `Agent.kt`) writes that session's context to
-  `.gradum/sessions/<sessionId>/context.json`, so switching conversation
-  switches model memory and "New Chat" (a fresh id) genuinely forgets.
+  `.gradum/sessions/<sessionId>/context.json`, so switching conversation switches model memory and "New Chat" (a fresh
+  id) genuinely forgets.
 - A blank/`null` `sessionId` falls back to the legacy
   `<projectRoot>/.gradum/context.json` for old-clients compatibility.
-- The plugin persists a full-detail transcript per session
-  (`ChatSessionStore` + `ChatTranscript`) that restores the exact bubble UI
-  (thinking, tool calls + results, errors, token usage).
-- `POST /session/delete` removes a whole session directory on the server
-  (path-traversal guarded); the plugin cascades locally first.
-
+- The plugin persists a full-detail transcript per session (`ChatSessionStore` + `ChatTranscript`) that restores the
+  exact bubble UI (thinking, tool calls + results, errors, token usage).
+- `POST /session/delete` removes a whole session directory on the server (path-traversal guarded); the plugin cascades
+  locally first.
 
 ### 2.4 Runtime Data Flow (End-to-End)
 
@@ -1424,6 +1422,7 @@ up by the `jar`-scheme scanner automatically.
 | ExploreProjectSkill | `path?, depth?`                                               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 5–14; truncated build/dependency directories     |
 | TodoSkill           | `tasks[]`                                                     | `totalTasks, currentTask, currentIndex`                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization        |
 | CompletePlanSkill   | none                                                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                   |
+| WebSearchSkill      | `query, max_results?, search_depth?`                          | `query, max_results, search_depth, results: [{title, snippet, url}]`                                   | `INVALID_PARAMETER, SEARCH_FAILED`                                                            | Requires `TAVILY_API_KEY` env var; max 10 results      |
 
 ---
 
@@ -1997,6 +1996,88 @@ commit` / `scanned` / `analyzed` / `quality` / `period` / per-finding
 repo) is computed from per-commit factors (recency, AI-signals, deletion health, scale, hero) with a confidence
 correction. Full protocol + S-code catalog: see
 [`docs/PLUGIN_FEATURES.md`](../docs/PLUGIN_FEATURES.md) section 19.
+
+### 8.7 Git audit internals
+
+This section documents the implementation details of the Git analysis subsystem: script resolution, the JSONL wire
+protocol, the audit code catalog, and the quality band formula.
+
+#### 8.7.1 Script resolution (`resolveScript`)
+
+The plugin resolves the Python audit script in this priority order:
+
+1. An executable `scripts/git_stats_log/git_stats.py` found by walking up from the project base path.
+2. An executable found by walking up from the running plugin JAR's directory.
+3. The bundled resource, extracted to `PathManager.getTempDir()/gradum/gitstats` (config `scripts/configs.jsonc` is
+   extracted alongside and the script is marked executable).
+
+#### 8.7.2 JSONL record protocol
+
+The script is launched with `--jsonl` (cwd = project root). It walks every commit via `git log -c --numstat` and emits
+records in order:
+
+1. `INFO` header (`message`, `version`), `start` (`repo`, `branches`, `since`).
+2. One `scanning commit` record per commit — `current`, `total`, `hash` (drives the determinate progress bar).
+3. `scanned` — `commits`, `repo`, `elapsed_ms`, `branch` (drives the phase-two hand-off and the tree's branch row).
+4. When `enableQualityAnalysis` is set: `Analyze Quality`, `Audit Deletions`, `analyzed` (`commits`, `problems`,
+   `deletion_percent`, `overall_level`), `quality` (`band`, `score`, `factor_recency`, `factor_ai`, `factor_deletion`,
+   `factor_scale`, `factor_hero`), one **S-finding record** per finding, and per-period `period` records.
+5. `complete` (`elapsed_ms`).
+
+**S-finding record schema**: `code` (`SXXXX`), `level` (`critical` / `alert` / `watch` / `normal` / `clean`), `type`,
+`hash` (short hash or placeholder like `-`, `Cluster #N`, `Recent Spike`), `index` (-1 for aggregate findings), `date`,
+`days`, `subject`, `author`, `body`, and a `params` object with the template values. The Kotlin parser routes any record
+whose `code` starts with `S` into `AuditFinding`; everything else is matched by `message`.
+
+#### 8.7.3 Audit code catalog
+
+Severity ranking: critical > alert > watch > normal.
+
+| Code    | Level       | Type / trigger                                                                 |
+|---------|-------------|--------------------------------------------------------------------------------|
+| `S1001` | critical    | Single heavy commit (`+additions ≥ 500 AND deletions ≥ 500` in core files).    |
+| `S1002` | critical    | Net reduction: global deletions/additions ≥ 1.0.                               |
+| `S1003` | critical    | Single-author project (≤ 1 non-bot author, ≥ 10 commits).                      |
+| `S1004` | critical    | Mass rewrite: one commit ≥ 50% of total lines (> 1000 lines).                  |
+| `S2001` | alert       | Deletion cluster: ≥ 3 consecutive heavy-deletion commits.                      |
+| `S2002` | alert       | Mature-project churn: ≥ 3 heavy deletions in the last 90 days.                 |
+| `S2003` | alert       | Core net deletion: heavy deletion of core source files.                        |
+| `S2004` | alert       | Accumulation-only: deletions ratio < 0.05.                                     |
+| `S2005` | alert       | AI volume spike: avg lines/commit above the LLM-generation threshold.          |
+| `S2006` | alert       | AI bootstrap: early add/delete ratio signals LLM-generated code.               |
+| `S2007` | alert       | AI uniformity: commit sizes too uniform (low CV of additions).                 |
+| `S2008` | alert       | AI focus deviation: files-per-commit far from the 3.0 target.                  |
+| `S2009` | alert       | Firework burst: too many commits per day over a short active window.           |
+| `S2010` | alert       | Claude flood: co-author signatures (Claude/OpenCode) above threshold.          |
+| `S2011` | alert       | Hero dependency / bus factor: top-5 contributors too concentrated.             |
+| `S2012` | alert       | Abandoned: last commit older than the recency half-life (90 days).             |
+| `S2013` | alert       | AI agent artifacts: marker files for Claude Code, Cursor, Copilot, … detected. |
+| `S3001` | watch       | Non-core deletion: heavy deletion with zero core-source files.                 |
+| `S3002` | watch       | Heavy churn: 0.50 ≤ deletion ratio < 1.0.                                      |
+| `S3003` | watch       | Bot-like author matching `bot` / `agent` patterns.                             |
+| `S3004` | watch       | Weekend warrior: > 50% of commits on non-working days (≥ 10 commits).          |
+| `S3005` | watch       | Day burst: > 10 commits on a single day.                                       |
+| `S3006` | watch       | No merges: fully linear history (≥ 20 commits).                                |
+| `S3007` | watch       | Tiny commits: > 30% under the 10-line threshold.                               |
+| `S3008` | watch       | Vague messages: > 30% match generic-message regex.                             |
+| `S4001` | information | Low cleanup: churn ratio in 0.05–0.25.                                         |
+| `S4002` | information | Small project: < 1000 total lines (≥ 5 commits).                               |
+
+#### 8.7.4 Quality band formula
+
+`composite` score in `[0, 1]` maps to the first band whose minimum is satisfied:
+
+| Band            | Minimum | Localized as           |
+|-----------------|---------|------------------------|
+| Excellent       | ≥ 0.8   | `Excellent`            |
+| Good            | ≥ 0.6   | `Good`                 |
+| Fair            | ≥ 0.4   | `Fair`                 |
+| Needs Attention | ≥ 0.2   | `Needs Attention`      |
+| Caution         | < 0.2   | `Caution`              |
+| Archived        | —       | No commits in 730 days |
+
+**Factor weights**: recency 0.286, anti-AI 0.202, deletion-health 0.218, scale 0.134, hero 0.160. The composite blends
+raw weighted factors with a confidence factor `1 − 1/(√n+1)` and a small personality term.
 
 ---
 

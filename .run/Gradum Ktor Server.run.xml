@@ -1,24 +1,26 @@
 <component name="ProjectRunConfigurationManager">
-    <configuration default="false" name="Gradum Ktor Server" type="KtorApplicationConfigurationType" factoryName="Ktor">
-        <option name="ALTERNATIVE_JRE_PATH" value="openjdk-24"/>
-        <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true"/>
-        <output_file path="$PROJECT_DIR$/logs/log1.log" is_save="true"/>
-        <option name="MAIN_CLASS_NAME" value="gradum.server.MainKt"/>
-        <module name="gradum.main"/>
-        <option name="VM_PARAMETERS" value="-Xmx2048m -Xms512m"/>
-        <option name="alternativeJrePath" value="openjdk-24"/>
-        <option name="alternativeJrePathEnabled" value="true"/>
-        <option name="includeProvidedScope" value="false"/>
-        <option name="mainClass" value="gradum.server.MainKt"/>
-        <option name="passParentEnvs" value="true"/>
-        <option name="programParameters" value=""/>
-        <option name="shortenCommandLine"/>
-        <option name="vmParameters" value="-Xmx2048m -Xms512m"/>
-        <option name="workingDirectory" value="$PROJECT_DIR$"/>
-        <method v="2">
-            <option name="Make" enabled="true"/>
-            <option name="RunConfigurationTask" enabled="true" run_configuration_name="Gradum Server Tests"
-                    run_configuration_type="GradleRunConfiguration"/>
-        </method>
-    </configuration>
+  <configuration default="false" name="Gradum Ktor Server" type="KtorApplicationConfigurationType" factoryName="Ktor">
+    <option name="ALTERNATIVE_JRE_PATH" value="openjdk-24" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <envs>
+      <env name="TAVILY_API_KEY" value="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" />
+    </envs>
+    <output_file path="$PROJECT_DIR$/logs/log1.log" is_save="true" />
+    <option name="MAIN_CLASS_NAME" value="gradum.server.MainKt" />
+    <module name="gradum.main" />
+    <option name="VM_PARAMETERS" value="-Xmx2048m -Xms512m" />
+    <option name="alternativeJrePath" value="openjdk-24" />
+    <option name="alternativeJrePathEnabled" value="true" />
+    <option name="includeProvidedScope" value="false" />
+    <option name="mainClass" value="gradum.server.MainKt" />
+    <option name="passParentEnvs" value="true" />
+    <option name="programParameters" value="" />
+    <option name="shortenCommandLine" />
+    <option name="vmParameters" value="-Xmx2048m -Xms512m" />
+    <option name="workingDirectory" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Gradum Server Tests" run_configuration_type="GradleRunConfiguration" />
+    </method>
+  </configuration>
 </component>

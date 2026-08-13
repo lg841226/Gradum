@@ -67,6 +67,20 @@
                 </Exception>
             </Exceptions>
         </Tool>
+        <Tool name="search_web">
+            <When>When you need up-to-date information, documentation, or answers about current events, libraries, or APIs that may not be in the codebase.</When>
+            <Returns>{query, max_results, search_depth, results: [{title, snippet, url}]}</Returns>
+            <Parameters>
+                <Param name="query" required="true">Search query</Param>
+                <Param name="max_results" required="false">Max results (1-10, default 5)</Param>
+                <Param name="search_depth" required="false">basic (fast) or advanced (thorough), default basic</Param>
+            </Parameters>
+            <Examples>
+                <Example>search_web(query="Kotlin Flow best practices")</Example>
+                <Example>search_web(query="JUnit 5 migration guide", max_results=3, search_depth="advanced")</Example>
+            </Examples>
+            <Note>Requires TAVILY_API_KEY environment variable.</Note>
+        </Tool>
         <Tool name="explore_project">
             <When>Start of a session to understand project structure, or when a file path is not found.</When>
             <Examples>

@@ -130,6 +130,14 @@
             <!-- endif -->
             Errors: COMMAND_BLOCKED, TIMEOUT, NON_ZERO_EXIT
 
+        search_web: Search the web for information. Use when you need up-to-date information,
+            documentation, or answers about current events, libraries, or APIs.
+            Returns: {query, max_results, search_depth, results: [{title, snippet, url}]}
+            Parameters: query (required), max_results (optional, 1-10, default 5), search_depth (optional: basic|advanced, default basic)
+            Examples: search_web(query="Kotlin Flow best practices")
+                      search_web(query="JUnit 5 migration guide", max_results=3, search_depth="advanced")
+            Note: Requires TAVILY_API_KEY environment variable.
+
         to_do: Create a task list. Call once at the beginning for tasks with 2+ steps.
             Examples: to_do(tasks=["Add login form", "Wire up API call", "Add tests"])
 

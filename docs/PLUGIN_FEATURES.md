@@ -23,7 +23,7 @@ For the server-side protocol, the agent loop, and the Skill contract see
 |-------------------------------------|---------------------------------------------|
 | Kotlin source files (plugin module) | 80 main + 11 test                           |
 | Tool-window / chat UI components    | 2 tool windows (chat + Git analysis)        |
-| i18n keys                           | 251 (`en`) / 249 (`zh_CN`)                  |
+| i18n keys                           | 263 (`en`) / 261 (`zh_CN`)                  |
 | Icon resources                      | 103 SVGs + 1 TTF font (`GoogleSans.ttf`)    |
 | Project-level services              | 1 (`GradumChatSession`)                     |
 | HTTP endpoints consumed             | 3 (`/events`, `/models`, `/stop`)           |
@@ -75,11 +75,19 @@ The first surface the user sees when the tool window opens against an empty sess
   all share one vertical line.
 - **Rotating greeting** — a `SweepLightText` composable renders a typewriter effect across a hand-curated list of
   welcome messages (anti-repetition logic guarantees the same greeting is never shown twice in a row).
-- **Quick-start** — four categories with five variants each (chat, code, question, text); a fresh `Random.nextInt(5)` is
-  drawn for each category at every open, then frozen for the session.
+- **Quick-start** — three categories with five variants each (chat, question, text); a fresh `Random.nextInt(5)` is
+  drawn for each category at every open, then frozen for the session. The code category was removed to reduce clutter.
+- **Focus behavior** — when the input field gains focus and sessions exist, the quick-start section collapses with a
+  `shrinkVertically` animation. When no sessions exist, the quick-start remains visible regardless of focus state.
+- **Recent sessions** — below the quick-start, the `RecentChatsSection` shows the most recently updated saved sessions
+  (2 by default; expands to 4 when the input is focused and quick-start is collapsed). Each row shows the session title
+  (or formatted timestamp if untitled), a leading chat icon, and a hover-revealed delete button with animation.
+- **Merge mode** — a gear button on the recent-sessions header enters merge mode, replacing the welcome screen with the
+  `ManageSessionsBoard` (see [Section 20](#20-session-management)).
 
 Source: [`WelcomeScreen.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/WelcomeScreen.kt),
 [`QuickStartSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/QuickStartSection.kt),
+[`RecentChatsSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/RecentChatsSection.kt),
 [`SweepLightText.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/SweepLightText.kt).
 
 ---
@@ -935,30 +943,16 @@ State is exposed as Compose `mutableStateOf` fields (`scanState`,
 `auditFindings`, `overallLevel`, `qualityBand`, `currentBranch`,
 `scanCompletedAt`, `bannerDismissed`), so the UI recomposes live without any manual refresh wiring.
 
-**Script resolution** (`resolveScript`) prefers, in order:
-
-1. An executable `scripts/git_stats_log/git_stats.py` found by walking up from the project base path,
-2. then one found by walking up from the running plugin JAR's directory,
-3. finally the bundled resource, extracted to `PathManager.getTempDir()/gradum/gitstats`
-   (config `scripts/configs.jsonc` is extracted alongside it and the script is marked executable).
-
 `startScan` guards against a missing script, a missing project base path, and a project without a `.git` directory
 (localized "not a git repo" message), then snapshots the pre-scan state (`restoreStateBeforeScan`) so a canceled scan
 never leaves stale findings behind.
 
-**Two-phase progress** (added 2026-07-31):
+**Two-phase progress** — the scan runs in two background tasks: a determinate phase that tracks per-commit progress,
+then an indeterminate phase that collects project-wide findings. Script stdout is JSONL (one JSON object per line);
+stderr is redirected to a temp file read only on failure.
 
-1. **`ScanCommitsTask`** — a *determinate* background task. It launches the script with `--jsonl` (cwd = project root),
-   reads stdout line by line, updates `indicator.fraction` from `scanning commit` records, and collects any premature
-   findings. When the script emits the `scanned` marker it reads the `branch` field into `currentBranch`, sets
-   `isScanCompleted`, and hands control to phase two *without* destroying the process.
-2. **`AnalyzeDataTask`** — an *indeterminate* background task that keeps reading the same stdout until EOF, now
-   collecting the project-wide
-   `analyzed` / `quality` / `period` records and the SXXXX findings. On a clean exit it stamps `scanCompletedAt` and
-   sets `SUCCESS`; otherwise
-   `handleFailure` reads the script's stderr temp file for a message.
-
-Script stdout is JSONL (one JSON object per line); stderr is redirected to a temp file read only on failure. A `FAILED`
+> For script resolution order, JSONL record schemas, audit code catalog, and quality band formula, see
+> [`ARCHITECTURE.md` §8.3](ARCHITECTURE.md#83-git-audit-internals).
 scan surfaces
 `lastErrorMessage` (localized via `gradum.gitstats.error.<code>` when the script sends an `error` field, else the raw
 message) with a "Back to Home"
@@ -1030,67 +1024,17 @@ carries a green success icon, a **Don't show again** dismiss link (persists via
 and configurable icon, link, and close-content slots — it is deliberately independent of the git-analysis feature and
 can be reused elsewhere.
 
-### 19.7 The analysis script and its JSONL protocol
+### 19.7 Audit findings and quality scoring
 
-The plugin launches `scripts/git_stats_log/git_stats.py --jsonl` (a pure-stdlib Python audit engine; an older
-`scripts/git_stats.py` CLI with charts/CSV/report packaging exists at repo root). The script walks every commit via
-`git log -c --numstat` and emits records in order:
+The audit produces findings categorized into four audit groups (`Suspected LLM Involvement`, `Potential Code Engineering
+Risks`, `Team Process Observation`, `Other`) and severity levels (Very High / High / Watch / Information). Each finding
+is an `SXXXX` code with a localized body.
 
-1. `INFO` header (`message`, `version`), `start` (`repo`, `branches`, `since`).
-2. One `scanning commit` record per commit — `current`, `total`, `hash`
-   (drives the determinate progress bar).
-3. `scanned` — `commits`, `repo`, `elapsed_ms`, `branch` (drives the phase-two hand-off and the tree's branch row).
-4. When `enableQualityAnalysis` is set: `Analyze Quality`, `Audit Deletions`,
-   `analyzed` (`commits`, `problems`, `deletion_percent`, `overall_level`),
-   `quality` (`band`, `score`, `factor_recency`, `factor_ai`,
-   `factor_deletion`, `factor_scale`, `factor_hero`), one **S-finding record**
-   per finding, and per-period `period` records.
-5. `complete` (`elapsed_ms`).
+The quality band (Excellent / Good / Fair / Needs Attention / Caution) is computed from a composite score blending five
+factors: recency, anti-AI, deletion-health, scale, and hero dependency.
 
-**S-finding record schema**: `code` (`SXXXX`), `level` (`critical` / `alert` /
-`watch` / `normal` / `clean`), `type`, `hash` (short hash or placeholder like
-`-`, `Cluster #N`, `Recent Spike`), `index` (-1 for aggregate findings),
-`date`, `days`, `subject`, `author`, `body`, and a `params` object with the template values. The Kotlin parser routes
-any record whose `code` starts with
-`S` into `AuditFinding`; everything else is matched by `message`.
-
-**Audit code catalog** (severity ranking: critical > alert > watch > normal):
-
-| Code    | Level       | Type / trigger                                                                 |
-|---------|-------------|--------------------------------------------------------------------------------|
-| `S1001` | critical    | Single heavy commit (`+additions ≥ 500 AND deletions ≥ 500` in core files).    |
-| `S1002` | critical    | Net reduction: global deletions/additions ≥ 1.0.                               |
-| `S1003` | critical    | Single-author project (≤ 1 non-bot author, ≥ 10 commits).                      |
-| `S1004` | critical    | Mass rewrite: one commit ≥ 50% of total lines (> 1000 lines).                  |
-| `S2001` | alert       | Deletion cluster: ≥ 3 consecutive heavy-deletion commits.                      |
-| `S2002` | alert       | Mature-project churn: ≥ 3 heavy deletions in the last 90 days.                 |
-| `S2003` | alert       | Core net deletion: heavy deletion of core source files.                        |
-| `S2004` | alert       | Accumulation-only: deletions ratio < 0.05.                                     |
-| `S2005` | alert       | AI volume spike: avg lines/commit above the LLM-generation threshold.          |
-| `S2006` | alert       | AI bootstrap: early add/delete ratio signals LLM-generated code.               |
-| `S2007` | alert       | AI uniformity: commit sizes too uniform (low CV of additions).                 |
-| `S2008` | alert       | AI focus deviation: files-per-commit far from the 3.0 target.                  |
-| `S2009` | alert       | Firework burst: too many commits per day over a short active window.           |
-| `S2010` | alert       | Claude flood: co-author signatures (Claude/OpenCode) above threshold.          |
-| `S2011` | alert       | Hero dependency / bus factor: top-5 contributors too concentrated.             |
-| `S2012` | alert       | Abandoned: last commit older than the recency half-life (90 days).             |
-| `S2013` | alert       | AI agent artifacts: marker files for Claude Code, Cursor, Copilot, … detected. |
-| `S3001` | watch       | Non-core deletion: heavy deletion with zero core-source files.                 |
-| `S3002` | watch       | Heavy churn: 0.50 ≤ deletion ratio < 1.0.                                      |
-| `S3003` | watch       | Bot-like author matching `bot` / `agent` patterns.                             |
-| `S3004` | watch       | Weekend warrior: > 50% of commits on non-working days (≥ 10 commits).          |
-| `S3005` | watch       | Day burst: > 10 commits on a single day.                                       |
-| `S3006` | watch       | No merges: fully linear history (≥ 20 commits).                                |
-| `S3007` | watch       | Tiny commits: > 30% under the 10-line threshold.                               |
-| `S3008` | watch       | Vague messages: > 30% match generic-message regex.                             |
-| `S4001` | information | Low cleanup: churn ratio in 0.05–0.25.                                         |
-| `S4002` | information | Small project: < 1000 total lines (≥ 5 commits).                               |
-
-**Quality band** — `composite` score in `[0, 1]` maps to the first band whose minimum is satisfied: `≥0.8 Excellent`,
-`≥0.6 Good`, `≥0.4 Fair`,
-`≥0.2 Needs Attention`, else `Caution` (band `Archived` when no commits in 730 days). Weights: recency 0.286, anti-AI
-0.202, deletion-health 0.218, scale 0.134, hero 0.160; the composite blends raw weighted factors with a confidence
-factor `1 − 1/(√n+1)` and a small personality term.
+> For the full audit code catalog, JSONL record schemas, quality band formula, and composite scoring weights, see
+> [`ARCHITECTURE.md` §8.3](ARCHITECTURE.md#83-git-audit-internals).
 
 ### 19.8 i18n for the audit feature
 
@@ -1110,3 +1054,167 @@ Sources: [
 [`GradumBanner.kt`](../plugin/src/main/kotlin/gradum/idea/GradumBanner.kt),
 [`scripts/git_stats_log/git_stats.py`](../scripts/git_stats_log/git_stats.py),
 [`scripts/configs.jsonc`](../scripts/configs.jsonc).
+
+---
+
+## 20. Chat session management
+
+The plugin persists chat sessions to disk and provides a full management UI for browsing, searching, renaming,
+deleting, and merging sessions.
+
+### 20.1 Session persistence (`ChatSessionStore`)
+
+Sessions are stored as JSON files under the project's `.gradum/sessions/` directory. Each session contains a unique ID,
+title, creation timestamp, update timestamp, and the full message transcript. `ChatSessionStore` handles all CRUD
+operations:
+
+| Operation          | Method                                   | Notes                                                  |
+|--------------------|------------------------------------------|--------------------------------------------------------|
+| List all           | `getAllSessions()`                       | Returns `List<SessionMeta>` sorted by `updatedAt`.     |
+| Read transcript    | `readTranscript(sessionId)`              | Returns `ChatTranscript` or `null`.                    |
+| Save transcript    | `saveTranscript(sessionId, transcript)`  | Creates or overwrites the session file.                |
+| Delete session     | `deleteSession(sessionId)`               | Removes the file from disk.                            |
+| Rename session     | `renameSession(sessionId, newTitle)`     | Updates title in the JSON; returns `false` if missing. |
+| Merge sessions     | `mergeSessions(sessionIds, resultTitle)` | N-way merge; returns the new merged session ID.        |
+| Auto-name          | `generateUniqueTitle()`                  | "New conversation" with collision avoidance.           |
+
+Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/history/ChatSessionStore.kt),
+[`ChatSessionStoreTest.kt`](../plugin/src/test/kotlin/gradum/idea/chat/history/ChatSessionStoreTest.kt).
+
+### 20.2 Session state (`GradumChatSession`)
+
+`GradumChatSession` (project-level service) owns the active session and exposes:
+
+- `currentSessionId` — the currently loaded session.
+- `currentSessionTitle` — the display title; persisted to disk on save.
+- `sessions: SnapshotStateList<SessionMeta>` — live list of all saved sessions.
+- `mergeSelection: SnapshotStateList<String>` — IDs selected for merge/delete in the management board.
+- `isMergeModeActive` — whether the management board is visible.
+
+Key methods:
+
+- `switchSession(sessionId)` — saves the current session, loads the target.
+- `saveCurrentSession()` — persists the current message list under `currentSessionTitle`.
+- `reset()` — clears messages, enters merge mode if needed, generates a new session.
+- `enterMergeMode()` / `exitMergeMode()` — toggles the management board.
+- `mergeSelectedSessions()` — performs the N-way merge and refreshes the list.
+- `deleteSessions(ids)` — batch-deletes multiple sessions.
+
+Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/state/GradumChatSession.kt).
+
+### 20.3 Welcome screen integration
+
+The welcome screen shows recent sessions via `RecentChatsSection`:
+
+- **Default view** — 2 most recently updated sessions are shown.
+- **Expanded view** — when the input field is focused and the quick-start section collapses, 4 sessions are shown.
+- Each row displays the session title (or formatted timestamp if blank), a leading chat icon, and a hover-revealed
+  delete button with `fadeIn + scaleIn` animation.
+- Clicking a row opens the session; the delete icon removes it from disk and the list.
+- A gear button on the header enters merge mode.
+
+Source: [`RecentChatsSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/RecentChatsSection.kt).
+
+### 20.4 Session management board (`ManageSessionsBoard`)
+
+When the user clicks the gear button, the welcome screen is replaced by a full-screen management board with:
+
+#### Layout
+
+- **Max width** — 600dp, centered horizontally; internal elements are left-aligned.
+- **Title bar** — "Manage sessions" (h4) with a gray "Selected N" indicator when items are checked.
+- **Search bar** — a Jewel `TextField` with a leading search icon, an exact-match toggle (`MatchCase` icon), and a
+  "No matching sessions" empty state with a link-style "Clear search" button (link color from `JewelTheme.linkStyle`,
+  hand cursor on hover).
+- **Empty state** — when no sessions exist at all, the board shows "No sessions yet" with a "Back to main" link that
+  exits merge mode.
+
+#### Session list with grouping
+
+Sessions are grouped by age into five buckets:
+
+| Group       | Condition                                   |
+|-------------|---------------------------------------------|
+| Today       | `createdDate == today`                        |
+| Yesterday   | `createdDate == yesterday`                    |
+| This Week   | `createdDate >= today - 7 days`               |
+| This Month  | `createdDate >= today - 1 month`              |
+| Older       | Everything else                              |
+
+Each group is rendered with an h4 header (left-aligned, `FontWeight.Medium`). Empty groups are skipped. The grouping
+function `groupSessionsByAge` uses `java.time.Instant` and `ZoneId.systemDefault()` for locale-aware date comparisons.
+
+#### Row interactions
+
+Every row has a leading `Checkbox` (outside the clickable area) and an inner clickable region:
+
+- **Click** — toggles the selection (does NOT open the session).
+- **Hover** — highlights the row background and reveals two icon buttons with `fadeIn + scaleIn(0.6f)` animation:
+  - `Actions.Edit` — starts inline rename mode.
+  - `General.Delete` — deletes the session.
+- **Rename mode** — the title text is replaced by an undecorated `TextField` pre-filled with the current title. Two
+  buttons appear:
+  - `Actions.Checked` — confirms the rename (calls `onRenameSession`).
+  - `General.Close` — cancels the rename.
+  - No Enter/Escape keyboard shortcuts are wired.
+
+#### Inline toolbar
+
+After the last selected row, an inline toolbar appears (only when `selectedCount >= MIN_MERGE_SESSIONS`, which is 2):
+
+- `Vcs.Merge` icon button — merges all selected sessions into one.
+- `General.Delete` icon button — deletes all selected sessions.
+- `General.Close` icon button (right-aligned) — clears the selection (does NOT exit merge mode).
+
+Each button has a Tooltip with the corresponding i18n key.
+
+#### Merge behavior
+
+Merging calls `ChatSessionStore.mergeSessions()` which:
+
+1. Reads all selected transcripts in parallel.
+2. Interleaves messages by timestamp using a stable merge (tie-breaks by original order).
+3. Writes the merged transcript to a new session file.
+4. Auto-names the result "Merged conversation N" (continues the highest existing number).
+
+After merge, the board stays in management mode (does NOT jump to the chat screen). The selection is cleared and the
+session list refreshes to show the new merged session.
+
+#### Batch delete
+
+`GradumChatSession.deleteSessions(ids)` iterates the selected IDs and calls the single-session `deleteSession` for
+each. The list refreshes automatically.
+
+### 20.5 i18n for session management
+
+All strings live under the `gradum.manage.*` key family:
+
+| Key                              | EN                          | ZH_CN             |
+|----------------------------------|-----------------------------|--------------------|
+| `gradum.manage.title`            | Manage sessions             | 会话管理           |
+| `gradum.manage.cancel`           | Cancel                      | 取消               |
+| `gradum.manage.search.placeholder`| Search sessions            | 搜索会话           |
+| `gradum.manage.search.empty`     | No matching sessions        | 没有匹配的会话     |
+| `gradum.manage.search.exact`     | Match Case                  | 精确匹配           |
+| `gradum.manage.search.clear`     | Reset search filters        | 清空搜索           |
+| `gradum.manage.rename`           | Rename                      | 重命名             |
+| `gradum.manage.rename.placeholder`| New title                  | 新标题             |
+| `gradum.manage.rename.confirm`   | Confirm                     | 确认               |
+| `gradum.manage.delete.selected`  | Delete                      | 删除选中           |
+| `gradum.manage.merge`            | Merge                       | 合并选中           |
+| `gradum.manage.selected.one`     | Selected 1 session          | 已选 1 个会话      |
+| `gradum.manage.selected.many`    | Selected {0} sessions       | 已选 {0} 个会话    |
+| `gradum.manage.empty`            | No sessions yet             | 暂无会话           |
+| `gradum.manage.back`             | Back to main                | 回到主界面         |
+| `gradum.manage.group.today`      | Today                       | 今天               |
+| `gradum.manage.group.yesterday`  | Yesterday                   | 昨天               |
+| `gradum.manage.group.this.week`  | This Week                   | 7 天内             |
+| `gradum.manage.group.this.month` | This Month                  | 1 个月内           |
+| `gradum.manage.group.older`      | Older                       | 更早               |
+| `gradum.merge.titled`            | Merged conversation         | 合并后的对话       |
+
+Sources: [`ManageSessionsBoard.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/ManageSessionsBoard.kt),
+[`WelcomeScreen.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/WelcomeScreen.kt),
+[`GradumUI.kt`](../plugin/src/main/kotlin/gradum/idea/ui/GradumUI.kt),
+[`GradumBundle.properties`](../plugin/src/main/resources/messages/GradumBundle.properties),
+[`GradumBundle_zh_CN.properties`](../plugin/src/main/resources/messages/GradumBundle_zh_CN.properties).

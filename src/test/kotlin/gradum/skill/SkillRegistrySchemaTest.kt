@@ -108,6 +108,7 @@ class SkillRegistrySchemaTest {
             "finish_to_do_item",
             "grep",
             "glob",
+            "search_web",
         )
         val EXPECTED_READ_ONLY: Set<String> = setOf(
             "read_file",
@@ -115,6 +116,7 @@ class SkillRegistrySchemaTest {
             "run_cmd",
             "grep",
             "glob",
+            "search_web",
         )
         val EXPECTED_EDIT: Set<String> = setOf(
             "read_file",
@@ -124,6 +126,7 @@ class SkillRegistrySchemaTest {
             "save_file",
             "grep",
             "glob",
+            "search_web",
         )
     }
 }

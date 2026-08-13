@@ -62,6 +62,7 @@ object ToolCallRendererRegistry {
     ExploredRenderer(),
     GrepRenderer(),
     GlobRenderer(),
+    SearchedRenderer(),
     PlannedRenderer(),
     CompletedRenderer(),
 
