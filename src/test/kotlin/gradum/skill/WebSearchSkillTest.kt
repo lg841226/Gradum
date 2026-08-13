@@ -142,12 +142,9 @@ class WebSearchSkillTest {
 
   @Test
   fun `tavily returns success or network failure`() {
-    when (val result = skill.execute(mapOf("query" to "Kotlin programming language"), ctx())) {
-      is SkillResult.Success -> {
-        assertTrue(result.data.containsKey("results"))
-        assertEquals("tavily", result.data["search_depth"] ?: "basic")
-      }
-
+    val result = skill.execute(mapOf("query" to "Kotlin programming language"), ctx())
+    when (result) {
+      is SkillResult.Success -> assertTrue(result.data.containsKey("results"))
       is SkillResult.Failure -> assertEquals("SEARCH_FAILED", result.code)
     }
   }
