@@ -255,7 +255,8 @@ src/main/kotlin/gradum/
 │   ├── RunCommandSkill.kt      # run_cmd (blocking/detached + CommandFilter + project cwd)
 │   ├── ExploreProjectSkill.kt  # explore_project (tree scan → categorized file lists, depth 5..14)
 │   ├── SearchSkills.kt         # grep + glob (content regex search, glob path matcher)
-│   └── TodoSkill.kt            # TodoManager singleton + to_do + finish_to_do_item
+│   ├── TodoSkill.kt            # TodoManager singleton + to_do + finish_to_do_item
+│   └── WebSearchSkill.kt       # search_web (Tavily API, requires TAVILY_API_KEY env var)
 │
 └── util/
     ├── CommandFilter.kt        # classifyCommand() + read-only whitelist + ProtectedPaths
@@ -372,6 +373,7 @@ flowchart TD
         SK_RC[RunCommandSkill<br/>classifyCommand to ProcessBuilder]
         SK_GP[GrepSkill / GlobSkill<br/>concurrent file scan]
         SK_TD[TodoSkill<br/>TodoManager singleton]
+        SK_WS[WebSearchSkill<br/>Tavily API search]
     end
 
     GS --> SK_RD
@@ -380,11 +382,13 @@ flowchart TD
     GS --> SK_RC
     GS --> SK_GP
     GS --> SK_TD
+    GS --> SK_WS
 
     subgraph OUTSIDE["Outside world"]
         FS[Local Filesystem]
         SH[Shell]
         LLM_SRV
+        TAVILY[Tavily API]
     end
 
     SK_RD --> FS
@@ -393,6 +397,7 @@ flowchart TD
     SK_RC --> SH
     SK_GP --> FS
     SK_TD --> FS
+    SK_WS --> TAVILY
     END --> OUT["<projectRoot>/.gradum/context.json<br/>encrypted"]
 ```
 
@@ -1266,6 +1271,7 @@ classDiagram
     class ExploreProjectSkill
     class TodoSkill
     class CompletePlanSkill
+    class WebSearchSkill
 
     SkillResult <|-- Success
     SkillResult <|-- Failure
@@ -1276,6 +1282,7 @@ classDiagram
     Skill <|-- ExploreProjectSkill
     Skill <|-- TodoSkill
     Skill <|-- CompletePlanSkill
+    Skill <|-- WebSearchSkill
     SkillRegistry o-- Skill
 
     class Agent {
@@ -1438,6 +1445,7 @@ flowchart LR
     ALL --> G4[Task management]
     ALL --> G5[Generic]
     ALL --> G6[Plugin-side]
+    ALL --> G7[Web search]
     G1 --> F1["FILE_NOT_FOUND<br/>ReadFile, EditFile: path doesn't exist"]
     G1 --> F2["FILE_TOO_LARGE<br/>ReadFile: exceeds 1MB or 10000 lines"]
     G2 --> F3["CODE_NOT_FOUND<br/>EditFile: search string matches 0 times"]
@@ -1456,12 +1464,14 @@ flowchart LR
     G6 --> F16["TOOL_NOT_PERMITTED<br/>Mode gate: skill forbidden in current ToolMode"]
     G6 --> F17["PERMISSION_DENIED<br/>Plugin: user declined the pending action"]
     G6 --> F18["INVALID_SCENARIO_XML<br/>Plugin: scenario/context XML malformed"]
+    G7 --> F19["SEARCH_FAILED<br/>WebSearch: network error, rate limit, missing API key"]
     style G1 fill: #c1daf4
     style G2 fill: #f4e1c1
     style G3 fill: #f4c1c1
     style G4 fill: #c1f4c1
     style G5 fill: #d4d4d4
     style G6 fill: #e8d4f4
+    style G7 fill: #f4f4c1
 ```
 
 ### 5.2 LLM Client Error Handling
@@ -1839,6 +1849,9 @@ gradum.idea/
 │   │   └── GradumApiClient.kt        # HTTP client for server communication
 │   ├── input/
 │   │   └── ChatInputState.kt         # ChatInputState + ChatInputActions data classes
+│   ├── history/
+│   │   ├── ChatSessionStore.kt       # Session CRUD: list, read, save, delete, rename, merge
+│   │   └── ChatTranscript.kt         # Transcript model for session persistence (v1 format)
 │   ├── model/
 │   │   ├── ChatMessage.kt            # ChatEvent / RenderBlock / ChatMessage + formatTimestamp
 │   │   ├── ErrorCode.kt              # Shared 18-code error enum
@@ -1881,11 +1894,14 @@ gradum.idea/
 │       │       ├── ExploredRenderer.kt       #   "Explored" — server skill `explore_project`
 │       │       ├── GrepRenderer.kt           #   "Grep"     — server skill `grep`
 │       │       ├── GlobRenderer.kt           #   "Glob"     — server skill `glob`
+│       │       ├── SearchedRenderer.kt       #   "Searched" — server skill `search_web` (Tavily)
 │       │       ├── PlannedRenderer.kt        #   "Planned"  — server skill `to_do` (add)
 │       │       ├── CompletedRenderer.kt      #   "Completed"— server skill `to_do` (done)
 │       │       └── DefaultRenderer.kt        #   "*"         — wildcard catch-all (any unrecognised alias)
 │       ├── home/
 │       │   ├── QuickStartSection.kt   # Welcome quick-start tiles (4 × 5 variants)
+│       │   ├── RecentChatsSection.kt  # Recent saved sessions on welcome screen
+│       │   ├── ManageSessionsBoard.kt # Full-screen session management board
 │       │   └── WelcomeScreen.kt       # Welcome screen composable
 │       ├── input/
 │       │   ├── AddContextPopup.kt     # File / directory add menu
