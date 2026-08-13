@@ -61,16 +61,13 @@ fun RecentChatsSection(
   onDeleteSession: (String) -> Unit
 ) {
   Column(modifier = modifier) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
         text = message("gradum.recent.chats"),
         style = JewelTheme.typography.h4TextStyle
       )
       if (onStartMerge != null) {
+        Spacer(modifier = Modifier.width(GradumSpacing.md))
         Tooltip(tooltip = { Text(text = message("gradum.recent.manage")) }) {
           IconButton(onClick = onStartMerge) {
             Icon(

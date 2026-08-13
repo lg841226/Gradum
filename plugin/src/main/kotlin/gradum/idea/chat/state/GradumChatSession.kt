@@ -358,12 +358,30 @@ class GradumChatSession {
     val sessionStore: ChatSessionStore = chatStore ?: return false
     val firstSessionId: String = mergeSelection[0]
     val secondSessionId: String = mergeSelection[1]
+    val resultTitle: String = nextMergeTitle()
     val mergedSessionId: String = withContext(Dispatchers.IO) {
-      sessionStore.mergeSessions(firstSessionId, secondSessionId)
+      sessionStore.mergeSessions(firstSessionId, secondSessionId, resultTitle)
     } ?: return false
     exitMergeMode()
     refreshSessions()
     return switchSession(mergedSessionId)
+  }
+
+  /**
+   * Auto-names a merge result "Merged conversation <n>" (`gradum.merge.titled`),
+   * continuing the highest existing number so repeated merges produce
+   * "合并后的对话1", "合并后的对话2", … without collisions.
+   */
+  private fun nextMergeTitle(): String {
+    val base: String = message("gradum.merge.titled")
+    val numberedTitlePattern: Regex = Regex("^${Regex.escape(base)}(\\d+)$")
+    var maxIndex: Int = 0
+    sessions.forEach { sessionMeta ->
+      val match: MatchResult? = numberedTitlePattern.matchEntire(sessionMeta.title)
+      val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+      if (index > maxIndex) maxIndex = index
+    }
+    return base + (maxIndex + 1)
   }
 
   /**

@@ -136,7 +136,7 @@ class ChatSessionStoreTest {
       chatRecord("beta", 150L, 250L, "b1")
     )
 
-    val mergedId: String? = store.mergeSessions("a1", "b1")
+    val mergedId: String? = store.mergeSessions("a1", "b1", "Merged conversation")
     assertTrue("expected merge to succeed", mergedId != null)
 
     // Non-destructive: both sources still exist.
@@ -157,7 +157,9 @@ class ChatSessionStoreTest {
       ),
       rendered
     )
-    assertEquals("alpha q", merged.sessionMeta.title)
+    assertEquals("Merged conversation", merged.sessionMeta.title)
+    // The merged session is a brand-new file, distinct from both sources.
+    assertEquals(3, store.listSessions().size)
   }
 
   @Test
@@ -166,7 +168,7 @@ class ChatSessionStoreTest {
       SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
       chatRecord("alpha", 100L, 200L, "a1")
     )
-    assertNull(store.mergeSessions("a1", "nope"))
-    assertNull(store.mergeSessions("nope", "a1"))
+    assertNull(store.mergeSessions("a1", "nope", "Merged conversation"))
+    assertNull(store.mergeSessions("nope", "a1", "Merged conversation"))
   }
 }

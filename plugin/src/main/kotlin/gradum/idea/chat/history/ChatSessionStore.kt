@@ -153,14 +153,15 @@ class ChatSessionStore(private val projectRoot: Path) {
    * weave" — see [interleaveMessages]).
    *
    * The two source sessions are left untouched: merge is non-destructive. The
-   * merged session gets a fresh [nextSessionId], a title derived from the
-   * merged messages, an `createdAt` of the earlier origin, and an `updatedAt`
-   * of now so it surfaces at the top of the recent list.
+   * merged session gets a fresh [nextSessionId], the caller-supplied
+   * [resultTitle] (the merge UI auto-names it), an `createdAt` of the earlier
+   * origin, and an `updatedAt` of now so it surfaces at the top of the recent
+   * list.
    *
    * @return The new session id, or `null` when either source session is
    *   missing or its transcript cannot be parsed.
    */
-  fun mergeSessions(firstSessionId: String, secondSessionId: String): String? {
+  fun mergeSessions(firstSessionId: String, secondSessionId: String, resultTitle: String): String? {
     val firstTranscript: ChatTranscript.ParsedTranscript = loadSession(firstSessionId) ?: return null
     val secondTranscript: ChatTranscript.ParsedTranscript = loadSession(secondSessionId) ?: return null
     val mergedMessages: List<ChatMessage> = interleaveMessages(firstTranscript.messages, secondTranscript.messages)
@@ -168,7 +169,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     saveSession(
       SessionMeta(
         sessionId = newSessionId,
-        title = ChatTranscript.titleFor(mergedMessages),
+        title = resultTitle,
         createdAt = minOf(firstTranscript.sessionMeta.createdAt, secondTranscript.sessionMeta.createdAt),
         updatedAt = System.currentTimeMillis(),
         modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
