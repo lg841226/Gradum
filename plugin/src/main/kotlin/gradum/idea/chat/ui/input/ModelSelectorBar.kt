@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-12 18:17:11 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-12 18:55:14 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -32,14 +32,14 @@ import org.jetbrains.jewel.ui.typography
 
 @Composable
 fun ModelSelectorBar(
+  modifier: Modifier = Modifier,
   selectedModel: ModelInfo? = null,
   isAutoSelected: Boolean = false,
   models: List<ModelInfo> = emptyList(),
   pinnedModels: List<ModelInfo> = emptyList(),
   onSelectAuto: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
-  onSelectModel: (ModelInfo?) -> Unit = {},
-  modifier: Modifier = Modifier
+  onSelectModel: (ModelInfo?) -> Unit = {}
 ) {
   var showModelMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showModelMenu = false }
@@ -62,12 +62,12 @@ fun ModelSelectorBar(
         ) {
           buildMenu(
             models = models,
-            selectedModel = selectedModel,
             pinnedModels = pinnedModels,
+            selectedModel = selectedModel,
             isAutoSelected = isAutoSelected,
-            onSelectModel = { onSelectModel(it); dismiss() },
             onTogglePin = { onTogglePin(it); dismiss() },
-            onSelectAuto = { onSelectAuto(); dismiss() }
+            onSelectAuto = { onSelectAuto(); dismiss() },
+            onSelectModel = { onSelectModel(it); dismiss() }
           )
         }
       }
@@ -82,10 +82,10 @@ fun ModelSelectorBar(
 
 
 private fun MenuScope.buildMenu(
-  isAutoSelected: Boolean,
-  selectedModel: ModelInfo?,
   models: List<ModelInfo>,
   pinnedModels: List<ModelInfo>,
+  isAutoSelected: Boolean,
+  selectedModel: ModelInfo?,
   onSelectAuto: () -> Unit,
   onTogglePin: (ModelInfo) -> Unit,
   onSelectModel: (ModelInfo) -> Unit
@@ -99,7 +99,7 @@ private fun MenuScope.buildMenu(
     ) {
       Text(
         text = message("gradum.model"),
-        fontWeight = FontWeight.Bold
+        fontWeight = FontWeight.SemiBold
       )
     }
   }
@@ -179,9 +179,9 @@ private fun AutoModelItem() {
 @Composable
 private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit) {
   val iconKey: IconKey? = resolveProviderIcon(model)
-  val pinIcon: IconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin
-  val pinTip: String = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin")
   val formatted: FormattedModelName = parseModelName(model.name)
+  val pinTip: String = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin")
+  val pinIcon: IconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin
 
   Row(
     modifier = Modifier
@@ -229,8 +229,8 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
     IconTooltipButton(
       tooltip = pinTip,
       iconKey = pinIcon,
-      contentDescription = pinTip,
-      onClick = onTogglePin
+      onClick = onTogglePin,
+      contentDescription = pinTip
     )
   }
 }
@@ -297,22 +297,8 @@ private fun resolveSelectorText(selectedModel: ModelInfo?, isAutoSelected: Boole
 private fun resolveProviderIcon(model: ModelInfo): IconKey? {
   val providerName = model.provider.lowercase().trim()
   if (providerName.isNotBlank()) {
-    PROVIDER_ICON_MAP[providerName]?.let { return it }
+    GradumIcons.resolveModelIcon(model.name)?.let { return it }
     return AllIconsKeys.Stub
   }
   return GradumIcons.resolveModelIcon(model.name)
 }
-
-private val PROVIDER_ICON_MAP = mapOf(
-  "qwen" to GradumIcons.ProviderAlibaba,
-  "anthropic" to GradumIcons.ProviderAnthropic,
-  "deepseek" to GradumIcons.ProviderDeepseek,
-  "google" to GradumIcons.ProviderGoogle,
-  "meta" to GradumIcons.ProviderMeta,
-  "minimax" to GradumIcons.ProviderMinimax,
-  "mistral" to GradumIcons.ProviderMistral,
-  "openai" to GradumIcons.ProviderOpenai,
-  "xai" to GradumIcons.ProviderXai,
-  "xiaomi" to GradumIcons.ProviderXiaomi,
-  "glm" to GradumIcons.ProviderZhipuai
-)
