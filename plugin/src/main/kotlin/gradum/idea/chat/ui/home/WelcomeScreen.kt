@@ -146,21 +146,23 @@ fun WelcomeScreen(
         }
       }
     }
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(vertical = GradumSpacing.lg)
-        .align(Alignment.BottomCenter),
-      horizontalArrangement = Arrangement.Center,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Spacer(modifier = Modifier.width(GradumSpacing.md))
-      Text(
-        text = message("gradum.disclaimer"),
-        style = JewelTheme.typography.small,
-        fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
-        color = JewelTheme.globalColors.text.info
-      )
+    if (!isMergeModeActive) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(vertical = GradumSpacing.lg)
+          .align(Alignment.BottomCenter),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Spacer(modifier = Modifier.width(GradumSpacing.md))
+        Text(
+          text = message("gradum.disclaimer"),
+          style = JewelTheme.typography.small,
+          fontFamily = JewelTheme.typography.editorTextStyle.fontFamily,
+          color = JewelTheme.globalColors.text.info
+        )
+      }
     }
   }
 }

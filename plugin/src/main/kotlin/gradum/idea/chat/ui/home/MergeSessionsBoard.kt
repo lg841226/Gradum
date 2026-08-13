@@ -2,18 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MergeSessionsBoard.kt  2026-08-13 by gwy
+ * MergeSessionsBoard.kt  2026-08-13 12:12:11 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -31,11 +27,7 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Checkbox
-import org.jetbrains.jewel.ui.component.DefaultButton
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -62,9 +54,7 @@ fun MergeSessionsBoard(
   val maxSessions: Int = GradumChatSession.MAX_MERGE_SESSIONS
 
   Column(
-    modifier = modifier
-      .widthIn(max = 600.dp)
-      .fillMaxHeight()
+    modifier = modifier.fillMaxHeight()
   ) {
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -77,16 +67,15 @@ fun MergeSessionsBoard(
       )
       IconButton(onClick = onCancel) {
         Icon(
-          key = AllIconsKeys.General.Close,
-          contentDescription = message("gradum.merge.cancel")
+          contentDescription = message("gradum.merge.cancel"),
+          key = AllIconsKeys.General.Close
         )
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
     Text(
-      text = message("gradum.merge.selected.hint", selectedCount, maxSessions),
       color = JewelTheme.globalColors.text.info,
-      style = JewelTheme.typography.small
+      text = message("gradum.merge.selected.hint", selectedCount, maxSessions)
     )
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
     Column(
@@ -103,11 +92,18 @@ fun MergeSessionsBoard(
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.lg))
-    DefaultButton(
-      onClick = onMerge,
-      enabled = selectedCount == maxSessions
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(bottom = GradumSpacing.lg),
+      horizontalArrangement = Arrangement.Center
     ) {
-      Text(text = message("gradum.merge.action"))
+      DefaultButton(
+        onClick = onMerge,
+        enabled = selectedCount == maxSessions
+      ) {
+        Text(text = message("gradum.merge.action"))
+      }
     }
   }
 }
@@ -156,7 +152,6 @@ private fun MergeSessionRow(
       Text(
         text = formatTimestamp(session.updatedAt),
         color = JewelTheme.globalColors.text.info,
-        style = JewelTheme.typography.small
       )
     }
   }
