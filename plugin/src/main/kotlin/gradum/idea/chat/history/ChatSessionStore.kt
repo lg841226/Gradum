@@ -148,35 +148,49 @@ class ChatSessionStore(private val projectRoot: Path) {
   }
 
   /**
-   * Merges two saved sessions into a brand-new one whose transcript is both
-   * conversations interleaved chronologically by message timestamp ("timeline
-   * weave" — see [interleaveMessages]).
+   * Merges [sessionIds] (two or more) into a brand-new session whose
+   * transcript is every source conversation interleaved chronologically by
+   * message timestamp ("timeline weave" — see [interleaveMessages]).
    *
-   * The two source sessions are left untouched: merge is non-destructive. The
+   * The source sessions are left untouched: merge is non-destructive. The
    * merged session gets a fresh [nextSessionId], the caller-supplied
-   * [resultTitle] (the merge UI auto-names it), an `createdAt` of the earlier
-   * origin, and an `updatedAt` of now so it surfaces at the top of the recent
-   * list.
+   * [resultTitle], a `createdAt` of the earliest origin, and an `updatedAt`
+   * of now so it surfaces at the top of the recent list.
    *
-   * @return The new session id, or `null` when either source session is
-   *   missing or its transcript cannot be parsed.
+   * @return The new session id, or `null` when any source session is missing
+   *   or its transcript cannot be parsed.
    */
-  fun mergeSessions(firstSessionId: String, secondSessionId: String, resultTitle: String): String? {
-    val firstTranscript: ChatTranscript.ParsedTranscript = loadSession(firstSessionId) ?: return null
-    val secondTranscript: ChatTranscript.ParsedTranscript = loadSession(secondSessionId) ?: return null
-    val mergedMessages: List<ChatMessage> = interleaveMessages(firstTranscript.messages, secondTranscript.messages)
+  fun mergeSessions(sessionIds: List<String>, resultTitle: String): String? {
+    val transcripts: List<ChatTranscript.ParsedTranscript> =
+      sessionIds.map { transcriptId -> loadSession(transcriptId) ?: return null }
+    val mergedMessages: List<ChatMessage> = interleaveMessages(transcripts.map { it.messages })
     val newSessionId: String = nextSessionId()
     saveSession(
       SessionMeta(
         sessionId = newSessionId,
         title = resultTitle,
-        createdAt = minOf(firstTranscript.sessionMeta.createdAt, secondTranscript.sessionMeta.createdAt),
+        createdAt = transcripts.minOf { it.sessionMeta.createdAt },
         updatedAt = System.currentTimeMillis(),
         modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
       ),
       mergedMessages
     )
     return newSessionId
+  }
+
+  /**
+   * Rewrites [sessionId]'s transcript header with [newTitle]. The
+   * conversation body is untouched — messages are re-serialized unchanged
+   * into the same session directory.
+   *
+   * @return `false` when the session does not exist or [newTitle] is blank.
+   */
+  fun renameSession(sessionId: String, newTitle: String): Boolean {
+    val trimmedTitle: String = newTitle.trim()
+    if (trimmedTitle.isEmpty()) return false
+    val transcript: ChatTranscript.ParsedTranscript = loadSession(sessionId) ?: return false
+    saveSession(transcript.sessionMeta.copy(title = trimmedTitle), transcript.messages)
+    return true
   }
 
   /**
@@ -213,14 +227,13 @@ class ChatSessionStore(private val projectRoot: Path) {
     private const val HEADER_LINE_LIMIT: Int = 8
 
     /**
-     * Chronological interleave of two conversations for [ChatSessionStore.mergeSessions].
-     *
-     * The concatenated lists are stably sorted by [ChatMessage.timestamp], so
-     * the two source orders stay intact whenever timestamps tie (a session's
-     * own messages are already in chronological order on disk).
+     * Chronological interleave of multiple conversations for
+     * [ChatSessionStore.mergeSessions]. The concatenated message lists are
+     * stably sorted by [ChatMessage.timestamp], so each source's own order
+     * stays intact whenever timestamps tie.
      */
-    fun interleaveMessages(first: List<ChatMessage>, second: List<ChatMessage>): List<ChatMessage> =
-      (first + second).sortedWith(compareBy { it.timestamp })
+    fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =
+      conversations.flatten().sortedWith(compareBy { it.timestamp })
 
     /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
     private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")

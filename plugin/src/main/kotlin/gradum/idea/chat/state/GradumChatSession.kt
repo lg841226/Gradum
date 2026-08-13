@@ -210,7 +210,7 @@ class GradumChatSession {
   /** Whether the Welcome screen is in "merge sessions" selection mode. */
   var isMergeModeActive: Boolean by mutableStateOf(false)
 
-  /** Session ids ticked for merging on the merge board. Never longer than [MAX_MERGE_SESSIONS]. */
+  /** Session ids ticked on the manage board (merge / batch delete / rename). */
   val mergeSelection: SnapshotStateList<String> = mutableStateListOf()
 
   /**
@@ -241,6 +241,7 @@ class GradumChatSession {
    */
   fun reset() {
     saveCurrentSession()
+    exitMergeMode()
     val job = currentJob
     currentJob = null
     if (job != null) {
@@ -273,10 +274,15 @@ class GradumChatSession {
     val targetSessionId: String = activeSessionId ?: ChatSessionStore.nextSessionId().also { activeSessionId = it }
     val createdAt: Long = messages.firstOrNull { it.isUserMessage }?.timestamp ?: System.currentTimeMillis()
     val modelName: String = messages.lastOrNull()?.modelName.orEmpty()
+    // Keep an already-set title (a resumed or merged session keeps its
+    // persisted/auto-generated name); only derive from the first message for
+    // a brand-new conversation whose title has not been assigned yet.
+    val sessionTitle: String = currentSessionTitle.ifBlank { ChatTranscript.titleFor(messages) }
+    currentSessionTitle = sessionTitle
     sessionStore.saveSession(
       SessionMeta(
         sessionId = targetSessionId,
-        title = ChatTranscript.titleFor(messages),
+        title = sessionTitle,
         createdAt = createdAt,
         updatedAt = System.currentTimeMillis(),
         modelName = modelName
@@ -332,56 +338,81 @@ class GradumChatSession {
   }
 
   /**
-   * Ticks or unticks [sessionId] on the merge board. The pool never holds
-   * more than [MAX_MERGE_SESSIONS] entries — extra ticks are ignored.
+   * Ticks or unticks [sessionId] on the manage board. Any number of sessions
+   * may be selected at once; the enabled bottom actions depend on the count.
    */
   fun toggleMergeSelection(sessionId: String) {
     if (sessionId in mergeSelection) {
       mergeSelection.remove(sessionId)
-    } else if (mergeSelection.size < MAX_MERGE_SESSIONS) {
+    } else {
       mergeSelection.add(sessionId)
     }
   }
 
-  /** Whether a merge can be performed right now (exactly [MAX_MERGE_SESSIONS] picked). */
+  /** Whether a merge can be performed right now (at least two sessions picked). */
   val canMergeSelection: Boolean
-    get() = mergeSelection.size == MAX_MERGE_SESSIONS
+    get() = mergeSelection.size >= MIN_MERGE_SESSIONS
 
   /**
-   * Creates the merged session from the two selected ones and opens it.
+   * Creates a single merged session from every selected session (interleaved
+   * by message timestamp) and opens it.
    *
-   * @return `true` when both sources merged successfully and the merged
+   * @return `true` when all sources merged successfully and the merged
    *   session was opened.
    */
   suspend fun mergeSelectedSessions(): Boolean {
-    if (mergeSelection.size != MAX_MERGE_SESSIONS) return false
+    if (mergeSelection.size < MIN_MERGE_SESSIONS) return false
     val sessionStore: ChatSessionStore = chatStore ?: return false
-    val firstSessionId: String = mergeSelection[0]
-    val secondSessionId: String = mergeSelection[1]
     val resultTitle: String = nextMergeTitle()
-    val mergedSessionId: String = withContext(Dispatchers.IO) {
-      sessionStore.mergeSessions(firstSessionId, secondSessionId, resultTitle)
+    withContext(Dispatchers.IO) {
+      sessionStore.mergeSessions(mergeSelection.toList(), resultTitle)
     } ?: return false
-    exitMergeMode()
+    mergeSelection.clear()
     refreshSessions()
-    return switchSession(mergedSessionId)
+    return true
   }
 
   /**
-   * Auto-names a merge result "Merged conversation <n>" (`gradum.merge.titled`),
+   * Auto-names a merge result `Merged conversation <n>` (`gradum.merge.titled`),
    * continuing the highest existing number so repeated merges produce
-   * "合并后的对话1", "合并后的对话2", … without collisions.
+   * "合并后的对话 1", "合并后的对话 2", … without collisions.
    */
   private fun nextMergeTitle(): String {
     val base: String = message("gradum.merge.titled")
-    val numberedTitlePattern: Regex = Regex("^${Regex.escape(base)}(\\d+)$")
+    val numberedTitlePattern: Regex = Regex("^${Regex.escape(base)}\\s+(\\d+)$")
     var maxIndex: Int = 0
     sessions.forEach { sessionMeta ->
       val match: MatchResult? = numberedTitlePattern.matchEntire(sessionMeta.title)
       val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
       if (index > maxIndex) maxIndex = index
     }
-    return base + (maxIndex + 1)
+    return "$base ${maxIndex + 1}"
+  }
+
+  /**
+   * Renames a saved session (persisted to its transcript header) and refreshes
+   * the list. When the renamed session is the active conversation its
+   * [currentSessionTitle] follows along.
+   *
+   * @return `true` when the rename was persisted.
+   */
+  suspend fun renameSession(sessionId: String, newTitle: String): Boolean {
+    val sessionStore: ChatSessionStore = chatStore ?: return false
+    val renamed: Boolean = withContext(Dispatchers.IO) {
+      sessionStore.renameSession(sessionId, newTitle)
+    }
+    if (!renamed) return false
+    if (sessionId == activeSessionId) currentSessionTitle = newTitle.trim()
+    refreshSessions()
+    return true
+  }
+
+  /**
+   * Deletes several sessions at once (transcript directories locally, server
+   * context via `POST /session/delete` for each), then refreshes the list.
+   */
+  fun deleteSessions(sessionIds: List<String>) {
+    sessionIds.forEach { sessionId -> deleteSession(sessionId) }
   }
 
   /**
@@ -1061,8 +1092,8 @@ class GradumChatSession {
     const val MAX_ATTACHMENTS: Int = 10
     const val MAX_PENDING_MESSAGES: Int = 2
 
-    /** Number of sessions a single merge combines (checked on the merge board). */
-    const val MAX_MERGE_SESSIONS: Int = 2
+    /** Minimum number of sessions a merge combines. */
+    const val MIN_MERGE_SESSIONS: Int = 2
 
     /** Minimum milliseconds to display the "Sending" animation before the request fires. */
     const val MIN_SENDING_MS: Long = 400

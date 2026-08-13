@@ -79,7 +79,7 @@ fun QuickStartSection(
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
     ) {
-      repeat(4) { categoryIndex ->
+      listOf(0, 1, 3).forEach { categoryIndex ->
         SuggestionCard(
           textState = textState,
           suggestionVariants = suggestionVariants,

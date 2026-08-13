@@ -56,10 +56,12 @@ const val MAX_RECENT_SESSIONS: Int = 2
 fun RecentChatsSection(
   sessions: List<SessionMeta>,
   modifier: Modifier = Modifier,
+  expanded: Boolean = false,
   onStartMerge: (() -> Unit)? = null,
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit
 ) {
+  val displayCount = if (expanded) MAX_RECENT_SESSIONS + 2 else MAX_RECENT_SESSIONS
   Column(modifier = modifier) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
@@ -79,7 +81,7 @@ fun RecentChatsSection(
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
-    sessions.take(MAX_RECENT_SESSIONS).forEach { session ->
+    sessions.take(displayCount).forEach { session ->
       RecentSessionRow(
         session = session,
         onOpenSession = onOpenSession,
