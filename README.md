@@ -59,13 +59,14 @@ java -jar build/libs/gradum@0.9.2.jar --port 9000 --model qwen2.5-coder:7b --thi
 
 ## HTTP API
 
-| Endpoint  | Method | Description                   |
-|-----------|--------|-------------------------------|
-| `/events` | POST   | Execute agent, returns NDJSON |
-| `/health` | GET    | Health check                  |
-| `/models` | GET    | List available models         |
-| `/skills` | GET    | List available skills         |
-| `/stop`   | POST   | Stop current agent task       |
+| Endpoint          | Method | Description                   |
+|-------------------|--------|-------------------------------|
+| `/events`         | POST   | Execute agent, returns NDJSON |
+| `/health`         | GET    | Health check                  |
+| `/models`         | GET    | List available models         |
+| `/skills`         | GET    | List available skills         |
+| `/stop`           | POST   | Stop current agent task       |
+| `/session/delete` | POST   | Delete a persisted session    |
 
 ```bash
 # Example: Execute an agent task
@@ -87,10 +88,28 @@ curl -X POST http://localhost:8765/events \
 | `save_file`         | Write a new file                                            |
 | `run_cmd`           | Execute shell commands (blocking or detached)               |
 | `explore_project`   | Explore project structure with depth control and file stats |
+| `grep`              | Content regex search across project files                   |
+| `glob`              | Glob path matcher for file discovery                        |
 | `to_do`             | Initialize a task list                                      |
 | `finish_to_do_item` | Mark tasks complete                                         |
+| `search_web`        | Web search via Tavily API (requires API key, see below)     |
 
 ## LLM Backend Setup
+
+### Web Search (Tavily API)
+
+The `search_web` skill uses the [Tavily Search API](https://tavily.com) for web search. To enable it:
+
+1. Register a free account at [tavily.com](https://tavily.com)
+2. Get your API key from the dashboard
+3. Set the environment variable:
+
+```bash
+export TAVILY_API_KEY="tvly-dev-..."
+```
+
+The free tier includes 1,000 API calls per month. Without this key, the `search_web` skill will return an error
+when invoked, but all other skills work normally.
 
 ### Ollama
 
@@ -148,6 +167,7 @@ flowchart TB
         S5[ExploreProject]
         S6[Todo]
         S7[CompletePlan]
+        S8[WebSearch]
     end
 
     subgraph Utilities

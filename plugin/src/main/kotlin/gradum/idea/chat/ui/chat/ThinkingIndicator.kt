@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-14 01:57:18 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-14 02:21:23 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -111,8 +111,8 @@ fun ThinkingIndicator(
                 is MarkdownSegment.Plain -> Markdown(
                   markdown = segment.text,
                   onUrlClick = onUrlClick,
-                  modifier = Modifier.fillMaxWidth(),
                   markdownStyling = thinkingStyling,
+                  modifier = Modifier.fillMaxWidth(),
                   blockRenderer = simplifiedCodeRenderer,
                 )
 
@@ -127,7 +127,7 @@ fun ThinkingIndicator(
                   onUrlClick = onUrlClick,
                   markdownStyling = thinkingStyling,
                   modifier = Modifier.fillMaxWidth(),
-                  blockRenderer = simplifiedCodeRenderer,
+                  blockRenderer = simplifiedCodeRenderer
                 )
               }
             }

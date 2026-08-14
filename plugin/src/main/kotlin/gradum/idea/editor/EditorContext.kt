@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-08-12 12:38:25 Changed by gwy
+ * EditorContext.kt  2026-08-14 09:53:38 Changed by gwy
  */
 
 package gradum.idea.editor
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
@@ -18,12 +19,12 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 data class EditorContext(
+  val projectDir: VirtualFile?,
   val currentFile: VirtualFile?,
-  val allOpenFiles: List<VirtualFile>,
-  val projectDir: VirtualFile?
+  val allOpenFiles: List<VirtualFile>
 ) {
   companion object {
-    val EMPTY = EditorContext(null, emptyList(), null)
+    val EMPTY = EditorContext(null, null, emptyList())
   }
 }
 
@@ -88,7 +89,7 @@ fun getLanguageIconKey(extension: String?): IconKey? {
 object EditorUtils {
 
   fun getEditorContext(project: Project): EditorContext {
-    return ApplicationManager.getApplication().runReadAction<EditorContext> {
+    return ReadAction.compute<EditorContext, RuntimeException> {
       val fileEditorManager = FileEditorManager.getInstance(project)
       val allFiles = fileEditorManager.openFiles.toList()
       val currentFile = fileEditorManager.selectedFiles.firstOrNull()
@@ -98,15 +99,15 @@ object EditorUtils {
 
       if (currentFile != null) {
         EditorContext(
+          projectDir = projectDir,
           currentFile = currentFile,
-          allOpenFiles = allFiles,
-          projectDir = projectDir
+          allOpenFiles = allFiles
         )
       } else {
         EditorContext(
+          projectDir = projectDir,
           currentFile = null,
-          allOpenFiles = allFiles,
-          projectDir = projectDir
+          allOpenFiles = allFiles
         )
       }
     }
@@ -123,7 +124,7 @@ object EditorUtils {
    * clicking a code-block toolbar button.
    *
    * Threading: this is invoked from the Swing EDT (toolbar click), so the
-   * PSI factory call is wrapped in [ApplicationManager.runReadAction] per
+   * PSI factory call is wrapped in ApplicationManager.runReadAction per
    * the platform's "read action on EDT" requirement. [FileEditorManager.openFile]
    * runs back on the EDT once the read action releases.
    *
@@ -138,7 +139,8 @@ object EditorUtils {
     val stem = normalizedLanguage.ifBlank { "untitled" }
     val fileName = "gradum_$stem.$extension"
 
-    val baseDir: VirtualFile = project.baseDir ?: return
+    val basePath: String = project.basePath ?: return
+    val baseDir: VirtualFile = LocalFileSystem.getInstance().findFileByPath(basePath) ?: return
 
     val virtualFile = WriteCommandAction.writeCommandAction(project)
       .compute<VirtualFile, Exception> {

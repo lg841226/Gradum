@@ -110,8 +110,8 @@ fun AssistantChatBubble(
         key(block.key(index)) {
           when (block) {
             is RenderBlock.Thinking -> {
-              val hasResponseAfter = renderBlocks.drop(index + 1).any { it is RenderBlock.Response }
-              ThinkingBlock(block, isLoading, onUrlClick, hasResponseAfter)
+              val hasNonThinkingAfter = renderBlocks.drop(index + 1).any { it !is RenderBlock.Thinking }
+              ThinkingBlock(block, isLoading, onUrlClick, hasNonThinkingAfter)
             }
 
             is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)

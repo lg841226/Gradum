@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * QuickStartSection.kt  2026-08-12 12:38:25 Changed by gwy
+ * QuickStartSection.kt  2026-08-14 02:18:32 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -79,7 +79,7 @@ fun QuickStartSection(
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
     ) {
-      listOf(0, 1, 3).forEach { categoryIndex ->
+      listOf(0, 1, 2, 3).forEach { categoryIndex ->
         SuggestionCard(
           textState = textState,
           suggestionVariants = suggestionVariants,

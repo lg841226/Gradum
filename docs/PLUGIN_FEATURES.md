@@ -299,7 +299,7 @@ fall through to one another when their preconditions fail.
               │                              │              renderer)
               ▼                              ▼
    ┌────────────────────────────────────────────────────────────┐
-   │  ResponseBlock column  (one child per segment, in order)   │
+   │  ResponseBlock column  (one child per segment, in order)   │eeeeewfewewwe
    └────────────────────────────────────────────────────────────┘
 ```
 

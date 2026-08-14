@@ -2,30 +2,43 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRenderer.kt  2026-08-13 20:18:35 Changed by gwy
+ * SearchedRenderer.kt  2026-08-14 12:09:51 Changed by gwy
  */
-
 package gradum.idea.chat.ui.chat.skill
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.util.ThumbnailImageLoader
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.ExternalLink
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import java.net.URI
+import java.util.concurrent.CompletableFuture
 
 class SearchedRenderer : ToolCallRenderer {
 
@@ -39,13 +52,16 @@ class SearchedRenderer : ToolCallRenderer {
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
     val query: String = (arguments["query"] as? String).orEmpty()
-    val totalResults: Int = (result["results"] as? List<*>)?.size ?: 0
+
+    @Suppress("UNCHECKED_CAST")
+    val results: List<Map<String, Any>> = (result["results"] as? List<Map<String, Any>>) ?: emptyList()
 
     return ToolCallContent(
       aliasName = ALIAS,
       fieldMap = linkedMapOf(
         "query" to query,
-        "totalResults" to totalResults
+        "results" to results,
+        "totalResults" to results.size
       )
     )
   }
@@ -54,33 +70,174 @@ class SearchedRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val query: String = (content.fieldMap["query"] as? String).orEmpty()
     val totalResults: Int = (content.fieldMap["totalResults"] as? Number)?.toInt() ?: 0
-    val textColor = JewelTheme.globalColors.text.normal
+    val uriHandler = LocalUriHandler.current
     val infoColor = JewelTheme.globalColors.text.info
-    val disabledColor = JewelTheme.globalColors.text.disabled
+    val textColor = JewelTheme.globalColors.text.normal
 
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(GradumSpacing.sml)
-    ) {
-      Icon(GradumIcons.Web, contentDescription = null)
-      Text(
-        color = textColor,
-        text = message(LABEL_KEY),
-        fontWeight = FontWeight.Medium
+    @Suppress("UNCHECKED_CAST")
+    val results: List<Map<String, Any>> = (content.fieldMap["results"] as? List<Map<String, Any>>) ?: emptyList()
+
+    var isExpanded by remember { mutableStateOf(true) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { isExpanded = !isExpanded },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+      ) {
+        Icon(GradumIcons.Web, contentDescription = null)
+        Text(
+          color = textColor,
+          text = message(LABEL_KEY),
+          fontWeight = FontWeight.Medium
+        )
+        Text(
+          text = query,
+          maxLines = 1,
+          color = infoColor,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+          key = if (isExpanded) AllIconsKeys.General.ChevronDown
+          else AllIconsKeys.General.ChevronRight,
+          contentDescription = null
+        )
+      }
+
+      AnimatedVisibility(visible = isExpanded) {
+        if (results.isNotEmpty()) {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+          ) {
+            Spacer(modifier = Modifier.height(GradumSpacing.sml))
+            results.forEach { source ->
+              val title: String = (source["title"] as? String).orEmpty()
+              val pageUrl: String = (source["url"] as? String).orEmpty()
+              val faviconUrl: String = (source["faviconUrl"] as? String).orEmpty()
+
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+              ) {
+                ResultThumbnail(
+                  pageUrl = pageUrl,
+                  faviconUrl = faviconUrl,
+                  size = THUMBNAIL_SIZE_DP.dp
+                )
+                ExternalLink(
+                  text = title.ifBlank { pageUrl },
+                  onClick = { uriHandler.openUri(pageUrl) }
+                )
+              }
+            }
+            Text(
+              maxLines = 1,
+              color = infoColor,
+              overflow = TextOverflow.Ellipsis,
+              text = message(LABEL_KEY_DISPLAY, totalResults)
+            )
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Renders the leading icon for a single search result.
+   *
+   * Three states, same outer footprint (size + corner radius) so the
+   * result row never reflows while a thumbnail is in flight:
+   *  1. No URL in the fallback chain → no upstream favicon available.
+   *     Renders a neutral gray placeholder box. Returning a real Web
+   *     icon here would make rows with images wider than rows without,
+   *     which looks like a layout bug.
+   *  2. URL present, fetch still in progress → same gray placeholder
+   *     so the row height stays stable and the user sees a "loading"
+   *     affordance that matches the final shape.
+   *  3. URL present, fetch resolved (success or failure) → success
+   *     shows the bitmap, failure (null) falls through to the next
+   *     URL in the chain. If every URL fails, we land back on the
+   *     gray placeholder.
+   *
+   * **Fallback chain** (in order):
+   *  1. The favicon URL returned by Tavily (best signal — usually
+   *     matches the actual page's icon).
+   *  2. `https://{host}/favicon.ico` — most sites still serve their
+   *     favicon at the root, no third-party dependency.
+   *  3. `https://www.favicon.vip/get.php?url={host}` — China-friendly
+   *     aggregator (Google's `s2/favicons` is GFW-blocked).
+   *
+   * **Threading:** the loader exposes a `CompletableFuture`. Calling
+   * `future.get()` on the main thread would block the UI for the
+   * entire HTTP round-trip — instead we bridge the future into a
+   * suspending coroutine via [suspendCancellableCoroutine], so the
+   * main thread is free to keep painting frames while bytes flow in.
+   */
+  @Composable
+  private fun ResultThumbnail(pageUrl: String, faviconUrl: String, size: Dp) {
+    val cornerRadius = RoundedCornerShape(THUMBNAIL_CORNER_DP.dp)
+    val sizeModifier = Modifier.size(size).clip(cornerRadius)
+    val placeholderModifier = sizeModifier.background(JewelTheme.globalColors.panelBackground)
+
+    val fallbackChain: List<String> = remember(pageUrl, faviconUrl) {
+      buildFaviconFallbackChain(pageUrl, faviconUrl)
+    }
+    if (fallbackChain.isEmpty()) {
+      Box(modifier = placeholderModifier)
+      return
+    }
+    var bitmap: ImageBitmap? by remember(fallbackChain) { mutableStateOf(null) }
+    LaunchedEffect(fallbackChain) {
+      for (url in fallbackChain) {
+        val loadedBitmap: ImageBitmap? = awaitBitmap(ThumbnailImageLoader.loadAsync(url))
+        if (loadedBitmap != null) {
+          bitmap = loadedBitmap
+          return@LaunchedEffect
+        }
+      }
+    }
+    val currentBitmap: ImageBitmap? = bitmap
+    if (currentBitmap == null) {
+      Box(modifier = placeholderModifier)
+    } else {
+      Image(
+        bitmap = currentBitmap,
+        modifier = sizeModifier,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
       )
-      Text(
-        text = query,
-        maxLines = 1,
-        color = infoColor,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Text(
-        maxLines = 1,
-        color = disabledColor,
-        overflow = TextOverflow.Ellipsis,
-        text = message(LABEL_KEY_DISPLAY, totalResults)
-      )
+    }
+  }
+
+  /**
+   * Bridge [ThumbnailImageLoader]'s [CompletableFuture] into the
+   * Compose coroutine scope without blocking the UI thread. The 3-arg
+   * `resume` keeps the result alive if cancellation lands in the gap
+   * between `whenComplete` firing and the continuation being resumed.
+   */
+  private suspend fun awaitBitmap(
+    imageFuture: CompletableFuture<ImageBitmap?>
+  ): ImageBitmap? = suspendCancellableCoroutine { continuation ->
+    imageFuture.whenComplete { result, _ -> continuation.resume(result) { _, _, _ -> } }
+    continuation.invokeOnCancellation { imageFuture.cancel(true) }
+  }
+
+  /**
+   * Build the favicon URL fallback chain. Returns an empty list when
+   * no host can be extracted from [pageUrl] (so the caller renders the
+   * gray placeholder instead of trying a blank URL).
+   */
+  private fun buildFaviconFallbackChain(pageUrl: String, faviconUrl: String): List<String> {
+    val host: String = runCatching { URI(pageUrl).host }.getOrNull().orEmpty()
+    if (host.isBlank()) return emptyList()
+    return buildList {
+      if (faviconUrl.isNotBlank()) add(faviconUrl)
+      add("https://$host/favicon.ico")
+      add("https://www.favicon.vip/get.php?url=$host")
     }
   }
 
@@ -88,5 +245,8 @@ class SearchedRenderer : ToolCallRenderer {
     const val ALIAS: String = "Searched"
     const val LABEL_KEY: String = "gradum.tool.searched"
     const val LABEL_KEY_DISPLAY: String = "gradum.tool.search.web.display"
+
+    private const val THUMBNAIL_SIZE_DP: Int = 16
+    private const val THUMBNAIL_CORNER_DP: Int = 4
   }
 }
