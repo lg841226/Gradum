@@ -34,7 +34,10 @@ fun main(arguments: Array<String>) {
     val keyPreview: String = resolvedApiKey.take(6) + "XXX" + resolvedApiKey.takeLast(4)
     logger.info("Hosted providers will use API key $keyPreview (source: ${apiKeySourceLabel(parsedArguments.apiKey)})")
   } else {
-    logger.info("No hosted-provider API key resolved; Zhipu BigModel probe will be skipped at startup")
+    logger.info(
+      "No hosted-provider API key resolved; Zhipu BigModel / DeepSeek / MiniMax probes " +
+        "will be skipped at startup"
+    )
   }
 
   val serverConfiguration = ServerConfiguration(
@@ -103,7 +106,8 @@ private fun printUsage() {
         |  --auto-port            Auto-find available port
         |  --api-key <key>        Bearer token for OpenAI-compatible providers
         |                         (falls back to GRADUM_OPENAI_API_KEY /
-        |                         BIGMODEL_API_KEY / OPENAI_API_KEY env)
+        |                         BIGMODEL_API_KEY / DEEPSEEK_API_KEY /
+        |                         MiniMax_API_KEY / OPENAI_API_KEY env)
         |  --base-url <url>       Provider base URL (default: ${gradum.AgentConfiguration.DEFAULT_OLLAMA_BASE_URL})
         |  --model <name>         Default model name
         |  --think                Enable thinking mode (default: off)

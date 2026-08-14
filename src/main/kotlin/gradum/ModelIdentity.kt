@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-14 22:37:54 Changed by gwy
+ * ModelIdentity.kt  2026-08-14 23:23:18 Changed by gwy
  */
 
 package gradum
 
 import gradum.ModelIdentity.Discovery.baseKnownServers
+import gradum.ModelIdentity.Discovery.cloudApiKeyEnvCandidates
 import gradum.ModelIdentity.Discovery.resolveCloudApiKey
 import io.ktor.client.*
 import io.ktor.client.plugins.*
@@ -61,13 +62,23 @@ enum class UnavailableReason {
  * Ollama / LM Studio / vLLM / LocalAI). The chat request itself
  * reads its key from [gradum.AgentConfiguration] — this field is
  * only for the discovery probe.
+ *
+ * [apiKeyEnvVar] is the **per-provider** environment variable
+ * holding the bearer token for this server. When non-null,
+ * [gradum.ModelIdentity.Discovery] resolves the key from this env
+ * var first and only falls back to the shared
+ * [gradum.ModelIdentity.Discovery.cloudApiKeyEnvCandidates] list
+ * if it is unset / blank. This lets DeepSeek, MiniMax and Zhipu
+ * each keep their own key (different vendors, different accounts)
+ * without forcing the user to multiplex a single env var.
  */
 data class ServerDef(
   val name: String,
   val baseUrl: String,
   val endpoint: String,
   val providerType: String,
-  val apiKey: String? = null
+  val apiKey: String? = null,
+  val apiKeyEnvVar: String? = null
 )
 
 /**
@@ -132,6 +143,17 @@ object ModelIdentity {
   fun parameterCountInBillions(model: ModelEntry): Double =
     parameterCountInBillions(model.modelName)
 
+  /**
+   * Built-in hosted (non-local) [ServerDef]s, exposed at `internal`
+   * scope so ModelIdentityTest can assert that each new provider
+   * we onboard (Zhipu, DeepSeek, MiniMax, …) is wired up with the
+   * expected URL, env var, and OpenAI-compatible protocol — a
+   * hand-edit deleting one of them will fail the build rather than
+   * silently dropping the provider from the model selector.
+   */
+  internal val knownCloudServers: List<ServerDef>
+    get() = Discovery.publicCloudServers()
+
   private object Discovery {
     private val logger: Logger = LoggerFactory.getLogger("ModelIdentity.Discovery")
 
@@ -142,6 +164,11 @@ object ModelIdentity {
      * (see [resolveCloudApiKey]). Adding a new cloud provider here is
      * the supported way to "promote" it to first-class — no plugin
      * restart, no env-var JSON config, no extra injection method.
+     *
+     * Each hosted provider declares its own [ServerDef.apiKeyEnvVar]
+     * so users with multiple cloud accounts (DeepSeek + MiniMax +
+     * Zhipu) can keep keys separate. When that env var is unset the
+     * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
      */
     private val baseKnownServers = listOf(
       ServerDef("Ollama", AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags", Provider.OLLAMA.wireType),
@@ -152,7 +179,21 @@ object ModelIdentity {
         name = "Zhipu BigModel",
         endpoint = "/models",
         providerType = Provider.OPENAI.wireType,
-        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
+        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4"
+      ),
+      ServerDef(
+        name = "DeepSeek",
+        endpoint = "/models",
+        apiKeyEnvVar = "DEEPSEEK_API_KEY",
+        providerType = Provider.OPENAI.wireType,
+        baseUrl = "https://api.deepseek.com/v1"
+      ),
+      ServerDef(
+        name = "MiniMax",
+        endpoint = "/models",
+        apiKeyEnvVar = "MiniMax_API_KEY",
+        providerType = Provider.OPENAI.wireType,
+        baseUrl = "https://api.minimaxi.com/v1"
       ),
     )
 
@@ -180,11 +221,31 @@ object ModelIdentity {
 
     fun probe(): List<ModelEntry> = HealthCache.getOrCompute { doProbe() }
 
+    /**
+     * Cloud-only [ServerDef]s (i.e. every non-local server from
+     * [baseKnownServers]). Surfaced through
+     * [gradum.ModelIdentity.knownCloudServers] for unit tests so
+     * they can assert the URL / env-var wiring without poking at
+     * private internals via reflection.
+     *
+     * The filter is "OpenAI protocol AND not on localhost" so
+     * local OpenAI-compatible servers (LM Studio, vLLM, LocalAI)
+     * that share the [Provider.OPENAI] wire type but have no
+     * host-side `apiKey` stay out of the cloud list.
+     */
+    fun publicCloudServers(): List<ServerDef> = baseKnownServers.filter {
+      it.providerType == Provider.OPENAI.wireType && !it.baseUrl.contains("localhost") && !it.baseUrl.contains("127.0.0.1")
+    }
+
     fun doProbe(): List<ModelEntry> {
       val cloudApiKey: String? = resolveCloudApiKey()
       val serversToProbe: List<ServerDef> = baseKnownServers.map { server ->
-        if (server.apiKey == null && server.providerType == Provider.OPENAI.wireType) {
-          server.copy(apiKey = cloudApiKey)
+        if (server.apiKey != null) return@map server
+        val providerKey: String? = server.apiKeyEnvVar
+          ?.let { resolveEnvVar(it) }
+        val effectiveKey: String? = providerKey ?: cloudApiKey
+        if (effectiveKey != null && server.providerType == Provider.OPENAI.wireType) {
+          server.copy(apiKey = effectiveKey)
         } else server
       }
       logger.info(
@@ -193,7 +254,7 @@ object ModelIdentity {
       Catalog.load()
       val discovered = mutableListOf<ModelEntry>()
       for (server in serversToProbe) {
-        logger.info(">>> probing ${server.name} at ${server.baseUrl}${server.endpoint}")
+        logger.info("Probing ${server.name} at ${server.baseUrl}${server.endpoint}")
         val probeStart: Long = System.nanoTime()
         val result: ProbeResult = try {
           probeServer(server)
@@ -297,11 +358,16 @@ object ModelIdentity {
       }
     }
 
-    private fun resolveCloudApiKey(): String? {
-      for (envVarName in cloudApiKeyEnvCandidates) {
-        val rawValue: String? = System.getenv(envVarName)
-        val trimmed: String? = rawValue?.trim()?.takeIf { it.isNotEmpty() }
-        if (trimmed != null) return trimmed
+    private fun resolveCloudApiKey(): String? = resolveEnvVarFromList(cloudApiKeyEnvCandidates)
+
+    private fun resolveEnvVar(envVarName: String): String? {
+      val rawValue: String? = System.getenv(envVarName)
+      return rawValue?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun resolveEnvVarFromList(envVarNames: List<String>): String? {
+      for (envVarName in envVarNames) {
+        resolveEnvVar(envVarName)?.let { return it }
       }
       return null
     }

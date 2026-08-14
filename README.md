@@ -23,7 +23,8 @@ class MySkill : Skill() {
 ## Features
 
 - **Skill system**: Pluggable tool architecture — add capabilities by implementing a `Skill` class
-- **Multi-provider LLM**: Ollama, LM Studio, vLLM, LocalAI, and any OpenAI-compatible endpoint
+- **Multi-provider LLM**: Ollama, LM Studio, vLLM, LocalAI, Zhipu BigModel (GLM), DeepSeek, MiniMax, and any
+  OpenAI-compatible endpoint
 - **Streaming events**: NDJSON event stream for real-time UI integration
 - **Context persistence**: Encrypted conversation history (HMAC-CTR + HMAC-SHA256), resumes across runs
 - **Command safety filter**: Structural shell command classification before execution
@@ -126,7 +127,41 @@ Any server supporting the OpenAI-compatible `chat/completions` endpoint works.
 java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url http://localhost:1234
 ```
 
-Model auto-discovery scans ports: 11434 (Ollama), 1234 (LM Studio), 8000 (vLLM), 8080 (LocalAI).
+### Zhipu BigModel (GLM)
+
+Cloud-hosted GLM models via Zhipu AI. Requires an API key.
+
+```bash
+export ZHIPU_API_KEY="your-api-key-here"
+java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://open.bigmodel.cn/api/coding/paas/v4
+```
+
+Supported models: GLM-4, GLM-4-Flash, GLM-4-Air, GLM-4-Long, and more.
+
+### DeepSeek
+
+Cloud-hosted DeepSeek models. Requires an API key.
+
+```bash
+export DEEPSEEK_API_KEY="your-api-key-here"
+java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://api.deepseek.com/v1
+```
+
+Supported models: DeepSeek-V3, DeepSeek-R1, DeepSeek-Chat, and more.
+
+### MiniMax
+
+Cloud-hosted MiniMax models. Requires an API key.
+
+```bash
+export MINIMAX_API_KEY="your-api-key-here"
+java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://api.minimaxi.com/v1
+```
+
+Supported models: MiniMax-Text-01, and more.
+
+Model auto-discovery scans ports: 11434 (Ollama), 1234 (LM Studio), 8000 (vLLM), 8080 (LocalAI), plus cloud providers
+(Zhipu BigModel, DeepSeek, MiniMax).
 
 ---
 
@@ -157,6 +192,7 @@ flowchart TB
         P2[LM Studio]
         P3[vLLM]
         P4[LocalAI]
+        P5[Zhipu BigModel]
     end
 
     subgraph Skills[Pluggable Skills]
@@ -216,8 +252,8 @@ that showcases the framework's capabilities.
 ### Plugin Features
 
 - **Chat panel**: Send messages and watch the agent think, search, and edit in real-time
-- **Model selector**: Auto-discovers local LLM providers (Ollama, LM Studio, vLLM, LocalAI) — switch between them
-  instantly
+- **Model selector**: Auto-discovers local LLM providers (Ollama, LM Studio, vLLM, LocalAI) and cloud providers
+  (Zhipu BigModel, DeepSeek, MiniMax) — switch between them instantly
 - **Tool call indicators**: Visual status for every tool invocation — see what the agent is doing as it happens
 - **Error handling**: Click failed tool calls to see friendly error messages, copy details for debugging
 - **Context toggle**: Eye icon sends your current editor file to the agent automatically

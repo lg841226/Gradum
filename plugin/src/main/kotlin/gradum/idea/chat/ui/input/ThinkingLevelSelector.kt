@@ -53,6 +53,7 @@ fun ThinkingLevelSelector(
   selectedLevel: ThinkingLevel,
   onSelect: (ThinkingLevel) -> Unit,
   modifier: Modifier = Modifier,
+  enabled: Boolean = true,
 ) {
   var showMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showMenu = false }
@@ -60,9 +61,9 @@ fun ThinkingLevelSelector(
   Box(modifier = modifier) {
     SelectorButton(
       text = thinkingButtonLabel(selectedLevel),
-      onClick = { showMenu = true },
+      onClick = { if (enabled) showMenu = true },
       contentDescription = thinkingTooltip(selectedLevel),
-      isButtonEnabled = true,
+      isButtonEnabled = enabled,
     )
     if (showMenu) {
       PopupMenu(

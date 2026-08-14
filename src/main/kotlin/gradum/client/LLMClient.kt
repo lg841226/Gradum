@@ -47,6 +47,49 @@ private fun JsonObject.optInt(key: String): Int =
 private fun JsonObject.optObject(key: String): JsonObject =
   this[key]?.jsonObject ?: JsonObject(emptyMap())
 
+/**
+ * Per-provider wire-format quirks for OpenAI-compatible chat APIs.
+ *
+ * Most providers we proxy to (Zhipu BigModel, OpenAI, OpenRouter, local
+ * LM Studio / vLLM / LocalAI) follow the OpenAI spec to the letter, so
+ * the [Default] row covers them. DeepSeek and MiniMax deviate in two
+ * narrow spots — the thinking field shape and the token-cap field name
+ * — and DeepSeek / MiniMax both surface the model's reasoning in a
+ * separate `reasoning_content` delta alongside `content`. Without this
+ * table we'd either drop native thinking (waste DeepSeek-R1) or send
+ * `max_tokens` to MiniMax (silently ignored → unbounded completion).
+ *
+ * Match is by substring against [AgentConfiguration.baseUrl] rather
+ * than a hard enum so a future model change on the same host keeps
+ * working without touching this file.
+ */
+internal data class ProviderHints(
+  val thinkingFieldValue: Map<String, Any?>? = null,
+  val maxTokensFieldName: String = "max_tokens",
+  val reasoningDeltaField: String? = null,
+) {
+  companion object {
+    val Default: ProviderHints = ProviderHints()
+
+    fun forBaseUrl(baseUrl: String): ProviderHints = when {
+      baseUrl.contains("api.deepseek.com", ignoreCase = true) -> ProviderHints(
+        thinkingFieldValue = mapOf("type" to "enabled"),
+        reasoningDeltaField = "reasoning_content",
+      )
+      baseUrl.contains("api.minimaxi.com", ignoreCase = true) -> ProviderHints(
+        thinkingFieldValue = mapOf("type" to "adaptive"),
+        // MiniMax follows Anthropic's lead and uses
+        // `max_completion_tokens` rather than OpenAI's `max_tokens`.
+        // Sending `max_tokens` is silently ignored, so the response
+        // would run to the model's natural stop with no upper bound.
+        maxTokensFieldName = "max_completion_tokens",
+        reasoningDeltaField = "reasoning_content",
+      )
+      else -> Default
+    }
+  }
+}
+
 data class ToolCallEntry(
   val callIdentifier: String,
   val functionName: String,
@@ -299,8 +342,17 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
 /**
  * Talks to any OpenAI-compatible /v1/chat/completions endpoint.
  *
- * Used for hosted providers (OpenAI, OpenRouter, etc.) when the local Ollama
- * server is not the deployment target.
+ * Used for hosted providers (OpenAI, OpenRouter, Zhipu, DeepSeek,
+ * MiniMax, …) when the local Ollama server is not the deployment
+ * target.
+ *
+ * The "思考模式" toggle is dual-channel: the system prompt's
+ * "Think first, then act" instruction is sent for every model, and
+ * — when the matched [ProviderHints] declares a native
+ * `thinking` field — the request also carries that native shape
+ * (DeepSeek: `{"type":"enabled"}`; MiniMax: `{"type":"adaptive"}`).
+ * The native channel's reasoning tokens are surfaced as
+ * [LLMResponseChunk.ReasoningContent] so the UI can render them.
  */
 class OpenAICompatibleClient(private val configuration: AgentConfiguration) : LlmClient {
 
@@ -313,6 +365,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
   ): Flow<LLMResponseChunk> = flow {
 
     val requestUrl = "${configuration.baseUrl}${configuration.chatCompletionsPath}"
+    val hints: ProviderHints = ProviderHints.forBaseUrl(configuration.baseUrl)
 
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, Provider.OPENAI)
@@ -323,10 +376,18 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       "stream" to true,
       "temperature" to configuration.temperatureValue,
       "top_p" to configuration.topPValue,
-      "max_tokens" to configuration.maxTokensToGenerate
+      hints.maxTokensFieldName to configuration.maxTokensToGenerate,
     )
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
+
+    // Native thinking: only when the user opted in AND this provider
+    // has a native field. Otherwise we fall back to the system
+    // prompt's "Think first, then act" instruction alone, which is
+    // always present and applies to every model.
+    if (configuration.enableThinking && hints.thinkingFieldValue != null) {
+      requestPayload["thinking"] = hints.thinkingFieldValue
+    }
 
     var lastError: Exception? = null
 
@@ -342,7 +403,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
           }
         }
 
-        val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse)
+        val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse, hints)
         streamedChunks.collect { chunk -> emit(chunk) }
 
         lastError = null; break
@@ -371,7 +432,10 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     }
   }
 
-  private fun parseServerSentEvents(httpResponse: HttpResponse): Flow<LLMResponseChunk> = flow {
+  private fun parseServerSentEvents(
+    httpResponse: HttpResponse,
+    hints: ProviderHints,
+  ): Flow<LLMResponseChunk> = flow {
     val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
     var streamCompleted = false
 
@@ -403,6 +467,17 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
       if (contentDelta.isNotBlank())
         emit(LLMResponseChunk.TextContent(contentDelta))
+
+      // Native reasoning surface: DeepSeek and MiniMax both emit
+      // thinking in a separate `reasoning_content` delta on the same
+      // choice. Surface it as ReasoningContent so the UI can render
+      // it as a collapsible "thought" block, matching the Ollama
+      // backend's existing `message.thinking` path.
+      hints.reasoningDeltaField?.let { fieldName ->
+        val reasoningDelta: String = deltaFields.optString(fieldName)
+        if (reasoningDelta.isNotBlank())
+          emit(LLMResponseChunk.ReasoningContent(reasoningDelta))
+      }
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
         accumulateCallDeltas(toolCallsArray, accumulatedCalls)

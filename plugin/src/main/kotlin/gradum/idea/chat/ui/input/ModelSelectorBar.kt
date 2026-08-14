@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-14 14:21:48 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-14 23:40:00 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -47,7 +47,7 @@ import org.jetbrains.jewel.ui.typography
  * the menu opens. The internal scroll container respects the
  * `heightIn(max=...)` cap, which is all we need.
  */
-private val MODEL_MENU_MAX_HEIGHT = 360.dp
+private val MODEL_MENU_MAX_HEIGHT = 300.dp
 
 @Composable
 fun ModelSelectorBar(
@@ -60,7 +60,7 @@ fun ModelSelectorBar(
   onSelectAuto: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
   onSelectModel: (ModelInfo?) -> Unit = {},
-  onSelectThinkingLevel: (ThinkingLevel) -> Unit = {},
+  onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
 ) {
   var showModelMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showModelMenu = false }
@@ -98,6 +98,7 @@ fun ModelSelectorBar(
     ThinkingLevelSelector(
       selectedLevel = thinkingLevel,
       onSelect = onSelectThinkingLevel,
+      enabled = selectedModel?.available ?: true,
     )
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
