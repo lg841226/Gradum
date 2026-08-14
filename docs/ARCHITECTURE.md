@@ -13,7 +13,7 @@
 | **Serialization**  | kotlinx-serialization-json 1.7.3                                 |
 | **Coroutines**     | kotlinx-coroutines 1.9.0                                         |
 | **Logging**        | Logback Classic 1.5.25                                           |
-| **LLM Backend**    | Ollama + Any OpenAI-compatible server (LM Studio, vLLM, LocalAI) |
+| **LLM Backend**    | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) + Zhipu BigModel (GLM) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
 | **Last Updated**   | 2026-08-12                                                       |
 
@@ -113,7 +113,7 @@ flowchart TB
     end
 
     subgraph LLM["LLM I/O Layer"]
-        L1["LLMClient.kt<br/>(Ollama + OpenAI compatible<br/>streaming clients, shared HttpClient)"]
+        L1["LLMClient.kt<br/>(Ollama + OpenAI compatible<br/>+ Zhipu BigModel<br/>streaming clients, shared HttpClient)"]
     end
 
     subgraph DEBUG["Debug Layer"]
@@ -139,7 +139,7 @@ flowchart TB
 
     subgraph CORE["Core Types"]
         C1["AgentConfiguration.kt (Provider / ToolMode / PromptVariant)"]
-        C2["ModelIdentity.kt (discovery + catalog + recommend)"]
+        C2["ModelIdentity.kt (discovery + catalog + recommend,<br/>supports Zhipu BigModel)"]
         C3["SchemaVariant.kt / Annotations.kt / SkillResult.kt"]
         C4["Version.java (GRADUM_VERSION)"]
     end
@@ -657,6 +657,7 @@ flowchart TB
     subgraph STREAM["Client Streaming Protocol"]
         OAI3["OpenAI (SSE)<br/>data: {...} lines<br/>delta.tool_calls[i].function.arguments<br/>StringBuilder per call index<br/>parse at stream end"]
         OLL3["Ollama (NDJSON)<br/>line-by-line JSON<br/>message: {content, tool_calls, thinking?}<br/>extract token counts from prompt_eval_count / eval_count<br/>emit immediately per line"]
+        ZP3["Zhipu BigModel (SSE)<br/>data: {...} lines<br/>same as OpenAI format<br/>GLM-4 / GLM-4-Flash<br/>OpenAI-compatible endpoint"]
     end
 
     ASSISTANT --> TOOL_MSG
@@ -667,6 +668,7 @@ flowchart TB
     style OLL1 fill: #c1f4c1
     style OLL2 fill: #c1f4c1
     style OLL3 fill: #c1f4c1
+    style ZP3 fill: #e1c1f4
 ```
 
 ### 2.8 Context Persistence and Encryption
@@ -774,6 +776,7 @@ flowchart TD
     PROBE --> P2[LM Studio<br/>port 1234<br/>GET /v1/models<br/>provider: openai]
     PROBE --> P3[vLLM<br/>port 8000<br/>GET /v1/models<br/>provider: openai]
     PROBE --> P4[LocalAI<br/>port 8080<br/>GET /v1/models<br/>provider: openai]
+    PROBE --> P5["Zhipu BigModel<br/>open.bigmodel.cn<br/>GET /models<br/>provider: openai"]
     P1 --> R1["2s timeout per probe<br/>classify HTTP errors / unreachable"]
     P2 --> R1
     P3 --> R1
@@ -792,11 +795,12 @@ flowchart TD
     style P2 fill: #c1f4c1
     style P3 fill: #f4e1c1
     style P4 fill: #f4c1c1
+    style P5 fill: #e1c1f4
     style CLOUD fill: #fff4c1
     style RECOMMEND fill: #d4f1d4
 ```
 
-- **Discovery** (`Discovery.probe()`): probes the four well-known local ports with a 2s timeout, classifies failures as
+- **Discovery** (`Discovery.probe()`): probes the five well-known servers (four local + Zhipu BigModel cloud) with a 2s timeout, classifies failures as
   `HttpError` (skipped, `debug` log) or `Unreachable`, and returns reachable models. Results are cached by
   `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
