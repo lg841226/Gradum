@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-14 13:14:02 Changed by gwy
+ * GradumChatSession.kt  2026-08-14 18:12:51 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -716,8 +716,7 @@ class GradumChatSession {
         <Rule>
           - Answer in English by default. Use another language only if the user asks.
           - No use emojis in anywhere (eg: Code or text).
-          - Use Mermaid for diagrams. Do not use text-based drawings.
-          - Give complete (600+ words), clear, and knowledgeable answers. Avoid short or vague replies.
+          - Do not use text-based drawings.
         </Rule>
     """.trimIndent()
 

@@ -2,19 +2,16 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-14 13:34:59 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-14 14:21:48 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
@@ -27,9 +24,30 @@ import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.component.styling.LocalBadgeStyle
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+
+/**
+ * Cap on the model selector popup height. The local Ollama host on a
+ * developer machine can easily surface 30+ entries (every pulled tag
+ * counts as a row); without a cap the popup pushes the entire chat
+ * area off-screen. 360dp comfortably fits ~6 rows and keeps the
+ * selected row visible while scrolling.
+ *
+ * **Why no `verticalScroll` here.** Jewel `PopupMenu` already wraps
+ * its `MenuContent` in an internal `verticalScroll`-backed Column
+ * (visible in the disassembled `MenuKt.MenuContent` at
+ * `ScrollKt.verticalScroll$default`). Stacking a second one on the
+ * outside `Modifier` makes the inner modifier receive
+ * `Constraints.Infinity` and throws
+ * `IllegalStateException: Vertically scrollable component was
+ * measured with an infinity maximum height constraints` the moment
+ * the menu opens. The internal scroll container respects the
+ * `heightIn(max=...)` cap, which is all we need.
+ */
+private val MODEL_MENU_MAX_HEIGHT = 360.dp
 
 @Composable
 fun ModelSelectorBar(
@@ -61,7 +79,8 @@ fun ModelSelectorBar(
       if (showModelMenu) {
         PopupMenu(
           onDismissRequest = { dismiss(); true },
-          horizontalAlignment = Alignment.Start
+          horizontalAlignment = Alignment.Start,
+          modifier = Modifier.heightIn(max = MODEL_MENU_MAX_HEIGHT)
         ) {
           buildMenu(
             models = models,
@@ -173,7 +192,7 @@ private fun AutoModelItem() {
     horizontalArrangement = Arrangement.Center,
     modifier = Modifier
       .fillMaxWidth()
-      .padding(horizontal = GradumSpacing.xs)
+      .padding(GradumSpacing.xs)
   ) {
     Icon(key = GradumIcons.Auto, contentDescription = message("gradum.auto.model"))
     Spacer(modifier = Modifier.width(GradumSpacing.md))
@@ -243,34 +262,14 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
   }
 }
 
-/**
- * "Ghost" pill that surfaces the parameter size next to the
- * display name. Background is the same blue as `text.info` at
- * ~12% alpha, text is the full-strength blue. The intent is a
- * subtle tint that doesn't compete with the family label but
- * is still scannable at a glance — heavier fills tend to make
- * the row look like it has two equal-weight titles.
- *
- * Renders nothing for cloud / size-less models because the
- * caller already gates on `parameterSize != null`.
- */
 @Composable
 private fun SizeBadge(size: String) {
-  val infoColor: Color = JewelTheme.globalColors.text.info
-  Box(
-    modifier = Modifier
-      .background(
-        color = infoColor.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(GradumSpacing.sm)
-      )
-      .padding(horizontal = GradumSpacing.sml, vertical = 2.dp)
-  ) {
-    Text(
-      text = size,
-      color = infoColor,
-      style = JewelTheme.typography.small,
-      fontWeight = FontWeight.Medium
+  Row {
+    Badge(
+      content = { Text(size) },
+      style = LocalBadgeStyle.current.graySecondary
     )
+    Spacer(modifier = Modifier.width(GradumSpacing.sm))
   }
 }
 

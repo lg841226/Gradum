@@ -143,7 +143,20 @@ data class ConfigOverrides(
   val topP: Double? = null,
   val numCtx: Int? = null,
   val numPredict: Int? = null,
-  val timeout: Int? = null
+  val timeout: Int? = null,
+  /**
+   * Per-request bearer token. Overrides the server-wide
+   * [ServerConfiguration.defaultApiKey] when non-blank, so a user
+   * with multiple provider accounts can swap keys from the plugin UI
+   * without restarting the server.
+   */
+  val apiKey: String? = null,
+  /**
+   * Path appended to `baseUrl` for chat completions. Default is
+   * `/v1/chat/completions`; Zhipu BigModel uses `/chat/completions`
+   * under its `api/coding/paas/v4` sub-domain.
+   */
+  val chatCompletionsPath: String? = null,
 ) {
   companion object {
     /**
@@ -162,9 +175,36 @@ data class ConfigOverrides(
         topP = rawConfig["topP"]?.toDoubleOrNull(),
         numCtx = rawConfig["numCtx"]?.toIntOrNull(),
         numPredict = rawConfig["numPredict"]?.toIntOrNull(),
-        timeout = rawConfig["timeout"]?.toIntOrNull()
+        timeout = rawConfig["timeout"]?.toIntOrNull(),
+        apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
+        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
       )
     }
+  }
+}
+
+/**
+ * Infer the chat-completions path for an OpenAI-compatible provider
+ * from its [baseUrl]. Most providers (`api.openai.com`,
+ * `openrouter.ai/api`, `api.deepseek.com`) put the version in the
+ * path (`/v1/chat/completions`); Zhipu BigModel under
+ * `api/coding/paas/v4` does not — the URL fragment is already
+ * versioned, so the chat-completions endpoint is the bare
+ * `/chat/completions`.
+ *
+ * Plugin callers can always override the inference with the
+ * `chatCompletionsPath` field in the request `config` map.
+ *
+ * Detection is by substring on the host portion of [baseUrl]; we
+ * keep the matching conservative (single known host) to avoid
+ * accidentally rewriting a custom deployment that just happens to
+ * share a path shape.
+ */
+internal fun inferChatCompletionsPath(baseUrl: String): String {
+  val lower: String = baseUrl.lowercase()
+  return when {
+    "bigmodel.cn" in lower -> "/chat/completions"
+    else -> AgentConfiguration.DEFAULT_CHAT_COMPLETIONS_PATH
   }
 }
 
@@ -176,7 +216,7 @@ data class ConfigOverrides(
  * - `GET /models`  — discovered LLM models.
  * - `GET /skills`  — registered Skill implementations.
  */
-fun Application.registerAllRoutes() {
+fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = ServerConfiguration()) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, Agent> = ConcurrentHashMap()
 
@@ -219,12 +259,24 @@ fun Application.registerAllRoutes() {
         if (requestBody.toolCallXml != null) ToolMode.AGENT
         else requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
 
+      val resolvedBaseUrl: String =
+        configOverrides.baseUrl ?: AgentConfiguration.DEFAULT_OLLAMA_BASE_URL
+
       val agentConfiguration = AgentConfiguration(
         modelName = requestBody.model
           ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
           ?: "",
         provider = resolvedProvider,
-        baseUrl = configOverrides.baseUrl ?: AgentConfiguration.DEFAULT_OLLAMA_BASE_URL,
+        baseUrl = resolvedBaseUrl,
+        // Per-request key wins so the plugin UI can override; otherwise
+        // fall back to the server-wide key resolved at startup. Null
+        // here is the correct state for the local Ollama path.
+        apiKey = configOverrides.apiKey ?: serverConfiguration.defaultApiKey,
+        // Plugin → server path override always wins; otherwise infer
+        // the path from the base URL host so plugin users don't have
+        // to know Zhipu's quirk (no /v1 prefix under api/coding/paas/v4).
+        chatCompletionsPath = configOverrides.chatCompletionsPath
+          ?: inferChatCompletionsPath(resolvedBaseUrl),
         toolMode = resolvedToolMode,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
         enableThinking = configOverrides.think ?: AgentConfiguration.DEFAULT_ENABLE_THINKING,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelRecommenderTest.kt  2026-07-04 23:12:12 Changed by gwy
+ * ModelRecommenderTest.kt  2026-08-14 22:37:54 Changed by gwy
  */
 
 package gradum
@@ -22,12 +22,12 @@ class ModelRecommenderTest {
   ): ModelEntry =
     ModelEntry(
       modelName = name,
-      providerType = "openai",
       serverUrl = "https://api.example.com",
       serverName = "ExampleCloud",
+      providerType = "openai",
       contextLimit = context,
-      reasoning = reasoning,
       toolCall = toolCall,
+      reasoning = reasoning,
     )
 
   private fun localModel(
@@ -49,12 +49,12 @@ class ModelRecommenderTest {
     }
     return ModelEntry(
       modelName = resolvedName,
-      providerType = "ollama",
       serverUrl = "http://localhost:11434",
       serverName = "Ollama",
+      providerType = "ollama",
       contextLimit = context,
-      reasoning = reasoning,
       toolCall = toolCall,
+      reasoning = reasoning,
     )
   }
 
@@ -103,9 +103,9 @@ class ModelRecommenderTest {
     val models: List<ModelEntry> = listOf(
       ModelEntry(
         modelName = "minimax-m2.5:cloud",
-        providerType = "ollama",
         serverUrl = "http://localhost:11434",
         serverName = "Ollama",
+        providerType = "ollama",
       ),
       localModel("qwen", paramsB = 7.0),
     )
@@ -119,7 +119,7 @@ class ModelRecommenderTest {
     // recommender to treat it as cloud rather than guessing a
     // memory budget the user can't audit.
     val models: List<ModelEntry> = listOf(
-      ModelEntry("llama-3-70b", "openai", "https://api.together.xyz", "TogetherAI"),
+      ModelEntry("llama-3-70b", "https://api.together.xyz", "TogetherAI", "openai"),
       localModel("qwen", paramsB = 7.0),
     )
     val result: ModelEntry? = ModelIdentity.recommend(models, RecommendationContext(availableRamGB = 16.0))

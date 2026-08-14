@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-14 02:21:23 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-14 15:03:22 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -27,7 +27,6 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
 import org.jetbrains.jewel.markdown.Markdown
-import org.jetbrains.jewel.markdown.extensions.LocalMarkdownBlockRenderer
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -79,8 +78,8 @@ fun ThinkingIndicator(
 
   Column(modifier = modifier.fillMaxWidth()) {
     Row(
-      modifier = Modifier.clickable { isExpanded = !isExpanded },
       verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.clickable { isExpanded = !isExpanded },
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
     ) {
       Icon(
@@ -88,48 +87,82 @@ fun ThinkingIndicator(
         key = AllIconsKeys.Nodes.Related
       )
       Text(
-        fontWeight = FontWeight.Medium,
         text = message("gradum.thinking"),
+        fontWeight = FontWeight.Medium
       )
       Icon(
+        contentDescription = null,
         key = if (isExpanded) AllIconsKeys.General.ChevronDown
-        else AllIconsKeys.General.ChevronRight,
-        contentDescription = null
+        else AllIconsKeys.General.ChevronRight
       )
     }
 
     if (isExpanded) Spacer(modifier = Modifier.height(GradumSpacing.md))
 
     AnimatedVisibility(visible = isExpanded) {
-      val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.disabled
+      // Use `text.info` rather than `text.disabled` per chat styling
+      // preferences — the disabled gray was too faint to read against the
+      // muted panel background. Pinned explicitly on the Text style below
+      // because Compose's `Text` reads from the Foundation
+      // `LocalContentColor`, while the surrounding provider sets Jewel's
+      // `LocalContentColor` (two separate entries — the provider alone
+      // would leave the text black).
+      val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.info
       CompositionLocalProvider(LocalContentColor provides thinkingColor) {
-        CompositionLocalProvider(LocalMarkdownBlockRenderer provides simplifiedCodeRenderer) {
-          val segments = remember(thinking) { splitMarkdown(thinking) }
-          Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-            segments.forEach { segment ->
-              when (segment) {
-                is MarkdownSegment.Plain -> Markdown(
-                  markdown = segment.text,
-                  onUrlClick = onUrlClick,
-                  markdownStyling = thinkingStyling,
-                  modifier = Modifier.fillMaxWidth(),
-                  blockRenderer = simplifiedCodeRenderer,
-                )
-
-                is MarkdownSegment.Table -> {
-                  if (segment.isRenderable()) {
-                    ScrollableTable(segment, isSimplified = true)
-                  }
+        val segments = remember(thinking) { splitMarkdown(thinking) }
+        Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
+          segments.forEach { segment ->
+            when (segment) {
+              is MarkdownSegment.Plain -> {
+                // Use the same inline pipeline as ResponseBlock so inline
+                // code chips share the rounded `InlineCodeChip` styling
+                // (info-tint background, 4dp corner radius) instead of the
+                // default Jewel chip — `simplifiedCodeRenderer` only
+                // controls fenced blocks / tables, not inline spans, so
+                // without this fork the thinking block silently falls back
+                // to the platform default. Bail path keeps the Jewel
+                // renderer as a last resort (e.g. on unsupported
+                // CommonMark extensions).
+                val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
+                if (outcome.render != null) {
+                  val render: InlineMarkdownRender = outcome.render
+                  // Match ResponseBlock's body styling — `rememberGradumParagraphTextStyle`
+                  // supplies the editor font, fontSize, and the chat's tighter 1.5×
+                  // line height. Without it the Text falls back to the Compose
+                  // default and thinking renders with a different font and a
+                  // cramped line metric. The `color` is pinned here (see the
+                  // AnimatedVisibility block comment) because Foundation's
+                  // `LocalContentColor` is not bridged from Jewel's.
+                  Text(
+                    text = render.annotated,
+                    modifier = Modifier.fillMaxWidth(),
+                    inlineContent = render.inlineContent,
+                    style = rememberGradumParagraphTextStyle().copy(color = thinkingColor)
+                  )
+                } else {
+                  Markdown(
+                    markdown = segment.text,
+                    onUrlClick = onUrlClick,
+                    markdownStyling = thinkingStyling,
+                    modifier = Modifier.fillMaxWidth(),
+                    blockRenderer = simplifiedCodeRenderer
+                  )
                 }
-
-                is MarkdownSegment.NonProseBlock -> Markdown(
-                  markdown = segment.text,
-                  onUrlClick = onUrlClick,
-                  markdownStyling = thinkingStyling,
-                  modifier = Modifier.fillMaxWidth(),
-                  blockRenderer = simplifiedCodeRenderer
-                )
               }
+
+              is MarkdownSegment.Table -> {
+                if (segment.isRenderable()) {
+                  ScrollableTable(segment, isSimplified = true)
+                }
+              }
+
+              is MarkdownSegment.NonProseBlock -> Markdown(
+                markdown = segment.text,
+                onUrlClick = onUrlClick,
+                markdownStyling = thinkingStyling,
+                modifier = Modifier.fillMaxWidth(),
+                blockRenderer = simplifiedCodeRenderer
+              )
             }
           }
         }

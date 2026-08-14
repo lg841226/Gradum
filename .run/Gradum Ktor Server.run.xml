@@ -4,6 +4,7 @@
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <envs>
       <env name="TAVILY_API_KEY" value="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" />
+      <env name="GRADUM_OPENAI_API_KEY" value="2391cbca5168462db19ad7d9f032cba5.h3HKqaDHOBsujBCF" />
     </envs>
     <output_file path="$PROJECT_DIR$/logs/log1.log" is_save="true" />
     <option name="MAIN_CLASS_NAME" value="gradum.server.MainKt" />

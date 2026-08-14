@@ -441,7 +441,8 @@ fun parseModelName(raw: String): FormattedModelName {
 
   val lookupKey: String = buildLookupKey(dateStripped)
 
-  val resolvedDisplay: String = lookupDisplayNameWithSize(lookupKey, parameterSize)
+  val resolvedDisplay: String = resolveGlmDisplay(lookupKey)
+    ?: lookupDisplayNameWithSize(lookupKey, parameterSize)
     ?: if (lookupKey.isEmpty()) rawTrimmed else fallbackDisplay(lookupKey)
 
   val lowerName: String = rawTrimmed.lowercase()
@@ -653,6 +654,67 @@ private fun fallbackDisplay(key: String): String =
   key.split("-").joinToString(" ") { part ->
     if (part.isEmpty()) "" else part.replaceFirstChar { it.uppercase() }
   }
+
+/**
+ * GLM (Zhipu BigModel) family formatter. The chat UI pulls the live
+ * model list from the server's `/models` endpoint, which lists every
+ * variant the provider offers (`glm-4.5`, `glm-4.5-air`, `glm-4.6`,
+ * `glm-5-turbo`, `glm-5.1`, ...). [modelDisplayNames] only has ~150
+ * hand-curated entries and would never keep up, so we synthesize a
+ * readable display name for any `glm-*` key by splitting on `-`,
+ * title-casing each segment, and joining with a space.
+ *
+ * Crucially this keeps the variant suffix visible in the selector:
+ * `glm-4.5-air` → `GLM 4.5 Air`, `glm-5-turbo` → `GLM 5 Turbo`.
+ * The old `fallbackDisplay` would render both as `Glm 4.5` / `Glm 5`,
+ * which made `glm-4.5` (Ollama) and `glm-4.5-air` (Zhipu) look
+ * identical to the user.
+ */
+private val OLLAMA_TRAILING_SUFFIXES: Regex = Regex(
+  // Ollama-style trailing markers — `9b`, `70b`, `chat`, `instruct`,
+  // `128k` context length, etc. Crucially does NOT match `air` or
+  // `turbo`, which are the real Zhipu GLM-4.5 / GLM-5 variant names
+  // and must survive into the display.
+  """-(?:\d+(?:\.\d+)?[bm]|chat|instruct|base|it|hf|cloud|\d+k)$""",
+  RegexOption.IGNORE_CASE
+)
+
+private fun resolveGlmDisplay(key: String): String? {
+  if (!key.startsWith("glm")) return null
+
+  // Strip trailing Ollama-style suffixes first. Without this
+  // `glm-4-9b-chat-128k` would render as the noisy
+  // `GLM 4 9b Chat 128k` — buildLookupKey only handles 9b/70b
+  // (size) and chat/instruct (variant), so a 128k context suffix
+  // would survive and end up as a tail word in the display name.
+  // We deliberately do NOT touch `air` / `turbo` because those are
+  // the real Zhipu GLM-4.5 / GLM-5 variant names.
+  var working: String = key
+  while (true) {
+    val next: String = OLLAMA_TRAILING_SUFFIXES.replace(working, "")
+    if (next == working) break
+    working = next
+  }
+
+  // Handle both dash-separated (`glm-4.5-air`) and dashless
+  // (`glm4`) forms. For the dashless form we split on the
+  // alpha↔digit boundary so the family root and the version
+  // land in separate words: `glm4` → `GLM 4`, not `GLM4`.
+  val parts: List<String> = working.split("-").flatMap { part ->
+    val lower: String = part.lowercase()
+    if (lower == "glm") listOf("glm")
+    else if (lower.startsWith("glm") && lower.length > 3) {
+      // "glm4" → ["glm", "4"], "glm12" → ["glm", "12"]
+      listOf("glm", lower.removePrefix("glm"))
+    } else {
+      listOf(part)
+    }
+  }
+  return parts.joinToString(" ") { part ->
+    if (part.equals("glm", ignoreCase = true)) "GLM"
+    else part.replaceFirstChar { it.uppercase() }
+  }
+}
 
 /**
  * Mini-catalog of well-known model identifiers. Used only for [FormattedModelName.isFromCatalog].

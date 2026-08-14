@@ -36,10 +36,24 @@ ktor {
  * stdin so SIGTERM (from Gradle's file-watch restart) propagates to the
  * Ktor server's shutdown hook, and swallow the resulting non-zero exit
  * so Gradle doesn't treat a clean stop as a failure.
+ *
+ * Also injects the OpenAI-compatible provider key from
+ * `gradle.properties` into the JVM as an env var, so users don't
+ * have to `export` before every `./gradlew :run`. A blank value
+ * is fine — the Gradum server still reads the env-var fallback
+ * chain when the value is missing or empty. Hosted providers
+ * themselves (currently just Zhipu) are first-class in
+ * [gradum.ModelIdentity] and need no JSON config.
  */
+val gradumOpenAiApiKey: String =
+  (project.findProperty("gradum.openAiApiKey") as? String).orEmpty()
+
 tasks.named<JavaExec>("run") {
   standardInput = System.`in`
   isIgnoreExitValue = true
+  if (gradumOpenAiApiKey.isNotBlank()) {
+    environment("GRADUM_OPENAI_API_KEY", gradumOpenAiApiKey)
+  }
 }
 
 repositories {
@@ -262,6 +276,18 @@ tasks.register("dev") {
       "-jar", serverFatJarFile.absolutePath,
       "--port", "8765",
     )
+      // dev task is implemented as a raw ProcessBuilder, not a
+      // JavaExec, so the `run` task's environment() block above
+      // does NOT apply here. Re-inject the OpenAI provider key
+      // manually so `./gradlew dev` and `./gradlew :run` see the
+      // same env. Without this, the dev server happily boots but
+      // Discovery never sees the bearer token and Zhipu's probe
+      // silently falls back to "no key configured".
+      .also { processBuilder ->
+        if (gradumOpenAiApiKey.isNotBlank()) {
+          processBuilder.environment()["GRADUM_OPENAI_API_KEY"] = gradumOpenAiApiKey
+        }
+      }
       .redirectErrorStream(true)
       .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
       .start()

@@ -43,7 +43,7 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
     })
   }
 
-  registerAllRoutes()
+  registerAllRoutes(serverConfiguration)
   val skills = SkillRegistry.getAllSkills()
   logger.info("Registered ${skills.size} skills: ${skills.joinToString { "${it.alias}(${it.skillName})" }}")
   logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")

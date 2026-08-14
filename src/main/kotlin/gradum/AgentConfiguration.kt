@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-08-12 19:27:08 Changed by gwy
+ * AgentConfiguration.kt  2026-08-14 22:29:50 Changed by gwy
  */
 
 package gradum
@@ -98,6 +98,27 @@ data class AgentConfiguration(
   val provider: Provider = Provider.OLLAMA,
   val baseUrl: String = DEFAULT_OLLAMA_BASE_URL,
 
+  /**
+   * Optional bearer token for OpenAI-compatible providers that require
+   * authentication (e.g. Zhipu BigModel, OpenAI, OpenRouter). `null`
+   * leaves the `Authorization` header off, which is what the local
+   * Ollama server expects.
+   *
+   * When the request body / plugin UI doesn't supply a key, the server
+   * falls back to [gradum.server.ServerConfiguration.defaultApiKey]
+   * (resolved from env at startup) so the plugin can stay key-less.
+   */
+  val apiKey: String? = null,
+
+  /**
+   * Path appended to [baseUrl] for chat completions. Default
+   * `/v1/chat/completions` matches OpenAI / DeepSeek / OpenRouter;
+   * Zhipu BigModel uses `/chat/completions` (no `/v1`) under its
+   * `api/coding/paas/v4` sub-domain. Plugin sets this per-provider
+   * via the `config` map in the `/events` request body.
+   */
+  val chatCompletionsPath: String = DEFAULT_CHAT_COMPLETIONS_PATH,
+
   val toolMode: ToolMode = ToolMode.AGENT,
   val promptVariant: PromptVariant = PromptVariant.AUTO,
   val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
@@ -132,7 +153,7 @@ data class AgentConfiguration(
    * sessionId) genuinely forgets. Null/blank falls back to the legacy
    * `<projectRoot>/.gradum/context.json` for old-clients compatibility.
    */
-  val sessionId: String? = null,
+  val sessionId: String? = null
 ) {
   companion object {
 
@@ -142,6 +163,14 @@ data class AgentConfiguration(
     const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = 2048 * 12
     const val DEFAULT_ENABLE_THINKING: Boolean = false
     const val DEFAULT_OLLAMA_BASE_URL: String = "http://localhost:11434"
+
+    /**
+     * Default chat-completions path. Matches the OpenAI / DeepSeek /
+     * OpenRouter wire shape. Providers whose base URL already encodes
+     * the version (e.g. Zhipu BigModel `api/coding/paas/v4`) override
+     * this via the `config.chatCompletionsPath` plugin field.
+     */
+    const val DEFAULT_CHAT_COMPLETIONS_PATH: String = "/v1/chat/completions"
 
     /**
      * Default context window size (num_ctx) used by the Ollama backend

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-08-12 12:38:25 Changed by gwy
+ * UserChatBubble.kt  2026-08-14 20:08:39 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -76,7 +76,8 @@ fun UserChatBubble(
   var isExpanded by remember { mutableStateOf(false) }
   val content = message.content
   val maxLines = if (isExpanded) Int.MAX_VALUE else 1
-  val panelBackground = globalColors.borders.normal.copy(alpha = 0.8f)
+
+  val panelBackground = globalColors.borders.normal
 
   val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
   val fileAttachments: List<AttachedContext> = message.attachments.filter {
@@ -103,8 +104,8 @@ fun UserChatBubble(
               bottomStart = 16.dp, bottomEnd = 6.dp
             )
           )
-          .background(color = panelBackground)
-          .padding(10.dp)
+          .background(color = panelBackground.copy(alpha = 0.8f))
+          .padding(vertical = 8.dp, horizontal = 10.dp)
           .heightIn(max = EXPAND_MAX_HEIGHT)
           .animateContentSize(
             animationSpec = spring(

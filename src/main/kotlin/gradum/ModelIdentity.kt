@@ -2,11 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-11 14:53:20 Changed by gwy
+ * ModelIdentity.kt  2026-08-14 22:37:54 Changed by gwy
  */
 
 package gradum
 
+import gradum.ModelIdentity.Discovery.baseKnownServers
+import gradum.ModelIdentity.Discovery.resolveCloudApiKey
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -22,16 +24,16 @@ import org.slf4j.LoggerFactory
 
 data class ModelEntry(
   val modelName: String,
-  val providerType: String,
   val serverUrl: String,
   val serverName: String,
+  val providerType: String,
   val contextLimit: Int = 0,
-  val reasoning: Boolean = false,
   val toolCall: Boolean = false,
-  val openWeights: Boolean = false,
-  val attachment: Boolean = false,
   val available: Boolean = true,
-  val unavailableReason: UnavailableReason? = null,
+  val reasoning: Boolean = false,
+  val attachment: Boolean = false,
+  val openWeights: Boolean = false,
+  val unavailableReason: UnavailableReason? = null
 )
 
 data class RecommendationContext(val availableRamGB: Double) {
@@ -50,6 +52,23 @@ data class RecommendationContext(val availableRamGB: Double) {
 enum class UnavailableReason {
   AUTH, QUOTA_EXCEEDED, RATE_LIMIT, NETWORK, OTHER
 }
+
+/**
+ * Description of a server to probe for model discovery.
+ *
+ * [apiKey] is the bearer token to send on the GET against
+ * [endpoint]; pass null/blank for unauthenticated servers (local
+ * Ollama / LM Studio / vLLM / LocalAI). The chat request itself
+ * reads its key from [gradum.AgentConfiguration] — this field is
+ * only for the discovery probe.
+ */
+data class ServerDef(
+  val name: String,
+  val baseUrl: String,
+  val endpoint: String,
+  val providerType: String,
+  val apiKey: String? = null
+)
 
 /**
  * Single authority for the full model lifecycle: discovery, catalog,
@@ -116,16 +135,39 @@ object ModelIdentity {
   private object Discovery {
     private val logger: Logger = LoggerFactory.getLogger("ModelIdentity.Discovery")
 
-    private data class ServerDef(
-      val name: String, val providerType: String,
-      val baseUrl: String, val endpoint: String,
+    /**
+     * Built-in servers always probed at startup. Local services first
+     * (no auth, fastest to fail when offline), then hosted providers
+     * that need a bearer token resolved at probe time
+     * (see [resolveCloudApiKey]). Adding a new cloud provider here is
+     * the supported way to "promote" it to first-class — no plugin
+     * restart, no env-var JSON config, no extra injection method.
+     */
+    private val baseKnownServers = listOf(
+      ServerDef("Ollama", AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags", Provider.OLLAMA.wireType),
+      ServerDef("LM Studio", "http://localhost:1234", "/v1/models", Provider.OPENAI.wireType),
+      ServerDef("vLLM", "http://localhost:8000", "/v1/models", Provider.OPENAI.wireType),
+      ServerDef("LocalAI", "http://localhost:8080", "/v1/models", Provider.OPENAI.wireType),
+      ServerDef(
+        name = "Zhipu BigModel",
+        endpoint = "/models",
+        providerType = Provider.OPENAI.wireType,
+        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
+      ),
     )
 
-    private val knownServers = listOf(
-      ServerDef("Ollama", Provider.OLLAMA.wireType, AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags"),
-      ServerDef("LM Studio", Provider.OPENAI.wireType, "http://localhost:1234", "/v1/models"),
-      ServerDef("vLLM", Provider.OPENAI.wireType, "http://localhost:8000", "/v1/models"),
-      ServerDef("LocalAI", Provider.OPENAI.wireType, "http://localhost:8080", "/v1/models"),
+    /**
+     * Env-var lookup order for the bearer token shared by every
+     * built-in hosted provider (today: just Zhipu). The order mirrors
+     * [gradum.server.ServerConfiguration.resolveDefaultApiKeyFromEnv]
+     * so the probe key and the chat fallback key always agree. Adding
+     * a new provider to [baseKnownServers] needs no change here — the
+     * same key is reused.
+     */
+    private val cloudApiKeyEnvCandidates: List<String> = listOf(
+      "OPENAI_API_KEY",
+      "BIGMODEL_API_KEY",
+      "GRADUM_OPENAI_API_KEY"
     )
 
     private val jsonParser = Json { ignoreUnknownKeys = true }
@@ -138,14 +180,41 @@ object ModelIdentity {
 
     fun probe(): List<ModelEntry> = HealthCache.getOrCompute { doProbe() }
 
-    private fun doProbe(): List<ModelEntry> {
+    fun doProbe(): List<ModelEntry> {
+      val cloudApiKey: String? = resolveCloudApiKey()
+      val serversToProbe: List<ServerDef> = baseKnownServers.map { server ->
+        if (server.apiKey == null && server.providerType == Provider.OPENAI.wireType) {
+          server.copy(apiKey = cloudApiKey)
+        } else server
+      }
+      logger.info(
+        "Probing ${serversToProbe.size} server(s): " +
+          serversToProbe.joinToString { "${it.name}@${it.baseUrl}" })
       Catalog.load()
       val discovered = mutableListOf<ModelEntry>()
-      for (server in knownServers) {
-        when (val result = probeServer(server)) {
-          is ProbeResult.Ok -> discovered.addAll(result.models.map { it.copy(available = true) })
-          is ProbeResult.HttpError -> logger.debug("Skipping ${server.name}: HTTP ${result.status.value}")
-          ProbeResult.Unreachable -> logger.debug("Skipping ${server.name}: unreachable")
+      for (server in serversToProbe) {
+        logger.info(">>> probing ${server.name} at ${server.baseUrl}${server.endpoint}")
+        val probeStart: Long = System.nanoTime()
+        val result: ProbeResult = try {
+          probeServer(server)
+        } catch (any: Throwable) {
+          logger.error(
+            "Uncaught throwable while probing ${server.name} at " +
+              "${server.baseUrl}${server.endpoint} (after " +
+              "${(System.nanoTime() - probeStart) / 1_000_000} ms)",
+            any
+          )
+          ProbeResult.Unreachable
+        }
+        val probeDurationMs: Long = (System.nanoTime() - probeStart) / 1_000_000
+        when (result) {
+          is ProbeResult.Ok -> {
+            logger.info("Discovered ${result.models.size} model(s) from ${server.name} at ${server.baseUrl} in ${probeDurationMs}ms")
+            discovered.addAll(result.models.map { it.copy(available = true) })
+          }
+
+          is ProbeResult.HttpError -> Unit
+          ProbeResult.Unreachable -> Unit
         }
       }
 
@@ -175,33 +244,66 @@ object ModelIdentity {
       }
     }
 
-    private fun probeServer(server: ServerDef): ProbeResult = try {
-      HttpClient().use { client ->
-        val response = runBlocking {
-          client.get("${server.baseUrl}${server.endpoint}") {
-            timeout { requestTimeoutMillis = 2000 }
+    private fun probeServer(server: ServerDef): ProbeResult {
+      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "…" }
+      logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
+      return try {
+        HttpClient().use { client ->
+          val response = runBlocking {
+            client.get("${server.baseUrl}${server.endpoint}") {
+              timeout { requestTimeoutMillis = 5000 }
+              server.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+                header("Authorization", "Bearer $key")
+              }
+            }
           }
+          logger.info("probeServer got response: ${server.name} status=${response.status.value}")
+          if (response.status != HttpStatusCode.OK) {
+            logger.warn(
+              "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
+                "HTTP ${response.status.value} (${response.status.description})"
+            )
+            return@use ProbeResult.HttpError(response.status)
+          }
+
+          val responseBody = runBlocking { response.bodyAsText() }
+          val responseJson = jsonParser.parseToJsonElement(responseBody).jsonObject
+
+          val modelNames = when (server.providerType) {
+            Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
+              it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+            }?.filter { it.isNotBlank() } ?: emptyList()
+
+            else -> responseJson["data"]?.jsonArray?.map {
+              it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+            }?.filter { it.isNotBlank() } ?: emptyList()
+          }
+
+          ProbeResult.Ok(modelNames.map { ModelEntry(it, server.baseUrl, server.name, server.providerType) })
         }
-        if (response.status != HttpStatusCode.OK) return ProbeResult.HttpError(response.status)
-
-        val responseBody = runBlocking { response.bodyAsText() }
-        val responseJson = jsonParser.parseToJsonElement(responseBody).jsonObject
-
-        val modelNames = when (server.providerType) {
-          Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
-            it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-          }?.filter { it.isNotBlank() } ?: emptyList()
-
-          else -> responseJson["data"]?.jsonArray?.map {
-            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-          }?.filter { it.isNotBlank() } ?: emptyList()
-        }
-
-        ProbeResult.Ok(modelNames.map { ModelEntry(it, server.providerType, server.baseUrl, server.name) })
+      } catch (probeException: Exception) {
+        logger.warn(
+          "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
+            "${probeException.javaClass.simpleName}: ${probeException.message}",
+          probeException
+        )
+        ProbeResult.Unreachable
+      } catch (probeError: Throwable) {
+        logger.error(
+          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}",
+          probeError
+        )
+        ProbeResult.Unreachable
       }
-    } catch (probeException: Exception) {
-      logger.debug("Failed to probe ${server.name} at ${server.baseUrl}: ${probeException.message}", probeException)
-      ProbeResult.Unreachable
+    }
+
+    private fun resolveCloudApiKey(): String? {
+      for (envVarName in cloudApiKeyEnvCandidates) {
+        val rawValue: String? = System.getenv(envVarName)
+        val trimmed: String? = rawValue?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmed != null) return trimmed
+      }
+      return null
     }
 
     private fun isOllamaCloudModel(entry: ModelEntry): Boolean =
@@ -213,7 +315,11 @@ object ModelIdentity {
           client.post("${entry.serverUrl}/api/chat") {
             contentType(ContentType.Application.Json)
             timeout { requestTimeoutMillis = 5000 }
-            setBody("""{"model":"${entry.modelName}","messages":[{"role":"user","content":"."}],"stream":false,"options":{"num_predict":1}}""")
+            setBody(
+              """
+              {"model":"${entry.modelName}","messages":[{"role":"user","content":"."}],"stream":false,"options":{"num_predict":1}}
+              """.trimIndent()
+            )
           }
         }
         if (response.status != HttpStatusCode.OK) return classifyHttpStatus(response.status)
@@ -231,8 +337,8 @@ object ModelIdentity {
 
     private fun classifyHttpStatus(status: HttpStatusCode): UnavailableReason = when (status.value) {
       401 -> UnavailableReason.AUTH
-      402, 403 -> UnavailableReason.QUOTA_EXCEEDED
       429 -> UnavailableReason.RATE_LIMIT
+      402, 403 -> UnavailableReason.QUOTA_EXCEEDED
       in 500..599 -> UnavailableReason.NETWORK
       else -> UnavailableReason.OTHER
     }
@@ -240,10 +346,10 @@ object ModelIdentity {
     private fun classifyErrorMessage(message: String): UnavailableReason {
       val lower = message.lowercase()
       return when {
-        "subscription" in lower || "quota" in lower || "upgrade" in lower -> UnavailableReason.QUOTA_EXCEEDED
         "rate limit" in lower || "too many requests" in lower -> UnavailableReason.RATE_LIMIT
-        "sign in" in lower || "signin" in lower || "unauthorized" in lower || "auth" in lower -> UnavailableReason.AUTH
         "network" in lower || "connection" in lower || "timeout" in lower -> UnavailableReason.NETWORK
+        "subscription" in lower || "quota" in lower || "upgrade" in lower -> UnavailableReason.QUOTA_EXCEEDED
+        "sign in" in lower || "signin" in lower || "unauthorized" in lower || "auth" in lower -> UnavailableReason.AUTH
         else -> UnavailableReason.OTHER
       }
     }
@@ -353,7 +459,7 @@ data class ModelMetadata(
   val toolCall: Boolean = false,
   val reasoning: Boolean = false,
   val attachment: Boolean = false,
-  val openWeights: Boolean = false,
+  val openWeights: Boolean = false
 )
 
 private val REGEX_SUFFIX_STRIP = Regex("-(instruct|chat|hf|gguf|ggml|awq|gptq|exl2|fp16|bf16)$")

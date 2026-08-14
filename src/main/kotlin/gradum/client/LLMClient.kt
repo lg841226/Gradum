@@ -312,7 +312,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     toolDefinitions: List<Map<String, Any>>?,
   ): Flow<LLMResponseChunk> = flow {
 
-    val requestUrl = "${configuration.baseUrl}/v1/chat/completions"
+    val requestUrl = "${configuration.baseUrl}${configuration.chatCompletionsPath}"
 
     val projectedHistory: List<Map<String, Any>> =
       projectHistoryForBackend(messageHistory, Provider.OPENAI)
@@ -335,6 +335,11 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
         val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
+          // Bearer auth — only when an apiKey is configured. Local Ollama
+          // rejects unknown auth headers, so we must not send one in that case.
+          configuration.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+            header("Authorization", "Bearer $key")
+          }
         }
 
         val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse)

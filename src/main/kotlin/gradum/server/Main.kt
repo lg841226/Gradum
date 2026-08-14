@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-08-12 12:38:25 Changed by gwy
+ * Main.kt  2026-08-14 22:29:44 Changed by gwy
  */
 
 package gradum.server
@@ -18,7 +18,6 @@ fun main(arguments: Array<String>) {
   val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
     val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
 
-    // fail-fast: Ktor would throw on bind(-1) with a less informative "port out of range" message.
     checkNotNull(detectedPort) {
       "No available port in range ${parsedArguments.portNumber} - " +
         "${parsedArguments.portNumber + 10}; aborting server start"
@@ -29,9 +28,19 @@ fun main(arguments: Array<String>) {
   } else
     parsedArguments.portNumber
 
+  val resolvedApiKey: String? = parsedArguments.apiKey
+    ?.trim()?.takeIf { it.isNotEmpty() } ?: ServerConfiguration.resolveDefaultApiKeyFromEnv()
+  if (resolvedApiKey != null) {
+    val keyPreview: String = resolvedApiKey.take(6) + "XXX" + resolvedApiKey.takeLast(4)
+    logger.info("Hosted providers will use API key $keyPreview (source: ${apiKeySourceLabel(parsedArguments.apiKey)})")
+  } else {
+    logger.info("No hosted-provider API key resolved; Zhipu BigModel probe will be skipped at startup")
+  }
+
   val serverConfiguration = ServerConfiguration(
     hostAddress = parsedArguments.hostAddress,
-    portNumber = resolvedPort
+    portNumber = resolvedPort,
+    defaultApiKey = resolvedApiKey,
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)
@@ -44,16 +53,21 @@ fun main(arguments: Array<String>) {
   server.start(wait = true)
 }
 
+private fun apiKeySourceLabel(argumentValue: String?): String =
+  if (argumentValue.isNullOrBlank()) "environment" else "--api-key argument"
+
 private data class ServerArguments(
   val hostAddress: String,
   val portNumber: Int,
   val autoDetectPort: Boolean,
+  val apiKey: String? = null,
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
   var hostAddress = ServerConfiguration.DEFAULT_HOST_ADDRESS
   var portNumber = ServerConfiguration.DEFAULT_PORT_NUMBER
   var autoDetectPort = false
+  var apiKey: String? = null
 
   val iterator: Iterator<String> = arguments.iterator()
   while (iterator.hasNext()) {
@@ -61,6 +75,7 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
       "--host" -> hostAddress = iterator.next()
       "--port" -> portNumber = iterator.next().toIntOrNull() ?: portNumber
       "--auto-port" -> autoDetectPort = true
+      "--api-key" -> apiKey = iterator.next()
       "--help" -> {
         printUsage()
       }
@@ -71,6 +86,7 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
     hostAddress = hostAddress,
     portNumber = portNumber,
     autoDetectPort = autoDetectPort,
+    apiKey = apiKey,
   )
 }
 
@@ -85,6 +101,9 @@ private fun printUsage() {
         |  --host <host>          Host to bind (default: ${ServerConfiguration.DEFAULT_HOST_ADDRESS})
         |  --port <port>          Port to bind (default: ${ServerConfiguration.DEFAULT_PORT_NUMBER})
         |  --auto-port            Auto-find available port
+        |  --api-key <key>        Bearer token for OpenAI-compatible providers
+        |                         (falls back to GRADUM_OPENAI_API_KEY /
+        |                         BIGMODEL_API_KEY / OPENAI_API_KEY env)
         |  --base-url <url>       Provider base URL (default: ${gradum.AgentConfiguration.DEFAULT_OLLAMA_BASE_URL})
         |  --model <name>         Default model name
         |  --think                Enable thinking mode (default: off)
