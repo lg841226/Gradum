@@ -49,9 +49,11 @@ fun ChatInputSection(
       isAutoSelected = state.isAutoSelected,
       models = state.models,
       pinnedModels = state.pinnedModels,
+      thinkingLevel = state.thinkingLevel,
       onSelectAuto = actions.onSelectAuto,
       onTogglePin = actions.onTogglePin,
-      onSelectModel = actions.onSelectModel
+      onSelectModel = actions.onSelectModel,
+      onSelectThinkingLevel = actions.onSelectThinkingLevel
     )
   }
 }

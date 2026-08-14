@@ -50,11 +50,27 @@ internal object ThumbnailUrlGuard {
       return Check.Unsafe("not a valid URI: ${uriException.message}")
     }
 
-    val scheme: String = uri.scheme?.lowercase().orEmpty()
+    val scheme: String? = uri.scheme?.lowercase()
+    // A `URI` parse that returns no scheme (blank input, a bare
+    // token like "not a url at all") is not really a URI at all —
+    // surface that to the caller under a "URI" reason so the log
+    // makes sense, instead of pretending it's a "scheme mismatch".
+    if (scheme.isNullOrEmpty()) {
+      return Check.Unsafe("not a valid URI: missing or empty scheme")
+    }
     if (scheme != "https") return Check.Unsafe("scheme must be https, got '$scheme'")
 
-    val host: String = uri.host?.takeIf { it.isNotBlank() }
+    // `URI.host` returns the IPv6 authority WITH the surrounding
+    // brackets (e.g. `[::1]`, `[fe80::1]`). `InetAddress.getAllByName`
+    // doesn't accept the bracketed form, so a literal `[::1]` would
+    // either fail to resolve or — depending on platform — be
+    // interpreted as a hostname string. Strip the brackets once,
+    // here, so the DNS lookup and the byte comparison below see the
+    // canonical address.
+    val rawHost: String = uri.host?.takeIf { it.isNotBlank() }
       ?: return Check.Unsafe("missing host")
+    val host: String = rawHost.trimStart('[').trimEnd(']')
+    if (host.isBlank()) return Check.Unsafe("missing host")
 
     val addresses: Array<InetAddress> = try {
       InetAddress.getAllByName(host)
@@ -113,14 +129,29 @@ internal object ThumbnailUrlGuard {
   private fun isPrivateV6(bytes: ByteArray): Boolean {
     if (bytes.size != 16) return false
 
-    if (bytes.all { it == 0.toByte() } && bytes[15] == 1.toByte()) return true
+    // The checks below rely on `bytes[i] == 0` being true for the
+    // first 15 bytes of `::1`, which the `Byte` unsigned-style
+    // comparison handles correctly (the high bit is 0 for both
+    // signed 0 and the literal `0.toByte()`).
+    val firstFifteenAreZero: Boolean = (0 until 15).all { bytes[it] == 0.toByte() }
 
-    if (bytes.all { it == 0.toByte() }) return true
+    // `::1` (loopback): first 15 bytes zero, last byte 1.
+    if (firstFifteenAreZero && bytes[15] == 1.toByte()) return true
 
+    // `::` (unspecified): all 16 bytes zero. The previous
+    // implementation used `bytes.all { it == 0 }` for both this and
+    // the loopback check, which can never match `::1` because the
+    // last byte is 1, not 0 — a real bug we just hit.
+    if (firstFifteenAreZero && bytes[15] == 0.toByte()) return true
+
+    // fe80::/10 (link-local).
     if (bytes[0] == 0xFE.toByte() && (bytes[1].toInt() and 0xC0) == 0x80) return true
 
+    // fc00::/7 (unique-local).
     if ((bytes[0].toInt() and 0xFE) == 0xFC) return true
 
+    // IPv4-mapped IPv6: ::ffff:a.b.c.d. Recurse through the IPv4
+    // check so a private IPv4 hidden in the suffix is caught.
     if (bytes[0] == 0.toByte() && bytes[1] == 0.toByte() &&
       bytes[2] == 0.toByte() && bytes[3] == 0.toByte() &&
       bytes[4] == 0.toByte() && bytes[5] == 0.toByte() &&

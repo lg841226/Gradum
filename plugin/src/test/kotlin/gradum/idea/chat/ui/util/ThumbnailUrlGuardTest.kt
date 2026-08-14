@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailUrlGuardTest.kt  2026-08-14 11:45:00 Changed by gwy
+ * ThumbnailUrlGuardTest.kt  2026-08-14 12:49:29 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -46,8 +46,6 @@ class ThumbnailUrlGuardTest {
     }
   }
 
-  // ---- scheme allowlist ---------------------------------------------
-
   @Test
   fun `https url is safe`() {
     assertSafe("https://example.com/favicon.ico")
@@ -88,8 +86,6 @@ class ThumbnailUrlGuardTest {
     assertSafe("HTTPS://example.com/favicon.ico")
   }
 
-  // ---- URI / host well-formedness -----------------------------------
-
   @Test
   fun `missing host is rejected`() {
     assertUnsafe("https:///favicon.ico", reasonContains = "missing host")
@@ -104,8 +100,6 @@ class ThumbnailUrlGuardTest {
   fun `empty url is rejected`() {
     assertUnsafe("", reasonContains = "URI")
   }
-
-  // ---- IPv4 literal private ranges ----------------------------------
 
   @Test
   fun `loopback ipv4 is rejected`() {
@@ -165,8 +159,6 @@ class ThumbnailUrlGuardTest {
     assertUnsafe("https://203.0.113.1/favicon.ico", reasonContains = "private")
   }
 
-  // ---- IPv6 ----------------------------------------------------------
-
   @Test
   fun `ipv6 loopback is rejected`() {
     assertUnsafe("https://[::1]/favicon.ico", reasonContains = "private")
@@ -197,8 +189,6 @@ class ThumbnailUrlGuardTest {
     // ::ffff:10.0.0.1 == 10.0.0.1 in disguise. Must not slip past.
     assertUnsafe("https://[::ffff:10.0.0.1]/favicon.ico", reasonContains = "private")
   }
-
-  // ---- Check sealed class contract ----------------------------------
 
   @Test
   fun `safe and unsafe are distinct Check instances`() {

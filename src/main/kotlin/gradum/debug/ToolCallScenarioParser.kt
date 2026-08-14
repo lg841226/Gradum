@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParser.kt  2026-08-12 10:05:14 Changed by gwy
+ * ToolCallScenarioParser.kt  2026-08-14 12:47:24 Changed by gwy
  */
 
 package gradum.debug
@@ -26,7 +26,7 @@ private val logger: Logger = LoggerFactory.getLogger("ToolCallScenarioParser")
 sealed interface ScenarioStep {
   /**
    * AI reply narration — what the LLM says between tool calls on a real
-   * turn. In playback it is carried over from the Markdown document
+   * turn. In playback, it is carried over from the Markdown document
    * (`<tt>` segments) so text and tools interleave exactly like a turn.
    */
   data class AiReply(val content: String) : ScenarioStep

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-12 17:29:26 Changed by gwy
+ * GradumChatSession.kt  2026-08-14 13:14:02 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -26,6 +26,7 @@ import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.chat.ui.input.PermissionMode
+import gradum.idea.chat.ui.util.ThinkingPromptInjector
 import gradum.idea.editor.*
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
@@ -99,6 +100,36 @@ class GradumChatSession {
 
   /** Whether the user has sent at least one message in this session. */
   var hasSentMessage: Boolean by mutableStateOf(false)
+
+  /**
+   * Strength of the reasoning hint the plugin will append to the next
+   * outgoing user message. Defaults to [ThinkingLevel.MEDIUM] — a
+   * brand-new session gets a balanced hint out of the box; the user
+   * can dial it down to [ThinkingLevel.LOW] for cheap-and-fast or up
+   * to [ThinkingLevel.HIGH] for refactors and architecture questions.
+   * Mutated only via [setThinkingLevel] so the call site stays
+   * idempotent (a no-op when the value is already current). Held as
+   * a `MutableState` directly (not `by` delegation) so Kotlin doesn't
+   * synthesize a public setter that would clash with
+   * [setThinkingLevel] at the JVM level.
+   */
+  private val _thinkingLevel = mutableStateOf(ThinkingLevel.MEDIUM)
+  val thinkingLevel: ThinkingLevel get() = _thinkingLevel.value
+
+  /**
+   * Sets [thinkingLevel]. Idempotent: calling with the already-current
+   * level is a no-op so the model-list / model-switch callers don't
+   * have to compare first.
+   *
+   * No capability clamp: the hint is prompt-injected and works on
+   * every model, so the dropdown is always enabled regardless of the
+   * selected model's `reasoning` catalog flag. Keeping this a plain
+   * setter also lets the user freely carry a [ThinkingLevel.HIGH]
+   * preference across models without it silently dropping on switch.
+   */
+  fun setThinkingLevel(level: ThinkingLevel) {
+    if (level != _thinkingLevel.value) _thinkingLevel.value = level
+  }
 
   /** Whether the assistant is currently generating a response. */
   var isSending: Boolean by mutableStateOf(false)
@@ -204,7 +235,7 @@ class GradumChatSession {
   /** All saved sessions, most recently updated first (Welcome "Recent Chats"). */
   val sessions: SnapshotStateList<SessionMeta> = mutableStateListOf()
 
-  /** In-flight [refreshSessions] scan; cancelled before starting a newer one. */
+  /** In-flight [refreshSessions] scan; canceled before starting a newer one. */
   private var sessionRefreshJob: Job? = null
 
   /** Whether the Welcome screen is in "merge sessions" selection mode. */
@@ -296,7 +327,7 @@ class GradumChatSession {
    *
    * The disk scan runs on [Dispatchers.IO] so tool-window creation and
    * new-session actions never block the UI thread. The previous in-flight
-   * scan is cancelled first so a slower, older result can never overwrite
+   * scan is canceled first so a slower, older result can never overwrite
    * a newer one.
    */
   fun refreshSessions() {
@@ -349,10 +380,6 @@ class GradumChatSession {
     }
   }
 
-  /** Whether a merge can be performed right now (at least two sessions picked). */
-  val canMergeSelection: Boolean
-    get() = mergeSelection.size >= MIN_MERGE_SESSIONS
-
   /**
    * Creates a single merged session from every selected session (interleaved
    * by message timestamp) and opens it.
@@ -379,8 +406,8 @@ class GradumChatSession {
    */
   private fun nextMergeTitle(): String {
     val base: String = message("gradum.merge.titled")
-    val numberedTitlePattern: Regex = Regex("^${Regex.escape(base)}\\s+(\\d+)$")
-    var maxIndex: Int = 0
+    val numberedTitlePattern = Regex("^${Regex.escape(base)}\\s+(\\d+)$")
+    var maxIndex = 0
     sessions.forEach { sessionMeta ->
       val match: MatchResult? = numberedTitlePattern.matchEntire(sessionMeta.title)
       val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -416,12 +443,6 @@ class GradumChatSession {
   }
 
   /**
-   * Starts a fresh conversation: saves the current one, returns to the
-   * Welcome screen, and assigns a new [activeSessionId].
-   */
-  fun newSession() = reset()
-
-  /**
    * Switches the UI to a saved session: loads its transcript into
    * [messages] and restores [activeSessionId] / [currentSessionTitle].
    *
@@ -436,13 +457,7 @@ class GradumChatSession {
 
     val job = currentJob
     currentJob = null
-    if (job != null) {
-      try {
-        job.cancel(CancellationException("Gradum: switch session"))
-      } catch (cancelException: CancellationException) {
-        log.warn("Failed to cancel current job on switchSession", cancelException)
-      }
-    }
+    job?.cancel(CancellationException("Gradum: switch session"))
     sessionId = null
     isSending = false
     isWaitingForResponse = false
@@ -706,7 +721,8 @@ class GradumChatSession {
         </Rule>
     """.trimIndent()
 
-    val messageWithHint = "${prefix}${userMessage}\n\n$systemRule"
+    val messageWithHint = "${prefix}${userMessage}\n\n$systemRule" +
+      "\n\n${ThinkingPromptInjector.guideFor(thinkingLevel)}"
     // Validate server connectivity and model availability before sending.
     // The server may not be running yet, so retry with exponential backoff
     // (2s, 4s, 8s, ...) up to MAX_CONNECT_ATTEMPTS times before surfacing a

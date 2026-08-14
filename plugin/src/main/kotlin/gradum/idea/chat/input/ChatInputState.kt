@@ -9,6 +9,7 @@ package gradum.idea.chat.input
 
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.PendingMessage
@@ -31,6 +32,19 @@ data class ChatInputState(
   val isExpanded: Boolean,
   val isMenuVisible: Boolean,
   val showAddMenu: Boolean,
+  /**
+   * Strength of the reasoning hint the plugin will append to the next
+   * outgoing user message. Defaults to [ThinkingLevel.MEDIUM] so a
+   * brand-new session gets a balanced hint out of the box; the user
+   * dials it down to [ThinkingLevel.LOW] for cheap-and-fast or up to
+   * [ThinkingLevel.HIGH] for refactors and architecture questions.
+   *
+   * The hint is implemented as plain prompt suffix in
+   * [gradum.idea.chat.ui.util.ThinkingPromptInjector] and therefore
+   * works on every model — the catalog `reasoning` flag is not a
+   * precondition, so the dropdown is always enabled.
+   */
+  val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
 ) {
   /**
    * `true` if the currently selected model can accept image
@@ -69,4 +83,5 @@ data class ChatInputActions(
   val onSelectFile: (VirtualFile) -> Unit,
   val onRemovePending: (PendingMessage) -> Unit = {},
   val onPasteAsContext: (String) -> Unit = {},
+  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {},
 )

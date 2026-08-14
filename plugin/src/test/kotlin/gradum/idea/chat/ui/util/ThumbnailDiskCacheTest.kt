@@ -2,21 +2,16 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailDiskCacheTest.kt  2026-08-14 12:40:00 Changed by gwy
+ * ThumbnailDiskCacheTest.kt  2026-08-14 12:55:39 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
 import org.junit.After
-import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.attribute.FileTime
 
 /**
  * Unit tests for the on-disk thumbnail byte cache.
@@ -91,11 +86,15 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `eviction removes the oldest entry when the cache is full`() {
-    // 100-byte cap so we can trigger eviction deterministically.
+    // 100-byte cap, 40-byte payload → two entries fit (80 ≤ 100),
+    // three don't (120 > 100). That's the band the test exercises:
+    // write 3, expect the oldest to be evicted and the next two
+    // to survive. A bigger payload would force a second eviction
+    // and make the assertions below lie.
     val tightCache = ThumbnailDiskCache(maxBytes = 100L, rootDirectory = root)
     tightCache.clear() // start from a known state
     try {
-      val payload = ByteArray(60)
+      val payload = ByteArray(40)
       // Write 3 entries — after the third, the first (oldest by
       // mtime) should be evicted.
       tightCache.write("https://a/", payload)
@@ -116,19 +115,21 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `reading an entry refreshes its mtime so LRU promotes it`() {
-    val tightCache = ThumbnailDiskCache(maxBytes = 100L, rootDirectory = root)
+    // 120-byte cap, 40-byte payload → three entries fit (120 ≤ 120),
+    // four don't. We need *all three* of {a, b, c} to coexist
+    // before touching a/, otherwise the "promotion" has no effect
+    // to demonstrate (a/ is already evicted by the third write).
+    val tightCache = ThumbnailDiskCache(maxBytes = 120L, rootDirectory = root)
     tightCache.clear()
     try {
-      val payload = ByteArray(60)
+      val payload = ByteArray(40)
       tightCache.write("https://a/", payload)
       Thread.sleep(20)
       tightCache.write("https://b/", payload)
       Thread.sleep(20)
       tightCache.write("https://c/", payload)
 
-      // Touch a/ by reading — this should promote it ahead of b/
-      // in mtime order. The next eviction should then drop b/
-      // instead of a/.
+
       assertNotNull(tightCache.read("https://a/"))
       // Make sure the mtime moved into the future relative to b/.
       Thread.sleep(50)
@@ -161,11 +162,19 @@ class ThumbnailDiskCacheTest {
   fun `read survives a corrupt entry by deleting it`() {
     val url = "https://example.com/corrupt"
     cache.write(url, "valid".toByteArray())
-    // Find the on-disk file and corrupt it so the next read fails.
+    // Find the on-disk file and make it unreadable: replace it
+    // with an *empty* directory at the same path. `Files.readAllBytes`
+    // throws `FileSystemException` on a directory (rather than
+    // returning empty bytes), which is the branch the cache's
+    // catch-block is meant to recover from. Writing a few garbage
+    // bytes to the file would *not* trigger it — the OS happily
+    // reads 3 bytes back, the cache has no way to know they're
+    // not a valid image, and the next read just returns them.
     val files = Files.list(root).use { it.toList() }
     assertEquals(1, files.size)
-    Files.write(files[0], byteArrayOf(0x00, 0x01, 0x02))
-    // Read should return null and the bad file should be cleaned up.
+    Files.delete(files[0])
+    Files.createDirectory(files[0])
+    // Read should return null and the bad entry should be cleaned up.
     assertNull(cache.read(url))
     assertTrue(Files.list(root).use { it.toList() }.isEmpty())
   }

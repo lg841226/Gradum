@@ -10,6 +10,7 @@ package gradum.idea.ui
 import androidx.compose.runtime.Composable
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.editor.EditorContext
 
@@ -64,7 +65,8 @@ private fun rememberInputState(
     isPendingQueueFull = session.isPendingQueueFull,
     isExpanded = session.isExpanded,
     isMenuVisible = session.isMenuVisible,
-    showAddMenu = session.showAddMenu
+    showAddMenu = session.showAddMenu,
+    thinkingLevel = session.thinkingLevel
   )
 }
 
@@ -102,6 +104,7 @@ private fun rememberInputActions(
     },
     onSelectFile = callbacks.eventCallbacks.onSelectFile,
     onRemovePending = callbacks.eventCallbacks.onRemovePending,
-    onPasteAsContext = callbacks.eventCallbacks.onPasteAsContext
+    onPasteAsContext = callbacks.eventCallbacks.onPasteAsContext,
+    onSelectThinkingLevel = { level: ThinkingLevel -> session.setThinkingLevel(level) }
   )
 }

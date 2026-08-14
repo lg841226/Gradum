@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-12 18:55:14 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-14 13:34:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.common.SelectorButton
 import gradum.idea.utils.GradumBundle.message
@@ -37,9 +38,11 @@ fun ModelSelectorBar(
   isAutoSelected: Boolean = false,
   models: List<ModelInfo> = emptyList(),
   pinnedModels: List<ModelInfo> = emptyList(),
+  thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
   onSelectAuto: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
-  onSelectModel: (ModelInfo?) -> Unit = {}
+  onSelectModel: (ModelInfo?) -> Unit = {},
+  onSelectThinkingLevel: (ThinkingLevel) -> Unit = {},
 ) {
   var showModelMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showModelMenu = false }
@@ -50,10 +53,10 @@ fun ModelSelectorBar(
   ) {
     Box {
       SelectorButton(
-        text = resolveSelectorText(selectedModel, isAutoSelected),
         onClick = { showModelMenu = true },
+        isButtonEnabled = models.isNotEmpty(),
         contentDescription = message("gradum.model.select"),
-        isButtonEnabled = models.isNotEmpty()
+        text = resolveSelectorText(selectedModel, isAutoSelected)
       )
       if (showModelMenu) {
         PopupMenu(
@@ -72,6 +75,11 @@ fun ModelSelectorBar(
         }
       }
     }
+    Spacer(modifier = Modifier.width(GradumSpacing.xs))
+    ThinkingLevelSelector(
+      selectedLevel = thinkingLevel,
+      onSelect = onSelectThinkingLevel,
+    )
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
       text = message("gradum.feedback"),
