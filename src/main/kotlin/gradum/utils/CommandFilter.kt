@@ -2,13 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommandFilter.kt  2026-08-12 12:38:25 Changed by gwy
+ * CommandFilter.kt  2026-08-14 12:44:12 Changed by gwy
  */
 
 package gradum.utils
 
 import gradum.ToolMode
-import gradum.utils.ProtectedPaths.safePathPrefixes
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Paths
@@ -51,7 +50,28 @@ object ProtectedPaths {
     ".pypirc", ".npmrc", ".docker",
   )
 
-  private val safePathPrefixes: List<String> = listOf("/tmp")
+  /**
+   * Directories that LLM-driven file operations are *always* allowed
+   * to touch, regardless of project root. Currently limited to
+   * `/tmp` — the universal, cross-platform "scratch space" path
+   * every Unix user knows.
+   *
+   * `java.io.tmpdir` is deliberately NOT in this list: on macOS
+   * that resolves to `/var/folders/.../T/`, and a project that
+   * happens to live there (a common test-fixture pattern via
+   * `Files.createTempDirectory`) would then have its sibling
+   * directories inside the safe prefix, letting `../escape`-style
+   * paths pass the boundary check. Limiting the carve-out to
+   * `/tmp` keeps the safe-prefix list narrow and the boundary
+   * check honest.
+   *
+   * If a future feature needs an additional directory (a CI
+   * `$RUNNER_TEMP`, a Gradle build cache, etc.), add it here and
+   * make sure the consumers in PathResolver still gate the
+   * safe-prefix opt-in on the LLM typing an absolute path
+   * explicitly.
+   */
+  val safePathPrefixes: List<String> = listOf("/tmp")
 
   private val exactProtectedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
 
@@ -198,7 +218,7 @@ private val SHELL_OPERATOR_PATTERN: Regex = Regex("""[|;&]""")
 private val WHITESPACE_PATTERN: Regex = Regex("""\s+""")
 
 /**
- * True when [commandText] contains an output redirect to a file
+ * True when commandText contains an output redirect to a file
  * (`> file`, `>> file`, `<> file`, `>| file`). Does NOT match fd-only
  * redirections (`>&`, `&>`, `2>&1`) so common read-only idioms like
  * `cmd 2>&1` still pass.

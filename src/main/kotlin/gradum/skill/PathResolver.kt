@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-08-12 12:38:25 Changed by gwy
+ * PathResolver.kt  2026-08-14 12:35:22 Changed by gwy
  */
 
 package gradum.skill
 
+import gradum.utils.ProtectedPaths
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -31,12 +32,19 @@ import java.nio.file.Paths
  *   [shifted] is `true`. Useful for the `original` →
  *   `shiftedForm` mapping the LLM can observe in the
  *   success response.
+ * @property rejectionReason Non-null when the path was
+ *   rejected by the [resolveProjectPath]'s
+ *   `requireWithinProject` check — i.e. the resolved path
+ *   escapes the project root and is not on the safe-prefix
+ *   list (`/tmp`). The tool should fail the call with
+ *   `PERMISSION_DENIED` rather than operate on the path.
  */
 data class ResolvedProjectPath(
   val resolved: Path,
   val original: String,
   val shifted: Boolean,
-  val shiftedForm: String? = null
+  val shiftedForm: String? = null,
+  val rejectionReason: String? = null
 )
 
 /**
@@ -63,6 +71,25 @@ data class ResolvedProjectPath(
  * feature request: an `Explored` + a self-corrected `Read`
  * immediately after a single failed `Read`.
  *
+ * ## Security: `requireWithinProject`
+ *
+ * The LLM is treated as untrusted input — a prompt-injected
+ * search result or a malicious context file can tell it to
+ * read `/etc/passwd`, `~/.ssh/id_rsa`, or the cloud metadata
+ * service. With `requireWithinProject = true` (the default
+ * for every read/write skill), this resolver refuses to
+ * produce a path that escapes [projectRoot] and isn't on
+ * [ProtectedPaths.safePathPrefixes]. The check is
+ * segment-boundary aware (so `/home/u/proj-evil` is not
+ * accepted as "inside" `/home/u/proj`) and normalized, so a
+ * `..` traversal resolves to a path that's still checked
+ * against the same boundary.
+ *
+ * The check is opt-out via the parameter rather than
+ * enforced by the caller so the protection lives next to
+ * the path math (single source of truth) instead of being
+ * duplicated in every skill.
+ *
  * ## What it does
  *
  * Given a non-blank, non-absolute [filePath]:
@@ -87,54 +114,198 @@ data class ResolvedProjectPath(
  *
  * Edge cases (all return the trivial resolution with
  * [ResolvedProjectPath.shifted] = `false`):
- *  - blank [filePath] or blank [projectRoot]
+ *  - blank [filePath] or blank [projectRoot] — the resolved
+ *    path is marked rejected (no project to constrain to)
  *  - absolute [filePath] (POSIX `/...` or Windows
- *    `C:\\...`); absolute paths bypass projectRoot entirely
+ *    `C:\\...`); absolute paths must still be under
+ *    [projectRoot] (or in a safe prefix) when
+ *    `requireWithinProject` is `true`, otherwise they are
+ *    rejected
  *  - projectRoot has no basename (unusual, but defensive)
  *  - first segment doesn't match the projectRoot basename
  *  - the shift would leave an empty remainder
  *  - the shifted candidate does not exist on disk
  */
-fun resolveProjectPath(filePath: String, projectRoot: String): ResolvedProjectPath {
+fun resolveProjectPath(
+  filePath: String, projectRoot: String, requireWithinProject: Boolean = true
+): ResolvedProjectPath {
   val trimmed = filePath.trim()
 
-  if (trimmed.isBlank() || projectRoot.isBlank()) {
-    val fallback = if (trimmed.isBlank()) Paths.get("")
-    else Paths.get(trimmed).toAbsolutePath().normalize()
-    return ResolvedProjectPath(fallback, trimmed, shifted = false)
+  val normalizedRoot: Path? = projectRootOrNull(projectRoot)
+
+  if (trimmed.isBlank()) {
+    // A blank file path can't be a valid file. Reject regardless of
+    // projectRoot state — the LLM has to provide something.
+    return rejectedPath(trimmed, "file path is blank")
   }
   if (Paths.get(trimmed).isAbsolute) {
-    return ResolvedProjectPath(
-      Paths.get(trimmed).toAbsolutePath().normalize(),
-      trimmed,
-      shifted = false
+    val absolute = Paths.get(trimmed).toAbsolutePath().normalize()
+    // The caller asked for an absolute path explicitly. Safe-prefix
+    // opt-in is meaningful here — the LLM typed a real /tmp
+    // scratch path on purpose, not as a `..` escape.
+    return evaluate(
+      resolved = absolute,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = true,
     )
   }
 
-  val direct = Paths.get(projectRoot, trimmed).toAbsolutePath().normalize()
-  if (File(direct.toString()).exists()) {
-    return ResolvedProjectPath(direct, trimmed, shifted = false)
+  if (normalizedRoot == null) {
+    // Relative path but no project root to resolve against — can't
+    // safely determine the final on-disk path, so reject rather
+    // than guess at CWD.
+    return rejectedPath(trimmed, "project root is not configured")
   }
 
-  val projectBasename = Paths.get(projectRoot).fileName?.toString()
+  val direct = Paths.get(normalizedRoot.toString(), trimmed).toAbsolutePath().normalize()
+  if (File(direct.toString()).exists()) {
+    return evaluate(
+      resolved = direct,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
+  }
+
+  val projectBasename = normalizedRoot.fileName?.toString()
   if (projectBasename.isNullOrBlank()) {
-    return ResolvedProjectPath(direct, trimmed, shifted = false)
+    return evaluate(
+      resolved = direct,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
   }
 
   val segments = trimmed.split('/', '\\')
   if (segments.firstOrNull() != projectBasename) {
-    return ResolvedProjectPath(direct, trimmed, shifted = false)
+    return evaluate(
+      resolved = direct,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
   }
 
   val shiftedTrimmed = segments.drop(1).joinToString("/")
   if (shiftedTrimmed.isBlank()) {
-    return ResolvedProjectPath(direct, trimmed, shifted = false)
+    return evaluate(
+      resolved = direct,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
   }
 
-  val shifted = Paths.get(projectRoot, shiftedTrimmed).toAbsolutePath().normalize()
+  val shifted = Paths.get(normalizedRoot.toString(), shiftedTrimmed).toAbsolutePath().normalize()
   return if (File(shifted.toString()).exists()) {
-    ResolvedProjectPath(shifted, trimmed, shifted = true, shiftedForm = shiftedTrimmed)
+    evaluate(
+      resolved = shifted,
+      original = trimmed,
+      shifted = true,
+      normalizedRoot = normalizedRoot,
+      shiftedForm = shiftedTrimmed,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
   } else {
-    ResolvedProjectPath(direct, trimmed, shifted = false)
+    evaluate(
+      resolved = direct,
+      original = trimmed,
+      shifted = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject,
+      originalWasAbsolute = false,
+    )
+  }
+}
+
+/**
+ * Apply the within-project constraint to [resolved] when
+ * [requireWithinProject] is `true`, and return either a
+ * successful [ResolvedProjectPath] or a rejected one. Centralizes
+ * the boundary check so every code path through [resolveProjectPath]
+ * uses the same definition of "inside the project".
+ *
+ * [originalWasAbsolute] is the gate on the safe-prefix escape:
+ * only an LLM that explicitly typed an absolute path can opt into
+ * a `/tmp`-style carve-out. A relative path whose `..` happens to
+ * land in `/tmp` is still rejected — that's the point of the
+ * boundary check, and treating the two cases the same is what let
+ * a project under `java.io.tmpdir` (the macOS default) silently
+ * expose its siblings as "safe scratch space".
+ */
+private fun evaluate(
+  resolved: Path,
+  original: String,
+  shifted: Boolean,
+  normalizedRoot: Path?,
+  requireWithinProject: Boolean,
+  originalWasAbsolute: Boolean,
+  shiftedForm: String? = null,
+): ResolvedProjectPath {
+  if (!requireWithinProject) {
+    return ResolvedProjectPath(resolved, original, shifted, shiftedForm)
+  }
+  val within: Boolean = isWithinProjectRoot(resolved, normalizedRoot) ||
+    (originalWasAbsolute && isInSafePrefix(resolved))
+  if (within) {
+    return ResolvedProjectPath(resolved, original, shifted, shiftedForm)
+  }
+  return rejectedPath(
+    original,
+    "resolved path '$resolved' is outside the project root " +
+      "(${normalizedRoot ?: "<unset>"})"
+  )
+}
+
+/** Reject the path with a single, machine-and-LLM-friendly reason. */
+private fun rejectedPath(original: String, reason: String): ResolvedProjectPath =
+  ResolvedProjectPath(
+    shifted = false,
+    original = original,
+    resolved = Paths.get(""),
+    rejectionReason = reason
+  )
+
+/**
+ * True iff [resolved] is [normalizedRoot] itself, or a strict
+ * descendant of it. Segment-boundary safe: `/home/u/proj-evil`
+ * is NOT considered inside `/home/u/proj` even though the string
+ * starts with it.
+ */
+private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean {
+  if (normalizedRoot == null) return false
+  val resolvedString: String = resolved.toString()
+  val rootString: String = normalizedRoot.toString()
+  return resolvedString == rootString || resolvedString.startsWith("$rootString/")
+}
+
+/** Allow `/tmp` etc. so test fixtures and IDE scratch files keep working. */
+private fun isInSafePrefix(resolved: Path): Boolean {
+  val resolvedString: String = resolved.toString()
+  for (safePrefix in ProtectedPaths.safePathPrefixes) {
+    if (resolvedString == safePrefix || resolvedString.startsWith("$safePrefix/")) return true
+  }
+  return false
+}
+
+private fun projectRootOrNull(projectRoot: String): Path? {
+  if (projectRoot.isBlank()) return null
+  return try {
+    Paths.get(projectRoot).toAbsolutePath().normalize()
+  } catch (_: Exception) {
+    null
   }
 }

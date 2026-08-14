@@ -103,6 +103,14 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
   }
 
   val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
+  // Reject paths the resolver flagged as outside the project root.
+  // The LLM is untrusted, and search is read-only but still
+  // expensive when pointed at `/` or `/etc` — better to fail fast
+  // than enumerate the whole filesystem.
+  if (resolved.rejectionReason != null) {
+    logger.debug("Search path rejected: {} ({})", relativePath, resolved.rejectionReason)
+    return null
+  }
   return try {
     resolved.resolved
   } catch (pathException: Exception) {

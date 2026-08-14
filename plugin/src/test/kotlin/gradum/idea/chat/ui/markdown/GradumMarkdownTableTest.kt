@@ -411,8 +411,8 @@ class GradumMarkdownTableTest {
     )
     out.forEach {
       assertTrue(
+        "column width $it must not exceed maxCellWidthPx=200 after scaling",
         it <= 200,
-        "column width $it must not exceed maxCellWidthPx=200 after scaling"
       )
     }
   }

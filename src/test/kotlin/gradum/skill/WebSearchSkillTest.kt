@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkillTest.kt  2026-08-13 21:19:54 Changed by gwy
+ * WebSearchSkillTest.kt  2026-08-14 12:40:16 Changed by gwy
  */
 
 package gradum.skill
@@ -128,12 +128,18 @@ class WebSearchSkillTest {
   }
 
   @Test
-  fun `schema includes include_favicon boolean property`() {
+  fun `schema does not expose include_favicon to the LLM`() {
+    // `include_favicon` is a UI-rendering concern, not a search behavior
+    // concern. If a future refactor accidentally re-adds it to the schema,
+    // the LLM will start seeing it as a tool parameter and may pass
+    // it (or be confused by it) — neither is what we want. This test
+    // fails loudly so the leak is caught at review time, not at runtime.
     @Suppress("UNCHECKED_CAST")
     val props = paramsOf(skill.getSchema(ctx()))["properties"] as Map<String, Any>
-    @Suppress("UNCHECKED_CAST")
-    val includeFavicon = props["include_favicon"] as Map<String, Any>
-    assertEquals("boolean", includeFavicon["type"])
+    assertTrue(
+      "include_favicon" !in props,
+      "include_favicon must be hardcoded server-side, never exposed to the LLM"
+    )
   }
 
   @Test

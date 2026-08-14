@@ -1,0 +1,176 @@
+/*
+ * Copyright (c) 2026 Gradum team, some rights reserved.
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ReadFileSkillSecurityTest.kt  2026-08-14 12:40:16 Changed by gwy
+ */
+package gradum.skill
+
+import gradum.ErrorCode
+import gradum.Provider
+import gradum.SkillResult
+import gradum.ToolMode
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+
+import java.io.File
+import java.nio.file.Files
+import kotlin.test.DefaultAsserter.assertTrue
+import kotlin.test.Test
+
+/**
+ * Security boundary tests for [ReadFileSkill].
+ *
+ * Pinned behaviors:
+ *  - `read_file("/etc/passwd")` and similar absolute escapes fail
+ *    with `PERMISSION_DENIED` (not `FILE_NOT_FOUND` — that's an
+ *    information leak about which files exist outside the project).
+ *  - `read_file("~/.ssh/id_rsa")` likewise fails.
+ *  - Sibling directories sharing a name prefix are not silently
+ *    accepted as "inside the project".
+ *  - In-project relative paths still work end-to-end.
+ *
+ * The LLM is treated as untrusted input — a prompt-injected search
+ * result or a malicious context file can ask the skill to read
+ * anywhere. The agent's first line of defense is the schema
+ * description ("relative to project root"), but the second line —
+ * the runtime check that runs regardless of what the schema let
+ * through — is what these tests pin.
+ */
+class ReadFileSkillSecurityTest {
+
+  private lateinit var projectRoot: File
+  private lateinit var skill: ReadFileSkill
+
+  @BeforeEach
+  fun setUp() {
+    projectRoot = Files.createTempDirectory("gradum-read-security-test").toFile()
+    File(projectRoot, "in-project.txt").writeText("hello\nworld\n")
+    skill = ReadFileSkill()
+  }
+
+  @AfterEach
+  fun tearDown() {
+    projectRoot.deleteRecursively()
+  }
+
+  private fun context(): SkillContext = SkillContext(
+    toolMode = ToolMode.READ_ONLY,
+    projectRoot = projectRoot.absolutePath,
+    provider = Provider.OLLAMA,
+    modelName = "qwen2.5:7b"
+  )
+
+  @Test
+  fun `read_file rejects absolute system path with PERMISSION_DENIED`() {
+    val result = skill.execute(
+      mapOf("path" to "/etc/passwd"),
+      context()
+    )
+    assertTrue("expected failure for absolute system path", result is SkillResult.Failure)
+    result as SkillResult.Failure
+    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertTrue(
+      "rejection message should not leak whether the file exists: ${result.message}",
+      result.message.contains("outside the project root")
+    )
+  }
+
+  @Test
+  fun `read_file rejects home ssh directory`() {
+    val result = skill.execute(
+      mapOf("path" to "${System.getProperty("user.home")}/.ssh/id_rsa"),
+      context()
+    )
+    assertTrue(result is SkillResult.Failure)
+    result as SkillResult.Failure
+    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+  }
+
+  @Test
+  fun `read_file rejects sibling directory with shared prefix`() {
+    // Make a sibling whose name starts with projectRoot's basename
+    // — must NOT be accepted as inside the project.
+    val trapRoot: File = Files.createTempDirectory("gradum").toFile()
+    try {
+      val evilRoot: File = Files.createTempDirectory(trapRoot.name + "-evil").toFile()
+      val result = skill.execute(
+        mapOf("path" to evilRoot.absolutePath),
+        SkillContext(
+          toolMode = ToolMode.READ_ONLY,
+          projectRoot = trapRoot.absolutePath,
+          provider = Provider.OLLAMA,
+          modelName = "qwen2.5:7b"
+        )
+      )
+      assertTrue(result is SkillResult.Failure)
+      result as SkillResult.Failure
+      assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    } finally {
+      trapRoot.deleteRecursively()
+    }
+  }
+
+  @Test
+  fun `read_file accepts in-project relative path`() {
+    val result = skill.execute(
+      mapOf("path" to "in-project.txt"),
+      context()
+    )
+    assertTrue("expected success for in-project file: $result", result is SkillResult.Success)
+  }
+
+  @Test
+  fun `read_file rejects parent traversal`() {
+    val result = skill.execute(
+      mapOf("path" to "../escaped.txt"),
+      context()
+    )
+    assertTrue(result is SkillResult.Failure)
+    result as SkillResult.Failure
+    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+  }
+
+  @Test
+  fun `read_file with blank projectRoot rejects every path`() {
+    val result = skill.execute(
+      mapOf("path" to "in-project.txt"),
+      SkillContext(
+        toolMode = ToolMode.READ_ONLY,
+        projectRoot = "",
+        provider = Provider.OLLAMA,
+        modelName = "qwen2.5:7b"
+      )
+    )
+    assertTrue(result is SkillResult.Failure)
+    result as SkillResult.Failure
+    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+  }
+
+  @Test
+  fun `read_file allows tmp scratch files via safe prefix`() {
+    // The safe-prefix carve-out is hard-coded to `/tmp` — see
+    // [ProtectedPaths.safePathPrefixes]. On macOS the JVM's
+    // `java.io.tmpdir` resolves elsewhere (`/var/folders/.../T/`)
+    // and is deliberately NOT in the safe list, because a project
+    // that lives there would otherwise expose its siblings as
+    // scratch space. Use `/tmp` directly so the test exercises
+    // the carve-out on every platform.
+    val tmpFile: java.nio.file.Path = java.nio.file.Paths.get("/tmp/gradum-scratch-test.txt")
+    try {
+      Files.writeString(tmpFile, "scratch content")
+      val result = skill.execute(
+        mapOf("path" to tmpFile.toAbsolutePath().toString()),
+        context()
+      )
+      assertTrue(
+        "tmp files should be allowed regardless of project root: $result",
+        result is SkillResult.Success
+      )
+    } finally {
+      Files.deleteIfExists(tmpFile)
+    }
+  }
+}

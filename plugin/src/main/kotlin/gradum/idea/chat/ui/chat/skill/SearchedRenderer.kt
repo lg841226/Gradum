@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.util.FaviconHostCache
 import gradum.idea.chat.ui.util.ThumbnailImageLoader
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -171,6 +172,16 @@ class SearchedRenderer : ToolCallRenderer {
    *  3. `https://www.favicon.vip/get.php?url={host}` — China-friendly
    *     aggregator (Google's `s2/favicons` is GFW-blocked).
    *
+   * **Host-level short-circuit ([faviconCache]).** Without caching,
+   * the chain is walked top-to-bottom on every render — a host whose
+   * Tavily favicon 404s will pay a 3-second timeout for that URL
+   * every time the row re-composes. The cache remembers the *single*
+   * URL that worked for each host, so a host that's been seen before
+   * jumps straight to the known winner. Hosts where every chain
+   * member failed are also remembered, so we skip the chain entirely
+   * and go straight to the gray placeholder. See [FaviconHostCache]
+   * for the cache invariants.
+   *
    * **Threading:** the loader exposes a `CompletableFuture`. Calling
    * `future.get()` on the main thread would block the UI for the
    * entire HTTP round-trip — instead we bridge the future into a
@@ -183,8 +194,20 @@ class SearchedRenderer : ToolCallRenderer {
     val sizeModifier = Modifier.size(size).clip(cornerRadius)
     val placeholderModifier = sizeModifier.background(JewelTheme.globalColors.panelBackground)
 
-    val fallbackChain: List<String> = remember(pageUrl, faviconUrl) {
-      buildFaviconFallbackChain(pageUrl, faviconUrl)
+    val host: String = remember(pageUrl) { runCatching { URI(pageUrl).host }.getOrNull().orEmpty() }
+    if (host.isBlank() || faviconCache.isFailed(host)) {
+      Box(modifier = placeholderModifier)
+      return
+    }
+    // Prefer the cached winning URL when present. The cache is
+    // consulted synchronously so the row can either jump straight to
+    // the known-good URL (saving the 3s timeout on the dead chain
+    // members) or, on a true first-render, walk the full chain in
+    // order.
+    val cachedUrl: String? = remember(host) { faviconCache.getWinningUrl(host) }
+    val fallbackChain: List<String> = remember(pageUrl, faviconUrl, cachedUrl) {
+      if (cachedUrl != null) listOf(cachedUrl)
+      else buildFaviconFallbackChain(host, faviconUrl)
     }
     if (fallbackChain.isEmpty()) {
       Box(modifier = placeholderModifier)
@@ -195,10 +218,16 @@ class SearchedRenderer : ToolCallRenderer {
       for (url in fallbackChain) {
         val loadedBitmap: ImageBitmap? = awaitBitmap(ThumbnailImageLoader.loadAsync(url))
         if (loadedBitmap != null) {
+          faviconCache.recordSuccess(host, url)
           bitmap = loadedBitmap
           return@LaunchedEffect
         }
       }
+      // Walked the full chain and nothing worked — record the host
+      // as a known failure so the next render skips the network
+      // and goes straight to the gray placeholder. Bound the cost
+      // of a long session full of dead hosts.
+      faviconCache.recordFailure(host)
     }
     val currentBitmap: ImageBitmap? = bitmap
     if (currentBitmap == null) {
@@ -227,15 +256,16 @@ class SearchedRenderer : ToolCallRenderer {
   }
 
   /**
-   * Build the favicon URL fallback chain. Returns an empty list when
-   * no host can be extracted from [pageUrl] (so the caller renders the
-   * gray placeholder instead of trying a blank URL).
+   * Build the favicon URL fallback chain for [host]. Returns an
+   * empty list when [host] is blank so the caller renders the gray
+   * placeholder instead of trying a blank URL. [tavilyFaviconUrl] is
+   * prepended verbatim when non-blank — it's the highest-signal
+   * member of the chain when Tavily has a real one.
    */
-  private fun buildFaviconFallbackChain(pageUrl: String, faviconUrl: String): List<String> {
-    val host: String = runCatching { URI(pageUrl).host }.getOrNull().orEmpty()
+  private fun buildFaviconFallbackChain(host: String, tavilyFaviconUrl: String): List<String> {
     if (host.isBlank()) return emptyList()
     return buildList {
-      if (faviconUrl.isNotBlank()) add(faviconUrl)
+      if (tavilyFaviconUrl.isNotBlank()) add(tavilyFaviconUrl)
       add("https://$host/favicon.ico")
       add("https://www.favicon.vip/get.php?url=$host")
     }
@@ -248,5 +278,12 @@ class SearchedRenderer : ToolCallRenderer {
 
     private const val THUMBNAIL_SIZE_DP: Int = 16
     private const val THUMBNAIL_CORNER_DP: Int = 4
+
+    /**
+     * Process-wide favicon short-circuit. Lives in the companion so
+     * it survives every renderer instance and every recomposition.
+     * See [FaviconHostCache] for the rationale.
+     */
+    private val faviconCache: FaviconHostCache = FaviconHostCache()
   }
 }

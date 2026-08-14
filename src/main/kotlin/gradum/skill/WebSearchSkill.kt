@@ -66,11 +66,6 @@ class WebSearchSkill : Skill() {
           "type" to "string",
           "description" to "Search depth: basic (fast) or advanced (thorough). Default basic.",
           "enum" to listOf("basic", "advanced")
-        ),
-        "include_favicon" to mapOf(
-          "type" to "boolean",
-          "description" to "Whether to include each result's favicon URL. Default true. " +
-            "Renders as a 16x16 thumbnail in the chat row."
         )
       ),
       required = listOf("query"),
@@ -105,12 +100,6 @@ class WebSearchSkill : Skill() {
     val searchDepth = (arguments["search_depth"] as? String)?.trim()?.lowercase()
       ?.takeIf { it == "basic" || it == "advanced" } ?: "basic"
 
-    val includeFavicon = when (val value = arguments["include_favicon"]) {
-      is Boolean -> value
-      is String -> value.toBooleanStrictOrNull() ?: true
-      else -> true
-    }
-
     val apiKey = System.getenv("TAVILY_API_KEY")
     if (apiKey.isNullOrBlank())
       return makeFailure(
@@ -121,6 +110,9 @@ class WebSearchSkill : Skill() {
         )
       )
 
+    // `include_favicon` is a UI-rendering concern, not a search behaviour
+    // concern — the LLM doesn't need to know it exists. Hardcoded so a
+    // tool-call argument can't accidentally disable favicons.
     return try {
       val requestBody = buildJsonObject {
         put("query", query)
@@ -128,7 +120,7 @@ class WebSearchSkill : Skill() {
         put("search_depth", searchDepth)
         put("include_answer", false)
         put("include_raw_content", false)
-        put("include_favicon", includeFavicon)
+        put("include_favicon", true)
       }
 
       logger.info("Searching: query='{}' depth={} max={}", query, searchDepth, maxResults)
@@ -195,7 +187,6 @@ class WebSearchSkill : Skill() {
           "query" to query,
           "max_results" to maxResults,
           "search_depth" to searchDepth,
-          "include_favicon" to includeFavicon,
           "results" to results
         )
       )

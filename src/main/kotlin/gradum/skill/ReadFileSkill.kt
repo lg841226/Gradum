@@ -103,6 +103,17 @@ class ReadFileSkill : Skill() {
 
     val resolved: ResolvedProjectPath = resolveProjectPath(filePath, projectRoot)
     val resolvedPath: Path = resolved.resolved
+    if (resolved.rejectionReason != null) {
+      return makeFailure(
+        ErrorCode.PERMISSION_DENIED, buildXmlError(
+          code = "PERMISSION_DENIED",
+          message = "Path is outside the project root: ${resolved.rejectionReason}",
+          fixHint = "Use a path relative to the project root. " +
+            "If the file lives outside the project, copy it into the project first."
+        ),
+        mapOf("path" to filePath)
+      )
+    }
     val targetFile: File = resolvedPath.toFile()
 
     return try {
