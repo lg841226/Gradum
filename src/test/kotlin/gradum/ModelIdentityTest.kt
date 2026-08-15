@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentityTest.kt  2026-08-14 23:00:00 Changed by gwy
+ * ModelIdentityTest.kt  2026-08-16 00:08:59 Changed by gwy
  */
 
 package gradum
@@ -14,35 +14,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ModelIdentityTest {
-
-  // --- parameterCountInBillions ---
-
-  @Test
-  fun `parameterCountInBillions extracts integer size suffix`() {
-    assertEquals(32.0, ModelIdentity.parameterCountInBillions("qwen-32b"), 0.001)
-  }
-
-  @Test
-  fun `parameterCountInBillions extracts decimal size suffix`() {
-    assertEquals(0.5, ModelIdentity.parameterCountInBillions("qwen-0.5b"), 0.001)
-  }
-
-  @Test
-  fun `parameterCountInBillions returns zero when no size suffix is present`() {
-    assertEquals(0.0, ModelIdentity.parameterCountInBillions("qwen2.5"), 0.001)
-  }
-
-  @Test
-  fun `parameterCountInBillions is case-insensitive`() {
-    assertEquals(70.0, ModelIdentity.parameterCountInBillions("LLAMA-70B"), 0.001)
-  }
-
-  @Test
-  fun `parameterCountInBillions handles colon separator`() {
-    assertEquals(14.0, ModelIdentity.parameterCountInBillions("qwen2.5:14b"), 0.001)
-  }
-
-  // --- isSmallModel ---
 
   @Test
   fun `isSmallModel returns true for sub-32B local models`() {
@@ -109,23 +80,6 @@ class ModelIdentityTest {
   fun `isCloudTagged rejects names without cloud`() {
     assertFalse(ModelIdentity.isCloudTagged("qwen-14b"))
     assertFalse(ModelIdentity.isCloudTagged("gpt-4o"))
-  }
-
-  // --- normalizeCatalogKey ---
-
-  @Test
-  fun `normalizeCatalogKey strips size and instruct suffix`() {
-    assertEquals("qwen2-5-coder", ModelIdentity.normalizeCatalogKey("Qwen2.5-Coder-14B-Instruct"))
-  }
-
-  @Test
-  fun `normalizeCatalogKey collapses separators and trims dashes`() {
-    assertEquals("llama3", ModelIdentity.normalizeCatalogKey("LLAMA3:70B"))
-  }
-
-  @Test
-  fun `normalizeCatalogKey handles bare model name`() {
-    assertEquals("gpt-4o", ModelIdentity.normalizeCatalogKey("gpt-4o"))
   }
 
   // --- knownCloudServers wiring (DeepSeek / MiniMax / Zhipu onboarding) ---

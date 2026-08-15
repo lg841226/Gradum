@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-15 10:49:30 Changed by gwy
+ * ModelIdentity.kt  2026-08-16 00:08:59 Changed by gwy
  */
 
 package gradum
@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.util.*
 
 
 data class ModelEntry(
@@ -36,19 +37,6 @@ data class ModelEntry(
   val openWeights: Boolean = false,
   val unavailableReason: UnavailableReason? = null
 )
-
-data class RecommendationContext(val availableRamGB: Double) {
-  companion object {
-    private const val FREE_RAM_HEADROOM_FACTOR: Double = 0.75
-
-    fun fromSystemMemory(): RecommendationContext {
-      val operatingSystemMXBean = java.lang.management.ManagementFactory.getOperatingSystemMXBean()
-        as com.sun.management.OperatingSystemMXBean
-      val availableRamGB = operatingSystemMXBean.freeMemorySize.toDouble() / 1024 / 1024 / 1024 * FREE_RAM_HEADROOM_FACTOR
-      return RecommendationContext(availableRamGB)
-    }
-  }
-}
 
 enum class UnavailableReason {
   AUTH, QUOTA_EXCEEDED, RATE_LIMIT, NETWORK, OTHER
@@ -78,16 +66,17 @@ data class ServerDef(
   val endpoint: String,
   val providerType: String,
   val apiKey: String? = null,
-  val apiKeyEnvVar: String? = null
+  val apiKeyEnvVar: String? = null,
+  val configKey: String? = null
 )
 
 /**
- * Single authority for the full model lifecycle: discovery, catalog,
- * recommendation, capability inference, and schema variant resolution.
- *
- * Internal concerns are isolated behind private inner classes
- * (Discovery, Catalog, Recommender) so the public API stays thin
- * while the implementation can evolve independently.
+  * Single authority for the full model lifecycle: discovery, capability
+  * inference, and schema variant resolution.
+  *
+  * Internal concerns are isolated behind private inner classes
+  * (Discovery) so the public API stays thin
+  * while the implementation can evolve independently.
  */
 object ModelIdentity {
 
@@ -101,13 +90,6 @@ object ModelIdentity {
     "sonnet", "haiku", "opus", "pro", "flash",
     "turbo", "mini", "large", "xxl",
   )
-
-  val LOCAL_SERVER_NAMES: Set<String> = setOf("Ollama", "LM Studio", "vLLM", "LocalAI")
-
-  fun parameterCountInBillions(modelName: String): Double {
-    val match = PARAMETER_PATTERN.find(modelName) ?: return 0.0
-    return match.groupValues[1].toDoubleOrNull() ?: 0.0
-  }
 
   fun isCloudTagged(modelName: String): Boolean =
     modelName.contains("cloud", ignoreCase = true)
@@ -124,24 +106,7 @@ object ModelIdentity {
   fun schemaVariant(modelName: String): SchemaVariant =
     if (isSmallModel(modelName)) SchemaVariant.SIMPLE else SchemaVariant.FULL
 
-  fun normalizeCatalogKey(name: String): String =
-    name.lowercase()
-      .replace(".", "-").replace(":", "-").replace("_", "-")
-      .replace(REGEX_SUFFIX_STRIP, "")
-      .replace(REGEX_SIZE_STRIP, "-")
-      .replace(REGEX_DASH_COLLAPSE, "-")
-      .trim('-')
-
-
   fun discoverModels(): List<ModelEntry> = Discovery.probe()
-
-  fun recommend(
-    models: List<ModelEntry>,
-    context: RecommendationContext = RecommendationContext.fromSystemMemory(),
-  ): ModelEntry? = Recommender.recommend(models, context)
-
-  fun parameterCountInBillions(model: ModelEntry): Double =
-    parameterCountInBillions(model.modelName)
 
   /**
    * Built-in hosted (non-local) [ServerDef]s, exposed at `internal`
@@ -171,30 +136,33 @@ object ModelIdentity {
      * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
      */
     private val baseKnownServers = listOf(
-      ServerDef("vLLM", "http://localhost:8000", "/v1/models", Provider.OPENAI.wireType),
-      ServerDef("LocalAI", "http://localhost:8080", "/v1/models", Provider.OPENAI.wireType),
-      ServerDef("LM Studio", "http://localhost:1234", "/v1/models", Provider.OPENAI.wireType),
-      ServerDef("Ollama", AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags", Provider.OLLAMA.wireType),
+      ServerDef("vLLM", "", "/v1/models", Provider.OPENAI.wireType, configKey = "vllm"),
+      ServerDef("LocalAI", "", "/v1/models", Provider.OPENAI.wireType, configKey = "localai"),
+      ServerDef("LM Studio", "", "/v1/models", Provider.OPENAI.wireType, configKey = "lmstudio"),
+      ServerDef("Ollama", "", "/api/tags", Provider.OLLAMA.wireType, configKey = "ollama"),
       ServerDef(
         name = "Zhipu BigModel",
         endpoint = "/models",
         apiKeyEnvVar = "ZHIPU_API_KEY",
         providerType = Provider.OPENAI.wireType,
-        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4"
+        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
+        configKey = "zhipu"
       ),
       ServerDef(
         name = "DeepSeek",
         endpoint = "/models",
         apiKeyEnvVar = "DEEPSEEK_API_KEY",
         providerType = Provider.OPENAI.wireType,
-        baseUrl = "https://api.deepseek.com/v1"
+        baseUrl = "https://api.deepseek.com/v1",
+        configKey = "deepseek"
       ),
       ServerDef(
         name = "MiniMax",
         endpoint = "/models",
         apiKeyEnvVar = "MiniMax_API_KEY",
         providerType = Provider.OPENAI.wireType,
-        baseUrl = "https://api.minimaxi.com/v1"
+        baseUrl = "https://api.minimaxi.com/v1",
+        configKey = "minimax"
       ),
     )
 
@@ -238,24 +206,46 @@ object ModelIdentity {
      * host-side `apiKey` stay out of the cloud list.
      */
     fun publicCloudServers(): List<ServerDef> = baseKnownServers.filter {
-      it.providerType == Provider.OPENAI.wireType && !it.baseUrl.contains("localhost") && !it.baseUrl.contains("127.0.0.1")
+      it.providerType == Provider.OPENAI.wireType && it.apiKeyEnvVar != null
     }
 
     fun doProbe(): List<ModelEntry> {
       val cloudApiKey: String? = resolveCloudApiKey()
-      val serversToProbe: List<ServerDef> = baseKnownServers.map { server ->
-        if (server.apiKey != null) return@map server
-        val providerKey: String? = server.apiKeyEnvVar
-          ?.let { resolveEnvVar(it) }
-        val effectiveKey: String? = providerKey ?: cloudApiKey
-        if (effectiveKey != null && server.providerType == Provider.OPENAI.wireType) {
-          server.copy(apiKey = effectiveKey)
-        } else server
+      val providerEnv: Properties = ProviderConfigStore.load()
+      val serversToProbe: List<ServerDef> = baseKnownServers.mapNotNull { server ->
+        val configuredUrl: String? = ProviderConfigStore.baseUrlKey(server.configKey)
+          ?.let { providerEnv.getProperty(it) }
+          ?.trim()
+          ?.takeIf { it.isNotEmpty() }
+        // Resolve the base URL: an explicitly configured value wins; a local
+        // provider with no configured URL (and no fixed default) is skipped;
+        // a cloud provider falls back to its built-in fixed endpoint.
+        val resolvedUrl: String? = configuredUrl
+          ?: server.baseUrl.trim().takeIf { it.isNotEmpty() }
+        if (resolvedUrl == null) return@mapNotNull null
+        var effective: ServerDef = server.copy(baseUrl = resolvedUrl.trimEnd('/'))
+        if (effective.apiKey == null) {
+          val providerKey: String? = ProviderConfigStore.apiKeyKey(server.configKey)
+            ?.let { providerEnv.getProperty(it) }
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?: effective.apiKeyEnvVar?.let { resolveEnvVar(it) }
+          val effectiveKey: String? = providerKey ?: cloudApiKey
+          if (effectiveKey != null && effective.providerType == Provider.OPENAI.wireType) {
+            effective = effective.copy(apiKey = effectiveKey)
+          }
+        }
+        // A provider that requires an API key (declares an env-var source,
+        // e.g. the hosted cloud providers) is skipped when no key resolved —
+        // probing it without auth would only burn a network call and fail.
+        if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank()) {
+          return@mapNotNull null
+        }
+        effective
       }
       logger.info(
         "Probing ${serversToProbe.size} server(s): " +
           serversToProbe.joinToString { "${it.name}@${it.baseUrl}" })
-      Catalog.load()
       val discovered = mutableListOf<ModelEntry>()
       for (server in serversToProbe) {
         logger.info("Probing ${server.name} at ${server.baseUrl}${server.endpoint}")
@@ -298,15 +288,7 @@ object ModelIdentity {
         }
       }
 
-      return withHealth.map { entry ->
-        Catalog.lookup(entry.modelName)?.let { meta ->
-          entry.copy(
-            contextLimit = meta.contextLimit, reasoning = meta.reasoning,
-            toolCall = meta.toolCall, openWeights = meta.openWeights,
-            attachment = meta.attachment,
-          )
-        } ?: entry
-      }
+      return withHealth
     }
 
     private fun probeServer(server: ServerDef): ProbeResult {
@@ -437,99 +419,4 @@ object ModelIdentity {
       }
     }
   }
-
-  private object Catalog {
-    private val logger: Logger = LoggerFactory.getLogger("ModelIdentity.Catalog")
-    private val cache = mutableMapOf<String, ModelMetadata>()
-
-    fun load() {
-      try {
-        HttpClient().use { client ->
-          val response = runBlocking {
-            client.get("https://models.dev/api.json") {
-              timeout { requestTimeoutMillis = 10_000 }
-            }
-          }
-          if (response.status.value != 200) {
-            logger.warn("Failed to fetch models.dev catalog: HTTP ${response.status.value}")
-            return
-          }
-          val catalogJson = Json.parseToJsonElement(runBlocking { response.bodyAsText() }).jsonObject
-          var loadedCount = 0
-          for ((_, providerData) in catalogJson) {
-            val models = providerData.jsonObject["models"]?.jsonObject ?: continue
-            for ((_, modelData) in models) {
-              val modelObject = modelData.jsonObject
-              val modelId = modelObject["id"]?.jsonPrimitive?.content ?: continue
-              cache[normalizeCatalogKey(modelId)] = ModelMetadata(
-                toolCall = modelObject["tool_call"]?.jsonPrimitive?.boolean ?: false,
-                reasoning = modelObject["reasoning"]?.jsonPrimitive?.boolean ?: false,
-                attachment = modelObject["attachment"]?.jsonPrimitive?.boolean ?: false,
-                openWeights = modelObject["open_weights"]?.jsonPrimitive?.boolean ?: false,
-                contextLimit = modelObject["limit"]?.jsonObject?.get("context")?.jsonPrimitive?.int ?: 0,
-              )
-              loadedCount++
-            }
-          }
-          logger.info("Loaded $loadedCount model entries from models.dev catalog")
-        }
-      } catch (modelException: Exception) {
-        logger.warn("Failed to load models.dev catalog", modelException)
-      }
-    }
-
-    fun lookup(modelName: String): ModelMetadata? {
-      val normalizedKey = normalizeCatalogKey(modelName)
-      cache[normalizedKey]?.let { return it }
-      for ((cachedKey, modelMetadata) in cache) {
-        if (cachedKey.contains(normalizedKey) || normalizedKey.contains(cachedKey)) return modelMetadata
-      }
-      val normalizedPrefix = normalizedKey.split("-").takeWhile { part ->
-        !part.startsWith("7b") && !part.startsWith("8b") && !part.startsWith("13b") &&
-          !part.startsWith("14b") && !part.startsWith("32b") && !part.startsWith("70b") &&
-          !part.startsWith("72b") && !part.startsWith("30b") && !part.startsWith("80b")
-      }.joinToString("-")
-      if (normalizedPrefix.length >= 4) {
-        for ((cachedKey, meta) in cache) {
-          if (cachedKey.startsWith(normalizedPrefix) || normalizedPrefix.startsWith(cachedKey)) return meta
-        }
-      }
-      return null
-    }
-  }
-
-  private object Recommender {
-    fun recommend(models: List<ModelEntry>, context: RecommendationContext): ModelEntry? {
-      if (models.isEmpty()) return null
-      return models.maxByOrNull { score(it, context) }
-    }
-
-    private fun score(model: ModelEntry, context: RecommendationContext): Double {
-      var totalScore = minOf(model.contextLimit, 200_000) / 2_000.0
-      if (isCloudTagged(model.modelName) || model.serverName !in LOCAL_SERVER_NAMES) {
-        totalScore += 200.0
-      } else {
-        val parameterBillions = parameterCountInBillions(model.modelName)
-        totalScore += parameterBillions * 1.5
-        if (parameterBillions * 0.8 > context.availableRamGB) totalScore -= 500.0
-      }
-      if (model.reasoning) totalScore += 20.0
-      if (model.toolCall) totalScore += 10.0
-      if (model.attachment) totalScore += 5.0
-      return totalScore
-    }
-  }
 }
-
-
-data class ModelMetadata(
-  val contextLimit: Int = 0,
-  val toolCall: Boolean = false,
-  val reasoning: Boolean = false,
-  val attachment: Boolean = false,
-  val openWeights: Boolean = false
-)
-
-private val REGEX_DASH_COLLAPSE = Regex("-+")
-private val REGEX_SUFFIX_STRIP = Regex("-(instruct|chat|hf|gguf|ggml|awq|gptq|exl2|fp16|bf16)$")
-private val REGEX_SIZE_STRIP = Regex(":?(7b|8b|13b|14b|32b|70b|72b|30b|80b|3b|1b|0.5b|0.6b|1.5b|2b|4b|9b|11b|22b|34b|40b|65b|110b|180b|405b)(-|$)")

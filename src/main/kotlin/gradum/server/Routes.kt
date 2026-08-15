@@ -428,12 +428,10 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
-      val recommendationContext: RecommendationContext = RecommendationContext.fromSystemMemory()
-      val recommended: ModelEntry? = ModelIdentity.recommend(discoveredModels, recommendationContext)
+      val availableCount: Int = discoveredModels.count { it.available }
+      val filteredCount: Int = discoveredModels.size - availableCount
       application.log.info(
-        "Discovered ${discoveredModels.size} models; available RAM headroom " +
-          "= ${"%.1f".format(recommendationContext.availableRamGB)} GB; " +
-          "recommended = ${recommended?.modelName ?: "<none>"}"
+        "Discovered ${discoveredModels.size} models ($availableCount available, $filteredCount filtered)"
       )
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
         mapOf(
@@ -452,10 +450,7 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
       }
       call.respondText(
         text = JsonUtil.encodeMap(
-          mapOf(
-            "models" to discoveredModels.map(modelToJson),
-            "recommended" to recommended?.let(modelToJson)
-          )
+          mapOf("models" to discoveredModels.map(modelToJson))
         ),
         contentType = ContentType.Application.Json
       )
