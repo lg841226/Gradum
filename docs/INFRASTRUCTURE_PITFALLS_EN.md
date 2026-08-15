@@ -947,3 +947,237 @@ Unit tests can pass while the production code is completely broken. This documen
   the IDE is running a stale class. Rebuild and restart.
 - **One classloader, one copy.** The JVM rule is simple: the same interface loaded by two different classloaders
   triggers `LinkageError`. Classes (non-interface) can be dual-loaded safely. Know the difference.
+
+---
+
+## 15. `applicationConfigurable` extension: `implementation` is silently ignored — use `instance`
+
+> **LANDED 2026-08-15, debugging round 1. The whole Configurable was missing from the Settings tree.**
+
+### Symptoms
+
+- Settings → Tools does **not** show the "Gradum" entry at all.
+- Or: clicking the parent's own node shows a *different* page, because the user thought they clicked "Gradum" but
+  actually clicked the parent.
+- No exception, no log entry. The Configurable just never registers.
+
+### Root Cause
+
+The `com.intellij.applicationConfigurable` extension point (and `projectConfigurable`) declares **only these
+attributes**
+in its EP descriptor
+([Settings Guide → Settings Declaration Attributes](https://plugins.jetbrains.com/docs/intellij/settings-guide.html)):
+
+| Attribute           | Required   | Purpose                                                |
+|---------------------|------------|--------------------------------------------------------|
+| `id`                | yes        | Stable ID, must be unique                              |
+| `displayName`       | yes        | Tree label (i18n via `key`+`bundle` recommended)       |
+| `instance`          | **one of** | FQN of a `Configurable` implementation                 |
+| `provider`          | **one of** | FQN of a `ConfigurableProvider` implementation         |
+| `parentId`          | no         | Existing Configurable ID this one nests under          |
+| `nonDefaultProject` | no         | `projectConfigurable` only — hide in non-project scope |
+
+There is **no `implementation` attribute**. The IDE parser ignores unknown attributes silently — the EP entry is
+registered as a *valid Configurable* with an `instance` of `null` (or whatever default the parser uses), and the
+Settings UI simply filters it out because it has nothing to instantiate.
+
+We initially wrote:
+
+```xml
+<applicationConfigurable
+    parentId="tools"
+    displayName="Gradum"
+    implementation="gradum.idea.settings.GradumConfigurable"
+    id="gradum.settings"
+/>
+```
+
+The IDE accepted this XML, accepted the `applicationConfigurable` tag, **accepted `implementation` as "unknown but
+harmless"**, and never linked `GradumConfigurable` to the `gradum.settings` ID. Result: zero Configurables in the tree
+under Tools, no log, no error, no warning.
+
+### Fix
+
+Rename the attribute from `implementation` to `instance`. That's it — one character sequence.
+
+```xml
+<applicationConfigurable
+    parentId="tools"
+    displayName="Gradum"
+    instance="gradum.idea.settings.GradumConfigurable"
+    id="gradum.settings"
+/>
+```
+
+**Always prefer `instance` over `provider`** unless your Configurable needs lazy construction (e.g. accessing the
+project when only the application is available). The provider variant requires a separate class implementing
+`ConfigurableProvider.getConfigurable()`.
+
+### Verification
+
+1. `unzip -l` the IDE's `Contents/lib/platform-impl.jar` and grep for `applicationConfigurable`'s EP descriptor XML:
+   ```bash
+   unzip -p /Applications/IntelliJ\ IDEA.app/Contents/lib/platform-impl.jar \
+     META-INF/ExtensionPoints.xml 2>/dev/null \
+     | grep -A 30 "applicationConfigurable"
+   ```
+   The `<extensionPoint>` block lists every accepted attribute. If `implementation` is not there, **it's not
+   supported**.
+
+2. Or: search the JetBrains Settings Guide page source for the word `implementation` — the EP description will
+   explicitly say "Either `instance` or `provider` must be specified." That phrase is the contract.
+
+3. After the rename, restart the IDE (not hot-reload — `plugin.xml` changes need a fresh process) and re-open Settings →
+   Tools. The "Gradum" node should appear.
+
+### Lesson
+
+> **EP attribute names are not forgiving.** Unknown attribute names don't throw — they get dropped. There is no IDE
+> log line saying "ignored attribute `implementation`." The only signal is "the Configurable never shows up."
+>
+> If you find yourself saying "the Configurable isn't loading and there are no errors" — first check the EP attribute
+> table. Always.
+
+---
+
+## 16. ComposePanel under `JewelComposePanel` — `Modifier.fillMaxSize()` triggers a 32766×32766 Skia texture request
+
+> **LANDED 2026-08-15. Three debugging rounds: (1) `IllegalArgumentException`, (2) plain `Configurable` workarounds
+> via `preferredSize` / `.fillMaxSize` removal, (3) the real "back door" — `Configurable.NoScroll` — discovered by
+> reading JetBrains' own `ComposeSearchableConfigurable` source.**
+
+### Symptoms
+
+Two phases of failure, in order:
+
+**Phase 1 — perpetual spinner** (when using `androidx.compose.ui.awt.ComposePanel` directly):
+
+The settings tree shows "Gradum", but the right pane never paints anything except the IDE's "Loading…" indicator. No
+exception in the log, but a Compose snapshot inspector would show the composition never reaches `setContent`.
+
+**Phase 2 — `IllegalArgumentException` from Metal** (after switching to `JewelComposePanel`):
+
+```
+java.lang.IllegalArgumentException: Texture dimensions must be less than maximum allowed size: 16384, got 32766 x 32766
+    at org.jetbrains.skiko.swing.MetalSwingRedrawer.onRender(MetalSwingRedrawer.kt:63)
+    at org.jetbrains.skiko.swing.SkiaSwingLayer.paint(SkiaSwingLayer.kt:115)
+    at androidx.compose.ui.scene.skia.SwingSkiaLayerComponent$hierarchyRoot$1.paint(SwingSkiaLayerComponent.desktop.kt:67)
+    at java.desktop/javax.swing.JComponent.paintChildren(JComponent.java:964)
+    ...
+```
+
+The crash happens on **first** paint — every time the user opens Settings → Gradum.
+
+### Root Cause
+
+`JewelComposePanelWrapper` ([
+`intellij.platform.jewel.ideLafBridge` JAR](file:///private/tmp/wrapper_kt/org/jetbrains/jewel/bridge/JewelComposePanelWrapper.class))
+extends `com.intellij.util.ui.components.BorderLayoutPanel`. Its CENTER child is an
+`androidx.compose.ui.awt.ComposePanel`. The chain that produces the crash:
+
+1. **First measure pass**: the Settings dialog drops the panel into a `BorderLayout.CENTER`. BorderLayout asks the
+   CENTER child for its `preferredSize` to compute the initial allocation.
+2. **`preferredSize` was `null`** in our code (we never set it). BorderLayout's default behavior is to hand the CENTER
+   child a **`0×0` area** on first measure.
+3. **Compose receives `Constraints(maxWidth=0, maxHeight=0)`**. Our root `Box(modifier = Modifier.fillMaxSize())`
+   reacts: "I want to be as large as possible, but the max is 0, so... the only way to be 'filled' is to be
+   Int.MAX_VALUE."
+   Internally, Compose's `LayoutNode.measure` walks an "unspecified max" branch that clamps to `Int.MAX_VALUE` instead
+   of 0.
+4. **ComposePanel passes `Int.MAX_VALUE` to the SkiaLayer** as the surface size.
+5. **SkiaLayer calls `SkSurface::MakeRenderTarget(Int.MAX_VALUE, Int.MAX_VALUE)`**. Skia's internal validation truncates
+   `int` to a 16-bit signed value somewhere along the way → `0x7FFE = 32766`.
+6. **Metal rejects**: 32766 > 16384 (the GPU texture maximum). `IllegalArgumentException`.
+
+The magic number `32766` is the diagnostic fingerprint: `0x7FFE` is `Int.MAX_VALUE` (`0x7FFFFFFF`) truncated to a 16-bit
+signed value. If you ever see this number, you have an Infinity-constraint leak into SkiaLayer.
+
+### Fix
+
+**Primary fix — implement `Configurable.NoScroll`** (this is what JetBrains' own
+[`ComposeSearchableConfigurable`](https://github.com/JetBrains/intellij-community/blob/master/platform/compose/src/com/intellij/platform/compose/ComposeSearchableConfigurable.kt)
+does, and what their
+[showcase example](https://github.com/JetBrains/intellij-community/blob/master/plugins/devkit/intellij.devkit.compose/src/showcase/SettingsPageOnCompose.kt)
+verifies works without any `preferredSize` shim):
+
+```kotlin
+class GradumConfigurable : Configurable, Configurable.NoScroll {
+  override fun createComponent(): JComponent = JewelComposePanel {
+    Settings()                                   // can use Column(fillMaxSize) + GroupHeader(fillMaxWidth) freely
+  }
+}
+```
+
+**Why this works** (the actual "back door"):
+
+- A plain `Configurable` is wrapped in a **`JBScrollPane`** by the Settings dialog. `JBScrollPane`'s viewport gives the
+  CENTER child a `0×0` first measure → triggers the cascade below.
+- `Configurable.NoScroll` is a marker interface that tells the Settings dialog: **"skip the scroll pane, give this
+  Configurable the full CENTER area directly."** The first measure then has a real width/height (the dialog's actual
+  size), so `fillMaxWidth()` / `fillMaxSize()` get a finite max constraint and the `0×0 → Int.MAX_VALUE → 32766` cascade
+  never starts.
+
+This is the only piece of the fix that matters. The other two options below are obsolete once you add `NoScroll`.
+
+---
+
+**Workaround A — remove `Modifier.fillMaxSize()` from the root Box** (only needed if you cannot use `NoScroll`, e.g.
+because your settings page really is long enough to need scrolling):
+
+```kotlin
+@Composable
+private fun HelloPanel() {
+  // Intentionally NOT using Modifier.fillMaxSize(): see §16.
+  Box(
+    modifier = Modifier.padding(16.dp),  // ← was: .fillMaxSize().padding(16.dp)
+    contentAlignment = Alignment.Center
+  ) {
+    Text(...)
+  }
+}
+```
+
+`Modifier.padding(16.dp)` alone makes the Box wrap its content's intrinsic size. Whatever the SkiaLayer receives is the
+actual text size, not Infinity.
+
+**Workaround B — set JComponent `preferredSize`/`minimumSize` on the wrapper panel** (a belt-and-suspenders measure for
+any future Box that *does* want to fill, but still wrapped in the JBScrollPane):
+
+```kotlin
+override fun createComponent(): JComponent = JewelComposePanel {
+  HelloPanel()
+}.apply {
+  preferredSize = java.awt.Dimension(640, 400)
+  minimumSize = java.awt.Dimension(400, 240)
+}
+```
+
+- `preferredSize = 640×400`: tells BorderLayout to allocate at least that much on first measure, so even a
+  `fillMaxSize()` child receives a real max constraint.
+- `minimumSize = 400×240`: prevents the user from resizing the dialog below the texture's safe size, which would
+  re-trigger the same 0×0 → Int.MAX_VALUE cascade.
+
+### Verification
+
+1. **Visual**: open Settings → Tools → Gradum. The "Hello, Gradum!" Text must render immediately, no spinner, no
+   exception in `idea.log`.
+2. **Log scan**: `grep -i "32766\|Texture dimensions" ~/Library/Logs/JetBrains/IntelliJIdea*/idea.log` must return zero
+   matches.
+3. **Resize**: drag the Settings dialog to half its width and then back. `Box.padding(16.dp)` should keep the Text
+   centered. The `preferredSize` / `minimumSize` fallbacks are never engaged because the primary fix removes the
+   trigger.
+4. **ComposePanel version check**: confirm `createComponent` returns `JewelComposePanel` (from
+   `intellij.platform.jewel.ideLafBridge`), **not** `androidx.compose.ui.awt.ComposePanel` directly. The latter never
+   starts a Recomposer (phase 1 symptom) and never bridges SwingBridgeTheme (theme tokens would be `null`).
+
+### Lesson
+
+> **`fillMaxSize` is a trap under JewelComposePanel — but only when the Configurable is wrapped in a
+> `JBScrollPane`.** Under normal Compose Multiplatform, a 0×0 first-measure constraint degrades to wrap-content. Under
+> `JewelComposePanel` + `JBScrollPane`, it degrades to `Int.MAX_VALUE` because the `JBScrollPane` viewport has no
+> preferred size and the chain
+> `JBScrollPane → BorderLayout → ComposePanel → SkiaLayer` doesn't clamp.
+>
+> The fingerprint is the literal number `32766`. If you see it, the **first thing to try** is
+> `class Foo : Configurable, Configurable.NoScroll` — one interface addition, no `preferredSize`, no `.fillMaxSize()`
+> paranoia. Reserve the workarounds below for cases where you genuinely cannot use `NoScroll`.

@@ -70,6 +70,19 @@ fun ThinkingLevelSelector(
         onDismissRequest = { dismiss(); true },
         horizontalAlignment = Alignment.Start
       ) {
+        passiveItem {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = GradumSpacing.sm),
+            horizontalArrangement = Arrangement.Center
+          ) {
+            Text(
+              text = message("gradum.thinking"),
+              fontWeight = FontWeight.SemiBold
+            )
+          }
+        }
         ThinkingLevel.entries.forEach { level ->
           selectableItem(
             selected = level == selectedLevel,

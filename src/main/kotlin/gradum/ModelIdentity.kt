@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-14 23:23:18 Changed by gwy
+ * ModelIdentity.kt  2026-08-15 10:49:30 Changed by gwy
  */
 
 package gradum
@@ -171,13 +171,14 @@ object ModelIdentity {
      * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
      */
     private val baseKnownServers = listOf(
-      ServerDef("Ollama", AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags", Provider.OLLAMA.wireType),
-      ServerDef("LM Studio", "http://localhost:1234", "/v1/models", Provider.OPENAI.wireType),
       ServerDef("vLLM", "http://localhost:8000", "/v1/models", Provider.OPENAI.wireType),
       ServerDef("LocalAI", "http://localhost:8080", "/v1/models", Provider.OPENAI.wireType),
+      ServerDef("LM Studio", "http://localhost:1234", "/v1/models", Provider.OPENAI.wireType),
+      ServerDef("Ollama", AgentConfiguration.DEFAULT_OLLAMA_BASE_URL, "/api/tags", Provider.OLLAMA.wireType),
       ServerDef(
         name = "Zhipu BigModel",
         endpoint = "/models",
+        apiKeyEnvVar = "ZHIPU_API_KEY",
         providerType = Provider.OPENAI.wireType,
         baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4"
       ),
@@ -206,8 +207,11 @@ object ModelIdentity {
      * same key is reused.
      */
     private val cloudApiKeyEnvCandidates: List<String> = listOf(
+      "ZHIPU_API_KEY",
       "OPENAI_API_KEY",
+      "MINIMAX_API_KEY",
       "BIGMODEL_API_KEY",
+      "DEEPSEEK_API_KEY",
       "GRADUM_OPENAI_API_KEY"
     )
 
@@ -306,7 +310,7 @@ object ModelIdentity {
     }
 
     private fun probeServer(server: ServerDef): ProbeResult {
-      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "…" }
+      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "xxx" }
       logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
       return try {
         HttpClient().use { client ->
@@ -358,18 +362,16 @@ object ModelIdentity {
       }
     }
 
-    private fun resolveCloudApiKey(): String? = resolveEnvVarFromList(cloudApiKeyEnvCandidates)
+    private fun resolveCloudApiKey(): String? {
+      for (envVarName in cloudApiKeyEnvCandidates) {
+        resolveEnvVar(envVarName)?.let { return it }
+      }
+      return null
+    }
 
     private fun resolveEnvVar(envVarName: String): String? {
       val rawValue: String? = System.getenv(envVarName)
       return rawValue?.trim()?.takeIf { it.isNotEmpty() }
-    }
-
-    private fun resolveEnvVarFromList(envVarNames: List<String>): String? {
-      for (envVarName in envVarNames) {
-        resolveEnvVar(envVarName)?.let { return it }
-      }
-      return null
     }
 
     private fun isOllamaCloudModel(entry: ModelEntry): Boolean =
@@ -460,11 +462,11 @@ object ModelIdentity {
               val modelObject = modelData.jsonObject
               val modelId = modelObject["id"]?.jsonPrimitive?.content ?: continue
               cache[normalizeCatalogKey(modelId)] = ModelMetadata(
-                contextLimit = modelObject["limit"]?.jsonObject?.get("context")?.jsonPrimitive?.int ?: 0,
                 toolCall = modelObject["tool_call"]?.jsonPrimitive?.boolean ?: false,
                 reasoning = modelObject["reasoning"]?.jsonPrimitive?.boolean ?: false,
                 attachment = modelObject["attachment"]?.jsonPrimitive?.boolean ?: false,
                 openWeights = modelObject["open_weights"]?.jsonPrimitive?.boolean ?: false,
+                contextLimit = modelObject["limit"]?.jsonObject?.get("context")?.jsonPrimitive?.int ?: 0,
               )
               loadedCount++
             }
@@ -528,6 +530,6 @@ data class ModelMetadata(
   val openWeights: Boolean = false
 )
 
+private val REGEX_DASH_COLLAPSE = Regex("-+")
 private val REGEX_SUFFIX_STRIP = Regex("-(instruct|chat|hf|gguf|ggml|awq|gptq|exl2|fp16|bf16)$")
 private val REGEX_SIZE_STRIP = Regex(":?(7b|8b|13b|14b|32b|70b|72b|30b|80b|3b|1b|0.5b|0.6b|1.5b|2b|4b|9b|11b|22b|34b|40b|65b|110b|180b|405b)(-|$)")
-private val REGEX_DASH_COLLAPSE = Regex("-+")

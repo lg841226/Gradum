@@ -23,6 +23,21 @@
     <depends>com.intellij.modules.compose</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!--
+            The `applicationConfigurable` EP ONLY accepts `instance` or
+            `provider` (see Settings Guide → Settings Declaration
+            Attributes). Using `implementation=...` looks plausible but
+            is silently ignored — the Configurable never registers in
+            the Settings tree, so clicking "Gradum" in Tools simply
+            shows the parent Tools page instead. Always use `instance`.
+        -->
+        <applicationConfigurable
+            parentId="tools"
+            displayName="Gradum"
+            instance="gradum.idea.settings.GradumConfigurable"
+            id="gradum.settings"
+        />
+
         <toolWindow
             id="Gradum"
             icon="/icons/logo/logo.svg"
@@ -43,6 +58,13 @@
             round-trip.
         -->
         <projectService serviceImplementation="gradum.idea.chat.state.GradumChatSession"/>
+
+        <!--
+            Application-scoped provider settings. Persisted to
+            `gradum.xml` in the IDE config directory so URLs, API keys,
+            and toggles survive IDE restarts.
+        -->
+        <applicationService serviceImplementation="gradum.idea.provider.ProviderSettings"/>
 
         <!--
             Notification group used by the image upload pipeline to

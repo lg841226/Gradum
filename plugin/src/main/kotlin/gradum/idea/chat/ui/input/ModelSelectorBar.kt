@@ -2,17 +2,19 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-14 23:40:00 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-15 21:37:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.chat.model.ModelInfo
@@ -98,7 +100,7 @@ fun ModelSelectorBar(
     ThinkingLevelSelector(
       selectedLevel = thinkingLevel,
       onSelect = onSelectThinkingLevel,
-      enabled = selectedModel?.available ?: true,
+      enabled = selectedModel != null || isAutoSelected,
     )
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
@@ -135,6 +137,8 @@ private fun MenuScope.buildMenu(
   selectableItem(selected = isAutoSelected, onClick = onSelectAuto) {
     AutoModelItem()
   }
+
+  separator()
 
   val unpinnedModels = models.filter { model ->
     pinnedModels.none { it.sameAs(model) }
@@ -204,6 +208,7 @@ private fun AutoModelItem() {
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit) {
   val iconKey: IconKey? = resolveProviderIcon(model)
@@ -227,19 +232,37 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
           )
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
-        Text(
-          text = formatted.displayName,
-          color = JewelTheme.globalColors.text.normal
-        )
+        Tooltip(tooltip = { Text(text = formatted.displayName) }) {
+          Text(
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            text = clipModelName(formatted.displayName),
+            color = JewelTheme.globalColors.text.normal,
+            modifier = Modifier.weight(1f, fill = false)
+          )
+        }
+        if (!model.available) {
+          Spacer(modifier = Modifier.width(GradumSpacing.sm))
+          Tooltip(tooltip = { Text(text = message("gradum.model.unavailable")) }) {
+            Icon(
+              key = GradumIcons.Warning,
+              contentDescription = message("gradum.model.unavailable")
+            )
+          }
+        }
         if (formatted.parameterSize != null) {
           Spacer(modifier = Modifier.width(GradumSpacing.sm))
-          SizeBadge(formatted.parameterSize)
+          Badge(
+            content = { Text(formatted.parameterSize) },
+            style = LocalBadgeStyle.current.graySecondary
+          )
+          Spacer(modifier = Modifier.width(GradumSpacing.sm))
         }
       }
       Row(verticalAlignment = Alignment.CenterVertically) {
         CapabilityIcons(model)
         Spacer(modifier = Modifier.width(GradumSpacing.sm))
-        if (model.name.contains("cloud")) {
+        if (model.name.contains("cloud") || isCloudHosted(model)) {
           Icon(
             key = GradumIcons.Cloud,
             contentDescription = message("gradum.cloud")
@@ -264,21 +287,10 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
 }
 
 @Composable
-private fun SizeBadge(size: String) {
-  Row {
-    Badge(
-      content = { Text(size) },
-      style = LocalBadgeStyle.current.graySecondary
-    )
-    Spacer(modifier = Modifier.width(GradumSpacing.sm))
-  }
-}
-
-@Composable
 private fun CapabilityIcons(model: ModelInfo, alpha: Float = 1f) {
   Row(
-    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-    verticalAlignment = Alignment.CenterVertically
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
     if (model.toolCall)
       Icon(
@@ -296,10 +308,19 @@ private fun CapabilityIcons(model: ModelInfo, alpha: Float = 1f) {
 }
 
 private fun resolveSelectorText(selectedModel: ModelInfo?, isAutoSelected: Boolean): String = when {
-  selectedModel != null && isAutoSelected -> message("gradum.model.auto.with", formatModelName(selectedModel.name))
-  selectedModel != null -> formatModelName(selectedModel.name)
+  selectedModel != null && isAutoSelected -> message("gradum.model.auto.with", clipModelName(formatModelName(selectedModel.name)))
+  selectedModel != null -> clipModelName(formatModelName(selectedModel.name))
   isAutoSelected -> message("gradum.model.auto")
   else -> message("gradum.model.none")
+}
+
+/** Caps a model display name at [MAX_MODEL_NAME_CHARS] characters for narrow selectors. */
+private const val MAX_MODEL_NAME_CHARS: Int = 14
+
+private fun clipModelName(name: String): String {
+  val trimmed = name.trim()
+  if (trimmed.length <= MAX_MODEL_NAME_CHARS) return trimmed
+  return trimmed.take(MAX_MODEL_NAME_CHARS - 1) + "…"
 }
 
 private fun resolveProviderIcon(model: ModelInfo): IconKey? {
@@ -310,3 +331,10 @@ private fun resolveProviderIcon(model: ModelInfo): IconKey? {
   }
   return GradumIcons.resolveModelIcon(model.name)
 }
+
+private val CLOUD_SERVER_NAMES = setOf(
+  "Zhipu BigModel", "DeepSeek", "MiniMax"
+)
+
+private fun isCloudHosted(model: ModelInfo): Boolean =
+  model.serverName in CLOUD_SERVER_NAMES

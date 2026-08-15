@@ -28,6 +28,7 @@ import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.util.ThinkingPromptInjector
 import gradum.idea.editor.*
+import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -537,7 +538,9 @@ class GradumChatSession {
   }
 
   private fun applyModelList(newModels: List<ModelInfo>, recommended: ModelInfo? = null) {
-    val healthyModels: List<ModelInfo> = newModels.filter { it.available }
+    val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter
+    val healthyModels: List<ModelInfo> =
+      if (autoFilter) newModels.filter { it.available } else newModels
     models.clear()
     models.addAll(healthyModels)
     modelsLoaded = true
