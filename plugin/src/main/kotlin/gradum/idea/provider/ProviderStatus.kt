@@ -6,6 +6,13 @@
  */
 package gradum.idea.provider
 
+/**
+ * Outcome of a single connection probe.
+ *
+ * Carries a measured latency in every terminal state so the UI can show
+ * a "455 ms" badge; transient states ([Untested] / [Testing]) carry
+ * nothing because the spinner already speaks.
+ */
 sealed class ProviderStatus {
   data object Untested : ProviderStatus()
   data object Testing : ProviderStatus()

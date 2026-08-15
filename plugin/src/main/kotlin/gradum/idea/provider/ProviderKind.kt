@@ -6,6 +6,10 @@
  */
 package gradum.idea.provider
 
+/**
+ * Supported model providers, used to dispatch probe endpoints and to
+ * resolve the localized section title through [displayKey].
+ */
 enum class ProviderKind(val displayKey: String) {
   OLLAMA("gradum.settings.provider.ollama"),
   LM_STUDIO("gradum.settings.provider.lmstudio"),

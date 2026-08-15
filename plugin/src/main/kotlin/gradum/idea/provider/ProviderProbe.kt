@@ -6,6 +6,7 @@
  */
 package gradum.idea.provider
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URI
@@ -14,31 +15,43 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
+/**
+ * Single-shot HTTP probe for a model provider.
+ *
+ * Hits the provider's model-listing endpoint on `Dispatchers.IO`,
+ * folds the response into a [ProviderStatus], and reports the measured
+ * latency. `401` / `403` are surfaced as [ProviderStatus.AuthError];
+ * connection / timeout failures collapse to [ProviderStatus.Unreachable];
+ * anything else becomes [ProviderStatus.Failed] with a short reason.
+ */
 class ProviderProbe {
 
   private val client: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
     .build()
 
-  suspend fun probe(kind: ProviderKind, baseUrl: String, apiKey: String): ProviderStatus = withContext(Dispatchers.IO) {
+  suspend fun probe(
+    kind: ProviderKind,
+    baseUrl: String,
+    apiKey: String,
+  ): ProviderStatus = withContext(Dispatchers.IO) {
     val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
-
-    if (trimmedBaseUrl.isEmpty()) return@withContext ProviderStatus.Failed("URL is empty")
-
+    if (trimmedBaseUrl.isEmpty()) {
+      return@withContext ProviderStatus.Failed("URL is empty")
+    }
     val endpoint: String = when (kind) {
       ProviderKind.OLLAMA -> "$trimmedBaseUrl/api/tags"
       ProviderKind.LM_STUDIO -> "$trimmedBaseUrl/v1/models"
     }
-
     val startedAt: Long = System.currentTimeMillis()
+    val requestBuilder: HttpRequest.Builder = HttpRequest.newBuilder()
+      .uri(URI.create(endpoint))
+      .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
+      .GET()
+    if (apiKey.isNotBlank()) {
+      requestBuilder.header("Authorization", "Bearer ${apiKey.trim()}")
+    }
     try {
-      val requestBuilder: HttpRequest.Builder = HttpRequest.newBuilder()
-        .uri(URI.create(endpoint))
-        .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
-        .GET()
-
-      if (apiKey.isNotBlank()) requestBuilder.header("Authorization", "Bearer ${apiKey.trim()}")
-
       val response: HttpResponse<String> = client.send(
         requestBuilder.build(),
         HttpResponse.BodyHandlers.ofString()
@@ -49,6 +62,8 @@ class ProviderProbe {
         401, 403 -> ProviderStatus.AuthError(latencyMs)
         else -> ProviderStatus.Failed("HTTP ${response.statusCode()}")
       }
+    } catch (exception: CancellationException) {
+      throw exception
     } catch (_: java.net.ConnectException) {
       ProviderStatus.Unreachable(System.currentTimeMillis() - startedAt)
     } catch (_: java.net.http.HttpTimeoutException) {
@@ -59,7 +74,7 @@ class ProviderProbe {
   }
 
   private companion object {
-    const val CONNECT_TIMEOUT_SECONDS: Long = 3
-    const val REQUEST_TIMEOUT_SECONDS: Long = 5
+    const val CONNECT_TIMEOUT_SECONDS: Long = 2
+    const val REQUEST_TIMEOUT_SECONDS: Long = 3
   }
 }

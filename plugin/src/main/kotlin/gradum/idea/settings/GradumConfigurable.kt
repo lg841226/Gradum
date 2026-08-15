@@ -33,6 +33,14 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
 
+/**
+ * IntelliJ settings entry point for Gradum.
+ *
+ * Implements [Configurable.NoScroll] so the IDE does not wrap the
+ * Compose root in its own scroll pane; the [SettingsPanel] composable
+ * owns its own vertical scroll capped at [SETTINGS_PANEL_MAX_HEIGHT]
+ * to keep the layout bounded even when a device pixel ratio is huge.
+ */
 class GradumConfigurable : Configurable, Configurable.NoScroll {
 
   override fun getDisplayName(): String = "Gradum"

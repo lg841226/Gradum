@@ -19,6 +19,10 @@ import org.jetbrains.jewel.foundation.theme.LocalContentColor
 import org.jetbrains.jewel.ui.component.Checkbox
 import org.jetbrains.jewel.ui.component.Text
 
+/**
+ * Checkbox + label row used across the settings panel. Clicking either
+ * the box or the label toggles [checked] as long as the row is enabled.
+ */
 @Composable
 internal fun SettingCheckboxRow(
   label: String, checked: Boolean, enabled: Boolean,
