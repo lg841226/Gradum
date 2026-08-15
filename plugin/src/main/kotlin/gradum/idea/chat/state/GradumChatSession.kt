@@ -44,16 +44,10 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Raw response from the `/models` endpoint, containing the list of discovered LLM models.
- *
- * `recommended` is the server-side pick driven by the `ModelRecommender` algorithm
- * (cloud-first, then biggest local model that fits in the current free RAM).
- * It is nullable for backward compatibility with older server builds and is
- * decoded leniently — a missing field is treated as "no recommendation".
  */
 @Serializable
 private data class ModelsListResponse(
-  val models: List<ModelInfo>,
-  val recommended: ModelInfo? = null
+  val models: List<ModelInfo>
 )
 
 /**
@@ -181,13 +175,6 @@ class GradumChatSession {
 
   /** Models the user has pinned for quick access. */
   val pinnedModels: SnapshotStateList<ModelInfo> = mutableStateListOf()
-
-  /**
-   * Server-side recommendation for auto-select mode. Refreshed on every
-   * successful `/models` response. Null only when the server did not
-   * include the field (older build) or when no models are discoverable.
-   */
-  var recommendedModel: ModelInfo? by mutableStateOf(null)
 
   /** The currently selected model, or `null` when no model is selectable yet. */
   var selectedModel: ModelInfo? by mutableStateOf(null)
@@ -530,21 +517,20 @@ class GradumChatSession {
     try {
       val json: String = apiClient.getModels()
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
-      applyModelList(response.models, response.recommended)
+      applyModelList(response.models)
     } catch (iOException: IOException) {
       log.warn("Failed to load models from ${apiClient.baseUrl}", iOException)
       models.clear(); modelsLoaded = false
     }
   }
 
-  private fun applyModelList(newModels: List<ModelInfo>, recommended: ModelInfo? = null) {
+  private fun applyModelList(newModels: List<ModelInfo>) {
     val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter
     val healthyModels: List<ModelInfo> =
       if (autoFilter) newModels.filter { it.available } else newModels
     models.clear()
     models.addAll(healthyModels)
     modelsLoaded = true
-    recommendedModel = recommended?.takeIf { it.available }
 
     if (models.isEmpty()) {
       selectedModel = null
@@ -556,12 +542,12 @@ class GradumChatSession {
     val selectedEntry = selectedModel
     when {
       selectedEntry == null -> {
-        selectedModel = recommendedModel ?: models.first()
+        selectedModel = models.first()
         isAutoSelected = true
       }
 
       models.none { selectedEntry.sameAs(it) } -> {
-        selectedModel = recommendedModel ?: models.first()
+        selectedModel = models.first()
         isAutoSelected = true
       }
       // else: the user's prior pick is still present; leave it.
@@ -593,15 +579,11 @@ class GradumChatSession {
           runCatching {
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
             val newModels: List<ModelInfo> = response.models
-            val newRecommended: ModelInfo? = response.recommended
             val modelsChanged: Boolean = newModels.size != models.size ||
               newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
-            val recommendedChanged: Boolean =
-              newRecommended?.name != recommendedModel?.name ||
-                newRecommended?.serverName != recommendedModel?.serverName
-            if (modelsChanged || recommendedChanged) {
-              applyModelList(newModels, newRecommended)
-              log.info("Model scanState updated: ${newModels.size} models, recommended = ${newRecommended?.name ?: "<none>"}")
+            if (modelsChanged) {
+              applyModelList(newModels)
+              log.info("Model scanState updated: ${newModels.size} models")
             }
           }.onFailure { exception ->
             log.debug("Failed to decode /models response, skipping this tick", exception)
@@ -1117,7 +1099,7 @@ class GradumChatSession {
     const val MIN_SENDING_MS: Long = 400
 
     /** Interval between model polling requests in milliseconds. */
-    const val POLL_INTERVAL_MS: Long = 5_000
+    const val POLL_INTERVAL_MS: Long = 3_000
 
     /** Max connection retry attempts before surfacing a server error. */
     const val MAX_CONNECT_ATTEMPTS: Int = 6

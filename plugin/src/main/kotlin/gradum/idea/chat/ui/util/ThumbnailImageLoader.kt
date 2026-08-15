@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailImageLoader.kt  2026-08-14 11:45:00 Changed by gwy
+ * ThumbnailImageLoader.kt  2026-08-16 00:12:50 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -236,6 +236,7 @@ object ThumbnailImageLoader {
         logger.warn("Thumbnail URL rejected: {} ({})", url, check.reason)
         return null
       }
+
       is ThumbnailUrlGuard.Check.Safe -> Unit
     }
 
@@ -271,7 +272,7 @@ object ThumbnailImageLoader {
         // bytes can't OOM the IDE.
         val buffer = ByteArray(8 * 1024)
         val accumulator = ArrayList<ByteArray>(64)
-        var totalRead: Int = 0
+        var totalRead = 0
         while (true) {
           val read: Int = inputStream.read(buffer)
           if (read == -1) break
@@ -286,7 +287,7 @@ object ThumbnailImageLoader {
         // negligible compared to the win of not allocating a single
         // huge ByteArray up front.
         val flat = ByteArray(totalRead)
-        var offset: Int = 0
+        var offset = 0
         for (chunk: ByteArray in accumulator) {
           System.arraycopy(chunk, 0, flat, offset, chunk.size)
           offset += chunk.size

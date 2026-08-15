@@ -53,6 +53,7 @@ fun ChatInputSection(
       onSelectAuto = actions.onSelectAuto,
       onTogglePin = actions.onTogglePin,
       onSelectModel = actions.onSelectModel,
+      onRefreshModels = actions.onRefreshModels,
       onSelectThinkingLevel = actions.onSelectThinkingLevel
     )
   }

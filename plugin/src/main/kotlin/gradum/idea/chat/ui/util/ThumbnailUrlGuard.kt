@@ -2,10 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailUrlGuard.kt  2026-08-14 12:19:24 Changed by gwy
+ * ThumbnailUrlGuard.kt  2026-08-16 00:12:50 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
+import gradum.idea.chat.ui.util.ThumbnailUrlGuard.isPrivateV4
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
@@ -51,22 +52,12 @@ internal object ThumbnailUrlGuard {
     }
 
     val scheme: String? = uri.scheme?.lowercase()
-    // A `URI` parse that returns no scheme (blank input, a bare
-    // token like "not a url at all") is not really a URI at all —
-    // surface that to the caller under a "URI" reason so the log
-    // makes sense, instead of pretending it's a "scheme mismatch".
-    if (scheme.isNullOrEmpty()) {
+
+    if (scheme.isNullOrEmpty())
       return Check.Unsafe("not a valid URI: missing or empty scheme")
-    }
+
     if (scheme != "https") return Check.Unsafe("scheme must be https, got '$scheme'")
 
-    // `URI.host` returns the IPv6 authority WITH the surrounding
-    // brackets (e.g. `[::1]`, `[fe80::1]`). `InetAddress.getAllByName`
-    // doesn't accept the bracketed form, so a literal `[::1]` would
-    // either fail to resolve or — depending on platform — be
-    // interpreted as a hostname string. Strip the brackets once,
-    // here, so the DNS lookup and the byte comparison below see the
-    // canonical address.
     val rawHost: String = uri.host?.takeIf { it.isNotBlank() }
       ?: return Check.Unsafe("missing host")
     val host: String = rawHost.trimStart('[').trimEnd(']')
@@ -80,11 +71,13 @@ internal object ThumbnailUrlGuard {
     if (addresses.isEmpty()) return Check.Unsafe("no DNS records for host '$host'")
 
     val blockedReason: String? = addresses.firstNotNullOfOrNull { address ->
-      when {
-        address is Inet4Address && isPrivateV4(address.address) ->
+      when (address) {
+        is Inet4Address if isPrivateV4(address.address) ->
           "host resolves to private IPv4 ${formatV4(address.address)}"
-        address is Inet6Address && isPrivateV6(address.address) ->
+
+        is Inet6Address if isPrivateV6(address.address) ->
           "host resolves to private IPv6 ${formatV6(address.address)}"
+
         else -> null
       }
     }
@@ -102,7 +95,6 @@ internal object ThumbnailUrlGuard {
     val octet0: Int = bytes[0].toInt() and 0xFF
     val octet1: Int = bytes[1].toInt() and 0xFF
     val octet2: Int = bytes[2].toInt() and 0xFF
-    val octet3: Int = bytes[3].toInt() and 0xFF
     return when {
       octet0 == 0 -> true
       octet0 == 10 -> true

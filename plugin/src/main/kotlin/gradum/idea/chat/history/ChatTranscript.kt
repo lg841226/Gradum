@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatTranscript.kt  2026-08-16 00:08:59 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -16,19 +16,7 @@ import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedFile
 import gradum.idea.editor.AttachedImage
 import gradum.idea.editor.AttachedText
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.longOrNull
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
 
 /**
  * Structured-Markdown serialization of a chat conversation.
@@ -88,8 +76,6 @@ import kotlinx.serialization.json.put
  */
 object ChatTranscript {
 
-  const val FORMAT_VERSION: Int = 1
-
   /** Max characters kept for a session's title (derived from first user message). */
   const val MAX_TITLE_LENGTH: Int = 48
 
@@ -140,7 +126,11 @@ object ChatTranscript {
     val contentBuilder: StringBuilder = StringBuilder()
     contentBuilder.append(HEADER_V1).append('\n')
     contentBuilder.append(
-      "<!-- gradum-session id=\"${escapeValue(sessionMeta.sessionId)}\" title=\"${escapeValue(sessionMeta.title)}\" createdAt=\"${sessionMeta.createdAt}\" updatedAt=\"${sessionMeta.updatedAt}\" model=\"${escapeValue(sessionMeta.modelName)}\" -->\n\n"
+      "<!-- gradum-session id=\"${escapeValue(sessionMeta.sessionId)}\" title=\"${escapeValue(sessionMeta.title)}\" createdAt=\"${sessionMeta.createdAt}\" updatedAt=\"${sessionMeta.updatedAt}\" model=\"${
+        escapeValue(
+          sessionMeta.modelName
+        )
+      }\" -->\n\n"
     )
 
     for (message in messages) {
@@ -163,10 +153,15 @@ object ChatTranscript {
               contentBuilder.append(THINKING_MARKER).append('\n')
               contentBuilder.append(event.content).append('\n')
             }
+
             is ChatEvent.ToolCall -> {
               val toolCallInfo: ToolCallInfo = event.info
               contentBuilder.append(
-                "<!-- gradum-toolcall name=\"${escapeValue(toolCallInfo.toolName)}\" alias=\"${escapeValue(toolCallInfo.alias)}\" id=\"${escapeValue(toolCallInfo.toolCallId)}\" success=\"${toolCallInfo.success}\" errorMessage=\"${escapeValue(toolCallInfo.errorMessage)}\" errorDetail=\"${escapeValue(toolCallInfo.errorDetail)}\" -->\n"
+                "<!-- gradum-toolcall name=\"${escapeValue(toolCallInfo.toolName)}\" alias=\"${escapeValue(toolCallInfo.alias)}\" id=\"${escapeValue(toolCallInfo.toolCallId)}\" success=\"${toolCallInfo.success}\" errorMessage=\"${
+                  escapeValue(
+                    toolCallInfo.errorMessage
+                  )
+                }\" errorDetail=\"${escapeValue(toolCallInfo.errorDetail)}\" -->\n"
               )
               contentBuilder.append(argumentsToJson(toolCallInfo.arguments)).append('\n')
               contentBuilder.append(TOOLRESULT_MARKER).append('\n')
@@ -213,27 +208,27 @@ object ChatTranscript {
 
   /** Parses a full transcript back into its [ParsedTranscript]. */
   fun parseTranscript(content: String): ParsedTranscript {
-    var sessionMeta: SessionMeta = SessionMeta("", "", 0L, 0L, "")
+    var sessionMeta = SessionMeta("", "", 0L, 0L, "")
     val messages: MutableList<ChatMessage> = mutableListOf()
 
     // Working message: assistant messages are built incrementally as their
     // event blocks stream in; user messages accumulate verbatim content and
     // attachments. Flushed into `messages` when a new message starts or EOF.
     var workingRole: String? = null
-    var workingTimestamp: Long = 0L
-    var workingModel: String = ""
-    var workingProvider: String = ""
-    var workingServer: String = ""
-    var workingTokens: TokenUsage? = null
+    var workingTimestamp = 0L
+    var workingModel: String
+    var workingProvider: String
+    var workingServer: String
+    var workingTokens: TokenUsage?
     val workingAttachments: MutableList<AttachedContext> = mutableListOf()
     var workingMessage: ChatMessage? = null
 
     var blockType: String? = null
     val blockLines: MutableList<String> = mutableListOf()
     var pendingToolCall: ToolCallInfo? = null
-    var pendingErrorCode: String = ""
-    var pendingErrorTool: String = ""
-    var pendingUserContent: String = ""
+    var pendingErrorCode = ""
+    var pendingErrorTool = ""
+    var pendingUserContent = ""
 
     fun flushBlock() {
       // The generator always appends one '\n' after a block's content, so
@@ -306,7 +301,8 @@ object ChatTranscript {
 
     for (line in content.lines()) {
       when {
-        line.startsWith(HEADER_V1) -> { /* version marker, nothing to do */ }
+        line.startsWith(HEADER_V1) -> { /* version marker, nothing to do */
+        }
 
         line.startsWith(SESSION_PREFIX) -> {
           finalizeMessage()
@@ -391,7 +387,8 @@ object ChatTranscript {
           flushBlock(); blockType = "response"
         }
 
-        STRUCTURAL_LINE.containsMatchIn(line) -> { /* defensive: drop stray markers */ }
+        STRUCTURAL_LINE.containsMatchIn(line) -> { /* defensive: drop stray markers */
+        }
 
         else -> blockLines.add(line)
       }
@@ -480,14 +477,12 @@ object ChatTranscript {
       is JsonArray -> element.map { elementToAny(it) }
 
       is JsonObject -> element.mapValues { (_, value) -> elementToAny(value) }
-
-      is JsonNull -> ""
     }
   }
 
   private fun parseAttributes(marker: String): Map<String, String> {
     val attributeMap: MutableMap<String, String> = mutableMapOf()
-    val pairPattern: Regex = Regex("""([\w]+)="((?:\\.|[^"])*)"""")
+    val pairPattern = Regex("""(\w+)="((?:\\.|[^"])*)"""")
     for (match in pairPattern.findAll(marker)) {
       attributeMap[match.groupValues[1]] = unescapeValue(match.groupValues[2])
     }
@@ -505,7 +500,7 @@ object ChatTranscript {
   private fun unescapeValue(value: String): String {
     if (value.indexOf('\\') < 0) return value
     val escapedBuilder: StringBuilder = StringBuilder(value.length)
-    var index: Int = 0
+    var index = 0
     while (index < value.length) {
       val currentChar: Char = value[index]
       if (currentChar == '\\' && index + 1 < value.length) {

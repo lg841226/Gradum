@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.TimeUnit
 
 plugins {
   kotlin("jvm") version "2.3.0"
@@ -43,7 +42,7 @@ ktor {
  * is fine — the Gradum server still reads the env-var fallback
  * chain when the value is missing or empty. Hosted providers
  * themselves (currently just Zhipu) are first-class in
- * [gradum.ModelIdentity] and need no JSON config.
+ * ModelIdentity and need no JSON config.
  */
 val gradumOpenAiApiKey: String =
   (project.findProperty("gradum.openAiApiKey") as? String).orEmpty()
@@ -161,9 +160,6 @@ tasks.withType<JavaCompile> {
   options.release.set(21)
 }
 
-// ============================================================================
-// Development & distribution helpers
-// ============================================================================
 
 private val serverFatJarFile: File =
   layout.buildDirectory.file("libs/gradum@${project.version}.jar").get().asFile
@@ -226,9 +222,6 @@ tasks.register("serverPackage", Exec::class.java) {
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
   }
 
-  // macOS (Apple's CFBundleVersion) forbids an app-version whose first
-  // number is zero, so a project version of "0.9.0" would be rejected.
-  // Map a leading "0." to "1." to keep minor/patch meaningful.
   val jpackageVersion: String =
     project.version.toString().replaceFirst(Regex("^0\\."), "1.")
 
@@ -252,14 +245,6 @@ tasks.register("serverPackage", Exec::class.java) {
   }
 }
 
-/**
- * One-command dev loop: start the Gradum server in the background on the
- * default port (8765), wait for /health, then launch the plugin sandbox
- * via `:plugin:runIde`. Closes the server when the IDE sandbox exits —
- * replaces opening the two run configurations by hand.
- *
- *   ./gradlew dev
- */
 tasks.register("dev") {
   group = "development"
   description = "Start the Gradum server (background) then launch the plugin sandbox (:plugin:runIde)"
@@ -276,13 +261,6 @@ tasks.register("dev") {
       "-jar", serverFatJarFile.absolutePath,
       "--port", "8765",
     )
-      // dev task is implemented as a raw ProcessBuilder, not a
-      // JavaExec, so the `run` task's environment() block above
-      // does NOT apply here. Re-inject the OpenAI provider key
-      // manually so `./gradlew dev` and `./gradlew :run` see the
-      // same env. Without this, the dev server happily boots but
-      // Discovery never sees the bearer token and Zhipu's probe
-      // silently falls back to "no key configured".
       .also { processBuilder ->
         if (gradumOpenAiApiKey.isNotBlank()) {
           processBuilder.environment()["GRADUM_OPENAI_API_KEY"] = gradumOpenAiApiKey

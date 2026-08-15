@@ -2,15 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-12 12:38:25 Changed by gwy
+ * CommonCapsule.kt  2026-08-16 00:08:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

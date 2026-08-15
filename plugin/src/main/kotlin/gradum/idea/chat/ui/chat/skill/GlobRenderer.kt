@@ -2,15 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GlobRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * GlobRenderer.kt  2026-08-16 00:08:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

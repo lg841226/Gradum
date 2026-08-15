@@ -2,12 +2,16 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-12 17:29:26 Changed by gwy
+ * ChatSessionStore.kt  2026-08-16 00:10:20 Changed by gwy
  */
+
+@file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.history
 
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.platform.eel.fs.EelFiles
+import gradum.idea.chat.history.ChatSessionStore.Companion.HEADER_LINE_LIMIT
 import gradum.idea.chat.model.ChatMessage
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -120,7 +124,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     val headerBuilder: StringBuilder = StringBuilder()
     Files.newBufferedReader(transcriptFile, Charsets.UTF_8).use { reader ->
       var line: String? = reader.readLine()
-      var lineCount: Int = 0
+      var lineCount = 0
       while (line != null && lineCount < HEADER_LINE_LIMIT) {
         headerBuilder.append(line).append('\n')
         line = reader.readLine()
@@ -140,7 +144,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     val transcriptFile: Path = sessionDir(sessionId).resolve(TRANSCRIPT_FILE)
     if (!Files.isRegularFile(transcriptFile)) return null
     return try {
-      ChatTranscript.parseTranscript(Files.readString(transcriptFile, Charsets.UTF_8))
+      ChatTranscript.parseTranscript(EelFiles.readString(transcriptFile, Charsets.UTF_8))
     } catch (loadException: Exception) {
       log.warn("Failed to load session $sessionId", loadException)
       null
@@ -251,7 +255,7 @@ class ChatSessionStore(private val projectRoot: Path) {
      */
     fun nextSessionId(): String {
       val timeStamp: String = LocalDateTime.now().format(SESSION_ID_FORMAT)
-      val suffixChars: CharArray = CharArray(SUFFIX_CHARS) { HEX_CHARS[Random.nextInt(HEX_CHARS.size)] }
+      val suffixChars = CharArray(SUFFIX_CHARS) { HEX_CHARS[Random.nextInt(HEX_CHARS.size)] }
       return "$timeStamp-${String(suffixChars)}"
     }
   }

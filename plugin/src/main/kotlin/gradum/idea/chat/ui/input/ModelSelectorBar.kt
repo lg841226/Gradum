@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-15 21:37:49 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-16 00:12:50 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,6 +61,7 @@ fun ModelSelectorBar(
   onSelectAuto: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
   onSelectModel: (ModelInfo?) -> Unit = {},
+  onRefreshModels: () -> Unit = {},
   onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
 ) {
   var showModelMenu by remember { mutableStateOf(false) }
@@ -73,7 +73,10 @@ fun ModelSelectorBar(
   ) {
     Box {
       SelectorButton(
-        onClick = { showModelMenu = true },
+        onClick = {
+          onRefreshModels()
+          showModelMenu = true
+        },
         isButtonEnabled = models.isNotEmpty(),
         contentDescription = message("gradum.model.select"),
         text = resolveSelectorText(selectedModel, isAutoSelected)
@@ -260,8 +263,6 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
         }
       }
       Row(verticalAlignment = Alignment.CenterVertically) {
-        CapabilityIcons(model)
-        Spacer(modifier = Modifier.width(GradumSpacing.sm))
         if (model.name.contains("cloud") || isCloudHosted(model)) {
           Icon(
             key = GradumIcons.Cloud,
@@ -283,27 +284,6 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
       onClick = onTogglePin,
       contentDescription = pinTip
     )
-  }
-}
-
-@Composable
-private fun CapabilityIcons(model: ModelInfo, alpha: Float = 1f) {
-  Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-  ) {
-    if (model.toolCall)
-      Icon(
-        key = GradumIcons.ModelTools,
-        contentDescription = message("gradum.tools"),
-        modifier = Modifier.alpha(alpha)
-      )
-    if (model.attachment)
-      Icon(
-        key = GradumIcons.ModelVision,
-        contentDescription = message("gradum.vision"),
-        modifier = Modifier.alpha(alpha)
-      )
   }
 }
 

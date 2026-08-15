@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingLevelSelector.kt  2026-08-14 14:30:00 Changed by gwy
+ * ThinkingLevelSelector.kt  2026-08-15 21:52:16 Changed by gwy
  */
 package gradum.idea.chat.ui.input
 
@@ -86,7 +86,7 @@ fun ThinkingLevelSelector(
         ThinkingLevel.entries.forEach { level ->
           selectableItem(
             selected = level == selectedLevel,
-            onClick = { onSelect(level); dismiss() }
+            onClick = { onSelect(level); dismiss() },
           ) {
             ThinkingLevelRow(level = level, isSelected = level == selectedLevel)
           }
@@ -106,7 +106,7 @@ private fun ThinkingLevelRow(level: ThinkingLevel, isSelected: Boolean) {
       .fillMaxWidth()
       .padding(
         vertical = GradumSpacing.xs,
-        horizontal = GradumSpacing.md
+        horizontal = GradumSpacing.lrl
       )
   )
 }

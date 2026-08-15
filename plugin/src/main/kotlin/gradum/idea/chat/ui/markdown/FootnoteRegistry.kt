@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FootnoteRegistry.kt  2026-08-12 12:38:25 Changed by gwy
+ * FootnoteRegistry.kt  2026-08-16 00:10:20 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -26,7 +26,7 @@ class FootnoteRegistry(
   private val getColumnOrigin: () -> Offset?,
   private val getCurrentScrollOffset: () -> Float = { 0f },
 ) {
-  /** Scrolls column content to [position] (px), then calls back for [label] on completion. */
+  /** Scrolls column content to position (px), then calls back for label on completion. */
   var scrollToPosition: (position: Float, label: String) -> Unit = { _, _ -> }
 
   /** The definition chip that should flash right now. `null` when idle. */
@@ -36,14 +36,13 @@ class FootnoteRegistry(
   /** A jump target: the [label] to flash plus a [nonce] so re-clicking the same label re-triggers. */
   data class FlashTarget(val label: String, val nonce: Long)
 
-  /** Each definition chip owns a slot (keyed by its stable [chipId]) so positions stay fresh. */
+  /** Each definition chip owns a slot (keyed by its stable chipId) so positions stay fresh. */
   private val definitionPositionsByLabel = mutableMapOf<String, MutableMap<Any, Float>>()
 
   fun updateDefinitionPosition(label: String, chipId: Any, positionInWindow: Offset) {
     val origin: Offset = getColumnOrigin() ?: return
     definitionPositionsByLabel
-      .getOrPut(label) { mutableMapOf() }
-      .put(chipId, positionInWindow.y - origin.y)
+      .getOrPut(label) { mutableMapOf() }[chipId] = positionInWindow.y - origin.y
   }
 
   /** Scrolls to the nearest registered definition for [label]; no-op if none exist. */

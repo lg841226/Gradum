@@ -8,11 +8,14 @@
 package gradum.idea.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.editor.EditorContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Holds all input-related scanState for the Gradum chat interface.
@@ -75,6 +78,7 @@ private fun rememberInputActions(
   session: GradumChatSession,
   callbacks: GradumCallbacks,
 ): ChatInputActions {
+  val scope: CoroutineScope = rememberCoroutineScope()
   return ChatInputActions(
     onSend = callbacks.onSend,
     onStop = callbacks.onStop,
@@ -99,8 +103,11 @@ private fun rememberInputActions(
         session.pinnedModels.add(model)
     },
     onSelectAuto = {
-      session.selectedModel = session.recommendedModel ?: session.models.firstOrNull()
+      session.selectedModel = session.models.firstOrNull()
       session.isAutoSelected = true
+    },
+    onRefreshModels = {
+      scope.launch { session.loadModels() }
     },
     onSelectFile = callbacks.eventCallbacks.onSelectFile,
     onRemovePending = callbacks.eventCallbacks.onRemovePending,
