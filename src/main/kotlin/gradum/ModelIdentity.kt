@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-16 00:08:59 Changed by gwy
+ * ModelIdentity.kt  2026-08-16 01:12:12 Changed by gwy
  */
 
 package gradum
@@ -66,17 +66,17 @@ data class ServerDef(
   val endpoint: String,
   val providerType: String,
   val apiKey: String? = null,
-  val apiKeyEnvVar: String? = null,
-  val configKey: String? = null
+  val configKey: String? = null,
+  val apiKeyEnvVar: String? = null
 )
 
 /**
-  * Single authority for the full model lifecycle: discovery, capability
-  * inference, and schema variant resolution.
-  *
-  * Internal concerns are isolated behind private inner classes
-  * (Discovery) so the public API stays thin
-  * while the implementation can evolve independently.
+ * Single authority for the full model lifecycle: discovery, capability
+ * inference, and schema variant resolution.
+ *
+ * Internal concerns are isolated behind private inner classes
+ * (Discovery) so the public API stays thin
+ * while the implementation can evolve independently.
  */
 object ModelIdentity {
 
@@ -109,6 +109,81 @@ object ModelIdentity {
   fun discoverModels(): List<ModelEntry> = Discovery.probe()
 
   /**
+   * Result of a single one-shot provider probe, driven from the plugin
+   * settings page. Mirrors the plugin's `ProviderStatus` so the UI can
+   * render a latency badge and a localized error reason without the
+   * plugin ever dialing the provider directly.
+   */
+  data class ProviderProbeResult(
+    val status: String, // "ok" | "unreachable" | "auth" | "failed"
+    val latencyMs: Long,
+    val error: String? = null,
+  )
+
+  /**
+   * Shared HTTP dial used by both the settings probe (`/provider/probe`)
+   * and model discovery. Performs a GET against [url] with an optional
+   * bearer token, a bounded timeout, and latency measurement. Returns the
+   * raw status + body; throws on connect/timeout so callers can classify
+   * the failure as unreachable.
+   */
+  private data class HttpProbe(val status: HttpStatusCode, val body: String, val latencyMs: Long)
+
+  private fun httpProbe(url: String, apiKey: String?): HttpProbe {
+    val startedAt: Long = System.nanoTime()
+    HttpClient().use { client ->
+      val response = runBlocking {
+        client.get(url) {
+          timeout { requestTimeoutMillis = 5000 }
+          apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+            header("Authorization", "Bearer $key")
+          }
+        }
+      }
+      val latencyMs: Long = (System.nanoTime() - startedAt) / 1_000_000
+      return HttpProbe(response.status, runBlocking { response.bodyAsText() }, latencyMs)
+    }
+  }
+
+  /**
+   * One-shot connectivity probe for an arbitrary provider, used by
+   * `POST /provider/probe`. The server (not the plugin) dials the
+   * provider so settings-page checks share the server's network stack,
+   * timeout rules, and auth handling. Local (Ollama) providers are
+   * probed without a token; cloud endpoints are sent a bearer token when
+   * [apiKey] is present.
+   */
+  fun probeProvider(
+    kind: String,
+    baseUrl: String,
+    apiKey: String?,
+  ): ProviderProbeResult {
+    val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
+    if (trimmedBaseUrl.isEmpty()) {
+      return ProviderProbeResult("failed", 0, "URL is empty")
+    }
+    val endpoint: String = when (kind.lowercase()) {
+      "ollama" -> "$trimmedBaseUrl/api/tags"
+      else -> "$trimmedBaseUrl/v1/models"
+    }
+    val startedAt: Long = System.nanoTime()
+    return try {
+      val probe: HttpProbe = httpProbe(endpoint, apiKey)
+      when (probe.status.value) {
+        in 200..299 -> ProviderProbeResult("ok", probe.latencyMs)
+        401, 403 -> ProviderProbeResult("auth", probe.latencyMs, "HTTP ${probe.status.value}")
+        else -> ProviderProbeResult("failed", probe.latencyMs, "HTTP ${probe.status.value}")
+      }
+    } catch (probeException: Exception) {
+      ProviderProbeResult(
+        status = "unreachable",
+        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+        error = probeException.javaClass.simpleName,
+      )
+    }
+  }
+
+  /**
    * Built-in hosted (non-local) [ServerDef]s, exposed at `internal`
    * scope so ModelIdentityTest can assert that each new provider
    * we onboard (Zhipu, DeepSeek, MiniMax, …) is wired up with the
@@ -130,7 +205,7 @@ object ModelIdentity {
      * the supported way to "promote" it to first-class — no plugin
      * restart, no env-var JSON config, no extra injection method.
      *
-     * Each hosted provider declares its own [ServerDef.apiKeyEnvVar]
+     * Each hosted provider declares its own [apiKeyEnvVar]
      * so users with multiple cloud accounts (DeepSeek + MiniMax +
      * Zhipu) can keep keys separate. When that env var is unset the
      * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
@@ -142,27 +217,27 @@ object ModelIdentity {
       ServerDef("Ollama", "", "/api/tags", Provider.OLLAMA.wireType, configKey = "ollama"),
       ServerDef(
         name = "Zhipu BigModel",
-        endpoint = "/models",
-        apiKeyEnvVar = "ZHIPU_API_KEY",
-        providerType = Provider.OPENAI.wireType,
         baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
-        configKey = "zhipu"
+        endpoint = "/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "zhipu",
+        apiKeyEnvVar = "ZHIPU_API_KEY"
       ),
       ServerDef(
         name = "DeepSeek",
-        endpoint = "/models",
-        apiKeyEnvVar = "DEEPSEEK_API_KEY",
-        providerType = Provider.OPENAI.wireType,
         baseUrl = "https://api.deepseek.com/v1",
-        configKey = "deepseek"
+        endpoint = "/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "deepseek",
+        apiKeyEnvVar = "DEEPSEEK_API_KEY"
       ),
       ServerDef(
         name = "MiniMax",
-        endpoint = "/models",
-        apiKeyEnvVar = "MiniMax_API_KEY",
-        providerType = Provider.OPENAI.wireType,
         baseUrl = "https://api.minimaxi.com/v1",
-        configKey = "minimax"
+        endpoint = "/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "minimax",
+        apiKeyEnvVar = "MiniMax_API_KEY"
       ),
     )
 
@@ -217,9 +292,11 @@ object ModelIdentity {
           ?.let { providerEnv.getProperty(it) }
           ?.trim()
           ?.takeIf { it.isNotEmpty() }
-        // Resolve the base URL: an explicitly configured value wins; a local
-        // provider with no configured URL (and no fixed default) is skipped;
-        // a cloud provider falls back to its built-in fixed endpoint.
+        /*
+         * Resolve the base URL: an explicitly configured value wins; a local
+         * provider with no configured URL (and no fixed default) is skipped;
+         * a cloud provider falls back to its built-in fixed endpoint.
+         */
         val resolvedUrl: String? = configuredUrl
           ?: server.baseUrl.trim().takeIf { it.isNotEmpty() }
         if (resolvedUrl == null) return@mapNotNull null
@@ -235,17 +312,17 @@ object ModelIdentity {
             effective = effective.copy(apiKey = effectiveKey)
           }
         }
-        // A provider that requires an API key (declares an env-var source,
-        // e.g. the hosted cloud providers) is skipped when no key resolved —
-        // probing it without auth would only burn a network call and fail.
+        /* A provider that requires an API key (declares an env-var source,
+         * e.g. the hosted cloud providers) is skipped when no key resolved —
+         * probing it without auth would only burn a network call and fail.
+         */
         if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank()) {
           return@mapNotNull null
         }
         effective
       }
       logger.info(
-        "Probing ${serversToProbe.size} server(s): " +
-          serversToProbe.joinToString { "${it.name}@${it.baseUrl}" })
+        "Probing ${serversToProbe.size} server(s): " + serversToProbe.joinToString { "${it.name}@${it.baseUrl}" })
       val discovered = mutableListOf<ModelEntry>()
       for (server in serversToProbe) {
         logger.info("Probing ${server.name} at ${server.baseUrl}${server.endpoint}")
@@ -254,10 +331,8 @@ object ModelIdentity {
           probeServer(server)
         } catch (any: Throwable) {
           logger.error(
-            "Uncaught throwable while probing ${server.name} at " +
-              "${server.baseUrl}${server.endpoint} (after " +
-              "${(System.nanoTime() - probeStart) / 1_000_000} ms)",
-            any
+            "Uncaught throwable while probing ${server.name} at " + "${server.baseUrl}${server.endpoint} (after " +
+              "${(System.nanoTime() - probeStart) / 1_000_000} ms)", any
           )
           ProbeResult.Unreachable
         }
@@ -295,39 +370,29 @@ object ModelIdentity {
       val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "xxx" }
       logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
       return try {
-        HttpClient().use { client ->
-          val response = runBlocking {
-            client.get("${server.baseUrl}${server.endpoint}") {
-              timeout { requestTimeoutMillis = 5000 }
-              server.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
-                header("Authorization", "Bearer $key")
-              }
-            }
-          }
-          logger.info("probeServer got response: ${server.name} status=${response.status.value}")
-          if (response.status != HttpStatusCode.OK) {
-            logger.warn(
-              "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
-                "HTTP ${response.status.value} (${response.status.description})"
-            )
-            return@use ProbeResult.HttpError(response.status)
-          }
-
-          val responseBody = runBlocking { response.bodyAsText() }
-          val responseJson = jsonParser.parseToJsonElement(responseBody).jsonObject
-
-          val modelNames = when (server.providerType) {
-            Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
-              it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-            }?.filter { it.isNotBlank() } ?: emptyList()
-
-            else -> responseJson["data"]?.jsonArray?.map {
-              it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-            }?.filter { it.isNotBlank() } ?: emptyList()
-          }
-
-          ProbeResult.Ok(modelNames.map { ModelEntry(it, server.baseUrl, server.name, server.providerType) })
+        val probe: HttpProbe = httpProbe("${server.baseUrl}${server.endpoint}", server.apiKey)
+        logger.info("probeServer got response: ${server.name} status=${probe.status.value}")
+        if (probe.status != HttpStatusCode.OK) {
+          logger.warn(
+            "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
+              "HTTP ${probe.status.value} (${probe.status.description})"
+          )
+          return ProbeResult.HttpError(probe.status)
         }
+
+        val responseJson = jsonParser.parseToJsonElement(probe.body).jsonObject
+
+        val modelNames = when (server.providerType) {
+          Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
+            it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+          }?.filter { it.isNotBlank() } ?: emptyList()
+
+          else -> responseJson["data"]?.jsonArray?.map {
+            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+          }?.filter { it.isNotBlank() } ?: emptyList()
+        }
+
+        ProbeResult.Ok(modelNames.map { ModelEntry(it, server.baseUrl, server.name, server.providerType) })
       } catch (probeException: Exception) {
         logger.warn(
           "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
@@ -412,10 +477,20 @@ object ModelIdentity {
       @Volatile
       private var snap: Snapshot? = null
 
+      @Volatile
+      private var configFingerprint: String? = null
+
       fun getOrCompute(computeBlock: () -> List<ModelEntry>): List<ModelEntry> {
         val currentTimeMillis = System.currentTimeMillis()
-        snap?.let { if (currentTimeMillis - it.timestamp < TTL_MS) return it.models }
-        return computeBlock().also { snap = Snapshot(currentTimeMillis, it) }
+        val currentFingerprint: String = ProviderConfigStore.fingerprint()
+        val configChanged: Boolean = currentFingerprint != configFingerprint
+        snap?.let {
+          if (!configChanged && currentTimeMillis - it.timestamp < TTL_MS) return it.models
+        }
+        return computeBlock().also {
+          snap = Snapshot(currentTimeMillis, it)
+          configFingerprint = currentFingerprint
+        }
       }
     }
   }

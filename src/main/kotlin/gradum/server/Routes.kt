@@ -33,6 +33,16 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
+data class ProviderProbeRequest(
+  /** Provider kind: `ollama` or `lmstudio` (drives the probe endpoint). */
+  val kind: String,
+  /** Base URL of the provider, e.g. `http://localhost:11434`. */
+  val baseUrl: String,
+  /** Optional bearer token for protected providers. */
+  val apiKey: String? = null,
+)
+
+@Serializable
 data class EventsRequestBody(
   val message: String,
   /**
@@ -453,6 +463,22 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
           mapOf("models" to discoveredModels.map(modelToJson))
         ),
         contentType = ContentType.Application.Json
+      )
+    }
+
+    post("/provider/probe") {
+      val requestBody: ProviderProbeRequest = call.receive<ProviderProbeRequest>()
+      val result: ModelIdentity.ProviderProbeResult =
+        ModelIdentity.probeProvider(requestBody.kind, requestBody.baseUrl, requestBody.apiKey)
+      call.respondText(
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "status" to result.status,
+            "latencyMs" to result.latencyMs,
+            "error" to result.error,
+          )
+        ),
+        contentType = ContentType.Application.Json,
       )
     }
 

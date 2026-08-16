@@ -65,4 +65,19 @@ class ProviderConfigStoreTest {
         val entries = ModelIdentity.discoverModels()
         assertTrue(entries.isEmpty(), "expected no model entries when config is empty")
     }
+
+    @Test
+    fun `fingerprint is stable for missing file and changes on edit`() {
+        val missingFingerprint: String = ProviderConfigStore.fingerprint()
+        assertEquals("missing", missingFingerprint)
+
+        val configFile: File = File(tempDir, "provider.env")
+        configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://localhost:11434")
+        val first: String = ProviderConfigStore.fingerprint()
+        assertTrue(first != "missing")
+
+        configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434")
+        val second: String = ProviderConfigStore.fingerprint()
+        assertTrue(second != first, "fingerprint must change when the file content changes")
+    }
 }

@@ -136,7 +136,7 @@ fun ChatInputPanel(
               (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)
             if (!isSubmitKey) return@onPreviewKeyEvent false
 
-            val modelSelected = state.selectedModel != null || state.isAutoSelected
+            val modelSelected = state.selectedModel != null
             val isDebug = selectedPermission == PermissionMode.DEBUG
             val canSend = !state.isSending || !state.isPendingQueueFull
             if ((modelSelected || isDebug) && canSend) actions.onSend()

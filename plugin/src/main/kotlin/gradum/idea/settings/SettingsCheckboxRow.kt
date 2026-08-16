@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SettingsCheckboxRow.kt  2026-08-15 19:34:06 Changed by gwy
+ * SettingsCheckboxRow.kt  2026-08-16 09:55:28 Changed by gwy
  */
 package gradum.idea.settings
 

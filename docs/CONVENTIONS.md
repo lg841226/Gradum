@@ -203,14 +203,12 @@ When there are more than 3 related parameters, they MUST be encapsulated as Stat
 data class ModelBarState(
     val models: List<Model>,
     val selectedModel: Model?,
-    val pinnedModels: List<Model>,
-    val isAutoSelected: Boolean
+    val pinnedModels: List<Model>
 )
 
 data class ModelBarActions(
     val onSelectModel: (Model) -> Unit,
-    val onTogglePin: (Model) -> Unit,
-    val onSelectAuto: () -> Unit
+    val onTogglePin: (Model) -> Unit
 )
 
 @Composable
@@ -226,10 +224,8 @@ fun ModelSelectorBar(
     models: List<Model>,
     selectedModel: Model?,
     pinnedModels: List<Model>,
-    isAutoSelected: Boolean,
     onSelectModel: (Model) -> Unit,
-    onTogglePin: (Model) -> Unit,
-    onSelectAuto: () -> Unit
+    onTogglePin: (Model) -> Unit
 )
 ```
 

@@ -495,7 +495,7 @@ ChatInputSection               (top-level section, only mounted in chat screen)
         ├── ChatToolbar        (add-menu, permission selector, send/stop)
         ├── AttachmentBar      (current attachments row)
         ├── TextField          (auto-growing multi-line)
-        ├── ModelSelectorBar   (current model + auto + pinned + all)
+        ├── ModelSelectorBar   (current model + pinned + all)
         └── ExternalLink       (GitHub feedback)
 ```
 
@@ -513,40 +513,16 @@ Source: [`ChatInputSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/in
 
 ## 8. Model selection
 
-The model selector is a `SelectorButton` (icon + label + chevron) that opens a `PopupMenu` with three sections:
+The model selector is a `SelectorButton` (icon + label + chevron) that opens a `PopupMenu` with two sections:
 
-1. **`Auto`** — always present, highlighted when `isAutoSelected` is true.
-2. **Pinned** — only when the user has pinned at least one model.
-3. **All models** — everything else, minus pinned entries.
+1. **Pinned** — only when the user has pinned at least one model.
+2. **All models** — everything else, minus pinned entries.
 
-### 8.1 Auto mode (server-recommended)
+When no model is selected yet (or the previous selection disappeared from the roster), the plugin defaults to the first
+entry in the list — `applyModelList` picks `models.first()` so the user always has a working model. Once a model is
+chosen, the selection stays stable across polls unless that entry disappears.
 
-When the user picks **Auto**, the plugin does **not** flip a flag and stop there — it actively selects the server's
-recommendation. The recommender runs server-side on every `/models` request and is described in detail in
-[`ARCHITECTURE.md`](ARCHITECTURE.md#model-recommendation); the short version of the algorithm is:
-
-1. **Context window** — the universal baseline (`min(contextLimit, 200K) / 2000`).
-2. **Cloud preference** — cloud models get a flat `+200` bonus because the project is local-first by intent, not by
-   capability.
-3. **Local parameter count** — `paramsB × 1.5`, where `paramsB` is parsed out of the model name with a
-   `(\d+(?:\.\d+)?)b` regex. A 70B beats a 7B decisively, but not so much that a 70B blows past a stronger cloud
-   candidate.
-4. **Memory gate** — a local model whose estimated VRAM (`paramsB × 0.8`, Ollama Q4 average) exceeds the user's current
-   free RAM (sampled fresh per request, then discounted 25% for OS/IDE overhead) is hit with a `-500` penalty. This is
-   large enough to demote it below every cloud candidate and every smaller local alternative, but the entry stays
-   selectable for users who insist.
-5. **Capability flags** — `+20` for reasoning, `+10` for tool-calling,
-   `+5` for vision.
-
-When the user is in **Auto** mode the selector button renders as
-`Auto - {picked model name}` so the user can see at a glance which model the recommender picked, and the leading "Auto"
-makes the implicit mode visible without forcing them to reopen the menu. The menu's Auto row stays highlighted to keep
-the mode signal in two places.
-
-When the user is in manual mode, only the model name is shown — the
-`Auto -` prefix is suppressed to avoid noise.
-
-### 8.2 Provider icons
+### 8.1 Provider icons
 
 `GradumIcons.resolveModelIcon(modelName)` resolves a model to a provider-branded icon by scanning the lower-cased name
 for the first keyword hit. The mapping is hard-coded in `PROVIDER_KEYWORD_MAP` and covers every cloud and self-hosted
@@ -573,8 +549,8 @@ prefers this resolution for the selector button, and
 
 ### 8.3 Pin / unpin
 
-Every non-Auto model in the menu has a pin toggle. Pinned models surface in their own section above "All models" and
-survive across sessions within the project.
+Every model in the menu has a pin toggle. Pinned models surface in their own section above "All models" and survive
+across sessions within the project.
 
 ### 8.4 Model name formatting
 
@@ -647,9 +623,7 @@ being collapsed and re-expanded.
 | `messages`         | `SnapshotStateList<ChatMessage>`     | The visible chat history.                       |
 | `models`           | `SnapshotStateList<ModelInfo>`       | Last `/models` response.                        |
 | `pinnedModels`     | `SnapshotStateList<ModelInfo>`       | User-pinned models.                             |
-| `recommendedModel` | `ModelInfo?`                         | Server's current Auto pick.                     |
 | `selectedModel`    | `ModelInfo?`                         | The model that will be used for the next send.  |
-| `isAutoSelected`   | `Boolean`                            | True when in Auto mode.                         |
 | `modelsLoaded`     | `Boolean`                            | True after the first successful `/models` call. |
 | `toolMode`         | `String`                             | The active `ToolMode` (wire format).            |
 | `promptVariant`    | `String`                             | `auto` / `cloud` / `local`.                     |
@@ -658,10 +632,13 @@ being collapsed and re-expanded.
 ### 11.2 Model polling
 
 The session starts a background poller that ticks every
-`POLL_INTERVAL_MS = 5_000` (5 seconds). Each tick fires a fresh
-`/models` request and, if either the model roster or the server's recommendation has changed since the last tick,
-applies the update. The recommendation can flip even when the model list is unchanged — for example, when the user
-closes another app, freeing enough memory for a larger local model to win the recommender.
+`POLL_INTERVAL_MS = 3_000` (3 seconds). Each tick fires a fresh
+`/models` request; `applyModelList` compares the incoming roster against the current one (by size, identity, and
+`available` reachability) and rebuilds only when something actually changed, so the user's selection object stays
+stable across unchanged polls. A provider URL edit on the settings page now surfaces within one poll cycle: the server
+invalidates its `HealthCache` via the provider-config file fingerprint and re-probes, flipping `available` on the next
+`/models` response. A successful settings-page probe additionally triggers an immediate `loadModels()` instead of
+waiting for the next tick.
 
 The poller is implemented as `tickerFlow().flatMapLatest { fetchModelsOnce() }`
 so a slow request that overlaps with a tick is canceled by the upstream emission rather than racing the next one.
@@ -672,7 +649,8 @@ Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/stat
 
 ## 12. HTTP API client
 
-`GradumApiClient` is a thin wrapper around the JDK 11 `HttpClient`. The plugin only ever calls three endpoints.
+`GradumApiClient` is a thin wrapper around the JDK 11 `HttpClient`. The plugin calls `GET /models`, `POST /events`,
+`POST /stop`, `GET /health`, `GET /skills`, and `POST /provider/probe`.
 
 ### 12.1 `GET /models`
 
@@ -692,17 +670,11 @@ Returns a JSON object of the shape:
       "openWeights": false,
       "attachment": false
     }
-  ],
-  "recommended": {
-    "name": "...",
-    "...": "..."
-  }
+  ]
 }
 ```
 
-`recommended` is nullable for backward compatibility — older server builds that do not include the field decode cleanly
-thanks to
-`Json { ignoreUnknownKeys = true }`.
+The response is decoded with `Json { ignoreUnknownKeys = true }`, so fields added by newer server builds decode cleanly.
 
 ### 12.2 `POST /events` (NDJSON stream)
 
@@ -718,7 +690,20 @@ Tells the server to abort the in-flight `Agent` for a given `sessionId`. The plu
 **Stop** button in the chat toolbar; the server replies with `{"status": "stopped", ...}` and the client drops the
 `isSending` flag.
 
-### 12.4 Error handling
+### 12.4 `POST /provider/probe`
+
+One-shot connectivity check for the settings page. The plugin forwards `{kind, baseUrl, apiKey?}` (kind is the
+provider wire name, e.g. `ollama` / `lmstudio`) to the server, which dials the provider with a 5s timeout and returns a
+real-time (uncached) result:
+
+```json
+{ "status": "ok" | "unreachable" | "auth" | "failed", "latencyMs": 12, "error": "..." }
+```
+
+On `ok`, the settings row flips to a success badge and the plugin immediately calls `loadModels()` so the refreshed
+roster appears without waiting for the next poll tick.
+
+### 12.5 Error handling
 
 A typed `ErrorCode` enum is shared between the server and the plugin (16 codes, including `MODEL_TIMEOUT`,
 `TOOL_BLOCKED`, `READ_ONLY_VIOLATION`,
@@ -899,7 +884,7 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 | `chat/ui/input/ChatToolbar.kt`             | Add menu, permission selector, send/stop.                                                                                                                                                           |
 | `chat/ui/input/FileItem.kt`                | Single attachment chip.                                                                                                                                                                             |
 | `chat/ui/input/ModelNameFormatter.kt`      | Raw-name → display-name lookup.                                                                                                                                                                     |
-| `chat/ui/input/ModelSelectorBar.kt`        | Model selector with Auto / Pinned / All.                                                                                                                                                            |
+| `chat/ui/input/ModelSelectorBar.kt`        | Model selector with Pinned / All.                                                                                                                                                            |
 | `chat/ui/input/PermissionSelector.kt`      | Three-tier permission dropdown.                                                                                                                                                                     |
 | `chat/ui/input/PreviewText.kt`             | Text-field preview / hint composable.                                                                                                                                                               |
 | `editor/Attachments.kt`                    | `AttachedContext` model + file/dir freezing.                                                                                                                                                        |

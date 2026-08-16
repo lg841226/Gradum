@@ -2,27 +2,19 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-16 09:30:00 Changed by gwy
+ * ApiProviderRow.kt  2026-08-16 10:38:41 Changed by gwy
  */
+
+@file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.settings
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -36,12 +28,7 @@ import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Outline
-import org.jetbrains.jewel.ui.component.CircularProgressIndicator
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.OutlinedButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.TextField
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -49,8 +36,8 @@ private val MASK_TRANSFORMATION: OutputTransformation = OutputTransformation {
   if (length > 0) replace(0, length, "•".repeat(length))
 }
 
-private const val LABEL_WIDTH_DP = 60
-private const val URL_FIELD_MAX_WIDTH_DP = 400
+private const val LABEL_WIDTH_DP = 68
+private const val URL_FIELD_WIDTH_DP = 400
 private const val INPUT_DEBOUNCE_MS: Long = 500
 
 /**
@@ -124,7 +111,7 @@ private fun UrlField(
     )
     TextField(
       state = state,
-      modifier = Modifier.widthIn(max = URL_FIELD_MAX_WIDTH_DP.dp),
+      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
       textStyle = JewelTheme.editorTextStyle,
       placeholder = { Text(message(urlPlaceholderKey(kind))) },
       outline = if (isUrlValid) Outline.None else Outline.Error,
@@ -149,24 +136,39 @@ private fun ApiKeyField(
     )
     TextField(
       state = state,
-      modifier = Modifier.widthIn(max = URL_FIELD_MAX_WIDTH_DP.dp),
+      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
       textStyle = JewelTheme.editorTextStyle,
       outputTransformation = if (isKeyVisible) null else MASK_TRANSFORMATION,
       trailingIcon = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+        ) {
+          Tooltip(
+            tooltip = {
+              Text(
+                text = message(
+                  if (isKeyVisible) "gradum.settings.provider.apikey.hide"
+                  else "gradum.settings.provider.apikey.show"
+                )
+              )
+            }
+          ) {
             Icon(
-              key = if (isKeyVisible) AllIconsKeys.Actions.Show else AllIconsKeys.Actions.Unshare,
+              key = if (isKeyVisible) AllIconsKeys.Actions.Show
+              else AllIconsKeys.Actions.Unshare,
               contentDescription = message(
                 if (isKeyVisible) "gradum.settings.provider.apikey.hide"
                 else "gradum.settings.provider.apikey.show"
               ),
+              modifier = Modifier.clickable { isKeyVisible = !isKeyVisible },
             )
           }
-          IconButton(onClick = { state.edit { replace(0, length, "") } }) {
+          Tooltip(tooltip = { Text(text = message("gradum.settings.provider.apikey.clear")) }) {
             Icon(
               key = AllIconsKeys.General.Delete,
               contentDescription = message("gradum.settings.provider.apikey.clear"),
+              modifier = Modifier.clickable { state.edit { replace(0, length, "") } },
             )
           }
         }

@@ -14,8 +14,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -40,8 +43,19 @@ object ProviderCoordinator {
   )
   private val probe: ProviderProbe = ProviderProbe()
   private val runtimes: Map<ProviderKind, ProviderRuntime> = ProviderKind.entries.associateWith { kind ->
-    ProviderRuntime(kind = kind, appScope = appScope, probe = probe)
+    ProviderRuntime(kind = kind, appScope = appScope, probe = probe) { probeSucceededKind ->
+      _probeSucceeded.tryEmit(probeSucceededKind)
+    }
   }
+  private val _probeSucceeded: MutableSharedFlow<ProviderKind> = MutableSharedFlow(extraBufferCapacity = 8)
+
+  /**
+   * Emits the [ProviderKind] whenever a manual probe (the settings page
+   * "检测" button) reports the provider reachable. Consumers (e.g. the chat
+   * session) refresh the model roster on this event so a successful
+   * reconfiguration shows up immediately instead of on the next poll tick.
+   */
+  val probeSucceeded: SharedFlow<ProviderKind> = _probeSucceeded.asSharedFlow()
 
   fun statusFlow(kind: ProviderKind): StateFlow<ProviderStatus> = runtimes.getValue(kind).status
 
@@ -75,6 +89,7 @@ object ProviderCoordinator {
     private val kind: ProviderKind,
     private val appScope: CoroutineScope,
     private val probe: ProviderProbe,
+    private val onProbeSucceeded: (ProviderKind) -> Unit,
   ) {
     private val probeMutex: Mutex = Mutex()
     private val configMutex: Mutex = Mutex()
@@ -127,7 +142,9 @@ object ProviderCoordinator {
         _isTesting.value = true
         _status.value = ProviderStatus.Testing
         try {
-          _status.value = probe.probe(kind, config.baseUrl, config.apiKey)
+          val result: ProviderStatus = probe.probe(kind, config.baseUrl, config.apiKey)
+          _status.value = result
+          if (result is ProviderStatus.Ok) onProbeSucceeded(kind)
         } finally {
           _isTesting.value = false
         }

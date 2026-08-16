@@ -106,7 +106,7 @@ fun ChatToolbar(
           onClick = actions.onStop
         )
       }
-      val hasModel = state.selectedModel != null || state.isAutoSelected
+      val hasModel = state.selectedModel != null
       val isDebug = selectedPermission == PermissionMode.DEBUG
       val canSend = isTextNotEmpty && !state.isPendingQueueFull && (hasModel || isDebug)
       val sendTooltip = when {

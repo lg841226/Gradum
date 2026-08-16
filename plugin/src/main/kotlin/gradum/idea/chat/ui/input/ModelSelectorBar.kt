@@ -54,11 +54,9 @@ private val MODEL_MENU_MAX_HEIGHT = 300.dp
 fun ModelSelectorBar(
   modifier: Modifier = Modifier,
   selectedModel: ModelInfo? = null,
-  isAutoSelected: Boolean = false,
   models: List<ModelInfo> = emptyList(),
   pinnedModels: List<ModelInfo> = emptyList(),
   thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
-  onSelectAuto: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
   onSelectModel: (ModelInfo?) -> Unit = {},
   onRefreshModels: () -> Unit = {},
@@ -79,7 +77,7 @@ fun ModelSelectorBar(
         },
         isButtonEnabled = models.isNotEmpty(),
         contentDescription = message("gradum.model.select"),
-        text = resolveSelectorText(selectedModel, isAutoSelected)
+        text = resolveSelectorText(selectedModel)
       )
       if (showModelMenu) {
         PopupMenu(
@@ -91,9 +89,7 @@ fun ModelSelectorBar(
             models = models,
             pinnedModels = pinnedModels,
             selectedModel = selectedModel,
-            isAutoSelected = isAutoSelected,
             onTogglePin = { onTogglePin(it); dismiss() },
-            onSelectAuto = { onSelectAuto(); dismiss() },
             onSelectModel = { onSelectModel(it); dismiss() }
           )
         }
@@ -103,7 +99,7 @@ fun ModelSelectorBar(
     ThinkingLevelSelector(
       selectedLevel = thinkingLevel,
       onSelect = onSelectThinkingLevel,
-      enabled = selectedModel != null || isAutoSelected,
+      enabled = selectedModel != null,
     )
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
@@ -117,9 +113,7 @@ fun ModelSelectorBar(
 private fun MenuScope.buildMenu(
   models: List<ModelInfo>,
   pinnedModels: List<ModelInfo>,
-  isAutoSelected: Boolean,
   selectedModel: ModelInfo?,
-  onSelectAuto: () -> Unit,
   onTogglePin: (ModelInfo) -> Unit,
   onSelectModel: (ModelInfo) -> Unit
 ) {
@@ -135,10 +129,6 @@ private fun MenuScope.buildMenu(
         fontWeight = FontWeight.SemiBold
       )
     }
-  }
-
-  selectableItem(selected = isAutoSelected, onClick = onSelectAuto) {
-    AutoModelItem()
   }
 
   separator()
@@ -190,24 +180,6 @@ private fun MenuScope.buildMenu(
         )
       }
     }
-  }
-}
-
-@Composable
-private fun AutoModelItem() {
-  Row(
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.Center,
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(GradumSpacing.xs)
-  ) {
-    Icon(key = GradumIcons.Auto, contentDescription = message("gradum.auto.model"))
-    Spacer(modifier = Modifier.width(GradumSpacing.md))
-    Text(
-      text = message("gradum.model.auto"),
-      color = JewelTheme.globalColors.text.normal
-    )
   }
 }
 
@@ -287,10 +259,8 @@ private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () ->
   }
 }
 
-private fun resolveSelectorText(selectedModel: ModelInfo?, isAutoSelected: Boolean): String = when {
-  selectedModel != null && isAutoSelected -> message("gradum.model.auto.with", clipModelName(formatModelName(selectedModel.name)))
+private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
   selectedModel != null -> clipModelName(formatModelName(selectedModel.name))
-  isAutoSelected -> message("gradum.model.auto")
   else -> message("gradum.model.none")
 }
 

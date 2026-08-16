@@ -444,17 +444,6 @@
         <ID>FunctionNaming:MessageTimestamp.kt$@Composable fun MessageTimestamp(timestamp: Long, modifier: Modifier =
             Modifier)
         </ID>
-        <ID>FunctionNaming:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? = null,
-            isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo>
-            =
-            emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel:
-            (ModelInfo?) ->
-            Unit = {}, modifier: Modifier = Modifier )
-        </ID>
-        <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun AutoModelItem()</ID>
-        <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun CapabilityIcons(model: ModelInfo, alpha: Float =
-            1f)
-        </ID>
         <ID>FunctionNaming:ModelSelectorBar.kt$@Composable private fun ModelItemRow(model: ModelInfo, isPinned: Boolean,
             onTogglePin: () -> Unit)
         </ID>
@@ -674,19 +663,6 @@
             Unit, scope: CoroutineScope, delayMillis: Long = 1000 )
         </ID>
         <ID>FunctionSignature:ModelNameFormatter.kt$private fun fallbackDisplay(key: String): String</ID>
-        <ID>FunctionSignature:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? = null,
-            isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo>
-            =
-            emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel:
-            (ModelInfo?) ->
-            Unit = {}, modifier: Modifier = Modifier )
-        </ID>
-        <ID>FunctionSignature:ModelSelectorBar.kt$private fun MenuScope.buildMenu( isAutoSelected: Boolean,
-            selectedModel:
-            ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit,
-            onTogglePin:
-            (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )
-        </ID>
         <ID>FunctionSignature:PermissionSelector.kt$@Composable fun PermissionSelector( selectedPermission: String,
             isMenuVisible: Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier:
             Modifier = Modifier )
@@ -1019,11 +995,6 @@
         <ID>LongMethod:ModelSelectorBar.kt$@Composable private fun ModelItemRow(model: ModelInfo, isPinned: Boolean,
             onTogglePin: () -> Unit)
         </ID>
-        <ID>LongMethod:ModelSelectorBar.kt$private fun MenuScope.buildMenu( isAutoSelected: Boolean, selectedModel:
-            ModelInfo?, models: List&lt;ModelInfo>, pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit,
-            onTogglePin:
-            (ModelInfo) -> Unit, onSelectModel: (ModelInfo) -> Unit )
-        </ID>
         <ID>LongMethod:PermissionSelector.kt$@Composable fun PermissionSelector( selectedPermission: String,
             isMenuVisible:
             Boolean, onToggle: () -> Unit, onSelect: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier =
@@ -1126,16 +1097,6 @@
         </ID>
         <ID>LongParameterList:MessageCopyButton.kt$( text: String, onCopied: () -> Unit, onReset: () -> Unit, scope:
             CoroutineScope, delayMillis: Long = 1000 )
-        </ID>
-        <ID>LongParameterList:ModelSelectorBar.kt$( isAutoSelected: Boolean, selectedModel: ModelInfo?, models: List&lt;ModelInfo>,
-            pinnedModels: List&lt;ModelInfo>, onSelectAuto: () -> Unit, onTogglePin: (ModelInfo) -> Unit, onSelectModel:
-            (ModelInfo) -> Unit )
-        </ID>
-        <ID>LongParameterList:ModelSelectorBar.kt$( selectedModel: ModelInfo? = null, isAutoSelected: Boolean = false,
-            models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo> = emptyList(), onSelectAuto: ()
-            -> Unit
-            = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel: (ModelInfo?) -> Unit = {}, modifier: Modifier =
-            Modifier )
         </ID>
         <ID>LongParameterList:PermissionSelector.kt$( selectedPermission: String, isMenuVisible: Boolean, onToggle: ()
             ->
@@ -1468,12 +1429,6 @@
         <ID>UndocumentedPublicFunction:GradumToolWindowFactory.kt$@OptIn(ExperimentalJewelApi::class) @Composable fun
             GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession)
         </ID>
-        <ID>UndocumentedPublicFunction:ModelSelectorBar.kt$@Composable fun ModelSelectorBar( selectedModel: ModelInfo? =
-            null, isAutoSelected: Boolean = false, models: List&lt;ModelInfo> = emptyList(), pinnedModels: List&lt;ModelInfo>
-            = emptyList(), onSelectAuto: () -> Unit = {}, onTogglePin: (ModelInfo) -> Unit = {}, onSelectModel:
-            (ModelInfo?)
-            -> Unit = {}, modifier: Modifier = Modifier )
-        </ID>
         <ID>UndocumentedPublicProperty:Attachments.kt$AttachedContext$abstract val displayName: String</ID>
         <ID>UndocumentedPublicProperty:Attachments.kt$AttachedContext$abstract val iconKey: IconKey</ID>
         <ID>UndocumentedPublicProperty:Attachments.kt$AttachedFile$val file: VirtualFile</ID>
@@ -1491,7 +1446,6 @@
             =
             {}
         </ID>
-        <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectAuto: () -> Unit = {}</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectFile: (VirtualFile) -> Unit</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputActions$val onSelectModel: (ModelInfo?) -> Unit = {}
         </ID>
@@ -1506,7 +1460,6 @@
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val attachedFiles: List&lt;AttachedContext></ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val editorContext: EditorContext</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isAttachmentLimitReached: Boolean</ID>
-        <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isAutoSelected: Boolean = false</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isExpanded: Boolean</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isFocused: Boolean</ID>
         <ID>UndocumentedPublicProperty:ChatInputState.kt$ChatInputState$val isMenuVisible: Boolean</ID>
@@ -1609,9 +1562,6 @@
         <ID>UndocumentedPublicProperty:GradumChatSession.kt$GradumChatSession.Companion$const val MAX_PENDING_MESSAGES:
             Int
             = 2
-        </ID>
-        <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Auto = PathIconKey("/icons/auto/auto.svg",
-            GradumIcons::class.java)
         </ID>
         <ID>UndocumentedPublicProperty:GradumIcons.kt$GradumIcons$val Build = PathIconKey("/icons/build/build.svg",
             GradumIcons::class.java)

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-14 18:12:51 Changed by gwy
+ * GradumChatSession.kt  2026-08-16 10:28:16 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -28,6 +28,7 @@ import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.util.ThinkingPromptInjector
 import gradum.idea.editor.*
+import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
@@ -179,14 +180,6 @@ class GradumChatSession {
   /** The currently selected model, or `null` when no model is selectable yet. */
   var selectedModel: ModelInfo? by mutableStateOf(null)
 
-  /**
-   * True when the user picked "Auto" from the model menu (or when a
-   * previous manual selection disappeared, and we fell back to auto).
-   * In both cases [selectedModel] is the server's recommendation rather
-   * than a user-chosen entry.
-   */
-  var isAutoSelected: Boolean by mutableStateOf(false)
-
   /** Whether models have been loaded from the server at least once. */
   var modelsLoaded: Boolean by mutableStateOf(false)
 
@@ -244,6 +237,9 @@ class GradumChatSession {
 
   /** Background job for periodic model polling. */
   private var pollingJob: Job? = null
+
+  /** Background job refreshing the model list after a successful settings probe. */
+  private var probeRefreshJob: Job? = null
 
   /**
    * Resets the entire session to its initial state.
@@ -510,7 +506,7 @@ class GradumChatSession {
    *
    * The server probes local LLM providers (Ollama, LM Studio, vLLM, LocalAI)
    * and returns a consolidated list. On success, updates [models] and
-   * auto-selects the first model if none is currently selected. On failure,
+   * defaults to the first model if none is currently selected. On failure,
    * clears the model list and sets [modelsLoaded] to `false`.
    */
   suspend fun loadModels() {
@@ -528,13 +524,22 @@ class GradumChatSession {
     val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter
     val healthyModels: List<ModelInfo> =
       if (autoFilter) newModels.filter { it.available } else newModels
+    // Only rebuild the list when the roster actually changed — by size, by
+    // model identity, or by reachability (`available`). A provider URL edit
+    // on the settings page now surfaces here because the server re-probes
+    // and flips `available`, and `sameAs` alone (name+server) would miss
+    // that. Skipping the rebuild also keeps the user's selection object
+    // stable across unchanged polls.
+    if (healthyModels == models) {
+      modelsLoaded = true
+      return
+    }
     models.clear()
     models.addAll(healthyModels)
     modelsLoaded = true
 
     if (models.isEmpty()) {
       selectedModel = null
-      isAutoSelected = false
       pinnedModels.clear()
       return
     }
@@ -543,12 +548,10 @@ class GradumChatSession {
     when {
       selectedEntry == null -> {
         selectedModel = models.first()
-        isAutoSelected = true
       }
 
       models.none { selectedEntry.sameAs(it) } -> {
         selectedModel = models.first()
-        isAutoSelected = true
       }
       // else: the user's prior pick is still present; leave it.
     }
@@ -579,16 +582,25 @@ class GradumChatSession {
           runCatching {
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
             val newModels: List<ModelInfo> = response.models
-            val modelsChanged: Boolean = newModels.size != models.size ||
-              newModels.map { it.name }.toSet() != models.map { it.name }.toSet()
-            if (modelsChanged) {
-              applyModelList(newModels)
-              log.info("Model scanState updated: ${newModels.size} models")
+            val before: List<ModelInfo> = models.toList()
+            applyModelList(newModels)
+            if (before != models.toList()) {
+              log.info("Model scanState updated: ${models.size} models")
             }
           }.onFailure { exception ->
             log.debug("Failed to decode /models response, skipping this tick", exception)
           }
         }
+    }
+
+    // A successful manual probe on the settings page means the provider was
+    // (re)configured and is reachable — refresh the roster immediately so
+    // the new models show up instead of waiting for the next poll tick.
+    probeRefreshJob = scope.launch {
+      ProviderCoordinator.probeSucceeded.collect {
+        log.info("Provider probe succeeded, refreshing models")
+        loadModels()
+      }
     }
   }
 
@@ -629,6 +641,15 @@ class GradumChatSession {
         job.cancel(CancellationException("Gradum: stop model polling"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel polling job", throwable)
+      }
+    }
+    val refreshJob = probeRefreshJob
+    probeRefreshJob = null
+    if (refreshJob != null) {
+      try {
+        refreshJob.cancel(CancellationException("Gradum: stop probe refresh job"))
+      } catch (throwable: Throwable) {
+        log.warn("Failed to cancel probe refresh job", throwable)
       }
     }
   }
@@ -1019,7 +1040,7 @@ class GradumChatSession {
   private fun processPendingQueue() {
     if (pendingMessages.isNotEmpty()) {
       val next: PendingMessage = pendingMessages.removeFirst()
-      val displayName: String = selectedModel?.name ?: "Auto"
+      val displayName: String = selectedModel?.name ?: ""
       val providerName: String = selectedModel?.provider ?: ""
       val serverLabel: String = selectedModel?.serverName ?: ""
 
@@ -1046,13 +1067,9 @@ class GradumChatSession {
   private fun buildModelConfig(): Map<String, String> {
     val requestParams = mutableMapOf<String, String>()
 
-    if (isAutoSelected) {
-      requestParams["provider"] = "ollama"
-    } else {
-      selectedModel?.let { model ->
-        if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
-        if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
-      }
+    selectedModel?.let { model ->
+      if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
+      if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
     }
     return requestParams
   }

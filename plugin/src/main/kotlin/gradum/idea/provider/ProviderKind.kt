@@ -12,5 +12,12 @@ package gradum.idea.provider
  */
 enum class ProviderKind(val displayKey: String) {
   OLLAMA("gradum.settings.provider.ollama"),
-  LM_STUDIO("gradum.settings.provider.lmstudio"),
+  LM_STUDIO("gradum.settings.provider.lmstudio");
+
+  /** Wire name sent to the server's `/provider/probe` endpoint. */
+  val wireName: String
+    get() = when (this) {
+      OLLAMA -> "ollama"
+      LM_STUDIO -> "lmstudio"
+    }
 }

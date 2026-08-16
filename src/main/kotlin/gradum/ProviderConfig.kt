@@ -66,4 +66,24 @@ object ProviderConfigStore {
    *  provider has no configKey. */
   fun apiKeyKey(configKey: String?): String? =
     configKey?.let { "GRADUM_${it.uppercase()}_API_KEY" }
+
+  /**
+   * Cheap fingerprint of the config file's current content — `mtime:size`.
+   * Used to invalidate the server's model-discovery cache when the file
+   * changes (plugin settings edits land here), so `/models` never serves a
+   * stale snapshot after a provider reconfiguration. Returns the same
+   * stable string for a missing file so a transient read hiccup doesn't
+   * look like a config change.
+   */
+  fun fingerprint(): String {
+    val file: File = configFile
+    if (!file.isFile) return "missing"
+    return try {
+      val lastModified: Long = file.lastModified()
+      val length: Long = file.length()
+      "$lastModified:$length"
+    } catch (_: Exception) {
+      "missing"
+    }
+  }
 }

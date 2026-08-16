@@ -2,13 +2,22 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderProbe.kt  2026-08-15 20:05:03 Changed by gwy
+ * ProviderProbe.kt  2026-08-16 09:30:00 Changed by gwy
  */
 package gradum.idea.provider
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.contentOrNull
+import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -16,58 +25,60 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * Single-shot HTTP probe for a model provider.
+ * Single-shot probe for a model provider, routed through the Gradum server.
  *
- * Hits the provider's model-listing endpoint on `Dispatchers.IO`,
- * folds the response into a [ProviderStatus], and reports the measured
- * latency. `401` / `403` are surfaced as [ProviderStatus.AuthError];
- * connection / timeout failures collapse to [ProviderStatus.Unreachable];
- * anything else becomes [ProviderStatus.Failed] with a short reason.
+ * The plugin never dials the provider directly — it asks the embedded
+ * server (`POST /provider/probe`) to run the health check on the shared
+ * network stack. The server answers with `{ status, latencyMs, error }`,
+ * which is folded into a [ProviderStatus] for the settings page badge.
  */
-class ProviderProbe {
+class ProviderProbe(
+  private val serverBaseUrl: String = "http://localhost:8765",
+) {
 
   private val client: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
     .build()
+
+  private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
   suspend fun probe(
     kind: ProviderKind,
     baseUrl: String,
     apiKey: String,
   ): ProviderStatus = withContext(Dispatchers.IO) {
-    val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
-    if (trimmedBaseUrl.isEmpty()) {
-      return@withContext ProviderStatus.Failed("URL is empty")
+    val requestBody: JsonObject = buildJsonObject {
+      put("kind", kind.wireName)
+      put("baseUrl", baseUrl.trim())
+      if (apiKey.isNotBlank()) put("apiKey", apiKey.trim())
     }
-    val endpoint: String = when (kind) {
-      ProviderKind.OLLAMA -> "$trimmedBaseUrl/api/tags"
-      ProviderKind.LM_STUDIO -> "$trimmedBaseUrl/v1/models"
-    }
-    val startedAt: Long = System.currentTimeMillis()
-    val requestBuilder: HttpRequest.Builder = HttpRequest.newBuilder()
-      .uri(URI.create(endpoint))
+    val request: HttpRequest = HttpRequest.newBuilder()
+      .uri(URI.create("${serverBaseUrl.trimEnd('/')}/provider/probe"))
+      .header("Content-Type", "application/json")
       .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
-      .GET()
-    if (apiKey.isNotBlank()) {
-      requestBuilder.header("Authorization", "Bearer ${apiKey.trim()}")
-    }
+      .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+      .build()
     try {
-      val response: HttpResponse<String> = client.send(
-        requestBuilder.build(),
-        HttpResponse.BodyHandlers.ofString()
-      )
-      val latencyMs: Long = System.currentTimeMillis() - startedAt
-      when (response.statusCode()) {
-        in 200..299 -> ProviderStatus.Ok(latencyMs)
-        401, 403 -> ProviderStatus.AuthError(latencyMs)
-        else -> ProviderStatus.Failed("HTTP ${response.statusCode()}")
+      val response: HttpResponse<String> =
+        client.send(request, HttpResponse.BodyHandlers.ofString())
+      if (response.statusCode() !in 200..299) {
+        return@withContext ProviderStatus.Failed("HTTP ${response.statusCode()}")
+      }
+      val responseObject: JsonObject = jsonParser.parseToJsonElement(response.body()).jsonObject
+      val status: String = responseObject["status"]?.jsonPrimitive?.contentOrNull ?: "failed"
+      val latencyMs: Long = responseObject["latencyMs"]?.jsonPrimitive?.long ?: 0L
+      when (status) {
+        "ok" -> ProviderStatus.Ok(latencyMs)
+        "auth" -> ProviderStatus.AuthError(latencyMs)
+        "unreachable" -> ProviderStatus.Unreachable(latencyMs)
+        else -> ProviderStatus.Failed(responseObject["error"]?.jsonPrimitive?.contentOrNull ?: status)
       }
     } catch (exception: CancellationException) {
       throw exception
-    } catch (_: java.net.ConnectException) {
-      ProviderStatus.Unreachable(System.currentTimeMillis() - startedAt)
+    } catch (_: ConnectException) {
+      ProviderStatus.Unreachable(0L)
     } catch (_: java.net.http.HttpTimeoutException) {
-      ProviderStatus.Unreachable(System.currentTimeMillis() - startedAt)
+      ProviderStatus.Unreachable(0L)
     } catch (exception: Exception) {
       ProviderStatus.Failed(exception.javaClass.simpleName)
     }
@@ -75,6 +86,6 @@ class ProviderProbe {
 
   private companion object {
     const val CONNECT_TIMEOUT_SECONDS: Long = 2
-    const val REQUEST_TIMEOUT_SECONDS: Long = 3
+    const val REQUEST_TIMEOUT_SECONDS: Long = 5
   }
 }

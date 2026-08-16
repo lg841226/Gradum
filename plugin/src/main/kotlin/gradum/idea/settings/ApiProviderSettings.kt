@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-16 09:30:00 Changed by gwy
+ * ApiProviderSettings.kt  2026-08-16 01:17:28 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -87,12 +87,16 @@ internal fun ApiProviderSettings() {
     baseUrlState = lmStudioUrlState,
     apiKeyState = lmStudioKeyState,
     onUrlChange = { newUrl ->
-      val transform: (ProviderSettings.State) -> Unit = { s -> s.setBaseUrl(ProviderKind.LM_STUDIO, newUrl) }
+      val transform: (ProviderSettings.State) -> Unit = { s ->
+        s.setBaseUrl(ProviderKind.LM_STUDIO, newUrl)
+      }
       settings.update(transform)
       pushKindToCoordinator(settings, ProviderKind.LM_STUDIO)
     },
     onApiKeyChange = { newKey ->
-      val transform: (ProviderSettings.State) -> Unit = { s -> s.setApiKey(ProviderKind.LM_STUDIO, newKey) }
+      val transform: (ProviderSettings.State) -> Unit = { s ->
+        s.setApiKey(ProviderKind.LM_STUDIO, newKey)
+      }
       settings.update(transform)
       pushKindToCoordinator(settings, ProviderKind.LM_STUDIO)
     },

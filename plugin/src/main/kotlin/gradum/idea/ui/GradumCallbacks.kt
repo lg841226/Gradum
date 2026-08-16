@@ -387,7 +387,7 @@ private fun rememberRetryMessageCallback(
         focusedPath, openFiles
       )
 
-      val displayName = session.selectedModel?.name ?: "Auto"
+      val displayName = session.selectedModel?.name ?: ""
       val providerName = session.selectedModel?.provider ?: ""
       val serverLabel = session.selectedModel?.serverName ?: ""
 
@@ -431,7 +431,7 @@ private fun rememberSendCallback(
 ): () -> Unit = remember(session, toolWindow, coroutineScope) {
   {
     val rawText: String = session.textState.text.toString()
-    val hasModel = session.selectedModel != null || session.isAutoSelected
+    val hasModel = session.selectedModel != null
 
     // Debug mode: load focused Markdown file directly without calling LLM,
     // or run a focused tool-call scenario (.tls/.xml) through real playback.
@@ -493,7 +493,7 @@ private fun rememberSendCallback(
         }
       } else {
         val attachedList = session.attachedFiles.toList()
-        val displayName = session.selectedModel?.name ?: "Auto"
+        val displayName = session.selectedModel?.name ?: ""
         val providerName = session.selectedModel?.provider ?: ""
         val serverLabel = session.selectedModel?.serverName ?: ""
         session.messages.add(ChatMessage(role = "user", content = rawText, attachments = attachedList))

@@ -56,7 +56,6 @@ private fun rememberInputState(
     models = session.models.toList(),
     pinnedModels = session.pinnedModels.toList(),
     selectedModel = session.selectedModel,
-    isAutoSelected = session.isAutoSelected,
     modelsLoaded = session.modelsLoaded,
     editorContext = editorContext,
     attachedFiles = session.attachedFiles,
@@ -94,17 +93,12 @@ private fun rememberInputActions(
     onRemoveFile = callbacks.eventCallbacks.onRemoveFile,
     onSelectModel = { model ->
       session.selectedModel = model
-      session.isAutoSelected = false
     },
     onTogglePin = { model ->
       if (session.pinnedModels.any { it.sameAs(model) })
         session.pinnedModels.removeAll { it.sameAs(model) }
       else
         session.pinnedModels.add(model)
-    },
-    onSelectAuto = {
-      session.selectedModel = session.models.firstOrNull()
-      session.isAutoSelected = true
     },
     onRefreshModels = {
       scope.launch { session.loadModels() }

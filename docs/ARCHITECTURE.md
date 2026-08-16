@@ -139,7 +139,7 @@ flowchart TB
 
     subgraph CORE["Core Types"]
         C1["AgentConfiguration.kt (Provider / ToolMode / PromptVariant)"]
-        C2["ModelIdentity.kt (discovery + catalog + recommend,<br/>supports Zhipu BigModel)"]
+        C2["ModelIdentity.kt (discovery + probing,<br/>supports Zhipu BigModel)"]
         C3["SchemaVariant.kt / Annotations.kt / SkillResult.kt"]
         C4["Version.java (GRADUM_VERSION)"]
     end
@@ -223,7 +223,7 @@ flowchart LR
 src/main/kotlin/gradum/
 ├── AgentConfiguration.kt       # Provider / ToolMode / PromptVariant enums + AgentConfiguration data class
 ├── Annotations.kt              # @ExperimentalApi, @DangerousOperation compile-time annotations
-├── ModelIdentity.kt            # Single model-lifecycle authority: Discovery + Catalog + Recommender + capability
+├── ModelIdentity.kt            # Single model-lifecycle authority: Discovery + capability + probe
 ├── SchemaVariant.kt            # FULL / SIMPLE schema variant (delegates to ModelIdentity.schemaVariant)
 ├── SkillResult.kt              # SkillResult sealed class + makeSuccess/makeFailure factories
 │
@@ -239,7 +239,7 @@ src/main/kotlin/gradum/
 ├── server/
 │   ├── App.kt                  # createServerInstance() + Application.module() assembly
 │   ├── Main.kt                 # main() + CLI argument parsing + printUsage()
-│   ├── Routes.kt               # /events, /stop, /health, /models, /skills + ConfigOverrides
+│   ├── Routes.kt               # /events, /stop, /health, /models, /skills, /provider/probe + ConfigOverrides
 │   ├── PortUtil.kt             # isPortAvailable() + findAvailablePort()
 │   ├── ServerConfiguration.kt  # Server configuration data class (host/port defaults)
 │
@@ -317,7 +317,7 @@ flowchart TD
     REQ --> R1["AgentConfiguration<br/>+ Agent instantiation"]
     R -->|"/stop"| STOPS[abort session by id]
     R -->|"/health"| H2[version + uptime]
-    R -->|"/models"| M2[ModelIdentity.discover + recommend]
+    R -->|"/models"| M2[ModelIdentity.discoverModels]
     R -->|"/skills"| S2[SkillRegistry.getAllSkills]
     R1 --> A["Agent.executeTask(userInput, loadContext, toolCallXml?, attachments?)"]
 
@@ -762,60 +762,58 @@ This ensures:
 3. Algorithm can be upgraded (version byte)
 4. Zero external encryption library dependencies — entirely based on the Java standard library `javax.crypto.Mac`
 
-### 2.9 Model Identity: Discovery, Catalog, and Recommendation
+### 2.9 Model Identity: Discovery, Probing, and Capability
 
-All model lifecycle concerns live in a single authority — `ModelIdentity.kt` — split into three private inner objects
-(`Discovery`, `Catalog`, `Recommender`) plus the capability inference used for schema variant resolution.
+All model lifecycle concerns live in a single authority — `ModelIdentity.kt` — split into the private `Discovery` inner
+object plus the capability inference used for schema variant resolution.
 
 ```mermaid
 flowchart TD
     START["ModelIdentity.discoverModels()"] --> CACHE{HealthCache fresh?<br/>TTL 60s}
     CACHE -- Yes --> CACHED["return cached snapshot"]
-    CACHE -- No --> PROBE[Probe 4 known servers]
+    CACHE -- No --> PROBE[Probe known servers]
     PROBE --> P1[Ollama<br/>port 11434<br/>GET /api/tags<br/>provider: ollama]
     PROBE --> P2[LM Studio<br/>port 1234<br/>GET /v1/models<br/>provider: openai]
     PROBE --> P3[vLLM<br/>port 8000<br/>GET /v1/models<br/>provider: openai]
     PROBE --> P4[LocalAI<br/>port 8080<br/>GET /v1/models<br/>provider: openai]
     PROBE --> P5["Zhipu BigModel<br/>open.bigmodel.cn<br/>GET /models<br/>provider: openai"]
-    P1 --> R1["2s timeout per probe<br/>classify HTTP errors / unreachable"]
+    P1 --> R1["5s timeout per probe<br/>classify HTTP errors / unreachable"]
     P2 --> R1
     P3 --> R1
     P4 --> R1
 
     R1 --> CLOUD["Ollama cloud models<br/>(name contains 'cloud'):<br/>live availability probe<br/>POST /api/chat (5s)<br/>classify → UnavailableReason"]
-    CLOUD --> META["Enrich each available entry<br/>from models.dev catalog<br/>(context limit, tool_call,<br/>reasoning, attachment, open_weights)"]
-    META --> RESULT["List<ModelEntry><br/>{modelName, providerType, serverUrl,<br/>serverName, available, contextLimit, ...}"]
+    CLOUD --> RESULT["List<ModelEntry><br/>{modelName, providerType, serverUrl,<br/>serverName, available, contextLimit, ...}"]
 
-    subgraph RECOMMEND["ModelIdentity.recommend(models, RAM headroom)"]
-        SCORE["min(contextLimit, 200k)/2000<br/>+ cloud bonus 200 or param*1.5 (RAM-penalized)<br/>+ 20 (reasoning) + 10 (tool_call) + 5 (attachment)"]
-        SCORE --> BEST["max-scoring model"]
-    end
-    RESULT --> RECOMMEND
+    PROBE_CONFIG{"provider config file<br/>mtime/length changed?"}
+    PROBE_CONFIG -- Yes --> CACHE_IVAL["invalidate HealthCache<br/>→ re-probe on next /models"]
     style P1 fill: #c1daf4
     style P2 fill: #c1f4c1
     style P3 fill: #f4e1c1
     style P4 fill: #f4c1c1
     style P5 fill: #e1c1f4
     style CLOUD fill: #fff4c1
-    style RECOMMEND fill: #d4f1d4
 ```
 
-- **Discovery** (`Discovery.probe()`): probes the five well-known servers (four local + Zhipu BigModel cloud) with a 2s timeout, classifies failures as
-  `HttpError` (skipped, `debug` log) or `Unreachable`, and returns reachable models. Results are cached by
-  `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
+- **Discovery** (`Discovery.probe()`): probes the five well-known servers (four local + Zhipu BigModel cloud) with a 5s
+  timeout, classifies failures as `HttpError` (skipped, `debug` log) or `Unreachable`, and returns reachable models.
+  Results are cached by `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
+- **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from the provider settings file.
+  `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
+  cache is dropped and the next `/models` call re-probes the providers — so a URL edit surfaces in the model list within
+  one poll cycle instead of waiting out the 60s TTL.
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
   `POST /api/chat` probe (`num_predict=1`) and are marked `available=false` with an `UnavailableReason`
   (`AUTH / QUOTA_EXCEEDED / RATE_LIMIT / NETWORK / OTHER`).
-- **Catalog** (`Catalog.load()`): downloads `https://models.dev/api.json` once per probe cycle (10s timeout, cached in a
-  `Map<String, ModelMetadata>` keyed by normalized name) and enriches discovered models with context
-  limits/capabilities. Normalization strips suffixes (`-instruct`, size tags) and canonicalizes separators.
-- **Recommendation** (`Recommender.recommend`): scores available models against the current free-RAM headroom
-  (`RecommendationContext.fromSystemMemory()`, 75% utilization factor). Cloud-tagged or non-local-server models gain a
-  flat bonus; local models score by parameter count and lose 500 points when they need more RAM than is free.
-  `GET /models` re-snapshots the free memory on every request and returns `{models, recommended}`.
-- **Capability inference** (used by `SchemaVariant.resolve`): `parameterCountInBillions(modelName)` parses `7b`/`14b`/…;
-  `isSmallModel` returns true when the name has no cloud/API keyword and the parameter count ≤ 32B. Falls back to
-  "large" for unknown names.
+- **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the
+  plugin issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks
+  share the server's network stack and auth handling; returns `{status: ok|unreachable|auth|failed, latencyMs, error}`.
+  Local (Ollama) endpoints are probed without a token; cloud endpoints get a bearer token when an API key is present.
+- **Shared HTTP dial** (`httpProbe`): one GET helper with a 5s timeout, optional bearer token, and latency measurement
+  used by both `probeProvider` and `Discovery.probeServer`.
+- **Capability inference** (used by `SchemaVariant.resolve`): `parameterCountInBillions(modelName)` parses
+  `7b`/`14b`/…; `isSmallModel` returns true when the name has no cloud/API keyword and the parameter count ≤ 32B. Falls
+  back to "large" for unknown names.
 
 ### 2.10 HTTP Server Layer
 
@@ -830,7 +828,7 @@ flowchart TD
 
 #### Routes.kt
 
-`registerAllRoutes()` registers five routes:
+`registerAllRoutes()` registers six routes:
 
 ```mermaid
 flowchart TD
@@ -838,6 +836,7 @@ flowchart TD
     R --> PS[POST /stop]
     R --> GH[GET /health]
     R --> GM[GET /models]
+    R --> PP[POST /provider/probe]
     R --> GS[GET /skills]
     POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, promptVariant?, attachments?,<br/>toolCallXml?, config?}"]
     P1 --> P2["Validate projectRoot: required,<br/>absolute, existing directory → else 400"]
@@ -846,13 +845,16 @@ flowchart TD
     P4 --> P5["Stream response:<br/>Content-Type: application/x-ndjson<br/>WriteChannelContent<br/>flush per line"]
     PS --> S1["abort active session by sessionId<br/>{status: stopped|not_found}"]
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
-    GM --> M1["ModelIdentity.discoverModels()<br/>+ recommend vs live RAM headroom"]
-    M1 --> M2["Return JSON<br/>{models: [...], recommended}"]
+    GM --> M1["ModelIdentity.discoverModels()<br/>HealthCache TTL 60s,<br/>config-fingerprint invalidation"]
+    M1 --> M2["Return JSON<br/>{models: [...]}"]
+    PP --> P6["ModelIdentity.probeProvider(kind, baseUrl, apiKey)<br/>real-time, uncached<br/>httpProbe with 5s timeout"]
+    P6 --> P7["Return JSON<br/>{status: ok|unreachable|auth|failed,<br/>latencyMs, error}"]
     GS --> S2["Return JSON<br/>{skills: [{name, description, alias}]}"]
     style POST fill: #d4f1d4
     style PS fill: #f4d4c1
     style GH fill: #c1daf4
     style GM fill: #f4e1c1
+    style PP fill: #e1c1f4
     style GS fill: #c1f4c1
 ```
 
@@ -1822,6 +1824,7 @@ plugin (IntelliJ Plugin)
 │  ModelSelectorBar   │ <══════════════════════════════>│  Agent + Skills     │
 │  AssistantChatBubble │   GET /models                   │  LLM Client         │
 │  GradumApiClient    │ <───────────────────────────────│  CommandFilter      │
+│  ProviderProbe      │   POST /provider/probe          │                     │
 │                     │   POST /stop (stop stream)      │                     │
 │                     │   GET /health, GET /skills      │                     │
 └─────────────────────┘                                 └─────────────────────┘
@@ -1833,6 +1836,9 @@ plugin (IntelliJ Plugin)
   to cancel an in-flight stream — alongside the `AbortController`-style client-side cancellation
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
+- `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the
+  server, which dials the provider and returns `{status, latencyMs}`. On `ok`, the plugin immediately refreshes the
+  model list instead of waiting for the next poll tick.
 - Plugin renders the streaming response in real-time via Compose UI
 
 ### 8.4 Plugin Internal Structure
@@ -1915,7 +1921,7 @@ gradum.idea/
 │       │   ├── ChatToolbar.kt        # Add menu, permission selector, send/stop
 │       │   ├── FileItem.kt            # Single attachment chip
 │       │   ├── ModelNameFormatter.kt  # Raw-name → display-name lookup
-│       │   ├── ModelSelectorBar.kt   # Model selector with Auto/Pinned/All
+│       │   ├── ModelSelectorBar.kt   # Model selector with Pinned/All
 │       │   ├── PermissionSelector.kt # Three-tier permission dropdown
 │       │   └── PreviewText.kt        # Text-field preview / hint composable
 │       └── common/
