@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-12 12:38:25 Changed by gwy
+ * LLMClient.kt  2026-08-17 09:18:22 Changed by gwy
  */
 
 package gradum.client
@@ -64,50 +64,48 @@ private fun JsonObject.optObject(key: String): JsonObject =
  * working without touching this file.
  */
 internal data class ProviderHints(
-  val thinkingFieldValue: Map<String, Any?>? = null,
-  val maxTokensFieldName: String = "max_tokens",
   val reasoningDeltaField: String? = null,
+  val maxTokensFieldName: String = "max_tokens",
+  val thinkingFieldValue: Map<String, Any?>? = null
 ) {
   companion object {
     val Default: ProviderHints = ProviderHints()
 
     fun forBaseUrl(baseUrl: String): ProviderHints = when {
       baseUrl.contains("api.deepseek.com", ignoreCase = true) -> ProviderHints(
-        thinkingFieldValue = mapOf("type" to "enabled"),
         reasoningDeltaField = "reasoning_content",
+        thinkingFieldValue = mapOf("type" to "enabled")
       )
+
       baseUrl.contains("api.minimaxi.com", ignoreCase = true) -> ProviderHints(
-        thinkingFieldValue = mapOf("type" to "adaptive"),
-        // MiniMax follows Anthropic's lead and uses
-        // `max_completion_tokens` rather than OpenAI's `max_tokens`.
-        // Sending `max_tokens` is silently ignored, so the response
-        // would run to the model's natural stop with no upper bound.
-        maxTokensFieldName = "max_completion_tokens",
         reasoningDeltaField = "reasoning_content",
+        maxTokensFieldName = "max_completion_tokens",
+        thinkingFieldValue = mapOf("type" to "adaptive")
       )
+
       else -> Default
     }
   }
 }
 
 data class ToolCallEntry(
-  val callIdentifier: String,
   val functionName: String,
-  val functionArguments: Map<String, JsonElement>,
+  val callIdentifier: String,
+  val functionArguments: Map<String, JsonElement>
 )
 
 sealed class LLMResponseChunk {
   data class TextContent(val text: String) : LLMResponseChunk()
-  data class ToolCallBatch(val toolCalls: List<ToolCallEntry>) : LLMResponseChunk()
   data class ReasoningContent(val text: String) : LLMResponseChunk()
   data class ErrorMessage(val description: String) : LLMResponseChunk()
+  data class ToolCallBatch(val toolCalls: List<ToolCallEntry>) : LLMResponseChunk()
 }
 
 @Serializable
 data class TokenUsageSnapshot(
-  val promptTokens: Int = 0,
-  val completionTokens: Int = 0,
   val totalTokens: Int = 0,
+  val promptTokens: Int = 0,
+  val completionTokens: Int = 0
 )
 
 /**
@@ -128,7 +126,7 @@ interface TokenUsageProvider {
 interface LlmClient : TokenUsageProvider {
   fun sendChat(
     messageHistory: List<Map<String, Any>>,
-    toolDefinitions: List<Map<String, Any>>? = null,
+    toolDefinitions: List<Map<String, Any>>? = null
   ): Flow<LLMResponseChunk>
 }
 
@@ -147,8 +145,7 @@ interface LlmClient : TokenUsageProvider {
  * parallel multimodal vocabulary.
  */
 private fun projectMessageForBackend(
-  message: Map<String, Any>,
-  target: Provider
+  message: Map<String, Any>, target: Provider
 ): Map<String, Any> {
   if (message["role"] != "user") return message
 
@@ -169,53 +166,52 @@ private fun extractContentParts(message: Map<String, Any>): List<Map<String, Any
 }
 
 private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
-  val text: StringBuilder = StringBuilder()
-  val images: MutableList<String> = mutableListOf()
+  val stringBuilder: StringBuilder = StringBuilder()
+  val imageDataList: MutableList<String> = mutableListOf()
 
-  for (part in parts) {
-    when (part["type"]) {
+  for (contentPart in parts) {
+    when (contentPart["type"]) {
       "text" -> {
-        (part["text"] as? String)?.let {
-          if (text.isNotEmpty()) text.append("\n\n")
-          text.append(it)
+        (contentPart["text"] as? String)?.let {
+          if (stringBuilder.isNotEmpty()) stringBuilder.append("\n\n")
+          stringBuilder.append(it)
         }
       }
 
       "image" -> {
-        (part["data"] as? String)?.let { images.add(it) }
+        (contentPart["data"] as? String)?.let { imageDataList.add(it) }
       }
       // Non-text/image parts dropped at wire boundary
     }
   }
 
-  val result: MutableMap<String, Any> = mutableMapOf("role" to "user")
-  if (text.isNotEmpty()) result["content"] = text.toString()
-  if (images.isNotEmpty()) result["images"] = images
-  return result
+  val messageMap: MutableMap<String, Any> = mutableMapOf("role" to "user")
+  if (stringBuilder.isNotEmpty()) messageMap["content"] = stringBuilder.toString()
+  if (imageDataList.isNotEmpty()) messageMap["images"] = imageDataList
+  return messageMap
 }
 
 private fun projectToOpenAi(parts: List<Map<String, Any>>): Map<String, Any> {
   val projectedContentParts: MutableList<Map<String, Any>> = mutableListOf()
 
-  for (part in parts) {
-    when (part["type"]) {
+  for (partData in parts) {
+    when (partData["type"]) {
       "text" -> {
-        (part["text"] as? String)?.let {
+        (partData["text"] as? String)?.let {
           projectedContentParts.add(mapOf("type" to "text", "text" to it))
         }
       }
 
       "image" -> {
-        val data = part["data"] as? String ?: continue
-        val mime = part["mime"] as? String ?: "image/jpeg"
+        val base64Data = partData["data"] as? String ?: continue
+        val mimeType = partData["mime"] as? String ?: "image/jpeg"
         projectedContentParts.add(
           mapOf(
             "type" to "image_url",
-            "image_url" to mapOf("url" to "data:$mime;base64,$data")
+            "image_url" to mapOf("url" to "data:$mimeType;base64,$base64Data")
           )
         )
       }
-      // Unknown parts dropped silently
     }
   }
 
@@ -289,8 +285,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                 val callObject: JsonObject = element.jsonObject
                 val functionObject: JsonObject = callObject.optObject("function")
                 ToolCallEntry(
-                  callIdentifier = callObject.optString("id"),
                   functionName = functionObject.optString("name"),
+                  callIdentifier = callObject.optString("id"),
                   functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
                 )
               }
@@ -331,7 +327,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
             configuration.baseUrl,
             "Ollama server",
             "Make sure Ollama is running.",
-            configuration.timeoutSeconds,
+            configuration.timeoutSeconds
           )
         )
       )
@@ -346,7 +342,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
  * MiniMax, …) when the local Ollama server is not the deployment
  * target.
  *
- * The "思考模式" toggle is dual-channel: the system prompt's
+ * The "Thinking Mode" toggle is dual-channel: the system prompt's
  * "Think first, then act" instruction is sent for every model, and
  * — when the matched [ProviderHints] declares a native
  * `thinking` field — the request also carries that native shape
@@ -360,8 +356,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     private set
 
   override fun sendChat(
-    messageHistory: List<Map<String, Any>>,
-    toolDefinitions: List<Map<String, Any>>?,
+    messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
 
     val requestUrl = "${configuration.baseUrl}${configuration.chatCompletionsPath}"
@@ -382,7 +377,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
     // Native thinking: only when the user opted in AND this provider
-    // has a native field. Otherwise we fall back to the system
+    // has a native field. Otherwise, we fall back to the system
     // prompt's "Think first, then act" instruction alone, which is
     // always present and applies to every model.
     if (configuration.enableThinking && hints.thinkingFieldValue != null) {
@@ -422,10 +417,10 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
         LLMResponseChunk.ErrorMessage(
           formatLlmError(
             error,
-            configuration.baseUrl,
             "server",
+            configuration.baseUrl,
             "Make sure the server is running.",
-            configuration.timeoutSeconds,
+            configuration.timeoutSeconds
           )
         )
       )
@@ -433,8 +428,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
   }
 
   private fun parseServerSentEvents(
-    httpResponse: HttpResponse,
-    hints: ProviderHints,
+    httpResponse: HttpResponse, hints: ProviderHints
   ): Flow<LLMResponseChunk> = flow {
     val accumulatedCalls: MutableMap<Int, MutableMap<String, Any>> = mutableMapOf()
     var streamCompleted = false
@@ -459,20 +453,22 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
         continue
       }
 
-      val firstChoice: JsonObject = parsedPayload["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: continue
+      val firstChoice: JsonObject = parsedPayload["choices"]
+        ?.jsonArray?.firstOrNull()?.jsonObject ?: continue
 
       val deltaFields: JsonObject = firstChoice["delta"]?.jsonObject ?: continue
-
       val contentDelta: String = deltaFields.optString("content")
 
       if (contentDelta.isNotBlank())
         emit(LLMResponseChunk.TextContent(contentDelta))
 
-      // Native reasoning surface: DeepSeek and MiniMax both emit
-      // thinking in a separate `reasoning_content` delta on the same
-      // choice. Surface it as ReasoningContent so the UI can render
-      // it as a collapsible "thought" block, matching the Ollama
-      // backend's existing `message.thinking` path.
+      /**
+       * Native reasoning surface: DeepSeek and MiniMax both emit
+       * thinking in a separate `reasoning_content` delta on the same
+       * choice. Surface it as ReasoningContent so the UI can render
+       * it as a collapsible "thought" block, matching the Ollama
+       * backend's existing `message.thinking` path.
+       */
       hints.reasoningDeltaField?.let { fieldName ->
         val reasoningDelta: String = deltaFields.optString(fieldName)
         if (reasoningDelta.isNotBlank())
@@ -494,7 +490,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     }
 
     if (!streamCompleted) {
-      emit(LLMResponseChunk.ErrorMessage("Response interrupted — the model may have run out of memory. Try reducing the context length in your model settings."))
+      emit(LLMResponseChunk.ErrorMessage("Response interrupted, the model may have run out of memory. Try reducing the context length in your model settings."))
     }
   }
 
@@ -537,8 +533,8 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       }
 
       ToolCallEntry(
-        callIdentifier = callData["identifier"] as? String ?: "",
         functionName = callData["functionName"] as? String ?: "",
+        callIdentifier = callData["identifier"] as? String ?: "",
         functionArguments = parsedArguments,
       )
     }
@@ -554,11 +550,7 @@ private fun isTransientError(exception: Exception): Boolean = exception is IOExc
  * "is it running?" hint.
  */
 private fun formatLlmError(
-  exception: Exception,
-  baseUrl: String,
-  serverName: String,
-  runningHint: String,
-  timeoutSeconds: Int,
+  exception: Exception, baseUrl: String, serverName: String, runningHint: String, timeoutSeconds: Int
 ): String = when (exception) {
   is kotlinx.coroutines.TimeoutCancellationException ->
     "Request timed out after $timeoutSeconds seconds. The server is taking too long to respond."
@@ -577,10 +569,7 @@ private fun formatLlmError(
  * Returns [currentUsage] unchanged when neither field is positive.
  */
 private fun recordTokenUsage(
-  usageStats: JsonObject,
-  promptField: String,
-  completionField: String,
-  currentUsage: TokenUsageSnapshot,
+  usageStats: JsonObject, promptField: String, completionField: String, currentUsage: TokenUsageSnapshot
 ): TokenUsageSnapshot {
   val promptTokens: Int = usageStats.optInt(promptField)
   val completionTokens: Int = usageStats.optInt(completionField)

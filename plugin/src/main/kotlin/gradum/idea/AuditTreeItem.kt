@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditTreeItem.kt  2026-08-12 12:39:42 Changed by gwy
+ * AuditTreeItem.kt  2026-08-17 08:55:38 Changed by gwy
  */
 
 package gradum.idea
@@ -10,7 +10,7 @@ package gradum.idea
 import org.jetbrains.jewel.ui.icon.IntelliJIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-/** A row in the audit list: the branch wrapper, a group, a finding, or load-more. */
+/** A row in the audit list: the branch wrapper, a group, a finding, or loadProperties-more. */
 internal sealed interface AuditTreeItem {
   data class Branch(val name: String, val count: Int) : AuditTreeItem
   data class Group(val group: AuditGroup, val count: Int) : AuditTreeItem

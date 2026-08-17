@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkillSecurityTest.kt  2026-08-14 12:40:16 Changed by gwy
+ * ReadFileSkillSecurityTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 package gradum.skill
 
@@ -91,8 +91,6 @@ class ReadFileSkillSecurityTest {
 
   @Test
   fun `read_file rejects sibling directory with shared prefix`() {
-    // Make a sibling whose name starts with projectRoot's basename
-    // — must NOT be accepted as inside the project.
     val trapRoot: File = Files.createTempDirectory("gradum").toFile()
     try {
       val evilRoot: File = Files.createTempDirectory(trapRoot.name + "-evil").toFile()
@@ -151,13 +149,6 @@ class ReadFileSkillSecurityTest {
 
   @Test
   fun `read_file allows tmp scratch files via safe prefix`() {
-    // The safe-prefix carve-out is hard-coded to `/tmp` — see
-    // [ProtectedPaths.safePathPrefixes]. On macOS the JVM's
-    // `java.io.tmpdir` resolves elsewhere (`/var/folders/.../T/`)
-    // and is deliberately NOT in the safe list, because a project
-    // that lives there would otherwise expose its siblings as
-    // scratch space. Use `/tmp` directly so the test exercises
-    // the carve-out on every platform.
     val tmpFile: java.nio.file.Path = java.nio.file.Paths.get("/tmp/gradum-scratch-test.txt")
     try {
       Files.writeString(tmpFile, "scratch content")

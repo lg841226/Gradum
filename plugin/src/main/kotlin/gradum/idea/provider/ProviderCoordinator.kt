@@ -7,6 +7,7 @@
 
 package gradum.idea.provider
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.net.URI
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -113,9 +115,12 @@ object ProviderCoordinator {
           val wasPolling: Boolean = pollJob?.isActive == true
           if (newConfig == currentConfig && wasPolling == autoDetect) return@withLock
           currentConfig = newConfig
-          pollJob?.cancel()
+          pollJob?.cancel(CancellationException("Gradum: stop polling"))
           pollJob = null
           when {
+            // The URL is no longer valid — drop any stale "ok/latency" badge
+            // instead of letting a previous success linger next to a red field.
+            !newConfig.isValid -> _status.value = ProviderStatus.Failed("URL is invalid")
             !autoDetect && newConfig.isValid -> probeOnce(newConfig)
             autoDetect -> pollJob = launch {
               while (isActive) {
@@ -157,11 +162,48 @@ object ProviderCoordinator {
   }
 }
 
-/** Accepts `http://...` and `https://...` schemes with a non-empty host. */
+/**
+ * Strict base-URL validator for the local OpenAI-compatible providers
+ * (Ollama / LM Studio / vLLM / LocalAI).
+ *
+ * Parses the value as a real [URI] and requires:
+ * - an `http` / `https` scheme;
+ * - a non-blank host that is a valid IPv4 literal or hostname
+ *   (no spaces, control chars or garbage such as `/v1832483294239482394`);
+ * - a port in `1..65535` when one is present;
+ * - a path that is empty, `/`, `/v1` or `/v1/` — the API base prefixes
+ *   these providers accept. Anything else (arbitrary junk paths) fails.
+ *
+ * A pure string/scheme check is not enough: users can paste garbage after
+ * the scheme and still see a green URL field.
+ */
 internal fun isValidBaseUrl(value: String): Boolean {
   val trimmed: String = value.trim()
   if (trimmed.isEmpty()) return false
-  if (!trimmed.contains("://")) return false
-  val scheme: String = trimmed.substringBefore("://")
-  return scheme.equals("http", ignoreCase = true) || scheme.equals("https", ignoreCase = true)
+  val uri: URI = try {
+    URI(trimmed)
+  } catch (exception: Exception) {
+    return false
+  }
+  val scheme: String = uri.scheme ?: return false
+  if (!scheme.equals("http", ignoreCase = true) && !scheme.equals("https", ignoreCase = true)) {
+    return false
+  }
+  val host: String = uri.host ?: return false
+  if (!isValidHost(host)) return false
+  if (uri.port != -1 && (uri.port < 1 || uri.port > 65535)) return false
+  if (uri.query != null || uri.fragment != null || uri.userInfo != null) return false
+  val path: String = uri.path ?: ""
+  return path.isEmpty() || path == "/" || path == "/v1" || path == "/v1/"
 }
+
+private fun isValidHost(host: String): Boolean {
+  if (host.isEmpty()) return false
+  val ipv4: Boolean = host.matches(IPV4_PATTERN) &&
+    host.split(".").all { octet -> octet.toInt() in 0..255 }
+  if (ipv4) return true
+  return host.matches(HOSTNAME_PATTERN)
+}
+
+private val IPV4_PATTERN: Regex = Regex("""\d{1,3}(\.\d{1,3}){3}""")
+private val HOSTNAME_PATTERN: Regex = Regex("""[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*""")

@@ -67,6 +67,25 @@ object ProviderConfigStore {
   fun apiKeyKey(configKey: String?): String? =
     configKey?.let { "GRADUM_${it.uppercase()}_API_KEY" }
 
+  /** env key holding the "allow remote" flag for a provider, or null if the
+   *  provider has no configKey. */
+  fun allowRemoteKey(configKey: String?): String? =
+    configKey?.let { "GRADUM_${it.uppercase()}_ALLOW_REMOTE" }
+
+  /** Reads the provider's "allow remote" flag. Absent/unparseable → `false`,
+   *  i.e. only localhost connections are permitted by default. */
+  fun isAllowRemote(configKey: String?): Boolean =
+    allowRemoteKey(configKey)
+      ?.let { load().getProperty(it)?.trim()?.toBooleanStrictOrNull() }
+      ?: false
+
+  /** Resolves a probe `kind` (`ollama` / `lmstudio`) to its config key. */
+  fun configKeyFor(kind: String): String? = when (kind.lowercase()) {
+    "ollama" -> "ollama"
+    "lmstudio" -> "lmstudio"
+    else -> null
+  }
+
   /**
    * Cheap fingerprint of the config file's current content — `mtime:size`.
    * Used to invalidate the server's model-discovery cache when the file

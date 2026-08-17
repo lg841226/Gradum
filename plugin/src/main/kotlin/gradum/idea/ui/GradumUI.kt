@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-13 17:05:03 Changed by gwy
+ * GradumUI.kt  2026-08-16 12:18:07 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -10,10 +10,7 @@ package gradum.idea.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -24,6 +21,7 @@ import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.EditorUtils
+import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -56,47 +54,51 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
   val callbacks = rememberGradumCallbacks(session, toolWindow, coroutineScope)
   val state = rememberGradumState(session, editorContext, callbacks)
 
-  Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+  Box(
+    modifier = Modifier.fillMaxSize()
+      .padding(horizontal = 16.dp),
+    contentAlignment = Alignment.Center
+  ) {
     if (session.hasSentMessage) {
       ChatScreen(
         messages = session.messages,
-        sendingPhase = session.sendingPhase,
-        isLoading = session.isSending,
-        selectedPermission = session.selectedPermission,
-        isWaitingForResponse = session.isWaitingForResponse,
-        hasSentMessage = session.hasSentMessage,
         textState = session.textState,
         inputState = state.inputState,
         inputActions = state.inputActions,
+        onViewDiff = callbacks.onViewDiff,
         onDeleteMessage = callbacks.onDeleteMessage,
         onRetryMessage = callbacks.onRetryMessage,
-        onCopyAsContext = callbacks.eventCallbacks.onCopyAsContext,
         onOpenInEditor = callbacks.onOpenInEditor,
-        onViewDiff = callbacks.onViewDiff,
         onAttachmentClick = callbacks.onAttachmentClick,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        isLoading = session.isSending,
+        sendingPhase = session.sendingPhase,
+        hasSentMessage = session.hasSentMessage,
+        selectedPermission = session.selectedPermission,
+        isWaitingForResponse = session.isWaitingForResponse,
+        onCopyAsContext = callbacks.eventCallbacks.onCopyAsContext
       )
     } else {
       WelcomeScreen(
         inputState = state.inputState,
         textState = session.textState,
-        suggestionVariants = session.suggestionVariants,
-        modifier = Modifier.fillMaxSize(),
         inputActions = state.inputActions,
-        isMergeModeActive = session.isMergeModeActive,
+        modifier = Modifier.fillMaxSize(),
         sessions = session.sessions.toList(),
-        mergeSelectedIds = session.mergeSelection.toSet(),
-        selectedPermission = session.selectedPermission,
-        onStartMerge = { session.enterMergeMode() },
         onCancelMerge = { session.exitMergeMode() },
-        onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
+        onStartMerge = { session.enterMergeMode() },
+        isMergeModeActive = session.isMergeModeActive,
+        suggestionVariants = session.suggestionVariants,
+        selectedPermission = session.selectedPermission,
+        mergeSelectedIds = session.mergeSelection.toSet(),
+        onClearMergeSelection = { session.mergeSelection.clear() },
+        onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
         onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
+        onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
         onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
         onOpenSession = { sessionId ->
           coroutineScope.launch { session.switchSession(sessionId) }
         },
-        onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
-        onClearMergeSelection = { session.mergeSelection.clear() },
         onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) }
       ) { sessionId, newTitle ->
         coroutineScope.launch { session.renameSession(sessionId, newTitle) }
@@ -141,15 +143,21 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
 /**
  * Manages model loading and periodic polling.
  *
- * Loads models on first composition and starts polling for model updates.
- * Cleans up polling on disposal.
+ * Loads models on first composition and starts polling for model updates,
+ * honoring the provider settings (auto-detect toggle + poll interval).
+ * Restarts the poll loop whenever either setting changes. Cleans up
+ * polling on disposal.
  */
 @Composable
 private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
-  LaunchedEffect(Unit) {
+  val settings = remember { ProviderSettings.getInstance() }
+  val autoDetect: Boolean = settings.snapshot.autoDetectEnabled
+  val pollIntervalSeconds: Int = settings.snapshot.pollIntervalSeconds
+
+  LaunchedEffect(autoDetect, pollIntervalSeconds) {
     if (!session.modelsLoaded)
       coroutineScope.launch { session.loadModels() }
-    session.startModelPolling(coroutineScope)
+    session.startModelPolling(coroutineScope, autoDetect, pollIntervalSeconds * 1000L)
   }
   DisposableEffect(Unit) {
     onDispose { session.stopModelPolling() }

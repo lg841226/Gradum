@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-16 00:10:20 Changed by gwy
+ * ChatSessionStore.kt  2026-08-17 09:36:47 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -27,11 +27,11 @@ import kotlin.random.Random
  * Welcome screen's "Recent Chats" list.
  */
 data class SessionMeta(
-  val sessionId: String,
   val title: String,
+  val modelName: String,
+  val sessionId: String,
   val createdAt: Long,
-  val updatedAt: Long,
-  val modelName: String
+  val updatedAt: Long
 )
 
 /**
@@ -40,12 +40,12 @@ data class SessionMeta(
  * Every session lives under `<projectRoot>/.gradum/sessions/<sessionId>/`
  * (the same directory rule the server uses for that session's `context.json`
  * — see [docs/CHAT_HISTORY_PLAN.md §1]). The plugin writes a
- * [ChatTranscript] `conversation.md` into it; [deleteSession] removes the
+ * [ChatTranscript] `conversation.md` into it; deleteSession removes the
  * whole directory so server context is cascaded away too.
  *
  * @param projectRoot Absolute path of the IntelliJ project (from
  *   `Project.basePath`). All file operations are relative to it, never
- *   absolute-from-user-input, so [deleteSession] cannot escape the
+ *   absolute-from-user-input, so deleteSession cannot escape the
  *   `.gradum/sessions/` root.
  */
 class ChatSessionStore(private val projectRoot: Path) {
@@ -63,7 +63,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     Files.exists(sessionDir(sessionId).resolve(TRANSCRIPT_FILE))
 
   /**
-   * Persists [messages] as a [ChatTranscript] for session [sessionMeta.sessionId].
+   * Persists messages as a ChatTranscript for session sessionMeta.sessionId.
    *
    * Atomic write (temp file + rename, like the server's `ContextManager`)
    * so a crash mid-write never leaves a half-written transcript.
@@ -122,13 +122,13 @@ class ChatSessionStore(private val projectRoot: Path) {
   /** Reads only the leading [HEADER_LINE_LIMIT] lines of a transcript file. */
   private fun readHeaderLines(transcriptFile: Path): String {
     val headerBuilder: StringBuilder = StringBuilder()
-    Files.newBufferedReader(transcriptFile, Charsets.UTF_8).use { reader ->
-      var line: String? = reader.readLine()
-      var lineCount = 0
-      while (line != null && lineCount < HEADER_LINE_LIMIT) {
-        headerBuilder.append(line).append('\n')
-        line = reader.readLine()
-        lineCount++
+    Files.newBufferedReader(transcriptFile, Charsets.UTF_8).use { bufferedReader ->
+      var currentLine: String? = bufferedReader.readLine()
+      var linesRead = 0
+      while (currentLine != null && linesRead < HEADER_LINE_LIMIT) {
+        headerBuilder.append(currentLine).append('\n')
+        currentLine = bufferedReader.readLine()
+        linesRead++
       }
     }
     return headerBuilder.toString()
@@ -146,7 +146,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     return try {
       ChatTranscript.parseTranscript(EelFiles.readString(transcriptFile, Charsets.UTF_8))
     } catch (loadException: Exception) {
-      log.warn("Failed to load session $sessionId", loadException)
+      log.warn("Failed to loadProperties session $sessionId", loadException)
       null
     }
   }
@@ -171,10 +171,10 @@ class ChatSessionStore(private val projectRoot: Path) {
     val newSessionId: String = nextSessionId()
     saveSession(
       SessionMeta(
-        sessionId = newSessionId,
         title = resultTitle,
-        createdAt = transcripts.minOf { it.sessionMeta.createdAt },
+        sessionId = newSessionId,
         updatedAt = System.currentTimeMillis(),
+        createdAt = transcripts.minOf { it.sessionMeta.createdAt },
         modelName = mergedMessages.lastOrNull()?.modelName.orEmpty()
       ),
       mergedMessages

@@ -1,6 +1,10 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
+#  git_stats.py  2026-08-16 22:00:45 Changed by gwy
+#
+#  git_stats.py  2026-08-16 21:34:06 Changed by gwy
+#
 #  git_stats.py  2026-07-28 21:35:29 Changed by gwy
 #
 import csv
@@ -77,7 +81,8 @@ def repo_name(repo_path: str) -> str:
     return os.path.basename(repo_path) or "Unknown"
 
 
-def _parse_commit_entry(current_hash, current_iso, current_subject, current_author, current_email, current_trailer, numstat_lines):
+def _parse_commit_entry(current_hash, current_iso, current_subject, current_author, current_email, current_trailer,
+                        numstat_lines):
     """Parse a single commit's raw data into a structured dict."""
     commit_date = datetime.fromisoformat(current_iso.replace("Z", "+00:00"))
     additions, deletions = _parse_numstat("\n".join(numstat_lines))
@@ -168,10 +173,6 @@ def all_commits(repo_path: str, all_branches: bool = False, since_date: str = No
     return entries
 
 
-# Per-commit additions/deletions and dates — the atomic units that feed CSV
-# export, custom formulas, and every quality sub-score. All downstream
-# analyses are just aggregations and transformations of these three raw
-# numbers per commit.
 SAFE_BUILTINS = {
     "abs": abs, "max": max, "min": min, "round": round,
     "sum": sum, "pow": pow, "int": int, "float": float,
@@ -205,9 +206,6 @@ def build_formula(formula_expr: str) -> Tuple[Optional[str], Optional[str]]:
     return formula_expr, "Custom Formula"
 
 
-# Custom formulas let users define new CSV columns at export time (net_ratio,
-# efficiency, churn, or arbitrary expressions) without modifying the code.
-# SAFE_BUILTINS restricts eval to pure math — no I/O or system access.
 def write_csv(config: Dict, entries: List[Dict]) -> str:
     path = config.get("outputFilePath") or f'git_stats_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     expr, label = build_formula(config.get("formulaExpression"))
@@ -278,9 +276,6 @@ def write_csv(config: Dict, entries: List[Dict]) -> str:
     return path
 
 
-# The CSV is the primary output format — it layers cumulative totals, growth
-# rate, moving average, and optional custom formulas over the raw per-commit
-# diff counts. Every column is a derived view of the same add/delete pairs.
 def _sigmoid(value: float) -> float:
     if value < -700:
         return 0.0
@@ -987,13 +982,6 @@ def compute_quality_periods(entries: List[Dict], unit: str, now: datetime,
     model = QualityModel(params)
     return model.evaluate_period_batch(entries, unit, now, overall_hero_score, repo=repo)
 
-
-# The 4-factor quality model scores repo health 0-1 across four independent
-# dimensions and composites them into a single quality band. Understanding
-# individual factor scores is more important than the composite — each one
-# reveals a different failure mode: abandonment (recency), bot-like commits
-# (anti-AI), copy-paste without cleanup (deletion health), or trivial scale
-# (maturity). The batch variant shows how these factors trend over time.
 def _load_config() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), "configs.jsonc")
     try:
@@ -2147,8 +2135,6 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
     return detail_count, csv_count
 
 
-# The report is a human-readable snapshot of the quality analysis — used for
-# sharing results outside the CLI or keeping a historical record.
 def main():
     fd = _SETTINGS
     repo = os.getcwd()
@@ -2255,7 +2241,8 @@ def main():
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_path = fd.get("reportOutputPath") or f"quality_report_{ts}.zip"
             chart_color = fd.get("chartPrimaryColor", _PRIMARY_COLOR)
-            detail_count, csv_count = write_report(quality, periods, audit, repo, csv_path, report_path, entries, chart_color,
+            detail_count, csv_count = write_report(quality, periods, audit, repo, csv_path, report_path, entries,
+                                                   chart_color,
                                                    _HERO_TOP_N, _HERO_THRESHOLD, _PARETO_MAX_BARS)
             console.print(
                 f"[blue]{ICON_POINT}[/blue] [default]Packaged {detail_count} detail files + {csv_count} CSV files[/default]")

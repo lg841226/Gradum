@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkillSecurityTest.kt  2026-08-14 12:40:16 Changed by gwy
+ * EditFileSkillSecurityTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 package gradum.skill
 
@@ -100,8 +100,6 @@ class EditFileSkillSecurityTest {
 
   @Test
   fun `edit_file rejects absolute system path on the cloud schema`() {
-    // Cloud schema uses `edits` array, exercises the same path
-    // through resolveProjectPath in executeCloud.
     val result = skill.execute(
       mapOf(
         "path" to "/etc/hostname",

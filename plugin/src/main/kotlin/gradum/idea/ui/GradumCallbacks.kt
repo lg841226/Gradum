@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumCallbacks.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumCallbacks.kt  2026-08-17 08:55:38 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -433,7 +433,7 @@ private fun rememberSendCallback(
     val rawText: String = session.textState.text.toString()
     val hasModel = session.selectedModel != null
 
-    // Debug mode: load focused Markdown file directly without calling LLM,
+    // Debug mode: loadProperties focused Markdown file directly without calling LLM,
     // or run a focused tool-call scenario (.tls/.xml) through real playback.
     if (PermissionMode.isDebugMode(session.selectedPermission)) {
       if (rawText.isNotBlank()) {

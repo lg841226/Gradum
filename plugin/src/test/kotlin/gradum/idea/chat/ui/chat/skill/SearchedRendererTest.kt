@@ -2,23 +2,21 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRendererTest.kt  2026-08-14 Changed by gwy
+ * SearchedRendererTest.kt  2026-08-16 17:48:39 Changed by gwy
  */
 package gradum.idea.chat.ui.chat.skill
 
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Behaviour tests for the `parseContent` half of [SearchedRenderer].
+ * Behavior tests for the `parseContent` half of [SearchedRenderer].
  *
  * The `render` composable is harder to unit-test (it needs a full
  * Compose runtime + Jewel theme), but the data-shaping half is what
  * decides whether a row can show a favicon at all. If `parseContent`
- * drops `faviconUrl` or normalises it away, the renderer has no way to
+ * drops `faviconUrl` or normalizes it away, the renderer has no way to
  * recover it. These tests guard the contract.
  */
 class SearchedRendererTest {
@@ -49,11 +47,6 @@ class SearchedRendererTest {
 
   @Test
   fun `parseContent preserves faviconUrl inside the result row payload`() {
-    // The renderer reads `faviconUrl` directly from the per-row map at
-    // render time; `parseContent` only forwards the whole list. This
-    // test documents the contract so a future refactor that strips
-    // unknown keys will fail loudly instead of silently breaking
-    // favicons.
     val row: Map<String, Any> = mapOf(
       "title" to "Tavily",
       "snippet" to "AI-powered search",
@@ -64,6 +57,7 @@ class SearchedRendererTest {
       arguments = mapOf("query" to "tavily"),
       result = mapOf("results" to listOf(row))
     )
+
     @Suppress("UNCHECKED_CAST")
     val first: Map<String, Any> =
       (content.fieldMap["results"] as List<Map<String, Any>>).first()
@@ -72,9 +66,6 @@ class SearchedRendererTest {
 
   @Test
   fun `parseContent tolerates missing faviconUrl key`() {
-    // Older server payloads (or non-Tavily providers) may not have the
-    // `faviconUrl` field. `parseContent` must NOT throw — the renderer
-    // is responsible for the `null`/blank fallback to the Web icon.
     val row: Map<String, Any> = mapOf(
       "title" to "Example",
       "snippet" to "No favicon",
@@ -84,6 +75,7 @@ class SearchedRendererTest {
       arguments = mapOf("query" to "x"),
       result = mapOf("results" to listOf(row))
     )
+
     @Suppress("UNCHECKED_CAST")
     val first: Map<String, Any> =
       (content.fieldMap["results"] as List<Map<String, Any>>).first()
@@ -109,13 +101,11 @@ class SearchedRendererTest {
 
   @Test
   fun `parseContent tolerates results key missing entirely`() {
-    // Defensive: if the server payload ever omits `results` (network
-    // error body, etc.), the parser must default to an empty list
-    // rather than throwing a ClassCastException.
     val content: ToolCallContent = renderer.parseContent(
       arguments = mapOf("query" to "x"),
       result = emptyMap()
     )
+
     @Suppress("UNCHECKED_CAST")
     val rows: List<Map<String, Any>> =
       content.fieldMap["results"] as List<Map<String, Any>>
@@ -125,10 +115,6 @@ class SearchedRendererTest {
 
   @Test
   fun `renderer exposes Searched alias and Web icon`() {
-    // Renderers are looked up in the registry by their alias, and the
-    // header icon is the very first thing the user sees. Both must
-    // be stable, otherwise existing chat transcripts (which store
-    // `aliasName = "Searched"`) would render the wrong UI.
     assertEquals("Searched", renderer.alias())
     assertNotNull(renderer.iconKey())
   }

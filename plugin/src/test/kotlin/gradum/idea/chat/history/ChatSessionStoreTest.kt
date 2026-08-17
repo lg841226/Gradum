@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStoreTest.kt  2026-08-12 15:57:39 Changed by gwy
+ * ChatSessionStoreTest.kt  2026-08-17 09:33:13 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -17,7 +17,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * Store tests: save → list (most recent first) → load → delete.
+ * Store tests: save → list (most recent first) → loadProperties → delete.
  * Runs against a temp directory so no IDE project is required.
  */
 class ChatSessionStoreTest {
@@ -46,7 +46,7 @@ class ChatSessionStoreTest {
   @Test
   fun `save writes transcript and hasSession reflects it`() {
     store.saveSession(
-      SessionMeta("a1", "Hello world", 100L, 200L, "qwen2.5:7b"),
+      SessionMeta("Hello world", "qwen2.5:7b", "a1", 100L, 200L),
       messages("Hello world")
     )
     assertTrue(store.hasSession("a1"))
@@ -56,11 +56,11 @@ class ChatSessionStoreTest {
   @Test
   fun `list orders sessions most recent first`() {
     store.saveSession(
-      SessionMeta("old", "Old session", 100L, 100L, "model-a"),
+      SessionMeta("Old session", "model-a", "old", 100L, 100L),
       messages("Old session")
     )
     store.saveSession(
-      SessionMeta("new", "New session", 200L, 500L, "model-b"),
+      SessionMeta("New session", "model-b", "new", 200L, 500L),
       messages("New session")
     )
     val listed: List<SessionMeta> = store.listSessions()
@@ -71,11 +71,11 @@ class ChatSessionStoreTest {
   @Test
   fun `load restores messages`() {
     store.saveSession(
-      SessionMeta("a1", "Hello world", 100L, 200L, "qwen2.5:7b"),
+      SessionMeta("Hello world", "qwen2.5:7b", "a1", 100L, 200L),
       messages("Hello world")
     )
     val loaded: ChatTranscript.ParsedTranscript? = store.loadSession("a1")
-    assertTrue("expected session to load", loaded != null)
+    assertTrue("expected session to loadProperties", loaded != null)
     assertEquals(2, loaded!!.messages.size)
     assertEquals("Hello world", loaded.messages[0].content)
     assertEquals("I fixed it.", loaded.messages[1].fullContent)
@@ -89,7 +89,7 @@ class ChatSessionStoreTest {
   @Test
   fun `delete removes the entire session directory`() {
     store.saveSession(
-      SessionMeta("a1", "Hello world", 100L, 200L, "qwen2.5:7b"),
+      SessionMeta("Hello world", "qwen2.5:7b", "a1", 100L, 200L),
       messages("Hello world")
     )
     assertTrue(store.deleteSession("a1"))
@@ -128,11 +128,11 @@ class ChatSessionStoreTest {
   @Test
   fun `merge interleaves two sessions chronologically and keeps originals`() {
     store.saveSession(
-      SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
+      SessionMeta("Alpha", "model-a", "a1", 100L, 100L),
       chatRecord("alpha", 100L, 200L, "a1")
     )
     store.saveSession(
-      SessionMeta("b1", "Beta", 300L, 300L, "model-b"),
+      SessionMeta("Beta", "model-b", "b1", 300L, 300L),
       chatRecord("beta", 150L, 250L, "b1")
     )
 
@@ -144,7 +144,7 @@ class ChatSessionStoreTest {
     assertTrue(store.hasSession("b1"))
 
     val merged: ChatTranscript.ParsedTranscript? = store.loadSession(mergedId!!)
-    assertTrue("merged session should load", merged != null)
+    assertTrue("merged session should loadProperties", merged != null)
     val rendered: List<Pair<String, String>> = merged!!.messages.map {
       (if (it.isUserMessage) "user" else "assistant") to (if (it.isUserMessage) it.content else it.fullContent)
     }
@@ -165,7 +165,7 @@ class ChatSessionStoreTest {
   @Test
   fun `merge returns null when a source session is missing`() {
     store.saveSession(
-      SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
+      SessionMeta("Alpha", "model-a", "a1", 100L, 100L),
       chatRecord("alpha", 100L, 200L, "a1")
     )
     assertNull(store.mergeSessions(listOf("a1", "nope"), "Merged conversation"))
@@ -175,21 +175,21 @@ class ChatSessionStoreTest {
   @Test
   fun `merge interleaves three sessions chronologically`() {
     store.saveSession(
-      SessionMeta("a1", "Alpha", 100L, 100L, "model-a"),
+      SessionMeta("Alpha", "model-a", "a1", 100L, 100L),
       chatRecord("alpha", 100L, 300L, "a1")
     )
     store.saveSession(
-      SessionMeta("b1", "Beta", 200L, 200L, "model-b"),
+      SessionMeta("Beta", "model-b", "b1", 200L, 200L),
       chatRecord("beta", 200L, 400L, "b1")
     )
     store.saveSession(
-      SessionMeta("c1", "Gamma", 300L, 300L, "model-c"),
+      SessionMeta("Gamma", "model-c", "c1", 300L, 300L),
       chatRecord("gamma", 150L, 250L, "c1")
     )
     val mergedId: String? = store.mergeSessions(listOf("a1", "b1", "c1"), "Merged conversation 1")
     assertTrue("expected merge to succeed", mergedId != null)
     val merged: ChatTranscript.ParsedTranscript? = store.loadSession(mergedId!!)
-    assertTrue("merged session should load", merged != null)
+    assertTrue("merged session should loadProperties", merged != null)
     val rendered: List<String> = merged!!.messages.map {
       if (it.isUserMessage) it.content else it.fullContent
     }
@@ -197,19 +197,18 @@ class ChatSessionStoreTest {
       listOf("alpha q", "gamma q", "beta q", "gamma c1", "alpha a1", "beta b1"),
       rendered
     )
-    // Brand-new file distinct from all three sources.
     assertEquals(4, store.listSessions().size)
   }
 
   @Test
   fun `rename rewrites the title and keeps the body`() {
     store.saveSession(
-      SessionMeta("a1", "Auto title", 100L, 200L, "model-a"),
+      SessionMeta("Auto title", "model-a", "a1", 100L, 200L),
       chatRecord("alpha", 100L, 200L, "a1")
     )
     assertTrue(store.renameSession("a1", "Hand-written title"))
     val loaded: ChatTranscript.ParsedTranscript? = store.loadSession("a1")
-    assertTrue("renamed session should load", loaded != null)
+    assertTrue("renamed session should loadProperties", loaded != null)
     assertEquals("Hand-written title", loaded?.sessionMeta?.title)
     assertEquals("alpha a1", loaded?.messages?.lastOrNull()?.fullContent)
   }
@@ -217,7 +216,7 @@ class ChatSessionStoreTest {
   @Test
   fun `rename ignores blank titles and unknown sessions`() {
     store.saveSession(
-      SessionMeta("a1", "Auto title", 100L, 200L, "model-a"),
+      SessionMeta("Auto title", "model-a", "a1", 100L, 200L),
       chatRecord("alpha", 100L, 200L, "a1")
     )
     assertFalse(store.renameSession("a1", "   "))

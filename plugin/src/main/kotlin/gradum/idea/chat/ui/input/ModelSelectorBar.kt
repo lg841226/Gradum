@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-16 00:12:50 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-16 16:11:14 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -81,8 +81,8 @@ fun ModelSelectorBar(
       )
       if (showModelMenu) {
         PopupMenu(
-          onDismissRequest = { dismiss(); true },
           horizontalAlignment = Alignment.Start,
+          onDismissRequest = { dismiss(); true },
           modifier = Modifier.heightIn(max = MODEL_MENU_MAX_HEIGHT)
         ) {
           buildMenu(
@@ -97,9 +97,9 @@ fun ModelSelectorBar(
     }
     Spacer(modifier = Modifier.width(GradumSpacing.xs))
     ThinkingLevelSelector(
+      enabled = selectedModel != null,
       selectedLevel = thinkingLevel,
       onSelect = onSelectThinkingLevel,
-      enabled = selectedModel != null,
     )
     Spacer(modifier = Modifier.weight(1f))
     ExternalLink(
@@ -130,8 +130,6 @@ private fun MenuScope.buildMenu(
       )
     }
   }
-
-  separator()
 
   val unpinnedModels = models.filter { model ->
     pinnedModels.none { it.sameAs(model) }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-12 18:57:24 Changed by gwy
+ * Agent.kt  2026-08-16 21:40:13 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -718,8 +718,8 @@ class Agent(
         is ParsedToolCall -> {
           val toolIndex: Int = recordings.size
           val callEntry = ToolCallEntry(
-            callIdentifier = "playback_${toolIndex + 1}",
             functionName = step.functionName,
+            callIdentifier = "playback_${toolIndex + 1}",
             functionArguments = step.functionArguments,
           )
           val processedCall: ProcessedToolCall = prepareToolCalls(listOf(callEntry)).first()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-07-20 19:09:27 Changed by gwy
+ * build.gradle.kts  2026-08-16 22:35:04 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -186,7 +186,6 @@ private fun waitForServerHealth(baseUrl: String, timeoutSeconds: Long) {
         connection.disconnect()
       }
     } catch (_: IOException) {
-      // Server not up yet — poll again.
     }
     Thread.sleep(500)
   }
@@ -211,19 +210,18 @@ tasks.register("serverPackage", Exec::class.java) {
   description = "Package the Gradum server as a self-contained executable (jpackage app-image, bundled JRE)"
   dependsOn("buildFatJar")
 
-  val appName: String = "GradumServer"
+  val appName = "GradumServer"
+  val jpackageBin: String = System.getProperty("java.home") + File.separator + "bin" + File.separator + "jpackage"
   val stagingDir: File = layout.buildDirectory.dir("server-package/input").get().asFile
   val destDir: File = layout.buildDirectory.dir("gradum-server").get().asFile
   val packagedFatJar: File = stagingDir.resolve("gradum-server.jar")
-  val jpackageBin: String = System.getProperty("java.home") + File.separator + "bin" + File.separator + "jpackage"
 
   doFirst {
     stagingDir.mkdirs()
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
   }
 
-  val jpackageVersion: String =
-    project.version.toString().replaceFirst(Regex("^0\\."), "1.")
+  val jpackageVersion: String = project.version.toString().replaceFirst(Regex("^0\\."), "1.")
 
   commandLine(
     jpackageBin,
@@ -235,13 +233,13 @@ tasks.register("serverPackage", Exec::class.java) {
     "--main-class", "gradum.server.MainKt",
     "--java-options", "-Xmx2048m",
     "--java-options", "-Xms512m",
-    "--dest", destDir.absolutePath,
+    "--dest", destDir.absolutePath
   )
 
   doLast {
     val executable: File = selfContainedServerExecutable(appName, destDir)
     logger.lifecycle("Self-contained server executable: ${executable.absolutePath}")
-    logger.lifecycle("  Run it on a machine WITHOUT Java installed; it carries its own JVM.")
+    logger.lifecycle("Run it on a machine WITHOUT Java installed; it carries its own JVM.")
   }
 }
 
@@ -266,8 +264,8 @@ tasks.register("dev") {
           processBuilder.environment()["GRADUM_OPENAI_API_KEY"] = gradumOpenAiApiKey
         }
       }
-      .redirectErrorStream(true)
       .redirectOutput(ProcessBuilder.Redirect.appendTo(logFile))
+      .redirectErrorStream(true)
       .start()
 
     try {

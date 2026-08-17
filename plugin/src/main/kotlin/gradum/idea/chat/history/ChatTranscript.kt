@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-08-16 00:08:59 Changed by gwy
+ * ChatTranscript.kt  2026-08-17 09:33:13 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -196,19 +196,19 @@ object ChatTranscript {
       if (!line.startsWith(SESSION_PREFIX)) continue
       val attributeMap: Map<String, String> = parseAttributes(line)
       return SessionMeta(
-        sessionId = attributeMap["id"].orEmpty(),
         title = attributeMap["title"].orEmpty(),
+        modelName = attributeMap["model"].orEmpty(),
+        sessionId = attributeMap["id"].orEmpty(),
         createdAt = attributeMap["createdAt"]?.toLongOrNull() ?: 0L,
-        updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L,
-        modelName = attributeMap["model"].orEmpty()
+        updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L
       )
     }
-    return SessionMeta("", "", 0L, 0L, "")
+    return SessionMeta("", "", "", 0L, 0L)
   }
 
   /** Parses a full transcript back into its [ParsedTranscript]. */
   fun parseTranscript(content: String): ParsedTranscript {
-    var sessionMeta = SessionMeta("", "", 0L, 0L, "")
+    var sessionMeta = SessionMeta("", "", "", 0L, 0L)
     val messages: MutableList<ChatMessage> = mutableListOf()
 
     // Working message: assistant messages are built incrementally as their
@@ -308,11 +308,11 @@ object ChatTranscript {
           finalizeMessage()
           val attributeMap: Map<String, String> = parseAttributes(line)
           sessionMeta = SessionMeta(
-            sessionId = attributeMap["id"].orEmpty(),
             title = attributeMap["title"].orEmpty(),
+            modelName = attributeMap["model"].orEmpty(),
+            sessionId = attributeMap["id"].orEmpty(),
             createdAt = attributeMap["createdAt"]?.toLongOrNull() ?: 0L,
-            updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L,
-            modelName = attributeMap["model"].orEmpty()
+            updatedAt = attributeMap["updatedAt"]?.toLongOrNull() ?: 0L
           )
         }
 

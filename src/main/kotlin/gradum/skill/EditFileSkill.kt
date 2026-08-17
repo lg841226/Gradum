@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * EditFileSkill.kt  2026-08-16 22:30:09 Changed by gwy
  */
 
 package gradum.skill
@@ -31,34 +31,17 @@ private val logger: Logger = LoggerFactory.getLogger("EditFileSkill")
  */
 class EditFileSkill : Skill() {
 
-  override val skillName: String = "edit_file"
   override val alias: String = "Edited"
+  override val skillName: String = "edit_file"
   override val description: String =
     "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString)."
 
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
-  /**
-   * Keep the last [historyKeepCount] edits' full metadata in
-   * history. Strip [historyVolatileKeys] (the diff payloads)
-   * from older edits. The diff payloads are too large to
-   * retain across long sessions and the LLM can always
-   * re-read the file at `path` if it needs the pre/post
-   * content of an old edit.
-   */
   override val historyKeepCount: Int = 5
   override val historyVolatileKeys: List<String> =
     listOf("originalContent", "modifiedContent")
 
-  /**
-   * Strip the diff payloads from the CURRENT call's result
-   * as well — they are too large for the LLM's view of this
-   * turn even when the call is the most recent. The LLM only
-   * needs `path`, `linesAdded`, `linesRemoved`, `totalEdits`,
-   * and any `syntaxErrors` to understand "an edit happened at
-   * path X with N added M removed"; the pre/post text would
-   * just bloat the response.
-   */
   override fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
     return result.filterKeys { it != "originalContent" && it != "modifiedContent" }
   }
@@ -68,15 +51,13 @@ class EditFileSkill : Skill() {
     return buildFunctionSchema(
       description = if (useSimpleSchema) localDescription() else description,
       properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("path") + if (useSimpleSchema) listOf(
-        "oldString",
-        "newString"
-      ) else listOf("edits"),
+      required = listOf("path") + if (useSimpleSchema) listOf("oldString", "newString") else listOf("edits"),
     )
   }
 
   private fun localDescription(): String =
-    "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new text as newString. oldString must match exactly. You can only edit one location per call."
+    "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new" +
+      " text as newString. oldString must match exactly. You can only edit one location per call."
 
   private fun localProperties(): Map<String, Any> = mapOf(
     "path" to mapOf(
@@ -85,7 +66,8 @@ class EditFileSkill : Skill() {
     ),
     "oldString" to mapOf(
       "type" to "string",
-      "description" to "Exact text to find. Include 2-3 lines of context for uniqueness. Must match file content including whitespace and indentation."
+      "description" to "Exact text to find. Include 2-3 lines of context for uniqueness. " +
+        "Must match file content including whitespace and indentation."
     ),
     "newString" to mapOf(
       "type" to "string",
@@ -96,11 +78,13 @@ class EditFileSkill : Skill() {
   private fun cloudProperties(): Map<String, Any> = mapOf(
     "path" to mapOf(
       "type" to "string",
-      "description" to "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString).",
+      "description" to "Replace text in a file. Provide the exact text to find (oldString) " +
+        "and the replacement (newString).",
     ),
     "edits" to mapOf(
       "type" to "array",
-      "description" to "List of edits to apply. Each edit has oldString (text to find) and newString (replacement). Edits are applied in order. You can batch multiple edits to the same file in one call.",
+      "description" to "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
+        " Edits are applied in order. You can batch multiple edits to the same file in one call.",
       "items" to mapOf(
         "type" to "object",
         "properties" to mapOf(
@@ -165,8 +149,9 @@ class EditFileSkill : Skill() {
     return try {
       val originalContent: String = targetFile.readText(Charsets.UTF_8)
       val singleEdit = listOf(EditOperation(oldString, newString, 0))
+
       applySequentialEdits(resolvedPath, originalContent, singleEdit)
-    } catch (missingFileException: FileNotFoundException) {
+    } catch (_: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
           code = "FILE_NOT_FOUND",
@@ -187,15 +172,19 @@ class EditFileSkill : Skill() {
 
   private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
+
     val rawEdits: List<Map<String, Any>> = try {
       parseEdits(arguments["edits"])
     } catch (parseException: Exception) {
+      val errorMessage = parseException.message ?: "unknown parse error"
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        ErrorCode.INVALID_PARAMETER,
+        buildXmlError(
           code = "INVALID_PARAMETER",
-          message = "Failed to parse 'edits' parameter: ${parseException.message ?: parseException::class.simpleName ?: "unknown parse error"}",
+          message = "Failed to parse 'edits' parameter: $errorMessage",
           fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
-        ), mapOf("path" to filePath)
+        ),
+        mapOf("path" to filePath)
       )
     }
     val projectRoot: String = context.projectRoot
@@ -253,7 +242,7 @@ class EditFileSkill : Skill() {
         )
       }
       applySequentialEdits(resolvedPath, originalContent, parsedEdits)
-    } catch (missingFileException: FileNotFoundException) {
+    } catch (_: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
           code = "FILE_NOT_FOUND",
@@ -313,42 +302,38 @@ class EditFileSkill : Skill() {
           linesAdded += replaceLines.size
 
           val newFileLines = fileLines.subList(0, bestMatch.startIndex) +
-            replaceLines +
-            fileLines.subList(bestMatch.endIndex, fileLines.size)
+            replaceLines + fileLines.subList(bestMatch.endIndex, fileLines.size)
           currentContent = newFileLines.joinToString("\n")
           appliedEdits.add(editOperation.editIndex)
         }
 
         is FindResult.NotFound -> {
           writeWithLock(
-            fileMutation,
-            resolvedPath,
-            currentContent,
-            originalContent,
-            appliedEdits.size
+            fileMutation, resolvedPath, currentContent, originalContent, appliedEdits.size
           )
             ?.let { return it }
 
           val failureStep = when (matchResult.failedAtStep) {
-            MatchStrategy.EXACT -> "exact match"
-            MatchStrategy.NORMALIZED -> "normalized match"
-            MatchStrategy.STRIPPED -> "stripped match"
             MatchStrategy.NONE -> "matching"
+            MatchStrategy.EXACT -> "exact match"
+            MatchStrategy.STRIPPED -> "stripped match"
+            MatchStrategy.NORMALIZED -> "normalized match"
           }
           return makeFailure(
             ErrorCode.CODE_NOT_FOUND,
             buildXmlError(
               code = "CODE_NOT_FOUND",
               message = "Edit ${editOperation.editIndex + 1} failed at step: $failureStep. oldString text not found in file.",
-              fixHint = "Check for whitespace differences or add more surrounding context (function name, class declaration, comments) to make the match unique. If this fails after multiple attempts, inform the user and suggest manual editing.",
+              fixHint = "Check for whitespace differences or add more surrounding context (function name, class declaration," +
+                " comments) to make the match unique. If this fails after multiple attempts, inform the user and suggest manual editing.",
               searchPreview = matchResult.searchPreview,
               appliedCount = appliedEdits.size
             ),
             mapOf(
               "path" to resolvedPath.toString(),
               "appliedCount" to appliedEdits.size,
-              "failedAtStep" to matchResult.failedAtStep.name,
-              "searchPreview" to matchResult.searchPreview
+              "searchPreview" to matchResult.searchPreview,
+              "failedAtStep" to matchResult.failedAtStep.name
             )
           )
         }
@@ -390,8 +375,8 @@ class EditFileSkill : Skill() {
           ErrorCode.IO_ERROR,
           buildXmlError(
             code = "IO_ERROR",
-            message = error?.message ?: "Unknown error during write.",
-            fixHint = "Check file permissions and disk space."
+            fixHint = "Check file permissions and disk space.",
+            message = error?.message ?: "Unknown error during write."
           )
         )
       }
@@ -400,13 +385,13 @@ class EditFileSkill : Skill() {
     return makeSuccess(
       mapOf(
         "path" to resolvedPath.toString(),
-        "editsApplied" to appliedEdits.size,
-        "totalEdits" to editOperations.size,
         "linesAdded" to linesAdded,
         "linesRemoved" to linesRemoved,
-        "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath),
-        "originalContent" to originalContent,
         "modifiedContent" to currentContent,
+        "editsApplied" to appliedEdits.size,
+        "totalEdits" to editOperations.size,
+        "originalContent" to originalContent,
+        "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
       ),
     )
   }
@@ -432,7 +417,7 @@ class EditFileSkill : Skill() {
               } else null
             }
           }
-        } catch (jsonParseException: Exception) { // Fall through to empty
+        } catch (jsonParseException: Exception) {
           logger.debug("Failed to parse 'edits' argument: ${jsonParseException.message}", jsonParseException)
         }
       }

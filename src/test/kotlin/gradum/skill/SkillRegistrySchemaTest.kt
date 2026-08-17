@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistrySchemaTest.kt  2026-08-12 12:38:25 Changed by gwy
+ * SkillRegistrySchemaTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 
 package gradum.skill
@@ -31,102 +31,95 @@ import kotlin.test.assertTrue
  */
 class SkillRegistrySchemaTest {
 
-    @Test
-    fun `agent mode exposes every registered skill`() {
-        val names: List<String> = SkillRegistry.getSchemas().map { nameOf(it) }
-        assertEquals(EXPECTED_ALL, names.toSet(), "AGENT must expose every registered skill, got: $names")
-    }
+  @Test
+  fun `agent mode exposes every registered skill`() {
+    val names: List<String> = SkillRegistry.getSchemas().map { nameOf(it) }
+    assertEquals(EXPECTED_ALL, names.toSet(), "AGENT must expose every registered skill, got: $names")
+  }
 
-    @Test
-    fun `read-only mode exposes only inspection skills`() {
-        val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
-        assertEquals(EXPECTED_READ_ONLY, names, "READ_ONLY must expose only inspection skills, got: $names")
-    }
+  @Test
+  fun `read-only mode exposes only inspection skills`() {
+    val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
+    assertEquals(EXPECTED_READ_ONLY, names, "READ_ONLY must expose only inspection skills, got: $names")
+  }
 
-    @Test
-    fun `edit mode exposes write skills but not task planning`() {
-        val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.EDIT).map { nameOf(it) }.toSet()
-        assertEquals(EXPECTED_EDIT, names, "EDIT must exclude task-planning skills, got: $names")
-    }
+  @Test
+  fun `edit mode exposes write skills but not task planning`() {
+    val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.EDIT).map { nameOf(it) }.toSet()
+    assertEquals(EXPECTED_EDIT, names, "EDIT must exclude task-planning skills, got: $names")
+  }
 
-    @Test
-    fun `each schema has a name field that matches its registered skill`() {
-        // Defence in depth: if a Skill's getSchema() drifted from its
-        // skillName, the LLM would see one name and the runtime would
-        // route to another. Pin the contract.
-        for (mode in ToolMode.entries) {
-            for (schema in SkillRegistry.getSchemas(toolMode = mode)) {
-                val schemaName: String = nameOf(schema)
-                val registered: Skill? = SkillRegistry.getSkill(schemaName)
-                assertTrue(registered != null, "Schema $schemaName in mode $mode is not registered, mode=$mode")
-            }
-        }
+  @Test
+  fun `each schema has a name field that matches its registered skill`() {
+    for (mode in ToolMode.entries) {
+      for (schema in SkillRegistry.getSchemas(toolMode = mode)) {
+        val schemaName: String = nameOf(schema)
+        val registered: Skill? = SkillRegistry.getSkill(schemaName)
+        assertTrue(registered != null, "Schema $schemaName in mode $mode is not registered, mode=$mode")
+      }
     }
+  }
 
-    @Test
-    fun `allowedToolModes and getSchemas are the same source of truth`() {
-        // The key invariant this refactors was about: every Skill that
-        // appears in getSchemas(X) must declare X in its allowedToolModes,
-        // and every Skill that does NOT declare X must not appear. If
-        // this test ever fails, somebody has split the two views again
-        // (e.g. reintroduced a hardcoded set in getSchemas).
-        for (mode in ToolMode.entries) {
-            val schemaNames: Set<String> = SkillRegistry.getSchemas(toolMode = mode).map { nameOf(it) }.toSet()
-            val allowedNames: Set<String> = SkillRegistry.getAllSkills()
-                .filter { mode in it.allowedToolModes }
-                .map { it.skillName }
-                .toSet()
-            assertEquals(
-                allowedNames, schemaNames,
-                "getSchemas($mode) and allowedToolModes disagree: " +
-                    "schemas=$schemaNames, allowed=$allowedNames",
-            )
-        }
+  @Test
+  fun `allowedToolModes and getSchemas are the same source of truth`() {
+    for (mode in ToolMode.entries) {
+      val schemaNames: Set<String> =
+        SkillRegistry.getSchemas(toolMode = mode).map { nameOf(it) }.toSet()
+      val allowedNames: Set<String> = SkillRegistry.getAllSkills()
+        .filter { mode in it.allowedToolModes }
+        .map { it.skillName }
+        .toSet()
+      assertEquals(
+        allowedNames, schemaNames,
+        "getSchemas($mode) and allowedToolModes disagree: " +
+          "schemas=$schemaNames, allowed=$allowedNames",
+      )
     }
+  }
 
-    /**
-     * Schema maps carry the Skill's name under the standard OpenAI
-     * tool shape. We pull it back out so the test can assert by name
-     * rather than by reference identity. If the schema shape changes
-     * the test will throw and the next person to touch the registry
-     * will see what they broke.
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun nameOf(schema: Map<String, Any>): String {
-        val function: Map<String, Any> = schema["function"] as Map<String, Any>
-        return function["name"] as String
-    }
+  /**
+   * Schema maps carry the Skill's name under the standard OpenAI
+   * tool shape. We pull it back out so the test can assert by name
+   * rather than by reference identity. If the schema shape changes
+   * the test will throw and the next person to touch the registry
+   * will see what they broke.
+   */
+  @Suppress("UNCHECKED_CAST")
+  private fun nameOf(schema: Map<String, Any>): String {
+    val function: Map<String, Any> = schema["function"] as Map<String, Any>
+    return function["name"] as String
+  }
 
-    private companion object {
-        val EXPECTED_ALL: Set<String> = setOf(
-            "read_file",
-            "explore_project",
-            "run_cmd",
-            "edit_file",
-            "save_file",
-            "to_do",
-            "finish_to_do_item",
-            "grep",
-            "glob",
-            "search_web",
-        )
-        val EXPECTED_READ_ONLY: Set<String> = setOf(
-            "read_file",
-            "explore_project",
-            "run_cmd",
-            "grep",
-            "glob",
-            "search_web",
-        )
-        val EXPECTED_EDIT: Set<String> = setOf(
-            "read_file",
-            "explore_project",
-            "run_cmd",
-            "edit_file",
-            "save_file",
-            "grep",
-            "glob",
-            "search_web",
-        )
-    }
+  private companion object {
+    val EXPECTED_ALL: Set<String> = setOf(
+      "read_file",
+      "explore_project",
+      "run_cmd",
+      "edit_file",
+      "save_file",
+      "to_do",
+      "finish_to_do_item",
+      "grep",
+      "glob",
+      "search_web",
+    )
+    val EXPECTED_READ_ONLY: Set<String> = setOf(
+      "read_file",
+      "explore_project",
+      "run_cmd",
+      "grep",
+      "glob",
+      "search_web",
+    )
+    val EXPECTED_EDIT: Set<String> = setOf(
+      "read_file",
+      "explore_project",
+      "run_cmd",
+      "edit_file",
+      "save_file",
+      "grep",
+      "glob",
+      "search_web",
+    )
+  }
 }

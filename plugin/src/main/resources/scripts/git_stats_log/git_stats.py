@@ -2,6 +2,8 @@
 #  Copyright (c) 2026 Gradum team, some rights reserved.
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
+#  git_stats.py  2026-08-17 08:55:38 Changed by gwy
+#
 #  git_stats.py  2026-08-01 22:11:46 Changed by gwy
 #
 #  git_stats.py  2026-07-31 14:47:15 Changed by gwy
@@ -657,7 +659,7 @@ def _load_config() -> dict:
         text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
         return json.loads(text)
     except (FileNotFoundError, json.JSONDecodeError):
-        log("WARN", message="failed to load configs.jsonc", path=config_path)
+        log("WARN", message="failed to loadProperties configs.jsonc", path=config_path)
         return {}
 
 

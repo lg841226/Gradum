@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SyntaxChecker.kt  2026-08-12 12:38:25 Changed by gwy
+ * SyntaxChecker.kt  2026-08-16 22:12:34 Changed by gwy
  */
 
 package gradum.utils
@@ -294,6 +294,7 @@ private val rubyPerlParser: SyntaxParser = SyntaxParser { output: String, filePa
 private val phpParser: SyntaxParser = SyntaxParser { output: String, filePath: String ->
   val locationPattern = Regex("""^.+? in (.+?) on line (\d+)$""")
   val headerPattern = Regex("""^(PHP\s+)?(Parse\s+)?(error|warning|notice):\s(.+)""")
+
   output.lines()
     .mapNotNull { line: String ->
       val trimmedLine: String = line.trimEnd()
@@ -376,6 +377,7 @@ private val codeReferencePattern: Regex = Regex("""[\w/]+\.\w+""")
 private fun filterIssuesForFile(issues: List<SyntaxIssue>, filePath: String): List<SyntaxIssue> {
   val absolutePath: Path = Path.of(filePath).toAbsolutePath().normalize()
   val fileName: String = absolutePath.fileName.toString()
+
   return issues.filter { issue: SyntaxIssue ->
     if (issue.line != null) return@filter true
     val message: String = issue.message

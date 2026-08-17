@@ -2,14 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfigFile.kt  2026-08-15  Changed by gwy
+ * ProviderConfigFile.kt  2026-08-17 09:21:43 Changed by gwy
  */
 package gradum.idea.provider
 
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.util.Properties
+import java.util.*
 
 /**
  * Reads and edits the shared local environment file `~/.gradum/provider.env`.
@@ -30,14 +30,14 @@ object ProviderConfigFile {
     get() = File(configDir, "provider.env")
 
   /** Read the full provider map from disk. Empty when missing/unreadable. */
-  fun load(): Properties {
-    val file: File = configFile
-    if (!file.isFile) return Properties()
+  fun loadProperties(): Properties {
+    val targetFile: File = configFile
+    if (!targetFile.isFile) return Properties()
     return try {
-      FileInputStream(file).use { input ->
-        Properties().also { it.load(input) }
+      FileInputStream(targetFile).use { inputStream ->
+        Properties().also { it.load(inputStream) }
       }
-    } catch (exception: Exception) {
+    } catch (_: Exception) {
       Properties()
     }
   }
@@ -48,17 +48,42 @@ object ProviderConfigFile {
    * are preserved. Failures are swallowed so a write never breaks the
    * settings panel.
    */
-  fun updateProvider(configKey: String, baseUrl: String, apiKey: String) {
+  fun updateProviderConfig(configKey: String, baseUrl: String, apiKey: String) {
+    val prefix = "GRADUM_${configKey.uppercase()}"
+    editConfigFile { properties ->
+      properties.setProperty("${prefix}_BASE_URL", baseUrl.trim())
+      properties.setProperty("${prefix}_API_KEY", apiKey.trim())
+    }
+  }
+
+  /**
+   * Read-modify-write one provider's "allow remote" flag into the shared
+   * file. The embedded server reads this flag and refuses to dial any
+   * non-localhost base URL for that provider while it is `false`.
+   * Failures are swallowed so a toggle never breaks the settings panel.
+   */
+  fun updateAllowRemote(configKey: String, allowRemote: Boolean) {
+    editConfigFile { properties ->
+      properties.setProperty("GRADUM_${configKey.uppercase()}_ALLOW_REMOTE", allowRemote.toString())
+    }
+  }
+
+  /**
+   * Loads the current properties, applies [transform], and stores the
+   * result back. Shared by every read-modify-write entry point so the
+   * "create dirs → load → mutate → store" dance lives in one place.
+   * Failures are swallowed by design — see KDoc on the public callers.
+   */
+  private fun editConfigFile(transform: (Properties) -> Unit) {
     try {
       configDir.mkdirs()
-      val props: Properties = load()
-      props.setProperty("GRADUM_${configKey.uppercase()}_BASE_URL", baseUrl.trim())
-      props.setProperty("GRADUM_${configKey.uppercase()}_API_KEY", apiKey.trim())
+      val properties: Properties = loadProperties()
+      transform(properties)
       FileOutputStream(configFile).use { output ->
-        props.store(output, "Gradum provider configuration (edited by the plugin)")
+        properties.store(output, "Gradum provider configuration (edited by the plugin)")
       }
-    } catch (exception: Exception) {
-      // Best-effort by design — see KDoc.
+    } catch (_: Exception) {
+      // Best-effort by design, please see KDoc.
     }
   }
 }

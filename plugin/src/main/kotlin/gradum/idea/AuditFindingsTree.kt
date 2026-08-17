@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-12 12:39:42 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-17 08:55:38 Changed by gwy
  */
 
 @file:OptIn(
@@ -43,7 +43,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 import java.util.*
 
-/** Default number of findings shown per group before a load-more row appears. */
+/** Default number of findings shown per group before a loadProperties-more row appears. */
 private const val DEFAULT_FINDING_LIMIT = 50
 
 /** Cap for the displayed count so rows never overflow with huge numbers. */

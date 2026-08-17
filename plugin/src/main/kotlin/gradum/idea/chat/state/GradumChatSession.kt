@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-16 10:28:16 Changed by gwy
+ * GradumChatSession.kt  2026-08-17 09:33:13 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -296,11 +296,11 @@ class GradumChatSession {
     currentSessionTitle = sessionTitle
     sessionStore.saveSession(
       SessionMeta(
-        sessionId = targetSessionId,
         title = sessionTitle,
+        modelName = modelName,
+        sessionId = targetSessionId,
         createdAt = createdAt,
-        updatedAt = System.currentTimeMillis(),
-        modelName = modelName
+        updatedAt = System.currentTimeMillis()
       ),
       messages.toList()
     )
@@ -515,7 +515,7 @@ class GradumChatSession {
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
       applyModelList(response.models)
     } catch (iOException: IOException) {
-      log.warn("Failed to load models from ${apiClient.baseUrl}", iOException)
+      log.warn("Failed to loadProperties models from ${apiClient.baseUrl}", iOException)
       models.clear(); modelsLoaded = false
     }
   }
@@ -563,17 +563,39 @@ class GradumChatSession {
 
   /**
    * Starts background polling for model availability so the plugin can
-   * discover LLM servers that start after it loads. Runs on
-   * [Dispatchers.IO]; interval is [POLL_INTERVAL_MS].
+   * discover LLM servers that start after it loads. The poll loop only
+   * runs while [autoDetect] is enabled and ticks every [pollIntervalMs],
+   * mirroring the provider health-check setting; disabling auto-detect
+   * stops the roster from refreshing on its own (manual probes still
+   * refresh it through [ProviderCoordinator.probeSucceeded]).
    */
   @OptIn(ExperimentalCoroutinesApi::class)
-  fun startModelPolling(scope: CoroutineScope) {
+  fun startModelPolling(
+    scope: CoroutineScope,
+    autoDetect: Boolean,
+    pollIntervalMs: Long,
+  ) {
     stopModelPolling()
+
+    // A successful manual probe on the settings page means the provider was
+    // (re)configured and is reachable — refresh the roster immediately so
+    // the new models show up instead of waiting for the next poll tick.
+    probeRefreshJob = scope.launch {
+      ProviderCoordinator.probeSucceeded.collect {
+        log.info("Provider probe succeeded, refreshing models")
+        loadModels()
+      }
+    }
+
+    if (!autoDetect) {
+      log.info("Auto-detect disabled, skipping periodic model polling")
+      return
+    }
 
     // tickerFlow ──flatMapLatest──▶ fetchModelsOnce ──▶ collect
     // flatMapLatest cancels any in-flight fetch when the next tick arrives.
     pollingJob = scope.launch {
-      tickerFlow()
+      tickerFlow(pollIntervalMs)
         .flatMapLatest { fetchModelsOnce() }
         .catch { exception ->
           log.warn("Model polling stream error: ${exception.message}", exception)
@@ -592,21 +614,11 @@ class GradumChatSession {
           }
         }
     }
-
-    // A successful manual probe on the settings page means the provider was
-    // (re)configured and is reachable — refresh the roster immediately so
-    // the new models show up instead of waiting for the next poll tick.
-    probeRefreshJob = scope.launch {
-      ProviderCoordinator.probeSucceeded.collect {
-        log.info("Provider probe succeeded, refreshing models")
-        loadModels()
-      }
-    }
   }
 
-  private fun tickerFlow(): Flow<Unit> = flow {
+  private fun tickerFlow(intervalMs: Long): Flow<Unit> = flow {
     while (currentCoroutineContext().isActive) {
-      delay(POLL_INTERVAL_MS.milliseconds)
+      delay(intervalMs.milliseconds)
       emit(Unit)
     }
   }
@@ -1114,9 +1126,6 @@ class GradumChatSession {
 
     /** Minimum milliseconds to display the "Sending" animation before the request fires. */
     const val MIN_SENDING_MS: Long = 400
-
-    /** Interval between model polling requests in milliseconds. */
-    const val POLL_INTERVAL_MS: Long = 3_000
 
     /** Max connection retry attempts before surfacing a server error. */
     const val MAX_CONNECT_ATTEMPTS: Int = 6

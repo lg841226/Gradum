@@ -4,18 +4,18 @@
 
 ### Technical Architecture White Paper
 
-| Field              | Value                                                            |
-|--------------------|------------------------------------------------------------------|
-| **Version**        | 0.9.2                                                            |
-| **Status**         | Active Development                                               |
-| **Language**       | Kotlin 2.3.0 (JVM 21)                                            |
-| **HTTP Framework** | Ktor 3.0.3 + Netty                                               |
-| **Serialization**  | kotlinx-serialization-json 1.7.3                                 |
-| **Coroutines**     | kotlinx-coroutines 1.9.0                                         |
-| **Logging**        | Logback Classic 1.5.25                                           |
+| Field              | Value                                                                        |
+|--------------------|------------------------------------------------------------------------------|
+| **Version**        | 0.9.2                                                                        |
+| **Status**         | Active Development                                                           |
+| **Language**       | Kotlin 2.3.0 (JVM 21)                                                        |
+| **HTTP Framework** | Ktor 3.0.3 + Netty                                                           |
+| **Serialization**  | kotlinx-serialization-json 1.7.3                                             |
+| **Coroutines**     | kotlinx-coroutines 1.9.0                                                     |
+| **Logging**        | Logback Classic 1.5.25                                                       |
 | **LLM Backend**    | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) + Zhipu BigModel (GLM) |
-| **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                |
-| **Last Updated**   | 2026-08-12                                                       |
+| **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                            |
+| **Last Updated**   | 2026-08-12                                                                   |
 
 ---
 
@@ -805,10 +805,10 @@ flowchart TD
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
   `POST /api/chat` probe (`num_predict=1`) and are marked `available=false` with an `UnavailableReason`
   (`AUTH / QUOTA_EXCEEDED / RATE_LIMIT / NETWORK / OTHER`).
-- **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the
-  plugin issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks
-  share the server's network stack and auth handling; returns `{status: ok|unreachable|auth|failed, latencyMs, error}`.
-  Local (Ollama) endpoints are probed without a token; cloud endpoints get a bearer token when an API key is present.
+- **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the plugin
+  issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks share the
+  server's network stack and auth handling; returns `{status: ok|unreachable|auth|failed, latencyMs, error}`. Local
+  (Ollama) endpoints are probed without a token; cloud endpoints get a bearer token when an API key is present.
 - **Shared HTTP dial** (`httpProbe`): one GET helper with a 5s timeout, optional bearer token, and latency measurement
   used by both `probeProvider` and `Discovery.probeServer`.
 - **Capability inference** (used by `SchemaVariant.resolve`): `parameterCountInBillions(modelName)` parses

@@ -2,14 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-16 01:12:12 Changed by gwy
+ * ModelIdentity.kt  2026-08-16 19:36:00 Changed by gwy
  */
 
 package gradum
 
 import gradum.ModelIdentity.Discovery.baseKnownServers
 import gradum.ModelIdentity.Discovery.cloudApiKeyEnvCandidates
-import gradum.ModelIdentity.Discovery.resolveCloudApiKey
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -21,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.net.URI
 import java.util.*
 
 
@@ -82,6 +82,107 @@ object ModelIdentity {
 
   private const val MAX_SMALL_MODEL_PARAMETERS_B: Double = 32.0
 
+  /**
+   * Whether [url] points at a loopback address (`localhost`,
+   * `127.x.x.x`, `::1`). Used to enforce the per-provider
+   * "allow remote" flag: non-loopback base URLs are refused unless
+   * the flag is enabled. Returns `false` for unparseable URLs so a
+   * malformed override never slips past the guard.
+   */
+  fun isLocalHostUrl(url: String): Boolean {
+    val host: String = runCatching { URI(url).host }.getOrNull() ?: return false
+    val normalized: String = host.removePrefix("[").removeSuffix("]")
+
+    if (normalized.equals("localhost", ignoreCase = true)) return true
+    if (normalized == "::1") return true
+    if (normalized.startsWith("127.")) return true
+    if (normalized == "0.0.0.0") return true
+    return false
+  }
+
+  /**
+   * Builds the models-list endpoint for an OpenAI-compatible base URL.
+   * Users may paste a base URL that already ends with `/v1` (e.g.
+   * `http://192.168.1.5:1234/v1`), so the `/v1/models` suffix must not be
+   * appended twice — otherwise the request hits `/v1/v1/models` and fails.
+   */
+  fun resolveModelsEndpoint(baseUrl: String, endpoint: String): String {
+    val base: String = baseUrl.trimEnd('/')
+    val suffix: String = endpoint.trimStart('/')
+    return if (base.endsWith("/v1") && suffix.startsWith("v1/")) {
+      base.removeSuffix("/v1") + "/" + suffix
+    } else {
+      "$base/$suffix"
+    }
+  }
+
+  /**
+   * Parses a model-list response body and returns the model names.
+   * Ollama returns `{"models":[{name,…}]}`, OpenAI-compatible providers
+   * return `{"data":[{id,…}]}`. Used both by settings-page probes and
+   * model discovery, so a probe can verify it actually received a real
+   * model list instead of trusting an HTTP 200 blindly.
+   */
+  fun parseModelNamesFromBody(providerType: String, body: String): List<String> {
+    if (body.isBlank()) return emptyList()
+    val responseJson: JsonObject = try {
+      Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+    } catch (_: Exception) {
+      return emptyList()
+    }
+    val modelNames: List<String> = when (providerType) {
+      Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
+        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
+      } ?: emptyList()
+
+      else -> responseJson["data"]?.jsonArray?.map {
+        it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
+      } ?: emptyList()
+    }
+    return modelNames.filter { it.isNotBlank() }
+  }
+
+  /**
+   * Defensive URL-structure check applied by [probeProvider]. Local
+   * providers (Ollama, LM Studio, vLLM, LocalAI) only accept a bare
+   * `http(s)://host[:port]` or a `/v1` OpenAI prefix — arbitrary junk
+   * paths like `/v1832483294239482394` are rejected before any dial.
+   * Cloud providers keep their built-in multi-segment base URLs
+   * (e.g. `.../api/coding/paas/v4`), so only their host is validated.
+   */
+  private fun isWellFormedProviderUrl(kind: String, baseUrl: String): Boolean {
+    val parsedUri = runCatching { URI(baseUrl) }.getOrNull() ?: return false
+
+    val uriScheme = parsedUri.scheme
+    if (uriScheme == null || !uriScheme.matches(Regex("https?", RegexOption.IGNORE_CASE)))
+      return false
+
+    val uriHost = parsedUri.host
+    if (uriHost == null || !isValidHost(uriHost)) return false
+
+    val uriPort = parsedUri.port
+    if (uriPort != -1 && uriPort !in 1..65535) return false
+
+    if (parsedUri.query != null || parsedUri.fragment != null || parsedUri.userInfo != null)
+      return false
+
+    val isLocalKind = kind.lowercase() in setOf("ollama", "lmstudio", "vllm", "localai")
+    if (!isLocalKind) return true
+
+    val uriPath = parsedUri.path ?: ""
+    return uriPath in setOf("", "/", "/v1", "/v1/")
+  }
+
+  private fun isValidHost(host: String): Boolean {
+    if (host.isEmpty()) return false
+    val ipv4: Boolean = host.matches(IPV4_PATTERN) &&
+      host.split(".").all { octet -> octet.toInt() in 0..255 }
+    return ipv4 || host.matches(HOSTNAME_PATTERN)
+  }
+
+  private val IPV4_PATTERN: Regex = Regex("""\d{1,3}(\.\d{1,3}){3}""")
+  private val HOSTNAME_PATTERN: Regex = Regex("""[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*""")
+
   private val PARAMETER_PATTERN: Regex =
     Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""", RegexOption.IGNORE_CASE)
 
@@ -99,8 +200,8 @@ object ModelIdentity {
     val lowerName = modelName.lowercase()
     if (CLOUD_KEYWORDS.any { lowerName.contains(it) }) return false
     val match = PARAMETER_PATTERN.find(lowerName) ?: return false
-    val size = match.groupValues[1].toDoubleOrNull() ?: return false
-    return size <= MAX_SMALL_MODEL_PARAMETERS_B
+    val modelSize = match.groupValues[1].toDoubleOrNull() ?: return false
+    return modelSize <= MAX_SMALL_MODEL_PARAMETERS_B
   }
 
   fun schemaVariant(modelName: String): SchemaVariant =
@@ -115,9 +216,10 @@ object ModelIdentity {
    * plugin ever dialing the provider directly.
    */
   data class ProviderProbeResult(
-    val status: String, // "ok" | "unreachable" | "auth" | "failed"
+    // "ok" | "unreachable" | "auth" | "failed"
+    val status: String,
     val latencyMs: Long,
-    val error: String? = null,
+    val error: String? = null
   )
 
   /**
@@ -153,32 +255,59 @@ object ModelIdentity {
    * probed without a token; cloud endpoints are sent a bearer token when
    * [apiKey] is present.
    */
-  fun probeProvider(
-    kind: String,
-    baseUrl: String,
-    apiKey: String?,
-  ): ProviderProbeResult {
+  fun probeProvider(kind: String, baseUrl: String, apiKey: String?): ProviderProbeResult {
     val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
     if (trimmedBaseUrl.isEmpty()) {
       return ProviderProbeResult("failed", 0, "URL is empty")
     }
+    if (!isWellFormedProviderUrl(kind, trimmedBaseUrl)) {
+      return ProviderProbeResult(
+        latencyMs = 0,
+        status = "failed",
+        error = "Malformed provider URL: expected http(s)://host[:port] with an optional /v1 path",
+      )
+    }
+    val configKey: String? = ProviderConfigStore.configKeyFor(kind)
+    if (configKey == "lmstudio" && !isLocalHostUrl(trimmedBaseUrl) && !ProviderConfigStore.isAllowRemote(configKey)) {
+      return ProviderProbeResult(
+        latencyMs = 0,
+        status = "failed",
+        error = "Remote provider connections are disabled; enable \"Allow connection to a local network or remote server\"",
+      )
+    }
     val endpoint: String = when (kind.lowercase()) {
       "ollama" -> "$trimmedBaseUrl/api/tags"
-      else -> "$trimmedBaseUrl/v1/models"
+      else -> resolveModelsEndpoint(trimmedBaseUrl, "/v1/models")
     }
     val startedAt: Long = System.nanoTime()
     return try {
-      val probe: HttpProbe = httpProbe(endpoint, apiKey)
-      when (probe.status.value) {
-        in 200..299 -> ProviderProbeResult("ok", probe.latencyMs)
-        401, 403 -> ProviderProbeResult("auth", probe.latencyMs, "HTTP ${probe.status.value}")
-        else -> ProviderProbeResult("failed", probe.latencyMs, "HTTP ${probe.status.value}")
+      val httpProbe: HttpProbe = httpProbe(endpoint, apiKey)
+      val wireType: String = if (kind.equals("ollama", ignoreCase = true))
+        Provider.OLLAMA.wireType
+      else Provider.OPENAI.wireType
+
+      when (httpProbe.status.value) {
+        in 200..299 -> {
+          val modelNames: List<String> = parseModelNamesFromBody(wireType, httpProbe.body)
+          if (modelNames.isEmpty()) {
+            ProviderProbeResult(
+              status = "failed",
+              latencyMs = httpProbe.latencyMs,
+              error = "HTTP 200 but no model list in the response body"
+            )
+          } else {
+            ProviderProbeResult("ok", httpProbe.latencyMs)
+          }
+        }
+
+        401, 403 -> ProviderProbeResult("auth", httpProbe.latencyMs, "HTTP ${httpProbe.status.value}")
+        else -> ProviderProbeResult("failed", httpProbe.latencyMs, "HTTP ${httpProbe.status.value}")
       }
     } catch (probeException: Exception) {
       ProviderProbeResult(
         status = "unreachable",
-        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
         error = probeException.javaClass.simpleName,
+        latencyMs = (System.nanoTime() - startedAt) / 1_000_000
       )
     }
   }
@@ -201,11 +330,11 @@ object ModelIdentity {
      * Built-in servers always probed at startup. Local services first
      * (no auth, fastest to fail when offline), then hosted providers
      * that need a bearer token resolved at probe time
-     * (see [resolveCloudApiKey]). Adding a new cloud provider here is
+     * (see resolveCloudApiKey). Adding a new cloud provider here is
      * the supported way to "promote" it to first-class — no plugin
      * restart, no env-var JSON config, no extra injection method.
      *
-     * Each hosted provider declares its own [apiKeyEnvVar]
+     * Each hosted provider declares its own apiKeyEnvVar
      * so users with multiple cloud accounts (DeepSeek + MiniMax +
      * Zhipu) can keep keys separate. When that env var is unset the
      * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
@@ -216,28 +345,28 @@ object ModelIdentity {
       ServerDef("LM Studio", "", "/v1/models", Provider.OPENAI.wireType, configKey = "lmstudio"),
       ServerDef("Ollama", "", "/api/tags", Provider.OLLAMA.wireType, configKey = "ollama"),
       ServerDef(
-        name = "Zhipu BigModel",
-        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
-        endpoint = "/models",
-        providerType = Provider.OPENAI.wireType,
         configKey = "zhipu",
-        apiKeyEnvVar = "ZHIPU_API_KEY"
+        endpoint = "/models",
+        name = "Zhipu BigModel",
+        apiKeyEnvVar = "ZHIPU_API_KEY",
+        providerType = Provider.OPENAI.wireType,
+        baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4"
       ),
       ServerDef(
         name = "DeepSeek",
-        baseUrl = "https://api.deepseek.com/v1",
         endpoint = "/models",
-        providerType = Provider.OPENAI.wireType,
         configKey = "deepseek",
-        apiKeyEnvVar = "DEEPSEEK_API_KEY"
+        apiKeyEnvVar = "DEEPSEEK_API_KEY",
+        baseUrl = "https://api.deepseek.com/v1",
+        providerType = Provider.OPENAI.wireType
       ),
       ServerDef(
         name = "MiniMax",
-        baseUrl = "https://api.minimaxi.com/v1",
         endpoint = "/models",
-        providerType = Provider.OPENAI.wireType,
         configKey = "minimax",
-        apiKeyEnvVar = "MiniMax_API_KEY"
+        apiKeyEnvVar = "MiniMax_API_KEY",
+        baseUrl = "https://api.minimaxi.com/v1",
+        providerType = Provider.OPENAI.wireType
       ),
     )
 
@@ -303,20 +432,25 @@ object ModelIdentity {
         var effective: ServerDef = server.copy(baseUrl = resolvedUrl.trimEnd('/'))
         if (effective.apiKey == null) {
           val providerKey: String? = ProviderConfigStore.apiKeyKey(server.configKey)
-            ?.let { providerEnv.getProperty(it) }
-            ?.trim()
+            ?.let { providerEnv.getProperty(it) }?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?: effective.apiKeyEnvVar?.let { resolveEnvVar(it) }
+
           val effectiveKey: String? = providerKey ?: cloudApiKey
           if (effectiveKey != null && effective.providerType == Provider.OPENAI.wireType) {
             effective = effective.copy(apiKey = effectiveKey)
           }
         }
-        /* A provider that requires an API key (declares an env-var source,
-         * e.g. the hosted cloud providers) is skipped when no key resolved —
-         * probing it without auth would only burn a network call and fail.
-         */
-        if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank()) {
+
+        if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank()) return@mapNotNull null
+
+        if (effective.configKey == "lmstudio" && !isLocalHostUrl(effective.baseUrl) &&
+          !ProviderConfigStore.isAllowRemote(effective.configKey)
+        ) {
+          logger.info(
+            "Skipping ${effective.name}: remote base URL ${effective.baseUrl} " +
+              "is disabled (allow-remote flag off)"
+          )
           return@mapNotNull null
         }
         effective
@@ -336,6 +470,7 @@ object ModelIdentity {
           )
           ProbeResult.Unreachable
         }
+
         val probeDurationMs: Long = (System.nanoTime() - probeStart) / 1_000_000
         when (result) {
           is ProbeResult.Ok -> {
@@ -362,7 +497,6 @@ object ModelIdentity {
           }
         }
       }
-
       return withHealth
     }
 
@@ -370,7 +504,7 @@ object ModelIdentity {
       val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "xxx" }
       logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
       return try {
-        val probe: HttpProbe = httpProbe("${server.baseUrl}${server.endpoint}", server.apiKey)
+        val probe: HttpProbe = httpProbe(resolveModelsEndpoint(server.baseUrl, server.endpoint), server.apiKey)
         logger.info("probeServer got response: ${server.name} status=${probe.status.value}")
         if (probe.status != HttpStatusCode.OK) {
           logger.warn(
@@ -380,39 +514,26 @@ object ModelIdentity {
           return ProbeResult.HttpError(probe.status)
         }
 
-        val responseJson = jsonParser.parseToJsonElement(probe.body).jsonObject
-
-        val modelNames = when (server.providerType) {
-          Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
-            it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
-          }?.filter { it.isNotBlank() } ?: emptyList()
-
-          else -> responseJson["data"]?.jsonArray?.map {
-            it.jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: ""
-          }?.filter { it.isNotBlank() } ?: emptyList()
-        }
+        val modelNames: List<String> = parseModelNamesFromBody(server.providerType, probe.body)
 
         ProbeResult.Ok(modelNames.map { ModelEntry(it, server.baseUrl, server.name, server.providerType) })
       } catch (probeException: Exception) {
         logger.warn(
           "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
-            "${probeException.javaClass.simpleName}: ${probeException.message}",
-          probeException
+            "${probeException.javaClass.simpleName}: ${probeException.message}", probeException
         )
         ProbeResult.Unreachable
       } catch (probeError: Throwable) {
         logger.error(
-          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}",
-          probeError
+          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}", probeError
         )
         ProbeResult.Unreachable
       }
     }
 
     private fun resolveCloudApiKey(): String? {
-      for (envVarName in cloudApiKeyEnvCandidates) {
+      for (envVarName in cloudApiKeyEnvCandidates)
         resolveEnvVar(envVarName)?.let { return it }
-      }
       return null
     }
 

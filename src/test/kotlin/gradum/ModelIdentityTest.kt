@@ -2,16 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentityTest.kt  2026-08-16 00:08:59 Changed by gwy
+ * ModelIdentityTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 
 package gradum
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class ModelIdentityTest {
 
@@ -45,8 +41,6 @@ class ModelIdentityTest {
     assertFalse(ModelIdentity.isSmallModel("qwen2.5"))
   }
 
-  // --- schemaVariant ---
-
   @Test
   fun `schemaVariant returns SIMPLE for small local models`() {
     assertEquals(SchemaVariant.SIMPLE, ModelIdentity.schemaVariant("qwen-14b"))
@@ -67,8 +61,6 @@ class ModelIdentityTest {
     assertEquals(SchemaVariant.FULL, ModelIdentity.schemaVariant("gpt-4o"))
   }
 
-  // --- isCloudTagged ---
-
   @Test
   fun `isCloudTagged matches cloud in name`() {
     assertTrue(ModelIdentity.isCloudTagged("minimax-m2.5:cloud"))
@@ -82,8 +74,6 @@ class ModelIdentityTest {
     assertFalse(ModelIdentity.isCloudTagged("gpt-4o"))
   }
 
-  // --- knownCloudServers wiring (DeepSeek / MiniMax / Zhipu onboarding) ---
-
   @Test
   fun `knownCloudServers contains Zhipu DeepSeek and MiniMax`() {
     val names: Set<String> = ModelIdentity.knownCloudServers.map { it.name }.toSet()
@@ -96,11 +86,11 @@ class ModelIdentityTest {
   fun `every cloud server uses OpenAI wire type`() {
     val cloudServers: List<ServerDef> = ModelIdentity.knownCloudServers
     assertTrue(cloudServers.isNotEmpty(), "expected at least one cloud server")
-    for (server in cloudServers) {
+    for ((name, _, _, providerType) in cloudServers) {
       assertEquals(
         Provider.OPENAI.wireType,
-        server.providerType,
-        "${server.name} should use the OpenAI wire type"
+        providerType,
+        "$name should use the OpenAI wire type"
       )
     }
   }
@@ -108,18 +98,18 @@ class ModelIdentityTest {
   @Test
   fun `every cloud server URL ends with v1 or v4 root and uses https`() {
     val cloudServers: List<ServerDef> = ModelIdentity.knownCloudServers
-    for (server in cloudServers) {
+    for ((name, baseUrl, endpoint) in cloudServers) {
       assertTrue(
-        server.baseUrl.startsWith("https://"),
-        "${server.name} baseUrl should be https, was: ${server.baseUrl}"
+        baseUrl.startsWith("https://"),
+        "$name baseUrl should be https, was: $baseUrl"
       )
       assertTrue(
-        server.baseUrl.endsWith("/v1") || server.baseUrl.endsWith("/v4"),
-        "${server.name} baseUrl should end with /v1 or /v4, was: ${server.baseUrl}"
+        baseUrl.endsWith("/v1") || baseUrl.endsWith("/v4"),
+        "$name baseUrl should end with /v1 or /v4, was: $baseUrl"
       )
       assertEquals(
-        "/models", server.endpoint,
-        "${server.name} should probe via /models"
+        "/models", endpoint,
+        "$name should probe via /models"
       )
     }
   }
@@ -143,19 +133,12 @@ class ModelIdentityTest {
   fun `Zhipu BigModel falls back to shared cloudApiKeyEnvCandidates so it can also use a dedicated env var`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
     val zhipu: ServerDef = byName.getValue("Zhipu BigModel")
-    // Either apiKeyEnvVar is null and we read from cloudApiKeyEnvCandidates,
-    // or it's set to BIGMODEL_API_KEY — both designs are acceptable. We
-    // only assert the URL is correct and the endpoint is /models.
     assertEquals("https://open.bigmodel.cn/api/coding/paas/v4", zhipu.baseUrl)
     assertEquals("/models", zhipu.endpoint)
   }
 
   @Test
   fun `DeepSeek and MiniMax baseUrls match their official OpenAI-compatible hosts`() {
-    // These URLs come straight from each vendor's API docs and are
-    // easy to fat-finger. The check is here so a future refactor
-    // that flips a letter (e.g. api.minimaxi.com → api.minimax.com)
-    // fails CI instead of silently 404-ing at probe time.
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
     assertEquals("https://api.deepseek.com/v1", byName.getValue("DeepSeek").baseUrl)
     assertEquals("https://api.minimaxi.com/v1", byName.getValue("MiniMax").baseUrl)
@@ -163,11 +146,11 @@ class ModelIdentityTest {
 
   @Test
   fun `ServerDef default values keep apiKey and apiKeyEnvVar null`() {
-    val bareDef: ServerDef = ServerDef(
+    val bareDef = ServerDef(
       name = "Bare",
-      baseUrl = "https://example.com",
       endpoint = "/models",
-      providerType = Provider.OPENAI.wireType,
+      baseUrl = "https://example.com",
+      providerType = Provider.OPENAI.wireType
     )
     assertEquals(null, bareDef.apiKey)
     assertEquals(null, bareDef.apiKeyEnvVar)

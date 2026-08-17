@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * ChatTranscriptTest.kt  2026-08-17 09:33:13 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -22,11 +24,11 @@ import org.junit.Test
 class ChatTranscriptTest {
 
   private val sessionMeta: SessionMeta = SessionMeta(
-    sessionId = "20260812-131500-a1b2",
     title = "Fix the flaky test",
+    modelName = "qwen2.5:7b",
+    sessionId = "20260812-131500-a1b2",
     createdAt = 1000L,
-    updatedAt = 2000L,
-    modelName = "qwen2.5:7b"
+    updatedAt = 2000L
   )
 
   private fun sampleMessages(): List<ChatMessage> {
@@ -172,7 +174,7 @@ class ChatTranscriptTest {
 
   @Test
   fun `parseMeta returns blank sessionMeta for non transcript content`() {
-    assertEquals(SessionMeta("", "", 0L, 0L, ""), ChatTranscript.parseMeta("# just markdown"))
+    assertEquals(SessionMeta("", "", "", 0L, 0L), ChatTranscript.parseMeta("# just markdown"))
   }
 
   @Test

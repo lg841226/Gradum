@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Gradum Ktor Server" type="KtorApplicationConfigurationType" factoryName="Ktor">
+  <configuration default="false" name="Gradum Server" type="KtorApplicationConfigurationType" factoryName="Ktor">
     <option name="ALTERNATIVE_JRE_PATH" value="openjdk-24" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <envs>
@@ -23,7 +23,6 @@
     <option name="workingDirectory" value="$PROJECT_DIR$" />
     <method v="2">
       <option name="Make" enabled="true" />
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Gradum Server Tests" run_configuration_type="GradleRunConfiguration" />
     </method>
   </configuration>
 </component>

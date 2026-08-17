@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkillsEndToEndTest.kt  2026-08-12 12:38:25 Changed by gwy
+ * SearchSkillsEndToEndTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 
 package gradum.skill
@@ -38,7 +38,6 @@ class SearchSkillsEndToEndTest {
     fun setUp() {
         projectRoot = Files.createTempDirectory("gradum_search_test_").toFile()
 
-        // The shape that triggered the original bug report:
         fun write(relative: String, body: String) {
             val file = File(projectRoot, relative)
             file.parentFile?.mkdirs()
@@ -68,7 +67,6 @@ class SearchSkillsEndToEndTest {
         )
         write("README.md", "# readme\n")
 
-        // Things the walker is supposed to skip.
         write("build/classes/Foo.class/CustomBorders.class", "nope")
         write("bin/main/CustomBorders.kt/CustomBorders.kt", "package should_be_skipped\n")
         write(".gradle/cache/Foo.kt/Foo.kt", "package should_be_skipped\n")
@@ -152,9 +150,6 @@ class SearchSkillsEndToEndTest {
             context = simpleContext(),
         )
         val files = result.fields("files") as List<*>
-        // Only the root-level gradum_kotlin.kt matches `*.kt`; everything
-        // else lives under src/main/kotlin/... and needs a leading **/ to
-        // be reachable.
         assertEquals(listOf("gradum_kotlin.kt"), files)
     }
 
@@ -177,7 +172,6 @@ class SearchSkillsEndToEndTest {
             files.toSet(),
             "**/*.kt must reach every .kt file in the tree"
         )
-        // Files under skipped directories are absent.
         assertTrue(files.none { it.startsWith("bin/") })
         assertTrue(files.none { it.startsWith("build/") })
         assertTrue(files.none { it.startsWith(".gradle/") })
@@ -295,8 +289,6 @@ class SearchSkillsEndToEndTest {
         val skill = GrepSkill()
         val result = skill.execute(
             arguments = mapOf(
-                // The skipped bin/main/CustomBorders.kt file contains the
-                // word "should_be_skipped" in its package declaration.
                 "pattern" to "should_be_skipped",
                 "include" to "*.kt",
             ),
@@ -316,17 +308,11 @@ class SearchSkillsEndToEndTest {
             context = simpleContext(),
         )
         val filesSearched = result.fields("files_searched") as Int
-        // 5 .kt files in the project tree, none under skipped dirs.
         assertTrue(
             filesSearched in 4..6,
             "Expected roughly 5 .kt files searched, got $filesSearched"
         )
     }
-
-    // ---------------------------------------------------------------------
-    // Edge cases: glob brace alternation, character classes, error paths,
-    // limits, and the quirks of `**` not matching zero path segments.
-    // ---------------------------------------------------------------------
 
     @Test
     fun `Glob brace alternation matches multiple extensions`() {
@@ -353,7 +339,6 @@ class SearchSkillsEndToEndTest {
     fun `Glob with character class matches the right letters`() {
         val skill = GlobSkill()
         val result = skill.execute(
-            // [CD]*.kt picks up files starting with C or D.
             arguments = mapOf("pattern" to "**/[CD]*.kt"),
             context = simpleContext(),
         )
@@ -408,7 +393,6 @@ class SearchSkillsEndToEndTest {
     fun `Glob with a malformed pattern returns a structured error`() {
         val skill = GlobSkill()
         val result = skill.execute(
-            // Unclosed character class is not valid glob syntax.
             arguments = mapOf("pattern" to "**/[unclosed"),
             context = simpleContext(),
         )
@@ -436,7 +420,6 @@ class SearchSkillsEndToEndTest {
     @Test
     fun `Glob limit argument is coerced into the allowed range`() {
         val skill = GlobSkill()
-        // 0 should be coerced up to 1, 99_999 should be clamped to GLOB_MAX_LIMIT.
         val result = skill.execute(
             arguments = mapOf(
                 "pattern" to "gradum_kotlin.kt",
@@ -452,12 +435,8 @@ class SearchSkillsEndToEndTest {
     fun `Glob single-star does not cross path separators`() {
         val skill = GlobSkill()
         val result = skill.execute(
-            // `*` must not cross `/`. The pattern `src/*/kotlin` should not
-            // match `src/main/kotlin/.../Foo.kt` (path has too many segments
-            // after `src/`) and should not match `src/main/kotlin` either
-            // (path has the wrong stem after `src/`).
-            arguments = mapOf("pattern" to "src/*/kotlin"),
             context = simpleContext(),
+            arguments = mapOf("pattern" to "src/*/kotlin")
         )
         val files = (result.fields("files") as List<*>).map { it as String }
         assertEquals(emptyList(), files)
@@ -656,7 +635,6 @@ class SearchSkillsEndToEndTest {
     @Test
     fun `Glob matches a file whose name contains a glob metacharacter literally`() {
         val skill = GlobSkill()
-        // `?` inside the actual filename must NOT act as a quantifier.
         val trickyFile = File(projectRoot, "weird?name.kt").apply {
             parentFile?.mkdirs()
         }
@@ -672,10 +650,6 @@ class SearchSkillsEndToEndTest {
             "A literal `?` in the filename must not be confused with the glob quantifier"
         )
     }
-
-    // ---------------------------------------------------------------------
-    // SkillResult helpers
-    // ---------------------------------------------------------------------
 
     private fun SkillResult.fields(key: String): Any? =
         (this as SkillResult.Success).data[key]

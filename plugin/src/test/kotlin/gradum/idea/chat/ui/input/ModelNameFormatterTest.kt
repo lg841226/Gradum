@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatterTest.kt  2026-07-14 22:24:00 Changed by gwy
+ * ModelNameFormatterTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -92,9 +92,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `formatModelName falls back to title-case for unknown families`() {
-    // Unknown families get a Title-Case-Space-Replace fallback.
-    // Note the size suffix is dropped from the display name (it
-    // shows up in parameterSize, not displayName).
     assertEquals("Unsupported Xyz", formatModelName("unsupported-xyz:70b"))
   }
 
@@ -340,7 +337,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName prefers long-form GGUF over bare Q4`() {
-    // If we tried `q4` first, we'd miss the `_k_m` suffix.
     val result: FormattedModelName =
       parseModelName("qwen2.5-7b-instruct-q4_k_m")
     assertEquals("Q4_K_M", result.quant)
@@ -366,8 +362,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName preserves model version v-tags`() {
-    // `v0.2` is a real model version (e.g. Mistral-7B-Instruct-v0.2),
-    // not a date stamp. The lookup key should drop the version.
     assertEquals("Mistral", parseModelName("mistral-7b-instruct-v0.2").displayName)
   }
 
@@ -423,8 +417,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName strips multiple stacked variant suffixes`() {
-    // `-instruct-v0.2` should strip both the instruct and the
-    // version tags, leaving the bare family root.
     val result: FormattedModelName =
       parseModelName("mistral-7b-instruct-v0.2")
     assertEquals("Mistral", result.displayName)
@@ -432,8 +424,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName strips all trailing metadata in mixed order`() {
-    // Size + variant + quant — all three get stripped in a
-    // single call regardless of their relative order.
     assertEquals(
       "Qwen 2.5 Coder",
       parseModelName("qwen2.5-coder-7b-instruct-q4_k_m").displayName
@@ -463,10 +453,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName detects OpenAI provider from gpt-oss`() {
-    // `gpt-oss` is OpenAI's open-weights line; provider
-    // resolution must pick `gpt-oss` over the bare `gpt`
-    // keyword (they both say OpenAI, but the order in the list
-    // still matters for any future divergence).
     assertEquals("OpenAI", parseModelName("gpt-oss-120b").provider)
   }
 
@@ -491,10 +477,6 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName detects Mistral AI provider with specific keyword first`() {
-    // `codestral` must match the specific `codestral → Mistral AI`
-    // entry, not the generic `mistral` one. They both map to
-    // Mistral AI, but if the order ever changes we want the
-    // test to catch that.
     assertEquals("Mistral AI", parseModelName("codestral:22b").provider)
     assertEquals("Mistral AI", parseModelName("pixtral-large").provider)
     assertEquals("Mistral AI", parseModelName("mixtral:8x7b").provider)
@@ -511,10 +493,6 @@ class ModelNameFormatterTest {
   fun `parseModelName returns null provider for unknown families`() {
     assertNull(parseModelName("unknown-xyz:7b").provider)
   }
-
-  // ---------------------------------------------------------------------
-  // Catalog flag
-  // ---------------------------------------------------------------------
 
   @Test
   fun `parseModelName marks known models as in catalog`() {
@@ -545,16 +523,12 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName fuzzy-lookup falls back from phi-3-mini-4k to phi-3-mini`() {
-    // `phi-3-mini-4k` isn't in the map, but `phi-3-mini` is.
-    // The fuzzy lookup should drop the `4k` suffix and find it.
     val result: FormattedModelName = parseModelName("phi-3-mini-4k")
     assertEquals("Phi 3 Mini", result.displayName)
   }
 
   @Test
   fun `parseModelName fuzzy-lookup tries no-dash form for llama-3`() {
-    // `llama-3` is not directly in the map, but `llama3` is.
-    // The no-dash fallback should resolve it.
     val result: FormattedModelName = parseModelName("llama-3-8b-instruct")
     assertEquals("Llama 3", result.displayName)
   }
@@ -562,17 +536,12 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName title-cases unknown model for fallback display`() {
-    // Use a name that genuinely misses the map. `starcoder2-3b`
-    // IS in the map (`starcoder2` → "StarCoder 2") so the
-    // fallback path would never run for it.
     assertEquals("Unknown Model", parseModelName("unknown-model:7b").displayName)
-    // Another unknown name with a decimal size in the body.
     assertEquals("My Unrecognized Model", parseModelName("my-unrecognized-model:7b").displayName)
   }
 
   @Test
   fun `parseModelName still extracts size and quant for unknown models`() {
-    // The badge UI needs to work even on unrecognized models.
     val result: FormattedModelName = parseModelName("unknown-model:70b-q4_k_m")
     assertEquals("Unknown Model", result.displayName)
     assertEquals("70B", result.parameterSize)
@@ -583,7 +552,6 @@ class ModelNameFormatterTest {
   @Test
   fun `parseModelName handles empty string gracefully`() {
     val result: FormattedModelName = parseModelName("")
-    // Empty input → empty display, null metadata, rawName empty.
     assertEquals("", result.displayName)
     assertNull(result.parameterSize)
     assertNull(result.quant)
@@ -595,15 +563,11 @@ class ModelNameFormatterTest {
   @Test
   fun `parseModelName handles whitespace-only string`() {
     val result: FormattedModelName = parseModelName("   ")
-    // Trimmed to empty → same as empty case.
     assertEquals("", result.rawName)
   }
 
   @Test
   fun `parseModelName handles model name with only a size`() {
-    // `7b` alone is a degenerate input. The formatter should
-    // not crash; it should produce a sensible (if minimal)
-    // result.
     val result: FormattedModelName = parseModelName("7b")
     assertEquals("7B", result.parameterSize)
   }
@@ -611,22 +575,17 @@ class ModelNameFormatterTest {
   @Test
   fun `parseModelName handles model name with trailing dash`() {
     val result: FormattedModelName = parseModelName("qwen2.5-coder-")
-    // The trailing dash doesn't crash; the formatter trims
-    // it. The display name is the family root.
     assertNotNull(result.displayName)
   }
 
   @Test
   fun `parseModelName is case-insensitive for family lookup`() {
-    // All-uppercase input should still hit the right map entry.
     assertEquals("Qwen 2.5", parseModelName("QWEN2.5-7B").displayName)
     assertEquals("Mistral", parseModelName("MISTRAL-7B-INSTRUCT").displayName)
   }
 
   @Test
   fun `parseModelName handles colon with no tag content`() {
-    // `qwen2.5-coder:` (empty afterColon) should still resolve
-    // the family root.
     val result: FormattedModelName = parseModelName("qwen2.5-coder:")
     assertEquals("Qwen 2.5 Coder", result.displayName)
     assertNull(result.parameterSize)

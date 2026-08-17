@@ -92,7 +92,7 @@ val messageId: String = "msg-42"
 val filePath: String = "/tmp/output.log"
 fun loadConfig(): AgentConfiguration = ...
 catch (ioException: IOException) {
-    logger.error("Failed to load file", ioException)
+    logger.error("Failed to loadProperties file", ioException)
 }
 ```
 
@@ -102,7 +102,7 @@ catch (ioException: IOException) {
 val retry: Int = 3           // too short — "retry" of what?
 val id: String = "msg-42"     // id of what?
 val path: String = "..."      // path of what?
-fun load(): AgentConfiguration = ...   // load what?
+fun load(): AgentConfiguration = ...   // loadProperties what?
 catch (e: IOException) { ... }         // 'e' / 'ex' are forbidden
 ```
 

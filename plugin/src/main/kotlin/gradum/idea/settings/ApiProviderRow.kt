@@ -198,7 +198,9 @@ private fun ActionRow(
         .padding(horizontal = GradumSpacing.md),
     )
     Spacer(Modifier.width(GradumSpacing.lg))
-    StatusBadge(status = status)
+    // A red URL field already says the address is unusable — never show a
+    // stale "connected · 455 ms" badge next to it.
+    if (isActionEnabled) StatusBadge(status = status)
   }
 }
 
@@ -209,7 +211,12 @@ private fun StatusBadge(status: ProviderStatus) {
     is ProviderStatus.Ok -> AllIconsKeys.General.GreenCheckmark to message("gradum.settings.provider.status.ok", status.latencyMs)
     is ProviderStatus.Unreachable -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
     is ProviderStatus.AuthError -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
-    is ProviderStatus.Failed -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.failed")
+    is ProviderStatus.Failed -> {
+      val key = if (status.message.contains("remote", ignoreCase = true) && status.message.contains("disabled", ignoreCase = true))
+        "gradum.settings.provider.status.remotedisabled"
+      else "gradum.settings.provider.status.failed"
+      AllIconsKeys.Vcs.Ignore_file to message(key)
+    }
     ProviderStatus.Untested, ProviderStatus.Testing -> return
   }
   Row(verticalAlignment = Alignment.CenterVertically) {

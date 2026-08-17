@@ -2,11 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingLevelSelector.kt  2026-08-15 21:52:16 Changed by gwy
+ * ThinkingLevelSelector.kt  2026-08-16 16:11:14 Changed by gwy
  */
 package gradum.idea.chat.ui.input
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,35 +53,37 @@ import org.jetbrains.jewel.ui.component.Text
  */
 @Composable
 fun ThinkingLevelSelector(
-  selectedLevel: ThinkingLevel,
-  onSelect: (ThinkingLevel) -> Unit,
-  modifier: Modifier = Modifier,
   enabled: Boolean = true,
+  selectedLevel: ThinkingLevel,
+  modifier: Modifier = Modifier,
+  onSelect: (ThinkingLevel) -> Unit
 ) {
   var showMenu by remember { mutableStateOf(false) }
   val dismiss: () -> Unit = { showMenu = false }
 
   Box(modifier = modifier) {
     SelectorButton(
+      isButtonEnabled = enabled,
       text = thinkingButtonLabel(selectedLevel),
       onClick = { if (enabled) showMenu = true },
-      contentDescription = thinkingTooltip(selectedLevel),
-      isButtonEnabled = enabled,
+      contentDescription = thinkingTooltip(selectedLevel)
     )
     if (showMenu) {
       PopupMenu(
         onDismissRequest = { dismiss(); true },
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.CenterHorizontally,
       ) {
         passiveItem {
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(vertical = GradumSpacing.sm),
-            horizontalArrangement = Arrangement.Center
+              .padding(
+                vertical = GradumSpacing.sm,
+                horizontal = GradumSpacing.lrl
+              )
           ) {
             Text(
-              text = message("gradum.thinking"),
+              text = message("gradum.thinking.level"),
               fontWeight = FontWeight.SemiBold
             )
           }
@@ -86,7 +91,7 @@ fun ThinkingLevelSelector(
         ThinkingLevel.entries.forEach { level ->
           selectableItem(
             selected = level == selectedLevel,
-            onClick = { onSelect(level); dismiss() },
+            onClick = { onSelect(level); dismiss() }
           ) {
             ThinkingLevelRow(level = level, isSelected = level == selectedLevel)
           }
@@ -98,26 +103,19 @@ fun ThinkingLevelSelector(
 
 @Composable
 private fun ThinkingLevelRow(level: ThinkingLevel, isSelected: Boolean) {
-  Text(
-    text = thinkingLabel(level),
-    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-    textAlign = TextAlign.Center,
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(
-        vertical = GradumSpacing.xs,
-        horizontal = GradumSpacing.lrl
-      )
-  )
+  Row {
+    Text(
+      text = thinkingLabel(level),
+      textAlign = TextAlign.Center,
+      fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = GradumSpacing.xs)
+    )
+  }
 }
 
-/**
- * Label shown on the [SelectorButton] itself. The "思考：" / "Thinking:"
- * prefix mirrors the user's locale and keeps the button scannable
- * alongside the model and permission buttons.
- */
-private fun thinkingButtonLabel(level: ThinkingLevel): String =
-  message("gradum.thinking.selector.label", thinkingLabel(level))
+private fun thinkingButtonLabel(level: ThinkingLevel): String = thinkingLabel(level)
 
 /**
  * One-liner shown in the closed-button tooltip. Tells the user what

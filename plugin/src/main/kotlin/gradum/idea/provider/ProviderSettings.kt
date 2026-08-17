@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderSettings.kt  2026-08-16 09:30:00 Changed by gwy
+ * ProviderSettings.kt  2026-08-17 08:57:26 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -90,8 +90,8 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
   }
 
   private fun syncConfigFile(state: State) {
-    ProviderConfigFile.updateProvider("ollama", state.ollamaBaseUrl, state.ollamaApiKey)
-    ProviderConfigFile.updateProvider("lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)
+    ProviderConfigFile.updateProviderConfig("ollama", state.ollamaBaseUrl, state.ollamaApiKey)
+    ProviderConfigFile.updateProviderConfig("lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)
   }
 
   companion object {

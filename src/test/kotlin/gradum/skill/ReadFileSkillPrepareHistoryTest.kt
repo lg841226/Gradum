@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkillPrepareHistoryTest.kt  2026-08-12 12:38:25 Changed by gwy
+ * ReadFileSkillPrepareHistoryTest.kt  2026-08-16 16:52:39 Changed by gwy
  */
 
 package gradum.skill
@@ -59,14 +59,9 @@ class ReadFileSkillPrepareHistoryTest {
     }
 
     private fun readContext(): SkillContext = SkillContext(
-        toolMode = ToolMode.READ_ONLY,
         projectRoot = projectRoot.absolutePath,
+        toolMode = ToolMode.READ_ONLY,
         provider = Provider.OLLAMA,
-        // qwen2.5:7b is the SIMPLE-schema model, so the test
-        // exercises the line-numbered content path. The bug
-        // affects both schema variants equally — content is
-        // stripped in both — but covering the SIMPLE path is
-        // enough to lock the regression.
         modelName = "qwen2.5:7b"
     )
 
@@ -83,10 +78,7 @@ class ReadFileSkillPrepareHistoryTest {
                 mapOf("path" to "hello.txt"),
                 context
             )
-            // The execute result itself is the success-failure wrapper
-            // and the actual data the LLM sees. We then run it through
-            // prepareHistoryResult — the exact path Agent.emitToolResult
-            // takes before adding the call to conversation history.
+
             val data: Map<String, Any> = when (raw) {
                 is SkillResult.Success -> raw.data
                 is SkillResult.Failure -> fail("call #$i: read_file failed: ${raw.code} ${raw.message}")
@@ -114,7 +106,6 @@ class ReadFileSkillPrepareHistoryTest {
             seenBodies.add(rendered)
         }
 
-        // Defensive: all five should be the same body.
         assertEquals(5, seenBodies.size)
         assertTrue(seenBodies.all { it == fileBody })
     }

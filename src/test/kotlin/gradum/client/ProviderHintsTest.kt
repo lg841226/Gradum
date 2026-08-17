@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderHintsTest.kt  2026-08-14 23:30:00 Changed by gwy
+ * ProviderHintsTest.kt  2026-08-17 09:18:22 Changed by gwy
  */
 
 package gradum.client
@@ -29,10 +29,10 @@ class ProviderHintsTest {
     val openRouter: ProviderHints = ProviderHints.forBaseUrl("https://openrouter.ai/api/v1")
     val lmStudio: ProviderHints = ProviderHints.forBaseUrl("http://localhost:1234")
 
-    for (hints in listOf(zhipu, openRouter, lmStudio)) {
-      assertEquals("max_tokens", hints.maxTokensFieldName)
-      assertNull(hints.thinkingFieldValue)
-      assertNull(hints.reasoningDeltaField)
+    for ((reasoningDeltaField, maxTokensFieldName, thinkingFieldValue) in listOf(zhipu, openRouter, lmStudio)) {
+      assertEquals("max_tokens", maxTokensFieldName)
+      assertNull(thinkingFieldValue)
+      assertNull(reasoningDeltaField)
     }
   }
 
@@ -57,8 +57,6 @@ class ProviderHintsTest {
 
   @Test
   fun `baseUrl match is case-insensitive and tolerates trailing path`() {
-    // A future /v1/models/ → /v1/beta/models move on the same host
-    // should not break the hint detection.
     val upper: ProviderHints = ProviderHints.forBaseUrl("https://API.DEEPSEEK.COM/v1")
     val withPath: ProviderHints = ProviderHints.forBaseUrl("https://api.deepseek.com/v1/beta")
     assertEquals(mapOf("type" to "enabled"), upper.thinkingFieldValue)

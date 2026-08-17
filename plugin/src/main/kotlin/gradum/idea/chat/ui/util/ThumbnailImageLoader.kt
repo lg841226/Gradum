@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailImageLoader.kt  2026-08-16 00:12:50 Changed by gwy
+ * ThumbnailImageLoader.kt  2026-08-17 08:55:38 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -228,7 +228,7 @@ object ThumbnailImageLoader {
    */
   private fun fetchAndDecode(url: String): ImageBitmap? {
     // Reject hostile URLs before we touch the network. Doing the
-    // guard *here* (not in `load`/`loadAsync`) means a malicious
+    // guard *here* (not in `loadProperties`/`loadAsync`) means a malicious
     // search result can't even pin a poisoned entry in the in-flight
     // map for other callers to await.
     when (val check: ThumbnailUrlGuard.Check = ThumbnailUrlGuard.check(url)) {
