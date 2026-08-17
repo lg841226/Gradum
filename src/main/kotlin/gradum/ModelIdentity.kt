@@ -277,6 +277,7 @@ object ModelIdentity {
     }
     val endpoint: String = when (kind.lowercase()) {
       "ollama" -> "$trimmedBaseUrl/api/tags"
+      "zhipu" -> resolveModelsEndpoint(trimmedBaseUrl, "/models")
       else -> resolveModelsEndpoint(trimmedBaseUrl, "/v1/models")
     }
     val startedAt: Long = System.nanoTime()

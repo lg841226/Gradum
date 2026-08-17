@@ -2,13 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-16 22:30:09 Changed by gwy
+ * EditFileSkill.kt  2026-08-17 18:04:29 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.*
-import gradum.utils.SyntaxChecker
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -390,8 +389,7 @@ class EditFileSkill : Skill() {
         "modifiedContent" to currentContent,
         "editsApplied" to appliedEdits.size,
         "totalEdits" to editOperations.size,
-        "originalContent" to originalContent,
-        "syntaxErrors" to SyntaxChecker.checkSyntax(resolvedPath)
+        "originalContent" to originalContent
       ),
     )
   }

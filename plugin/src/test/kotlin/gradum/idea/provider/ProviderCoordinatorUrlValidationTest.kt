@@ -77,4 +77,25 @@ class ProviderCoordinatorUrlValidationTest {
     assertFalse(isValidBaseUrl("http://192.168.1.5:1234/v1?key=value"))
     assertFalse(isValidBaseUrl("http://192.168.1.5:1234/#frag"))
   }
+
+  @Test
+  fun `accepts deep cloud base urls`() {
+    assertTrue(isValidBaseUrl("https://open.bigmodel.cn/api/coding/paas/v4", ProviderKind.ZHIPU))
+    assertTrue(isValidBaseUrl("https://api.deepseek.com/v1", ProviderKind.DEEPSEEK))
+    assertTrue(isValidBaseUrl("https://api.minimaxi.com/v1", ProviderKind.MINIMAX))
+  }
+
+  @Test
+  fun `rejects deep local paths even when a kind is supplied`() {
+    assertFalse(isValidBaseUrl("http://localhost:1234/api/whatever", ProviderKind.LM_STUDIO))
+    assertFalse(isValidBaseUrl("http://localhost:11434/some/deep/path", ProviderKind.OLLAMA))
+  }
+
+  @Test
+  fun `cloud kinds still reject malformed urls`() {
+    assertFalse(isValidBaseUrl("", ProviderKind.ZHIPU))
+    assertFalse(isValidBaseUrl("ftp://api.deepseek.com", ProviderKind.DEEPSEEK))
+    assertFalse(isValidBaseUrl("https://api.deepseek.com:99999", ProviderKind.DEEPSEEK))
+    assertFalse(isValidBaseUrl("https://has space:1234/v1", ProviderKind.MINIMAX))
+  }
 }

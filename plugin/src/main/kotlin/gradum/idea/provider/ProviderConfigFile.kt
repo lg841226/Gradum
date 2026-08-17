@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfigFile.kt  2026-08-17 09:21:43 Changed by gwy
+ * ProviderConfigFile.kt  2026-08-17 09:47:32 Changed by gwy
  */
 package gradum.idea.provider
 
@@ -51,8 +51,23 @@ object ProviderConfigFile {
   fun updateProviderConfig(configKey: String, baseUrl: String, apiKey: String) {
     val prefix = "GRADUM_${configKey.uppercase()}"
     editConfigFile { properties ->
-      properties.setProperty("${prefix}_BASE_URL", baseUrl.trim())
       properties.setProperty("${prefix}_API_KEY", apiKey.trim())
+      properties.setProperty("${prefix}_BASE_URL", baseUrl.trim())
+    }
+  }
+
+  /**
+   * Read-modify-write one provider's entries out of the shared file.
+   * Removing a cloud provider from the settings page deletes its
+   * URL / API key (and any allow-remote flag) so the embedded server
+   * stops probing it. Failures are swallowed by design.
+   */
+  fun removeProviderConfig(configKey: String) {
+    val prefix = "GRADUM_${configKey.uppercase()}"
+    editConfigFile { properties ->
+      listOf("_API_KEY", "_BASE_URL", "_ALLOW_REMOTE").forEach { suffix ->
+        properties.remove("$prefix$suffix")
+      }
     }
   }
 

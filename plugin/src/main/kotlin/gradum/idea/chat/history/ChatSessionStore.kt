@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-17 09:36:47 Changed by gwy
+ * ChatSessionStore.kt  2026-08-17 13:56:04 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -10,11 +10,11 @@
 package gradum.idea.chat.history
 
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.platform.eel.fs.EelFiles
 import gradum.idea.chat.history.ChatSessionStore.Companion.HEADER_LINE_LIMIT
 import gradum.idea.chat.model.ChatMessage
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.Files.readString
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
@@ -140,11 +140,12 @@ class ChatSessionStore(private val projectRoot: Path) {
    * @return The parsed transcript, or `null` when the session does not exist
    *   or its transcript is unreadable.
    */
+  @Suppress("UseOptimizedEelFunctions")
   fun loadSession(sessionId: String): ChatTranscript.ParsedTranscript? {
     val transcriptFile: Path = sessionDir(sessionId).resolve(TRANSCRIPT_FILE)
     if (!Files.isRegularFile(transcriptFile)) return null
     return try {
-      ChatTranscript.parseTranscript(EelFiles.readString(transcriptFile, Charsets.UTF_8))
+      ChatTranscript.parseTranscript(readString(transcriptFile, Charsets.UTF_8))
     } catch (loadException: Exception) {
       log.warn("Failed to loadProperties session $sessionId", loadException)
       null

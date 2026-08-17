@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-16 10:38:41 Changed by gwy
+ * ApiProviderRow.kt  2026-08-17 17:11:39 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -39,6 +39,7 @@ private val MASK_TRANSFORMATION: OutputTransformation = OutputTransformation {
 private const val LABEL_WIDTH_DP = 68
 private const val URL_FIELD_WIDTH_DP = 400
 private const val INPUT_DEBOUNCE_MS: Long = 500
+private const val MAX_ERROR_PREVIEW_CHARS = 120
 
 /**
  * Settings row for a single model provider.
@@ -68,13 +69,14 @@ fun ApiProviderRow(
   onApiKeyChange: (String) -> Unit,
   extraToggle: ExtraToggle? = null,
   onExtraToggleChange: ((Boolean) -> Unit)? = null,
+  showTitle: Boolean = true,
 ) {
   val status: ProviderStatus by ProviderCoordinator.statusFlow(kind).collectAsState()
   val isTesting: Boolean by ProviderCoordinator.isTestingFlow(kind).collectAsState()
-  val isUrlValid: Boolean = isValidBaseUrl(baseUrlState.text.toString())
+  val isUrlValid: Boolean = isValidBaseUrl(baseUrlState.text.toString(), kind)
 
   Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-    Text(text = message(kind.displayKey), fontWeight = FontWeight.SemiBold)
+    if (showTitle) Text(text = message(kind.displayKey), fontWeight = FontWeight.SemiBold)
     UrlField(kind = kind, state = baseUrlState, isUrlValid = isUrlValid, onUrlChange = onUrlChange)
     ApiKeyField(
       state = apiKeyState,
@@ -198,8 +200,6 @@ private fun ActionRow(
         .padding(horizontal = GradumSpacing.md),
     )
     Spacer(Modifier.width(GradumSpacing.lg))
-    // A red URL field already says the address is unusable — never show a
-    // stale "connected · 455 ms" badge next to it.
     if (isActionEnabled) StatusBadge(status = status)
   }
 }
@@ -215,8 +215,11 @@ private fun StatusBadge(status: ProviderStatus) {
       val key = if (status.message.contains("remote", ignoreCase = true) && status.message.contains("disabled", ignoreCase = true))
         "gradum.settings.provider.status.remotedisabled"
       else "gradum.settings.provider.status.failed"
-      AllIconsKeys.Vcs.Ignore_file to message(key)
+      AllIconsKeys.Vcs.Ignore_file to message(key) + if (status.message.isBlank()) "" else " (${
+        status.message.take(MAX_ERROR_PREVIEW_CHARS)
+      })"
     }
+
     ProviderStatus.Untested, ProviderStatus.Testing -> return
   }
   Row(verticalAlignment = Alignment.CenterVertically) {
@@ -229,6 +232,7 @@ private fun StatusBadge(status: ProviderStatus) {
 private fun urlPlaceholderKey(kind: ProviderKind): String = when (kind) {
   ProviderKind.OLLAMA -> "gradum.settings.provider.url.placeholder.ollama"
   ProviderKind.LM_STUDIO -> "gradum.settings.provider.url.placeholder.lmstudio"
+  else -> kind.defaultBaseUrl
 }
 
 /** Extra checkbox descriptor rendered below the API key field. */

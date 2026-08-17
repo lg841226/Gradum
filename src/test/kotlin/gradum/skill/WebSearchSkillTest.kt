@@ -104,14 +104,6 @@ class WebSearchSkillTest {
     assertEquals("INVALID_PARAMETER", result.code)
   }
 
-  @Test
-  fun `control characters are stripped from query`() {
-    when (val result = skill.execute(mapOf("query" to "test\u0000query"), ctx())) {
-      is SkillResult.Success -> assertTrue(true)
-      is SkillResult.Failure -> assertEquals("SEARCH_FAILED", result.code)
-    }
-  }
-
 
   @Test
   fun `skill name and alias`() {

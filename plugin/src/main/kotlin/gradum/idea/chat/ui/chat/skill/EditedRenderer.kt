@@ -29,10 +29,9 @@ import org.jetbrains.jewel.ui.icon.IconKey
  * an `originalContent` + `modifiedContent` payload (so the chat panel
  * can launch an inline diff viewer).
  *
- * When the result carries `syntaxErrors` (the file compiled but
- * produced compiler issues) or the call itself failed (with an
- * `error.message`), an inline collapsible errors panel is rendered
- * next to the diff button. The panel mirrors
+ * When the call itself failed (with an `error.message`), an inline
+ * collapsible errors panel is rendered next to the diff button. The
+ * panel mirrors
  * [gradum.idea.chat.ui.chat.ThinkingIndicator]'s "expand to reveal"
  * pattern: collapsed by default on a successful edit, auto-expanded
  * when the call failed so the model — and the user — see the
@@ -56,10 +55,6 @@ class EditedRenderer : ToolCallRenderer {
     val modifiedContent: String? = result["modifiedContent"] as? String
     val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
     val isSuccess: Boolean = (result["success"] as? Boolean) ?: true
-
-    @Suppress("UNCHECKED_CAST")
-    val syntaxErrors: List<Map<String, Any?>> =
-      (result["syntaxErrors"] as? List<Map<String, Any?>>) ?: emptyList()
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
     if (hasDiffPayload) actionList.add(ToolCallAction.ViewDiff(filePath = filePath, diffType = "default"))
@@ -72,7 +67,6 @@ class EditedRenderer : ToolCallRenderer {
         "linesRemoved" to linesRemoved,
         "hasDiffPayload" to hasDiffPayload,
         "isSuccess" to isSuccess,
-        "syntaxErrors" to syntaxErrors,
         "error" to result["error"],
         "originalContent" to originalContent,
         "modifiedContent" to modifiedContent

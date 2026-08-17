@@ -39,16 +39,31 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     var ollamaAutoFilter: Boolean = true,
     var autoDetectEnabled: Boolean = true,
     var lmStudioAllowRemote: Boolean = false,
+    var zhipuEnabled: Boolean = false,
+    var zhipuApiKey: String = "",
+    var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/coding/paas/v4",
+    var deepseekEnabled: Boolean = false,
+    var deepseekApiKey: String = "",
+    var deepseekBaseUrl: String = "https://api.deepseek.com/v1",
+    var minimaxEnabled: Boolean = false,
+    var minimaxApiKey: String = "",
+    var minimaxBaseUrl: String = "https://api.minimaxi.com/v1",
   ) {
     fun configFor(kind: ProviderKind): Pair<String, String> = when (kind) {
       ProviderKind.OLLAMA -> ollamaBaseUrl to ollamaApiKey
       ProviderKind.LM_STUDIO -> lmStudioBaseUrl to lmStudioApiKey
+      ProviderKind.ZHIPU -> zhipuBaseUrl to zhipuApiKey
+      ProviderKind.DEEPSEEK -> deepseekBaseUrl to deepseekApiKey
+      ProviderKind.MINIMAX -> minimaxBaseUrl to minimaxApiKey
     }
 
     fun setBaseUrl(kind: ProviderKind, value: String) {
       when (kind) {
         ProviderKind.OLLAMA -> ollamaBaseUrl = value
         ProviderKind.LM_STUDIO -> lmStudioBaseUrl = value
+        ProviderKind.ZHIPU -> zhipuBaseUrl = value
+        ProviderKind.DEEPSEEK -> deepseekBaseUrl = value
+        ProviderKind.MINIMAX -> minimaxBaseUrl = value
       }
     }
 
@@ -56,6 +71,25 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
       when (kind) {
         ProviderKind.OLLAMA -> ollamaApiKey = value
         ProviderKind.LM_STUDIO -> lmStudioApiKey = value
+        ProviderKind.ZHIPU -> zhipuApiKey = value
+        ProviderKind.DEEPSEEK -> deepseekApiKey = value
+        ProviderKind.MINIMAX -> minimaxApiKey = value
+      }
+    }
+
+    fun isEnabled(kind: ProviderKind): Boolean = when (kind) {
+      ProviderKind.OLLAMA, ProviderKind.LM_STUDIO -> true
+      ProviderKind.ZHIPU -> zhipuEnabled
+      ProviderKind.DEEPSEEK -> deepseekEnabled
+      ProviderKind.MINIMAX -> minimaxEnabled
+    }
+
+    fun setEnabled(kind: ProviderKind, enabled: Boolean) {
+      when (kind) {
+        ProviderKind.OLLAMA, ProviderKind.LM_STUDIO -> Unit
+        ProviderKind.ZHIPU -> zhipuEnabled = enabled
+        ProviderKind.DEEPSEEK -> deepseekEnabled = enabled
+        ProviderKind.MINIMAX -> minimaxEnabled = enabled
       }
     }
   }
@@ -92,6 +126,14 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
   private fun syncConfigFile(state: State) {
     ProviderConfigFile.updateProviderConfig("ollama", state.ollamaBaseUrl, state.ollamaApiKey)
     ProviderConfigFile.updateProviderConfig("lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)
+    ProviderKind.cloudKinds.forEach { kind ->
+      val (url, key) = state.configFor(kind)
+      if (state.isEnabled(kind)) {
+        ProviderConfigFile.updateProviderConfig(kind.configKey, url, key)
+      } else {
+        ProviderConfigFile.removeProviderConfig(kind.configKey)
+      }
+    }
   }
 
   companion object {

@@ -98,7 +98,7 @@ object ProviderCoordinator {
     private val _status: MutableStateFlow<ProviderStatus> = MutableStateFlow(ProviderStatus.Untested)
     private val _isTesting: MutableStateFlow<Boolean> = MutableStateFlow(false)
     private var pollJob: Job? = null
-    private var currentConfig: ProviderConfig = ProviderConfig("", "")
+    private var currentConfig: ProviderConfig = ProviderConfig(kind, "", "")
 
     val status: StateFlow<ProviderStatus> = _status.asStateFlow()
     val isTesting: StateFlow<Boolean> = _isTesting.asStateFlow()
@@ -111,7 +111,7 @@ object ProviderCoordinator {
     ) {
       appScope.launch {
         configMutex.withLock {
-          val newConfig: ProviderConfig = ProviderConfig(baseUrl, apiKey)
+          val newConfig: ProviderConfig = ProviderConfig(kind, baseUrl, apiKey)
           val wasPolling: Boolean = pollJob?.isActive == true
           if (newConfig == currentConfig && wasPolling == autoDetect) return@withLock
           currentConfig = newConfig
@@ -125,6 +125,9 @@ object ProviderCoordinator {
             autoDetect -> pollJob = launch {
               while (isActive) {
                 if (currentConfig.isValid) probeOnce(currentConfig)
+                // Auth failures are deterministic — a bad key will not heal
+                // by itself, and retrying just burns the provider's rate limit.
+                if (_status.value is ProviderStatus.AuthError) return@launch
                 if (pollIntervalMs <= 0L) return@launch
                 delay(pollIntervalMs.milliseconds)
               }
@@ -157,8 +160,8 @@ object ProviderCoordinator {
     }
   }
 
-  private data class ProviderConfig(val baseUrl: String, val apiKey: String) {
-    val isValid: Boolean get() = baseUrl.isNotBlank() && isValidBaseUrl(baseUrl)
+  private data class ProviderConfig(val kind: ProviderKind, val baseUrl: String, val apiKey: String) {
+    val isValid: Boolean get() = baseUrl.isNotBlank() && isValidBaseUrl(baseUrl, kind)
   }
 }
 
@@ -177,7 +180,7 @@ object ProviderCoordinator {
  * A pure string/scheme check is not enough: users can paste garbage after
  * the scheme and still see a green URL field.
  */
-internal fun isValidBaseUrl(value: String): Boolean {
+internal fun isValidBaseUrl(value: String, kind: ProviderKind? = null): Boolean {
   val trimmed: String = value.trim()
   if (trimmed.isEmpty()) return false
   val uri: URI = try {
@@ -194,6 +197,11 @@ internal fun isValidBaseUrl(value: String): Boolean {
   if (uri.port != -1 && (uri.port < 1 || uri.port > 65535)) return false
   if (uri.query != null || uri.fragment != null || uri.userInfo != null) return false
   val path: String = uri.path ?: ""
+  // Cloud providers (Zhipu / DeepSeek / MiniMax) use deep fixed base
+  // URLs such as `https://open.bigmodel.cn/api/coding/paas/v4`, so their
+  // path is not restricted. Local providers only accept the empty path or
+  // the `/v1` OpenAI prefix.
+  if (kind?.isCloud == true) return true
   return path.isEmpty() || path == "/" || path == "/v1" || path == "/v1/"
 }
 
