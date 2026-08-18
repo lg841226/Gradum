@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumLatexTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * GradumLatexTest.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -612,6 +612,34 @@ class GradumLatexTest {
       generateSequence(document.firstChild) { it.next }.toList()
     assertTrue("should be a LatexBlock, was ${blocks[0].javaClass.simpleName}", blocks[0] is LatexBlock)
     assertEquals("x^2", (blocks[0] as LatexBlock).formula)
+  }
+
+  @Test
+  fun `currency amounts are not mis-parsed as inline latex`() {
+    val render: InlineMarkdownRenderResult = inlineRender("The total is $5.99 and $1,000 was the cap.")
+    assertNotNull("paragraph must parse", render.render)
+    assertEquals(
+      "a currency span must not become a formula chip",
+      0, render.render!!.inlineContent.size
+    )
+    assertEquals(
+      "currency text must be preserved verbatim",
+      "The total is $5.99 and $1,000 was the cap.",
+      visibleText(render.render.annotated)
+    )
+  }
+
+  @Test
+  fun `dollar-form latex inside a code span stays literal`() {
+    val render: InlineMarkdownRenderResult = inlineRender($$"`$x^2$` is a formula example.")
+    assertNotNull("paragraph must parse", render.render)
+    // Exactly one inline chip: the code span. The $x^2$ inside it must NOT
+    // additionally become a LaTeX chip (its PUA marker would corrupt the
+    // code chip's literal text).
+    assertEquals(1, render.render!!.inlineContent.size)
+    // visibleText() strips PUA placeholders, so the code chip leaves only
+    // the trailing prose behind.
+    assertEquals(" is a formula example.", visibleText(render.render.annotated))
   }
 
 

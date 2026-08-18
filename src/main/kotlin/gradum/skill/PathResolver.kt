@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-08-14 12:35:22 Changed by gwy
+ * PathResolver.kt  2026-08-18 12:40:45 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.utils.ProtectedPaths
 import java.io.File
+import java.io.IOException
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -261,6 +262,15 @@ private fun evaluate(
   val within: Boolean = isWithinProjectRoot(resolved, normalizedRoot) ||
     (originalWasAbsolute && isInSafePrefix(resolved))
   if (within) {
+    // A path that passes the *string* boundary check can still escape
+    // through a symlink (e.g. `proj/evil -> ~/.ssh`). Resolve the real
+    // on-disk target and require THAT to stay inside the project too.
+    if (isResolvedThroughSymlinkOutside(resolved, normalizedRoot, originalWasAbsolute)) {
+      return rejectedPath(
+        original,
+        "resolved path '$resolved' traverses a symlink that points outside the project root"
+      )
+    }
     return ResolvedProjectPath(resolved, original, shifted, shiftedForm)
   }
   return rejectedPath(
@@ -290,6 +300,42 @@ private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean 
   val resolvedString: String = resolved.toString()
   val rootString: String = normalizedRoot.toString()
   return resolvedString == rootString || resolvedString.startsWith("$rootString/")
+}
+
+/**
+ * True when [resolved] exists on disk and its fully-resolved real target
+ * (following symlinks) falls outside the project / safe-prefix boundary.
+ * A string-level `startsWith` check is fooled by `proj/evil -> ~/.ssh`:
+ * the path reads as inside, but every file operation follows the link
+ * out of the project. Only checks paths that actually exist — a
+ * not-yet-created target has no symlink chain to resolve yet.
+ */
+private fun isResolvedThroughSymlinkOutside(
+  resolved: Path, normalizedRoot: Path?, originalWasAbsolute: Boolean
+): Boolean {
+  val resolvedFile: File = resolved.toFile()
+  return resolvedFile.exists() && try {
+    val realPath: Path = resolved.toRealPath()
+    // The root may itself be reached through a symlink (e.g. /tmp →
+    // /private/tmp on macOS); compare real-to-real so we don't reject
+    // every in-project path just because the strings diverge.
+    val realRoot: Path? = normalizedRoot?.takeIf { it.toFile().exists() }?.toRealPath()
+    val realPrefixes: List<Path> = ProtectedPaths.safePathPrefixes.mapNotNull { prefix ->
+      try {
+        Paths.get(prefix).toRealPath()
+      } catch (_: IOException) {
+        null
+      }
+    }
+    val within: Boolean = isWithinProjectRoot(realPath, realRoot) ||
+      (originalWasAbsolute && realPrefixes.any { prefix ->
+        isWithinProjectRoot(realPath, prefix)
+      })
+    !within
+  } catch (_: IOException) {
+    // Can't resolve the real path — be conservative and reject.
+    true
+  }
 }
 
 /** Allow `/tmp` etc. so test fixtures and IDE scratch files keep working. */

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import gradum.idea.utils.GradumSpacing
+import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TableBlock
 import org.commonmark.node.*
 import org.commonmark.parser.Parser
@@ -40,7 +41,10 @@ import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 
 internal val blockReparseParser: Parser = Parser.builder()
-  .extensions(listOf(LatexBlockExtension.create()))
+  // Must mirror BlockSplit.kt's parser: ~~strike~~ is parsed as literal
+  // tildes when the extension is missing, even though splitPlainAtBlocks
+  // already recognized the Strikethrough node and serialized it back.
+  .extensions(listOf(StrikethroughExtension.create(), LatexBlockExtension.create()))
   .build()
 
 private val orderedMarkerColumnMinWidth: Dp = 24.dp

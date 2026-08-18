@@ -73,7 +73,10 @@ class ChatSessionStore(private val projectRoot: Path) {
     try {
       Files.createDirectories(sessionDirectory)
       val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
-      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp")
+      // Unique temp name per write: a fixed "$TRANSCRIPT_FILE.tmp" would let
+      // two concurrent saves to the same session clobber each other's
+      // half-written buffer before either rename lands.
+      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(1_000_000)}")
       val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
       Files.writeString(tempFile, content, Charsets.UTF_8)
       try {

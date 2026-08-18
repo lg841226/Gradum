@@ -17,10 +17,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 import java.io.InputStream
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.time.Duration
 
 /**
  * HTTP client for the Gradum backend REST API (models + streaming NDJSON at `POST /events`).
@@ -34,7 +36,9 @@ import java.net.http.HttpResponse
 class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
   private val log: Logger = Logger.getInstance(GradumApiClient::class.java)
-  private val client: HttpClient = HttpClient.newHttpClient()
+  private val client: HttpClient = HttpClient.newBuilder()
+    .connectTimeout(Duration.ofSeconds(5))
+    .build()
 
   /**
    * Wire-shaped image attachment for [sendMessage]. Mirrors the
@@ -77,6 +81,17 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
     val response: HttpResponse<String> =
       client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    // A non-2xx response body is not a model list — decoding it as one
+    // fails with a SerializationException that callers misreport as
+    // "cannot reach server". Surface the real status code instead.
+    if (response.statusCode() !in 200..299) {
+      val bodyPreview: String = response.body().take(200)
+      throw IOException(
+        "Server returned HTTP ${response.statusCode()} for GET $baseUrl/models" +
+          (if (bodyPreview.isNotBlank()) ": $bodyPreview" else "")
+      )
+    }
 
     response.body()
   }
@@ -200,6 +215,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val request: HttpRequest = HttpRequest.newBuilder()
       .uri(URI.create("$baseUrl/events"))
       .header("Content-Type", "application/json")
+      .timeout(Duration.ofSeconds(30))
       .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
       .build()
 

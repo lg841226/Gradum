@@ -207,6 +207,22 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
         "Read-only mode: output redirection is not allowed"
       )
     }
+
+    // Command substitution / backticks let a whitelisted head token
+    // (echo, cat, grep…) execute arbitrary nested commands whose head
+    // is never checked — `echo $(rm -rf ./src)` is Safe by head-only
+    // analysis. Same for `find ... -exec`, which runs a nested command,
+    // and `xargs <cmd>` where the piped input becomes that command's
+    // arguments (e.g. `find . | xargs rm`).
+    if (COMMAND_SUBSTITUTION_PATTERN.containsMatchIn(commandText) ||
+      FIND_EXEC_PATTERN.containsMatchIn(commandText) ||
+      XARGS_HEAD_PATTERN.matches(commandText.trim())
+    ) {
+      return CommandVerdict.Blocked(
+        "readonly:nested-execution",
+        "Read-only mode: command substitution / nested execution is not allowed"
+      )
+    }
   }
 
   return CommandVerdict.Safe
@@ -218,16 +234,27 @@ private val SHELL_OPERATOR_PATTERN: Regex = Regex("""[|;&]""")
 private val WHITESPACE_PATTERN: Regex = Regex("""\s+""")
 
 /**
- * True when commandText contains an output redirect to a file
- * (`> file`, `>> file`, `<> file`, `>| file`). Does NOT match fd-only
- * redirections (`>&`, `&>`, `2>&1`) so common read-only idioms like
+ * True when commandText contains an output redirect to a file:
+ * `> file`, `>> file`, `>| file`, and fd-source forms like `1>file`,
+ * `2>>file` (a bare fd number before `>` points the fd at a file, not
+ * at another fd). Does NOT match fd-merge redirections `2>&1`, `>&2`,
+ * `&>` where the `>` is followed by `&`, so read-only idioms like
  * `cmd 2>&1` still pass.
  */
-private val SHELL_REDIRECT_PATTERN: Regex = Regex("""(?<![0-9&])>>?(?![0-9&])""")
+private val SHELL_REDIRECT_PATTERN: Regex = Regex(""">>?(?!&)""")
 
 private fun hasShellFileRedirect(commandText: String): Boolean {
   return SHELL_REDIRECT_PATTERN.containsMatchIn(commandText)
 }
+
+/** `$(...)` command substitution or backticks — nested executable whose head is unchecked. */
+private val COMMAND_SUBSTITUTION_PATTERN: Regex = Regex("""\$\(|`\S+""")
+
+/** `find ... -exec <cmd> ... \;` / `find ... -delete` — nested write. */
+private val FIND_EXEC_PATTERN: Regex = Regex("""\bfind\b.*\b-exec\b|\bfind\b.*\b-delete\b""")
+
+/** `xargs <executable>` — piped input becomes that executable's args. */
+private val XARGS_HEAD_PATTERN: Regex = Regex("""^\s*xargs\b.*""")
 
 private fun classifyDeviceWrite(commandTokens: List<String>): CommandVerdict {
   for (token in commandTokens) {

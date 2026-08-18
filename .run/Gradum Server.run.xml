@@ -17,13 +17,12 @@
     <option name="includeProvidedScope" value="false" />
     <option name="mainClass" value="gradum.server.MainKt" />
     <option name="passParentEnvs" value="true" />
-    <option name="programParameters" value="" />
+    <option name="programParameters" />
     <option name="shortenCommandLine" />
     <option name="vmParameters" value="-Xmx2048m -Xms512m" />
     <option name="workingDirectory" value="$PROJECT_DIR$" />
     <method v="2">
       <option name="Make" enabled="true" />
-      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Gradum Server Tests" run_configuration_type="JUnit" />
     </method>
   </configuration>
 </component>

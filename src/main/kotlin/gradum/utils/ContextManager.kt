@@ -141,8 +141,11 @@ class ContextManager(private val outputDirectory: Path) {
 
     for (message in messages) {
       val role: String = message["role"] as? String ?: ""
-      val content: String = message["content"] as? String ?: ""
-      val isSystemOrEmptyAssistant: Boolean = (role == "system") || (role == "assistant" && content.isBlank())
+      val rawContent: Any? = message["content"]
+      val content: String = rawContent as? String ?: ""
+      val isSystemOrEmptyAssistant: Boolean =
+        (role == "system") ||
+          (role == "assistant" && content.isBlank() && readListOfMaps(message["tool_calls"]).isEmpty())
 
       if (isSystemOrEmptyAssistant) continue
 
@@ -154,7 +157,13 @@ class ContextManager(private val outputDirectory: Path) {
 
         "assistant" -> cleanAssistantMessage(message, content, preservedToolCallIds, cleanedMessages)
 
-        else -> cleanedMessages.add(mapOf("role" to role, "content" to content.trim()))
+        // Keep the original content structure: multimodal user messages
+        // carry content as a List (text + images) — casting to String
+        // would wipe it. And don't trim(): trailing newlines are
+        // meaningful when this history is re-sent to the model.
+        else -> cleanedMessages.add(
+          mapOf("role" to role, "content" to (rawContent ?: ""))
+        )
       }
     }
     return takeLastTurns(cleanedMessages, MAX_CONTEXT_MESSAGES)
@@ -193,7 +202,7 @@ class ContextManager(private val outputDirectory: Path) {
   ) {
     val toolCalls: List<Map<String, Any>> = readListOfMaps(message["tool_calls"])
     if (toolCalls.isEmpty()) {
-      cleanedMessages.add(mapOf("role" to "assistant", "content" to content.trim()))
+      cleanedMessages.add(mapOf("role" to "assistant", "content" to content))
       return
     }
 
@@ -201,7 +210,7 @@ class ContextManager(private val outputDirectory: Path) {
       val callId: String = toolCall["id"] as? String ?: ""
       callId in preservedToolCallIds
     }
-    val trimmedContent: String = content.trim()
+    val trimmedContent: String = content
 
     if (preservedCalls.isNotEmpty()) {
       val droppedCallCount: Int = toolCalls.size - preservedCalls.size
@@ -272,7 +281,11 @@ class ContextManager(private val outputDirectory: Path) {
     return when (element) {
       is JsonPrimitive if element.isString -> element.content
       is JsonPrimitive -> JsonUtil.fromJsonElement(element) ?: element.toString()
-      is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element).toString()
+      // Preserve the structured Map / List (tool_calls, multimodal
+      // content arrays). Calling .toString() here flattens them into the
+      // Kotlin container's toString() (e.g. `[{id=call_1, ...}]`) which
+      // corrupts the wire shape when this history is re-sent to the LLM.
+      is JsonArray, is JsonObject -> JsonUtil.fromJsonElement(element) ?: ""
     }
   }
 

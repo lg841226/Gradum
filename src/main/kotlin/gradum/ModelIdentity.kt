@@ -373,19 +373,24 @@ object ModelIdentity {
 
     /**
      * Env-var lookup order for the bearer token shared by every
-     * built-in hosted provider (today: just Zhipu). The order mirrors
+     * built-in hosted provider. Mirrors
      * [gradum.server.ServerConfiguration.resolveDefaultApiKeyFromEnv]
-     * so the probe key and the chat fallback key always agree. Adding
-     * a new provider to [baseKnownServers] needs no change here — the
-     * same key is reused.
+     * so the probe key and the chat fallback key always agree —
+     * including the exact spelling of `MiniMax_API_KEY` (mixed
+     * case), which must match the `apiKeyEnvVar` declared on the
+     * MiniMax [ServerDef]. A mismatch here means a user who sets
+     * `MiniMax_API_KEY` gets working chat fallback on the server
+     * while discovery silently probes with no key (or vice versa).
+     * Adding a new provider to [baseKnownServers] needs no change
+     * here — the same key is reused.
      */
     private val cloudApiKeyEnvCandidates: List<String> = listOf(
-      "ZHIPU_API_KEY",
-      "OPENAI_API_KEY",
-      "MINIMAX_API_KEY",
+      "GRADUM_OPENAI_API_KEY",
       "BIGMODEL_API_KEY",
+      "ZHIPU_API_KEY",
       "DEEPSEEK_API_KEY",
-      "GRADUM_OPENAI_API_KEY"
+      "MiniMax_API_KEY",
+      "OPENAI_API_KEY"
     )
 
     private val jsonParser = Json { ignoreUnknownKeys = true }

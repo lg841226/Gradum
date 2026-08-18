@@ -113,7 +113,7 @@ private fun sendPlaybackXml(
   session.isWaitingForResponse = true
   logger.info("Sending tool-call scenario '$scenarioLabel' to server for playback")
 
-  coroutineScope.launch {
+  session.currentJob = coroutineScope.launch {
     session.sendMessage(
       contextPath = "",
       attachments = emptyList(),
@@ -417,7 +417,7 @@ private fun rememberRetryMessageCallback(
 
       session.isSending = true
       session.isWaitingForResponse = true
-      coroutineScope.launch {
+      session.currentJob = coroutineScope.launch {
         val contextPath = if (session.isExpanded && !anyReplaced) focusedPath else ""
         session.sendMessage(resolvedText, userMessage.attachments, contextPath)
       }

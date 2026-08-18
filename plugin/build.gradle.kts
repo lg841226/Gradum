@@ -163,6 +163,8 @@ dependencies {
   }
 
   testImplementation("junit:junit:4.13.2")
+  testImplementation("io.mockk:mockk:1.13.13")
+  testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
   // Force safe versions of transitive dependencies flagged by vulnerability scanners.
   constraints {

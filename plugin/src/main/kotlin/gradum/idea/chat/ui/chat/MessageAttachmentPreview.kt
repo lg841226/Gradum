@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +33,8 @@ import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.editor.AttachedContext
 import gradum.idea.editor.AttachedImage
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.HorizontallyScrollableContainer
 import org.jetbrains.jewel.ui.component.Icon
@@ -74,8 +80,15 @@ fun MessageAttachmentPreview(
 private fun ImageThumbnailChip(
   imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier
 ) {
-  val decodedBitmap: ImageBitmap? = remember(imageAttachment.file.path) {
-    decodeImage(file = imageAttachment.file)
+  // Decoding a full-size bitmap inside `remember` would run on the UI
+  // thread — a large photo stalls the chat panel. Decode on a background
+  // dispatcher and show the icon fallback until the bitmap is ready.
+  var decodedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+  LaunchedEffect(imageAttachment.file.path) {
+    val bitmap: ImageBitmap? = withContext(Dispatchers.IO) {
+      decodeImage(imageAttachment.file)
+    }
+    decodedBitmap = bitmap
   }
 
   val clipShape = RoundedCornerShape(bubbleThumbnailCornerRadiusDp.dp)
@@ -88,13 +101,14 @@ private fun ImageThumbnailChip(
     )
     .clickable(onClick = onClick)
 
-  if (decodedBitmap != null) {
+  val decoded: ImageBitmap? = decodedBitmap
+  if (decoded != null) {
     Image(
       modifier = chipModifier,
       contentDescription = null,
       contentScale = ContentScale.Crop,
       painter = BitmapPainter(
-        image = decodedBitmap,
+        image = decoded,
         filterQuality = FilterQuality.High
       )
     )

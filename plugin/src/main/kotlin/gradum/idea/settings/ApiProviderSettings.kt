@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-17 18:02:33 Changed by gwy
+ * ApiProviderSettings.kt  2026-08-17 18:24:32 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -227,13 +227,13 @@ private fun CloudProviderTabsSection(
     item(key = CLOUD_TAB_ADD_KEY) {
       Box {
         CloudAddIcon(
-          enabled = addableKinds.isNotEmpty(),
           onClick = { showAddMenu = true },
+          enabled = addableKinds.isNotEmpty()
         )
         if (showAddMenu) {
           PopupMenu(
-            onDismissRequest = { showAddMenu = false; true },
             horizontalAlignment = Alignment.Start,
+            onDismissRequest = { showAddMenu = false; true }
           ) {
             addableKinds.forEach { kind ->
               selectableItem(
@@ -336,7 +336,7 @@ private fun removeCloudProvider(
 @Composable
 private fun CloudTab(
   kind: ProviderKind, isSelected: Boolean, onClick: () -> Unit, onRemove: () -> Unit,
-  modifier: Modifier = Modifier,
+  modifier: Modifier = Modifier
 ) {
   Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -363,17 +363,15 @@ private fun CloudTab(
     )
     Spacer(Modifier.width(GradumSpacing.sml))
     Text(text = message(kind.displayKey))
-    if (isSelected) {
-      Spacer(Modifier.width(GradumSpacing.md))
-      Tooltip(
-        tooltip = { Text(text = message("gradum.settings.provider.cloudtabs.remove")) }
-      ) {
-        Icon(
-          key = AllIconsKeys.General.Close,
-          modifier = Modifier.clickable(onClick = onRemove).size(12.dp),
-          contentDescription = message("gradum.settings.provider.cloudtabs.remove"),
-        )
-      }
+    Spacer(Modifier.width(GradumSpacing.md))
+    Tooltip(
+      tooltip = { Text(text = message("gradum.settings.provider.cloudtabs.remove")) }
+    ) {
+      Icon(
+        key = AllIconsKeys.General.Close,
+        modifier = Modifier.clickable(onClick = onRemove).size(12.dp),
+        contentDescription = message("gradum.settings.provider.cloudtabs.remove")
+      )
     }
   }
 }

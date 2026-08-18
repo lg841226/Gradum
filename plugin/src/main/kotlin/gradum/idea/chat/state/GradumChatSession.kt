@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-17 09:33:13 Changed by gwy
+ * GradumChatSession.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -29,6 +29,7 @@ import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.util.ThinkingPromptInjector
 import gradum.idea.editor.*
 import gradum.idea.provider.ProviderCoordinator
+import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
@@ -38,7 +39,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
-import java.io.IOException
 import java.nio.file.Path
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
@@ -446,6 +446,12 @@ class GradumChatSession {
     isSending = false
     isWaitingForResponse = false
     sendingPhase = ""
+    // Persist whatever the current session accumulated. Without this a
+    // stream that ended via error / interrupt (never reaching session_end,
+    // hence never saved) would be wiped when switching.
+    if (activeSessionId != null && messages.isNotEmpty()) {
+      saveCurrentSession()
+    }
     messages.clear()
     messages.addAll(loadedTranscript.messages)
     activeSessionId = targetSessionId
@@ -514,8 +520,12 @@ class GradumChatSession {
       val json: String = apiClient.getModels()
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
       applyModelList(response.models)
-    } catch (iOException: IOException) {
-      log.warn("Failed to loadProperties models from ${apiClient.baseUrl}", iOException)
+    } catch (loadException: Exception) {
+      // Includes SerializationException for a non-JSON / error-page body —
+      // without this the exception escapes loadModels and kills the
+      // probeRefreshJob coroutine that polls the model list.
+      if (loadException is CancellationException) throw loadException
+      log.warn("Failed to loadProperties models from ${apiClient.baseUrl}", loadException)
       models.clear(); modelsLoaded = false
     }
   }
@@ -565,7 +575,7 @@ class GradumChatSession {
    * Starts background polling for model availability so the plugin can
    * discover LLM servers that start after it loads. The poll loop only
    * runs while [autoDetect] is enabled and ticks every [pollIntervalMs],
-   * mirroring the provider health-check setting; disabling auto-detect
+   * mirroring the provider health check setting; disabling auto-detect
    * stops the roster from refreshing on its own (manual probes still
    * refresh it through [ProviderCoordinator.probeSucceeded]).
    */
@@ -721,6 +731,7 @@ class GradumChatSession {
     userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = "",
     toolCallXml: String? = null
   ) {
+    var receivedSessionEnd = false
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
     val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
@@ -755,6 +766,10 @@ class GradumChatSession {
         response = jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
         break
       } catch (exception: Exception) {
+        // Let cancellation propagate: a canceled validation loop must not
+        // fall through to the send below (double processPendingQueue /
+        // concurrent streams writing the same messages list).
+        if (exception is CancellationException) throw exception
         log.warn(
           "Model validation failed for ${apiClient.baseUrl} (attempt $attempt/" +
             "$MAX_CONNECT_ATTEMPTS)",
@@ -911,6 +926,7 @@ class GradumChatSession {
           "error" -> handleErrorEvent(payload)
 
           "session_end" -> {
+            receivedSessionEnd = true
             isSending = false; sendingPhase = ""
             isWaitingForResponse = false; currentJob = null; sessionId = null
             saveCurrentSession()
@@ -942,6 +958,21 @@ class GradumChatSession {
       sendingPhase = ""
       isWaitingForResponse = false
       processPendingQueue()
+    } finally {
+      // The server signals completion via `session_end`. If the stream
+      // ends without it (server restart, dropped connection, old server
+      // that predates the event), the UI would stay stuck in
+      // "sending…" and the pending queue would be permanently blocked.
+      // Bail out of that state whenever we didn't see a proper end.
+      if (!receivedSessionEnd) {
+        isSending = false
+        sendingPhase = ""
+        isWaitingForResponse = false
+        currentJob = null
+        sessionId = null
+        saveCurrentSession()
+        processPendingQueue()
+      }
     }
   }
 
@@ -1078,10 +1109,28 @@ class GradumChatSession {
 
   private fun buildModelConfig(): Map<String, String> {
     val requestParams = mutableMapOf<String, String>()
+    val snapshot = ProviderSettings.getInstance().snapshot
 
     selectedModel?.let { model ->
       if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
       if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
+
+      // The server only authenticates when it actually receives a key:
+      // `/events` falls back to the server-wide env var and sends no
+      // Authorization header when that is also empty, which surfaces as
+      // a 401 even though the settings-page probe (which passes the key
+      // explicitly) succeeds. Match the selected model's server URL
+      // against the provider configs (cloud AND local — Ollama / LM
+      // Studio can be behind auth too) and forward the matching key.
+      val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind ->
+        snapshot.isEnabled(kind) &&
+          model.server.isNotBlank() &&
+          snapshot.configFor(kind).first.trimEnd('/') == model.server.trimEnd('/')
+      }
+      configuredKind?.let { kind ->
+        val key: String = snapshot.configFor(kind).second
+        if (key.isNotBlank()) requestParams["apiKey"] = key
+      }
     }
     return requestParams
   }

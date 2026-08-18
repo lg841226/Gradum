@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * RunCommandSkill.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.skill
@@ -20,6 +20,15 @@ import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 private const val COMMAND_TIMEOUT_SECONDS: Long = 45
+
+/** Cap on how much command output is read into the LLM context. */
+private const val MAX_OUTPUT_CHARS: Int = 16 * 1024
+
+/** Reader used for stdout/stderr draining that happens before waitFor. */
+private val streamReaderPool: java.util.concurrent.ExecutorService =
+  java.util.concurrent.Executors.newCachedThreadPool { runnable ->
+    Thread(runnable, "gradum-run-cmd-stream").apply { isDaemon = true }
+  }
 
 /**
  * Executes a shell command and captures its output.
@@ -104,6 +113,17 @@ class RunCommandSkill : Skill() {
       }
 
       val commandProcess: Process = processBuilder.start()
+
+      // Drain stdout / stderr CONCURRENTLY with waiting for the process.
+      // Reading them only after waitFor() deadlocks once a command emits
+      // more than the OS pipe buffer (~64 KB): the child blocks writing,
+      // the parent blocks in waitFor, and every large-output command
+      // (cat of a big file, git diff, find /) spuriously times out.
+      // Each output is also capped so a huge stream cannot blow up the
+      // LLM context.
+      val stdoutFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.inputStream, "stdout")
+      val stderrFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.errorStream, "stderr")
+
       val processFinished: Boolean = commandProcess.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 
       if (!processFinished) {
@@ -121,8 +141,8 @@ class RunCommandSkill : Skill() {
 
       val exitCode: Int = commandProcess.exitValue()
 
-      val stdoutText: String = readStreamOutput(commandProcess.inputStream, "stdout")
-      val stderrText: String = readStreamOutput(commandProcess.errorStream, "stderr")
+      val stdoutText: String = stdoutFuture.get(5, TimeUnit.SECONDS)
+      val stderrText: String = stderrFuture.get(5, TimeUnit.SECONDS)
       // Prefer stdout when it actually has content; fall back to stderr
       // when stdout is empty. Both fall through with an explicit failure
       // marker if the read itself threw — never a blank string, because
@@ -203,6 +223,18 @@ class RunCommandSkill : Skill() {
     }
   }
 
+  /**
+   * Kicks off a background drain of [inputStream] and returns a Future that
+   * resolves to the captured text once the stream is exhausted. Must be
+   * called for BOTH stdout and stderr BEFORE `waitFor`, otherwise a
+   * large-output child blocks on a full pipe and deadlocks the wait.
+   */
+  private fun startStreamReader(inputStream: java.io.InputStream, label: String): java.util.concurrent.Future<String> {
+    return streamReaderPool.submit<String> {
+      readStreamOutput(inputStream, label)
+    }
+  }
+
   private fun readStreamOutput(inputStream: java.io.InputStream, label: String): String {
     // The output of this function is rendered verbatim into the LLM's
     // tool-result message, so a swallowed exception here turns into
@@ -212,9 +244,25 @@ class RunCommandSkill : Skill() {
     // model that can't see the underlying EACCES). Always surface the
     // failure as a visible marker so the model can react.
     return try {
+      val builder = StringBuilder()
       BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
-        bufferedReader.readText()
+        val buffer = CharArray(4096)
+        while (true) {
+          val read: Int = bufferedReader.read(buffer, 0, buffer.size)
+          if (read < 0) break
+          builder.appendRange(buffer, 0, read)
+          if (builder.length >= MAX_OUTPUT_CHARS) {
+            builder.append(
+              "\n[output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB — the full $label is not shown]"
+            )
+            // Drain the rest without retaining it.
+            while (bufferedReader.read(buffer, 0, buffer.size) >= 0) { /* discard */
+            }
+            break
+          }
+        }
       }
+      builder.toString()
     } catch (streamReadException: Exception) {
       val reason: String = streamReadException.message
         ?: streamReadException::class.simpleName

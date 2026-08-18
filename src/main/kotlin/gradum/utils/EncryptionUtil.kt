@@ -89,6 +89,13 @@ private fun computeHmac(hmacKey: ByteArray, data: ByteArray): ByteArray {
 
 private fun getKeySource(): ByteArray {
   val environmentKey: String? = System.getenv("GRADUM_CONTEXT_KEY")
+  if (environmentKey.isNullOrEmpty()) {
+    classLogger.warning(
+      "GRADUM_CONTEXT_KEY is not set — falling back to the built-in key source. " +
+        "Persisted context is still decryptable by anyone with this binary; set " +
+        "GRADUM_CONTEXT_KEY (a stable secret) before writing sensitive context."
+    )
+  }
   return environmentKey?.toByteArray(Charsets.UTF_8) ?: builtinKeySource
 }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-17 18:04:29 Changed by gwy
+ * EditFileSkill.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.skill
@@ -19,6 +19,8 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -146,10 +148,21 @@ class EditFileSkill : Skill() {
     val targetFile: File = resolvedPath.toFile()
 
     return try {
-      val originalContent: String = targetFile.readText(Charsets.UTF_8)
+      val originalBytes: ByteArray = targetFile.readBytes()
+      val decodeError: String? = validateUtf8(originalBytes)
+      if (decodeError != null) {
+        return makeFailure(
+          ErrorCode.IO_ERROR, buildXmlError(
+            code = "NON_UTF8_FILE",
+            message = decodeError,
+            fixHint = "Gradum can only safely edit UTF-8 text files. Convert the file to UTF-8 first."
+          ), mapOf("path" to resolvedPath.toString())
+        )
+      }
+      val originalContent = String(originalBytes, Charsets.UTF_8)
       val singleEdit = listOf(EditOperation(oldString, newString, 0))
 
-      applySequentialEdits(resolvedPath, originalContent, singleEdit)
+      applySequentialEdits(resolvedPath, originalContent, originalBytes, singleEdit)
     } catch (_: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
@@ -221,7 +234,18 @@ class EditFileSkill : Skill() {
     val targetFile: File = resolvedPath.toFile()
 
     return try {
-      val originalContent: String = targetFile.readText(Charsets.UTF_8)
+      val originalBytes: ByteArray = targetFile.readBytes()
+      val decodeError: String? = validateUtf8(originalBytes)
+      if (decodeError != null) {
+        return makeFailure(
+          ErrorCode.IO_ERROR, buildXmlError(
+            code = "NON_UTF8_FILE",
+            message = decodeError,
+            fixHint = "Gradum can only safely edit UTF-8 text files. Convert the file to UTF-8 first."
+          ), mapOf("path" to resolvedPath.toString())
+        )
+      }
+      val originalContent = String(originalBytes, Charsets.UTF_8)
       val parsedEdits: List<EditOperation> = rawEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
         EditOperation(
           searchText = editEntry["oldString"] as? String ?: "",
@@ -240,7 +264,7 @@ class EditFileSkill : Skill() {
           )
         )
       }
-      applySequentialEdits(resolvedPath, originalContent, parsedEdits)
+      applySequentialEdits(resolvedPath, originalContent, originalBytes, parsedEdits)
     } catch (_: FileNotFoundException) {
       makeFailure(
         ErrorCode.FILE_NOT_FOUND, buildXmlError(
@@ -261,7 +285,8 @@ class EditFileSkill : Skill() {
   }
 
   private fun applySequentialEdits(
-    resolvedPath: Path, originalContent: String, editOperations: List<EditOperation>
+    resolvedPath: Path, originalContent: String, originalBytes: ByteArray,
+    editOperations: List<EditOperation>
   ): SkillResult {
     var currentContent: String = originalContent
     val appliedEdits: MutableList<Int> = mutableListOf()
@@ -277,7 +302,7 @@ class EditFileSkill : Skill() {
       when (val matchResult = findMatchesWithFallback(fileLines, searchLines)) {
         is FindResult.Found -> {
           if (matchResult.matches.size > 1) {
-            writeWithLock(fileMutation, resolvedPath, currentContent, originalContent, appliedEdits.size)
+            writeWithLock(fileMutation, resolvedPath, currentContent, originalBytes, appliedEdits.size)
               ?.let { return it }
 
             return makeFailure(
@@ -308,7 +333,7 @@ class EditFileSkill : Skill() {
 
         is FindResult.NotFound -> {
           writeWithLock(
-            fileMutation, resolvedPath, currentContent, originalContent, appliedEdits.size
+            fileMutation, resolvedPath, currentContent, originalBytes, appliedEdits.size
           )
             ?.let { return it }
 
@@ -340,7 +365,7 @@ class EditFileSkill : Skill() {
     }
 
     if (currentContent.isBlank() && originalContent.isNotBlank()) {
-      writeWithLock(fileMutation, resolvedPath, originalContent, originalContent)
+      writeWithLock(fileMutation, resolvedPath, originalContent, originalBytes)
         ?.let { return it }
 
       return makeFailure(
@@ -355,7 +380,7 @@ class EditFileSkill : Skill() {
     }
 
     val writeResult = runBlocking {
-      fileMutation.writeTextPreservingBom(resolvedPath, currentContent)
+      fileMutation.writeTextPreservingBom(resolvedPath, currentContent, originalBytes)
     }
 
     if (writeResult.isFailure) {
@@ -514,6 +539,25 @@ private fun findMatchesByStrategy(
 /** Exception thrown when a file has been modified externally during an edit operation. */
 class StaleContentError(val path: String) : Exception("File changed externally:$path")
 
+/**
+ * Returns an error message when [bytes] are NOT valid UTF-8, or `null`
+ * when they are. Editing a non-UTF-8 file (GBK, UTF-16, Latin-1…) with
+ * `readText(Charsets.UTF_8)` + `writeText` silently corrupts every
+ * non-ASCII byte (malformed input decodes to U+FFFD, then gets written
+ * back verbatim). Reject those files up front instead of mangling them.
+ */
+private fun validateUtf8(bytes: ByteArray): String? {
+  return try {
+    Charsets.UTF_8.newDecoder()
+      .onMalformedInput(CodingErrorAction.REPORT)
+      .onUnmappableCharacter(CodingErrorAction.REPORT)
+      .decode(ByteBuffer.wrap(bytes))
+    null
+  } catch (_: CharacterCodingException) {
+    "File contains non-UTF-8 bytes and cannot be safely edited (it would be corrupted by a read/write round-trip)."
+  }
+}
+
 /** Thread-safe wrapper for atomic file mutations with per-path locking. */
 class FileMutation {
   private val locks = ConcurrentHashMap<String, Mutex>()
@@ -544,12 +588,19 @@ class FileMutation {
     }
   }
 
-  suspend fun writeTextPreservingBom(path: Path, content: String): Result<Unit> {
+  suspend fun writeTextPreservingBom(path: Path, content: String, expected: ByteArray?): Result<Unit> {
     return withLock(path) {
       val targetFile = path.toFile()
       val (cleanContent, newHasBom) = splitBom(content)
       val current = if (targetFile.exists()) targetFile.readBytes() else null
-      val currentHasBom = current?.let { hasUtf8Bom(it) } ?: false
+      // TOCTOU guard: if the caller read the file earlier, require the
+      // on-disk bytes to still match before overwriting — otherwise an
+      // external edit would be silently clobbered.
+      if (current == null) return@withLock Result.failure(StaleContentError(path.toString()))
+      if (expected != null && !current.contentEquals(expected)) {
+        return@withLock Result.failure(StaleContentError(path.toString()))
+      }
+      val currentHasBom = hasUtf8Bom(current)
       val finalContent = joinBom(cleanContent, currentHasBom || newHasBom)
 
       targetFile.writeText(finalContent, Charsets.UTF_8)
@@ -579,11 +630,11 @@ class FileMutation {
 
 private fun writeWithLock(
   fileMutation: FileMutation, resolvedPath: Path, content: String,
-  originalContent: String, appliedCount: Int = 0
+  expectedBytes: ByteArray, appliedCount: Int = 0
 ): SkillResult? {
   val result = runBlocking {
     fileMutation.writeIfUnchanged(
-      resolvedPath, content, originalContent.toByteArray(Charsets.UTF_8)
+      resolvedPath, content, expectedBytes
     )
   }
   if (result.isFailure && result.exceptionOrNull() is StaleContentError) {

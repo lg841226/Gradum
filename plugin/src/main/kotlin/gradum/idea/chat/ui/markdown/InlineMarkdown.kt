@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-12 12:38:25 Changed by gwy
+ * InlineMarkdown.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -243,6 +243,36 @@ internal val INLINE_LATEX_REGEX: Regex = Regex("""\$\$([^$\n]+?)\$\$|\$([^$\n]+?
 /** Regex for \(…\)-form LaTeX. Applied BEFORE CommonMark to preserve formulas (CommonMark strips backslashes). */
 internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex("""\\\(([^()\n]+?)\\\)""")
 
+/**
+ * Matches "currency-like" dollar-span content: digits with comma/dot
+ * thousand/ decimal separators, optional spaces and a +/- sign. `$5.99`,
+ * `$1,000`, `$ 50` are prices, not LaTeX — a real formula always carries
+ * a letter, symbol, or operator. A pure-digit span is never math.
+ */
+internal val CURRENCY_LIKE_CONTENT_REGEX: Regex = Regex("""[\d,.\s+-]*""")
+
+/**
+ * Ranges of backtick-delimited code spans in [rawText], used to stop
+ * dollar-Latex pre-processing from replacing `$x^2$` inside `` `$x^2$` ``.
+ * Without this, the PUA marker lands in the code chip's literal text and
+ * renders as a tofu box / broken chip. Tracks an odd/even backtick
+ * toggle; CommonMark treats a span as code when the backticks pair up.
+ */
+internal fun dollarLatexCodeSpanRanges(rawText: String): List<IntRange> {
+  val ranges: MutableList<IntRange> = mutableListOf()
+  var rangeStart: Int? = null
+  for (index in rawText.indices) {
+    if (rawText[index] != '`') continue
+    if (rangeStart == null) {
+      rangeStart = index
+    } else {
+      ranges.add(rangeStart..index)
+      rangeStart = null
+    }
+  }
+  return ranges
+}
+
 /** Regex matching PUA chars in the pre-processed LaTeX marker range (U+E100–U+E2FF). */
 internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE2FF]""")
 
@@ -338,6 +368,7 @@ internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLat
  * CommonMark treats _ as emphasis delimiter, splitting formulas like $(AB)_{ij}$.
  */
 internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLatex {
+  val codeSpanRanges: List<IntRange> = dollarLatexCodeSpanRanges(rawText)
   val matches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(rawText).toList()
   if (matches.isEmpty()) {
     return PreprocessedParenLatex(text = rawText, formulaByMarker = emptyMap())
@@ -349,16 +380,47 @@ internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLa
     if (matchIndex >= DOLLAR_LATEX_MARKER_RANGE_SIZE) continue
     if (match.range.first < lastIndex) continue
 
+    // False positives: `$5.99` / `$1,000` are prices, not LaTeX, and a
+    // dollar span with whitespace inside (e.g. "$5.99 and $1,000" where
+    // the regex pairs `$` #1 with `$` #2) is prose, not math. A formula
+    // inside a backtick code span must stay literal — replacing it with
+    // a PUA marker would corrupt the code chip's text.
+    if (!isInlineLatexCandidate(match, rawText)) continue
+    if (codeSpanRanges.any { it.contains(match.range.first) }) continue
+
+    val formula: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
     rewritten.append(rawText, lastIndex, match.range.first)
     val markerCode: Int = DOLLAR_LATEX_MARKER_RANGE_START + matchIndex
     val marker = String(Character.toChars(markerCode))
-    val formula = match.groupValues[1].ifEmpty { match.groupValues[2] }
     formulaByMarker[marker] = formula
     rewritten.append(marker)
     lastIndex = match.range.last + 1
   }
   rewritten.append(rawText, lastIndex, rawText.length)
   return PreprocessedParenLatex(text = rewritten.toString(), formulaByMarker = formulaByMarker)
+}
+
+/**
+ * True when a `$…$` [match] in [text] looks like inline LaTeX rather than
+ * a currency amount or prose with stray dollar signs. Shared by
+ * [preprocessDollarLatexFormulas] and the inline walker (which re-runs
+ * [INLINE_LATEX_REGEX] on each text node) so both stay in agreement.
+ *
+ * Rejects:
+ *  - whitespace immediately after the opening `$` or before the closing
+ *    `$` (markdown-it rule — inline math never has a space there);
+ *  - purely numeric content (`$5.99`, `$1,000`, `$ 50`) which is
+ *    currency, not math.
+ */
+internal fun isInlineLatexCandidate(match: MatchResult, text: String): Boolean {
+  val formula: String = match.groupValues[1].ifEmpty { match.groupValues[2] }
+  val contentStart: Int = match.range.first + 1
+  val contentEnd: Int = match.range.last - 1
+  val hasSpaceAfterOpen: Boolean =
+    contentStart < text.length && text[contentStart].isWhitespace()
+  val hasSpaceBeforeClose: Boolean =
+    contentEnd >= 0 && text[contentEnd].isWhitespace()
+  return !(hasSpaceAfterOpen || hasSpaceBeforeClose) && !formula.matches(CURRENCY_LIKE_CONTENT_REGEX)
 }
 
 
@@ -665,7 +727,11 @@ private fun renderTextInline(
   if (literal.isEmpty()) return
 
   val footnoteMatches: List<MatchResult> = INLINE_FOOTNOTE_REGEX.findAll(literal).toList()
-  val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal).toList()
+  // Same candidate filter as preprocessDollarLatexFormulas: a currency
+  // amount or prose dollar span must not be rendered as a formula chip.
+  val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal)
+    .filter { isInlineLatexCandidate(it, literal) }
+    .toList()
   val urlMatches: List<MatchResult> = bareUrlRegex.findAll(literal).toList()
 
   val parenLatexMatches: List<MatchResult> = if (renderState.parenLatexFormulas.isEmpty()) {
@@ -848,7 +914,12 @@ private fun renderImageInline(
   )
   val iconPlaceholder: String = renderState.allocateImageAlt()
   renderState.withStyle(imageAltStyle) {
+    // Like footnotes and LaTeX, the placeholder must be wrapped in the
+    // INLINE_CONTENT_TAG annotation — otherwise Compose never looks the
+    // PUA char up in `inlineContent` and renders it as a tofu box.
+    annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = iconPlaceholder)
     annotatedStringBuilder.append(iconPlaceholder)
+    annotatedStringBuilder.pop()
     annotatedStringBuilder.append(' ')
     renderInlineChildren(imageNode, renderState, annotatedStringBuilder)
   }

@@ -172,10 +172,22 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         bodyLines.add(currentLine).also { bodyLineIndex++ }
       }
 
-      val bodyRows: List<List<String>> = bodyLines
-        .filter { it.length <= MAX_TABLE_LINE_LENGTH }
-        .map { parseTableRow(it) }
-        .filter { it.size == headers.size }
+val bodyRows: List<List<String>> = bodyLines
+      .filter { it.length <= MAX_TABLE_LINE_LENGTH }
+      .map { parseTableRow(it) }
+      // GFM pads short rows with empty trailing cells (a row may omit the
+      // trailing `|` or a final empty cell). Dropping them here silently
+      // deletes real body content and can leave a table header-only →
+      // non-renderable → placeholder. Pad instead of filter; rows with too
+      // many cells are truncated to the header width.
+      .map { row ->
+        when {
+          row.size < headers.size -> row + List(headers.size - row.size) { "" }
+          row.size > headers.size -> row.take(headers.size)
+          else -> row
+        }
+      }
+      .filter { it.size == headers.size }
 
       flushPlain()
       segments.add(MarkdownSegment.Table(headers, bodyRows, alignments))

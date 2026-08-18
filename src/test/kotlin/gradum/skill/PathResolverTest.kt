@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolverTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * PathResolverTest.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.skill
@@ -214,5 +214,27 @@ class PathResolverTest {
     assertTrue(result.shifted)
     assertEquals("src/demo.js", result.shiftedForm)
     assertNull(result.rejectionReason)
+  }
+
+  @Test
+  fun `symlink escaping the project root is rejected`() {
+    // Create a real file OUTSIDE the project, then a symlink INSIDE the
+    // project pointing at it. The string-level boundary check passes
+    // (`proj/evil` starts with rootPath), but the on-disk target escapes.
+    val outsideRoot: File = Files.createTempDirectory("gradum-path-outside").toFile()
+    try {
+      val secretFile = File(outsideRoot, "secret.txt")
+      secretFile.writeText("sensitive")
+      val link = File(tempRoot, "evil-link")
+      Files.createSymbolicLink(link.toPath(), secretFile.toPath())
+
+      val result = resolveProjectPath("evil-link", rootPath())
+      assertNotNull(
+        result.rejectionReason,
+        "project-internal symlink to an external file must be rejected"
+      )
+    } finally {
+      outsideRoot.deleteRecursively()
+    }
   }
 }

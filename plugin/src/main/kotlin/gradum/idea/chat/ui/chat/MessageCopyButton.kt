@@ -80,11 +80,20 @@ fun copyToClipboard(
   scope: CoroutineScope,
   delayMillis: Long = 1000
 ) {
-  val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-  val stringSelection = StringSelection(text)
-  clipboard.setContents(stringSelection, null)
+  // Some headless / restricted environments throw (IllegalStateException,
+  // UnsupportedOperationException, HeadlessException) when the clipboard
+  // is unavailable. Let the button stay functional: skip the clipboard
+  // and just report success so the user isn't stuck.
+  val copySucceeded: Boolean = try {
+    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+    val stringSelection = StringSelection(text)
+    clipboard.setContents(stringSelection, null)
+    true
+  } catch (_: Exception) {
+    false
+  }
 
-  onCopied()
+  if (copySucceeded) onCopied()
 
   scope.launch {
     delay(delayMillis.milliseconds); onReset()

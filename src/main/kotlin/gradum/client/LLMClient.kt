@@ -228,7 +228,10 @@ private fun projectHistoryForBackend(
  * Talks to a local or remote Ollama server using its native /api/chat streaming
  * protocol. Supports thinking-mode content separation and tool-call parsing.
  */
-class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
+class OllamaClient(
+  private val configuration: AgentConfiguration,
+  private val httpClient: HttpClient = sharedHttpClient,
+) : LlmClient {
 
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
@@ -256,14 +259,20 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true
-
-    var lastError: Exception? = null
+var lastError: Exception? = null
+    var emittedAnyChunk = false
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
+        }
+
+        if (httpResponse.status.value !in 200..299) {
+          emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
+          lastError = null
+          break
         }
 
         val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
@@ -277,7 +286,7 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
           eventData["message"]?.jsonObject?.let { messageObject ->
             val reasoningContent: String = messageObject.optString("thinking")
 
-            if (reasoningContent.isNotBlank())
+            if (reasoningContent.isNotEmpty())
               emit(LLMResponseChunk.ReasoningContent(reasoningContent))
 
             messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
@@ -290,17 +299,22 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
                   functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
                 )
               }
+
               emit(LLMResponseChunk.ToolCallBatch(parsedCalls))
             }
 
             val messageContent: String = messageObject.optString("content")
-            if (messageContent.isNotBlank())
+            if (messageContent.isNotEmpty()) {
+              emittedAnyChunk = true
               emit(LLMResponseChunk.TextContent(messageContent))
+            }
           }
 
           val serverErrorMessage: String = eventData.optString("error")
-          if (serverErrorMessage.isNotBlank())
+          if (serverErrorMessage.isNotBlank()) {
+            emittedAnyChunk = true
             emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
+          }
 
           tokenUsage = recordTokenUsage(
             usageStats = eventData,
@@ -311,6 +325,8 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
         }
         lastError = null; break
       } catch (httpClientException: Exception) {
+        if (httpClientException is kotlinx.coroutines.CancellationException) throw httpClientException
+        if (emittedAnyChunk) throw httpClientException
         lastError = httpClientException
         if (attemptIndex < 2 && isTransientError(httpClientException)) {
           val delayMs: Long = 5_000L * (1L shl attemptIndex)
@@ -350,7 +366,10 @@ class OllamaClient(private val configuration: AgentConfiguration) : LlmClient {
  * The native channel's reasoning tokens are surfaced as
  * [LLMResponseChunk.ReasoningContent] so the UI can render them.
  */
-class OpenAICompatibleClient(private val configuration: AgentConfiguration) : LlmClient {
+class OpenAICompatibleClient(
+  private val configuration: AgentConfiguration,
+  private val httpClient: HttpClient = sharedHttpClient,
+) : LlmClient {
 
   override var tokenUsage: TokenUsageSnapshot = TokenUsageSnapshot()
     private set
@@ -359,7 +378,13 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     messageHistory: List<Map<String, Any>>, toolDefinitions: List<Map<String, Any>>?
   ): Flow<LLMResponseChunk> = flow {
 
-    val requestUrl = "${configuration.baseUrl}${configuration.chatCompletionsPath}"
+    val base = configuration.baseUrl.trimEnd('/')
+    val path = configuration.chatCompletionsPath.trimStart('/')
+    val requestUrl = if (base.endsWith("/v1") && path.startsWith("v1/")) {
+      base.removeSuffix("/v1") + "/" + path
+    } else {
+      "$base/$path"
+    }
     val hints: ProviderHints = ProviderHints.forBaseUrl(configuration.baseUrl)
 
     val projectedHistory: List<Map<String, Any>> =
@@ -385,10 +410,11 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
     }
 
     var lastError: Exception? = null
+    var emittedAnyChunk = false
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = sharedHttpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
           // Bearer auth — only when an apiKey is configured. Local Ollama
@@ -398,12 +424,37 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
           }
         }
 
+        // Providers answer 4xx/5xx with a JSON error body, NOT an SSE
+        // stream. Without this guard the body would be parsed as SSE:
+        // every line fails the "data: " prefix check, no `[DONE]` is ever
+        // seen, and the loop falls through to the misleading
+        // "Response interrupted, the model may have run out of memory."
+        if (httpResponse.status.value !in 200..299) {
+          emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
+          lastError = null
+          break
+        }
+
         val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse, hints)
-        streamedChunks.collect { chunk -> emit(chunk) }
+        streamedChunks.collect { chunk ->
+          emittedAnyChunk = true
+          emit(chunk)
+        }
 
         lastError = null; break
 
       } catch (httpClientException: Exception) {
+        // Cancellation is not a failure: it must propagate so callers
+        // (e.g. the agent's /stop) can actually stop the stream.
+        if (httpClientException is kotlinx.coroutines.CancellationException) throw httpClientException
+
+        // A stream that already emitted content cannot be re-run: the
+        // agent has already appended that text / queued those tool calls
+        // for execution. Retrying would duplicate the reply. Only retry
+        // when the failure happened before the first event (e.g. the
+        // POST itself or the connection opening).
+        if (emittedAnyChunk) throw httpClientException
+
         lastError = httpClientException
         if (isTransientError(httpClientException) && attemptIndex < 2)
           delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
@@ -439,7 +490,12 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       val rawLine: String = responseChannel.readUTF8Line() ?: break
       if (rawLine.isBlank()) continue
 
-      val eventBody: String = if (rawLine.startsWith("data: ")) rawLine.removePrefix("data: ") else continue
+      // SSE spec makes the space after "data:" optional — some
+      // OpenAI-compatible servers emit `data:{...}`. Requiring the
+      // space would silently drop every event from those servers.
+      val eventBody: String = if (rawLine.startsWith("data:")) {
+        rawLine.removePrefix("data:").trimStart()
+      } else continue
 
       // OpenAI SSE stream-end signal: all OpenAI-compatible servers send `data: [DONE]` at stream end
       if (eventBody.trim() == "[DONE]") {
@@ -459,7 +515,14 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
       val deltaFields: JsonObject = firstChoice["delta"]?.jsonObject ?: continue
       val contentDelta: String = deltaFields.optString("content")
 
-      if (contentDelta.isNotBlank())
+      // NOT `isNotBlank()`: streaming deltas often carry pure-whitespace
+      // chunks (e.g. a bare "\n" that separates Markdown paragraphs, a
+      // blank line inside a code block, or trailing spaces for a hard
+      // break). `isNotBlank()` silently drops those, corrupting Markdown
+      // in a way that is invisible to any renderer fed the final text.
+      // `isNotEmpty()` keeps every delta while still skipping the
+      // missing-key case (optString returns "").
+      if (contentDelta.isNotEmpty())
         emit(LLMResponseChunk.TextContent(contentDelta))
 
       /**
@@ -471,7 +534,7 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
        */
       hints.reasoningDeltaField?.let { fieldName ->
         val reasoningDelta: String = deltaFields.optString(fieldName)
-        if (reasoningDelta.isNotBlank())
+        if (reasoningDelta.isNotEmpty())
           emit(LLMResponseChunk.ReasoningContent(reasoningDelta))
       }
 
@@ -497,7 +560,16 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
   private fun accumulateCallDeltas(toolCallsArray: JsonArray, accumulator: MutableMap<Int, MutableMap<String, Any>>) {
     for (toolCallElement in toolCallsArray) {
       val toolCallObject: JsonObject = toolCallElement.jsonObject
-      val callIndex: Int = toolCallObject.optInt("index")
+      // Some providers (DeepSeek, certain proxies) emit each tool call as
+      // a single complete chunk with NO `index` field. optInt("index") then
+      // returns 0 for every chunk and two calls collapse into slot 0,
+      // merging their ids/names/arguments into one corrupt entry. When the
+      // field is genuinely absent, assign the next sequential slot instead.
+      val callIndex: Int = if (toolCallObject.containsKey("index")) {
+        toolCallObject.optInt("index")
+      } else {
+        (accumulator.keys.maxOrNull() ?: -1) + 1
+      }
 
       val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(callIndex) {
         mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to StringBuilder())
@@ -543,6 +615,35 @@ class OpenAICompatibleClient(private val configuration: AgentConfiguration) : Ll
 
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
   || exception is kotlinx.coroutines.TimeoutCancellationException
+
+/**
+ * Pulls the human-readable message out of a non-2xx API response.
+ *
+ * OpenAI-compatible providers answer errors as
+ * `{"error": {"message": "..."}}` (or occasionally `{"error": "..."}`),
+ * Zhipu / DeepSeek / MiniMax all follow that shape. Falls back to the
+ * raw HTTP status line so the user always sees *something* concrete
+ * instead of the generic stream-interrupt message.
+ */
+private suspend fun extractApiError(httpResponse: HttpResponse): String {
+  val statusLine: String = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
+  val bodyText: String = try {
+    httpResponse.bodyAsText()
+  } catch (_: Exception) {
+    return statusLine
+  }
+  val errorText: String? = try {
+    val parsed: JsonObject = jsonParser.parseToJsonElement(bodyText).jsonObject
+    parsed["error"]?.let { errorElement ->
+      errorElement.jsonObject?.optString("message")
+        ?.takeIf { it.isNotBlank() }
+        ?: errorElement.jsonPrimitive.contentOrNull
+    }
+  } catch (_: Exception) {
+    null
+  }
+  return errorText?.takeIf { it.isNotBlank() } ?: statusLine
+}
 
 /**
  * Common error formatter shared by every [LlmClient] implementation.

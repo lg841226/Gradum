@@ -86,6 +86,7 @@ dependencies {
 
   // Test
   testImplementation("io.ktor:ktor-server-test-host:3.0.3")
+  testImplementation("io.ktor:ktor-client-mock:3.0.3")
   testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.1.0")
   testImplementation("io.mockk:mockk:1.13.13")

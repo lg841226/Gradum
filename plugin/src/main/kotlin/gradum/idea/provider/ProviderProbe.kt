@@ -2,27 +2,34 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderProbe.kt  2026-08-16 09:30:00 Changed by gwy
+ * ProviderProbe.kt  2026-08-18 12:45:23 Changed by gwy
  */
 package gradum.idea.provider
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.*
 import java.net.ConnectException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+
+/**
+ * Abstraction over a single health probe so tests can inject a fake
+ * instead of dialing the real embedded server. The plugin's production
+ * implementation is [ProviderProbe]; [ProviderCoordinator] owns the
+ * probe lifecycle and only depends on this contract.
+ */
+interface ProviderProbeContract {
+  suspend fun probe(
+    apiKey: String,
+    baseUrl: String,
+    kind: ProviderKind
+  ): ProviderStatus
+}
 
 /**
  * Single-shot probe for a model provider, routed through the Gradum server.
@@ -34,7 +41,7 @@ import java.time.Duration
  */
 class ProviderProbe(
   private val serverBaseUrl: String = "http://localhost:8765",
-) {
+) : ProviderProbeContract {
 
   private val client: HttpClient = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
@@ -42,10 +49,8 @@ class ProviderProbe(
 
   private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
-  suspend fun probe(
-    kind: ProviderKind,
-    baseUrl: String,
-    apiKey: String,
+  override suspend fun probe(
+    apiKey: String, baseUrl: String, kind: ProviderKind
   ): ProviderStatus = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject {
       put("kind", kind.wireName)

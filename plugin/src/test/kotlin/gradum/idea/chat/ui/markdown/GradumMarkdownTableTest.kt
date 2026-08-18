@@ -137,7 +137,7 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `body row with mismatched column count is dropped, not the whole table`() {
+  fun `body row with mismatched column count is padded, not dropped`() {
     val markdown: String = """
       | H1 | H2 |
       | -- | -- |
@@ -149,7 +149,12 @@ class GradumMarkdownTableTest {
     assertEquals(1, segments.size)
     val table = segments[0] as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
-    assertEquals(listOf(listOf("a", "b"), listOf("c", "d")), table.rows)
+    // GFM pads the short row with an empty trailing cell — the row is
+    // preserved, not silently deleted.
+    assertEquals(
+      listOf(listOf("a", "b"), listOf("only-one-cell", ""), listOf("c", "d")),
+      table.rows
+    )
   }
 
   @Test
@@ -170,11 +175,10 @@ class GradumMarkdownTableTest {
   }
 
   @Test
-  fun `every body row mismatching the header becomes an empty-rows Table`() {
-    // The header has 2 columns, every body row is 1 column. The
-    // column-count filter drops all body rows, so the Table comes
-    // out with an empty rows list. The placeholder is the caller's
-    // problem, not the parser's.
+  fun `every body row mismatching the header is padded to the header width`() {
+    // The header has 2 columns, every body row has 1. GFM pads them
+    // with an empty trailing cell, so the rows survive instead of being
+    // dropped into an empty-rows Table / placeholder.
     val markdown: String = """
       | H1 | H2 |
       | -- | -- |
@@ -185,7 +189,10 @@ class GradumMarkdownTableTest {
     assertEquals(1, segments.size)
     val table = segments[0] as MarkdownSegment.Table
     assertEquals(listOf("H1", "H2"), table.header)
-    assertEquals(emptyList<List<String>>(), table.rows)
+    assertEquals(
+      listOf(listOf("only-one-cell", ""), listOf("another-one", "")),
+      table.rows
+    )
   }
 
   @Test
@@ -210,16 +217,15 @@ class GradumMarkdownTableTest {
   @Test
   fun `every body-row failure mode becomes an empty-rows Table`() {
     // It doesn't matter *why* a table-shaped block has no usable
-    // body rows. No body rows at all, every body row
-    // column-mismatched, body line was actually prose that
-    // happened to contain a `|` — any of these is "Table with
-    // empty rows" from the parser's perspective. The caller
-    // decides what to do with that.
+    // body rows: no body rows at all, or a body line that was
+    // actually prose containing a `|` — any of these is "Table
+    // with empty rows" from the parser's perspective. (A body row
+    // with a mismatched column count is now padded, NOT dropped, so
+    // it produces rows rather than an empty-rows Table.)
     val noBody = "| H1 | H2 |\n| -- | -- |\n\nnext prose"
-    val allMismatched = "| H1 | H2 |\n| -- | -- |\n| a |\n| b |"
     val separatorButTrailingProse = "| H1 | H2 |\n| -- | -- |\nstray line"
 
-    listOf(noBody, allMismatched, separatorButTrailingProse).forEach { markdown ->
+    listOf(noBody, separatorButTrailingProse).forEach { markdown ->
       val tables = splitMarkdownAtTables(markdown).filterIsInstance<MarkdownSegment.Table>()
       assertEquals("expected exactly one Table in: $markdown", 1, tables.size)
       assertEquals("expected empty rows in: $markdown", 0, tables[0].rows.size)
@@ -483,5 +489,22 @@ class GradumMarkdownTableTest {
     val plain = segments.filterIsInstance<MarkdownSegment.Plain>()
     assertEquals(1, plain.size)
     assertTrue(plain[0].text.contains("not a table row"))
+  }
+
+  @Test
+  fun `short body rows are padded to the header width, not dropped`() {
+    val markdown: String = """
+      | A | B | C |
+      | - | - | - |
+      | 1 | 2 |
+      | 3 | 4 | 5 | 6 |
+    """.trimIndent()
+    val table = splitMarkdownAtTables(markdown).single() as MarkdownSegment.Table
+    // Previously the two irregular rows were filtered out entirely,
+    // leaving an empty body → non-renderable → placeholder.
+    assertEquals(2, table.rows.size)
+    assertEquals(listOf("1", "2", ""), table.rows[0])
+    assertEquals(listOf("3", "4", "5"), table.rows[1])
+    assertTrue(table.isRenderable())
   }
 }

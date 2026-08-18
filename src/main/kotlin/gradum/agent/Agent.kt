@@ -46,7 +46,15 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
 internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
   val sessionKey: String = configuration.sessionId?.trim().orEmpty()
   val projectRootPath: Path = Path.of(configuration.projectRoot)
-  return if (sessionKey.isEmpty()) {
+  // Reject anything that could escape the sessions directory: path
+  // separators (`a/b`, `..`) and the "." / ".." aliases. A malicious
+  // sessionId would otherwise let the context file be written anywhere
+  // under projectRoot (or outside it, via an absolute path).
+  val isSafeSessionKey: Boolean = sessionKey.isNotEmpty() &&
+    sessionKey != "." && sessionKey != ".." &&
+    !sessionKey.contains('/') && !sessionKey.contains('\\') &&
+    !sessionKey.startsWith("~")
+  return if (!isSafeSessionKey) {
     projectRootPath.resolve(".gradum")
   } else {
     projectRootPath.resolve(".gradum").resolve("sessions").resolve(sessionKey)
@@ -1086,7 +1094,11 @@ class Agent(
 
   /** Aborts the session from outside (e.g. via POST /stop). */
   fun abort() {
-    sessionAborted = true
+    // Must emit session_end (with aborted=true) ourselves: finishSession()
+    // skips its emission once sessionAborted is set, so without this the
+    // plugin would wait forever for the stream terminator and stay stuck
+    // in "sending…".
+    abortSession()
   }
 
   companion object {

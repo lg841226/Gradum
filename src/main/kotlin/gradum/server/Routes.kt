@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-13 11:34:17 Changed by gwy
+ * Routes.kt  2026-08-18 12:45:23 Changed by gwy
  */
 
 package gradum.server
@@ -22,8 +22,11 @@ import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -31,6 +34,11 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+
+private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
+
+/** Cap on buffered NDJSON events per session before the producer drops. */
+private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
 
 @Serializable
 data class ProviderProbeRequest(
@@ -164,7 +172,7 @@ data class ConfigOverrides(
   /**
    * Path appended to `baseUrl` for chat completions. Default is
    * `/v1/chat/completions`; Zhipu BigModel uses `/chat/completions`
-   * under its `api/coding/paas/v4` sub-domain.
+   * under its `api/coding/paas/v4` subdomain.
    */
   val chatCompletionsPath: String? = null,
 ) {
@@ -181,13 +189,13 @@ data class ConfigOverrides(
         baseUrl = rawConfig["baseUrl"],
         provider = rawConfig["provider"],
         think = rawConfig["think"]?.toBoolean(),
-        temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         topP = rawConfig["topP"]?.toDoubleOrNull(),
         numCtx = rawConfig["numCtx"]?.toIntOrNull(),
-        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         timeout = rawConfig["timeout"]?.toIntOrNull(),
+        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
+        temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
-        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
+        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() }
       )
     }
   }
@@ -260,7 +268,12 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
       }
 
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
-      val eventsChannel: Channel<String> = Channel(capacity = Channel.UNLIMITED)
+      // Bounded (not UNLIMITED) so a slow or disconnected client can't
+      // make the producer buffer events without limit. A full channel
+      // means the client stopped draining — the stream is already broken
+      // (it would hang forever otherwise), so dropping new events with a
+      // warning is safe and keeps memory bounded.
+      val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
 
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
 
@@ -312,7 +325,13 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
                   "data" to data
                 )
               ) + "\n"
-              eventsChannel.trySend(ndjsonLine)
+              val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
+              if (sendResult.isFailure) {
+                logger.warn(
+                  "Events channel full for session $sessionId — dropping event " +
+                    "'$eventType' (client is not draining; streaming is already stalled)"
+                )
+              }
             },
           )
 
@@ -393,7 +412,12 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
 
-      if (!sessionDir.startsWith(sessionsRoot)) {
+      // `sessionKey="."` normalizes to sessionsRoot itself — a bare
+      // startsWith check passes and deleteRecursively() would wipe every
+      // session. Require a strict child: parent must be sessionsRoot.
+      if (sessionKey == "." || sessionKey == ".." || !sessionDir.startsWith(sessionsRoot) ||
+        sessionDir.parent != sessionsRoot
+      ) {
         call.respondText(
           text = JsonUtil.encodeMap(mapOf("error" to "invalid sessionId")),
           status = HttpStatusCode.BadRequest,
