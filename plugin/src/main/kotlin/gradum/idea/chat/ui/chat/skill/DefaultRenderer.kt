@@ -8,7 +8,6 @@
 package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
@@ -49,13 +48,12 @@ class DefaultRenderer : ToolCallRenderer {
   @Composable
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     ToolCallCapsule(
-      success = !ctx.isError,
-      modifier = Modifier,
-      errorDetail = ctx.errorDetail.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
-      toolDetails = ctx.toolDetails.orEmpty(),
+      label = content.aliasName,
       iconKey = AllIconsKeys.Nodes.Plugin,
-      label = content.aliasName
+      success = !ctx.isError,
+      errorDetail = ctx.errorDetail.orEmpty(),
+      toolDetails = ctx.toolDetails.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty()
     )
   }
 

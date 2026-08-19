@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRenderer.kt  2026-08-14 12:09:51 Changed by gwy
+ * SearchedRenderer.kt  2026-08-19 17:30:00 Changed by gwy
  */
 package gradum.idea.chat.ui.chat.skill
 
@@ -23,9 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import gradum.idea.chat.ui.chat.skill.SearchedRenderer.Companion.faviconCache
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.chat.ui.util.FaviconHostCache
 import gradum.idea.chat.ui.util.ThumbnailImageLoader
 import gradum.idea.utils.GradumBundle.message
@@ -41,6 +43,13 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.net.URI
 import java.util.concurrent.CompletableFuture
 
+/**
+ * Default renderer for the server-side `search_web` skill (alias
+ * "Searched"). Renders a single-line capsule header (web icon +
+ * "Searched" + query + "N results" counter + chevron) that
+ * expands/collapses to reveal the full result list below, each
+ * result showing its favicon thumbnail and an external link.
+ */
 class SearchedRenderer : ToolCallRenderer {
 
   override fun alias(): String = ALIAS
@@ -74,6 +83,7 @@ class SearchedRenderer : ToolCallRenderer {
     val uriHandler = LocalUriHandler.current
     val infoColor = JewelTheme.globalColors.text.info
     val textColor = JewelTheme.globalColors.text.normal
+    val bodyStyle = rememberGradumParagraphTextStyle()
 
     @Suppress("UNCHECKED_CAST")
     val results: List<Map<String, Any>> = (content.fieldMap["results"] as? List<Map<String, Any>>) ?: emptyList()
@@ -92,13 +102,22 @@ class SearchedRenderer : ToolCallRenderer {
         Text(
           color = textColor,
           text = message(LABEL_KEY),
-          fontWeight = FontWeight.Medium
+          fontWeight = FontWeight.Medium,
+          style = bodyStyle
         )
         Text(
           text = query,
           maxLines = 1,
           color = infoColor,
           overflow = TextOverflow.Ellipsis,
+          style = bodyStyle
+        )
+        Text(
+          maxLines = 1,
+          color = JewelTheme.globalColors.text.disabled,
+          overflow = TextOverflow.Ellipsis,
+          text = message(LABEL_KEY_DISPLAY, totalResults),
+          style = bodyStyle
         )
         Icon(
           key = if (isExpanded) AllIconsKeys.General.ChevronDown
@@ -135,12 +154,6 @@ class SearchedRenderer : ToolCallRenderer {
                 )
               }
             }
-            Text(
-              maxLines = 1,
-              color = infoColor,
-              overflow = TextOverflow.Ellipsis,
-              text = message(LABEL_KEY_DISPLAY, totalResults)
-            )
           }
         }
       }
@@ -199,11 +212,7 @@ class SearchedRenderer : ToolCallRenderer {
       Box(modifier = placeholderModifier)
       return
     }
-    // Prefer the cached winning URL when present. The cache is
-    // consulted synchronously so the row can either jump straight to
-    // the known-good URL (saving the 3s timeout on the dead chain
-    // members) or, on a true first-render, walk the full chain in
-    // order.
+
     val cachedUrl: String? = remember(host) { faviconCache.getWinningUrl(host) }
     val fallbackChain: List<String> = remember(pageUrl, faviconUrl, cachedUrl) {
       if (cachedUrl != null) listOf(cachedUrl)
@@ -223,10 +232,7 @@ class SearchedRenderer : ToolCallRenderer {
           return@LaunchedEffect
         }
       }
-      // Walked the full chain and nothing worked — record the host
-      // as a known failure so the next render skips the network
-      // and goes straight to the gray placeholder. Bound the cost
-      // of a long session full of dead hosts.
+
       faviconCache.recordFailure(host)
     }
     val currentBitmap: ImageBitmap? = bitmap
@@ -237,7 +243,7 @@ class SearchedRenderer : ToolCallRenderer {
         bitmap = currentBitmap,
         modifier = sizeModifier,
         contentDescription = null,
-        contentScale = ContentScale.Crop,
+        contentScale = ContentScale.Crop
       )
     }
   }

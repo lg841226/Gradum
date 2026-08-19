@@ -142,7 +142,12 @@ class TodoManager {
     taskList = taskDescriptions; currentTaskIndex = 0
 
     return makeSuccess(
-      mapOf("totalTasks" to taskDescriptions.size, "currentTask" to taskDescriptions[0], "currentIndex" to 0)
+      mapOf(
+        "totalTasks" to taskDescriptions.size,
+        "currentTask" to taskDescriptions[0],
+        "currentIndex" to 0,
+        "tasks" to taskDescriptions,
+      )
     )
   }
 
@@ -173,6 +178,7 @@ class TodoManager {
         mapOf(
           "completed" to true,
           "totalTasks" to taskItems.size,
+          "tasks" to taskItems,
           "message" to "All tasks completed"
         ),
       )
@@ -182,6 +188,7 @@ class TodoManager {
       mapOf(
         "completed" to false,
         "totalTasks" to taskItems.size,
+        "tasks" to taskItems,
         "currentTask" to taskItems[currentTaskIndex],
         "currentIndex" to currentTaskIndex
       ),
@@ -221,6 +228,7 @@ class TodoManager {
         "skippedTask" to skippedTask,
         "completed" to allDone,
         "totalTasks" to taskItems.size,
+        "tasks" to taskItems,
         "currentTask" to if (allDone) "" else taskItems[currentTaskIndex],
         "currentIndex" to currentTaskIndex
       )

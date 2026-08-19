@@ -60,13 +60,13 @@ class SavedRenderer : ToolCallRenderer {
     val displayText: String = if (sizeText != null) "$fileName $sizeText" else fileName
 
     ToolCallCapsule(
+      label = message(LABEL_KEY),
       iconKey = GradumIcons.Save,
       success = !ctx.isError,
       errorDetail = ctx.errorDetail.orEmpty(),
-      trailingText = displayText,
-      errorMessage = ctx.errorDetail.orEmpty(),
       toolDetails = ctx.toolDetails.orEmpty(),
-      label = message(LABEL_KEY),
+      errorMessage = ctx.errorDetail.orEmpty(),
+      trailingText = displayText,
       trailingIcon = {
         OpenInEditorButton(
           filePath = filePath,

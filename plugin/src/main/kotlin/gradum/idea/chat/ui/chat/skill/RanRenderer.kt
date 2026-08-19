@@ -59,13 +59,13 @@ class RanRenderer : ToolCallRenderer {
     val shellCommand: String = (content.fieldMap["command"] as? String).orEmpty()
     val reasonText: String = (content.fieldMap["reason"] as? String).orEmpty()
     ToolCallCapsule(
+      label = message(LABEL_KEY),
+      iconKey = GradumIcons.Ran,
       success = !ctx.isError,
       errorDetail = ctx.errorDetail.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
       toolDetails = ctx.toolDetails.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty(),
       trailingText = reasonText,
-      iconKey = GradumIcons.Ran,
-      label = message(LABEL_KEY),
       trailingIcon = {
         OpenInEditorButton(
           filePath = shellCommand,

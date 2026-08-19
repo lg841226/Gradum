@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
@@ -60,19 +61,20 @@ internal fun ToolCallCapsule(
   iconKey: IconKey,
   success: Boolean,
   errorDetail: String = "",
+  toolDetails: String = "",
   errorMessage: String = "",
   trailingText: String = "",
   modifier: Modifier = Modifier,
-  trailingIcon: @Composable RowScope.() -> Unit = {},
-  toolDetails: String = ""
+  trailingIcon: @Composable RowScope.() -> Unit = {}
 ) {
-  val clipboardScope = rememberCoroutineScope()
-  var showErrorPopup by remember { mutableStateOf(false) }
-  var isCopied by remember { mutableStateOf(false) }
-  val hasError = !success && errorMessage.isNotBlank()
-  val copyPayload: String = toolDetails.ifBlank { errorDetail }
   val textColor = JewelTheme.globalColors.text.normal
   val infoColor = JewelTheme.globalColors.text.info
+  val clipboardScope = rememberCoroutineScope()
+  val bodyStyle = rememberGradumParagraphTextStyle()
+  val hasError = !success && errorMessage.isNotBlank()
+  var isCopied by remember { mutableStateOf(false) }
+  var showErrorPopup by remember { mutableStateOf(false) }
+  val copyPayload: String = toolDetails.ifBlank { errorDetail }
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -82,14 +84,16 @@ internal fun ToolCallCapsule(
     Icon(iconKey, contentDescription = null)
     Text(
       text = label,
-      fontWeight = FontWeight.Medium,
-      color = textColor
+      style = bodyStyle,
+      color = textColor,
+      fontWeight = FontWeight.Medium
     )
 
     if (trailingText.isNotBlank()) {
       Text(
         maxLines = 1,
         color = infoColor,
+        style = bodyStyle,
         text = trailingText,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.widthIn(max = REASON_MAX_WIDTH_DP)
@@ -100,8 +104,8 @@ internal fun ToolCallCapsule(
 
     if (hasError) {
       Icon(
-        key = AllIconsKeys.Status.FailedInProgress,
         contentDescription = message("gradum.tool.error.open"),
+        key = AllIconsKeys.Status.FailedInProgress,
         modifier = Modifier.clickable { showErrorPopup = true }
       )
     }
@@ -135,8 +139,8 @@ internal fun ToolCallCapsule(
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
           ) {
             Icon(
-              key = AllIconsKeys.Status.FailedInProgress,
               contentDescription = null,
+              key = AllIconsKeys.General.Copy,
               modifier = Modifier.size(16.dp)
             )
             Text(

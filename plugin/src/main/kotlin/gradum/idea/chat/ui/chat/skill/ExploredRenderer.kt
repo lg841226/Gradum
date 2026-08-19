@@ -50,13 +50,13 @@ class ExploredRenderer : ToolCallRenderer {
     val displayText: String = message("gradum.tool.depth", scanDepth)
 
     ToolCallCapsule(
+      label = message(LABEL_KEY),
+      iconKey = GradumIcons.Explore,
       success = !ctx.isError,
       errorDetail = ctx.errorDetail.orEmpty(),
-      trailingText = displayText,
-      errorMessage = ctx.errorDetail.orEmpty(),
       toolDetails = ctx.toolDetails.orEmpty(),
-      label = message(LABEL_KEY),
-      iconKey = GradumIcons.Explore
+      errorMessage = ctx.errorDetail.orEmpty(),
+      trailingText = displayText
     )
   }
 

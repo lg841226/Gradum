@@ -318,12 +318,12 @@ private fun ToolCallBlock(
       )
     } else ""
     ToolCallCapsule(
+      label = block.alias,
+      iconKey = AllIconsKeys.Nodes.Plugin,
       success = block.success,
       errorDetail = block.errorDetail,
-      errorMessage = block.errorMessage,
       toolDetails = fallbackToolDetails,
-      iconKey = AllIconsKeys.Nodes.Plugin,
-      label = block.alias,
+      errorMessage = block.errorMessage,
       modifier = animModifier,
     )
     return

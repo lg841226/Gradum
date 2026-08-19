@@ -16,6 +16,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -88,22 +89,23 @@ class EditedRenderer : ToolCallRenderer {
     val addedColor = linesAddedColor()
     val errorColor = toolCallErrorColor()
     val isError: Boolean = !isSuccess || ctx.isError
+    val bodyStyle = rememberGradumParagraphTextStyle()
 
     ToolCallCapsule(
+      label = message(LABEL_KEY),
       iconKey = GradumIcons.Edit,
       success = !isError,
       errorDetail = ctx.errorDetail.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
       toolDetails = ctx.toolDetails.orEmpty(),
+      errorMessage = ctx.errorDetail.orEmpty(),
       trailingText = fileName,
-      label = message(LABEL_KEY),
       trailingIcon = {
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
         ) {
-          if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor)
-          if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor)
+          if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor, style = bodyStyle)
+          if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor, style = bodyStyle)
           if (!isError && hasDiffPayload && originalContent != null && modifiedContent != null) {
             ViewDiffButton(
               onClick = {

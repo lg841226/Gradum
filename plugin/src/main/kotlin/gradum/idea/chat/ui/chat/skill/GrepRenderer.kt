@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -55,6 +56,7 @@ class GrepRenderer : ToolCallRenderer {
     val textColor = JewelTheme.globalColors.text.normal
     val infoColor = JewelTheme.globalColors.text.info
     val disabledColor = JewelTheme.globalColors.text.disabled
+    val bodyStyle = rememberGradumParagraphTextStyle()
 
     Row(
       modifier = Modifier.fillMaxWidth(),
@@ -64,6 +66,7 @@ class GrepRenderer : ToolCallRenderer {
       Icon(GradumIcons.Search, contentDescription = null)
       Text(
         color = textColor,
+        style = bodyStyle,
         text = message(LABEL_KEY),
         fontWeight = FontWeight.Medium
       )
@@ -71,11 +74,12 @@ class GrepRenderer : ToolCallRenderer {
         text = pattern,
         maxLines = 1,
         color = infoColor,
-        overflow = TextOverflow.Ellipsis,
-        style = JewelTheme.editorTextStyle,
+        style = bodyStyle,
+        overflow = TextOverflow.Ellipsis
       )
       Text(
         maxLines = 1,
+        style = bodyStyle,
         color = disabledColor,
         overflow = TextOverflow.Ellipsis,
         text = message(LABEL_KEY_DISPLAY, totalMatches)

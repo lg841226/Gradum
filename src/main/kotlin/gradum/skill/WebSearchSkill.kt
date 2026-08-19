@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-14 11:25:24 Changed by gwy
+ * WebSearchSkill.kt  2026-08-19 17:24:33 Changed by gwy
  */
 
 package gradum.skill
@@ -23,7 +23,7 @@ private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
 /**
  * Searches the web via Tavily Search API.
- * Requires `TAVILY_API_KEY` environment variable.
+ * Requires the web-search API key to be configured.
  */
 class WebSearchSkill : Skill() {
 
@@ -82,11 +82,11 @@ class WebSearchSkill : Skill() {
           fixHint = "Provide a search query, e.g. 'Kotlin coroutines best practices'."
         )
       )
-    if (query.length > 500)
+    if (query.length > 5000)
       return makeFailure(
         ErrorCode.INVALID_PARAMETER,
         buildXmlError(
-          code = "INVALID_PARAMETER", message = "Query too long (max 500 chars).",
+          code = "INVALID_PARAMETER", message = "Query too long (max 5000 chars).",
           fixHint = "Shorten the query."
         )
       )
@@ -105,12 +105,12 @@ class WebSearchSkill : Skill() {
       return makeFailure(
         "SEARCH_FAILED",
         buildXmlError(
-          code = "SEARCH_FAILED", message = "TAVILY_API_KEY not set.",
-          fixHint = "Set TAVILY_API_KEY environment variable."
+          code = "SEARCH_FAILED", message = "Web search API key not configured.",
+          fixHint = "Configure the web search API key and try again."
         )
       )
 
-    // `include_favicon` is a UI-rendering concern, not a search behaviour
+    // `include_favicon` is a UI-rendering concern, not a search behavior
     // concern — the LLM doesn't need to know it exists. Hardcoded so a
     // tool-call argument can't accidentally disable favicons.
     return try {
