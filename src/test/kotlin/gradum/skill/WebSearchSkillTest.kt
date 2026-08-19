@@ -98,7 +98,7 @@ class WebSearchSkillTest {
 
   @Test
   fun `query exceeding max length returns INVALID_PARAMETER`() {
-    val longQuery = "a".repeat(600)
+    val longQuery = "a".repeat(5001)
     val result = skill.execute(mapOf("query" to longQuery), ctx())
     assertTrue(result is SkillResult.Failure)
     assertEquals("INVALID_PARAMETER", result.code)

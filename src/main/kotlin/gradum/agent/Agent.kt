@@ -646,6 +646,18 @@ class Agent(
     }
 
     skillInstance = SkillRegistry.getSkill(functionName)
+
+    // Emit a pre-execution placeholder so the UI can show a "running
+    // this tool" row before the (potentially long-running) skill
+    // finishes. The completed `tool_call` event follows afterwards and
+    // carries the same toolCallId for the client to update in place.
+    emitToolCallStart(
+      functionName,
+      skillInstance?.alias ?: functionName,
+      convertedArguments,
+      processedCall.callIdentifier
+    )
+
     executionResult = executeSkill(skillInstance, functionName, convertedArguments)
 
     emitToolResult(
@@ -659,6 +671,30 @@ class Agent(
 
     logToolResult(executionResult)
     return executionResult
+  }
+
+  /**
+   * Emit a pre-execution `tool_call_start` event. The client uses it to
+   * render a pending "tool is running" row (spinner) before the
+   * completed `tool_call` event for the same [toolCallId] arrives.
+   * Emitted from [executeSingleTool] immediately before the blocking
+   * [executeSkill] call, so the payload always has the arguments the UI
+   * needs to describe the operation (command / path / query, ...).
+   */
+  private fun emitToolCallStart(
+    functionName: String,
+    toolAlias: String,
+    convertedArguments: Map<String, Any>,
+    toolCallId: String
+  ) {
+    emitEvent(
+      "tool_call_start", mapOf(
+        "tool" to functionName,
+        "alias" to toolAlias,
+        "arguments" to convertedArguments,
+        "toolCallId" to toolCallId
+      )
+    )
   }
 
   /**

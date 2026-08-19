@@ -917,6 +917,8 @@ class GradumChatSession {
             isWaitingForResponse = false; handleThinkingEvent(payload)
           }
 
+          "tool_call_start" -> handleToolCallStartEvent(payload)
+
           "tool_call" -> handleToolCallEvent(payload)
 
           "tool_expect_mismatch" -> {
@@ -1011,6 +1013,39 @@ class GradumChatSession {
 
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage)
       messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.Thinking(content))
+  }
+
+  /**
+   * Handles the pre-execution `tool_call_start` event. Appends a
+   * *pending* tool call row (spinner) with the already-known arguments
+   * so the UI can show "running this tool" before the blocking skill
+   * finishes. The matching `tool_call` event replaces this placeholder
+   * in place (same `toolCallId`).
+   */
+  private fun handleToolCallStartEvent(data: JsonObject?) {
+    try {
+      val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+      val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
+      val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
+      val callArguments = parseArguments(data?.get("arguments")?.jsonObject)
+
+      val toolCall = ToolCallInfo(
+        toolName = toolName,
+        alias = toolAlias,
+        toolCallId = toolCallId,
+        success = true,
+        result = "",
+        arguments = callArguments,
+        pending = true
+      )
+
+      val assistantIndex: Int = messages.lastIndex
+      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+        messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+      }
+    } catch (exception: Exception) {
+      log.warn("Failed to parse tool_call_start event", exception)
+    }
   }
 
   private fun handleToolCallEvent(data: JsonObject?) {

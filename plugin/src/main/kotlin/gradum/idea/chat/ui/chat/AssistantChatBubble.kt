@@ -364,8 +364,47 @@ private fun ToolCallBlock(
         modifiedContent.orEmpty(),
       )
     }
-  Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
-    renderer.render(content, ctx)
+  if (block.pending) {
+    PendingToolCallBlock(
+      block = block,
+      content = content,
+      ctx = ctx,
+      animModifier = animModifier
+    )
+  } else {
+    Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
+      renderer.render(content, ctx)
+    }
+  }
+}
+
+/**
+ * Renders a tool call that has been announced via `tool_call_start`
+ * but has not finished yet: the registered renderer's normal row is
+ * shown (parsed from the already-known arguments) with a trailing
+ * spinner overlay, so the user sees exactly what is running.
+ */
+@Composable
+private fun PendingToolCallBlock(
+  block: RenderBlock.ToolCall,
+  content: gradum.idea.chat.ui.chat.skill.spi.ToolCallContent,
+  ctx: gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext,
+  animModifier: Modifier
+) {
+  val renderer = gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find(block.alias)
+  Box(
+    modifier = Modifier
+      .then(animModifier)
+      .horizontalScroll(rememberScrollState())
+  ) {
+    androidx.compose.foundation.layout.Row(
+      verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+      horizontalArrangement =
+        androidx.compose.foundation.layout.Arrangement.spacedBy(gradum.idea.utils.GradumSpacing.sml)
+    ) {
+      renderer?.render(content, ctx)
+      org.jetbrains.jewel.ui.component.CircularProgressIndicator(modifier = Modifier.size(14.dp))
+    }
   }
 }
 

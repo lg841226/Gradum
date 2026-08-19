@@ -605,6 +605,7 @@ pie
 | `response`             | LLM text output with token usage              | `content`, `promptTokens`, `completionTokens`, `totalTokens`                              |
 | `guardrail`            | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response / red_line_hit), `hitCount`, `maxAllowed` + per-type details    |
 | `mission_revoked`      | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                 |
+| `tool_call_start`     | A tool call started (before execution)            | `tool`, `alias`, `arguments`, `toolCallId`                                                |
 | `tool_call`            | A single tool call and its result             | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
 | `error`                | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
 | `playback_start`       | Debug scenario started                        | `mode`, `scenario`, `steps`, `toolCalls`                                                  |
@@ -615,6 +616,7 @@ pie
 #### Event Order Invariants
 
 - `session_start` is always the first event after `conversationHistory`
+- `tool_call_start` is emitted before the blocking skill runs; its matching `tool_call` (same `toolCallId`) follows after execution
 - `tool_call` events are emitted in the order of the `tool_calls[]` returned by the LLM
 - `response` events (with token usage) are flushed as text accumulates during streaming
 - `session_end` is always the final event (with `aborted: true` when terminated by guardrail or `/stop`)

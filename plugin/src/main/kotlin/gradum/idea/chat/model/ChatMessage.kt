@@ -29,7 +29,8 @@ data class ToolCallInfo(
   val result: String = "",
   val arguments: Map<String, Any> = emptyMap(),
   val errorMessage: String = "",
-  val errorDetail: String = ""
+  val errorDetail: String = "",
+  val pending: Boolean = false
 )
 
 /** A single event in an assistant message's timeline, rendered in order. */
@@ -58,7 +59,9 @@ sealed class RenderBlock {
     val arguments: Map<String, Any> = emptyMap(),
     val result: String = "",
     val errorMessage: String = "",
-    val errorDetail: String = ""
+    val errorDetail: String = "",
+    val toolCallId: String = "",
+    val pending: Boolean = false
   ) : RenderBlock()
 
   data class Response(val content: String) : RenderBlock()
@@ -139,9 +142,18 @@ data class ChatMessage(
    *
    * Consecutive events of the same type are merged into the last block
    * (string concatenation only), avoiding full-list re-iteration on every token.
+   *
+   * A `ToolCall` event with a non-blank `toolCallId` first tries to
+   * **replace** a pending tool call (from a `tool_call_start` event)
+   * that carries the same id, so a finished tool updates its
+   * in-place spinner row instead of stacking a duplicate. When no
+   * pending match exists it appends normally.
    */
   fun appendEvent(event: ChatEvent): ChatMessage {
-    val newEvents = events + event
+    val newEvents: List<ChatEvent> = when (event) {
+      is ChatEvent.ToolCall -> appendToolCallEvent(event)
+      else -> events + event
+    }
     val newRenderBlocks = when (event) {
       is ChatEvent.Response -> {
         val last = renderBlocks.lastOrNull()
@@ -159,16 +171,7 @@ data class ChatMessage(
           renderBlocks + RenderBlock.Thinking(event.content)
       }
 
-      is ChatEvent.ToolCall -> {
-        renderBlocks + RenderBlock.ToolCall(
-          alias = event.info.alias,
-          result = event.info.result,
-          success = event.info.success,
-          arguments = event.info.arguments,
-          errorDetail = event.info.errorDetail,
-          errorMessage = event.info.errorMessage
-        )
-      }
+      is ChatEvent.ToolCall -> appendToolCall(event)
 
       is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
     }
@@ -176,6 +179,62 @@ data class ChatMessage(
       events = newEvents,
       renderBlocks = newRenderBlocks,
     )
+  }
+
+  /**
+   * Resolve the [events] list change for a [ChatEvent.ToolCall].
+   *
+   * A completed tool call (non-pending) with a non-blank `toolCallId`
+   * replaces its pending placeholder entry (same id) so the event
+   * timeline keeps a single row per tool invocation. Pending events
+   * and unmatched events are appended normally.
+   */
+  private fun appendToolCallEvent(event: ChatEvent.ToolCall): List<ChatEvent> {
+    if (!event.info.pending && event.info.toolCallId.isNotBlank()) {
+      val pendingIdx = events.indexOfLast {
+        it is ChatEvent.ToolCall && it.info.pending && it.info.toolCallId == event.info.toolCallId
+      }
+      if (pendingIdx >= 0) {
+        val updated = events.toMutableList()
+        updated[pendingIdx] = event
+        return updated
+      }
+    }
+    return events + event
+  }
+
+  /**
+   * Resolve the [renderBlocks] change for a [ChatEvent.ToolCall].
+   *
+   * If a pending block with the same [RenderBlock.ToolCall.toolCallId]
+   * exists, the pending block is replaced by the finished block so the
+   * UI shows a stable row (spinner → result) rather than a new entry.
+   * Otherwise a new block is appended.
+   */
+  private fun appendToolCall(event: ChatEvent.ToolCall): List<RenderBlock> {
+    val info: ToolCallInfo = event.info
+    val newBlock = RenderBlock.ToolCall(
+      alias = info.alias,
+      result = info.result,
+      success = info.success,
+      arguments = info.arguments,
+      errorDetail = info.errorDetail,
+      errorMessage = info.errorMessage,
+      toolCallId = info.toolCallId,
+      pending = info.pending
+    )
+
+    if (info.toolCallId.isNotBlank()) {
+      val pendingIdx = renderBlocks.indexOfLast {
+        it is RenderBlock.ToolCall && it.pending && it.toolCallId == info.toolCallId
+      }
+      if (pendingIdx >= 0) {
+        val blocks = renderBlocks.toMutableList()
+        blocks[pendingIdx] = newBlock
+        return blocks
+      }
+    }
+    return renderBlocks + newBlock
   }
 
   /**
