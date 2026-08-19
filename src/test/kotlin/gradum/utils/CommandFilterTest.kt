@@ -35,6 +35,7 @@ class CommandFilterTest {
             "tree -L 2",
             "pwd",
             "echo hello",
+            "system_profiler SPHardwareDataType",
         ).forEach { command ->
             val verdict = classifyCommand(command, ToolMode.READ_ONLY)
             assertEquals(CommandVerdict.Safe, verdict, "READ_ONLY should allow '$command'")

@@ -139,6 +139,7 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
   // system info
   "uname", "whoami", "date", "which", "whereis", "type",
   "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
+  "system_profiler",
   // pure output (no file write)
   "echo", "printf", "true", "false", "test", "yes",
 )

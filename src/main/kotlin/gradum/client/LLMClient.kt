@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-17 09:18:22 Changed by gwy
+ * LLMClient.kt  2026-08-19 18:33:00 Changed by gwy
  */
 
 package gradum.client
@@ -259,7 +259,7 @@ class OllamaClient(
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true
-var lastError: Exception? = null
+    var lastError: Exception? = null
     var emittedAnyChunk = false
 
     for (attemptIndex in 0..2) {
@@ -626,7 +626,7 @@ private fun isTransientError(exception: Exception): Boolean = exception is IOExc
  * instead of the generic stream-interrupt message.
  */
 private suspend fun extractApiError(httpResponse: HttpResponse): String {
-  val statusLine: String = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
+  val statusLine = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
   val bodyText: String = try {
     httpResponse.bodyAsText()
   } catch (_: Exception) {
