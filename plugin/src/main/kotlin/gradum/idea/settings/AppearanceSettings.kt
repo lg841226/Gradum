@@ -50,6 +50,11 @@ const val MAX_CODE_BLOCK_FONT_SIZE_SP: Float = 16f
 const val CODE_BLOCK_FONT_SIZE_AUTO_SP: Float = 0f
 const val DEFAULT_CODE_BLOCK_FONT_SIZE_SP: Float = CODE_BLOCK_FONT_SIZE_AUTO_SP
 
+/** Bounds for the auto-cleanup session age, in days. */
+const val MIN_AUTO_CLEANUP_DAYS: Int = 30
+const val MAX_AUTO_CLEANUP_DAYS: Int = 365
+const val DEFAULT_AUTO_CLEANUP_DAYS: Int = 30
+
 /**
  * Persisted, app-level appearance configuration.
  *
@@ -79,6 +84,8 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     var showLikeDislikeAction: Boolean = true,
     var enableStickySections: Boolean = true,
     var welcomeLayout: WelcomeLayout = WelcomeLayout.QS4_RC2,
+    var autoCleanupSessions: Boolean = false,
+    var autoCleanupDays: Int = 30,
     var rememberPermission: Boolean = false,
     var rememberContext: Boolean = false,
     var lastPermission: String = PermissionMode.READONLY,

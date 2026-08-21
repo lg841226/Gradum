@@ -101,6 +101,8 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
       it.showLikeDislikeAction = appearanceDraft.value.showLikeDislikeAction
       it.enableStickySections = appearanceDraft.value.enableStickySections
       it.welcomeLayout = appearanceDraft.value.welcomeLayout
+      it.autoCleanupSessions = appearanceDraft.value.autoCleanupSessions
+      it.autoCleanupDays = appearanceDraft.value.autoCleanupDays
       it.rememberPermission = appearanceDraft.value.rememberPermission
       it.rememberContext = appearanceDraft.value.rememberContext
     }
@@ -354,6 +356,38 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         onCheckedChange = { checked ->
           draft.value = draft.value.copy(enableStickySections = checked)
         }
+      )
+    }
+
+    FlowRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
+    ) {
+      val cleanupEnabled = snapshot.autoCleanupSessions
+      Checkbox(
+        checked = cleanupEnabled,
+        onCheckedChange = { checked ->
+          draft.value = draft.value.copy(
+            autoCleanupSessions = checked,
+            autoCleanupDays = snapshot.autoCleanupDays.coerceIn(MIN_AUTO_CLEANUP_DAYS, MAX_AUTO_CLEANUP_DAYS)
+          )
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.autocleanup"),
+        modifier = Modifier.align(Alignment.CenterVertically)
+      )
+      AutoCleanupDaysField(
+        enabled = cleanupEnabled,
+        days = snapshot.autoCleanupDays,
+        onDaysChange = { days ->
+          draft.value = draft.value.copy(autoCleanupDays = days)
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.autocleanup.days"),
+        modifier = Modifier.align(Alignment.CenterVertically)
       )
     }
 
@@ -804,6 +838,61 @@ private fun FontSizeField(
         autoHint else "${minSp.toInt()}~${maxSp.toInt()}"
 
       Text(text = text)
+    }
+  )
+}
+
+@Composable
+private fun AutoCleanupDaysField(
+  enabled: Boolean,
+  days: Int,
+  onDaysChange: (Int) -> Unit
+) {
+  var isFocused by remember { mutableStateOf(false) }
+  var isInputValid by remember { mutableStateOf(true) }
+  var lastValidDays by remember(days) { mutableStateOf(days) }
+
+  val state = remember(days) {
+    TextFieldState(initialText = days.toString())
+  }
+
+  fun validate(): Boolean {
+    val raw = state.text.toString().trim()
+    return raw.toIntOrNull()?.let { it in MIN_AUTO_CLEANUP_DAYS..MAX_AUTO_CLEANUP_DAYS } == true
+  }
+
+  fun normalizeAndCommit() {
+    val rawInput = state.text.toString().trim()
+    val parsed = rawInput.toIntOrNull()
+    val clamped = when {
+      parsed == null -> lastValidDays
+      else -> parsed.coerceIn(MIN_AUTO_CLEANUP_DAYS, MAX_AUTO_CLEANUP_DAYS)
+    }
+    val normalizedText = clamped.toString()
+    if (state.text.toString() != normalizedText)
+      state.edit { replace(0, length, normalizedText) }
+
+    lastValidDays = clamped
+    isInputValid = true
+    if (clamped != days) onDaysChange(clamped)
+  }
+
+  LaunchedEffect(state.text, isFocused) {
+    if (isFocused) isInputValid = validate()
+  }
+
+  TextField(
+    state = state,
+    enabled = enabled,
+    modifier = Modifier
+      .width(POLL_FIELD_WIDTH_DP.dp)
+      .onFocusChanged { focusState ->
+        if (isFocused && !focusState.isFocused) normalizeAndCommit()
+        isFocused = focusState.isFocused
+      },
+    outline = if (!isInputValid) Outline.Error else Outline.None,
+    placeholder = {
+      Text(text = "${MIN_AUTO_CLEANUP_DAYS}~${MAX_AUTO_CLEANUP_DAYS}")
     }
   )
 }
