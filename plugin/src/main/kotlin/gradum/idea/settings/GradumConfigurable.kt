@@ -2,20 +2,27 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumConfigurable.kt  2026-08-20 17:57:52 Changed by gwy
+ * GradumConfigurable.kt  2026-08-21 18:30:58 Changed by gwy
  */
 package gradum.idea.settings
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -35,11 +42,14 @@ import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
+import java.awt.Cursor
 import javax.swing.JComponent
+import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
 private const val POLL_FIELD_WIDTH_DP = 56
+private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
 
 /**
  * IntelliJ settings entry point for Gradum.
@@ -89,6 +99,10 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
       it.showCopyAction = appearanceDraft.value.showCopyAction
       it.showRetryAction = appearanceDraft.value.showRetryAction
       it.showLikeDislikeAction = appearanceDraft.value.showLikeDislikeAction
+      it.enableStickySections = appearanceDraft.value.enableStickySections
+      it.welcomeLayout = appearanceDraft.value.welcomeLayout
+      it.rememberPermission = appearanceDraft.value.rememberPermission
+      it.rememberContext = appearanceDraft.value.rememberContext
     }
   }
 
@@ -189,7 +203,7 @@ private fun SettingsPanel(
       Tooltip(tooltip = { Text(text = message("gradum.settings.oss.tooltip")) }) {
         ExternalLink(
           text = message("gradum.settings.oss.link"),
-          onClick = { BrowserUtil.browse("https://github.com/lg841226/Gradum") }
+          onClick = { showThirdPartyNoticesDialog() }
         )
       }
       Tooltip(tooltip = { Text(text = message("gradum.settings.repo.tooltip")) }) {
@@ -333,6 +347,14 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
           draft.value = draft.value.copy(autoScrollToBottom = checked)
         }
       )
+      SettingCheckboxRow(
+        label = message("gradum.settings.appearance.stickysections"),
+        checked = snapshot.enableStickySections,
+        enabled = true,
+        onCheckedChange = { checked ->
+          draft.value = draft.value.copy(enableStickySections = checked)
+        }
+      )
     }
 
     Text(
@@ -367,11 +389,269 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         onCheckedChange = { checked ->
           draft.value = draft.value.copy(showLikeDislikeAction = checked)
         },
-        label = "Like & Dislike",
+        label = message("gradum.settings.appearance.action.likedislike"),
         iconKeys = listOf(GradumIcons.Like, GradumIcons.Dislike)
       )
     }
+
+    WelcomeLayoutRow(
+      layout = snapshot.welcomeLayout,
+      onLayoutChange = { layout ->
+        draft.value = draft.value.copy(welcomeLayout = layout)
+      },
+      rememberLabel = message("gradum.settings.appearance.remember.label"),
+      rememberPermission = snapshot.rememberPermission,
+      onRememberPermissionChange = { checked ->
+        draft.value = draft.value.copy(rememberPermission = checked)
+      },
+      rememberContext = snapshot.rememberContext,
+      onRememberContextChange = { checked ->
+        draft.value = draft.value.copy(rememberContext = checked)
+      }
+    )
   }
+}
+
+/**
+ * Welcome layout picker: segmented control + preview on a separate line.
+ */
+@Composable
+private fun WelcomeLayoutRow(
+  layout: WelcomeLayout,
+  onLayoutChange: (WelcomeLayout) -> Unit,
+  rememberLabel: String? = null,
+  rememberPermission: Boolean = false,
+  onRememberPermissionChange: ((Boolean) -> Unit)? = null,
+  rememberContext: Boolean = false,
+  onRememberContextChange: ((Boolean) -> Unit)? = null,
+) {
+  val standardLayouts = remember {
+    listOf(
+      WelcomeLayout.QS2_RC4,
+      WelcomeLayout.QS3_RC3,
+      WelcomeLayout.QS4_RC2,
+      WelcomeLayout.QS0_RC6
+    )
+  }
+  val isCustom = layout !in standardLayouts
+
+  val buttons = standardLayouts.map { l ->
+    SegmentedControlButtonData(
+      selected = l == layout,
+      content = { _ ->
+        Text(text = message("gradum.settings.appearance.welcomelayout.${l.storageKey}"))
+      },
+      onSelect = { onLayoutChange(l) }
+    )
+  } + if (isCustom) {
+    listOf(
+      SegmentedControlButtonData(
+        selected = true,
+        content = { _ ->
+          Text(text = message("gradum.settings.appearance.welcomelayout.custom"))
+        },
+        onSelect = {}
+      )
+    )
+  } else {
+    emptyList()
+  }
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
+  ) {
+    Column(
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+      ) {
+        Text(
+          color = LocalContentColor.current,
+          text = message("gradum.settings.appearance.welcomelayout")
+        )
+        SegmentedControl(
+          enabled = true,
+          buttons = buttons,
+          modifier = Modifier.weight(1f, fill = false)
+        )
+      }
+      Text(
+        text = message("gradum.settings.appearance.welcomelayout.hint"),
+        color = JewelTheme.globalColors.text.info,
+        style = JewelTheme.typography.labelTextStyle
+      )
+      if (rememberLabel != null) {
+        Spacer(Modifier.height(GradumSpacing.sml))
+        Text(
+          color = LocalContentColor.current,
+          text = rememberLabel
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
+          SettingCheckboxRow(
+            label = message("gradum.settings.appearance.remember.permission"),
+            checked = rememberPermission,
+            enabled = true,
+            onCheckedChange = { checked ->
+              onRememberPermissionChange?.invoke(checked)
+            }
+          )
+          SettingCheckboxRow(
+            label = message("gradum.settings.appearance.remember.context"),
+            checked = rememberContext,
+            enabled = true,
+            onCheckedChange = { checked ->
+              onRememberContextChange?.invoke(checked)
+            }
+          )
+        }
+      }
+    }
+    Column(horizontalAlignment = Alignment.End) {
+      Text(
+        text = message("gradum.settings.appearance.welcomelayout.preview"),
+        color = JewelTheme.globalColors.text.info,
+        style = JewelTheme.typography.labelTextStyle
+      )
+      Spacer(Modifier.height(GradumSpacing.sm))
+      WelcomeLayoutPreview(layout = layout, onLayoutChange = onLayoutChange)
+    }
+  }
+}
+
+@Composable
+private fun WelcomeLayoutPreview(
+  layout: WelcomeLayout,
+  onLayoutChange: (WelcomeLayout) -> Unit
+) {
+  val qsCount = layout.quickStartCount
+  val rcCount = layout.recentCount
+  val qsColor = JewelTheme.globalColors.text.info.copy(alpha = 0.25f)
+  val rcColor = JewelTheme.globalColors.text.info.copy(alpha = 0.15f)
+  val featureIcons = listOf(
+    GradumIcons.FeatChat, GradumIcons.FeatQuestion,
+    GradumIcons.FeatCode, GradumIcons.FeatText
+  )
+  var totalHeight by remember { mutableStateOf(1f) }
+  var isDragging by remember { mutableStateOf(false) }
+
+  val dividerColor = if (isDragging)
+    JewelTheme.globalColors.text.info
+  else
+    JewelTheme.globalColors.text.disabled
+
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .height(IntrinsicSize.Min)
+      .onGloballyPositioned { totalHeight = it.size.height.toFloat().coerceAtLeast(1f) }
+      .pointerInput(Unit) {
+        detectDragGestures(
+          onDragStart = { isDragging = true },
+          onDragEnd = { isDragging = false },
+          onDrag = { change: PointerInputChange, _: Offset ->
+            val maxQs = 5
+            val minRc = 2
+            val fraction = change.position.y / totalHeight
+            val targetQs = (fraction * maxQs).roundToInt().coerceIn(0, maxQs)
+            val targetRc = 6 - targetQs
+            if (targetRc >= minRc)
+              onLayoutChange(welcomeLayoutFromQsCount(targetQs))
+          }
+        )
+      },
+    horizontalAlignment = Alignment.End
+  ) {
+    if (qsCount > 0) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(qsCount) { i ->
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.width(150.dp)
+          ) {
+            Icon(
+              key = featureIcons[i % featureIcons.size],
+              contentDescription = null,
+              modifier = Modifier.size(16.dp)
+            )
+            Box(
+              modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(qsColor)
+            )
+          }
+        }
+      }
+    }
+
+    if (qsCount > 0 && rcCount > 0)
+      Spacer(Modifier.height(4.dp))
+
+    Row(
+      modifier = Modifier
+        .width(160.dp)
+        .height(24.dp)
+        .pointerHoverIcon(PointerIcon(Cursor(Cursor.N_RESIZE_CURSOR))),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Box(
+        modifier = Modifier
+          .size(8.dp)
+          .clip(CircleShape)
+          .background(dividerColor)
+      )
+      Box(
+        modifier = Modifier
+          .height(1.dp)
+          .weight(1f)
+          .clip(RoundedCornerShape(2.dp))
+          .background(dividerColor)
+      )
+    }
+
+    if (qsCount > 0 && rcCount > 0)
+      Spacer(Modifier.height(4.dp))
+
+    if (rcCount > 0) {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(rcCount) {
+          Row(
+            modifier = Modifier.width(150.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Icon(
+              key = GradumIcons.Chat,
+              contentDescription = null,
+              modifier = Modifier.size(16.dp)
+            )
+            Box(
+              modifier = Modifier
+                .weight(1f)
+                .height(6.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(rcColor)
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+private fun welcomeLayoutFromQsCount(qsCount: Int): WelcomeLayout = when (qsCount) {
+  0 -> WelcomeLayout.QS0_RC6
+  1 -> WelcomeLayout.QS1_RC5
+  2 -> WelcomeLayout.QS2_RC4
+  3 -> WelcomeLayout.QS3_RC3
+  4 -> WelcomeLayout.QS4_RC2
+  5 -> WelcomeLayout.QS5_RC1
+  else -> WelcomeLayout.QS4_RC2
 }
 
 /**

@@ -26,6 +26,7 @@ import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
 import gradum.idea.encodeImageToAttachment
+import gradum.idea.settings.AppearanceSettings
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -223,7 +224,12 @@ private fun rememberEventCallbacks(
     onDismissAddMenu = { session.showAddMenu = false },
     onToggleMenu = { session.isMenuVisible = !session.isMenuVisible },
     onToggleAddMenu = { session.showAddMenu = !session.showAddMenu },
-    onToggleExpanded = { session.isExpanded = !session.isExpanded },
+    onToggleExpanded = {
+      session.isExpanded = !session.isExpanded
+      AppearanceSettings.getInstance().update {
+        it.lastContextEnabled = session.isExpanded
+      }
+    },
     onClearText = { session.textState.edit { delete(0, length) } },
     onUploadImage = uploadImageCallback(toolWindow, session),
     onFocusChange = { session.isFocused = it },
@@ -253,6 +259,9 @@ private fun rememberEventCallbacks(
     onSelectPermission = { permission ->
       session.selectedPermission = permission
       session.isMenuVisible = false
+      AppearanceSettings.getInstance().update {
+        it.lastPermission = permission
+      }
     },
     onRemoveFile = { attachedContext ->
       when (attachedContext) {

@@ -62,6 +62,12 @@ val LocalShowRetryAction = staticCompositionLocalOf { true }
 /** Whether the like / dislike buttons are shown (they toggle together). */
 val LocalShowLikeDislikeAction = staticCompositionLocalOf { true }
 
+/** Whether code block toolbars and table headers stick to the top on scroll. */
+val LocalEnableStickySections = staticCompositionLocalOf { true }
+
+/** Welcome screen layout: quick-start suggestions vs recent chats. */
+val LocalWelcomeLayout = staticCompositionLocalOf { WelcomeLayout.QS4_RC2 }
+
 /**
  * Provides the persisted appearance settings to the compose tree.
  *
@@ -85,13 +91,15 @@ fun ProvideAppearance(content: @Composable () -> Unit) {
     LocalParagraphSpacing provides paragraphSpacing,
     LocalParagraphFontSize provides paragraphFontSize,
     LocalShowTimestamp provides snapshot.showTimestamp,
-    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault,
     LocalShowModelName provides snapshot.showModelName,
-    LocalAutoScrollToBottom provides snapshot.autoScrollToBottom,
-    LocalCodeBlockFontSize provides snapshot.codeBlockFontSizeSp,
+    LocalWelcomeLayout provides snapshot.welcomeLayout,
     LocalShowCopyAction provides snapshot.showCopyAction,
     LocalShowRetryAction provides snapshot.showRetryAction,
-    LocalShowLikeDislikeAction provides snapshot.showLikeDislikeAction
+    LocalAutoScrollToBottom provides snapshot.autoScrollToBottom,
+    LocalCodeBlockFontSize provides snapshot.codeBlockFontSizeSp,
+    LocalEnableStickySections provides snapshot.enableStickySections,
+    LocalShowLikeDislikeAction provides snapshot.showLikeDislikeAction,
+    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault
   ) {
     content()
   }

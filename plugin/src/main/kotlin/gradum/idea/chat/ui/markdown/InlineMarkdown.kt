@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-18 12:45:23 Changed by gwy
+ * InlineMarkdown.kt  2026-08-21 18:20:38 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -157,7 +157,7 @@ data class InlineMarkdownRender(
   val paragraphCount: Int,
   val annotated: AnnotatedString,
   val urlAnnotations: List<UrlAnnotation>,
-  val inlineContent: Map<String, InlineTextContent>,
+  val inlineContent: Map<String, InlineTextContent>
 )
 
 /** A (text-offset range, URL) pair attached to a link's text range. */
@@ -553,9 +553,9 @@ private class RenderState(
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
   var currentStyle: SpanStyle = SpanStyle(),
+  val parenLatexFormulas: Map<String, String> = emptyMap(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
-  val parenLatexFormulas: Map<String, String> = emptyMap(),
   private val latexMeasurer: LatexMeasurerState? = null,
   val density: Density? = null
 ) {
@@ -601,9 +601,9 @@ private class RenderState(
     )
     inlineContent[placeholder] = InlineTextContent(placeholder = placeholderShape) {
       Icon(
+        key = GradumIcons.Image,
         contentDescription = null,
-        modifier = Modifier.size(iconSize.dp),
-        key = GradumIcons.Image
+        modifier = Modifier.size(iconSize.dp)
       )
     }
     return placeholder
@@ -732,7 +732,14 @@ private fun renderTextInline(
   val latexMatches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(literal)
     .filter { isInlineLatexCandidate(it, literal) }
     .toList()
-  val urlMatches: List<MatchResult> = bareUrlRegex.findAll(literal).toList()
+  // Skip bare-URL matching inside a Link node — the Link handler
+  // (renderLinkInline) already adds a UrlAnnotation for the URL.
+  // Running bareUrlRegex again on the Link's Text child creates a
+  // duplicate UrlAnnotation, causing splitIntoInlineSegments to
+  // render the same link twice.
+  val urlMatches: List<MatchResult> =
+    if (textNode.parent is Link) emptyList()
+    else bareUrlRegex.findAll(literal).toList()
 
   val parenLatexMatches: List<MatchResult> = if (renderState.parenLatexFormulas.isEmpty()) {
     emptyList()

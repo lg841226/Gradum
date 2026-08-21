@@ -14,6 +14,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import gradum.idea.chat.ui.input.PermissionMode
 
 /**
  * Vertical spacing between assistant response paragraphs.
@@ -22,6 +23,18 @@ enum class ParagraphDensity(val storageKey: String) {
   COMPACT("compact"),
   DEFAULT("default"),
   SPACIOUS("spacious");
+}
+
+/**
+ * Welcome screen layout: how many quick-start suggestions vs recent chats.
+ */
+enum class WelcomeLayout(val storageKey: String, val quickStartCount: Int, val recentCount: Int) {
+  QS0_RC6("qs0_rc6", 0, 6),
+  QS1_RC5("qs1_rc5", 1, 5),
+  QS2_RC4("qs2_rc4", 2, 4),
+  QS3_RC3("qs3_rc3", 3, 3),
+  QS4_RC2("qs4_rc2", 4, 2),
+  QS5_RC1("qs5_rc1", 5, 1);
 }
 
 /** Bounds for the configurable assistant body font size, in sp. */
@@ -64,6 +77,12 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     var showCopyAction: Boolean = true,
     var showRetryAction: Boolean = true,
     var showLikeDislikeAction: Boolean = true,
+    var enableStickySections: Boolean = true,
+    var welcomeLayout: WelcomeLayout = WelcomeLayout.QS4_RC2,
+    var rememberPermission: Boolean = false,
+    var rememberContext: Boolean = false,
+    var lastPermission: String = PermissionMode.READONLY,
+    var lastContextEnabled: Boolean = false,
   )
 
   private val current: MutableState<State> = mutableStateOf(State())

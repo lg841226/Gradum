@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-14 01:59:58 Changed by gwy
+ * Table.kt  2026-08-21 16:19:55 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.settings.LocalEnableStickySections
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -111,7 +113,7 @@ fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row ->
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
 private val minCellWidthDp: Dp = 70.dp
-private val maxCellWidthDp: Dp = 260.dp
+private val maxCellWidthDp: Dp = 320.dp
 private val cellHorizontalPadding: Dp = 10.dp
 private val cellVerticalPadding: Dp = GradumSpacing.md
 private val scrollbarReservedSpace: Dp = GradumSpacing.md
@@ -172,22 +174,22 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
         bodyLines.add(currentLine).also { bodyLineIndex++ }
       }
 
-val bodyRows: List<List<String>> = bodyLines
-      .filter { it.length <= MAX_TABLE_LINE_LENGTH }
-      .map { parseTableRow(it) }
-      // GFM pads short rows with empty trailing cells (a row may omit the
-      // trailing `|` or a final empty cell). Dropping them here silently
-      // deletes real body content and can leave a table header-only →
-      // non-renderable → placeholder. Pad instead of filter; rows with too
-      // many cells are truncated to the header width.
-      .map { row ->
-        when {
-          row.size < headers.size -> row + List(headers.size - row.size) { "" }
-          row.size > headers.size -> row.take(headers.size)
-          else -> row
+      val bodyRows: List<List<String>> = bodyLines
+        .filter { it.length <= MAX_TABLE_LINE_LENGTH }
+        .map { parseTableRow(it) }
+        // GFM pads short rows with empty trailing cells (a row may omit the
+        // trailing `|` or a final empty cell). Dropping them here silently
+        // deletes real body content and can leave a table header-only →
+        // non-renderable → placeholder. Pad instead of filter; rows with too
+        // many cells are truncated to the header width.
+        .map { row ->
+          when {
+            row.size < headers.size -> row + List(headers.size - row.size) { "" }
+            row.size > headers.size -> row.take(headers.size)
+            else -> row
+          }
         }
-      }
-      .filter { it.size == headers.size }
+        .filter { it.size == headers.size }
 
       flushPlain()
       segments.add(MarkdownSegment.Table(headers, bodyRows, alignments))
@@ -321,7 +323,7 @@ fun ScrollableTable(
   val markdownStyling = rememberGradumMarkdownStyling()
   val baseStyle: TextStyle = markdownStyling.paragraph.inlinesStyling.textStyle
   val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
-  val tableBackground = markdownStyling.code.fenced.background
+  val tableBackground = Color.Transparent
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
 
@@ -371,7 +373,8 @@ fun ScrollableTable(
     val scrollState = rememberScrollState()
 
     val stickyRegistry: StickySectionRegistry = LocalStickySectionRegistry.current
-    val sectionEntry: StickySectionEntry? = if (isSimplified) null else {
+    val enableSticky: Boolean = LocalEnableStickySections.current
+    val sectionEntry: StickySectionEntry? = if (isSimplified || !enableSticky) null else {
       val sectionId: Any = remember { Any() }
       val stickyHeaderProvider: @Composable () -> Unit = {
         Box(

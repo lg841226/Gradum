@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * CodeBlockRenderer.kt  2026-08-21 20:38:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.editor.getLanguageIconKey
+import gradum.idea.settings.LocalEnableStickySections
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -80,7 +82,7 @@ class GradumCodeBlockRenderer(
 
     val containerModifier = modifier
       .clip(CodeBlockCornerRadius)
-      .background(styling.background)
+      .background(Color.Transparent)
       .then(if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
     var isSoftWrap by remember { mutableStateOf(false) }
@@ -111,12 +113,13 @@ class GradumCodeBlockRenderer(
     } else {
       val sectionId = remember { Any() }
       val stickyRegistry = LocalStickySectionRegistry.current
+      val enableSticky = LocalEnableStickySections.current
       val toolbarProvider: @Composable () -> Unit = {
         Box(
           modifier = Modifier
             .fillMaxWidth()
             .clip(StickySectionTopCorners)
-            .background(styling.background)
+            .background(Color.Transparent)
         ) {
           DisableSelection {
             CodeBlockToolbar(
@@ -132,29 +135,34 @@ class GradumCodeBlockRenderer(
         }
       }
 
-      val sectionEntry = remember { stickyRegistry.register(sectionId, toolbarProvider) }
+      val sectionEntry = if (enableSticky) remember { stickyRegistry.register(sectionId, toolbarProvider) } else null
 
-      DisposableEffect(sectionEntry) {
-        onDispose { stickyRegistry.unregister(sectionEntry) }
+      if (enableSticky) {
+        DisposableEffect(sectionEntry) {
+          onDispose { if (sectionEntry != null) stickyRegistry.unregister(sectionEntry) }
+        }
       }
 
       Column(
         modifier = containerModifier
-          .onGloballyPositioned { coords ->
-            val topLeft = coords.localToWindow(Offset.Zero)
-            val bottomRight = coords.localToWindow(
-              Offset(
-                coords.size.width.toFloat(),
-                coords.size.height.toFloat()
+          .then(
+            if (enableSticky && sectionEntry != null) {
+            Modifier.onGloballyPositioned { coords ->
+              val topLeft = coords.localToWindow(Offset.Zero)
+              val bottomRight = coords.localToWindow(
+                Offset(
+                  coords.size.width.toFloat(),
+                  coords.size.height.toFloat()
+                )
               )
-            )
-            stickyRegistry.updateBounds(
-              sectionEntry, Rect(
-                topLeft.x, topLeft.y,
-                bottomRight.x, bottomRight.y
+              stickyRegistry.updateBounds(
+                sectionEntry, Rect(
+                  topLeft.x, topLeft.y,
+                  bottomRight.x, bottomRight.y
+                )
               )
-            )
-          }
+            }
+          } else Modifier)
       ) {
         DisableSelection {
           CodeBlockToolbar(
@@ -369,13 +377,11 @@ private fun CodeBlockToolbar(
       contentDescription = displayLanguage,
       key = getLanguageIconKey(language) ?: GradumIcons.FeatCode
     )
-
     Text(
       modifier = Modifier.weight(1f),
       text = message("gradum.code"),
       fontFamily = JewelTheme.editorTextStyle.fontFamily
     )
-
     Tooltip(tooltip = { Text(message("gradum.copy.code.tooltip")) }) {
       IconButton(
         onClick = {

@@ -57,11 +57,12 @@ fun RecentChatsSection(
   sessions: List<SessionMeta>,
   modifier: Modifier = Modifier,
   expanded: Boolean = false,
+  maxDisplay: Int = 2,
   onStartMerge: (() -> Unit)? = null,
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit
 ) {
-  val displayCount = if (expanded) MAX_RECENT_SESSIONS + 2 else MAX_RECENT_SESSIONS
+  val displayCount = if (expanded) maxDisplay + 2 else maxDisplay
   Column(modifier = modifier) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(

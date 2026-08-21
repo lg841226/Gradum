@@ -93,6 +93,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
         suggestionVariants = session.suggestionVariants,
         selectedPermission = session.selectedPermission,
         mergeSelectedIds = session.mergeSelection.toSet(),
+        welcomeLayout = gradum.idea.settings.AppearanceSettings.getInstance().snapshot.welcomeLayout,
         onClearMergeSelection = { session.mergeSelection.clear() },
         onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
         onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },

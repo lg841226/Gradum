@@ -8,6 +8,7 @@
 package gradum.idea.chat.ui
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.TextFieldState
@@ -35,9 +36,11 @@ import gradum.idea.chat.ui.markdown.LocalFootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
 import gradum.idea.chat.ui.markdown.StickySectionRegistry
 import gradum.idea.settings.LocalAutoScrollToBottom
+import gradum.idea.settings.LocalEnableStickySections
 import gradum.idea.settings.LocalShowTimestamp
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import java.awt.Desktop
 import java.io.IOException
 import java.net.URI
@@ -203,26 +206,33 @@ fun ChatScreen(
         }
       }
 
-      val activeSection = stickyRegistry.entries.firstOrNull { entry ->
-        scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
-      }
-      Box(modifier = Modifier.fillMaxWidth()) {
-        stickyRegistry.entries.forEach { section ->
-          val isActive = section == activeSection
-          val remaining = section.bottomInColumn - scrollState.value
-          val toolbarHeight = section.toolbarHeight
-          val alpha = if (isActive && toolbarHeight > 0f) {
-            val linear = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
-            FastOutSlowInEasing.transform(linear)
-          } else if (isActive) 1f else 0f
-          if (alpha > 0f) {
-            Box(
-              modifier = Modifier
-                .fillMaxWidth()
-                .onGloballyPositioned { section.toolbarHeight = it.size.height.toFloat() }
-                .graphicsLayer { this.alpha = alpha }
-            ) {
-              section.toolbar()
+      val enableStickySections: Boolean = LocalEnableStickySections.current
+
+      val activeSection = if (enableStickySections) {
+        stickyRegistry.entries.firstOrNull { entry ->
+          scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
+        }
+      } else null
+      if (enableStickySections) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+          stickyRegistry.entries.forEach { section ->
+            val isActive = section == activeSection
+            val remaining = section.bottomInColumn - scrollState.value
+            val toolbarHeight = section.toolbarHeight
+            val alpha = if (isActive && toolbarHeight > 0f) {
+              val linear = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
+              FastOutSlowInEasing.transform(linear)
+            } else if (isActive) 1f else 0f
+            if (alpha > 0f) {
+              Box(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .background(JewelTheme.globalColors.panelBackground)
+                  .onGloballyPositioned { section.toolbarHeight = it.size.height.toFloat() }
+                  .graphicsLayer { this.alpha = alpha }
+              ) {
+                section.toolbar()
+              }
             }
           }
         }

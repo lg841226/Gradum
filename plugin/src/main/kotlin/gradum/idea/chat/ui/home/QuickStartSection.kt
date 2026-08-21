@@ -46,7 +46,8 @@ fun QuickStartSection(
   textState: TextFieldState,
   suggestionVariants: List<Int>,
   onRefreshSuggestions: () -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  maxItems: Int = 4
 ) {
   val featureIcons = remember {
     listOf(
@@ -79,7 +80,7 @@ fun QuickStartSection(
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
     ) {
-      listOf(0, 1, 2, 3).forEach { categoryIndex ->
+      listOf(0, 1, 2, 3).take(maxItems).forEach { categoryIndex ->
         SuggestionCard(
           textState = textState,
           suggestionVariants = suggestionVariants,

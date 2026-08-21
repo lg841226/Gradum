@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WhatsNewDialog.kt  2026-08-21 08:52:00 Changed by gwy
+ * WhatsNewDialog.kt  2026-08-21 17:34:11 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -91,8 +91,10 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
     baseParagraphStyle.copy(fontSize = baseParagraphStyle.fontSize + 1.sp)
   }
 
+  val currentIsPlaying by rememberUpdatedState(isPlaying)
+
   LaunchedEffect(isPlaying) {
-    if (!isPlaying) return@LaunchedEffect
+    if (!currentIsPlaying) return@LaunchedEffect
     while (true) {
       delay(4000L.milliseconds)
       currentPage = (currentPage + 1) % pageCount
@@ -181,7 +183,7 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
                     durationMillis = 600,
                     delayMillis = ANIMATION_DURATION_MS
                   ),
-                  initialOffsetY = { it / 16 }
+                  initialOffsetY = { it / 18 }
                 )
               ),
             contentAlignment = Alignment.Center
@@ -280,6 +282,7 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
       PaginationDots(
         pageCount = pageCount,
         currentPage = currentPage,
+        isPlaying = isPlaying,
         onDotClick = { page -> currentPage = page },
         features = features
       )
@@ -401,7 +404,7 @@ private fun rememberKeyEventHandler(
 }
 
 @Composable
-private fun RenderMarkdownText(markdown: String) {
+internal fun RenderMarkdownText(markdown: String) {
   val segments = remember(markdown) { splitMarkdown(markdown) }
   val onUrlClick = remember<(String) -> Unit> { { _ -> } }
 
@@ -428,12 +431,15 @@ private fun RenderMarkdownText(markdown: String) {
           }
         }
 
-        is MarkdownSegment.NonProseBlock -> {
+        is MarkdownSegment.NonProseBlock ->
           RenderNonProseBlock(onUrlClick = onUrlClick, segment = segment)
-        }
 
         is MarkdownSegment.Table -> {
-          // Tables are not expected in dialog content; render as plain text if present
+          ScrollableTable(
+            table = segment,
+            modifier = Modifier.fillMaxWidth(),
+            onUrlClick = onUrlClick
+          )
         }
       }
     }
@@ -445,6 +451,7 @@ private fun RenderMarkdownText(markdown: String) {
 private fun PaginationDots(
   pageCount: Int,
   currentPage: Int,
+  isPlaying: Boolean,
   onDotClick: (Int) -> Unit,
   features: List<FeatureItem>
 ) {
@@ -454,8 +461,40 @@ private fun PaginationDots(
 
     else -> JewelTheme.badgeStyle.blue.colors.content
   }
-  val inactiveColor = JewelTheme.globalColors.borders.disabled
+  val trackColor = JewelTheme.globalColors.borders.disabled
   val hoverColor = JewelTheme.globalColors.text.info
+
+  var animPhase by remember { mutableIntStateOf(0) } // 0=idle, 1=auto-play, 2=pausing
+  val currentIsPlaying by rememberUpdatedState(isPlaying)
+  val animProgress = remember { Animatable(0f) }
+
+  LaunchedEffect(isPlaying, currentPage) {
+    if (isPlaying) {
+      animPhase = 1
+      animProgress.snapTo(0f)
+      val startNanos = withFrameNanos { it }
+      while (currentIsPlaying) {
+        val elapsed = (withFrameNanos { it } - startNanos) / 4_000_000_000f
+        val progress = elapsed.coerceIn(0f, 1f)
+        animProgress.snapTo(progress)
+        if (progress >= 1f) break
+      }
+    }
+  }
+
+  LaunchedEffect(isPlaying) {
+    if (!isPlaying && animPhase == 1) {
+      animPhase = 2
+      animProgress.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(
+          durationMillis = 250,
+          easing = EaseOutCubic
+        )
+      )
+      animPhase = 0
+    }
+  }
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -468,7 +507,7 @@ private fun PaginationDots(
       val targetColor = when {
         isActive -> primaryColor
         isHovered -> hoverColor
-        else -> inactiveColor
+        else -> trackColor
       }
       val dotColor by animateColorAsState(
         targetValue = targetColor,
@@ -494,16 +533,40 @@ private fun PaginationDots(
         },
         enabled = !isActive
       ) {
-        Box(
-          modifier = Modifier
-            .size(width = dotWidth, height = 6.dp)
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(dotColor)
-            .clickable(
-              indication = null,
-              interactionSource = interactionSource
-            ) { onDotClick(index) }
-        )
+        if (isActive && isPlaying) {
+          Box(
+            modifier = Modifier
+              .size(width = dotWidth, height = 6.dp)
+              .clip(RoundedCornerShape(cornerRadius))
+              .background(trackColor)
+          ) {
+            Box(
+              modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(fraction = animProgress.value)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(primaryColor)
+            )
+          }
+        } else if (isActive && animPhase == 2) {
+          Box(
+            modifier = Modifier
+              .size(width = dotWidth * animProgress.value, height = 6.dp)
+              .clip(RoundedCornerShape(cornerRadius))
+              .background(primaryColor)
+          )
+        } else {
+          Box(
+            modifier = Modifier
+              .size(width = dotWidth, height = 6.dp)
+              .clip(RoundedCornerShape(cornerRadius))
+              .background(dotColor)
+              .clickable(
+                indication = null,
+                interactionSource = interactionSource
+              ) { onDotClick(index) }
+          )
+        }
       }
     }
   }

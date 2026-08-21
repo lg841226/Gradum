@@ -394,6 +394,27 @@ class GradumInlineMarkdownTest {
   }
 
   @Test
+  fun `bare URL with path containing hyphens and dots is detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("see http://www.apache.org/licenses/LICENSE-2.0.")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("http://www.apache.org/licenses/LICENSE-2.0", render.urlAnnotations[0].url)
+  }
+
+  @Test
+  fun `bare URL with path containing hyphens and html extension is detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("see https://www.eclipse.org/legal/epl-v10.html.")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://www.eclipse.org/legal/epl-v10.html", render.urlAnnotations[0].url)
+  }
+
+  @Test
+  fun `bare URL with path containing multiple hyphens is detected as link`() {
+    val render: InlineMarkdownRender = inlineRender("visit https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.")
+    assertEquals(1, render.urlAnnotations.size)
+    assertEquals("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html", render.urlAnnotations[0].url)
+  }
+
+  @Test
   fun `bare URL in markdown link text does NOT duplicate annotations`() {
     val render: InlineMarkdownRender = inlineRender("[click](https://example.com)")
     assertEquals(1, render.urlAnnotations.size)

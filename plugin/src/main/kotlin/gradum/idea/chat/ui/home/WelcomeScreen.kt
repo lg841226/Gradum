@@ -75,6 +75,7 @@ fun WelcomeScreen(
   sessions: List<SessionMeta> = emptyList(),
   mergeSelectedIds: Set<String> = emptySet(),
   selectedPermission: String = PermissionMode.READONLY,
+  welcomeLayout: gradum.idea.settings.WelcomeLayout = gradum.idea.settings.WelcomeLayout.QS4_RC2,
   onStartMerge: () -> Unit = {},
   onCancelMerge: () -> Unit = {},
   onMergeSelected: () -> Unit = {},
@@ -146,16 +147,20 @@ fun WelcomeScreen(
           visible = !isInputFocused || sessions.isEmpty(),
           exit = shrinkVertically(animationSpec = tween(200))
         ) {
-          QuickStartSection(
-            textState = textState,
-            suggestionVariants = suggestionVariants,
-            onRefreshSuggestions = onRefreshSuggestions
-          )
+          if (welcomeLayout.quickStartCount > 0) {
+            QuickStartSection(
+              textState = textState,
+              suggestionVariants = suggestionVariants,
+              onRefreshSuggestions = onRefreshSuggestions,
+              maxItems = welcomeLayout.quickStartCount
+            )
+          }
         }
         if (sessions.isNotEmpty()) {
           RecentChatsSection(
             sessions = sessions,
             expanded = isInputFocused,
+            maxDisplay = welcomeLayout.recentCount,
             onStartMerge = onStartMerge,
             onOpenSession = onOpenSession,
             onDeleteSession = onDeleteSession

@@ -31,6 +31,7 @@ import gradum.idea.editor.*
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
+import gradum.idea.settings.AppearanceSettings
 import gradum.idea.utils.GradumBundle
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
@@ -161,6 +162,14 @@ class GradumChatSession {
    * [gradum.idea.chat.ui.input.permissionLabel] from this value.
    */
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
+
+  init {
+    val appearance = AppearanceSettings.getInstance().snapshot
+    if (appearance.rememberPermission)
+      selectedPermission = appearance.lastPermission
+    if (appearance.rememberContext)
+      isExpanded = appearance.lastContextEnabled
+  }
 
   /**
    * The ToolMode string sent to the server. Derived from
