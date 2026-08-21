@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import gradum.idea.settings.LocalCodeBlockFontSize
+import gradum.idea.settings.LocalParagraphFontSize
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.GlobalColors
@@ -89,8 +91,13 @@ val LocalMarkdownBodyTextStyle = compositionLocalOf<TextStyle?> { null }
 @Composable
 fun rememberGradumParagraphTextStyle(): TextStyle {
   val labelTextStyle: TextStyle = JewelTheme.typography.labelTextStyle
-  val fontSizeValue: Float = (labelTextStyle.fontSize.value.takeIf { it > 0f }
-    ?: BODY_FONT_SIZE_FALLBACK_SP) + 1f
+  val configuredFontSize: TextUnit = LocalParagraphFontSize.current
+  val fontSizeValue: Float = if (configuredFontSize.value > 0f) {
+    configuredFontSize.value
+  } else {
+    (labelTextStyle.fontSize.value.takeIf { it > 0f }
+      ?: BODY_FONT_SIZE_FALLBACK_SP) + 1f
+  }
   val resolvedTextStyle: TextStyle = labelTextStyle.copy(
     fontSize = fontSizeValue.sp,
     lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
@@ -181,6 +188,13 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
   val badgeBlue: Color = rememberBadgeBlueColor()
+  val codeBlockFontSize: Float = LocalCodeBlockFontSize.current
+  val bodyTextStyle: TextStyle = LocalMarkdownBodyTextStyle.current
+    ?: rememberGradumParagraphTextStyle()
+  // When the code-block size is "auto" (0), follow the body text size.
+  val codeBlockTextStyle: TextStyle = editorTextStyle.copy(
+    fontSize = (if (codeBlockFontSize > 0f) codeBlockFontSize else bodyTextStyle.fontSize.value).sp
+  )
 
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
@@ -189,8 +203,6 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     background = globalColors.text.info.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
-  val bodyTextStyle: TextStyle = LocalMarkdownBodyTextStyle.current
-    ?: rememberGradumParagraphTextStyle()
 
   val paragraphTextStyle: TextStyle = if (thinkingMode) {
     bodyTextStyle.copy(
@@ -203,7 +215,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     )
   }
 
-  return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode) {
+  return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode, codeBlockTextStyle) {
     val chatLinkColors: LinkColors = if (thinkingMode)
       linkStyle.colors.withContent(thinkingGray)
     else
@@ -311,7 +323,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
         // In thinking mode, code block text should also be muted gray
         // (background kept colored per design decision — code stays readable)
         fenced = MarkdownStyling.Code.Fenced.createCodeStyling(
-          textStyle = if (thinkingMode) editorTextStyle.copy(color = thinkingGray) else editorTextStyle,
+          textStyle = if (thinkingMode) codeBlockTextStyle.copy(color = thinkingGray) else codeBlockTextStyle,
           infoPosition = MarkdownStyling.Code.Fenced.InfoPosition.Hide
         )
       ),

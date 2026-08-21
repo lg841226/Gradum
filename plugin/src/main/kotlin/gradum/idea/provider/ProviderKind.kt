@@ -43,7 +43,7 @@ enum class ProviderKind(
   ZHIPU(
     displayKey = "gradum.settings.provider.zhipu",
     configKey = "zhipu",
-    defaultBaseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
+    defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
     isCloud = true,
     icon = GradumIcons.ProviderZhipuai,
   ),

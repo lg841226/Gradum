@@ -110,7 +110,11 @@ fun ChatInputPanel(
             horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
           ) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp))
-            SweepLightText(text = preview, modifier = Modifier.weight(1f))
+            SweepLightText(
+              text = preview,
+              enabled = true,
+              modifier = Modifier.weight(1f)
+            )
             IconTooltipButton(
               tooltip = message("gradum.remove"),
               iconKey = AllIconsKeys.Actions.Close,

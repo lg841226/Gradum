@@ -61,11 +61,12 @@ fun ThinkingIndicator(
   isTaskComplete: Boolean = false,
   hasResponseAfter: Boolean = false,
   onUrlClick: (String) -> Unit = {},
-  enterTransition: EnterTransition = fadeIn(tween(800))
+  enterTransition: EnterTransition = fadeIn(tween(800)),
+  startCollapsed: Boolean = false
 ) {
   if (thinking.isBlank()) return
 
-  var isExpanded by remember { mutableStateOf(true) }
+  var isExpanded by remember { mutableStateOf(!startCollapsed) }
 
   LaunchedEffect(isTaskComplete, hasResponseAfter) {
     if (isTaskComplete || hasResponseAfter) isExpanded = false

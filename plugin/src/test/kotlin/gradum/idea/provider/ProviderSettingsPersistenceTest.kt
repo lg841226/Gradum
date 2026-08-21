@@ -47,7 +47,7 @@ class ProviderSettingsPersistenceTest {
     assertFalse(state.zhipuEnabled)
     assertFalse(state.deepseekEnabled)
     assertFalse(state.minimaxEnabled)
-    assertEquals("https://open.bigmodel.cn/api/coding/paas/v4", state.zhipuBaseUrl)
+    assertEquals("https://open.bigmodel.cn/api/paas/v4", state.zhipuBaseUrl)
     assertEquals("https://api.deepseek.com/v1", state.deepseekBaseUrl)
     assertEquals("https://api.minimaxi.com/v1", state.minimaxBaseUrl)
   }
@@ -57,11 +57,11 @@ class ProviderSettingsPersistenceTest {
     val state = ProviderSettings.State(
       ollamaBaseUrl = "http://localhost:11434",
       ollamaApiKey = "k1",
-      zhipuBaseUrl = "https://open.bigmodel.cn/api/coding/paas/v4",
+      zhipuBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
       zhipuApiKey = "kz",
     )
     assertEquals("http://localhost:11434" to "k1", state.configFor(ProviderKind.OLLAMA))
-    assertEquals("https://open.bigmodel.cn/api/coding/paas/v4" to "kz", state.configFor(ProviderKind.ZHIPU))
+    assertEquals("https://open.bigmodel.cn/api/paas/v4" to "kz", state.configFor(ProviderKind.ZHIPU))
   }
 
   @Test
@@ -74,7 +74,7 @@ class ProviderSettingsPersistenceTest {
     assertEquals("dk", state.deepseekApiKey)
     assertEquals("http://ollama.example", state.ollamaBaseUrl)
     assertEquals("other kinds must not be touched", "", state.zhipuApiKey)
-    assertEquals("https://open.bigmodel.cn/api/coding/paas/v4", state.zhipuBaseUrl)
+    assertEquals("https://open.bigmodel.cn/api/paas/v4", state.zhipuBaseUrl)
   }
 
   @Test

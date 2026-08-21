@@ -41,7 +41,7 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     var lmStudioAllowRemote: Boolean = false,
     var zhipuEnabled: Boolean = false,
     var zhipuApiKey: String = "",
-    var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/coding/paas/v4",
+    var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
     var deepseekEnabled: Boolean = false,
     var deepseekApiKey: String = "",
     var deepseekBaseUrl: String = "https://api.deepseek.com/v1",

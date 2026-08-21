@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-17 13:56:04 Changed by gwy
+ * ChatSessionStore.kt  2026-08-19 22:36:41 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -12,11 +12,8 @@ package gradum.idea.chat.history
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.history.ChatSessionStore.Companion.HEADER_LINE_LIMIT
 import gradum.idea.chat.model.ChatMessage
-import java.nio.file.AtomicMoveNotSupportedException
-import java.nio.file.Files
+import java.nio.file.*
 import java.nio.file.Files.readString
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.stream.Stream
@@ -72,23 +69,31 @@ class ChatSessionStore(private val projectRoot: Path) {
     val sessionDirectory: Path = sessionDir(sessionMeta.sessionId)
     try {
       Files.createDirectories(sessionDirectory)
-      val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
-      // Unique temp name per write: a fixed "$TRANSCRIPT_FILE.tmp" would let
-      // two concurrent saves to the same session clobber each other's
-      // half-written buffer before either rename lands.
-      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(1_000_000)}")
       val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
+      val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
+      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(1_000_000)}")
+
       Files.writeString(tempFile, content, Charsets.UTF_8)
       try {
         Files.move(
           tempFile, targetFile,
-          StandardCopyOption.REPLACE_EXISTING,
-          StandardCopyOption.ATOMIC_MOVE
+          StandardCopyOption.ATOMIC_MOVE,
+          StandardCopyOption.REPLACE_EXISTING
         )
       } catch (atomicMoveException: AtomicMoveNotSupportedException) {
         log.warn("ATOMIC_MOVE not supported on this filesystem; falling back", atomicMoveException)
         Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING)
       }
+    } catch (accessException: AccessDeniedException) {
+      log.warn(
+        "Permission denied while saving session ${sessionMeta.sessionId} to $sessionDirectory. " +
+          "Check that $sessionsRoot is writable.", accessException
+      )
+    } catch (saveException: NoSuchFileException) {
+      log.warn(
+        "Session directory disappeared while saving ${sessionMeta.sessionId} (path: $sessionDirectory). " +
+          "The session will not be persisted until the next save.", saveException
+      )
     } catch (saveException: Exception) {
       log.error("Failed to save session ${sessionMeta.sessionId}", saveException)
     }
@@ -219,7 +224,9 @@ class ChatSessionStore(private val projectRoot: Path) {
     }
     if (!Files.isDirectory(sessionDirectory)) return false
     return try {
-      Files.walk(sessionDirectory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) } }
+      Files.walk(sessionDirectory).use { paths ->
+        paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+      }
       log.info("Deleted session directory $sessionDirectory")
       true
     } catch (deleteException: Exception) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-17 17:11:39 Changed by gwy
+ * ApiProviderRow.kt  2026-08-20 14:52:10 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -87,14 +87,14 @@ fun ApiProviderRow(
         enabled = true,
         checked = extraToggle.checked,
         onCheckedChange = onExtraToggleChange,
-        label = message(extraToggle.messageKey),
+        label = message(extraToggle.messageKey)
       )
     }
     ActionRow(
+      status = status,
       isTesting = isTesting,
       isActionEnabled = isUrlValid,
-      status = status,
-      onProbeNow = { ProviderCoordinator.probeNow(kind) },
+      onProbeNow = { ProviderCoordinator.probeNow(kind) }
     )
   }
 }
@@ -102,9 +102,9 @@ fun ApiProviderRow(
 @Composable
 private fun UrlField(
   kind: ProviderKind,
-  state: TextFieldState,
   isUrlValid: Boolean,
-  onUrlChange: (String) -> Unit,
+  state: TextFieldState,
+  onUrlChange: (String) -> Unit
 ) {
   Row(verticalAlignment = Alignment.CenterVertically) {
     Text(
@@ -113,10 +113,10 @@ private fun UrlField(
     )
     TextField(
       state = state,
-      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
       textStyle = JewelTheme.editorTextStyle,
+      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
       placeholder = { Text(message(urlPlaceholderKey(kind))) },
-      outline = if (isUrlValid) Outline.None else Outline.Error,
+      outline = if (isUrlValid) Outline.None else Outline.Error
     )
   }
   LaunchedEffect(state.text) {
@@ -212,7 +212,9 @@ private fun StatusBadge(status: ProviderStatus) {
     is ProviderStatus.Unreachable -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
     is ProviderStatus.AuthError -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
     is ProviderStatus.Failed -> {
-      val key = if (status.message.contains("remote", ignoreCase = true) && status.message.contains("disabled", ignoreCase = true))
+      val key = if (status.message.contains("remote", ignoreCase = true)
+        && status.message.contains("disabled", ignoreCase = true)
+      )
         "gradum.settings.provider.status.remotedisabled"
       else "gradum.settings.provider.status.failed"
       AllIconsKeys.Vcs.Ignore_file to message(key) + if (status.message.isBlank()) "" else " (${
@@ -232,7 +234,9 @@ private fun StatusBadge(status: ProviderStatus) {
 private fun urlPlaceholderKey(kind: ProviderKind): String = when (kind) {
   ProviderKind.OLLAMA -> "gradum.settings.provider.url.placeholder.ollama"
   ProviderKind.LM_STUDIO -> "gradum.settings.provider.url.placeholder.lmstudio"
-  else -> kind.defaultBaseUrl
+  ProviderKind.ZHIPU -> "gradum.settings.provider.url.placeholder.zhipu"
+  ProviderKind.DEEPSEEK -> "gradum.settings.provider.url.placeholder.deepseek"
+  ProviderKind.MINIMAX -> "gradum.settings.provider.url.placeholder.minimax"
 }
 
 /** Extra checkbox descriptor rendered below the API key field. */

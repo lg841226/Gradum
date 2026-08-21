@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ErrorMessages.kt  2026-08-12 12:38:25 Changed by gwy
+ * ErrorMessages.kt  2026-08-20 09:26:47 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -46,7 +46,8 @@ fun friendlyErrorMessage(code: String): String = when (code) {
  * Includes the error code, raw message, and tool name (if any)
  * so that developers or support staff can diagnose the issue.
  */
-fun errorDetailText(code: String, message: String, tool: String): String = buildString {
+fun errorDetailText(code: String, message: String, tool: String)
+  : String = buildString {
   if (code.isNotBlank()) append("Code: $code")
   if (tool.isNotBlank())
     if (isNotEmpty()) append("\n"); append("Tool: $tool")

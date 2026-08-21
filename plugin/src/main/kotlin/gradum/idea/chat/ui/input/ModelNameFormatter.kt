@@ -103,6 +103,7 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("glm-4.5", "GLM 4.5")
   put("glm-4.6", "GLM 4.6")
   put("glm-4.7", "GLM 4.7")
+  put("glm-4.7-flash", "GLM 4.7 Flash")
   put("glm-5", "GLM 5")
   put("glm-5.1", "GLM 5.1")
   put("glm-5.2", "GLM 5.2")

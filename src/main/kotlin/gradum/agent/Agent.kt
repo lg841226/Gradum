@@ -575,8 +575,6 @@ class Agent(
     processedCall: ProcessedToolCall,
     isLastToolCall: Boolean = true
   ): Map<String, Any> {
-    if (sessionAborted) return emptyMap()
-
     val functionName: String = processedCall.callData.functionName
     val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
 
@@ -600,8 +598,42 @@ class Agent(
     logger.info("Skill: $functionName")
     if (logger.isDebugEnabled) logger.debug("Args: ${truncateToolArguments(convertedArguments)}")
 
+    val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
+    val toolAlias: String = skillInstance?.alias ?: functionName
+
+    // Emit a pre-execution placeholder first, so every terminal path below
+    // (aborted / runaway / blocked / success / failure) is preceded by a
+    // matching `tool_call_start` and the client can always show a spinner.
+    // The completed `tool_call` event follows and carries the same
+    // toolCallId for the client to update the row in place.
+    emitToolCallStart(
+      functionName,
+      toolAlias,
+      convertedArguments,
+      processedCall.callIdentifier
+    )
+
     val executionResult: Map<String, Any>
-    val skillInstance: Skill?
+
+    if (sessionAborted) {
+      executionResult = mapOf(
+        "success" to false,
+        "error" to mapOf(
+          "code" to ErrorCode.CLIENT_ERROR.name,
+          "message" to "Aborted by user before execution started",
+        ),
+      )
+      emitToolResult(
+        processedCall,
+        functionName,
+        convertedArguments,
+        skillInstance,
+        executionResult,
+        isLastToolCall
+      )
+      logToolResult(executionResult)
+      return executionResult
+    }
 
     if (checkToolRunaway(functionName, convertedArguments)) {
       logger.error("Result: TOOL_RUNAWAY — repeated call ($repeatedToolCallCount times), aborting")
@@ -612,8 +644,24 @@ class Agent(
           "repeatedCount" to repeatedToolCallCount,
         )
       )
+      executionResult = mapOf(
+        "success" to false,
+        "error" to mapOf(
+          "code" to ErrorCode.CLIENT_ERROR.name,
+          "message" to "Tool runaway: repeated call $repeatedToolCallCount times, aborting",
+        ),
+      )
+      emitToolResult(
+        processedCall,
+        functionName,
+        convertedArguments,
+        skillInstance,
+        executionResult,
+        isLastToolCall
+      )
+      logToolResult(executionResult)
       abortSession()
-      return emptyMap()
+      return executionResult
     }
 
     if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
@@ -623,7 +671,6 @@ class Agent(
 
       if (verdict is gradum.utils.CommandVerdict.Blocked) {
         logger.error("Result: COMMAND_BLOCKED — ${verdict.description} (rule: ${verdict.ruleName})")
-        skillInstance = SkillRegistry.getSkill(functionName)
         executionResult = mapOf(
           "success" to false,
           "error" to mapOf(
@@ -645,19 +692,6 @@ class Agent(
       }
     }
 
-    skillInstance = SkillRegistry.getSkill(functionName)
-
-    // Emit a pre-execution placeholder so the UI can show a "running
-    // this tool" row before the (potentially long-running) skill
-    // finishes. The completed `tool_call` event follows afterwards and
-    // carries the same toolCallId for the client to update in place.
-    emitToolCallStart(
-      functionName,
-      skillInstance?.alias ?: functionName,
-      convertedArguments,
-      processedCall.callIdentifier
-    )
-
     executionResult = executeSkill(skillInstance, functionName, convertedArguments)
 
     emitToolResult(
@@ -668,8 +702,8 @@ class Agent(
       executionResult,
       isLastToolCall
     )
-
     logToolResult(executionResult)
+
     return executionResult
   }
 

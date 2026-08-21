@@ -50,6 +50,7 @@ class ModelNameFormatterTest {
       "glm-4-9b-chat" to "GLM 4",
       "THUDM/glm-4-9b-chat" to "GLM 4",
       "glm-4.5" to "GLM 4.5",
+      "glm-4.7-flash" to "GLM 4.7 Flash",
       "glm-4-9b-chat-128k" to "GLM 4",
       "chatglm-6b" to "ChatGLM",
       "chatglm3-6b" to "ChatGLM 3"

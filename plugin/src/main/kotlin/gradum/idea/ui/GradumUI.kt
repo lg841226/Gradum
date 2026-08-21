@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-16 12:18:07 Changed by gwy
+ * GradumUI.kt  2026-08-20 09:34:20 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -22,6 +22,7 @@ import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.EditorContext
 import gradum.idea.editor.EditorUtils
 import gradum.idea.provider.ProviderSettings
+import gradum.idea.settings.ProvideAppearance
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -59,8 +60,9 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
       .padding(horizontal = 16.dp),
     contentAlignment = Alignment.Center
   ) {
-    if (session.hasSentMessage) {
-      ChatScreen(
+    ProvideAppearance {
+      if (session.hasSentMessage) {
+        ChatScreen(
         messages = session.messages,
         textState = session.textState,
         inputState = state.inputState,
@@ -103,6 +105,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
       ) { sessionId, newTitle ->
         coroutineScope.launch { session.renameSession(sessionId, newTitle) }
       }
+    }
     }
   }
 }
@@ -157,7 +160,7 @@ private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: Corou
   LaunchedEffect(autoDetect, pollIntervalSeconds) {
     if (!session.modelsLoaded)
       coroutineScope.launch { session.loadModels() }
-    session.startModelPolling(coroutineScope, autoDetect, pollIntervalSeconds * 1000L)
+    session.startModelPolling(autoDetect, pollIntervalSeconds * 1000L, coroutineScope)
   }
   DisposableEffect(Unit) {
     onDispose { session.stopModelPolling() }

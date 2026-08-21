@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-18 12:45:23 Changed by gwy
+ * GradumChatSession.kt  2026-08-20 09:38:19 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -31,6 +31,7 @@ import gradum.idea.editor.*
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
+import gradum.idea.utils.GradumBundle
 import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +71,14 @@ private data class ModelsListResponse(
 class GradumChatSession {
 
   private val log: Logger = Logger.getInstance(GradumChatSession::class.java)
+
+  /**
+   * How long to hold the "weaving" status text after a tool call's result
+   * row lands, so the row's 600ms fade-in has time to be visible before
+   * the text moves on. Without this buffer the text flashes for a frame
+   * on fast calls and the user reads it as "I never saw the result".
+   */
+  private val WEAVING_FADE_BUFFER_MS: Long = 300L
 
   /** Coroutine scope used by [processPendingQueue] to launch the next send. */
   var scope: CoroutineScope? = null
@@ -257,18 +266,20 @@ class GradumChatSession {
   fun reset() {
     saveCurrentSession()
     exitMergeMode()
-    val job = currentJob
+    val cancellableJob = currentJob
     currentJob = null
-    if (job != null) {
+    if (cancellableJob != null) {
       try {
-        job.cancel(CancellationException("Gradum: reset session"))
-      } catch (throwable: Throwable) {
-        log.warn("Failed to cancel current job on reset", throwable)
+        cancellableJob.cancel(CancellationException("Gradum: reset session"))
+      } catch (cancellationError: Throwable) {
+        log.warn("Failed to cancel current job on reset", cancellationError)
       }
     }
     sendingPhase = ""
     sessionId = null
-    activeSessionId = chatStore?.let { ChatSessionStore.nextSessionId() }
+    activeSessionId = chatStore?.let {
+      ChatSessionStore.nextSessionId()
+    }
     currentSessionTitle = ""
     isSending = false
     hasSentMessage = false
@@ -289,17 +300,14 @@ class GradumChatSession {
     val targetSessionId: String = activeSessionId ?: ChatSessionStore.nextSessionId().also { activeSessionId = it }
     val createdAt: Long = messages.firstOrNull { it.isUserMessage }?.timestamp ?: System.currentTimeMillis()
     val modelName: String = messages.lastOrNull()?.modelName.orEmpty()
-    // Keep an already-set title (a resumed or merged session keeps its
-    // persisted/auto-generated name); only derive from the first message for
-    // a brand-new conversation whose title has not been assigned yet.
     val sessionTitle: String = currentSessionTitle.ifBlank { ChatTranscript.titleFor(messages) }
     currentSessionTitle = sessionTitle
     sessionStore.saveSession(
       SessionMeta(
         title = sessionTitle,
         modelName = modelName,
-        sessionId = targetSessionId,
         createdAt = createdAt,
+        sessionId = targetSessionId,
         updatedAt = System.currentTimeMillis()
       ),
       messages.toList()
@@ -318,15 +326,11 @@ class GradumChatSession {
     val sessionStore: ChatSessionStore = chatStore ?: return
     val coroutineScope: CoroutineScope? = scope
     if (coroutineScope == null) {
-      // No UI scope yet (tool-window init runs before the Compose tab);
-      // fall back to a synchronous scan — headers-only reads keep it cheap.
       sessions.clear()
       sessions.addAll(sessionStore.listSessions())
       return
     }
-    // Calls the non-synthetic `cancel(CancellationException)` overload on
-    // purpose: plain `cancel()` compiles to the `cancel$default` bridge, which
-    // is missing in the IDE's coroutines rebuild and throws NoSuchMethodError.
+
     sessionRefreshJob?.cancel(CancellationException("Gradum: refresh sessions"))
     sessionRefreshJob = coroutineScope.launch {
       val listedSessions: List<SessionMeta> = withContext(Dispatchers.IO) {
@@ -386,7 +390,7 @@ class GradumChatSession {
   /**
    * Auto-names a merge result `Merged conversation <n>` (`gradum.merge.titled`),
    * continuing the highest existing number so repeated merges produce
-   * "合并后的对话 1", "合并后的对话 2", … without collisions.
+   * "Merged conversation 1", "Merged conversation 2", ... without collisions.
    */
   private fun nextMergeTitle(): String {
     val base: String = message("gradum.merge.titled")
@@ -449,9 +453,9 @@ class GradumChatSession {
     // Persist whatever the current session accumulated. Without this a
     // stream that ended via error / interrupt (never reaching session_end,
     // hence never saved) would be wiped when switching.
-    if (activeSessionId != null && messages.isNotEmpty()) {
+    if (activeSessionId != null && messages.isNotEmpty())
       saveCurrentSession()
-    }
+
     messages.clear()
     messages.addAll(loadedTranscript.messages)
     activeSessionId = targetSessionId
@@ -521,9 +525,6 @@ class GradumChatSession {
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
       applyModelList(response.models)
     } catch (loadException: Exception) {
-      // Includes SerializationException for a non-JSON / error-page body —
-      // without this the exception escapes loadModels and kills the
-      // probeRefreshJob coroutine that polls the model list.
       if (loadException is CancellationException) throw loadException
       log.warn("Failed to loadProperties models from ${apiClient.baseUrl}", loadException)
       models.clear(); modelsLoaded = false
@@ -534,12 +535,6 @@ class GradumChatSession {
     val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter
     val healthyModels: List<ModelInfo> =
       if (autoFilter) newModels.filter { it.available } else newModels
-    // Only rebuild the list when the roster actually changed — by size, by
-    // model identity, or by reachability (`available`). A provider URL edit
-    // on the settings page now surfaces here because the server re-probes
-    // and flips `available`, and `sameAs` alone (name+server) would miss
-    // that. Skipping the rebuild also keeps the user's selection object
-    // stable across unchanged polls.
     if (healthyModels == models) {
       modelsLoaded = true
       return
@@ -581,15 +576,12 @@ class GradumChatSession {
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   fun startModelPolling(
-    scope: CoroutineScope,
     autoDetect: Boolean,
     pollIntervalMs: Long,
+    scope: CoroutineScope
   ) {
     stopModelPolling()
 
-    // A successful manual probe on the settings page means the provider was
-    // (re)configured and is reachable — refresh the roster immediately so
-    // the new models show up instead of waiting for the next poll tick.
     probeRefreshJob = scope.launch {
       ProviderCoordinator.probeSucceeded.collect {
         log.info("Provider probe succeeded, refreshing models")
@@ -638,7 +630,6 @@ class GradumChatSession {
     val json: String = try {
       withContext(Dispatchers.IO) { apiClient.getModels() }
     } catch (exception: CancellationException) {
-      // Structured concurrency: never swallow cancellation.
       throw exception
     } catch (exception: Exception) {
       log.debug("Polling /models failed: ${exception.message}")
@@ -656,20 +647,20 @@ class GradumChatSession {
    * (`1.10.2-intellij-1`) and would throw `NoSuchMethodError` at runtime.
    */
   fun stopModelPolling() {
-    val job = pollingJob
+    val pollingActiveJob = pollingJob
     pollingJob = null
-    if (job != null) {
+    if (pollingActiveJob != null) {
       try {
-        job.cancel(CancellationException("Gradum: stop model polling"))
+        pollingActiveJob.cancel(CancellationException("Gradum: stop model polling"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel polling job", throwable)
       }
     }
-    val refreshJob = probeRefreshJob
+    val probeRefreshActiveJob = probeRefreshJob
     probeRefreshJob = null
-    if (refreshJob != null) {
+    if (probeRefreshActiveJob != null) {
       try {
-        refreshJob.cancel(CancellationException("Gradum: stop probe refresh job"))
+        probeRefreshActiveJob.cancel(CancellationException("Gradum: stop probe refresh job"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel probe refresh job", throwable)
       }
@@ -683,11 +674,11 @@ class GradumChatSession {
    * to abort the agent's execution.
    */
   suspend fun stopSession() {
-    val job = currentJob
+    val activeJob = currentJob
     currentJob = null
-    if (job != null) {
+    if (activeJob != null) {
       try {
-        job.cancel(CancellationException("Gradum: stop session"))
+        activeJob.cancel(CancellationException("Gradum: stop session"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel current job on stopSession", throwable)
       }
@@ -697,8 +688,8 @@ class GradumChatSession {
     if (currentSessionId != null) {
       try {
         apiClient.stopSession(currentSessionId)
-      } catch (exception: Exception) {
-        log.warn("Failed to send stop request for session $currentSessionId", exception)
+      } catch (cancelError: Exception) {
+        log.warn("Failed to send stop request for session $currentSessionId", cancelError)
       }
       sessionId = null
     }
@@ -728,8 +719,8 @@ class GradumChatSession {
    * @param userMessage The text content of the user's message.
    */
   suspend fun sendMessage(
-    userMessage: String, attachments: List<AttachedContext> = emptyList(), contextPath: String = "",
-    toolCallXml: String? = null
+    userMessage: String, attachments: List<AttachedContext> = emptyList(),
+    contextPath: String = "", toolCallXml: String? = null
   ) {
     var receivedSessionEnd = false
     val modelConfig: Map<String, String> = buildModelConfig()
@@ -744,18 +735,14 @@ class GradumChatSession {
     val systemRule = """
         <Rule>
           - Answer in English by default. Use another language only if the user asks.
-          - No use emojis in anywhere (eg: Code or text).
+          - No use emojis in anywhere (eg: Code or Text).
           - Do not use text-based drawings.
         </Rule>
     """.trimIndent()
 
     val messageWithHint = "${prefix}${userMessage}\n\n$systemRule" +
       "\n\n${ThinkingPromptInjector.guideFor(thinkingLevel)}"
-    // Validate server connectivity and model availability before sending.
-    // The server may not be running yet, so retry with exponential backoff
-    // (2s, 4s, 8s, ...) up to MAX_CONNECT_ATTEMPTS times before surfacing a
-    // connection error. The sweep-light sending phase stays visible so the
-    // UI reads as "still trying" rather than failing instantly.
+
     sendingPhase = message("gradum.phase.synthesizing")
     val validationStart: Long = System.currentTimeMillis()
     var response: ModelsListResponse? = null
@@ -964,7 +951,7 @@ class GradumChatSession {
       // The server signals completion via `session_end`. If the stream
       // ends without it (server restart, dropped connection, old server
       // that predates the event), the UI would stay stuck in
-      // "sending…" and the pending queue would be permanently blocked.
+      // "sending..." and the pending queue would be permanently blocked.
       // Bail out of that state whenever we didn't see a proper end.
       if (!receivedSessionEnd) {
         isSending = false
@@ -1023,57 +1010,77 @@ class GradumChatSession {
    * in place (same `toolCallId`).
    */
   private fun handleToolCallStartEvent(data: JsonObject?) {
-    try {
-      val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
-      val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
-      val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
-      val callArguments = parseArguments(data?.get("arguments")?.jsonObject)
+    val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+    val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
+    val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
 
-      val toolCall = ToolCallInfo(
-        toolName = toolName,
-        alias = toolAlias,
-        toolCallId = toolCallId,
-        success = true,
-        result = "",
-        arguments = callArguments,
-        pending = true
-      )
+    val callArguments: Map<String, Any> = try {
+      parseArguments(data?.get("arguments")?.jsonObject)
+    } catch (parseException: Exception) {
+      log.warn("Failed to parse tool_call_start arguments (using empty)", parseException)
+      emptyMap()
+    }
 
-      val assistantIndex: Int = messages.lastIndex
-      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+    val toolCall = ToolCallInfo(
+      toolName = toolName,
+      alias = toolAlias,
+      toolCallId = toolCallId,
+      success = true,
+      result = "",
+      arguments = callArguments,
+      pending = true
+    )
+
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+      try {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+        sendingPhase = toolPendingPhase(toolName, toolAlias)
+      } catch (appendException: Exception) {
+        log.warn("Failed to append tool_call_start event", appendException)
       }
-    } catch (exception: Exception) {
-      log.warn("Failed to parse tool_call_start event", exception)
     }
   }
 
+  private fun toolPendingPhase(toolName: String, toolAlias: String): String {
+    return GradumBundle.messageOrNull("gradum.phase.tool.$toolName")
+      ?: message("gradum.phase.tool.running", toolAlias)
+  }
+
   private fun handleToolCallEvent(data: JsonObject?) {
-    try {
-      val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
-      sendingPhase = message("gradum.phase.weaving")
+    val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+    val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
+    val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
+    val callSuccess = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+    val toolResultString = data?.get("result")?.toString() ?: ""
 
-      val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
-      val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
-      val callSuccess = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
-      val toolResultString = data?.get("result")?.toString() ?: ""
-      val callArguments = parseArguments(data?.get("arguments")?.jsonObject)
+    val callArguments: Map<String, Any> = try {
+      parseArguments(data?.get("arguments")?.jsonObject)
+    } catch (parseException: Exception) {
+      log.warn("Failed to parse tool_call arguments (using empty)", parseException)
+      emptyMap()
+    }
 
-      val toolCall = ToolCallInfo(
-        toolName = toolName,
-        alias = toolAlias,
-        toolCallId = toolCallId,
-        success = callSuccess,
-        result = toolResultString,
-        arguments = callArguments
-      )
+    val toolCall = ToolCallInfo(
+      toolName = toolName,
+      alias = toolAlias,
+      toolCallId = toolCallId,
+      success = callSuccess,
+      result = toolResultString,
+      arguments = callArguments
+    )
 
-      val assistantIndex: Int = messages.lastIndex
-      if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+      try {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+        scope?.launch {
+          delay(WEAVING_FADE_BUFFER_MS.milliseconds)
+          sendingPhase = message("gradum.phase.weaving")
+        }
+      } catch (appendException: Exception) {
+        log.warn("Failed to append tool_call event", appendException)
       }
-    } catch (exception: Exception) {
-      log.warn("Failed to parse tool_call event", exception)
     }
   }
 

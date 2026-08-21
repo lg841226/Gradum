@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-14 01:25:52 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-20 22:26:10 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -32,6 +32,7 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
 import gradum.idea.chat.ui.markdown.*
+import gradum.idea.settings.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -66,7 +67,6 @@ fun AssistantChatBubble(
   modifier: Modifier = Modifier,
   sendingPhase: String = "",
   onRetry: () -> Unit = {},
-  onContentChange: () -> Unit = {},
   onUrlClick: (String) -> Unit = {},
   isLoading: Boolean = false,
   actionsEnabled: Boolean = true,
@@ -83,7 +83,7 @@ fun AssistantChatBubble(
     horizontalArrangement = Arrangement.Start
   ) {
     Column(horizontalAlignment = Alignment.Start) {
-      if (message.modelName.isNotBlank()) {
+      if (LocalShowModelName.current && message.modelName.isNotBlank()) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
@@ -95,8 +95,6 @@ fun AssistantChatBubble(
           Text(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            // Debug mode shows the i18n label verbatim (e.g. "Debug Mode")
-            // instead of running it through model-name formatting.
             text = if (isDebugMode) {
               message.modelName
             } else {
@@ -108,28 +106,33 @@ fun AssistantChatBubble(
       Spacer(Modifier.height(GradumSpacing.lg))
       renderBlocks.forEachIndexed { index, block ->
         key(block.key(index)) {
-          when (block) {
-            is RenderBlock.Thinking -> {
-              val hasNonThinkingAfter = renderBlocks.drop(index + 1).any { it !is RenderBlock.Thinking }
-              ThinkingBlock(block, isLoading, onUrlClick, hasNonThinkingAfter)
-            }
+          if (block is RenderBlock.ToolCall && block.pending) {
+            // A pending tool call renders nothing (no capsule, no spacer):
+            // the sweep-light status row already signals that the tool is
+            // running, and reserving layout space here would leave a
+            // visible gap above it.
+          } else {
+            when (block) {
+              is RenderBlock.Thinking -> {
+                val hasNonThinkingAfter = renderBlocks.drop(index + 1).any { it !is RenderBlock.Thinking }
+                ThinkingBlock(block, isLoading, onUrlClick, hasNonThinkingAfter)
+              }
 
-            is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
-            is RenderBlock.Response -> ResponseBlock(block, onUrlClick, onContentChange)
-            is RenderBlock.Error -> ErrorBlock(block)
+              is RenderBlock.ToolCall -> ToolCallBlock(block, onOpenInEditor, onViewDiff)
+              is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
+              is RenderBlock.Error -> ErrorBlock(block)
+            }
+            Spacer(modifier = Modifier.height(GradumSpacing.lg))
           }
-          Spacer(modifier = Modifier.height(GradumSpacing.lg))
         }
       }
 
       val tokenCount: Int = message.tokenUsage?.totalTokens ?: 0
-      val showTokenStatus: Boolean = if (isDebugMode) {
-        isLoading
-      } else {
-        isLoading || tokenCount > 0
-      }
+      val showTokenStatus: Boolean =
+        if (isDebugMode) isLoading
+        else isLoading || tokenCount > 0
+
       if (showTokenStatus) {
-        Spacer(Modifier.height(GradumSpacing.md))
         TokenStatusRow(
           isLoading = isLoading,
           tokenCount = tokenCount,
@@ -140,12 +143,12 @@ fun AssistantChatBubble(
       if (!isLoading) {
         Spacer(modifier = Modifier.height(GradumSpacing.sml))
         MessageActionsRow(
+          onRetry = onRetry,
           message = message,
           isLoading = isLoading,
           hasContent = hasContent,
           actionsEnabled = actionsEnabled,
-          selectedPermission = selectedPermission,
-          onRetry = onRetry,
+          selectedPermission = selectedPermission
         )
       }
       Spacer(Modifier.height(GradumSpacing.xxl))
@@ -162,7 +165,8 @@ private fun RenderBlock.key(index: Int): String = when (this) {
 
 @Composable
 private fun ThinkingBlock(
-  block: RenderBlock.Thinking, isLoading: Boolean, onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
+  block: RenderBlock.Thinking, isLoading: Boolean,
+  onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
 ) {
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
@@ -176,23 +180,24 @@ private fun ThinkingBlock(
     modifier = Modifier.graphicsLayer {
       this.alpha = fadeAlpha.value
     },
+    onUrlClick = onUrlClick,
     isTaskComplete = !isLoading,
     hasResponseAfter = hasResponseAfter,
-    onUrlClick = onUrlClick
+    startCollapsed = LocalCollapseThinkingByDefault.current
   )
 }
 
 @Composable
 private fun ResponseBlock(
   block: RenderBlock.Response,
-  onUrlClick: (String) -> Unit,
-  onContentChange: () -> Unit = {},
+  onUrlClick: (String) -> Unit
 ) {
   val segments = remember(block.content) { splitMarkdown(block.content) }
   val paragraphStyle = rememberGradumParagraphTextStyle()
+  val paragraphSpacing: Dp = LocalParagraphSpacing.current
 
   SelectionContainer {
-    Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
+    Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacing)) {
       segments.forEach { segment ->
         AnimatedSegment(segment, onUrlClick, paragraphStyle)
       }
@@ -204,7 +209,7 @@ private fun ResponseBlock(
 private fun AnimatedSegment(
   segment: MarkdownSegment,
   onUrlClick: (String) -> Unit,
-  paragraphStyle: androidx.compose.ui.text.TextStyle,
+  paragraphStyle: androidx.compose.ui.text.TextStyle
 ) {
   val density = LocalDensity.current
   var contentHeightPx by remember { mutableIntStateOf(0) }
@@ -254,11 +259,9 @@ private fun AnimatedSegment(
       }
 
       is MarkdownSegment.Table -> {
-        if (segment.isRenderable()) {
-          ScrollableTable(segment, onUrlClick = onUrlClick)
-        } else {
-          TableParseFailurePlaceholder()
-        }
+        if (segment.isRenderable()) ScrollableTable(segment, onUrlClick = onUrlClick)
+        else TableParseFailurePlaceholder()
+
       }
     }
   }
@@ -297,6 +300,8 @@ private fun ToolCallBlock(
   onViewDiff:
     (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
 ) {
+  if (block.pending) return
+
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
     fadeAlpha.animateTo(
@@ -311,49 +316,49 @@ private fun ToolCallBlock(
     val fallbackToolDetails: String = if (!block.success) {
       gradum.idea.chat.ui.chat.skill.internal.formatToolDetails(
         alias = block.alias,
-        arguments = block.arguments,
         result = block.result,
-        errorMessage = block.errorMessage,
-        errorDetail = block.errorDetail
+        arguments = block.arguments,
+        errorDetail = block.errorDetail,
+        errorMessage = block.errorMessage
       )
     } else ""
     ToolCallCapsule(
       label = block.alias,
-      iconKey = AllIconsKeys.Nodes.Plugin,
+      modifier = animModifier,
       success = block.success,
       errorDetail = block.errorDetail,
       toolDetails = fallbackToolDetails,
       errorMessage = block.errorMessage,
-      modifier = animModifier,
+      iconKey = AllIconsKeys.Nodes.Plugin
     )
     return
   }
   val content: gradum.idea.chat.ui.chat.skill.spi.ToolCallContent =
     renderer.parseContent(
       arguments = block.arguments,
-      result = gradum.idea.chat.ui.chat.skill.spi.parseJsonResult(block.result),
+      result = gradum.idea.chat.ui.chat.skill.spi.parseJsonResult(block.result)
     )
   val toolDetails: String? = if (!block.success) {
     gradum.idea.chat.ui.chat.skill.internal.formatToolDetails(
       alias = block.alias,
-      arguments = block.arguments,
       result = block.result,
-      errorMessage = block.errorMessage,
-      errorDetail = block.errorDetail
+      arguments = block.arguments,
+      errorDetail = block.errorDetail,
+      errorMessage = block.errorMessage
     )
   } else null
   val ctx: gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext =
     gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext(
       project = null,
       isError = !block.success,
-      errorDetail = block.errorDetail,
       toolDetails = toolDetails,
+      errorDetail = block.errorDetail,
       onCopy = { payload ->
         copyToClipboard(
-          text = payload,
-          onCopied = {},
           onReset = {},
-          scope = clipboardScope,
+          onCopied = {},
+          text = payload,
+          scope = clipboardScope
         )
       },
       onOpenInEditor = onOpenInEditor,
@@ -361,50 +366,11 @@ private fun ToolCallBlock(
       onViewDiff(
         filePath,
         originalContent.orEmpty(),
-        modifiedContent.orEmpty(),
+        modifiedContent.orEmpty()
       )
     }
-  if (block.pending) {
-    PendingToolCallBlock(
-      block = block,
-      content = content,
-      ctx = ctx,
-      animModifier = animModifier
-    )
-  } else {
-    Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
-      renderer.render(content, ctx)
-    }
-  }
-}
-
-/**
- * Renders a tool call that has been announced via `tool_call_start`
- * but has not finished yet: the registered renderer's normal row is
- * shown (parsed from the already-known arguments) with a trailing
- * spinner overlay, so the user sees exactly what is running.
- */
-@Composable
-private fun PendingToolCallBlock(
-  block: RenderBlock.ToolCall,
-  content: gradum.idea.chat.ui.chat.skill.spi.ToolCallContent,
-  ctx: gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext,
-  animModifier: Modifier
-) {
-  val renderer = gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.find(block.alias)
-  Box(
-    modifier = Modifier
-      .then(animModifier)
-      .horizontalScroll(rememberScrollState())
-  ) {
-    androidx.compose.foundation.layout.Row(
-      verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-      horizontalArrangement =
-        androidx.compose.foundation.layout.Arrangement.spacedBy(gradum.idea.utils.GradumSpacing.sml)
-    ) {
-      renderer?.render(content, ctx)
-      org.jetbrains.jewel.ui.component.CircularProgressIndicator(modifier = Modifier.size(14.dp))
-    }
+  Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
+    renderer.render(content, ctx)
   }
 }
 
@@ -431,8 +397,8 @@ private fun TokenStatusRow(
         verticalOffset.animateTo(
           targetValue = riseDistancePx,
           animationSpec = tween(
-            durationMillis = RISE_DURATION_MS,
             easing = FastOutSlowInEasing,
+            durationMillis = RISE_DURATION_MS
           ),
         )
       }
@@ -444,7 +410,7 @@ private fun TokenStatusRow(
           targetValue = 0f,
           animationSpec = spring(
             stiffness = Spring.StiffnessMediumLow,
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioMediumBouncy
           ),
         )
       }
@@ -474,11 +440,11 @@ private fun TokenStatusRow(
 @Composable
 private fun MessageActionsRow(
   onRetry: () -> Unit,
-  message: ChatMessage,
   isLoading: Boolean,
   hasContent: Boolean,
+  message: ChatMessage,
   actionsEnabled: Boolean,
-  selectedPermission: String = PermissionMode.READONLY,
+  selectedPermission: String = PermissionMode.READONLY
 ) {
   val isDebug = selectedPermission == PermissionMode.DEBUG
   var isCopied by remember { mutableStateOf(false) }
@@ -486,24 +452,28 @@ private fun MessageActionsRow(
   var isSelectedDislike by remember { mutableStateOf(false) }
 
   Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-    MessageCopyButton(
-      message = message,
-      isCopied = isCopied,
-      onCopy = { isCopied = true },
-      onReset = { isCopied = false }
-    )
-    Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
-      IconButton(
-        onClick = onRetry,
-        enabled = actionsEnabled && !isLoading && hasContent
-      ) {
-        Icon(
-          contentDescription = message("gradum.reset"),
-          key = AllIconsKeys.Actions.Refresh
-        )
+    if (LocalShowCopyAction.current) {
+      MessageCopyButton(
+        message = message,
+        isCopied = isCopied,
+        onCopy = { isCopied = true },
+        onReset = { isCopied = false }
+      )
+    }
+    if (LocalShowRetryAction.current) {
+      Tooltip(tooltip = { Text(text = message("gradum.reset.tooltip")) }) {
+        IconButton(
+          onClick = onRetry,
+          enabled = actionsEnabled && !isLoading && hasContent
+        ) {
+          Icon(
+            contentDescription = message("gradum.reset"),
+            key = AllIconsKeys.Actions.Refresh
+          )
+        }
       }
     }
-    if (!isDebug) {
+    if (!isDebug && LocalShowLikeDislikeAction.current) {
       IconButton(
         enabled = hasContent,
         onClick = {
@@ -525,7 +495,9 @@ private fun MessageActionsRow(
       ) {
         Icon(
           contentDescription = message("gradum.dislike"),
-          key = if (isSelectedDislike) GradumIcons.DislikeSelected else GradumIcons.Dislike
+          key =
+            if (isSelectedDislike) GradumIcons.DislikeSelected
+            else GradumIcons.Dislike
         )
       }
     }

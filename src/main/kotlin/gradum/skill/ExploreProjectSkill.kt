@@ -227,13 +227,23 @@ class ExploreProjectSkill : Skill() {
     val filteredCodeFiles = applyCodeFilters(scanResult.codeFiles, filterConfig)
     val filteredOtherFiles = applyFilters(scanResult.otherFiles, filterConfig)
 
+    // Normalize config / other lists to {path, lines} shape so the three
+    // file lists share a single shape with code_files. Clients then don't
+    // need a per-list branch when deciding what to pass to read_file.
+    val normalizedConfigFiles: List<Map<String, Any>> = filteredConfigFiles
+      .sorted().take(filterConfig.limit)
+      .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
+    val normalizedOtherFiles: List<Map<String, Any>> = filteredOtherFiles
+      .sorted().take(filterConfig.limit)
+      .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
+
     return buildOutput(
       resolvedPath = resolvedPath,
       requestedDepth = requestedDepth,
       scanResult = scanResult,
-      filteredConfigFiles = filteredConfigFiles,
+      filteredConfigFiles = normalizedConfigFiles,
       filteredCodeFiles = filteredCodeFiles,
-      filteredOtherFiles = filteredOtherFiles,
+      filteredOtherFiles = normalizedOtherFiles,
       excludePattern = excludePattern,
       filterConfig = filterConfig,
       useSimpleOutput = useSimpleOutput,
@@ -244,9 +254,9 @@ class ExploreProjectSkill : Skill() {
     resolvedPath: Path,
     requestedDepth: Int,
     scanResult: ScanResult,
-    filteredConfigFiles: List<String>,
+    filteredConfigFiles: List<Map<String, Any>>,
     filteredCodeFiles: List<Map<String, Any>>,
-    filteredOtherFiles: List<String>,
+    filteredOtherFiles: List<Map<String, Any>>,
     excludePattern: String,
     filterConfig: FilterConfig,
     useSimpleOutput: Boolean,
@@ -275,9 +285,9 @@ class ExploreProjectSkill : Skill() {
         "project_root" to resolvedPath.toString(),
         "depth" to requestedDepth,
         "total_size" to formatSize(scanResult.totalSize),
-        "config_files" to filteredConfigFiles.sorted().take(filterConfig.limit),
+        "config_files" to filteredConfigFiles,
         "code_files" to filteredCodeFiles.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
-        "other_files" to filteredOtherFiles.sorted().take(filterConfig.limit),
+        "other_files" to filteredOtherFiles,
         "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
         "filter_applied" to linkedMapOf(
           "exclude_pattern" to excludePattern,
@@ -489,13 +499,21 @@ private fun scanDirectory(
       scanDirectory(childPath, remainingDepth - 1, visitedPaths, scanResult, filterConfig)
     } else {
       if (filterConfig.excludeMatchers.isNotEmpty()) {
-        val relativePath = targetDirectory.relativize(directoryEntry.toPath()).toString()
+        val relativePath = scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
         if (matchesExcludePattern(relativePath, filterConfig.excludeMatchers)) continue
       }
 
       scanResult.totalSize += directoryEntry.length()
 
-      val relativePath = targetDirectory.relativize(directoryEntry.toPath()).toString()
+      val relativePath: String = run {
+        val candidate: String = try {
+          scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
+        } catch (relativizeException: IllegalArgumentException) {
+          logger.debug("Failed to relativize {} against root: {}", directoryEntry, relativizeException.message, relativizeException)
+          targetDirectory.relativize(directoryEntry.toPath()).toString()
+        }
+        if (candidate.isNotBlank()) candidate else directoryEntry.name
+      }
 
       when {
         isConfigFile(directoryEntry.name) -> scanResult.configFiles.add(relativePath)

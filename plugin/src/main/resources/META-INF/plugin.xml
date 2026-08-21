@@ -67,6 +67,13 @@
         <applicationService serviceImplementation="gradum.idea.provider.ProviderSettings"/>
 
         <!--
+            Application-scoped appearance settings (animation intensity,
+            paragraph density). Persisted to `gradum.xml` alongside
+            provider settings.
+        -->
+        <applicationService serviceImplementation="gradum.idea.settings.AppearanceSettings"/>
+
+        <!--
             Notification group used by the image upload pipeline to
             surface size/format/slot-limit errors as IDE balloons. The
             group id matches the string looked up in

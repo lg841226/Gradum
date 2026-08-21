@@ -80,7 +80,7 @@ class ProviderCoordinatorUrlValidationTest {
 
   @Test
   fun `accepts deep cloud base urls`() {
-    assertTrue(isValidBaseUrl("https://open.bigmodel.cn/api/coding/paas/v4", ProviderKind.ZHIPU))
+    assertTrue(isValidBaseUrl("https://open.bigmodel.cn/api/paas/v4", ProviderKind.ZHIPU))
     assertTrue(isValidBaseUrl("https://api.deepseek.com/v1", ProviderKind.DEEPSEEK))
     assertTrue(isValidBaseUrl("https://api.minimaxi.com/v1", ProviderKind.MINIMAX))
   }

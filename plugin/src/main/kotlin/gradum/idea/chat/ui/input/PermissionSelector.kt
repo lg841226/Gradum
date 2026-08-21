@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-08-12 12:38:25 Changed by gwy
+ * PermissionSelector.kt  2026-08-20 20:42:16 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -151,7 +151,10 @@ fun PermissionSelector(
             ),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Icon(key = GradumIcons.Build, contentDescription = message("gradum.agent.mode"))
+          Icon(
+            key = GradumIcons.Build,
+            contentDescription = message("gradum.agent.mode")
+          )
           Spacer(modifier = Modifier.width(GradumSpacing.md))
           Column {
             Text(text = message("gradum.agent"))
@@ -176,8 +179,8 @@ fun PermissionSelector(
             modifier = Modifier
               .fillMaxWidth()
               .padding(
-                horizontal = GradumSpacing.md,
-                vertical = GradumSpacing.xs
+                vertical = GradumSpacing.xs,
+                horizontal = GradumSpacing.md
               ),
             verticalAlignment = Alignment.CenterVertically
           ) {

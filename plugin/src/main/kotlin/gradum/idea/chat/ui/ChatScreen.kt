@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatScreen.kt  2026-08-20 09:38:19 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -34,6 +34,8 @@ import gradum.idea.chat.ui.markdown.FootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalFootnoteRegistry
 import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
 import gradum.idea.chat.ui.markdown.StickySectionRegistry
+import gradum.idea.settings.LocalAutoScrollToBottom
+import gradum.idea.settings.LocalShowTimestamp
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
 import java.awt.Desktop
@@ -104,7 +106,10 @@ fun ChatScreen(
 
   var lastSeenMessageCount by remember { mutableIntStateOf(messages.size) }
 
-  LaunchedEffect(messages.size, lastBlockCount) {
+  val autoScrollToBottom: Boolean = LocalAutoScrollToBottom.current
+
+  LaunchedEffect(messages.size, lastBlockCount, autoScrollToBottom) {
+    if (!autoScrollToBottom) return@LaunchedEffect
     if (messages.size > lastSeenMessageCount) {
       val newMessages: List<ChatMessage> = messages.subList(lastSeenMessageCount, messages.size)
       lastSeenMessageCount = messages.size
@@ -141,7 +146,7 @@ fun ChatScreen(
               formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
             val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
 
-            if (shouldShowTimestamp) {
+            if (LocalShowTimestamp.current && shouldShowTimestamp) {
               MessageTimestamp(
                 timestamp = message.timestamp,
                 modifier = Modifier.padding(vertical = GradumSpacing.lg)
@@ -178,14 +183,6 @@ fun ChatScreen(
                     message = message,
                     sendingPhase = if (isLastAssistant) sendingPhase else "",
                     onRetry = { onRetryMessage(index) },
-                    onContentChange = {
-                      coroutineScope.launch {
-                        withFrameNanos {}
-                        if (wasAtBottom) {
-                          scrollState.animateScrollTo(scrollState.maxValue)
-                        }
-                      }
-                    },
                     onUrlClick = { url ->
                       try {
                         Desktop.getDesktop().browse(URI(url))
