@@ -48,7 +48,7 @@ import javax.swing.JComponent
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val POLL_FIELD_WIDTH_DP = 56
+private const val POLL_FIELD_WIDTH_DP = 76
 private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
 
 /**
@@ -359,38 +359,6 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
       )
     }
 
-    FlowRow(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
-      verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
-    ) {
-      val cleanupEnabled = snapshot.autoCleanupSessions
-      Checkbox(
-        checked = cleanupEnabled,
-        onCheckedChange = { checked ->
-          draft.value = draft.value.copy(
-            autoCleanupSessions = checked,
-            autoCleanupDays = snapshot.autoCleanupDays.coerceIn(MIN_AUTO_CLEANUP_DAYS, MAX_AUTO_CLEANUP_DAYS)
-          )
-        }
-      )
-      Text(
-        text = message("gradum.settings.appearance.autocleanup"),
-        modifier = Modifier.align(Alignment.CenterVertically)
-      )
-      AutoCleanupDaysField(
-        enabled = cleanupEnabled,
-        days = snapshot.autoCleanupDays,
-        onDaysChange = { days ->
-          draft.value = draft.value.copy(autoCleanupDays = days)
-        }
-      )
-      Text(
-        text = message("gradum.settings.appearance.autocleanup.days"),
-        modifier = Modifier.align(Alignment.CenterVertically)
-      )
-    }
-
     Text(
       color = LocalContentColor.current,
       text = message("gradum.settings.appearance.actions")
@@ -443,6 +411,38 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         draft.value = draft.value.copy(rememberContext = checked)
       }
     )
+
+    FlowRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
+    ) {
+      val cleanupEnabled = snapshot.autoCleanupSessions
+      Checkbox(
+        checked = cleanupEnabled,
+        onCheckedChange = { checked ->
+          draft.value = draft.value.copy(
+            autoCleanupSessions = checked,
+            autoCleanupDays = snapshot.autoCleanupDays.coerceIn(MIN_AUTO_CLEANUP_DAYS, MAX_AUTO_CLEANUP_DAYS)
+          )
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.autocleanup"),
+        modifier = Modifier.align(Alignment.CenterVertically)
+      )
+      AutoCleanupDaysField(
+        enabled = cleanupEnabled,
+        days = snapshot.autoCleanupDays,
+        onDaysChange = { days ->
+          draft.value = draft.value.copy(autoCleanupDays = days)
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.autocleanup.days"),
+        modifier = Modifier.align(Alignment.CenterVertically)
+      )
+    }
   }
 }
 
