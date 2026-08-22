@@ -422,15 +422,7 @@ class Agent(
     var toolCallsResult: List<ToolCallEntry>? = null
     var errorMessage: String? = null
 
-    val thinkingBuffer = StringBuilder()
     val responseBuffer = StringBuilder()
-
-    fun flushThinking() {
-      if (thinkingBuffer.isNotEmpty()) {
-        emitEvent("thinking", mapOf("content" to thinkingBuffer.toString()))
-        thinkingBuffer.clear()
-      }
-    }
 
     fun flushResponse() {
       val content: String = responseBuffer.toString()
@@ -459,23 +451,22 @@ class Agent(
         when (chunk) {
           is LLMResponseChunk.TextContent -> {
             contentParts.add(chunk.text)
-            flushThinking()
             responseBuffer.append(chunk.text)
+            flushResponse()
           }
 
           is LLMResponseChunk.ReasoningContent -> {
             flushResponse()
-            thinkingBuffer.append(chunk.text)
+            logger.info("Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(50).replace("\n", "\\n")}")
+            emitEvent("thinking", mapOf("content" to chunk.text))
           }
 
           is LLMResponseChunk.ToolCallBatch -> {
-            flushThinking()
             flushResponse()
             toolCallsResult = chunk.toolCalls
           }
 
           is LLMResponseChunk.ErrorMessage -> {
-            flushThinking()
             flushResponse()
             errorMessage = chunk.description
           }
@@ -483,7 +474,7 @@ class Agent(
       }
     }
 
-    flushThinking(); flushResponse()
+    flushResponse()
 
     return AgentTurnResult(
       responseText = contentParts.joinToString(""),

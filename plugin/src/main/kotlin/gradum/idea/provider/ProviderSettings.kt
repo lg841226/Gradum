@@ -123,6 +123,11 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     if (persistToDisk) syncConfigFile(next)
   }
 
+  fun resetToDefaults() {
+    current.value = State()
+    syncConfigFile(current.value)
+  }
+
   private fun syncConfigFile(state: State) {
     ProviderConfigFile.updateProviderConfig("ollama", state.ollamaBaseUrl, state.ollamaApiKey)
     ProviderConfigFile.updateProviderConfig("lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)

@@ -36,7 +36,7 @@ import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
-private const val POLL_FIELD_WIDTH_DP = 56
+private const val API_FIELD_WIDTH_DP = 56
 private const val MIN_POLL_INTERVAL_SECONDS = 2
 private const val MAX_POLL_INTERVAL_SECONDS = 60
 
@@ -464,7 +464,7 @@ private fun AutoDetectRow(
         state = state,
         enabled = enabled,
         modifier = Modifier
-          .width(POLL_FIELD_WIDTH_DP.dp)
+          .width(API_FIELD_WIDTH_DP.dp)
           .onFocusChanged { focusState ->
             if (isFocused && !focusState.isFocused)
               normalizeAndCommit()

@@ -10,23 +10,18 @@
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import gradum.idea.chat.ui.markdown.*
+import gradum.idea.chat.ui.markdown.GradumMarkdown
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
-import org.jetbrains.jewel.foundation.theme.LocalContentColor
-import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -45,7 +40,6 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  * Uses animated visibility for expand/collapse transitions.
  *
  * @param thinking The accumulated thinking content from the LLM.
- * @param enterTransition Custom enter transition for the outer wrapper.
  * @param isTaskComplete When true, collapses the thinking content.
  * @param hasResponseAfter When true, auto-collapses because a
  *   response block follows this thinking block.
@@ -61,21 +55,11 @@ fun ThinkingIndicator(
   isTaskComplete: Boolean = false,
   hasResponseAfter: Boolean = false,
   onUrlClick: (String) -> Unit = {},
-  enterTransition: EnterTransition = fadeIn(tween(800)),
   startCollapsed: Boolean = false
 ) {
   if (thinking.isBlank()) return
 
   var isExpanded by remember { mutableStateOf(!startCollapsed) }
-
-  LaunchedEffect(isTaskComplete, hasResponseAfter) {
-    if (isTaskComplete || hasResponseAfter) isExpanded = false
-  }
-
-  val thinkingStyling = rememberGradumMarkdownStyling(thinkingMode = true)
-  val simplifiedCodeRenderer = remember(thinkingStyling) {
-    GradumCodeBlockRenderer(styling = thinkingStyling, isSimplified = true)
-  }
 
   Column(modifier = modifier.fillMaxWidth()) {
     Row(
@@ -100,73 +84,14 @@ fun ThinkingIndicator(
 
     if (isExpanded) Spacer(modifier = Modifier.height(GradumSpacing.md))
 
-    AnimatedVisibility(visible = isExpanded) {
-      // Use `text.info` rather than `text.disabled` per chat styling
-      // preferences — the disabled gray was too faint to read against the
-      // muted panel background. Pinned explicitly on the Text style below
-      // because Compose's `Text` reads from the Foundation
-      // `LocalContentColor`, while the surrounding provider sets Jewel's
-      // `LocalContentColor` (two separate entries — the provider alone
-      // would leave the text black).
-      val thinkingColor: androidx.compose.ui.graphics.Color = LocalGlobalColors.current.text.info
-      CompositionLocalProvider(LocalContentColor provides thinkingColor) {
-        val segments = remember(thinking) { splitMarkdown(thinking) }
-        Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-          segments.forEach { segment ->
-            when (segment) {
-              is MarkdownSegment.Plain -> {
-                // Use the same inline pipeline as ResponseBlock so inline
-                // code chips share the rounded `InlineCodeChip` styling
-                // (info-tint background, 4dp corner radius) instead of the
-                // default Jewel chip — `simplifiedCodeRenderer` only
-                // controls fenced blocks / tables, not inline spans, so
-                // without this fork the thinking block silently falls back
-                // to the platform default. Bail path keeps the Jewel
-                // renderer as a last resort (e.g. on unsupported
-                // CommonMark extensions).
-                val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
-                if (outcome.render != null) {
-                  val render: InlineMarkdownRender = outcome.render
-                  // Match ResponseBlock's body styling — `rememberGradumParagraphTextStyle`
-                  // supplies the editor font, fontSize, and the chat's tighter 1.5×
-                  // line height. Without it the Text falls back to the Compose
-                  // default and thinking renders with a different font and a
-                  // cramped line metric. The `color` is pinned here (see the
-                  // AnimatedVisibility block comment) because Foundation's
-                  // `LocalContentColor` is not bridged from Jewel's.
-                  Text(
-                    text = render.annotated,
-                    modifier = Modifier.fillMaxWidth(),
-                    inlineContent = render.inlineContent,
-                    style = rememberGradumParagraphTextStyle().copy(color = thinkingColor)
-                  )
-                } else {
-                  Markdown(
-                    markdown = segment.text,
-                    onUrlClick = onUrlClick,
-                    markdownStyling = thinkingStyling,
-                    modifier = Modifier.fillMaxWidth(),
-                    blockRenderer = simplifiedCodeRenderer
-                  )
-                }
-              }
-
-              is MarkdownSegment.Table -> {
-                if (segment.isRenderable()) {
-                  ScrollableTable(segment, isSimplified = true)
-                }
-              }
-
-              is MarkdownSegment.NonProseBlock -> Markdown(
-                markdown = segment.text,
-                onUrlClick = onUrlClick,
-                markdownStyling = thinkingStyling,
-                modifier = Modifier.fillMaxWidth(),
-                blockRenderer = simplifiedCodeRenderer
-              )
-            }
-          }
-        }
+    if (isExpanded) {
+      GradumMarkdown(text = thinking) {
+        thinkingMode = true
+        isSimplified = true
+        animationEnabled = false
+        paragraphStyle = rememberGradumParagraphTextStyle().copy(
+          color = LocalGlobalColors.current.text.info
+        )
       }
     }
   }

@@ -15,12 +15,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -31,7 +29,7 @@ import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.chat.ui.input.formatModelName
-import gradum.idea.chat.ui.markdown.*
+import gradum.idea.chat.ui.markdown.GradumMarkdown
 import gradum.idea.settings.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -39,21 +37,15 @@ import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-private val SEGMENT_RISE_DP: Dp = 8.dp
 private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
 private const val RISE_DURATION_MS: Int = 300
-
-private const val SEGMENT_MAX_EXTRA_MS: Int = 400
-private const val SEGMENT_BASE_DURATION_MS: Int = 150
-private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
 
 /**
  * Left-aligned assistant message bubble.
@@ -168,22 +160,12 @@ private fun ThinkingBlock(
   block: RenderBlock.Thinking, isLoading: Boolean,
   onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
 ) {
-  val fadeAlpha = remember { Animatable(0f) }
-  LaunchedEffect(Unit) {
-    fadeAlpha.animateTo(
-      targetValue = 1f,
-      animationSpec = tween(durationMillis = FADE_IN_MS)
-    )
-  }
   ThinkingIndicator(
     thinking = block.content,
-    modifier = Modifier.graphicsLayer {
-      this.alpha = fadeAlpha.value
-    },
     onUrlClick = onUrlClick,
     isTaskComplete = !isLoading,
     hasResponseAfter = hasResponseAfter,
-    startCollapsed = LocalCollapseThinkingByDefault.current
+    startCollapsed = if (isLoading) false else LocalCollapseThinkingByDefault.current
   )
 }
 
@@ -192,97 +174,11 @@ private fun ResponseBlock(
   block: RenderBlock.Response,
   onUrlClick: (String) -> Unit
 ) {
-  val segments = remember(block.content) { splitMarkdown(block.content) }
-  val paragraphStyle = rememberGradumParagraphTextStyle()
-  val paragraphSpacing: Dp = LocalParagraphSpacing.current
-
-  SelectionContainer {
-    Column(verticalArrangement = Arrangement.spacedBy(paragraphSpacing)) {
-      segments.forEach { segment ->
-        AnimatedSegment(segment, onUrlClick, paragraphStyle)
-      }
-    }
+  GradumMarkdown(text = block.content) {
+    this.onUrlClick = onUrlClick
+    animationEnabled = true
+    withSelection = true
   }
-}
-
-@Composable
-private fun AnimatedSegment(
-  segment: MarkdownSegment,
-  onUrlClick: (String) -> Unit,
-  paragraphStyle: androidx.compose.ui.text.TextStyle
-) {
-  val density = LocalDensity.current
-  var contentHeightPx by remember { mutableIntStateOf(0) }
-  val measuredHeightDp = with(density) { contentHeightPx.toDp() }
-
-  val alpha = remember { Animatable(0f) }
-  val offsetY = remember { Animatable(SEGMENT_RISE_DP.value) }
-
-  LaunchedEffect(contentHeightPx) {
-    if (contentHeightPx == 0) return@LaunchedEffect
-    val durationMs = animationDurationMs(segment, measuredHeightDp)
-    val easing = animationEasing(segment)
-    launch { alpha.animateTo(1f, tween(durationMillis = durationMs, easing = easing)) }
-    launch { offsetY.animateTo(0f, tween(durationMillis = durationMs, easing = easing)) }
-  }
-
-  Box(
-    Modifier
-      .onGloballyPositioned { contentHeightPx = it.size.height }
-      .graphicsLayer {
-        this.alpha = alpha.value
-        translationY = offsetY.value
-      }
-  ) {
-    when (segment) {
-      is MarkdownSegment.Plain -> {
-        val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
-        if (outcome.render != null) {
-          val render: InlineMarkdownRender = outcome.render
-          Text(
-            style = paragraphStyle,
-            text = render.annotated,
-            modifier = Modifier.fillMaxWidth(),
-            inlineContent = render.inlineContent
-          )
-        } else {
-          Markdown(
-            onUrlClick = onUrlClick,
-            markdown = segment.text,
-            modifier = Modifier.fillMaxWidth()
-          )
-        }
-      }
-
-      is MarkdownSegment.NonProseBlock -> {
-        RenderNonProseBlock(onUrlClick = onUrlClick, segment)
-      }
-
-      is MarkdownSegment.Table -> {
-        if (segment.isRenderable()) ScrollableTable(segment, onUrlClick = onUrlClick)
-        else TableParseFailurePlaceholder()
-
-      }
-    }
-  }
-}
-
-private fun animationDurationMs(segment: MarkdownSegment, measuredHeightDp: Dp): Int {
-  val typeWeight = when (segment) {
-    is MarkdownSegment.Table -> 1.5f
-    is MarkdownSegment.NonProseBlock -> 1.2f
-    is MarkdownSegment.Plain -> 1.0f
-  }
-  val heightDp = measuredHeightDp.value.coerceAtLeast(0f)
-  val extra = (heightDp / 100f * SEGMENT_EXTRA_PER_100DP_MS * typeWeight)
-    .toInt()
-    .coerceAtMost(SEGMENT_MAX_EXTRA_MS)
-  return SEGMENT_BASE_DURATION_MS + extra
-}
-
-private fun animationEasing(segment: MarkdownSegment): Easing = when (segment) {
-  is MarkdownSegment.Table, is MarkdownSegment.NonProseBlock -> FastOutSlowInEasing
-  is MarkdownSegment.Plain -> LinearOutSlowInEasing
 }
 
 /**

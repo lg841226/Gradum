@@ -1181,3 +1181,101 @@ override fun createComponent(): JComponent = JewelComposePanel {
 > The fingerprint is the literal number `32766`. If you see it, the **first thing to try** is
 > `class Foo : Configurable, Configurable.NoScroll` — one interface addition, no `preferredSize`, no `.fillMaxSize()`
 > paranoia. Reserve the workarounds below for cases where you genuinely cannot use `NoScroll`.
+
+---
+
+## 17. Ktor `HttpClient.post()` Buffers the Entire Response Body — Streaming Broken
+
+> **LANDED 2026-08-22. A "thousand-year-old bug" — the Ollama streaming response (thinking tokens) appeared to be
+> "sprayed out" all at once instead of token-by-token. Root cause: Ktor `post()` caches the response body in memory;
+> `bodyAsChannel()` after `post()` reads from the buffer, not the network socket. The fix: switch to
+> `preparePost().execute {}`.**
+
+### Symptoms
+
+- The Gradum plugin's thinking block shows all reasoning content at once, even though the server logs confirm
+  `ReasoningContent` chunks are emitted individually.
+- `curl -N http://localhost:11434/api/chat` (with `-N` to disable curl's buffering) shows real-time streaming — Ollama
+  is working correctly.
+- But the Ktor client receives everything in one batch after the model finishes generating.
+
+### Root Cause
+
+Two Ktor API traps conspired:
+
+1. **`HttpClient.post()` returns `HttpResponse` only after the response is fully received.** The CIO engine buffers the
+   entire body in memory before returning control to the caller. By the time `bodyAsChannel()` is called, the data is
+   already in a memory buffer — no real streaming happens.
+
+2. **`HttpResponse.body()` loads the full response into memory by default.** The Ktor documentation states this
+   explicitly: *"For non-streaming requests, the response body is automatically loaded and cached in memory, allowing
+   repeated access."* The streaming alternative — `HttpStatement.execute {}` — is buried in the streaming section.
+
+The `bodyAsChannel()` function is **not** the streaming escape hatch it appears to be. When called after `post()`, it
+returns a `ByteReadChannel` backed by the already-buffered body. The network socket closed long ago.
+
+### Fix
+
+Replace `httpClient.post(url) { }.bodyAsChannel()` with `httpClient.preparePost(url) { }.execute { response -> ... }`:
+
+```kotlin
+// Before: post() buffers the entire response body
+val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+  contentType(ContentType.Application.Json)
+  setBody(JsonUtil.encodeMap(requestPayload))
+}
+val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
+while (!responseChannel.isClosedForRead) {
+  val rawLine: String = responseChannel.readUTF8Line() ?: break
+  // parse and emit...
+}
+
+// After: preparePost().execute() keeps the connection open for streaming
+val flowCollector = this  // capture outer FlowCollector for emit() inside execute block
+httpClient.preparePost(requestUrl) {
+  contentType(ContentType.Application.Json)
+  setBody(JsonUtil.encodeMap(requestPayload))
+}.execute { httpResponse ->
+  val responseChannel: ByteReadChannel = httpResponse.body()
+  while (!responseChannel.isClosedForRead) {
+    val rawLine: String = responseChannel.readUTF8Line() ?: break
+    // parse and emit via flowCollector.emit()...
+  }
+}
+```
+
+**Key details:**
+
+- `preparePost()` returns `HttpStatement`, not `HttpResponse`. The `execute {}` block runs with the response stream
+  still open, so `body()` returns a live `ByteReadChannel` that reads from the network.
+- Inside `execute {}`, the `FlowCollector` receiver from the outer `flow { }` builder is **not** available (the
+  receiver is `HttpResponse`). Capture it explicitly: `val flowCollector = this` before `execute {}`.
+- The `io.ktor.client.statement.useEngineDispatcher` JVM system property is **not** required for this fix — the
+  default dispatcher works fine.
+
+### Files Changed
+
+- `src/main/kotlin/gradum/client/LLMClient.kt` — Ollama `sendChat()` method, line 267→329
+
+### Verification
+
+1. Send a long-reasoning prompt (e.g., *"Design a distributed key-value store with consistent hashing, data
+   partitioning, replication, and failure recovery"*).
+2. Observe the plugin's thinking block: content should appear token-by-token, not all at once.
+3. Confirm `curl -N http://localhost:11434/api/chat -d '{"model":"...","messages":[...],"stream":true,"think":true}'`
+   also shows real-time output (positive control).
+4. Check server logs: `Thinking chunk: len=X, preview=...` should appear at regular intervals during generation,
+   not clustered at the end.
+
+### Lesson
+
+> **`HttpClient.post()` is a convenience function that always buffers — it is unsuitable for streaming responses.**
+> For streaming, you must use `preparePost().execute {}` (or `prepareGet().execute {}` for GET). The `bodyAsChannel()`
+> function is only truly streaming when called inside the `execute {}` scope. Outside it, `bodyAsChannel()` is a
+> buffer reader.
+>
+> The fingerprint of this bug: `curl -N` works, but your code doesn't. The fix is always the same: `post()` → `execute {}`.
+>
+> This bug took half a day of debugging — Ollama logs showed token generation, `curl -N` confirmed Ollama was
+> streaming correctly, but the Ktor client still received everything at once. The Ktor documentation's "Streaming data"
+> section is the key reference, but it's easy to miss when you're focused on the `bodyAsChannel()` function name.

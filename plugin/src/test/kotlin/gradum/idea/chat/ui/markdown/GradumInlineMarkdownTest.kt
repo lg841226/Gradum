@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineMarkdownTest.kt  2026-07-31 15:54:30 Changed by gwy
+ * GradumInlineMarkdownTest.kt  2026-08-22 15:13:38 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -613,8 +613,8 @@ class GradumInlineMarkdownTest {
       parser.parse("### 2. **游戏速度不一致**").firstChild as Heading
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
@@ -638,8 +638,8 @@ class GradumInlineMarkdownTest {
       parser.parse("## **bold heading**").firstChild as Heading
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
@@ -659,8 +659,8 @@ class GradumInlineMarkdownTest {
       parser.parse("### see [docs](https://example.com) please").firstChild as Heading
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
@@ -677,8 +677,8 @@ class GradumInlineMarkdownTest {
     headingNode.appendChild(Text("just text"))
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = headingNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
@@ -703,8 +703,8 @@ class GradumInlineMarkdownTest {
       .firstChild.firstChild.firstChild as Paragraph
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = paragraphNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
@@ -732,8 +732,8 @@ class GradumInlineMarkdownTest {
       blockQuote.firstChild.firstChild.firstChild as Paragraph
     val result: InlineMarkdownRenderResult = parseInlineNodes(
       parentNode = paragraphNode,
-      fontSizeSp = testFontSizeSp,
       linkColor = testLinkColor,
+      fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)

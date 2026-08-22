@@ -65,6 +65,12 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
 
   @Suppress("UnstableApiUsage")
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+    val settings = gradum.idea.settings.AppearanceSettings.getInstance()
+    if (!settings.snapshot.gitEnabled) {
+      toolWindow.isAvailable = false
+      return
+    }
+
     toolWindow.addComposeTab(message("gradum.toolwindow.git.analysis")) {
       SwingBridgeTheme {
         val styling = rememberGradumMarkdownStyling()

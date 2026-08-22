@@ -37,6 +37,8 @@ import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
 import gradum.idea.chat.ui.markdown.StickySectionRegistry
 import gradum.idea.settings.LocalAutoScrollToBottom
 import gradum.idea.settings.LocalEnableStickySections
+import gradum.idea.settings.LocalMessageLoadCount
+import gradum.idea.settings.LocalMessageLoadEnabled
 import gradum.idea.settings.LocalShowTimestamp
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
@@ -86,9 +88,6 @@ fun ChatScreen(
   val coroutineScope = rememberCoroutineScope()
   val nearBottomThresholdPx: Float = with(density) { NearBottomThresholdDp.toPx() }
 
-  val lastMessage: ChatMessage? = messages.lastOrNull()
-  val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
-
   val isNearBottom: Boolean by remember(scrollState) {
     derivedStateOf {
       val maxValue: Int = scrollState.maxValue
@@ -110,6 +109,16 @@ fun ChatScreen(
   var lastSeenMessageCount by remember { mutableIntStateOf(messages.size) }
 
   val autoScrollToBottom: Boolean = LocalAutoScrollToBottom.current
+  val messageLoadEnabled: Boolean = LocalMessageLoadEnabled.current
+  val messageLoadCount: Int = LocalMessageLoadCount.current
+
+  val displayMessages: List<ChatMessage> = remember(messages, messageLoadEnabled, messageLoadCount) {
+    if (messageLoadEnabled && messages.size > messageLoadCount) messages.takeLast(messageLoadCount)
+    else messages
+  }
+
+  val lastMessage: ChatMessage? = displayMessages.lastOrNull()
+  val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
   LaunchedEffect(messages.size, lastBlockCount, autoScrollToBottom) {
     if (!autoScrollToBottom) return@LaunchedEffect
@@ -144,10 +153,10 @@ fun ChatScreen(
             .verticalScroll(scrollState)
             .onGloballyPositioned { stickyRegistry.columnOriginInWindow = it.localToWindow(Offset.Zero) }
         ) {
-          messages.forEachIndexed { index, message ->
+          displayMessages.forEachIndexed { index, message ->
             val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
-              formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
-            val isLastAssistant = index == messages.lastIndex && !message.isUserMessage && isLoading
+              formatTimestamp(displayMessages.getOrNull(index - 1)?.timestamp ?: 0L)
+            val isLastAssistant = index == displayMessages.lastIndex && !message.isUserMessage && isLoading
 
             if (LocalShowTimestamp.current && shouldShowTimestamp) {
               MessageTimestamp(

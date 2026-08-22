@@ -19,6 +19,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,6 +49,19 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorder
 
 private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
 private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
+
+/** Alpha for inline code chip background color. */
+internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.16f
+
+/** Corner radius for inline code chip. */
+internal val INLINE_CODE_CORNER_RADIUS: Dp = GradumSpacing.sm
+
+/** Horizontal padding for inline code chip. */
+internal val INLINE_CODE_PADDING_HORIZONTAL: Dp = GradumSpacing.sm
+
+/** Vertical padding for inline code chip. */
+internal val INLINE_CODE_PADDING_VERTICAL: Dp = GradumSpacing.xs
+
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
 private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
 private const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f
@@ -123,13 +137,14 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 )
 
 /**
- * Build an [InlinesStyling] for the chat's `Markdown(...)` fallback
- * path. Link colors are pulled directly from [linkColors] — the
- * official Jewel API already provides 6 scanState-aware Color fields
- * (`content` / `contentDisabled` / `contentFocused` /
- * `contentHovered` / `contentPressed` / `contentVisited`), and
- * there is no need to re-implement them in the chat. Centralized
- * here so the paragraph and heading configurations stay in sync.
+ * Build an [InlinesStyling] for the [MarkdownStyling] used by
+ * [BlockRenderer]'s non-prose block rendering. Link colors are
+ * pulled directly from [linkColors] — the official Jewel API
+ * already provides 6 scanState-aware Color fields (`content` /
+ * `contentDisabled` / `contentFocused` / `contentHovered` /
+ * `contentPressed` / `contentVisited`), and there is no need to
+ * re-implement them in the chat. Centralized here so the paragraph
+ * and heading configurations stay in sync.
  */
 @OptIn(ExperimentalJewelApi::class)
 @Suppress("UnstableApiUsage")
@@ -197,10 +212,10 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   )
 
   val thinkingGray: Color = globalColors.text.info
-  val inlineTint: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
+  val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     color = inlineTint,
-    background = globalColors.text.info.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
+    background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
 

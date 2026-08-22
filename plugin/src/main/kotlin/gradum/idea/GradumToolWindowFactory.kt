@@ -45,6 +45,12 @@ class GradumToolWindowFactory : ToolWindowFactory {
 
   @Suppress("UnstableApiUsage")
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+    val settings = gradum.idea.settings.AppearanceSettings.getInstance()
+    if (!settings.snapshot.agentEnabled) {
+      toolWindow.isAvailable = false
+      return
+    }
+
     val chatSession: GradumChatSession = project.getService(GradumChatSession::class.java)
       ?: error("GradumChatSession is not registered in plugin.xml")
     chatSession.project = project

@@ -106,8 +106,8 @@ class GradumCodeBlockRenderer(
       ContainerOrScrollable(isSoftWrap) {
         CodeBlockContent(
           softWrap = isSoftWrap,
-          annotatedCode = annotatedCode,
-          textStyle = codeTextStyle
+          textStyle = codeTextStyle,
+          annotatedCode = annotatedCode
         )
       }
     } else {
@@ -147,22 +147,22 @@ class GradumCodeBlockRenderer(
         modifier = containerModifier
           .then(
             if (enableSticky && sectionEntry != null) {
-            Modifier.onGloballyPositioned { coords ->
-              val topLeft = coords.localToWindow(Offset.Zero)
-              val bottomRight = coords.localToWindow(
-                Offset(
-                  coords.size.width.toFloat(),
-                  coords.size.height.toFloat()
+              Modifier.onGloballyPositioned { coords ->
+                val topLeft = coords.localToWindow(Offset.Zero)
+                val bottomRight = coords.localToWindow(
+                  Offset(
+                    coords.size.width.toFloat(),
+                    coords.size.height.toFloat()
+                  )
                 )
-              )
-              stickyRegistry.updateBounds(
-                sectionEntry, Rect(
-                  topLeft.x, topLeft.y,
-                  bottomRight.x, bottomRight.y
+                stickyRegistry.updateBounds(
+                  sectionEntry, Rect(
+                    topLeft.x, topLeft.y,
+                    bottomRight.x, bottomRight.y
+                  )
                 )
-              )
-            }
-          } else Modifier)
+              }
+            } else Modifier)
       ) {
         DisableSelection {
           CodeBlockToolbar(
@@ -207,9 +207,8 @@ class GradumCodeBlockRenderer(
                   CodeBlockContent(
                     softWrap = isSoftWrap,
                     textStyle = codeTextStyle,
-                    annotatedCode = displayCode,
-                    onTextLayout = { textLayout = it }
-                  )
+                    annotatedCode = displayCode
+                  ) { textLayout = it }
                 }
               }
             }
@@ -218,13 +217,11 @@ class GradumCodeBlockRenderer(
               DisableSelection {
                 val textColor = JewelTheme.globalColors.text.info
                 val hiddenLinesCount = lineCount - CODE_COLLAPSE_LIMIT
-                val collapseBarColor = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.2f)
 
                 Row(
                   modifier = Modifier
                     .fillMaxWidth()
                     .clickable { isCollapsed = !isCollapsed }
-                    .background(collapseBarColor)
                     .padding(vertical = CollapseStripPadding),
                   horizontalArrangement = Arrangement.Center,
                   verticalAlignment = Alignment.CenterVertically
@@ -257,8 +254,8 @@ class GradumCodeBlockRenderer(
   @Composable
   private fun CodeBlockContent(
     softWrap: Boolean,
-    annotatedCode: AnnotatedString,
     textStyle: TextStyle,
+    annotatedCode: AnnotatedString,
     onTextLayout: ((TextLayoutResult) -> Unit) = {}
   ) {
     Text(

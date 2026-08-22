@@ -213,33 +213,9 @@ private fun ThirdPartyNoticesContentInner() {
 private fun RenderThirdPartyNotices(
   markdown: String, onUrlClick: (String) -> Unit
 ) {
-  val segments = remember(markdown) { splitMarkdown(markdown) }
-
-  Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-    for (segment in segments) {
-      when (segment) {
-        is MarkdownSegment.Plain -> {
-          val paragraphStyle =
-            LocalMarkdownBodyTextStyle.current ?: JewelTheme.typography.labelTextStyle
-          RenderInlineTextWithChips(
-            text = segment.text,
-            style = paragraphStyle,
-            onUrlClick = onUrlClick,
-            modifier = Modifier.fillMaxWidth()
-          )
-        }
-
-        is MarkdownSegment.NonProseBlock ->
-          RenderNonProseBlock(onUrlClick = onUrlClick, segment = segment)
-
-        is MarkdownSegment.Table -> {
-          ScrollableTable(
-            table = segment,
-            onUrlClick = onUrlClick,
-            modifier = Modifier.fillMaxWidth()
-          )
-        }
-      }
-    }
+  GradumMarkdown(text = markdown) {
+    this.onUrlClick = onUrlClick
+    animationEnabled = false
+    paragraphStyle = LocalMarkdownBodyTextStyle.current
   }
 }

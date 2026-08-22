@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-19 18:33:00 Changed by gwy
+ * LLMClient.kt  2026-08-22 14:23:23 Changed by gwy
  */
 
 package gradum.client
@@ -11,6 +11,7 @@ import gradum.AgentConfiguration
 import gradum.Provider
 import gradum.utils.JsonUtil
 import io.ktor.client.*
+import io.ktor.client.call.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -264,66 +265,70 @@ class OllamaClient(
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val flowCollector = this
+        var succeeded = false
+        httpClient.preparePost(requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(requestPayload))
-        }
+        }.execute { httpResponse ->
+          if (httpResponse.status.value !in 200..299) {
+            flowCollector.emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
+            lastError = null
+            return@execute
+          }
 
-        if (httpResponse.status.value !in 200..299) {
-          emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
-          lastError = null
-          break
-        }
+          val responseChannel: ByteReadChannel = httpResponse.body()
 
-        val responseChannel: ByteReadChannel = httpResponse.bodyAsChannel()
+          while (!responseChannel.isClosedForRead) {
+            val rawLine: String = responseChannel.readUTF8Line() ?: break
+            if (rawLine.isBlank()) continue
 
-        while (!responseChannel.isClosedForRead) {
-          val rawLine: String = responseChannel.readUTF8Line() ?: break
-          if (rawLine.isBlank()) continue
+            val eventData: JsonObject = jsonParser.parseToJsonElement(rawLine).jsonObject
 
-          val eventData: JsonObject = jsonParser.parseToJsonElement(rawLine).jsonObject
+            eventData["message"]?.jsonObject?.let { messageObject ->
+              val reasoningContent: String = messageObject.optString("thinking")
 
-          eventData["message"]?.jsonObject?.let { messageObject ->
-            val reasoningContent: String = messageObject.optString("thinking")
+              if (reasoningContent.isNotEmpty())
+                flowCollector.emit(LLMResponseChunk.ReasoningContent(reasoningContent))
 
-            if (reasoningContent.isNotEmpty())
-              emit(LLMResponseChunk.ReasoningContent(reasoningContent))
+              messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
+                val parsedCalls: List<ToolCallEntry> = toolCallsArray.map { element ->
+                  val callObject: JsonObject = element.jsonObject
+                  val functionObject: JsonObject = callObject.optObject("function")
+                  ToolCallEntry(
+                    functionName = functionObject.optString("name"),
+                    callIdentifier = callObject.optString("id"),
+                    functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
+                  )
+                }
 
-            messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
-              val parsedCalls: List<ToolCallEntry> = toolCallsArray.map { element ->
-                val callObject: JsonObject = element.jsonObject
-                val functionObject: JsonObject = callObject.optObject("function")
-                ToolCallEntry(
-                  functionName = functionObject.optString("name"),
-                  callIdentifier = callObject.optString("id"),
-                  functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
-                )
+                flowCollector.emit(LLMResponseChunk.ToolCallBatch(parsedCalls))
               }
 
-              emit(LLMResponseChunk.ToolCallBatch(parsedCalls))
+              val messageContent: String = messageObject.optString("content")
+              if (messageContent.isNotEmpty()) {
+                emittedAnyChunk = true
+                flowCollector.emit(LLMResponseChunk.TextContent(messageContent))
+              }
             }
 
-            val messageContent: String = messageObject.optString("content")
-            if (messageContent.isNotEmpty()) {
+            val serverErrorMessage: String = eventData.optString("error")
+            if (serverErrorMessage.isNotBlank()) {
               emittedAnyChunk = true
-              emit(LLMResponseChunk.TextContent(messageContent))
+              flowCollector.emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
             }
-          }
 
-          val serverErrorMessage: String = eventData.optString("error")
-          if (serverErrorMessage.isNotBlank()) {
-            emittedAnyChunk = true
-            emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
+            tokenUsage = recordTokenUsage(
+              usageStats = eventData,
+              promptField = "prompt_eval_count",
+              completionField = "eval_count",
+              currentUsage = tokenUsage
+            )
           }
-
-          tokenUsage = recordTokenUsage(
-            usageStats = eventData,
-            promptField = "prompt_eval_count",
-            completionField = "eval_count",
-            currentUsage = tokenUsage
-          )
+          succeeded = true
+          lastError = null
         }
-        lastError = null; break
+        if (succeeded) break
       } catch (httpClientException: Exception) {
         if (httpClientException is kotlinx.coroutines.CancellationException) throw httpClientException
         if (emittedAnyChunk) throw httpClientException

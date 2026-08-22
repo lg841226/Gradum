@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumConfigurable.kt  2026-08-21 18:30:58 Changed by gwy
+ * GradumConfigurable.kt  2026-08-22 12:10:13 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -11,12 +11,10 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -29,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.options.Configurable
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.provider.ProviderConfigFile
+import gradum.idea.provider.ProviderSettings
 import gradum.idea.scanCompletedAgo
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -38,7 +38,6 @@ import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.LocalContentColor
-import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -48,7 +47,6 @@ import javax.swing.JComponent
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-private const val POLL_FIELD_WIDTH_DP = 76
 private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
 
 /**
@@ -103,6 +101,10 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
       it.welcomeLayout = appearanceDraft.value.welcomeLayout
       it.autoCleanupSessions = appearanceDraft.value.autoCleanupSessions
       it.autoCleanupDays = appearanceDraft.value.autoCleanupDays
+      it.messageLoadCount = appearanceDraft.value.messageLoadCount
+      it.messageLoadEnabled = appearanceDraft.value.messageLoadEnabled
+      it.agentEnabled = appearanceDraft.value.agentEnabled
+      it.gitEnabled = appearanceDraft.value.gitEnabled
       it.rememberPermission = appearanceDraft.value.rememberPermission
       it.rememberContext = appearanceDraft.value.rememberContext
     }
@@ -119,8 +121,6 @@ private fun SettingsPanel(
   appearanceDraft: MutableState<AppearanceSettings.State>,
   parentComponent: JComponent?,
 ) {
-  val gitEnabled = remember { mutableStateOf(true) }
-  val agentEnabled = remember { mutableStateOf(true) }
   var checkingUpdate by remember { mutableStateOf(false) }
   var versionsCopied by remember { mutableStateOf(false) }
   val autoOpenInEditor = remember { mutableStateOf(false) }
@@ -221,15 +221,19 @@ private fun SettingsPanel(
       Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
         SettingCheckboxRow(
           label = "Gradum Agent (0.9.2.3293)",
-          checked = agentEnabled.value,
+          checked = appearanceDraft.value.agentEnabled,
           enabled = true,
-          onCheckedChange = { agentEnabled.value = it }
+          onCheckedChange = { checked ->
+            appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)
+          }
         )
         SettingCheckboxRow(
           label = "Gradum Git Analysis (1.1.0.2388)",
-          checked = gitEnabled.value,
+          checked = appearanceDraft.value.gitEnabled,
           enabled = true,
-          onCheckedChange = { gitEnabled.value = it }
+          onCheckedChange = { checked ->
+            appearanceDraft.value = appearanceDraft.value.copy(gitEnabled = checked)
+          }
         )
       }
     }
@@ -363,6 +367,7 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
       color = LocalContentColor.current,
       text = message("gradum.settings.appearance.actions")
     )
+    Spacer(Modifier.height(GradumSpacing.md))
     Row(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.Center,
@@ -395,7 +400,7 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         iconKeys = listOf(GradumIcons.Like, GradumIcons.Dislike)
       )
     }
-
+    Spacer(Modifier.height(GradumSpacing.md))
     WelcomeLayoutRow(
       layout = snapshot.welcomeLayout,
       onLayoutChange = { layout ->
@@ -412,10 +417,9 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
       }
     )
 
-    FlowRow(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
-      verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
     ) {
       val cleanupEnabled = snapshot.autoCleanupSessions
       Checkbox(
@@ -443,6 +447,64 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         modifier = Modifier.align(Alignment.CenterVertically)
       )
     }
+
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
+    ) {
+      Checkbox(
+        checked = snapshot.messageLoadEnabled,
+        onCheckedChange = { checked ->
+          draft.value = draft.value.copy(
+            messageLoadEnabled = checked,
+            messageLoadCount = snapshot.messageLoadCount.coerceIn(MIN_MESSAGE_LOAD_COUNT, MAX_MESSAGE_LOAD_COUNT)
+          )
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.messageload.before"),
+        modifier = Modifier.align(Alignment.CenterVertically)
+      )
+      MessageLoadCountField(
+        enabled = snapshot.messageLoadEnabled,
+        days = snapshot.messageLoadCount,
+        onDaysChange = { count ->
+          draft.value = draft.value.copy(messageLoadCount = count)
+        }
+      )
+      Text(
+        text = message("gradum.settings.appearance.messageload.after"),
+        modifier = Modifier.align(Alignment.CenterVertically)
+      )
+    }
+    Text(
+      text = message("gradum.settings.appearance.messageload.hint"),
+      color = JewelTheme.globalColors.text.info,
+      style = JewelTheme.typography.labelTextStyle
+    )
+
+    Spacer(Modifier.height(GradumSpacing.md))
+    GroupHeader(text = message("gradum.settings.dangerzone"))
+    OutlinedButton(
+      onClick = {
+        val defaults = AppearanceSettings.State()
+        draft.value = defaults
+        AppearanceSettings.getInstance().resetToDefaults()
+        ProviderSettings.getInstance().resetToDefaults()
+        ProviderConfigFile.clearAll()
+      }
+    ) {
+      Text(
+        text = message("gradum.settings.dangerzone.reset"),
+        color = JewelTheme.globalColors.text.error
+      )
+    }
+    Text(
+      text = message("gradum.settings.dangerzone.reset.hint"),
+      color = JewelTheme.globalColors.text.info,
+      style = JewelTheme.typography.labelTextStyle
+    )
+    Spacer(Modifier.height(GradumSpacing.md))
   }
 }
 
@@ -452,12 +514,12 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
 @Composable
 private fun WelcomeLayoutRow(
   layout: WelcomeLayout,
-  onLayoutChange: (WelcomeLayout) -> Unit,
   rememberLabel: String? = null,
-  rememberPermission: Boolean = false,
-  onRememberPermissionChange: ((Boolean) -> Unit)? = null,
   rememberContext: Boolean = false,
+  rememberPermission: Boolean = false,
+  onLayoutChange: (WelcomeLayout) -> Unit,
   onRememberContextChange: ((Boolean) -> Unit)? = null,
+  onRememberPermissionChange: ((Boolean) -> Unit)? = null
 ) {
   val standardLayouts = remember {
     listOf(
@@ -474,8 +536,7 @@ private fun WelcomeLayoutRow(
       selected = l == layout,
       content = { _ ->
         Text(text = message("gradum.settings.appearance.welcomelayout.${l.storageKey}"))
-      },
-      onSelect = { onLayoutChange(l) }
+      }, onSelect = { onLayoutChange(l) }
     )
   } + if (isCustom) {
     listOf(
@@ -483,8 +544,7 @@ private fun WelcomeLayoutRow(
         selected = true,
         content = { _ ->
           Text(text = message("gradum.settings.appearance.welcomelayout.custom"))
-        },
-        onSelect = {}
+        }, onSelect = {}
       )
     )
   } else {
@@ -520,8 +580,8 @@ private fun WelcomeLayoutRow(
       if (rememberLabel != null) {
         Spacer(Modifier.height(GradumSpacing.sml))
         Text(
-          color = LocalContentColor.current,
-          text = rememberLabel
+          text = rememberLabel,
+          color = LocalContentColor.current
         )
         Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
           SettingCheckboxRow(
@@ -774,128 +834,3 @@ private fun FontSizeRow(
     )
   }
 }
-
-@Composable
-private fun FontSizeField(
-  minSp: Float,
-  maxSp: Float,
-  fontSizeSp: Float,
-  autoHint: String? = null,
-  allowAuto: Boolean = false,
-  onFontSizeChange: (Float) -> Unit
-) {
-  var isFocused by remember { mutableStateOf(false) }
-  var isInputValid by remember { mutableStateOf(true) }
-  var lastValidFontSize by remember(fontSizeSp) { mutableStateOf(fontSizeSp) }
-
-  val state = remember(fontSizeSp) {
-    val initialText =
-      if (fontSizeSp > 0f) formatFontSize(fontSizeSp)
-      else formatFontSize(14f)
-
-    TextFieldState(initialText = initialText)
-  }
-
-  fun validate(): Boolean {
-    val raw: String = state.text.toString().trim()
-    return allowAuto && raw.isEmpty() || raw.toFloatOrNull()?.let {
-      it in minSp..maxSp
-    } == true
-  }
-
-  fun normalizeAndCommit() {
-    val rawInput: String = state.text.toString().trim()
-    val parsed: Float? = rawInput.toFloatOrNull()
-    val clamped: Float = when {
-      allowAuto && rawInput.isEmpty() -> CODE_BLOCK_FONT_SIZE_AUTO_SP
-      parsed == null -> lastValidFontSize
-      else -> parsed.coerceIn(minSp, maxSp)
-    }
-    val normalizedText: String = if (allowAuto && clamped <= 0f) "" else formatFontSize(clamped)
-    if (state.text.toString() != normalizedText)
-      state.edit { replace(0, length, normalizedText) }
-
-    lastValidFontSize = clamped
-    isInputValid = true
-    if (clamped != fontSizeSp) onFontSizeChange(clamped)
-  }
-
-  LaunchedEffect(state.text, isFocused) {
-    if (isFocused) isInputValid = validate()
-  }
-
-  TextField(
-    state = state,
-    modifier = Modifier
-      .width(POLL_FIELD_WIDTH_DP.dp)
-      .onFocusChanged { focusState ->
-        if (isFocused && !focusState.isFocused) normalizeAndCommit()
-        isFocused = focusState.isFocused
-      },
-    outline = if (!isInputValid) Outline.Error else Outline.None,
-    placeholder = {
-      val text: String = if (allowAuto && autoHint != null)
-        autoHint else "${minSp.toInt()}~${maxSp.toInt()}"
-
-      Text(text = text)
-    }
-  )
-}
-
-@Composable
-private fun AutoCleanupDaysField(
-  enabled: Boolean,
-  days: Int,
-  onDaysChange: (Int) -> Unit
-) {
-  var isFocused by remember { mutableStateOf(false) }
-  var isInputValid by remember { mutableStateOf(true) }
-  var lastValidDays by remember(days) { mutableStateOf(days) }
-
-  val state = remember(days) {
-    TextFieldState(initialText = days.toString())
-  }
-
-  fun validate(): Boolean {
-    val raw = state.text.toString().trim()
-    return raw.toIntOrNull()?.let { it in MIN_AUTO_CLEANUP_DAYS..MAX_AUTO_CLEANUP_DAYS } == true
-  }
-
-  fun normalizeAndCommit() {
-    val rawInput = state.text.toString().trim()
-    val parsed = rawInput.toIntOrNull()
-    val clamped = when {
-      parsed == null -> lastValidDays
-      else -> parsed.coerceIn(MIN_AUTO_CLEANUP_DAYS, MAX_AUTO_CLEANUP_DAYS)
-    }
-    val normalizedText = clamped.toString()
-    if (state.text.toString() != normalizedText)
-      state.edit { replace(0, length, normalizedText) }
-
-    lastValidDays = clamped
-    isInputValid = true
-    if (clamped != days) onDaysChange(clamped)
-  }
-
-  LaunchedEffect(state.text, isFocused) {
-    if (isFocused) isInputValid = validate()
-  }
-
-  TextField(
-    state = state,
-    enabled = enabled,
-    modifier = Modifier
-      .width(POLL_FIELD_WIDTH_DP.dp)
-      .onFocusChanged { focusState ->
-        if (isFocused && !focusState.isFocused) normalizeAndCommit()
-        isFocused = focusState.isFocused
-      },
-    outline = if (!isInputValid) Outline.Error else Outline.None,
-    placeholder = {
-      Text(text = "${MIN_AUTO_CLEANUP_DAYS}~${MAX_AUTO_CLEANUP_DAYS}")
-    }
-  )
-}
-
-private fun formatFontSize(value: Float): String =
-  if (value % 1f == 0f) value.toInt().toString() else value.toString()

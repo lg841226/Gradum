@@ -55,6 +55,11 @@ const val MIN_AUTO_CLEANUP_DAYS: Int = 30
 const val MAX_AUTO_CLEANUP_DAYS: Int = 365
 const val DEFAULT_AUTO_CLEANUP_DAYS: Int = 30
 
+/** Bounds for the message load count per session. */
+const val MIN_MESSAGE_LOAD_COUNT: Int = 20
+const val MAX_MESSAGE_LOAD_COUNT: Int = 300
+const val DEFAULT_MESSAGE_LOAD_COUNT: Int = 100
+
 /**
  * Persisted, app-level appearance configuration.
  *
@@ -75,7 +80,7 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     var paragraphDensity: ParagraphDensity = ParagraphDensity.DEFAULT,
     var paragraphFontSizeSp: Float = DEFAULT_PARAGRAPH_FONT_SIZE_SP,
     var showTimestamp: Boolean = true,
-    var collapseThinkingByDefault: Boolean = false,
+    var collapseThinkingByDefault: Boolean = true,
     var showModelName: Boolean = true,
     var autoScrollToBottom: Boolean = true,
     var codeBlockFontSizeSp: Float = DEFAULT_CODE_BLOCK_FONT_SIZE_SP,
@@ -86,8 +91,12 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     var welcomeLayout: WelcomeLayout = WelcomeLayout.QS4_RC2,
     var autoCleanupSessions: Boolean = false,
     var autoCleanupDays: Int = 30,
+    var messageLoadCount: Int = 100,
+    var messageLoadEnabled: Boolean = true,
     var rememberPermission: Boolean = false,
     var rememberContext: Boolean = false,
+    var agentEnabled: Boolean = true,
+    var gitEnabled: Boolean = true,
     var lastPermission: String = PermissionMode.READONLY,
     var lastContextEnabled: Boolean = false,
   )
@@ -106,6 +115,10 @@ class AppearanceSettings : PersistentStateComponent<AppearanceSettings.State> {
     val next: State = current.value.copy()
     transform(next)
     current.value = next
+  }
+
+  fun resetToDefaults() {
+    current.value = State()
   }
 
   companion object {

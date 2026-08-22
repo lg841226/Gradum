@@ -405,44 +405,9 @@ private fun rememberKeyEventHandler(
 
 @Composable
 internal fun RenderMarkdownText(markdown: String) {
-  val segments = remember(markdown) { splitMarkdown(markdown) }
-  val onUrlClick = remember<(String) -> Unit> { { _ -> } }
-
-  Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-    for (segment in segments) {
-      when (segment) {
-        is MarkdownSegment.Plain -> {
-          val outcome: InlineMarkdownRenderResult = rememberInlineMarkdownRender(segment.text)
-          val paragraphStyle = LocalMarkdownBodyTextStyle.current ?: JewelTheme.typography.labelTextStyle
-          if (outcome.render != null) {
-            val render = outcome.render
-            Text(
-              style = paragraphStyle,
-              text = render.annotated,
-              modifier = Modifier.fillMaxWidth(),
-              inlineContent = render.inlineContent
-            )
-          } else {
-            Text(
-              text = segment.text,
-              style = paragraphStyle,
-              modifier = Modifier.fillMaxWidth()
-            )
-          }
-        }
-
-        is MarkdownSegment.NonProseBlock ->
-          RenderNonProseBlock(onUrlClick = onUrlClick, segment = segment)
-
-        is MarkdownSegment.Table -> {
-          ScrollableTable(
-            table = segment,
-            modifier = Modifier.fillMaxWidth(),
-            onUrlClick = onUrlClick
-          )
-        }
-      }
-    }
+  GradumMarkdown(text = markdown) {
+    animationEnabled = false
+    paragraphStyle = LocalMarkdownBodyTextStyle.current
   }
 }
 
@@ -551,10 +516,18 @@ private fun PaginationDots(
         } else if (isActive && animPhase == 2) {
           Box(
             modifier = Modifier
-              .size(width = dotWidth * animProgress.value, height = 6.dp)
+              .size(width = dotWidth, height = 6.dp)
               .clip(RoundedCornerShape(cornerRadius))
-              .background(primaryColor)
-          )
+              .background(trackColor)
+          ) {
+            Box(
+              modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(fraction = animProgress.value)
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(primaryColor)
+            )
+          }
         } else {
           Box(
             modifier = Modifier

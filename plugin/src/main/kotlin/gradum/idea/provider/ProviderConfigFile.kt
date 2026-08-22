@@ -71,6 +71,15 @@ object ProviderConfigFile {
     }
   }
 
+  /** Wipe the entire provider.env file. */
+  fun clearAll() {
+    try {
+      configFile.delete()
+    } catch (_: Exception) {
+      // Best-effort
+    }
+  }
+
   /**
    * Read-modify-write one provider's "allow remote" flag into the shared
    * file. The embedded server reads this flag and refuses to dial any

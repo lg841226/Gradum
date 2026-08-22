@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-21 18:20:38 Changed by gwy
+ * InlineMarkdown.kt  2026-08-22 15:14:54 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hrm.latex.renderer.measure.LatexDimensions
@@ -41,7 +40,6 @@ import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.utils.GradumIcons
-import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -56,7 +54,6 @@ import kotlin.time.Duration.Companion.milliseconds
 
 
 private val log: Logger = Logger.getInstance("gradum.idea.chat.ui.markdown.InlineMarkdown")
-
 
 private const val INLINE_CODE_PLACEHOLDER: Char = '\uE000'
 private const val INLINE_CODE_TEXT_TAG: String = "INLINE_CODE_TEXT"
@@ -73,7 +70,8 @@ private const val FOOTNOTE_PLACEHOLDER_BASE: Char = '\uE002'
 /** PUA base for inline LaTeX placeholders. Distinct from code/image/footnote bases. */
 private const val LATEX_PLACEHOLDER_BASE: Char = '\uE003'
 
-/** PUA range for pre-processed \(…\)-form LaTeX markers (256 slots). CommonMark treats \( as backslash-escape, so we must pre-process BEFORE parsing. */
+/** PUA range for pre-processed \(…\)-form LaTeX markers (256 slots).
+ *  CommonMark treats \( as backslash-escape, so we must pre-process BEFORE parsing. */
 private const val PAREN_LATEX_MARKER_RANGE_START: Int = 0xE100
 private const val PAREN_LATEX_MARKER_RANGE_END: Int = 0xE1FF
 private const val PAREN_LATEX_MARKER_RANGE_SIZE: Int =
@@ -87,12 +85,6 @@ private const val DOLLAR_LATEX_MARKER_RANGE_SIZE: Int =
 
 private const val IMAGE_ALT_ICON_EM_SCALE: Float = 1.4f
 
-private val inlineCodePaddingHorizontal: Dp = GradumSpacing.sm
-private val inlineCodePaddingVertical: Dp = GradumSpacing.xs
-
-
-private val inlineCodeCornerRadius: Dp = GradumSpacing.sm
-internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.16f
 private const val MONOSPACE_LATIN_RATIO: Float = 0.6f
 private const val MONOSPACE_CJK_RATIO: Float = 1.0f
 private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
@@ -119,7 +111,6 @@ private val LATEX_NARROW_SYMBOLS: Set<Char> = setOf(
 private const val INLINE_LATEX_PLACEHOLDER_PADDING_SP: Float = PLACEHOLDER_WIDTH_PADDING_SP
 private const val FALLBACK_FONT_SIZE_SP: Float = 14f
 private const val FALLBACK_EM_FONT_SIZE_SP: Float = 14f
-private const val MIN_OPAQUE_TINT_ALPHA: Float = 0.1f
 private const val BAIL_REASON_LOG_PREVIEW_CHARS: Int = 80
 private const val PARSE_FAILURE_LOG_PREVIEW_CHARS: Int = 120
 private const val WALK_FAILURE_LOG_PREVIEW_CHARS: Int = 120
@@ -185,24 +176,25 @@ data class InlineMarkdownRenderResult(val render: InlineMarkdownRender?, val bai
  * Bail cases: blank input, non-`Paragraph` blocks, parse failure.
  */
 @Composable
-fun rememberInlineMarkdownRender(plainText: String): InlineMarkdownRenderResult {
+fun rememberInlineMarkdownRender(plainText: String, thinkingMode: Boolean = false): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
-  val chipTint: Color = resolveInlineCodeTint()
-  val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
+  val linkColor: Color = JewelTheme.linkStyle.colors.content
   val latexMeasurer: LatexMeasurerState = rememberLatexMeasurer()
   val density: Density = androidx.compose.ui.platform.LocalDensity.current
-  return remember(plainText, chipTint, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
+  return remember(
+    plainText, linkColor, imageAltColor, fontSizeSp, editorFontFamily, thinkingMode
+  ) {
     parseInlineMarkdown(
       density = density,
-      chipTint = chipTint,
-      plainText = plainText,
       linkColor = linkColor,
+      plainText = plainText,
       fontSizeSp = fontSizeSp,
-      imageAltColor = imageAltColor,
+      thinkingMode = thinkingMode,
       latexMeasurer = latexMeasurer,
+      imageAltColor = imageAltColor,
       editorFontFamily = editorFontFamily
     )
   }
@@ -279,9 +271,10 @@ internal val INLINE_LATEX_PAREN_MARKER_REGEX: Regex = Regex("""[\uE100-\uE2FF]""
 /** Pure CommonMark → `AnnotatedString` walk. Theme values passed in by the caller. */
 internal fun parseInlineMarkdown(
   density: Density? = null,
+  thinkingMode: Boolean = false,
   latexMeasurer: LatexMeasurerState? = null,
   editorFontFamily: FontFamily = FontFamily.Default,
-  plainText: String, fontSizeSp: Float, chipTint: Color, linkColor: Color, imageAltColor: Color
+  plainText: String, fontSizeSp: Float, linkColor: Color, imageAltColor: Color
 ): InlineMarkdownRenderResult {
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
 
@@ -305,20 +298,20 @@ internal fun parseInlineMarkdown(
   }
   if (topBlocks.isEmpty()) return bailWithReason("Empty paragraph (no blocks)", plainText)
   val nonParagraphTypes: String? = collectNonParagraphTypes(topBlocks)
-  if (nonParagraphTypes != null) {
+  if (nonParagraphTypes != null)
     return bailWithReason("Paragraph contains non-prose blocks: $nonParagraphTypes", plainText)
-  }
+
   return buildInlineRender(
-    chipTint = chipTint,
+    density = density,
     linkColor = linkColor,
-    topBlocks = topBlocks,
     plainText = plainText,
+    topBlocks = topBlocks,
     fontSizeSp = fontSizeSp,
+    thinkingMode = thinkingMode,
+    latexMeasurer = latexMeasurer,
     imageAltColor = imageAltColor,
     editorFontFamily = editorFontFamily,
-    parenLatexFormulas = mergedFormulas,
-    latexMeasurer = latexMeasurer,
-    density = density
+    parenLatexFormulas = mergedFormulas
   )
 }
 
@@ -370,9 +363,9 @@ internal fun preprocessParenLatexFormulas(rawText: String): PreprocessedParenLat
 internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLatex {
   val codeSpanRanges: List<IntRange> = dollarLatexCodeSpanRanges(rawText)
   val matches: List<MatchResult> = INLINE_LATEX_REGEX.findAll(rawText).toList()
-  if (matches.isEmpty()) {
+  if (matches.isEmpty())
     return PreprocessedParenLatex(text = rawText, formulaByMarker = emptyMap())
-  }
+
   val formulaByMarker: MutableMap<String, String> = LinkedHashMap(matches.size)
   val rewritten: StringBuilder = StringBuilder(rawText.length)
   var lastIndex = 0
@@ -380,11 +373,6 @@ internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLa
     if (matchIndex >= DOLLAR_LATEX_MARKER_RANGE_SIZE) continue
     if (match.range.first < lastIndex) continue
 
-    // False positives: `$5.99` / `$1,000` are prices, not LaTeX, and a
-    // dollar span with whitespace inside (e.g. "$5.99 and $1,000" where
-    // the regex pairs `$` #1 with `$` #2) is prose, not math. A formula
-    // inside a backtick code span must stay literal — replacing it with
-    // a PUA marker would corrupt the code chip's text.
     if (!isInlineLatexCandidate(match, rawText)) continue
     if (codeSpanRanges.any { it.contains(match.range.first) }) continue
 
@@ -439,19 +427,24 @@ private fun parseCommonmarkDocument(plainText: String): Document? {
 /** Walk a parent node's inline children directly into InlineMarkdownRenderResult. */
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 internal fun parseInlineNodes(
-  parentNode: Node, fontSizeSp: Float, linkColor: Color, imageAltColor: Color,
-  editorFontFamily: FontFamily = FontFamily.Default,
+  parentNode: Node,
+  linkColor: Color,
+  fontSizeSp: Float,
+  imageAltColor: Color,
+  density: Density? = null,
+  thinkingMode: Boolean = false,
   latexMeasurer: LatexMeasurerState? = null,
-  density: Density? = null
+  editorFontFamily: FontFamily = FontFamily.Default
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      fontSizeSp = fontSizeSp,
+      density = density,
       linkColor = linkColor,
-      imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily,
+      fontSizeSp = fontSizeSp,
+      thinkingMode = thinkingMode,
       latexMeasurer = latexMeasurer,
-      density = density
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
@@ -496,25 +489,27 @@ private fun bailWithReason(reason: String, plainText: String): InlineMarkdownRen
 /** Walk a paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail. */
 @Suppress("LongParameterList", "TooGenericExceptionCaught")
 private fun buildInlineRender(
-  plainText: String, topBlocks: List<Node>, fontSizeSp: Float,
-  chipTint: Color, linkColor: Color, imageAltColor: Color,
+  density: Density? = null,
+  thinkingMode: Boolean = false,
+  latexMeasurer: LatexMeasurerState? = null,
   editorFontFamily: FontFamily = FontFamily.Default,
   parenLatexFormulas: Map<String, String> = emptyMap(),
-  latexMeasurer: LatexMeasurerState? = null,
-  density: Density? = null
+  linkColor: Color, imageAltColor: Color,
+  plainText: String, topBlocks: List<Node>, fontSizeSp: Float
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      fontSizeSp = fontSizeSp,
+      density = density,
       linkColor = linkColor,
+      fontSizeSp = fontSizeSp,
+      thinkingMode = thinkingMode,
       imageAltColor = imageAltColor,
-      editorFontFamily = editorFontFamily,
-      parenLatexFormulas = parenLatexFormulas,
       latexMeasurer = latexMeasurer,
-      density = density
+      editorFontFamily = editorFontFamily,
+      parenLatexFormulas = parenLatexFormulas
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
-    log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, chipTint=$chipTint, text=$preview")
+    log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, text=$preview")
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
       topBlocks.forEachIndexed { blockIndex, blockNode ->
@@ -544,20 +539,21 @@ private fun buildInlineRender(
 /** Mutable scanState threaded through the recursive walker. UI-thread-only by design (Compose `remember`). */
 @Suppress("LongParameterList")
 private class RenderState(
-  val fontSizeSp: Float,
   val linkColor: Color,
+  val fontSizeSp: Float,
   val imageAltColor: Color,
-  val editorFontFamily: FontFamily = FontFamily.Default,
+  val thinkingMode: Boolean,
   var chipCounter: Int = 0,
   var latexCounter: Int = 0,
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
+  val density: Density? = null,
   var currentStyle: SpanStyle = SpanStyle(),
   val parenLatexFormulas: Map<String, String> = emptyMap(),
   val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
   val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
   private val latexMeasurer: LatexMeasurerState? = null,
-  val density: Density? = null
+  val editorFontFamily: FontFamily = FontFamily.Default
 ) {
   private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
 
@@ -584,7 +580,7 @@ private class RenderState(
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
-      InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp)
+      InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp, thinkingMode = thinkingMode)
     }
   }
 
@@ -637,13 +633,15 @@ private class RenderState(
         latexMeasurer.measure(formulaText, config = LatexConfig(fontSize = fontSizeSp.sp))
       }
     } else null
-    val placeholderWidth: Float = if (dimensions != null && dimensions.widthPx > 0f && density != null) {
-      dimensions.widthPx / density.density + PLACEHOLDER_WIDTH_PADDING_SP
-    } else {
-      fontSizeSp * estimateLatexWidth(formulaText) + PLACEHOLDER_WIDTH_PADDING_SP
-    }
+    val placeholderWidth: Float =
+      if (dimensions != null && dimensions.widthPx > 0f && density != null) {
+        dimensions.widthPx / density.density + PLACEHOLDER_WIDTH_PADDING_SP
+      } else {
+        fontSizeSp * estimateLatexWidth(formulaText) + PLACEHOLDER_WIDTH_PADDING_SP
+      }
 
-    val placeholderHeight: Float = fontSizeSp * INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_LATEX_PLACEHOLDER_PADDING_SP
+    val placeholderHeight: Float =
+      fontSizeSp * INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_LATEX_PLACEHOLDER_PADDING_SP
 
     val placeholderShape = Placeholder(
       width = placeholderWidth.sp,
@@ -665,7 +663,9 @@ private class RenderState(
 internal fun cjkAwareWidthRatio(codeText: String): Float {
   if (codeText.isEmpty()) return 0f
   var totalRatio = 0f
-  for (char in codeText) totalRatio += if (isCjkChar(char)) MONOSPACE_CJK_RATIO else MONOSPACE_LATIN_RATIO
+  for (char in codeText) totalRatio +=
+    if (isCjkChar(char)) MONOSPACE_CJK_RATIO
+    else MONOSPACE_LATIN_RATIO
   return totalRatio
 }
 
@@ -836,25 +836,22 @@ private fun renderTextInline(
 
   val postText: String = literal.substring(lastIndex)
   if (postText.isNotEmpty()) {
-    if (renderState.currentStyle == SpanStyle()) {
-      annotatedStringBuilder.append(postText)
-    } else {
-      annotatedStringBuilder.withStyle(renderState.currentStyle) { append(postText) }
-    }
+    if (renderState.currentStyle == SpanStyle()) annotatedStringBuilder.append(postText)
+    else annotatedStringBuilder.withStyle(renderState.currentStyle) { append(postText) }
   }
 }
 
 private fun renderEmphasisInline(
-  emphasisNode: Emphasis,
-  renderState: RenderState,
-  annotatedStringBuilder: AnnotatedString.Builder,
+  emphasisNode: Emphasis, renderState: RenderState,
+  annotatedStringBuilder: AnnotatedString.Builder
 ) {
   // Render emphasis as normal text (no italic style, no markers)
   renderState.withStyle(renderState.currentStyle) { renderInlineChildren(emphasisNode, renderState, annotatedStringBuilder) }
 }
 
 private fun renderStrongEmphasisInline(
-  strongEmphasisNode: StrongEmphasis, annotatedStringBuilder: AnnotatedString.Builder, renderState: RenderState
+  strongEmphasisNode: StrongEmphasis,
+  annotatedStringBuilder: AnnotatedString.Builder, renderState: RenderState
 ) {
   val boldStyle: SpanStyle = renderState.currentStyle.copy(fontWeight = FontWeight.SemiBold)
   renderState.withStyle(boldStyle) {
@@ -909,15 +906,14 @@ private fun renderLinkInline(
 }
 
 private fun renderImageInline(
-  imageNode: Image,
-  renderState: RenderState,
+  imageNode: Image, renderState: RenderState,
   annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val imageAltStyle: SpanStyle = renderState.currentStyle.copy(
     fontStyle = FontStyle.Italic,
-    fontFamily = renderState.editorFontFamily,
     color = renderState.imageAltColor,
-    textDecoration = renderState.currentStyle.textDecoration ?: TextDecoration.None,
+    fontFamily = renderState.editorFontFamily,
+    textDecoration = renderState.currentStyle.textDecoration ?: TextDecoration.None
   )
   val iconPlaceholder: String = renderState.allocateImageAlt()
   renderState.withStyle(imageAltStyle) {
@@ -938,9 +934,14 @@ private fun renderStrikethroughInline(
   annotatedStringBuilder: AnnotatedString.Builder
 ) {
   val strikethroughStyle: SpanStyle = renderState.currentStyle.copy(
-    textDecoration = combineDecoration(TextDecoration.LineThrough, (renderState.currentStyle.textDecoration ?: TextDecoration.None))
+    textDecoration = combineDecoration(
+      TextDecoration.LineThrough,
+      (renderState.currentStyle.textDecoration ?: TextDecoration.None)
+    )
   )
-  renderState.withStyle(strikethroughStyle) { renderInlineChildren(strikethroughNode, renderState, annotatedStringBuilder) }
+  renderState.withStyle(strikethroughStyle) {
+    renderInlineChildren(strikethroughNode, renderState, annotatedStringBuilder)
+  }
 }
 
 
@@ -969,11 +970,12 @@ private fun makePlaceholder(chipIndex: Int): String =
  * links use ExternalLink (standalone Composable with icon).
  */
 internal fun splitIntoInlineSegments(
-  annotated: AnnotatedString, urlAnnotations: List<UrlAnnotation>, inlineContent: Map<String, InlineTextContent>
+  annotated: AnnotatedString,
+  urlAnnotations: List<UrlAnnotation>, inlineContent: Map<String, InlineTextContent>
 ): List<InlineSegment> {
-  if (urlAnnotations.isEmpty()) {
+  if (urlAnnotations.isEmpty())
     return listOf(InlineSegment.TextSegment(annotated, inlineContent))
-  }
+
   val sortedUrls: List<UrlAnnotation> = urlAnnotations.sortedBy { it.start }
   val segments: MutableList<InlineSegment> = mutableListOf()
   var cursor = 0
@@ -1023,11 +1025,11 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
  * Inline code chip. Uses background(color, shape) without clip to avoid clipping descenders (p, g, y).
  */
 @Composable
-private fun InlineCodeChip(
-  text: String, fontSizeSp: Float
-) {
+private fun InlineCodeChip(text: String, fontSizeSp: Float, thinkingMode: Boolean = false) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val badgeColor: Color = JewelTheme.globalColors.text.info
+  val badgeColor: Color =
+    if (thinkingMode) JewelTheme.globalColors.text.info
+    else rememberBadgeBlueColor()
   val chipStyle = TextStyle(
     color = badgeColor,
     fontSize = fontSizeSp.sp,
@@ -1038,15 +1040,18 @@ private fun InlineCodeChip(
   Box(
     modifier = Modifier
       .background(
-        shape = RoundedCornerShape(inlineCodeCornerRadius),
+        shape = RoundedCornerShape(INLINE_CODE_CORNER_RADIUS),
         color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
       )
       .padding(
-        vertical = inlineCodePaddingVertical,
-        horizontal = inlineCodePaddingHorizontal
+        vertical = INLINE_CODE_PADDING_VERTICAL,
+        horizontal = INLINE_CODE_PADDING_HORIZONTAL
       )
       .onGloballyPositioned { coordinates ->
-        log.info("InlineCodeChip render: text='$text', actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp")
+        log.info(
+          "InlineCodeChip render: text='$text', " +
+            "actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp"
+        )
       }
   ) {
     Text(
@@ -1113,12 +1118,12 @@ private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean 
   Box(
     modifier = Modifier
       .background(
-        shape = RoundedCornerShape(inlineCodeCornerRadius),
-        color = backgroundColor
+        color = backgroundColor,
+        shape = RoundedCornerShape(INLINE_CODE_CORNER_RADIUS)
       )
       .padding(
-        vertical = inlineCodePaddingVertical,
-        horizontal = inlineCodePaddingHorizontal
+        vertical = INLINE_CODE_PADDING_VERTICAL,
+        horizontal = INLINE_CODE_PADDING_HORIZONTAL
       )
       .hoverable(hoverInteractionSource)
       .then(
@@ -1152,19 +1157,6 @@ private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean 
 private const val FootnoteFlashInMillis: Int = 200
 private const val FootnoteFlashHoldMillis: Long = 150
 private const val FootnoteFlashOutMillis: Int = 300
-
-/**
- * Chip tint from `JewelTheme.linkStyle` (solid `Color` — not the badge's transparent
- * `background`). The first resolution is logged to the IDE log for sanity check.
- */
-@Composable
-private fun resolveInlineCodeTint(): Color {
-  val candidateTint: Color = JewelTheme.linkStyle.colors.content
-  val resolvedTint: Color =
-    if (candidateTint.alpha < MIN_OPAQUE_TINT_ALPHA) JewelTheme.contentColor else candidateTint
-  log.debug("InlineMarkdown: chip tint resolved to $resolvedTint (alpha=${resolvedTint.alpha})")
-  return resolvedTint
-}
 
 /**
  * Color for the alt text of an inline `![alt](url)` image. The chat

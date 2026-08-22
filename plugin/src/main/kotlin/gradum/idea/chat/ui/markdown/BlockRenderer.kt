@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * BlockRenderer.kt  2026-08-22 15:14:53 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -68,10 +68,16 @@ internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
  * Reparses the segment's text with commonmark to recover the AST (the
  * segment was originally produced by [splitPlainAtBlocks] which serialized
  * each block to text).
+ *
+ * @param isSimplified When `true`, code blocks render without toolbars/copy buttons.
+ * @param thinkingMode When `true`, code blocks use muted gray colors.
  */
 @Composable
 fun RenderNonProseBlock(
-  onUrlClick: (String) -> Unit = {}, segment: MarkdownSegment.NonProseBlock
+  onUrlClick: (String) -> Unit = {},
+  segment: MarkdownSegment.NonProseBlock,
+  isSimplified: Boolean = false,
+  thinkingMode: Boolean = false
 ) {
   val document: Document = remember(segment.text) {
     blockReparseParser.parse(segment.text) as Document
@@ -79,8 +85,8 @@ fun RenderNonProseBlock(
 
   val children: NodeChildren = NodeChildren.of(document)
   val firstNode: Node? = children.first
-  if (firstNode != null) RenderBlockNode(firstNode, onUrlClick = onUrlClick)
-  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick)
+  if (firstNode != null) RenderBlockNode(firstNode, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
+  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
 }
 
 /**
@@ -97,16 +103,17 @@ fun RenderNonProseBlock(
  */
 @Composable
 fun RenderBlockNode(
-  block: Node, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {}
+  block: Node, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {},
+  isSimplified: Boolean = false, thinkingMode: Boolean = false
 ) {
   when (block) {
     is ThematicBreak -> RenderThematicBreak()
     is Heading -> RenderHeading(block, onUrlClick)
     is FencedCodeBlock -> RenderFencedCodeBlock(block)
-    is BlockQuote -> RenderBlockQuote(block, onUrlClick)
+    is BlockQuote -> RenderBlockQuote(block, onUrlClick, isSimplified, thinkingMode)
     is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
-    is BulletList -> RenderBulletList(block, indentDepth, onUrlClick)
-    is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick)
+    is BulletList -> RenderBulletList(block, indentDepth, onUrlClick, isSimplified, thinkingMode)
+    is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick, isSimplified, thinkingMode)
     is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
     is TableBlock -> ScrollableTable(
       table = block.toMarkdownSegmentTable(),
@@ -170,7 +177,8 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderBulletList(
-  list: BulletList, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {}
+  list: BulletList, indentDepth: Int = 0, onUrlClick: (String) -> Unit = {},
+  isSimplified: Boolean = false, thinkingMode: Boolean = false
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val unorderedList: MarkdownStyling.List.Unordered = styling.list.unordered
@@ -193,7 +201,9 @@ private fun RenderBulletList(
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
           isChecked = taskMarker.checked,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle
+          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+          isSimplified = isSimplified,
+          thinkingMode = thinkingMode
         )
       } else {
         RenderListItem(
@@ -204,7 +214,9 @@ private fun RenderBulletList(
           prefixContentGap = markerContentGap,
           prefixText = unorderedList.bullet.toString(),
           prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle
+          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+          isSimplified = isSimplified,
+          thinkingMode = thinkingMode
         )
       }
     }
@@ -222,7 +234,9 @@ private fun RenderBulletList(
 private fun RenderOrderedList(
   list: OrderedList,
   indentDepth: Int = 0,
-  onUrlClick: (String) -> Unit = {}
+  onUrlClick: (String) -> Unit = {},
+  isSimplified: Boolean = false,
+  thinkingMode: Boolean = false
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val orderedList: MarkdownStyling.List.Ordered = styling.list.ordered
@@ -247,7 +261,9 @@ private fun RenderOrderedList(
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
           contentStyle = contentStyle,
-          isChecked = taskMarker.checked
+          isChecked = taskMarker.checked,
+          isSimplified = isSimplified,
+          thinkingMode = thinkingMode
         )
       } else {
         RenderListItem(
@@ -258,7 +274,9 @@ private fun RenderOrderedList(
           contentStyle = contentStyle,
           prefixContentGap = markerContentGap,
           prefixStyle = orderedList.numberStyle,
-          prefixColumnMinWidth = orderedMarkerColumnMinWidth
+          prefixColumnMinWidth = orderedMarkerColumnMinWidth,
+          isSimplified = isSimplified,
+          thinkingMode = thinkingMode
         )
       }
     }
@@ -353,7 +371,9 @@ private fun RenderTaskListItem(
   isChecked: Boolean,
   indentDepth: Int = 0,
   contentStyle: TextStyle,
-  onUrlClick: (String) -> Unit
+  onUrlClick: (String) -> Unit,
+  isSimplified: Boolean = false,
+  thinkingMode: Boolean = false
 ) {
   val children: NodeChildren = NodeChildren.of(item)
   if (children.isEmpty) return
@@ -387,10 +407,10 @@ private fun RenderTaskListItem(
           onCheckedChange = {}
         ) {}
       }
-      RenderBlockNode(first, indentDepth + 1, onUrlClick)
+      RenderBlockNode(first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
     for (child in children.rest) {
-      RenderBlockNode(child, indentDepth + 1, onUrlClick)
+      RenderBlockNode(child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
   }
 }
@@ -450,6 +470,8 @@ private fun RenderListItem(
   contentStyle: TextStyle,
   prefixColumnMinWidth: Dp,
   onUrlClick: (String) -> Unit,
+  isSimplified: Boolean = false,
+  thinkingMode: Boolean = false
 ) {
   val children: NodeChildren = NodeChildren.of(item)
   if (children.isEmpty) return
@@ -486,10 +508,10 @@ private fun RenderListItem(
         style = prefixStyle
       )
       if (first != null)
-        RenderBlockNode(first, indentDepth + 1, onUrlClick)
+        RenderBlockNode(first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
     for (child in children.rest) {
-      RenderBlockNode(child, indentDepth + 1, onUrlClick)
+      RenderBlockNode(child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
   }
 }
@@ -570,7 +592,10 @@ private fun MarkerColumn(
  */
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
+private fun RenderBlockQuote(
+  quote: BlockQuote, onUrlClick: (String) -> Unit,
+  isSimplified: Boolean = false, thinkingMode: Boolean = false
+) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val quoteTextColor = styling.blockQuote.textColor
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(
@@ -605,9 +630,9 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
     ) {
       val firstChild: Node? = children.first
-      if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick)
+      if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick, isSimplified, thinkingMode)
       for (childNode in children.rest) {
-        RenderBlockQuoteChild(childNode, contentStyle, onUrlClick)
+        RenderBlockQuoteChild(childNode, contentStyle, onUrlClick, isSimplified, thinkingMode)
       }
     }
   }
@@ -618,7 +643,9 @@ private fun RenderBlockQuote(quote: BlockQuote, onUrlClick: (String) -> Unit) {
 private fun RenderBlockQuoteChild(
   node: Node,
   quoteTextStyle: TextStyle,
-  onUrlClick: (String) -> Unit
+  onUrlClick: (String) -> Unit,
+  isSimplified: Boolean = false,
+  thinkingMode: Boolean = false
 ) {
   when (node) {
     is Paragraph -> {
@@ -632,7 +659,7 @@ private fun RenderBlockQuoteChild(
       )
     }
 
-    else -> RenderBlockNode(node, onUrlClick = onUrlClick)
+    else -> RenderBlockNode(node, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
   }
 }
 
@@ -769,14 +796,12 @@ fun RenderInlineTextWithChips(
   val textColor: Color = style.color.let { colorValue ->
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }
-  val chipTintColor: Color = textColor
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = textColor.copy(alpha = 0.6f)
   val parseOutcome: InlineMarkdownRenderResult = remember(text) {
     parseInlineMarkdown(
       plainText = text,
       fontSizeSp = fontSizeSp,
-      chipTint = chipTintColor,
       linkColor = linkColor,
       imageAltColor = imageAltColor
     )

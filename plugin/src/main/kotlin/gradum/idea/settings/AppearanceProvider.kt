@@ -65,6 +65,18 @@ val LocalShowLikeDislikeAction = staticCompositionLocalOf { true }
 /** Whether code block toolbars and table headers stick to the top on scroll. */
 val LocalEnableStickySections = staticCompositionLocalOf { true }
 
+/** Whether the chat tool window is enabled. */
+val LocalAgentEnabled = staticCompositionLocalOf { true }
+
+/** Whether the git analysis tool window is enabled. */
+val LocalGitEnabled = staticCompositionLocalOf { true }
+
+/** Whether message-load-count trimming is enabled. */
+val LocalMessageLoadEnabled = staticCompositionLocalOf { true }
+
+/** Max messages to render when a session is opened (history context is never trimmed). */
+val LocalMessageLoadCount = staticCompositionLocalOf { DEFAULT_MESSAGE_LOAD_COUNT }
+
 /** Welcome screen layout: quick-start suggestions vs recent chats. */
 val LocalWelcomeLayout = staticCompositionLocalOf { WelcomeLayout.QS4_RC2 }
 
@@ -99,7 +111,11 @@ fun ProvideAppearance(content: @Composable () -> Unit) {
     LocalCodeBlockFontSize provides snapshot.codeBlockFontSizeSp,
     LocalEnableStickySections provides snapshot.enableStickySections,
     LocalShowLikeDislikeAction provides snapshot.showLikeDislikeAction,
-    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault
+    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault,
+    LocalMessageLoadEnabled provides snapshot.messageLoadEnabled,
+    LocalMessageLoadCount provides snapshot.messageLoadCount,
+    LocalAgentEnabled provides snapshot.agentEnabled,
+    LocalGitEnabled provides snapshot.gitEnabled
   ) {
     content()
   }
