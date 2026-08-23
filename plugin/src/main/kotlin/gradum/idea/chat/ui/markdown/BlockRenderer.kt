@@ -207,11 +207,13 @@ private fun RenderBulletList(
           item = listItem,
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
-          prefixStyle = bulletStyle,
-          prefixContentGap = markerContentGap,
           prefixText = unorderedList.bullet.toString(),
-          prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle,
+          listStyle = ListItemStyle(
+            prefixStyle = bulletStyle,
+            prefixContentGap = markerContentGap,
+            prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
+            contentStyle = styling.paragraph.inlinesStyling.textStyle
+          ),
           isSimplified = isSimplified,
           thinkingMode = thinkingMode
         )
@@ -268,10 +270,12 @@ private fun RenderOrderedList(
           prefixText = "$number.",
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
-          contentStyle = contentStyle,
-          prefixContentGap = markerContentGap,
-          prefixStyle = orderedList.numberStyle,
-          prefixColumnMinWidth = orderedMarkerColumnMinWidth,
+          listStyle = ListItemStyle(
+            contentStyle = contentStyle,
+            prefixContentGap = markerContentGap,
+            prefixStyle = orderedList.numberStyle,
+            prefixColumnMinWidth = orderedMarkerColumnMinWidth
+          ),
           isSimplified = isSimplified,
           thinkingMode = thinkingMode
         )
@@ -448,6 +452,14 @@ private fun RenderTaskListItemRow(
 }
 
 
+/** Style parameters for a list item row. */
+private data class ListItemStyle(
+  val prefixContentGap: Dp,
+  val prefixStyle: TextStyle,
+  val contentStyle: TextStyle,
+  val prefixColumnMinWidth: Dp
+)
+
 /**
  * Render a single list item as a `Row { marker column; content }`. The marker
  * column is a fixed-width `Box(contentAlignment = CenterEnd)` so multi-digit
@@ -461,11 +473,8 @@ private fun RenderTaskListItemRow(
 private fun RenderListItem(
   item: ListItem,
   prefixText: String,
+  listStyle: ListItemStyle,
   indentDepth: Int = 0,
-  prefixContentGap: Dp,
-  prefixStyle: TextStyle,
-  contentStyle: TextStyle,
-  prefixColumnMinWidth: Dp,
   onUrlClick: (String) -> Unit,
   isSimplified: Boolean = false,
   thinkingMode: Boolean = false
@@ -479,10 +488,7 @@ private fun RenderListItem(
       paragraph = first,
       onUrlClick = onUrlClick,
       prefixText = prefixText,
-      prefixStyle = prefixStyle,
-      contentStyle = contentStyle,
-      prefixContentGap = prefixContentGap,
-      prefixColumnMinWidth = prefixColumnMinWidth
+      listStyle = listStyle,
     )
     return
   }
@@ -492,17 +498,14 @@ private fun RenderListItem(
         paragraph = first,
         onUrlClick = onUrlClick,
         prefixText = prefixText,
-        prefixStyle = prefixStyle,
-        contentStyle = contentStyle,
-        prefixContentGap = prefixContentGap,
-        prefixColumnMinWidth = prefixColumnMinWidth
+        listStyle = listStyle,
       )
     } else {
       Text(
         maxLines = 1,
         softWrap = false,
         text = prefixText,
-        style = prefixStyle
+        style = listStyle.prefixStyle
       )
       if (first != null)
         RenderBlockNode(first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
@@ -525,23 +528,20 @@ private fun RenderListItem(
 private fun RenderInlineTextInListRow(
   prefixText: String,
   paragraph: Paragraph,
-  prefixContentGap: Dp,
-  prefixStyle: TextStyle,
-  contentStyle: TextStyle,
-  prefixColumnMinWidth: Dp,
+  listStyle: ListItemStyle,
   onUrlClick: (String) -> Unit
 ) {
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
   Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
     MarkerColumn(
       prefixText = prefixText,
-      prefixStyle = prefixStyle,
-      prefixColumnMinWidth = prefixColumnMinWidth,
-      prefixContentGap = prefixContentGap,
+      prefixStyle = listStyle.prefixStyle,
+      prefixColumnMinWidth = listStyle.prefixColumnMinWidth,
+      prefixContentGap = listStyle.prefixContentGap,
     )
     RenderInlineRender(
       parseOutcome = parseOutcome,
-      style = contentStyle,
+      style = listStyle.contentStyle,
       modifier = Modifier.weight(1f),
       onUrlClick = onUrlClick,
       fallbackText = serializeInlineChildren(paragraph),

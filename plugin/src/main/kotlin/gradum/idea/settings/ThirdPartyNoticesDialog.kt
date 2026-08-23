@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThirdPartyNoticesDialog.kt  2026-08-21 20:09:31 Changed by gwy
+ * ThirdPartyNoticesDialog.kt  2026-08-23 21:12:19 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -34,7 +34,6 @@ import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 import org.jetbrains.jewel.ui.component.SegmentedControl
 import org.jetbrains.jewel.ui.component.SegmentedControlButtonData
 import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.typography
 import java.awt.Dimension
 import javax.swing.JDialog
 import javax.swing.WindowConstants

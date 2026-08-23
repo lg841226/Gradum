@@ -66,6 +66,7 @@ private val EXPAND_MAX_HEIGHT: Dp = 200.dp
 @Composable
 fun UserChatBubble(
   message: ChatMessage,
+  showActions: Boolean = true,
   onDeleteMessage: () -> Unit = {},
   onCopyAsContext: (String) -> Unit = {},
   onAttachmentClick: (VirtualFile) -> Unit = {}
@@ -153,76 +154,78 @@ fun UserChatBubble(
         }
       }
       Spacer(modifier = Modifier.height(GradumSpacing.md))
-      Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-        MessageCopyButton(
-          message = message,
-          isCopied = isCopied,
-          onCopy = { isCopied = true },
-          onReset = { isCopied = false },
-          onCopyAsContext = onCopyAsContext
-        )
-        if (content.length >= 100 || content.lines().size > 1) {
-          Tooltip(tooltip = {
-            Text(text = if (isExpanded) message("gradum.collapse") else message("gradum.expand"))
-          }) {
-            IconButton(onClick = { isExpanded = !isExpanded }) {
-              Icon(
-                modifier = Modifier.size(16.dp),
-                contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
-                key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
-              )
+      if (showActions) {
+        Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
+          MessageCopyButton(
+            message = message,
+            isCopied = isCopied,
+            onCopy = { isCopied = true },
+            onReset = { isCopied = false },
+            onCopyAsContext = onCopyAsContext
+          )
+          if (content.length >= 100 || content.lines().size > 1) {
+            Tooltip(tooltip = {
+              Text(text = if (isExpanded) message("gradum.collapse") else message("gradum.expand"))
+            }) {
+              IconButton(onClick = { isExpanded = !isExpanded }) {
+                Icon(
+                  modifier = Modifier.size(16.dp),
+                  contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
+                  key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
+                )
+              }
             }
           }
-        }
-        Tooltip(tooltip = {
-          Text(text = message("gradum.reset.tooltip"))
-        }) {
-          IconButton(onClick = { showResetPopup = true }) {
-            Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
+          Tooltip(tooltip = {
+            Text(text = message("gradum.reset.tooltip"))
+          }) {
+            IconButton(onClick = { showResetPopup = true }) {
+              Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
+            }
           }
-        }
-        if (showResetPopup) {
-          PopupMenu(
-            horizontalAlignment = Alignment.End,
-            onDismissRequest = { showResetPopup = false; true }
-          ) {
-            passiveItem {
-              Column {
+          if (showResetPopup) {
+            PopupMenu(
+              horizontalAlignment = Alignment.End,
+              onDismissRequest = { showResetPopup = false; true }
+            ) {
+              passiveItem {
+                Column {
+                  Row(
+                    modifier = Modifier
+                      .fillMaxWidth()
+                      .padding(
+                        horizontal = GradumSpacing.sml,
+                        vertical = GradumSpacing.sm
+                      ),
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Icon(
+                      key = GradumIcons.Warning,
+                      modifier = Modifier.padding(end = GradumSpacing.sml),
+                      contentDescription = message("gradum.delete.confirm")
+                    )
+                    Text(text = message("gradum.delete.confirm"))
+                  }
+                }
+              }
+              separator()
+              selectableItem(
+                selected = false,
+                onClick = { showResetPopup = false; onDeleteMessage() }
+              ) {
                 Row(
                   modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                      horizontal = GradumSpacing.sml,
-                      vertical = GradumSpacing.sm
-                    ),
+                    .padding(horizontal = GradumSpacing.sml),
                   verticalAlignment = Alignment.CenterVertically
                 ) {
                   Icon(
-                    key = GradumIcons.Warning,
-                    modifier = Modifier.padding(end = GradumSpacing.sml),
-                    contentDescription = message("gradum.delete.confirm")
+                    contentDescription = message("gradum.delete.action"),
+                    key = AllIconsKeys.General.Reset,
+                    modifier = Modifier.padding(end = GradumSpacing.sml)
                   )
-                  Text(text = message("gradum.delete.confirm"))
+                  Text(text = message("gradum.delete.action"))
                 }
-              }
-            }
-            separator()
-            selectableItem(
-              selected = false,
-              onClick = { showResetPopup = false; onDeleteMessage() }
-            ) {
-              Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .padding(horizontal = GradumSpacing.sml),
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Icon(
-                  contentDescription = message("gradum.delete.action"),
-                  key = AllIconsKeys.General.Reset,
-                  modifier = Modifier.padding(end = GradumSpacing.sml)
-                )
-                Text(text = message("gradum.delete.action"))
               }
             }
           }

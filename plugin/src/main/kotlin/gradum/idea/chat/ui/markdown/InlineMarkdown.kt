@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-22 15:14:54 Changed by gwy
+ * InlineMarkdown.kt  2026-08-23 21:07:57 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -302,16 +302,18 @@ internal fun parseInlineMarkdown(
     return bailWithReason("Paragraph contains non-prose blocks: $nonParagraphTypes", plainText)
 
   return buildInlineRender(
-    density = density,
-    linkColor = linkColor,
+    config = InlineRenderConfig(
+      density = density,
+      linkColor = linkColor,
+      thinkingMode = thinkingMode,
+      latexMeasurer = latexMeasurer,
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily,
+      parenLatexFormulas = mergedFormulas,
+      fontSizeSp = fontSizeSp
+    ),
     plainText = plainText,
-    topBlocks = topBlocks,
-    fontSizeSp = fontSizeSp,
-    thinkingMode = thinkingMode,
-    latexMeasurer = latexMeasurer,
-    imageAltColor = imageAltColor,
-    editorFontFamily = editorFontFamily,
-    parenLatexFormulas = mergedFormulas
+    topBlocks = topBlocks
   )
 }
 
@@ -432,7 +434,6 @@ internal fun parseInlineNodes(
   fontSizeSp: Float,
   imageAltColor: Color,
   density: Density? = null,
-  thinkingMode: Boolean = false,
   latexMeasurer: LatexMeasurerState? = null,
   editorFontFamily: FontFamily = FontFamily.Default
 ): InlineMarkdownRenderResult {
@@ -441,7 +442,6 @@ internal fun parseInlineNodes(
       density = density,
       linkColor = linkColor,
       fontSizeSp = fontSizeSp,
-      thinkingMode = thinkingMode,
       latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
       editorFontFamily = editorFontFamily
@@ -486,30 +486,37 @@ private fun bailWithReason(reason: String, plainText: String): InlineMarkdownRen
 }
 
 
+/** Encapsulated rendering configuration for [buildInlineRender]. */
+internal data class InlineRenderConfig(
+  val density: Density? = null,
+  val thinkingMode: Boolean = false,
+  val latexMeasurer: LatexMeasurerState? = null,
+  val editorFontFamily: FontFamily = FontFamily.Default,
+  val parenLatexFormulas: Map<String, String> = emptyMap(),
+  val linkColor: Color,
+  val imageAltColor: Color,
+  val fontSizeSp: Float
+)
+
 /** Walk a paragraph-only AST and build the [InlineMarkdownRender]. Catches walker exceptions as bail. */
-@Suppress("LongParameterList", "TooGenericExceptionCaught")
+@Suppress("TooGenericExceptionCaught")
 private fun buildInlineRender(
-  density: Density? = null,
-  thinkingMode: Boolean = false,
-  latexMeasurer: LatexMeasurerState? = null,
-  editorFontFamily: FontFamily = FontFamily.Default,
-  parenLatexFormulas: Map<String, String> = emptyMap(),
-  linkColor: Color, imageAltColor: Color,
-  plainText: String, topBlocks: List<Node>, fontSizeSp: Float
+  config: InlineRenderConfig,
+  plainText: String,
+  topBlocks: List<Node>
 ): InlineMarkdownRenderResult {
   return try {
     val renderState = RenderState(
-      density = density,
-      linkColor = linkColor,
-      fontSizeSp = fontSizeSp,
-      thinkingMode = thinkingMode,
-      imageAltColor = imageAltColor,
-      latexMeasurer = latexMeasurer,
-      editorFontFamily = editorFontFamily,
-      parenLatexFormulas = parenLatexFormulas
+      density = config.density,
+      linkColor = config.linkColor,
+      fontSizeSp = config.fontSizeSp,
+      imageAltColor = config.imageAltColor,
+      latexMeasurer = config.latexMeasurer,
+      editorFontFamily = config.editorFontFamily,
+      parenLatexFormulas = config.parenLatexFormulas
     )
     val preview: String = plainText.take(BAIL_REASON_LOG_PREVIEW_CHARS).replace("\n", " ")
-    log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=$fontSizeSp, text=$preview")
+    log.debug("InlineMarkdown: parse start — text.length=${plainText.length}, fontSizeSp=${config.fontSizeSp}, text=$preview")
     val annotatedString: AnnotatedString = buildAnnotatedString {
       val builder: AnnotatedString.Builder = this
       topBlocks.forEachIndexed { blockIndex, blockNode ->
@@ -542,7 +549,6 @@ private class RenderState(
   val linkColor: Color,
   val fontSizeSp: Float,
   val imageAltColor: Color,
-  val thinkingMode: Boolean,
   var chipCounter: Int = 0,
   var latexCounter: Int = 0,
   var imageAltCounter: Int = 0,
@@ -580,7 +586,7 @@ private class RenderState(
       placeholderVerticalAlign = PlaceholderVerticalAlign.Center
     )
     inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
-      InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp, thinkingMode = thinkingMode)
+      InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp)
     }
   }
 
@@ -1025,7 +1031,7 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
  * Inline code chip. Uses background(color, shape) without clip to avoid clipping descenders (p, g, y).
  */
 @Composable
-private fun InlineCodeChip(text: String, fontSizeSp: Float, thinkingMode: Boolean = false) {
+private fun InlineCodeChip(text: String, fontSizeSp: Float) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
   val badgeColor: Color = JewelTheme.globalColors.text.info
   val chipStyle = TextStyle(

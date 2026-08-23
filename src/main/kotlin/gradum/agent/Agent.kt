@@ -2,15 +2,17 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-23 13:44:58 Changed by gwy
+ * Agent.kt  2026-08-23 20:21:41 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
 
 package gradum.agent
 
-import gradum.*
-import gradum.PromptVariant.*
+import gradum.AgentConfiguration
+import gradum.ErrorCode
+import gradum.Provider
+import gradum.Version
 import gradum.client.*
 import gradum.debug.*
 import gradum.skill.Skill
@@ -19,21 +21,14 @@ import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
-import gradum.utils.MAX_HISTORY_MESSAGES
-import gradum.utils.takeLastTurns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.serializer
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
 import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("Agent")
-
-private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
 
 /**
  * Resolves the ContextManager output directory for an agent run.
@@ -46,10 +41,6 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
 internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
   val sessionKey: String = configuration.sessionId?.trim().orEmpty()
   val projectRootPath: Path = Path.of(configuration.projectRoot)
-  // Reject anything that could escape the sessions directory: path
-  // separators (`a/b`, `..`) and the "." / ".." aliases. A malicious
-  // sessionId would otherwise let the context file be written anywhere
-  // under projectRoot (or outside it, via an absolute path).
   val isSafeSessionKey: Boolean = sessionKey.isNotEmpty() &&
     sessionKey != "." && sessionKey != ".." &&
     !sessionKey.contains('/') && !sessionKey.contains('\\') &&
@@ -66,19 +57,6 @@ internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
  * a chat turn. Agent-side mirror of
  * `gradum.idea.chat.api.GradumApiClient.ApiImageAttachment` and
  * the `AttachmentDto` defined in `gradum.server.Routes`.
- *
- * All three types are structurally identical and field
- * conversions happen at exactly one boundary — `Routes.events`
- * maps `List<AttachmentDto>` → `List<AttachmentPayload>` once,
- * then the wire shape stays untouched all the way to
- * [#buildUserMessage] and from there to the multimodal rewriter
- * in [gradum.client.LlmClient]. This avoids a server → agent
- * import cycle (Routes already depends on Agent).
- *
- * The payload is already base64-encoded JPEG bytes — the plugin
- * pipeline normalizes every uploaded image to JPEG at quality
- * 0.85 before serializing, so the server does not need to
- * re-decode.
  */
 data class AttachmentPayload(
   val type: String,
@@ -88,9 +66,18 @@ data class AttachmentPayload(
 )
 
 /**
- * Drives a single user request through one or more LLM turns, dispatching
- * tool calls to [SkillRegistry] between turns until the model stops
- * requesting tools. Streams progress through [emitEvent] as NDJSON.
+ * Orchestrates a single user request through one or more LLM turns.
+ *
+ * Delegates specialized concerns to dedicated managers:
+ * - [ConversationHistory] — message list management
+ * - [SessionManager] — session lifecycle and events
+ * - [SystemPromptLoader] — prompt assembly
+ * - [GuardrailManager] — content-safety and repetition detection
+ * - [ToolExecutor] — tool call execution and result emission
+ *
+ * The [executeTask] method remains the single entry point; it drives the
+ * agent loop, dispatching tool calls between turns until the model stops
+ * requesting tools.
  */
 class Agent(
   private val configuration: AgentConfiguration,
@@ -100,79 +87,46 @@ class Agent(
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
   private var activeClient: LlmClient
 
-  /**
-   * Per-session ContextManager that stores .gradum output inside the IDE's
-   * open project, not the server's CWD.
-   *
-   * When the plugin supplies a stable `sessionId`, context is written to
-   * `<projectRoot>/.gradum/sessions/<sessionId>/context.json` so model
-   * memory is isolated per conversation thread ("New Chat" forgets). A
-   * blank sessionId falls back to the legacy single
-   * `<projectRoot>/.gradum/context.json` for old-client compatibility.
-   *
-   * The plugin provides `projectRoot` over HTTP, and Routes validates it
-   * before Agent construction, so this is never empty in production.
-   *
-   * Using ProjectPaths.outputDirectory() would write to the wrong project
-   * if the server was launched from a developer workspace instead of the
-   * user's target project.
-   */
   private val contextManager: ContextManager = ContextManager(
     contextOutputDirectory(configuration)
   )
 
-  private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
-
-  /**
-   * Per-session [SkillContext] shared by every [Skill.execute] call.
-   *
-   * Both `toolMode` and `projectRoot` are immutable for the duration of
-   * a session, so passing the same instance down means every Skill sees
-   * the same values.
-   */
-  private val skillContext: SkillContext = SkillContext(
-    toolMode = configuration.toolMode,
-    provider = configuration.provider,
-    modelName = configuration.modelName,
-    projectRoot = configuration.projectRoot,
-    agentConfiguration = configuration,
-    conversationHistory = conversationHistory,
-    emitEvent = emitEvent,
+  private val conversationHistory: ConversationHistory = ConversationHistory()
+  private val sessionManager: SessionManager = SessionManager(configuration, emitEvent)
+  private val promptLoader: SystemPromptLoader = SystemPromptLoader(configuration)
+  private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
+  private val toolExecutor: ToolExecutor = ToolExecutor(
+    skillContext = SkillContext(
+      toolMode = configuration.toolMode,
+      provider = configuration.provider,
+      agentConfiguration = configuration,
+      modelName = configuration.modelName,
+      projectRoot = configuration.projectRoot,
+      conversationHistory = conversationHistory.toList(),
+      emitEvent = emitEvent,
+    ), sessionManager, configuration,
+    conversationHistory,
+    emitEvent = emitEvent
   )
 
-  private var redLineKeywords: List<String> = emptyList()
-  private var redLineKeywordsLowercase: List<String> = emptyList()
-  private val redLineHitKeywords: MutableList<String> = mutableListOf()
-  private val repeatedResponseTracker: MutableList<String> = mutableListOf()
-
-  private var lastToolCallKey: String? = null
-
-  private var toolCallCounter: Int = 0
-  private var redLineHitCounter: Int = 0
-  private var repeatedToolCallCount: Int = 0
-  private var sessionStartTimeMillis: Long = 0L
-
-  private var sessionAborted: Boolean = false
-
-  private val maxHistoryMessages: Int = MAX_HISTORY_MESSAGES
+  private val maxHistoryMessages: Int = gradum.utils.MAX_HISTORY_MESSAGES
 
   init {
     activeClient = when (configuration.provider) {
       Provider.OPENAI -> openAiClient
       Provider.OLLAMA -> ollamaClient
     }
-    redLineKeywords = loadRedLineKeywords()
-    redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
+    guardrailManager.initializeRedLineKeywords(promptLoader.loadRedLineKeywords())
   }
 
   internal constructor(
+    llmClient: LlmClient,
     configuration: AgentConfiguration,
-    emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit, llmClient: LlmClient,
-    redLineKeywords: List<String> = emptyList()
+    redLineKeywords: List<String> = emptyList(),
+    emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
   ) : this(configuration, emitEvent) {
     activeClient = llmClient
-    this.redLineKeywords = redLineKeywords
-    this.redLineKeywordsLowercase = redLineKeywords.map { it.lowercase() }
+    guardrailManager.initializeRedLineKeywords(redLineKeywords)
   }
 
   fun executeTask(
@@ -181,7 +135,9 @@ class Agent(
     loadPreviousContext: Boolean = false,
     attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
-    sessionStartTimeMillis = System.currentTimeMillis()
+    sessionManager.reset()
+    guardrailManager.reset()
+    toolExecutor.reset()
 
     val contextLoaded: Boolean =
       if (loadPreviousContext) {
@@ -190,9 +146,7 @@ class Agent(
         loadedMessages.isNotEmpty()
       } else false
 
-    loadSystemPrompt()
-
-    sessionAborted = false; lastToolCallKey = null; repeatedToolCallCount = 0
+    conversationHistory.addSystemMessage(promptLoader.load(configuration.taskDescription))
 
     for (skill: Skill in SkillRegistry.getAllSkills())
       skill.resetHistoryCount()
@@ -209,11 +163,12 @@ class Agent(
       )
     )
 
-    conversationHistory.add(buildUserMessage(userInput, attachments))
+    conversationHistory.addUserMessage(userInput, attachments)
 
     if (toolCallXml != null) {
       playToolCallScenario(toolCallXml)
-      finishSession()
+      sessionManager.finish()
+      contextManager.saveContext(conversationHistory.toList(), configuration.modelName)
       return
     }
 
@@ -224,9 +179,9 @@ class Agent(
     )
 
     while (true) {
-      if (sessionAborted) break
+      if (sessionManager.isAborted) break
 
-      truncateHistory()
+      conversationHistory.truncate(maxHistoryMessages)
 
       val result: AgentTurnResult = processLlmTurn(toolSchemas)
 
@@ -240,23 +195,22 @@ class Agent(
         )
       }
 
-      val matchedRedLineKeywords: List<String> = checkRedLineKeywords(result.responseText)
+      val matchedRedLineKeywords: List<String> = guardrailManager.checkRedLineKeywords(result.responseText)
       if (matchedRedLineKeywords.isNotEmpty()) {
-        redLineHitCounter++
-        redLineHitKeywords.addAll(matchedRedLineKeywords)
-        recordGuardrail(
+        guardrailManager.recordRedLineHit(matchedRedLineKeywords)
+        sessionManager.recordGuardrail(
           type = "red_line_hit",
-          hitCount = redLineHitCounter,
+          hitCount = guardrailManager.redLineHitCount,
           maxAllowed = configuration.maxRedLineHits,
           guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
         )
-        if (redLineHitCounter >= configuration.maxRedLineHits &&
+        if (guardrailManager.redLineHitCount >= configuration.maxRedLineHits &&
           handleGuardrailExceeded(
             responseText = result.responseText,
             revokeReason = "red_line_violation",
             revokeDetails = mapOf(
-              "hitCount" to redLineHitCounter,
-              "keywords" to redLineHitKeywords.toList(),
+              "hitCount" to guardrailManager.redLineHitCount,
+              "keywords" to guardrailManager.matchedRedLineKeywords,
             ),
           )
         ) {
@@ -264,188 +218,65 @@ class Agent(
         }
       }
 
-      val currentResponse: String = (result.responseText ?: "").trim()
-      val isDuplicate: Boolean =
-        repeatedResponseTracker.isNotEmpty() && currentResponse == repeatedResponseTracker.last()
-      if (isDuplicate || isAbnormalResponse(result.responseText)) {
-        repeatedResponseTracker.add(currentResponse)
-        recordGuardrail(
+      if (guardrailManager.trackRepeatedResponse(result.responseText)) {
+        sessionManager.recordGuardrail(
           type = "repeated_response",
-          hitCount = repeatedResponseTracker.size,
+          hitCount = guardrailManager.repeatedResponseCount,
           maxAllowed = configuration.maxRepeatedResponses,
           guardrailDetails = mapOf("detail" to (result.responseText ?: "")),
         )
-        if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses &&
-          handleGuardrailExceeded(
+        if (handleGuardrailExceeded(
             responseText = result.responseText,
             revokeReason = "repetitive_loop",
             revokeDetails = mapOf(
-              "repeatedCount" to repeatedResponseTracker.size,
-              "responses" to repeatedResponseTracker.toList(),
+              "repeatedCount" to guardrailManager.repeatedResponseCount,
+              "responses" to guardrailManager.repeatedResponses,
             ),
           )
         ) {
           break
         }
-      } else repeatedResponseTracker.clear()
+      }
 
       if (result.toolCalls.isNullOrEmpty()) {
-        result.responseText?.let { text -> appendAssistantMessage(text, null) }
+        result.responseText?.let { text ->
+          conversationHistory.addAssistantMessage(text, configuration.modelName, configuration.provider, null)
+        }
         break
       }
 
-      val processedCalls: List<ProcessedToolCall> = prepareToolCalls(result.toolCalls)
-      appendAssistantMessage(result.responseText ?: "", processedCalls)
+      val processedCalls: List<ProcessedToolCall> = toolExecutor.prepareToolCalls(result.toolCalls)
+      conversationHistory.addAssistantMessage(
+        result.responseText ?: "", configuration.modelName, configuration.provider, processedCalls
+      )
 
       for ((index: Int, processedCall: ProcessedToolCall) in processedCalls.withIndex())
-        executeSingleTool(processedCall, isLastToolCall = index == processedCalls.lastIndex)
+        toolExecutor.executeSingleTool(processedCall, isLastToolCall = index == processedCalls.lastIndex)
 
-      if (sessionAborted) break
+      if (sessionManager.isAborted) break
     }
 
-    if (configuration.taskDescription == null) finishSession()
+    if (configuration.taskDescription == null) {
+      sessionManager.finish()
+      contextManager.saveContext(conversationHistory.toList(), configuration.modelName)
+    }
   }
 
-  /**
-   * Extracts the last non-empty assistant response from the conversation
-   * history. Used by sub-agent skills (e.g. [gradum.skill.DelegateSkill])
-   * to retrieve the sub-agent's final output.
-   */
-  fun getResult(): String? {
-    val lastAssistant: Map<String, Any>? = conversationHistory.lastOrNull { msg ->
-      msg["role"] == "assistant" && msg.containsKey("content")
-        && (msg["content"] as? String)?.isNotBlank() == true
-    }
-    return lastAssistant?.let { msg -> msg["content"] as? String }
-  }
+  fun getResult(): String? = conversationHistory.getResult()
 
-  /**
-   * Returns the full conversation history. Used by sub-agent skills to
-   * pass the sub-agent's complete dialogue to the client for rendering
-   * in a read-only sub-chat view.
-   */
-  fun getConversationHistory(): List<Map<String, Any>> {
-    return conversationHistory.toList()
-  }
+  fun getConversationHistory(): List<Map<String, Any>> = conversationHistory.toList()
 
-  private fun loadSystemPrompt() {
-    val resolvedVariant: PromptVariant = when (configuration.promptVariant) {
-      CLOUD, LOCAL -> configuration.promptVariant
-      AUTO -> PromptVariant.resolveAuto(configuration.provider)
-    }
-    val primaryPath: String = when (resolvedVariant) {
-      CLOUD -> "/prompts/system/cloud.xml"
-      // AUTO is fully resolved to CLOUD/LOCAL above, so this arm is unreachable.
-      else -> "/prompts/system/local.xml"
-    }
+  fun isSessionAborted(): Boolean = sessionManager.isAborted
 
-    val promptContent: String = try {
-      Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
-        stream.reader(Charsets.UTF_8).readText()
-      }
-        ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
-    } catch (promptLoadException: Exception) {
-      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}", promptLoadException)
-      "You are a helpful AI assistant. You can't call any tool and report it"
-    }
+  fun getSessionEndReason(): String? = sessionManager.endReason
 
-    val modeSectionPath: String = when (configuration.toolMode) {
-      ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
-      ToolMode.EDIT -> "/prompts/modes/edit.xml"
-      ToolMode.AGENT -> "/prompts/modes/agent.xml"
-    }
-    val modeSection: String = try {
-      Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
-        stream.reader(Charsets.UTF_8).readText()
-      } ?: "You have no tools available in this session."
-    } catch (modeSectionException: Exception) {
-      logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}", modeSectionException)
-      "You have no tools available in this session."
-    }
-
-    val osName: String = System.getProperty("os.name")
-    val osVersion: String = System.getProperty("os.version")
-    val schemaVariant: SchemaVariant = SchemaVariant.resolve(configuration.modelName)
-    val substitutedContent: String = promptContent
-      .replace("{{OS}}", "$osName $osVersion")
-      .replace("{{MODE}}", modeSection)
-      .replace("{{SCHEMA_VARIANT}}", schemaVariant.name)
-
-    val filteredContent: String = filterConditionalSections(substitutedContent, schemaVariant)
-
-    val finalContent: String = configuration.taskDescription?.let { task ->
-      "$filteredContent\n\n### Sub-Agent Task\n$task"
-    } ?: filteredContent
-
-    conversationHistory.add(0, mapOf("role" to "system", "content" to finalContent))
-  }
-
-  /**
-   * Filters conditional sections in the prompt based on [SchemaVariant].
-   *
-   * Sections wrapped in `<!-- if SIMPLE -->...<!-- endif -->` are kept
-   * only for [SchemaVariant.SIMPLE]; `<!-- if FULL -->` only for
-   * [SchemaVariant.FULL].
-   *
-   * Edge cases: nested conditionals are NOT supported (outer block wins);
-   * malformed tags (missing endif) drop the section; empty sections are
-   * preserved.
-   */
-  private fun filterConditionalSections(content: String, schemaVariant: SchemaVariant): String {
-    if (content.isBlank()) return content
-
-    val outputBuffer = StringBuilder()
-    val contentLines = content.lines()
-    var lineIndex = 0
-    var skipUntilEndif = false
-    var insideConditional = false
-
-    while (lineIndex < contentLines.size) {
-      val currentLine = contentLines[lineIndex]
-      val trimmedLine = currentLine.trim()
-
-      when {
-        // Opening tag: <!-- if SIMPLE --> or <!-- if FULL -->
-        !insideConditional && trimmedLine.startsWith("<!-- if ") && trimmedLine.endsWith(" -->") -> {
-          val conditionName = trimmedLine
-            .removePrefix("<!-- if ")
-            .removeSuffix(" -->")
-            .trim()
-
-          val conditionVariant = try {
-            SchemaVariant.valueOf(conditionName)
-          } catch (variantException: IllegalArgumentException) {
-            logger.debug("Unknown conditional variant '$conditionName': ${variantException.message}", variantException)
-            null
-          }
-
-          insideConditional = true
-          skipUntilEndif = conditionVariant != schemaVariant
-          lineIndex++
-        }
-
-        // Closing tag: <!-- endif -->
-        insideConditional && trimmedLine == "<!-- endif -->" -> {
-          insideConditional = false
-          skipUntilEndif = false
-          lineIndex++
-        }
-
-        // Inside conditional block
-        insideConditional -> {
-          if (!skipUntilEndif)
-            outputBuffer.appendLine(currentLine)
-          lineIndex++
-        }
-
-        else -> {
-          outputBuffer.appendLine(currentLine)
-          lineIndex++
-        }
-      }
-    }
-
-    return outputBuffer.toString().trimEnd()
+  fun abort(reason: String = "user_abort") {
+    val tokenUsage = mapOf(
+      "promptTokens" to activeClient.tokenUsage.promptTokens,
+      "completionTokens" to activeClient.tokenUsage.completionTokens,
+      "totalTokens" to activeClient.tokenUsage.totalTokens
+    )
+    sessionManager.abort(reason, tokenUsage)
   }
 
   private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {
@@ -472,7 +303,7 @@ class Agent(
     }
 
     val responseFlow: Flow<LLMResponseChunk> =
-      activeClient.sendChat(conversationHistory, toolSchemas)
+      activeClient.sendChat(conversationHistory.toList(), toolSchemas)
 
     // TODO(tech-debt): migrate this to a `suspend fun` so the Netty event loop is not
     // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
@@ -488,7 +319,9 @@ class Agent(
 
           is LLMResponseChunk.ReasoningContent -> {
             flushResponse()
-            logger.info("Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(50).replace("\n", "\\n")}")
+            logger.info(
+              "Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(50).replace("\n", "\\n")}"
+            )
             emitEvent("thinking", mapOf("content" to chunk.text))
           }
 
@@ -514,267 +347,29 @@ class Agent(
     )
   }
 
-  private fun prepareToolCalls(rawCalls: List<ToolCallEntry>): List<ProcessedToolCall> {
-    return rawCalls.map { call: ToolCallEntry ->
-      val existingId: String = call.callIdentifier
-      if (existingId.isNotBlank()) {
-        ProcessedToolCall(callIdentifier = existingId, callData = call)
-      } else {
-        toolCallCounter++
-        ProcessedToolCall(callIdentifier = "call_$toolCallCounter", callData = call)
-      }
+  private fun handleGuardrailExceeded(
+    responseText: String?, revokeReason: String, revokeDetails: Map<String, Any>
+  ): Boolean {
+    responseText?.let { text ->
+      conversationHistory.addAssistantMessage(text, configuration.modelName, configuration.provider, null)
     }
+    sessionManager.emitRevoked(revokeReason, revokeDetails)
+    val tokenUsage = mapOf(
+      "promptTokens" to activeClient.tokenUsage.promptTokens,
+      "completionTokens" to activeClient.tokenUsage.completionTokens,
+      "totalTokens" to activeClient.tokenUsage.totalTokens
+    )
+    sessionManager.abort(revokeReason, tokenUsage)
+    return true
   }
 
   /**
-   * Build the user message appended to [conversationHistory].
-   *
-   * With attachments the `content` becomes an array whose `text` part
-   * always comes first so the LLM prompt reads top-to-bottom; without
-   * attachments it collapses to the legacy string shape for backwards
-   * compatibility with persisted history and per-provider clients.
-   */
-  private fun buildUserMessage(text: String, attachments: List<AttachmentPayload>): Map<String, Any> {
-    if (attachments.isEmpty()) {
-      return mapOf("role" to "user", "content" to text)
-    }
-    val parts: MutableList<Map<String, Any>> = mutableListOf(
-      mapOf("type" to "text", "text" to text)
-    )
-    for ((type, mime, data, filename) in attachments) {
-      if (type != "image") {
-        logger.warn("Ignoring unsupported attachment type '$type' (filename=$filename)")
-        continue
-      }
-      parts.add(
-        mapOf(
-          "type" to "image",
-          "data" to (data),
-          "mime" to (mime ?: "image/jpeg"),
-          "filename" to (filename ?: "")
-        )
-      )
-    }
-    return mapOf("role" to "user", "content" to parts)
-  }
-
-  private fun appendAssistantMessage(content: String, processedCalls: List<ProcessedToolCall>?): Unit {
-    val assistantMessage: Map<String, Any> = if (!processedCalls.isNullOrEmpty()) {
-      val toolCallsList: List<Map<String, Any>> = if (configuration.provider == Provider.OPENAI) {
-        processedCalls.map { call ->
-          mapOf(
-            "id" to call.callIdentifier,
-            "type" to "function",
-            "function" to mapOf(
-              "name" to call.callData.functionName,
-              "arguments" to Json.encodeToString(
-                serializer<Map<String, JsonElement>>(),
-                call.callData.functionArguments
-              ),
-            ),
-          )
-        }
-      } else {
-        processedCalls.map { call ->
-          mapOf(
-            "function" to mapOf(
-              "name" to call.callData.functionName,
-              "arguments" to call.callData.functionArguments.entries.associate {
-                it.key to JsonUtil.fromJsonElement(it.value)
-              }
-            ),
-          )
-        }
-      }
-
-      mapOf("role" to "assistant", "content" to content, "modelName" to configuration.modelName, "tool_calls" to toolCallsList)
-    } else mapOf("role" to "assistant", "content" to content, "modelName" to configuration.modelName)
-
-    conversationHistory.add(assistantMessage)
-  }
-
-  private fun executeSingleTool(
-    processedCall: ProcessedToolCall, isLastToolCall: Boolean = true
-  ): Map<String, Any> {
-    val functionName: String = processedCall.callData.functionName
-    val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
-
-    val convertedArguments: MutableMap<String, Any> = mutableMapOf()
-    for ((key: String, value: JsonElement) in rawArguments) {
-      val converted: Any? = JsonUtil.fromJsonElement(value)
-      if (converted != null) {
-        convertedArguments[key] = converted
-      }
-    }
-
-    // Remove any project root keys the LLM might have injected.
-    // The server provides the actual root; the LLM must not override it.
-    convertedArguments.remove("projectRoot")
-    convertedArguments.remove("project_root")
-
-    // Inject the session's project root (from IDE request) into every tool call.
-    // Routes guarantee this is non-empty.
-    convertedArguments["projectRoot"] = configuration.projectRoot
-
-    logger.info("Skill: $functionName")
-    if (logger.isDebugEnabled) logger.debug("Args: ${truncateToolArguments(convertedArguments)}")
-
-    val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
-    val toolAlias: String = skillInstance?.alias ?: functionName
-
-    // Emit a pre-execution placeholder first, so every terminal path below
-    // (aborted / runaway / blocked / success / failure) is preceded by a
-    // matching `tool_call_start` and the client can always show a spinner.
-    // The completed `tool_call` event follows and carries the same
-    // toolCallId for the client to update the row in place.
-    emitToolCallStart(
-      toolAlias,
-      processedCall.callIdentifier,
-      functionName,
-      skillInstance = skillInstance,
-      convertedArguments = convertedArguments
-    )
-
-    val executionResult: Map<String, Any>
-
-    if (sessionAborted) {
-      executionResult = mapOf(
-        "success" to false,
-        "error" to mapOf(
-          "code" to ErrorCode.CLIENT_ERROR.name,
-          "message" to "Aborted by user before execution started"
-        ),
-      )
-      emitToolResult(
-        processedCall,
-        functionName,
-        convertedArguments,
-        skillInstance,
-        executionResult,
-        isLastToolCall
-      )
-      logToolResult(executionResult)
-      return executionResult
-    }
-
-    if (checkToolRunaway(functionName, convertedArguments)) {
-      logger.error("Result: TOOL_RUNAWAY repeated call ($repeatedToolCallCount times), aborting")
-      emitRevoked(
-        "tool_runaway", mapOf(
-          "tool" to functionName,
-          "arguments" to convertedArguments,
-          "repeatedCount" to repeatedToolCallCount,
-        )
-      )
-      executionResult = mapOf(
-        "success" to false,
-        "error" to mapOf(
-          "code" to ErrorCode.CLIENT_ERROR.name,
-          "message" to "Tool runaway: repeated call $repeatedToolCallCount times, aborting",
-        ),
-      )
-      emitToolResult(
-        processedCall,
-        functionName,
-        convertedArguments,
-        skillInstance,
-        executionResult,
-        isLastToolCall
-      )
-      logToolResult(executionResult)
-      abortSession()
-      return executionResult
-    }
-
-    if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
-      val commandText: String = convertedArguments["command"] as? String ?: ""
-      val verdict: gradum.utils.CommandVerdict =
-        gradum.utils.classifyCommand(commandText, configuration.toolMode)
-
-      if (verdict is gradum.utils.CommandVerdict.Blocked) {
-        logger.error("Result: COMMAND_BLOCKED — ${verdict.description} (rule: ${verdict.ruleName})")
-        executionResult = mapOf(
-          "success" to false,
-          "error" to mapOf(
-            "code" to ErrorCode.COMMAND_BLOCKED.name,
-            "message" to verdict.description,
-            "rule" to verdict.ruleName,
-          ),
-        )
-        emitToolResult(
-          processedCall,
-          functionName,
-          convertedArguments,
-          skillInstance,
-          executionResult,
-          isLastToolCall
-        )
-        logToolResult(executionResult)
-        return executionResult
-      }
-    }
-
-    executionResult = executeSkill(skillInstance, functionName, convertedArguments)
-
-    emitToolResult(
-      processedCall,
-      functionName,
-      convertedArguments,
-      skillInstance,
-      executionResult,
-      isLastToolCall
-    )
-    logToolResult(executionResult)
-
-    return executionResult
-  }
-
-  /**
-   * Emit a pre-execution `tool_call_start` event. The client uses it to
-   * render a pending "tool is running" row (spinner) before the
-   * completed `tool_call` event for the same [toolCallId] arrives.
-   * Emitted from [executeSingleTool] immediately before the blocking
-   * [executeSkill] call, so the payload always has the arguments the UI
-   * needs to describe the operation (command / path / query, ...).
-   */
-  private fun emitToolCallStart(
-    toolAlias: String,
-    toolCallId: String,
-    functionName: String,
-    timeoutSeconds: Int = 0,
-    skillInstance: Skill? = null,
-    convertedArguments: Map<String, Any>
-  ) {
-    // Skills that manage their own event stream (e.g. DelegateSkill
-    // via sub_agent:start/sub_agent:session_end) should not receive
-    // the standard tool_call_start event.
-    if (skillInstance?.manageOwnEventStream == true) return
-
-    val eventData: MutableMap<String, Any> = mutableMapOf(
-      "alias" to toolAlias,
-      "tool" to functionName,
-      "toolCallId" to toolCallId,
-      "arguments" to convertedArguments
-    )
-    if (timeoutSeconds > 0) eventData["timeoutSeconds"] = timeoutSeconds
-    emitEvent("tool_call_start", eventData)
-  }
-
-  /**
-   * Debug tool-call playback mode.
-   *
-   * The developer authors a scenario as a short `<tls>` XML block —
-   * playing the part of the model — instead of spending LLM tokens.
-   * Every listed call runs through the real [executeSingleTool]
-   * pipeline, streams the same `tool_call` NDJSON events, then writes a
-   * machine-readable recording to
-   * `<projectRoot>/.gradum/recordings/<scenario>.json` so results can
-   * be diffed between runs.
-   *
-   * Each tool may carry `exp="success"|"error"` (default `success`);
-   * a mismatch surfaces as a `tool_expect_mismatch` event. `<tt>`
-   * narration is emitted as `response` events so a compiled `.md`
-   * replays as a full agent turn.
+   * Debug tool-call playback mode. The developer authors a scenario as
+   * a short `<tls>` XML block — playing the part of the model — instead
+   * of spending LLM tokens. Every listed call runs through the real
+   * [toolExecutor] pipeline, streams the same `tool_call` NDJSON events,
+   * then writes a machine-readable recording to
+   * `<projectRoot>/.gradum/recordings/<scenario>.json`.
    */
   private fun playToolCallScenario(toolCallXml: String): Unit {
     val scenario: ToolCallScenario = try {
@@ -806,7 +401,7 @@ class Agent(
     val mismatches: MutableList<Map<String, Any>> = mutableListOf()
 
     for ((stepIndex: Int, step: ScenarioStep) in scenario.steps.withIndex()) {
-      if (sessionAborted) break
+      if (sessionManager.isAborted) break
 
       when (step) {
         is ScenarioStep.AiReply -> {
@@ -814,9 +409,9 @@ class Agent(
             emitEvent(
               "response", mapOf(
                 "content" to step.content,
+                "totalTokens" to 0,
                 "promptTokens" to 0,
                 "completionTokens" to 0,
-                "totalTokens" to 0
               )
             )
           }
@@ -829,10 +424,10 @@ class Agent(
             functionArguments = step.functionArguments,
             callIdentifier = "playback_${toolIndex + 1}"
           )
-          val processedCall: ProcessedToolCall = prepareToolCalls(listOf(callEntry)).first()
+          val processedCall: ProcessedToolCall = toolExecutor.prepareToolCalls(listOf(callEntry)).first()
           val isLastToolCall: Boolean = recordings.size == toolCalls.lastIndex
 
-          val executionResult: Map<String, Any> = executeSingleTool(processedCall, isLastToolCall)
+          val executionResult: Map<String, Any> = toolExecutor.executeSingleTool(processedCall, isLastToolCall)
           val startedAtMillis: Long = System.currentTimeMillis()
           val durationMillis: Long = System.currentTimeMillis() - startedAtMillis
           val actualSuccess: Boolean = executionResult["success"] as? Boolean ?: false
@@ -899,11 +494,6 @@ class Agent(
     )
   }
 
-  /**
-   * Writes a debug playback recording to
-   * `<project>/.gradum/recordings/<scenario>-<timestamp>.json`, inside
-   * the user's project like [contextManager]'s output.
-   */
   private fun savePlaybackRecording(scenarioName: String, summary: Map<String, Any>) {
     try {
       val recordingsDir: Path = Path.of(configuration.projectRoot, ".gradum", "recordings")
@@ -919,324 +509,9 @@ class Agent(
     }
   }
 
-  private fun executeSkill(
-    skillInstance: Skill?, functionName: String,
-    convertedArguments: Map<String, Any>
-  ): Map<String, Any> {
-    if (skillInstance == null) {
-      logger.error("Result: SKILL_NOT_FOUND '$functionName' not registered")
-      return mapOf(
-        "success" to false,
-        "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
-      )
-    }
-    if (!skillInstance.allows(configuration.toolMode)) {
-      val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
-      logger.error(
-        "Result: TOOL_NOT_PERMITTED — '${functionName}' not allowed in ${configuration.toolMode} (allowed: ${
-          allowedNames.joinToString(
-            ", "
-          )
-        })"
-      )
-      return mapOf(
-        "success" to false,
-        "error" to mapOf(
-          "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
-          "message" to "Tool '${functionName}' is not permitted in ${configuration.toolMode} mode " +
-            "(allowed: ${allowedNames.joinToString(", ")})",
-          "toolMode" to configuration.toolMode.name,
-          "allowedModes" to allowedNames,
-        ),
-      )
-    }
-    return when (val result: SkillResult = skillInstance.execute(convertedArguments, skillContext)) {
-      is SkillResult.Success -> mapOf("success" to true).plus(result.data)
-      is SkillResult.Failure -> mapOf(
-        "success" to false,
-        "error" to mapOf("code" to result.code, "message" to result.message)
-      )
-    }
-  }
-
-  private fun logToolResult(executionResult: Map<String, Any>) {
-    val callSuccess = executionResult["success"] as? Boolean ?: false
-    if (callSuccess) {
-      logger.info("Result: success")
-    } else {
-      @Suppress("UNCHECKED_CAST")
-
-      val errorInfo = executionResult["error"] as? Map<String, Any> ?: emptyMap()
-      val errorCode = errorInfo["code"] ?: "UNKNOWN"
-      val errorMessage = errorInfo["message"] ?: "No message"
-      logger.error("  Result: failed [$errorCode] $errorMessage")
-    }
-  }
-
-  /**
-   * Emit the post-execution events for a tool call (`tool_call`, optional
-   * `error`) and append the result to [conversationHistory]. Shared by
-   * the normal skill path and the Read-only guard so both produce an
-   * identical agent-loop trace.
-   *
-   * The result is routed through [Skill.recordAndCompactHistory], which
-   * strips [Skill.historyVolatileKeys] from this skill's OLDER tool
-   * messages while returning the current call's history-stamped version.
-   */
-  private fun emitToolResult(
-    processedCall: ProcessedToolCall,
-    functionName: String,
-    convertedArguments: Map<String, Any>,
-    skillInstance: Skill?,
-    executionResult: Map<String, Any>,
-    isLastToolCall: Boolean = true,
-  ) {
-    val toolAlias: String = skillInstance?.alias ?: functionName
-    val ownMessageIndices: List<Int> = if (skillInstance == null) emptyList()
-    else conversationHistory.withIndex()
-      .filter { (_, entry: Map<String, Any>) ->
-        (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == toolAlias
-      }.map { (index: Int, _: Map<String, Any>) -> index }
-
-    val historyResult: Map<String, Any> = skillInstance?.recordAndCompactHistory(
-      executionResult, conversationHistory, ownMessageIndices
-    ) ?: executionResult
-    val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
-
-    // Skills that manage their own event stream (e.g. DelegateSkill
-    // via sub_agent:start/sub_agent:session_end) should not receive
-    // the standard tool_call event, but the result must still be
-    // added to conversationHistory so the LLM can see it.
-    val skipEvent: Boolean = skillInstance?.manageOwnEventStream == true
-
-    if (!skipEvent) {
-      emitEvent(
-        "tool_call", mapOf(
-          "tool" to functionName,
-          "alias" to toolAlias,
-          "arguments" to convertedArguments,
-          "toolCallId" to processedCall.callIdentifier,
-          "success" to callSuccess,
-          "result" to executionResult
-        )
-      )
-
-      if (!callSuccess) {
-        @Suppress("UNCHECKED_CAST")
-        val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
-        emitEvent(
-          "error", mapOf(
-            "tool" to functionName,
-            "toolCallId" to processedCall.callIdentifier,
-            "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
-            "message" to (errorInfo["message"] ?: "Unknown error")
-          )
-        )
-      }
-    }
-
-    val resultString: String = JsonUtil.encodeMap(historyResult)
-
-    val todoReminder: String? =
-      if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
-    val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
-
-    val toolMessage: Map<String, Any> = buildMap {
-      put("role", "tool")
-      put("alias", toolAlias)
-      put("content", finalResult)
-      if (configuration.provider == Provider.OPENAI)
-        put("tool_call_id", processedCall.callIdentifier)
-    }
-
-    conversationHistory.add(toolMessage)
-  }
-
-  /**
-   * Truncates conversation history to [maxHistoryMessages] messages,
-   * keeping the system prompt and the most recent messages.
-   *
-   * Truncation is **turn-aware**: a "turn" is a user message, OR an
-   * assistant message together with all its following `role=tool`
-   * results. Cuts only happen on turn boundaries so the truncated list
-   * never contains an assistant message whose `tool_calls` reference
-   * dropped tool results.
-   *
-   * If one whole turn is larger than the budget, the truncator falls
-   * back to a raw tail cut within the most recent turn and logs a
-   * warning so the operator can raise the budget.
-   */
-  private fun truncateHistory() {
-    val systemPrompt: Map<String, Any>? =
-      conversationHistory.firstOrNull { (it["role"] as? String) == "system" }
-    val nonSystem: List<Map<String, Any>> =
-      conversationHistory.filter { (it["role"] as? String) != "system" }
-
-    if (nonSystem.size <= maxHistoryMessages) return
-
-    val preSize: Int = nonSystem.size
-    val keepFromEnd: List<Map<String, Any>> = takeLastTurns(nonSystem, maxHistoryMessages)
-    if (keepFromEnd.size in (maxHistoryMessages + 1)..<preSize) {
-      logger.warn(
-        "Cannot fit conversation in $maxHistoryMessages messages " +
-          "without breaking a turn; falling back to raw tail cut " +
-          "(non-system size = $preSize)"
-      )
-    }
-
-    conversationHistory.clear()
-    if (systemPrompt != null) conversationHistory.add(systemPrompt)
-    conversationHistory.addAll(keepFromEnd)
-  }
-
-  private fun loadRedLineKeywords(): List<String> {
-    return try {
-      Agent::class.java.getResourceAsStream("/red_line_keywords.txt")?.use { stream ->
-        stream.reader(Charsets.UTF_8).readLines().map { it.trim() }
-          .filter { it.isNotBlank() && !it.startsWith("#") }
-      } ?: run {
-        logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
-        emptyList()
-      }
-    } catch (keywordLoadException: Exception) {
-      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}", keywordLoadException)
-      emptyList()
-    }
-  }
-
-  private fun checkRedLineKeywords(text: String?): List<String> {
-    if (text.isNullOrBlank() || redLineKeywords.isEmpty()) {
-      return emptyList()
-    }
-
-    val lowercasedText: String = text.lowercase()
-    return redLineKeywords.filterIndexed { index: Int, _: String ->
-      lowercasedText.contains(redLineKeywordsLowercase[index])
-    }
-  }
-
-  private fun checkToolRunaway(toolName: String, toolArguments: Map<String, Any>): Boolean {
-    val callSignature =
-      "$toolName|${toolArguments.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
-    repeatedToolCallCount = if (callSignature == lastToolCallKey) repeatedToolCallCount + 1 else 1
-    lastToolCallKey = callSignature
-    return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
-  }
-
-  private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
-    val maxValueLength = 512
-    val serialized: String = JsonUtil.encodeMap(toolArguments, prettyPrint = true)
-    return if (serialized.length <= maxValueLength) serialized
-    else serialized.take(maxValueLength) + "... [truncated, ${serialized.length} chars total]"
-  }
-
-  private fun emitRevoked(reason: String, details: Map<String, Any>): Unit {
-    emitEvent(
-      "mission_revoked", mapOf(
-        "reason" to reason,
-        "details" to details,
-      )
-    )
-  }
-
-  /**
-   * Emits a `guardrail` event. Shared by the red-line and repeated-response
-   * escalations so both hit the same wire shape.
-   */
-  private fun recordGuardrail(
-    type: String,
-    hitCount: Int,
-    maxAllowed: Int,
-    guardrailDetails: Map<String, Any>
-  ): Unit {
-    emitEvent(
-      "guardrail",
-      mapOf(
-        "type" to type,
-        "hitCount" to hitCount,
-        "maxAllowed" to maxAllowed,
-      ) + guardrailDetails,
-    )
-  }
-
-  /**
-   * Escalates an exhausted guardrail: persist the offending assistant
-   * message, emit `mission_revoked`, and abort the session. Returns true
-   * so the caller can `break` out of the agent loop.
-   */
-  private fun handleGuardrailExceeded(
-    responseText: String?,
-    revokeReason: String,
-    revokeDetails: Map<String, Any>
-  ): Boolean {
-    responseText?.let { text -> appendAssistantMessage(text, null) }
-    emitRevoked(revokeReason, revokeDetails)
-    abortSession()
-    return true
-  }
-
-  private fun abortSession(): Unit {
-    sessionAborted = true
-    val elapsedSeconds: Long = (System.currentTimeMillis() - sessionStartTimeMillis) / 1000
-
-    emitEvent(
-      "session_end", mapOf(
-        "version" to Version.GRADUM_VERSION,
-        "elapsedSeconds" to elapsedSeconds,
-        "model" to configuration.modelName,
-        "tokenUsage" to mapOf(
-          "promptTokens" to activeClient.tokenUsage.promptTokens,
-          "completionTokens" to activeClient.tokenUsage.completionTokens,
-          "totalTokens" to activeClient.tokenUsage.totalTokens
-        ),
-        "aborted" to true,
-      )
-    )
-  }
-
-  /** Aborts the session from outside (e.g. via POST /stop). */
-  fun abort() {
-    abortSession()
-  }
-
-  companion object {
-    private fun isAbnormalResponse(responseText: String?): Boolean {
-      if (responseText.isNullOrBlank()) return false
-      val trimmedText = responseText.trim()
-
-      val sentenceList = trimmedText.split(SENTENCE_SPLIT_PATTERN)
-        .map { it.trim() }
-        .filter { it.isNotBlank() && it.length > 3 }
-
-      return sentenceList.size >= 3 && sentenceList.groupingBy {
-        it.lowercase()
-      }.eachCount().values.any { it >= 3 }
-    }
-  }
-
-  private fun finishSession(): Unit {
-    if (!sessionAborted) {
-      val elapsedSeconds: Long = (System.currentTimeMillis() - sessionStartTimeMillis) / 1000
-
-      emitEvent(
-        "session_end", mapOf(
-          "version" to Version.GRADUM_VERSION,
-          "elapsedSeconds" to elapsedSeconds,
-          "model" to configuration.modelName,
-        )
-      )
-    }
-
-    contextManager.saveContext(conversationHistory, configuration.modelName)
-  }
-
   private data class AgentTurnResult(
     val responseText: String?,
     val toolCalls: List<ToolCallEntry>?,
     val errorMessage: String?
-  )
-
-  data class ProcessedToolCall(
-    val callIdentifier: String, val callData: ToolCallEntry
   )
 }

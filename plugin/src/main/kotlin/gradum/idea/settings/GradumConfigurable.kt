@@ -305,19 +305,23 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
 
     FontSizeRow(
       labelKey = "gradum.settings.appearance.fontsize",
-      fontSizeSp = snapshot.paragraphFontSizeSp,
-      onFontSizeChange = { fontSize ->
-        draft.value = draft.value.copy(paragraphFontSizeSp = fontSize)
-      },
-      minSp = MIN_PARAGRAPH_FONT_SIZE_SP,
-      maxSp = MAX_PARAGRAPH_FONT_SIZE_SP,
-      secondaryFontSizeSp = snapshot.codeBlockFontSizeSp,
-      onSecondaryFontSizeChange = { fontSize ->
-        draft.value = draft.value.copy(codeBlockFontSizeSp = fontSize)
-      },
-      secondaryMinSp = MIN_CODE_BLOCK_FONT_SIZE_SP,
-      secondaryMaxSp = MAX_CODE_BLOCK_FONT_SIZE_SP,
-      secondaryAllowAuto = true
+      primary = FontSizeEntry(
+        minSp = MIN_PARAGRAPH_FONT_SIZE_SP,
+        maxSp = MAX_PARAGRAPH_FONT_SIZE_SP,
+        fontSizeSp = snapshot.paragraphFontSizeSp,
+        onFontSizeChange = { fontSize ->
+          draft.value = draft.value.copy(paragraphFontSizeSp = fontSize)
+        }
+      ),
+      secondary = FontSizeEntry(
+        minSp = MIN_CODE_BLOCK_FONT_SIZE_SP,
+        maxSp = MAX_CODE_BLOCK_FONT_SIZE_SP,
+        fontSizeSp = snapshot.codeBlockFontSizeSp,
+        onFontSizeChange = { fontSize ->
+          draft.value = draft.value.copy(codeBlockFontSizeSp = fontSize)
+        },
+        allowAuto = true
+      )
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
@@ -772,6 +776,15 @@ private fun ActionOptionRow(
   }
 }
 
+/** One font-size slider entry in a [FontSizeRow]. */
+private data class FontSizeEntry(
+  val minSp: Float,
+  val maxSp: Float,
+  val fontSizeSp: Float,
+  val onFontSizeChange: (Float) -> Unit,
+  val allowAuto: Boolean = false
+)
+
 /**
  * Number fields for the assistant body and code-block font sizes, laid out
  * as a single flowing sentence with the number fields inlined
@@ -786,16 +799,9 @@ private fun ActionOptionRow(
  */
 @Composable
 private fun FontSizeRow(
-  minSp: Float,
-  maxSp: Float,
   labelKey: String,
-  fontSizeSp: Float,
-  secondaryMinSp: Float,
-  secondaryMaxSp: Float,
-  secondaryFontSizeSp: Float,
-  onFontSizeChange: (Float) -> Unit,
-  onSecondaryFontSizeChange: (Float) -> Unit,
-  secondaryAllowAuto: Boolean = false
+  primary: FontSizeEntry,
+  secondary: FontSizeEntry
 ) {
   FlowRow(
     modifier = Modifier.fillMaxWidth(),
@@ -807,10 +813,10 @@ private fun FontSizeRow(
       modifier = Modifier.align(Alignment.CenterVertically)
     )
     FontSizeField(
-      minSp = minSp,
-      maxSp = maxSp,
-      fontSizeSp = fontSizeSp,
-      onFontSizeChange = onFontSizeChange
+      minSp = primary.minSp,
+      maxSp = primary.maxSp,
+      fontSizeSp = primary.fontSizeSp,
+      onFontSizeChange = primary.onFontSizeChange
     )
     Text(
       text = message("gradum.settings.appearance.sp"),
@@ -821,12 +827,12 @@ private fun FontSizeRow(
       modifier = Modifier.align(Alignment.CenterVertically)
     )
     FontSizeField(
-      minSp = secondaryMinSp,
-      maxSp = secondaryMaxSp,
-      allowAuto = secondaryAllowAuto,
-      fontSizeSp = secondaryFontSizeSp,
-      onFontSizeChange = onSecondaryFontSizeChange,
-      autoHint = if (secondaryAllowAuto) formatFontSize(fontSizeSp) else null
+      minSp = secondary.minSp,
+      maxSp = secondary.maxSp,
+      allowAuto = secondary.allowAuto,
+      fontSizeSp = secondary.fontSizeSp,
+      onFontSizeChange = secondary.onFontSizeChange,
+      autoHint = if (secondary.allowAuto) formatFontSize(primary.fontSizeSp) else null
     )
     Text(
       text = "sp",

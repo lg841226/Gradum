@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-16 00:08:59 Changed by gwy
+ * CommonCapsule.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
@@ -30,6 +30,13 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 private val REASON_MAX_WIDTH_DP: Dp = 200.dp
 private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
 
+/** Error metadata for a failed tool call capsule. */
+data class ToolCallErrorInfo(
+  val detail: String = "",
+  val toolDetails: String = "",
+  val message: String = ""
+)
+
 /**
  * Shared one-line "capsule" used by every built-in default renderer
  * to render a tool call row. Lives in `skill/internal/` because
@@ -38,15 +45,15 @@ private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
  * Edited, Read, Saved, Explored, Planned, Completed, Default) and
  * tests depend on this composable.
  *
- * Error display — when [success] is `false` and [errorMessage] is
+ * Error display — when [success] is `false` and [errorInfo.message] is
  * non-blank, the trailing status icon (`Status.FailedInProgress`)
  * becomes clickable and opens a minimal `PopupMenu` with a single
  * `selectableItem`:
  *
  *   [error icon]  Copy details / Copied
  *
- * "Copy details" copies [toolDetails] to the clipboard, defaulting
- * to [errorDetail] when no richer info is available. [toolDetails]
+ * "Copy details" copies errorInfo.toolDetails to the clipboard, defaulting
+ * to errorInfo.detail when no richer info is available. toolDetails
  * is built by [formatToolDetails] in `ToolCallBlock` from the
  * underlying `RenderBlock.ToolCall` (alias + arguments + result +
  * error message + error detail) so the user can paste a full debug
@@ -60,9 +67,7 @@ internal fun ToolCallCapsule(
   label: String,
   iconKey: IconKey,
   success: Boolean,
-  errorDetail: String = "",
-  toolDetails: String = "",
-  errorMessage: String = "",
+  errorInfo: ToolCallErrorInfo = ToolCallErrorInfo(),
   trailingText: String = "",
   modifier: Modifier = Modifier,
   trailingIcon: @Composable RowScope.() -> Unit = {}
@@ -71,10 +76,10 @@ internal fun ToolCallCapsule(
   val infoColor = JewelTheme.globalColors.text.info
   val clipboardScope = rememberCoroutineScope()
   val bodyStyle = rememberGradumParagraphTextStyle()
-  val hasError = !success && errorMessage.isNotBlank()
+  val hasError = !success && errorInfo.message.isNotBlank()
   var isCopied by remember { mutableStateOf(false) }
   var showErrorPopup by remember { mutableStateOf(false) }
-  val copyPayload: String = toolDetails.ifBlank { errorDetail }
+  val copyPayload: String = errorInfo.toolDetails.ifBlank { errorInfo.detail }
 
   Row(
     modifier = modifier.fillMaxWidth(),

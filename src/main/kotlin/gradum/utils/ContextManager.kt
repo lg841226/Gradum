@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-08-12 12:38:25 Changed by gwy
+ * ContextManager.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 package gradum.utils
@@ -22,7 +22,7 @@ private val jsonFormatter: Json = Json { prettyPrint = true }
  * Maximum number of messages to keep in persisted context history.
  *
  * Single source of truth is [MAX_HISTORY_MESSAGES] in
- * [gradum.utils.MessageHistoryTruncator], shared with the in-memory
+ * MessageHistoryTruncator, shared with the in-memory
  * truncation in `Agent` so both budgets can never drift apart.
  */
 const val MAX_CONTEXT_MESSAGES: Int = MAX_HISTORY_MESSAGES

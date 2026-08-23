@@ -10,6 +10,7 @@ package gradum.idea.chat.ui.chat.skill
 import androidx.compose.runtime.Composable
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.internal.formatBytes
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
@@ -63,9 +64,11 @@ class SavedRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Save,
       success = !ctx.isError,
-      errorDetail = ctx.errorDetail.orEmpty(),
-      toolDetails = ctx.toolDetails.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty(),
+        message = ctx.errorDetail.orEmpty()
+      ),
       trailingText = displayText,
       trailingIcon = {
         OpenInEditorButton(

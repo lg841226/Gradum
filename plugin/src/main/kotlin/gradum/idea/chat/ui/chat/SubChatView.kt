@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-23 17:43:34 Changed by gwy
+ * SubChatView.kt  2026-08-23 21:19:51 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -40,6 +40,7 @@ import org.jetbrains.jewel.ui.component.IconButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 private val logger: Logger = Logger.getInstance("#gradum.idea.chat.ui.chat.SubChatView")
 
@@ -67,7 +68,8 @@ fun SubChatView(
   modifier: Modifier = Modifier,
   subAgentResponse: String = "",
   transcriptMarkdown: String = "",
-  toolCalls: List<ToolCallInfo> = emptyList()
+  toolCalls: List<ToolCallInfo> = emptyList(),
+  hasCompleted: Boolean = false
 ) {
   val historyMessages: List<ChatMessage> = remember(transcriptMarkdown) {
     if (transcriptMarkdown.isNotBlank()) {
@@ -95,11 +97,18 @@ fun SubChatView(
       if (title.isNotBlank()) {
         Spacer(Modifier.weight(1f))
 
-        Column(
-          horizontalAlignment = Alignment.End
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
+          if (hasCompleted) {
+            Icon(
+              contentDescription = null,
+              key = AllIconsKeys.Actions.Checked
+            )
+          }
           val truncatedTitle =
-            if (title.length > 30) title.take(30) + "..."
+            if (title.length > 30) title.take(30) + "…"
             else title
           val showTooltip = title.length > 30
           val titleContent = @Composable {
@@ -114,7 +123,10 @@ fun SubChatView(
             )
           }
           if (showTooltip) {
-            Tooltip(modifier = Modifier, tooltip = { Text(text = title) }) {
+            Tooltip(
+              modifier = Modifier,
+              tooltip = { Text(text = title) }
+            ) {
               titleContent()
             }
           } else titleContent()
@@ -135,11 +147,11 @@ fun SubChatView(
       } else {
         SubChatStreamingContent(
           modelName = modelName,
-          toolCalls = toolCalls,
-          scrollState = scrollState,
+          userQuery = userQuery,
           errorMessage = errorMessage,
           subAgentResponse = subAgentResponse,
-          userQuery = userQuery
+          scrollState = scrollState,
+          toolCalls = toolCalls
         )
       }
     }
@@ -169,11 +181,11 @@ private fun BackButton(onBack: () -> Unit) {
 @Composable
 private fun SubChatStreamingContent(
   modelName: String,
+  userQuery: String,
   errorMessage: String,
   subAgentResponse: String,
   scrollState: ScrollState,
-  toolCalls: List<ToolCallInfo>,
-  userQuery: String
+  toolCalls: List<ToolCallInfo>
 ) {
   Column(
     modifier = Modifier
@@ -181,7 +193,10 @@ private fun SubChatStreamingContent(
       .verticalScroll(scrollState)
   ) {
     if (userQuery.isNotBlank()) {
-      UserChatBubble(message = ChatMessage(role = "user", content = userQuery))
+      UserChatBubble(
+        message = ChatMessage(role = "user", content = userQuery),
+        showActions = false
+      )
       Spacer(Modifier.height(GradumSpacing.xxl))
     }
 
@@ -189,10 +204,10 @@ private fun SubChatStreamingContent(
 
     toolCalls.forEachIndexed { index, toolCall ->
       ToolCallBlock(
+        onSubChatClick = null,
         block = toolCall.toRenderBlock(),
         onViewDiff = { _, _, _ -> },
         onOpenInEditor = { _, _, _ -> },
-        onSubChatClick = null
       )
       if (index < toolCalls.lastIndex || subAgentResponse.isNotBlank())
         Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -202,12 +217,15 @@ private fun SubChatStreamingContent(
       Spacer(modifier = Modifier.height(GradumSpacing.lg))
       Text(
         text = errorMessage,
-        color = JewelTheme.globalColors.text.error
+        color = JewelTheme.globalColors.text.error,
+        style = JewelTheme.typography.editorTextStyle
       )
     }
 
     if (subAgentResponse.isNotBlank()) {
-      GradumMarkdown(text = subAgentResponse, modifier = Modifier) {
+      GradumMarkdown(
+        text = subAgentResponse, modifier = Modifier
+      ) {
         isSimplified = true
         withSelection = true
         animationEnabled = false
@@ -241,8 +259,7 @@ private fun ModelNameHeader(modelName: String) {
 
 @Composable
 private fun SubChatConversationContent(
-  scrollState: ScrollState,
-  messages: List<ChatMessage>
+  scrollState: ScrollState, messages: List<ChatMessage>
 ) {
   Column(
     modifier = Modifier
@@ -261,15 +278,18 @@ private fun SubChatConversationContent(
       }
 
       if (message.isUserMessage) {
-        UserChatBubble(message = message)
+        UserChatBubble(
+          message = message,
+          showActions = false
+        )
         Spacer(Modifier.height(GradumSpacing.xxl))
       } else {
         AssistantChatBubble(
           message = message,
           showActions = false,
-          onOpenInEditor = { _, _, _ -> },
+          onSubChatClick = null,
           onViewDiff = { _, _, _ -> },
-          onSubChatClick = null
+          onOpenInEditor = { _, _, _ -> }
         )
       }
     }

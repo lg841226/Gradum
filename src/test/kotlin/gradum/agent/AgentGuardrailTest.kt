@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentGuardrailTest.kt  2026-08-16 21:40:14 Changed by gwy
+ * AgentGuardrailTest.kt  2026-08-23 20:21:07 Changed by gwy
  */
 
 package gradum.agent
@@ -43,11 +43,10 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
+      configuration = AgentConfiguration(),
       redLineKeywords = testRedLineKeywords,
-    )
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("hello")
 
@@ -69,11 +68,10 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
+      configuration = AgentConfiguration(),
       redLineKeywords = testRedLineKeywords,
-    )
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 
@@ -96,11 +94,10 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(maxRedLineHits = 1),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
+      configuration = AgentConfiguration(maxRedLineHits = 1),
       redLineKeywords = testRedLineKeywords,
-    )
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 
@@ -128,11 +125,10 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(maxRedLineHits = 1),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
+      configuration = AgentConfiguration(maxRedLineHits = 1),
       redLineKeywords = testRedLineKeywords,
-    )
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 
@@ -155,11 +151,10 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(maxRedLineHits = 2),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
+      configuration = AgentConfiguration(maxRedLineHits = 2),
       redLineKeywords = testRedLineKeywords,
-    )
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 
@@ -193,10 +188,9 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
-    )
+      configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 
@@ -239,10 +233,9 @@ class AgentGuardrailTest {
     }
 
     val agent = Agent(
-      configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
-      emitEvent = { type, data -> events.add(type to data) },
       llmClient = mockClient,
-    )
+      configuration = AgentConfiguration(maxRepeatedToolCalls = 3),
+    ) { type, data -> events.add(type to data) }
 
     agent.executeTask("test")
 

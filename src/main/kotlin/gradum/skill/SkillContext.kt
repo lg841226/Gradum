@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-08-12 12:38:25 Changed by gwy
+ * SkillContext.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 package gradum.skill
@@ -21,7 +21,7 @@ import gradum.ToolMode
  * skills to pick schema variants.
  *
  * [agentConfiguration] and [emitEvent] are added for skills that need
- * to create sub-agents (e.g. [gradum.skill.skills.DelegateSkill]).
+ * to create sub-agents (e.g. [DelegateSkill]).
  */
 data class SkillContext(
   val toolMode: ToolMode,
@@ -31,7 +31,7 @@ data class SkillContext(
 
   /**
    * The full [AgentConfiguration] for the current session. Skills
-   * that spawn sub-agents (e.g. [gradum.skill.skills.DelegateSkill])
+   * that spawn sub-agents (e.g. [DelegateSkill])
    * use this to derive the sub-agent's configuration.
    */
   val agentConfiguration: AgentConfiguration? = null,

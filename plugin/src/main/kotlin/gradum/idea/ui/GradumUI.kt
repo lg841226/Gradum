@@ -94,25 +94,28 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
           inputActions = state.inputActions,
           modifier = Modifier.fillMaxSize(),
           sessions = session.sessions.toList(),
-          onCancelMerge = { session.exitMergeMode() },
-          onStartMerge = { session.enterMergeMode() },
           isMergeModeActive = session.isMergeModeActive,
           suggestionVariants = session.suggestionVariants,
           selectedPermission = session.selectedPermission,
           mergeSelectedIds = session.mergeSelection.toSet(),
           welcomeLayout = gradum.idea.settings.AppearanceSettings.getInstance().snapshot.welcomeLayout,
-          onClearMergeSelection = { session.mergeSelection.clear() },
-          onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
-          onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
-          onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
+          mergeCallbacks = gradum.idea.chat.ui.home.MergeModeCallbacks(
+            onStartMerge = { session.enterMergeMode() },
+            onCancelMerge = { session.exitMergeMode() },
+            onClearMergeSelection = { session.mergeSelection.clear() },
+            onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
+            onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
+            onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
+            onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) },
+            onRenameSession = { sessionId, newTitle ->
+              coroutineScope.launch { session.renameSession(sessionId, newTitle) }
+            }
+          ),
           onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
           onOpenSession = { sessionId ->
             coroutineScope.launch { session.switchSession(sessionId) }
-          },
-          onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) }
-        ) { sessionId, newTitle ->
-          coroutineScope.launch { session.renameSession(sessionId, newTitle) }
-        }
+          }
+        )
       }
     }
   }

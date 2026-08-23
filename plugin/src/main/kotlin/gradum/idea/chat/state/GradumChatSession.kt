@@ -1210,7 +1210,8 @@ class GradumChatSession {
       "timeoutSeconds" to timeoutSeconds,
       "startTimestamp" to System.currentTimeMillis(),
       "pending" to true,
-      "title" to subAgentState.title
+      "title" to subAgentState.title,
+      "toolMode" to toolMode
     )
 
     val toolCall = ToolCallInfo(
@@ -1311,7 +1312,10 @@ class GradumChatSession {
         arguments = mapOf(
           "pending" to false,
           "result" to errorMessage,
-          "title" to subAgentState.title
+          "title" to subAgentState.title,
+          "startTimestamp" to subAgentState.startTimestamp,
+          "endTimestamp" to System.currentTimeMillis(),
+          "toolMode" to toolMode
         ),
       )
       try {
@@ -1376,7 +1380,10 @@ class GradumChatSession {
       "pending" to false,
       "result" to resultText,
       "transcriptMarkdown" to transcriptMarkdown,
-      "title" to subAgentState.title
+      "title" to subAgentState.title,
+      "startTimestamp" to subAgentState.startTimestamp,
+      "endTimestamp" to System.currentTimeMillis(),
+      "toolMode" to toolMode
     )
 
     val toolCall = ToolCallInfo(

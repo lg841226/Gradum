@@ -95,9 +95,11 @@ class EditedRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Edit,
       success = !isError,
-      errorDetail = ctx.errorDetail.orEmpty(),
-      toolDetails = ctx.toolDetails.orEmpty(),
-      errorMessage = ctx.errorDetail.orEmpty(),
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty(),
+        message = ctx.errorDetail.orEmpty()
+      ),
       trailingText = fileName,
       trailingIcon = {
         Row(

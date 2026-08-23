@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateRenderer.kt  2026-08-23 17:46:24 Changed by gwy
+ * DelegateRenderer.kt  2026-08-23 21:14:12 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
@@ -37,8 +36,6 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class DelegateRenderer : ToolCallRenderer {
 
-  private val logger: Logger = Logger.getInstance("#gradum.idea.chat.ui.chat.skill.DelegateRenderer")
-
   override fun alias(): String = message("gradum.tool.delegate")
 
   override fun parseContent(
@@ -50,17 +47,17 @@ class DelegateRenderer : ToolCallRenderer {
     )
   }
 
-  override fun iconKey() = AllIconsKeys.Nodes.Related
+  override fun iconKey() = AllIconsKeys.Nodes.Services
 
   override fun rendersWhilePending(): Boolean = true
 
   @Composable
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
-    val isPending: Boolean = content.fieldMap["pending"] as? Boolean ?: true
-    val startTimestamp: Long = (content.fieldMap["startTimestamp"] as? Number)?.toLong() ?: 0L
-    val transcriptMarkdown: String = content.fieldMap["transcriptMarkdown"] as? String ?: ""
     val title: String = content.fieldMap["title"] as? String ?: ""
-    logger.warn("DelegateRenderer transcriptMarkdown length=${transcriptMarkdown.length} title='$title'")
+    val isPending: Boolean = content.fieldMap["pending"] as? Boolean ?: true
+    val transcriptMarkdown: String = content.fieldMap["transcriptMarkdown"] as? String ?: ""
+    val startTimestamp: Long = (content.fieldMap["startTimestamp"] as? Number)?.toLong() ?: 0L
+    val endTimestamp: Long? = if (isPending) null else (content.fieldMap["endTimestamp"] as? Number)?.toLong()
 
     var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(isPending) {
@@ -72,11 +69,9 @@ class DelegateRenderer : ToolCallRenderer {
       }
     }
 
-    val elapsedSeconds: Long =
-      if (isPending) (currentTimeMillis - startTimestamp) / 1000
-      else 0L
+    val elapsedSeconds: Long = ((endTimestamp ?: currentTimeMillis) - startTimestamp) / 1000
 
-    val durationText: String = if (isPending) {
+    val durationText: String = if (elapsedSeconds > 0) {
       val min = (elapsedSeconds / 60).toInt()
       val sec = (elapsedSeconds % 60).toInt()
       if (min > 0) message("gradum.tool.delegate.duration", min, sec)
@@ -87,7 +82,7 @@ class DelegateRenderer : ToolCallRenderer {
       label = message("gradum.tool.delegate"),
       success = !isPending,
       trailingText = title,
-      iconKey = AllIconsKeys.Nodes.Services,
+      iconKey = if (isPending) AllIconsKeys.Nodes.Services else AllIconsKeys.Actions.Checked,
       modifier = Modifier.clickable { ctx.onSubChatClick?.invoke(transcriptMarkdown, "", title) },
       trailingIcon = {
         if (durationText.isNotBlank()) {

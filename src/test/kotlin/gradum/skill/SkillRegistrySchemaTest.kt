@@ -44,9 +44,9 @@ class SkillRegistrySchemaTest {
   }
 
   @Test
-  fun `edit mode exposes write skills but not task planning`() {
+  fun `edit mode exposes write and task-planning skills`() {
     val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.EDIT).map { nameOf(it) }.toSet()
-    assertEquals(EXPECTED_EDIT, names, "EDIT must exclude task-planning skills, got: $names")
+    assertEquals(EXPECTED_EDIT, names, "EDIT must expose write + task-planning skills, got: $names")
   }
 
   @Test
@@ -99,6 +99,7 @@ class SkillRegistrySchemaTest {
       "save_file",
       "to_do",
       "finish_to_do_item",
+      "delegate_task",
       "grep",
       "glob",
       "search_web",
@@ -107,6 +108,7 @@ class SkillRegistrySchemaTest {
       "read_file",
       "explore_project",
       "run_cmd",
+      "delegate_task",
       "grep",
       "glob",
       "search_web",
@@ -117,6 +119,9 @@ class SkillRegistrySchemaTest {
       "run_cmd",
       "edit_file",
       "save_file",
+      "to_do",
+      "finish_to_do_item",
+      "delegate_task",
       "grep",
       "glob",
       "search_web",

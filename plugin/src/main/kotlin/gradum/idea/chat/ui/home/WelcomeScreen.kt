@@ -38,6 +38,18 @@ import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.typography
 
+/** Callbacks for the merge-mode session management board. */
+data class MergeModeCallbacks(
+  val onStartMerge: () -> Unit,
+  val onCancelMerge: () -> Unit,
+  val onMergeSelected: () -> Unit,
+  val onDeleteSelected: () -> Unit,
+  val onClearMergeSelection: () -> Unit,
+  val onToggleMergeSelection: (String) -> Unit,
+  val onRenameSession: (String, String) -> Unit,
+  val onDeleteSession: (String) -> Unit
+)
+
 /**
  * Linear gradient for the welcome heading text. Anchored at
  * [GradumIcons.ColorLogo]'s `starGrad` `linearGradient`
@@ -76,16 +88,18 @@ fun WelcomeScreen(
   mergeSelectedIds: Set<String> = emptySet(),
   selectedPermission: String = PermissionMode.READONLY,
   welcomeLayout: gradum.idea.settings.WelcomeLayout = gradum.idea.settings.WelcomeLayout.QS4_RC2,
-  onStartMerge: () -> Unit = {},
-  onCancelMerge: () -> Unit = {},
-  onMergeSelected: () -> Unit = {},
-  onDeleteSelected: () -> Unit = {},
+  mergeCallbacks: MergeModeCallbacks = MergeModeCallbacks(
+    onStartMerge = {},
+    onCancelMerge = {},
+    onMergeSelected = {},
+    onDeleteSelected = {},
+    onClearMergeSelection = {},
+    onToggleMergeSelection = {},
+    onRenameSession = { _, _ -> },
+    onDeleteSession = {}
+  ),
   onRefreshSuggestions: () -> Unit,
-  onOpenSession: (String) -> Unit = {},
-  onDeleteSession: (String) -> Unit = {},
-  onClearMergeSelection: () -> Unit = {},
-  onToggleMergeSelection: (String) -> Unit = {},
-  onRenameSession: (String, String) -> Unit = { _, _ -> },
+  onOpenSession: (String) -> Unit = {}
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
@@ -97,13 +111,13 @@ fun WelcomeScreen(
       ManageSessionsBoard(
         sessions = sessions,
         selectedIds = mergeSelectedIds,
-        onMerge = onMergeSelected,
-        onClearSelection = onClearMergeSelection,
-        onDeleteSelected = onDeleteSelected,
-        onBack = onCancelMerge,
-        onToggleSelection = onToggleMergeSelection,
-        onRenameSession = onRenameSession,
-        onDeleteSession = onDeleteSession
+        onMerge = mergeCallbacks.onMergeSelected,
+        onClearSelection = mergeCallbacks.onClearMergeSelection,
+        onDeleteSelected = mergeCallbacks.onDeleteSelected,
+        onBack = mergeCallbacks.onCancelMerge,
+        onToggleSelection = mergeCallbacks.onToggleMergeSelection,
+        onRenameSession = mergeCallbacks.onRenameSession,
+        onDeleteSession = mergeCallbacks.onDeleteSession
       )
     } else {
       val isInputFocused: Boolean = inputState.isFocused
@@ -161,9 +175,9 @@ fun WelcomeScreen(
             sessions = sessions,
             expanded = isInputFocused,
             maxDisplay = welcomeLayout.recentCount,
-            onStartMerge = onStartMerge,
+            onStartMerge = mergeCallbacks.onStartMerge,
             onOpenSession = onOpenSession,
-            onDeleteSession = onDeleteSession
+            onDeleteSession = mergeCallbacks.onDeleteSession
           )
         }
       }

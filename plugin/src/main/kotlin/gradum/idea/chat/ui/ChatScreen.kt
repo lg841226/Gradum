@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-23 17:43:34 Changed by gwy
+ * ChatScreen.kt  2026-08-23 21:06:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -45,6 +45,7 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import java.awt.Desktop
 import java.io.IOException
 import java.net.URI
+import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = Logger.getInstance("ChatScreen"::class.java)
 
@@ -115,21 +116,22 @@ fun ChatScreen(
         while (params.subAgentState.isActive) {
           elapsedSeconds.value =
             ((System.currentTimeMillis() - params.subAgentState.startTimestamp) / 1000).toInt()
-          delay(1_000L)
+          delay(1_000L.milliseconds)
         }
       }
     }
 
     SubChatView(
+      modifier = modifier,
       onBack = onBackToMainChat,
-      title = subChatTitle.ifBlank { params.subAgentState.title },
       modelName = params.subAgentState.modelName,
       userQuery = params.subAgentState.userQuery,
-      errorMessage = params.subAgentState.errorMessage,
-      modifier = modifier,
-      subAgentResponse = params.subAgentState.streamingResponse,
+      toolCalls = params.subAgentState.toolCalls,
+      hasCompleted = !params.subAgentState.isActive,
       transcriptMarkdown = subChatTranscriptMarkdown,
-      toolCalls = params.subAgentState.toolCalls
+      errorMessage = params.subAgentState.errorMessage,
+      subAgentResponse = params.subAgentState.streamingResponse,
+      title = subChatTitle.ifBlank { params.subAgentState.title }
     )
     return
   }
@@ -254,10 +256,10 @@ fun ChatScreen(
                         logger.warn("Failed to open URL: $url", iOException)
                       }
                     },
-                    onViewDiff = callbacks.onViewDiff,
                     isLoading = isLastAssistant,
-                    onOpenInEditor = callbacks.onOpenInEditor,
                     onSubChatClick = onSubChatClick,
+                    onViewDiff = callbacks.onViewDiff,
+                    onOpenInEditor = callbacks.onOpenInEditor,
                     actionsEnabled = !params.isWaitingForResponse,
                     selectedPermission = params.selectedPermission
                   )
@@ -325,8 +327,8 @@ fun ChatScreen(
       state = params.inputState,
       textState = params.textState,
       actions = params.inputActions,
-      selectedPermission = params.selectedPermission,
-      hasSentMessage = params.hasSentMessage
+      hasSentMessage = params.hasSentMessage,
+      selectedPermission = params.selectedPermission
     )
   }
 }

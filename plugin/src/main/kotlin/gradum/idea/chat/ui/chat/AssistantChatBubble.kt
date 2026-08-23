@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-22 19:22:09 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -23,18 +23,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-
-import kotlinx.coroutines.launch
-
-import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.*
-import org.jetbrains.jewel.ui.icons.AllIconsKeys
-import org.jetbrains.jewel.ui.typography
-
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.internal.formatToolDetails
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
@@ -47,6 +40,11 @@ import gradum.idea.settings.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.launch
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import org.jetbrains.jewel.ui.typography
 
 private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
@@ -124,6 +122,7 @@ fun AssistantChatBubble(
             is RenderBlock.ToolCall -> ToolCallBlock(
               block, onOpenInEditor, onViewDiff, onSubChatClick
             )
+
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
             is RenderBlock.Error -> ErrorBlock(block)
           }
@@ -240,9 +239,11 @@ fun ToolCallBlock(
       label = block.alias,
       modifier = animModifier,
       success = block.success,
-      errorDetail = block.errorDetail,
-      toolDetails = fallbackToolDetails,
-      errorMessage = block.errorMessage,
+      errorInfo = ToolCallErrorInfo(
+        detail = block.errorDetail,
+        toolDetails = fallbackToolDetails,
+        message = block.errorMessage
+      ),
       iconKey = AllIconsKeys.Nodes.Plugin
     )
     return
@@ -267,7 +268,7 @@ fun ToolCallBlock(
       errorMessage = block.errorMessage
     )
   } else null
-  val ctx: ToolCallRenderContext =
+  val ctx =
     ToolCallRenderContext(
       project = null,
       isError = !block.success,

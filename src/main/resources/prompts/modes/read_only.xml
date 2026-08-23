@@ -42,7 +42,14 @@
       Tool signatures come from the function-calling schema. Don't re-derive them here.
       Available tools in this mode: `read_file`, `run_cmd` (read-only), `search_web`, `explore_project`.
       `run_cmd` is restricted to read-only commands (ls, cat, grep, git log, git diff, find, wc). Mutating commands are auto-blocked.
-      `explore_project` results are cached in session history — don't re-scan within the same session.
+      `explore_project` results are cached in session history, don't re-scan within the same session.
       `search_web` requires TAVILY_API_KEY. Skip the call gracefully if it's missing.
   </ToolConstraints>
+  <Delegation>
+      `delegate_task(task=...)` hands off a focused sub-task to a sub-agent.
+      The sub-agent runs independently with: read_file, grep, glob, explore_project, run_cmd.
+      When to use: the task is large, well-defined, and can be isolated (e.g. research a codebase section, run a multistep investigation, gather data for a decision).
+      Do NOT use delegate_task for small, quick lookups, use the tools directly.
+      Do NOT use delegate_task for tasks that need write access.
+  </Delegation>
 </System>

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 package gradum.skill
@@ -512,7 +512,7 @@ private fun scanDirectory(
           logger.debug("Failed to relativize {} against root: {}", directoryEntry, relativizeException.message, relativizeException)
           targetDirectory.relativize(directoryEntry.toPath()).toString()
         }
-        if (candidate.isNotBlank()) candidate else directoryEntry.name
+        candidate.ifBlank { directoryEntry.name }
       }
 
       when {

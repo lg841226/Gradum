@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * TodoSkill.kt  2026-08-23 21:35:57 Changed by gwy
  */
 
 package gradum.skill
@@ -25,12 +25,14 @@ class TodoSkill : Skill() {
   override val description: String = "Initialize a task list"
 
   /**
-   * Task planning is a strong-model skill; EDIT deliberately
-   * hides to_do / finish_to_do_item. The agent's mode gate enforces
-   * the exclusion at runtime — even if the model hallucinates a to_do
-   * call, the agent returns TOOL_NOT_PERMITTED before TodoSkill runs.
+   * Available in AGENT and EDIT modes. EDIT mode permits task planning
+   * and tracking (project discovery and structured edits both benefit
+   * from a task list). READ_ONLY still excludes it since to_do imply
+   * that the agent will mutate the project.
    */
-  override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.AGENT)
+  override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+  )
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     return buildFunctionSchema(
@@ -74,21 +76,26 @@ class CompletePlanSkill : Skill() {
   override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
 
   /**
-   * finish_to_do_item is the completion-tracking sibling of [TodoSkill]
-   * — both are withheld in EDIT (no task planning) and in
-   * READ_ONLY (no project mutation at all). The mode gate rejects
-   * every other mode with TOOL_NOT_PERMITTED.
+   * Available in AGENT and EDIT modes, matching [TodoSkill].
+   * READ_ONLY still excludes it since finishing tasks implies the
+   * agent can mutate the project.
    */
-  override val allowedToolModes: Set<gradum.ToolMode> = setOf(gradum.ToolMode.AGENT)
+  override val allowedToolModes: Set<gradum.ToolMode> = setOf(
+    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+  )
 
   override fun getSchema(context: SkillContext?): Map<String, Any> {
     return buildFunctionSchema(
       description = description,
       properties = mapOf(
         "task" to mapOf("type" to "string", "description" to "Task that was completed"),
+        "count" to mapOf(
+          "type" to "integer",
+          "description" to "Number of tasks to complete/skip at once (default 1)",
+        ),
         "action" to mapOf(
           "type" to "string",
-          "description" to "'complete' (default) marks task done; 'skip' advances without completing",
+          "description" to "'complete' (default) marks tasks done; 'skip' advances without completing",
           "enum" to listOf("complete", "skip")
         ),
       ),
@@ -98,10 +105,11 @@ class CompletePlanSkill : Skill() {
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val action: String = arguments["action"] as? String ?: "complete"
+    val count: Int = (arguments["count"] as? Number)?.toInt() ?: 1
 
     return when (action) {
-      "skip" -> sharedTodoManager.skipTask()
-      else -> sharedTodoManager.completeCurrentTask()
+      "skip" -> sharedTodoManager.skipTask(count)
+      else -> sharedTodoManager.completeCurrentTask(count)
     }
   }
 }
@@ -122,14 +130,6 @@ class TodoManager {
   }
 
   fun initializeTasks(taskDescriptions: List<String>): SkillResult {
-    if (taskList != null)
-      return makeFailure(
-        ErrorCode.ALREADY_INITIALIZED, buildXmlError(
-          code = "ALREADY_INITIALIZED",
-          message = "To-do list already initialized.",
-          fixHint = "Complete or reset the current task list before initializing a new one."
-        )
-      )
     if (taskDescriptions.isEmpty())
       return makeFailure(
         ErrorCode.INVALID_PARAMETER, buildXmlError(
@@ -151,7 +151,7 @@ class TodoManager {
     )
   }
 
-  fun completeCurrentTask(): SkillResult {
+  fun completeCurrentTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
         ErrorCode.NOT_INITIALIZED, buildXmlError(
@@ -161,16 +161,7 @@ class TodoManager {
         )
       )
 
-    if (currentTaskIndex >= taskItems.size)
-      return makeFailure(
-        ErrorCode.ALL_COMPLETED, buildXmlError(
-          code = "ALL_COMPLETED",
-          message = "All tasks already completed.",
-          fixHint = "No more tasks to complete. Call to_do to start a new task list."
-        )
-      )
-
-    currentTaskIndex++
+    currentTaskIndex += count
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
     if (allDone) {
@@ -198,7 +189,7 @@ class TodoManager {
   /**
    * Skips the current task without marking it as completed and advances the cursor.
    */
-  fun skipTask(): SkillResult {
+  fun skipTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
         ErrorCode.NOT_INITIALIZED, buildXmlError(
@@ -208,17 +199,8 @@ class TodoManager {
         )
       )
 
-    if (currentTaskIndex >= taskItems.size)
-      return makeFailure(
-        ErrorCode.NOT_INITIALIZED, buildXmlError(
-          code = "NOT_INITIALIZED",
-          message = "All tasks already completed.",
-          fixHint = "No more tasks to skip. Call to_do to start a new task list."
-        )
-      )
-
-    val skippedTask: String = taskItems[currentTaskIndex]
-    currentTaskIndex++
+    val skippedTask: String = if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex] else ""
+    currentTaskIndex += count
 
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 

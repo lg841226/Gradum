@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-08-07 16:04:17 Changed by gwy
+ * ChatMessage.kt  2026-08-23 21:12:19 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -162,6 +162,7 @@ data class ChatMessage(
           events + event
         }
       }
+
       is ChatEvent.Thinking -> {
         val last = events.lastOrNull()
         if (last is ChatEvent.Thinking) {
@@ -170,6 +171,7 @@ data class ChatMessage(
           events + event
         }
       }
+
       else -> events + event
     }
     val newRenderBlocks = when (event) {
@@ -231,7 +233,7 @@ data class ChatMessage(
    * skill itself) — the second event carries the `conversation` payload
    * and must replace the first.
    *
-   * When no matching [toolCallId] exists, the block is appended.
+   * When no matching toolCallId exists, the block is appended.
    */
   private fun appendToolCall(event: ChatEvent.ToolCall): List<RenderBlock> {
     val info: ToolCallInfo = event.info

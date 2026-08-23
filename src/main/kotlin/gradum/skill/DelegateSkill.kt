@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-23 13:44:58 Changed by gwy
+ * DelegateSkill.kt  2026-08-23 22:02:05 Changed by gwy
  */
 
 package gradum.skill
@@ -29,9 +29,10 @@ class DelegateSkill : Skill() {
     "Delegate a focused sub-task to a sub-agent. " +
       "The sub-agent runs independently to investigate, research, or gather information, " +
       "then returns a structured result. Use this for large tasks that would benefit from " +
-      "focused, isolated execution."
+      "focused, isolated execution. The task description must be at least 60 characters " +
+      "to ensure the sub-agent has enough context to work with."
 
-  override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT)
+  override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 
   override val manageOwnEventStream: Boolean = true
 
@@ -44,8 +45,9 @@ class DelegateSkill : Skill() {
       properties = mapOf(
         "task" to mapOf(
           "type" to "string",
-          "description" to "The task description for the sub-agent. Be specific and include " +
-            "what information to gather, what questions to answer, and how to structure the result.",
+          "description" to "The task description for the sub-agent. Must be at least 30 characters. " +
+            "Be specific and include what information to gather, what questions to answer, " +
+            "and how to structure the result.",
         ),
         "title" to mapOf(
           "type" to "string",
@@ -64,8 +66,9 @@ class DelegateSkill : Skill() {
       ErrorCode.INVALID_PARAMETER,
       buildXmlError(
         code = "INVALID_PARAMETER",
-        message = "Missing required parameter: task.",
-        fixHint = "Provide a task description in the 'task' parameter."
+        message = "Missing or too short required parameter: task (minimum $MIN_TASK_LENGTH characters).",
+        fixHint = "Provide a detailed task description (at least $MIN_TASK_LENGTH characters) " +
+          "including what information to gather and how to structure the result."
       )
     )
     val title: String = arguments["title"] as? String ?: ""
@@ -89,52 +92,31 @@ class DelegateSkill : Skill() {
         )
       )
 
-    val enhancedTask: String = buildEnhancedTask(context, task)
-    val subConfig: AgentConfiguration = buildSubAgentConfig(config, enhancedTask)
+    val subConfig: AgentConfiguration = buildSubAgentConfig(config, task)
 
     emitStartEvent(emitEvent, config.modelName, title)
     val result: String = runSubAgent(subConfig, task, emitEvent)
     return makeSuccess(mapOf("result" to result))
   }
 
-  /** Extracts the task string from arguments, or null if missing. */
+  /** Extracts the task string from arguments, or null if missing/too short. */
   private fun validateTask(arguments: Map<String, Any>): String? {
-    return arguments["task"] as? String
+    val task: String = arguments["task"] as? String ?: return null
+    if (task.length < MIN_TASK_LENGTH) return null
+    return task
   }
 
-  /** Builds the enhanced task by prepending the main conversation context. */
-  private fun buildMainContext(context: SkillContext): String {
-    return context.conversationHistory
-      .filter { it["role"] as? String != "system" }
-      .joinToString("\n\n") { msg ->
-        val role: String = msg["role"] as? String ?: "unknown"
-        val content: String = msg["content"] as? String ?: ""
-        "[$role]: $content"
-      }
-      .take(3000)
-  }
-
-  /** Builds the full task prompt with optional main conversation context. */
-  private fun buildEnhancedTask(context: SkillContext, task: String): String {
-    val mainContext: String = buildMainContext(context)
-    return buildString {
-      if (mainContext.isNotBlank()) {
-        appendLine("## Main Conversation Context")
-        appendLine(mainContext)
-        appendLine()
-      }
-      appendLine("## Task")
-      append(task)
-    }
+  companion object {
+    const val MIN_TASK_LENGTH: Int = 60
   }
 
   /** Creates the sub-agent configuration based on the parent configuration. */
-  private fun buildSubAgentConfig(config: AgentConfiguration, enhancedTask: String): AgentConfiguration {
+  private fun buildSubAgentConfig(config: AgentConfiguration, task: String): AgentConfiguration {
     return config.copy(
       sessionId = null,
+      taskDescription = task,
       maxRepeatedToolCalls = 100,
       maxRepeatedResponses = 100,
-      taskDescription = enhancedTask,
       timeoutSeconds = subAgentTimeoutSeconds
     )
   }
@@ -163,7 +145,13 @@ class DelegateSkill : Skill() {
 
     subAgent.executeTask(task)
 
-    val result: String = subAgent.getResult() ?: "(no output)"
+    val result: String = if (subAgent.isSessionAborted()) {
+      val reason: String = subAgent.getSessionEndReason() ?: "unknown reason"
+      "Sub-agent session aborted, $reason"
+    } else {
+      subAgent.getResult() ?: "no output"
+    }
+
     val conversationHistory: List<Map<String, Any>> = subAgent.getConversationHistory()
 
     emitEvent(
