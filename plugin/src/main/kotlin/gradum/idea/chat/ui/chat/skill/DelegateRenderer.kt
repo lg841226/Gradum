@@ -36,20 +36,26 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class DelegateRenderer : ToolCallRenderer {
 
-  override fun alias(): String = message("gradum.tool.delegate")
+  override fun alias(): String = ALIAS
 
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
     return ToolCallContent(
       fieldMap = arguments,
-      aliasName = message("gradum.tool.delegate")
+      aliasName = ALIAS
     )
   }
 
   override fun iconKey() = AllIconsKeys.Nodes.Services
 
   override fun rendersWhilePending(): Boolean = true
+
+  override fun labelKey(): String? = "gradum.tool.delegate"
+
+  companion object {
+    const val ALIAS: String = "Delegate"
+  }
 
   @Composable
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {

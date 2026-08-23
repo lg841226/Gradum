@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-23 22:02:05 Changed by gwy
+ * DelegateSkill.kt  2026-08-23 22:11:29 Changed by gwy
  */
 
 package gradum.skill
@@ -45,7 +45,7 @@ class DelegateSkill : Skill() {
       properties = mapOf(
         "task" to mapOf(
           "type" to "string",
-          "description" to "The task description for the sub-agent. Must be at least 30 characters. " +
+          "description" to "The task description for the sub-agent. Must be at least 60 characters. " +
             "Be specific and include what information to gather, what questions to answer, " +
             "and how to structure the result.",
         ),

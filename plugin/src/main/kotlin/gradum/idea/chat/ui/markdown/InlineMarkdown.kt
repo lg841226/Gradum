@@ -93,7 +93,7 @@ private const val PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.0f
 private const val INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER: Float = 1.4f
 
 /** Chip/footnote padding (10sp) vs LaTeX padding (2sp). LaTeX renderer draws tight bounding boxes. */
-private const val INLINE_CODE_PLACEHOLDER_PADDING_SP: Float = 10f
+internal const val INLINE_CODE_PLACEHOLDER_PADDING_SP: Float = 10f
 private const val PLACEHOLDER_WIDTH_PADDING_SP: Float = 2f
 
 /** Character width ratios for inline LaTeX placeholder estimation (fallback only — real measurement preferred). */

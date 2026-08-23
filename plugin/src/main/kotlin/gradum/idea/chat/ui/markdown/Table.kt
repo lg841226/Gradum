@@ -112,8 +112,8 @@ fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row ->
 
 private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
 
-private val minCellWidthDp: Dp = 70.dp
-private val maxCellWidthDp: Dp = 320.dp
+private val minCellWidthDp: Dp = 75.dp
+private val maxCellWidthDp: Dp = 620.dp
 private val cellHorizontalPadding: Dp = 10.dp
 private val cellVerticalPadding: Dp = GradumSpacing.md
 private val scrollbarReservedSpace: Dp = GradumSpacing.md
@@ -326,22 +326,37 @@ fun ScrollableTable(
   val tableBackground = Color.Transparent
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
+  val editorFontSizeSp: Float = JewelTheme.editorTextStyle.fontSize.value
+    .let { if (it <= 0f) 13f else it }
 
-  val naturalColumnWidthsPx: IntArray = remember(table) {
+  val naturalColumnWidthsPx: IntArray = remember(table, editorFontSizeSp) {
     val widths = IntArray(table.header.size.coerceAtLeast(1))
     val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
+    val codeSpanRegex = Regex("`([^`]+)`")
 
     fun measure(row: List<String>, style: TextStyle) {
       row.forEachIndexed { columnIndex, cell ->
         if (columnIndex >= widths.size) return@forEachIndexed
-        val cellWidth: Int = textMeasurer.measure(
+        val rawWidth: Int = textMeasurer.measure(
           maxLines = 1,
           style = style,
           softWrap = false,
           text = AnnotatedString(cell)
         ).size.width
-        val cappedWidth: Int = cellWidth.coerceAtMost(maxCellWidthPx)
-        if (cappedWidth > widths[columnIndex]) widths[columnIndex] = cappedWidth
+        var chipDelta = 0
+        for (match in codeSpanRegex.findAll(cell)) {
+          val codeText: String = match.groupValues[1]
+          val chipWidth: Int = (editorFontSizeSp * cjkAwareWidthRatio(codeText) + INLINE_CODE_PLACEHOLDER_PADDING_SP).toInt()
+          val rawCodeWidth: Int = textMeasurer.measure(
+            maxLines = 1,
+            style = style,
+            softWrap = false,
+            text = AnnotatedString(match.value)
+          ).size.width
+          chipDelta += chipWidth - rawCodeWidth
+        }
+        val cellWidth: Int = (rawWidth + chipDelta).coerceAtMost(maxCellWidthPx)
+        if (cellWidth > widths[columnIndex]) widths[columnIndex] = cellWidth
       }
     }
     measure(table.header, headerStyle)
