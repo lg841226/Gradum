@@ -320,22 +320,7 @@ private fun uploadImageCallback(toolWindow: ToolWindow?, session: GradumChatSess
 private fun rememberDeleteMessageCallback(
   session: GradumChatSession,
 ): (Int) -> Unit = remember(session) {
-  { userMessageIndex ->
-    val assistantResponseIndex: Int = userMessageIndex + 1
-    if (assistantResponseIndex < session.messages.size &&
-      !session.messages[assistantResponseIndex].isUserMessage
-    ) session.messages.removeAt(assistantResponseIndex)
-
-    session.messages.removeAt(userMessageIndex)
-    if (session.messages.isEmpty()) {
-      session.sendingPhase = ""
-      session.isSending = false
-      session.hasSentMessage = false
-      session.attachedFiles.clear()
-      session.pendingMessages.clear()
-      session.textState.edit { delete(0, length) }
-    }
-  }
+  { userMessageIndex -> session.deleteMessage(userMessageIndex) }
 }
 
 @Composable

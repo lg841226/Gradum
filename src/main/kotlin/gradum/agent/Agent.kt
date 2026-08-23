@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-16 21:40:13 Changed by gwy
+ * Agent.kt  2026-08-23 13:44:58 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -121,6 +121,8 @@ class Agent(
     contextOutputDirectory(configuration)
   )
 
+  private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
+
   /**
    * Per-session [SkillContext] shared by every [Skill.execute] call.
    *
@@ -132,14 +134,16 @@ class Agent(
     toolMode = configuration.toolMode,
     provider = configuration.provider,
     modelName = configuration.modelName,
-    projectRoot = configuration.projectRoot
+    projectRoot = configuration.projectRoot,
+    agentConfiguration = configuration,
+    conversationHistory = conversationHistory,
+    emitEvent = emitEvent,
   )
 
   private var redLineKeywords: List<String> = emptyList()
   private var redLineKeywordsLowercase: List<String> = emptyList()
   private val redLineHitKeywords: MutableList<String> = mutableListOf()
   private val repeatedResponseTracker: MutableList<String> = mutableListOf()
-  private val conversationHistory: MutableList<Map<String, Any>> = mutableListOf()
 
   private var lastToolCallKey: String? = null
 
@@ -173,8 +177,8 @@ class Agent(
 
   fun executeTask(
     userInput: String,
-    loadPreviousContext: Boolean = false,
     toolCallXml: String? = null,
+    loadPreviousContext: Boolean = false,
     attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
     sessionStartTimeMillis = System.currentTimeMillis()
@@ -197,10 +201,10 @@ class Agent(
 
     emitEvent(
       "session_start", mapOf(
-        "version" to Version.GRADUM_VERSION,
-        "model" to configuration.modelName,
-        "think" to configuration.enableThinking,
         "contextLoaded" to contextLoaded,
+        "model" to configuration.modelName,
+        "version" to Version.GRADUM_VERSION,
+        "think" to configuration.enableThinking,
         "contextMessages" to conversationHistory.size
       )
     )
@@ -214,9 +218,9 @@ class Agent(
     }
 
     val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
-      modelName = configuration.modelName,
       toolMode = configuration.toolMode,
-      provider = configuration.provider
+      provider = configuration.provider,
+      modelName = configuration.modelName
     )
 
     while (true) {
@@ -242,9 +246,9 @@ class Agent(
         redLineHitKeywords.addAll(matchedRedLineKeywords)
         recordGuardrail(
           type = "red_line_hit",
-          guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
           hitCount = redLineHitCounter,
           maxAllowed = configuration.maxRedLineHits,
+          guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
         )
         if (redLineHitCounter >= configuration.maxRedLineHits &&
           handleGuardrailExceeded(
@@ -267,9 +271,9 @@ class Agent(
         repeatedResponseTracker.add(currentResponse)
         recordGuardrail(
           type = "repeated_response",
-          guardrailDetails = mapOf("detail" to (result.responseText ?: "")),
           hitCount = repeatedResponseTracker.size,
           maxAllowed = configuration.maxRepeatedResponses,
+          guardrailDetails = mapOf("detail" to (result.responseText ?: "")),
         )
         if (repeatedResponseTracker.size >= configuration.maxRepeatedResponses &&
           handleGuardrailExceeded(
@@ -299,7 +303,29 @@ class Agent(
       if (sessionAborted) break
     }
 
-    finishSession()
+    if (configuration.taskDescription == null) finishSession()
+  }
+
+  /**
+   * Extracts the last non-empty assistant response from the conversation
+   * history. Used by sub-agent skills (e.g. [gradum.skill.DelegateSkill])
+   * to retrieve the sub-agent's final output.
+   */
+  fun getResult(): String? {
+    val lastAssistant: Map<String, Any>? = conversationHistory.lastOrNull { msg ->
+      msg["role"] == "assistant" && msg.containsKey("content")
+        && (msg["content"] as? String)?.isNotBlank() == true
+    }
+    return lastAssistant?.let { msg -> msg["content"] as? String }
+  }
+
+  /**
+   * Returns the full conversation history. Used by sub-agent skills to
+   * pass the sub-agent's complete dialogue to the client for rendering
+   * in a read-only sub-chat view.
+   */
+  fun getConversationHistory(): List<Map<String, Any>> {
+    return conversationHistory.toList()
   }
 
   private fun loadSystemPrompt() {
@@ -316,7 +342,8 @@ class Agent(
     val promptContent: String = try {
       Agent::class.java.getResourceAsStream(primaryPath)?.use { stream ->
         stream.reader(Charsets.UTF_8).readText()
-      } ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
+      }
+        ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
     } catch (promptLoadException: Exception) {
       logger.warn("Could not load system prompt, reason: ${promptLoadException.message}", promptLoadException)
       "You are a helpful AI assistant. You can't call any tool and report it"
@@ -346,7 +373,11 @@ class Agent(
 
     val filteredContent: String = filterConditionalSections(substitutedContent, schemaVariant)
 
-    conversationHistory.add(0, mapOf("role" to "system", "content" to filteredContent))
+    val finalContent: String = configuration.taskDescription?.let { task ->
+      "$filteredContent\n\n### Sub-Agent Task\n$task"
+    } ?: filteredContent
+
+    conversationHistory.add(0, mapOf("role" to "system", "content" to finalContent))
   }
 
   /**
@@ -366,8 +397,8 @@ class Agent(
     val outputBuffer = StringBuilder()
     val contentLines = content.lines()
     var lineIndex = 0
-    var insideConditional = false
     var skipUntilEndif = false
+    var insideConditional = false
 
     while (lineIndex < contentLines.size) {
       val currentLine = contentLines[lineIndex]
@@ -477,9 +508,9 @@ class Agent(
     flushResponse()
 
     return AgentTurnResult(
-      responseText = contentParts.joinToString(""),
       toolCalls = toolCallsResult,
-      errorMessage = errorMessage
+      errorMessage = errorMessage,
+      responseText = contentParts.joinToString(""),
     )
   }
 
@@ -556,15 +587,14 @@ class Agent(
         }
       }
 
-      mapOf("role" to "assistant", "content" to content, "tool_calls" to toolCallsList)
-    } else mapOf("role" to "assistant", "content" to content)
+      mapOf("role" to "assistant", "content" to content, "modelName" to configuration.modelName, "tool_calls" to toolCallsList)
+    } else mapOf("role" to "assistant", "content" to content, "modelName" to configuration.modelName)
 
     conversationHistory.add(assistantMessage)
   }
 
   private fun executeSingleTool(
-    processedCall: ProcessedToolCall,
-    isLastToolCall: Boolean = true
+    processedCall: ProcessedToolCall, isLastToolCall: Boolean = true
   ): Map<String, Any> {
     val functionName: String = processedCall.callData.functionName
     val rawArguments: Map<String, JsonElement> = processedCall.callData.functionArguments
@@ -598,10 +628,11 @@ class Agent(
     // The completed `tool_call` event follows and carries the same
     // toolCallId for the client to update the row in place.
     emitToolCallStart(
-      functionName,
       toolAlias,
-      convertedArguments,
-      processedCall.callIdentifier
+      processedCall.callIdentifier,
+      functionName,
+      skillInstance = skillInstance,
+      convertedArguments = convertedArguments
     )
 
     val executionResult: Map<String, Any>
@@ -611,7 +642,7 @@ class Agent(
         "success" to false,
         "error" to mapOf(
           "code" to ErrorCode.CLIENT_ERROR.name,
-          "message" to "Aborted by user before execution started",
+          "message" to "Aborted by user before execution started"
         ),
       )
       emitToolResult(
@@ -627,7 +658,7 @@ class Agent(
     }
 
     if (checkToolRunaway(functionName, convertedArguments)) {
-      logger.error("Result: TOOL_RUNAWAY — repeated call ($repeatedToolCallCount times), aborting")
+      logger.error("Result: TOOL_RUNAWAY repeated call ($repeatedToolCallCount times), aborting")
       emitRevoked(
         "tool_runaway", mapOf(
           "tool" to functionName,
@@ -707,19 +738,26 @@ class Agent(
    * needs to describe the operation (command / path / query, ...).
    */
   private fun emitToolCallStart(
-    functionName: String,
     toolAlias: String,
-    convertedArguments: Map<String, Any>,
-    toolCallId: String
+    toolCallId: String,
+    functionName: String,
+    timeoutSeconds: Int = 0,
+    skillInstance: Skill? = null,
+    convertedArguments: Map<String, Any>
   ) {
-    emitEvent(
-      "tool_call_start", mapOf(
-        "tool" to functionName,
-        "alias" to toolAlias,
-        "arguments" to convertedArguments,
-        "toolCallId" to toolCallId
-      )
+    // Skills that manage their own event stream (e.g. DelegateSkill
+    // via sub_agent:start/sub_agent:session_end) should not receive
+    // the standard tool_call_start event.
+    if (skillInstance?.manageOwnEventStream == true) return
+
+    val eventData: MutableMap<String, Any> = mutableMapOf(
+      "alias" to toolAlias,
+      "tool" to functionName,
+      "toolCallId" to toolCallId,
+      "arguments" to convertedArguments
     )
+    if (timeoutSeconds > 0) eventData["timeoutSeconds"] = timeoutSeconds
+    emitEvent("tool_call_start", eventData)
   }
 
   /**
@@ -788,17 +826,16 @@ class Agent(
           val toolIndex: Int = recordings.size
           val callEntry = ToolCallEntry(
             functionName = step.functionName,
-            callIdentifier = "playback_${toolIndex + 1}",
             functionArguments = step.functionArguments,
+            callIdentifier = "playback_${toolIndex + 1}"
           )
           val processedCall: ProcessedToolCall = prepareToolCalls(listOf(callEntry)).first()
           val isLastToolCall: Boolean = recordings.size == toolCalls.lastIndex
 
-          val startedAtMillis: Long = System.currentTimeMillis()
           val executionResult: Map<String, Any> = executeSingleTool(processedCall, isLastToolCall)
+          val startedAtMillis: Long = System.currentTimeMillis()
           val durationMillis: Long = System.currentTimeMillis() - startedAtMillis
           val actualSuccess: Boolean = executionResult["success"] as? Boolean ?: false
-
           val expectMatched: Boolean = actualSuccess == step.expectSuccess
 
           recordings.add(
@@ -816,25 +853,24 @@ class Agent(
 
           if (!expectMatched) {
             @Suppress("UNCHECKED_CAST")
-            val errorInfo: Map<String, Any> =
-              executionResult["error"] as? Map<String, Any> ?: emptyMap()
+            val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
             emitEvent(
               "tool_expect_mismatch", mapOf(
-                "tool" to step.functionName,
                 "index" to (stepIndex + 1),
-                "expectSuccess" to step.expectSuccess,
-                "actualSuccess" to actualSuccess,
+                "tool" to step.functionName,
                 "result" to executionResult,
+                "actualSuccess" to actualSuccess,
+                "expectSuccess" to step.expectSuccess,
                 "errorCode" to (errorInfo["code"] ?: ""),
-                "errorMessage" to (errorInfo["message"] ?: ""),
+                "errorMessage" to (errorInfo["message"] ?: "")
               )
             )
             mismatches.add(
               mapOf(
                 "index" to (stepIndex + 1),
                 "tool" to step.functionName,
-                "expectSuccess" to step.expectSuccess,
                 "actualSuccess" to actualSuccess,
+                "expectSuccess" to step.expectSuccess
               )
             )
           }
@@ -843,13 +879,13 @@ class Agent(
     }
 
     val recordingSummary: Map<String, Any> = mapOf(
+      "calls" to recordings,
+      "mismatches" to mismatches,
       "scenario" to scenarioName,
-      "recordedAt" to java.time.LocalDateTime.now().toString(),
       "totalCalls" to toolCalls.size,
       "executedCalls" to recordings.size,
       "mismatchCount" to mismatches.size,
-      "mismatches" to mismatches,
-      "calls" to recordings,
+      "recordedAt" to java.time.LocalDateTime.now().toString()
     )
 
     savePlaybackRecording(scenarioName, recordingSummary)
@@ -858,7 +894,7 @@ class Agent(
       "playback_end", mapOf(
         "scenario" to scenarioName,
         "executedCalls" to recordings.size,
-        "mismatchCount" to mismatches.size,
+        "mismatchCount" to mismatches.size
       )
     )
   }
@@ -884,12 +920,11 @@ class Agent(
   }
 
   private fun executeSkill(
-    skillInstance: Skill?,
-    functionName: String,
+    skillInstance: Skill?, functionName: String,
     convertedArguments: Map<String, Any>
   ): Map<String, Any> {
     if (skillInstance == null) {
-      logger.error("Result: SKILL_NOT_FOUND — '$functionName' not registered")
+      logger.error("Result: SKILL_NOT_FOUND '$functionName' not registered")
       return mapOf(
         "success" to false,
         "error" to mapOf("code" to "SKILL_NOT_FOUND", "message" to "Skill '$functionName' not found"),
@@ -968,44 +1003,50 @@ class Agent(
     ) ?: executionResult
     val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
 
-    emitEvent(
-      "tool_call", mapOf(
-        "tool" to functionName,
-        "alias" to toolAlias,
-        "arguments" to convertedArguments,
-        "toolCallId" to processedCall.callIdentifier,
-        "success" to callSuccess,
-        "result" to executionResult
-      )
-    )
+    // Skills that manage their own event stream (e.g. DelegateSkill
+    // via sub_agent:start/sub_agent:session_end) should not receive
+    // the standard tool_call event, but the result must still be
+    // added to conversationHistory so the LLM can see it.
+    val skipEvent: Boolean = skillInstance?.manageOwnEventStream == true
 
-    if (!callSuccess) {
-      @Suppress("UNCHECKED_CAST")
-      val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
+    if (!skipEvent) {
       emitEvent(
-        "error", mapOf(
-          "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
-          "message" to (errorInfo["message"] ?: "Unknown error"),
+        "tool_call", mapOf(
           "tool" to functionName,
-          "toolCallId" to processedCall.callIdentifier
+          "alias" to toolAlias,
+          "arguments" to convertedArguments,
+          "toolCallId" to processedCall.callIdentifier,
+          "success" to callSuccess,
+          "result" to executionResult
         )
       )
+
+      if (!callSuccess) {
+        @Suppress("UNCHECKED_CAST")
+        val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
+        emitEvent(
+          "error", mapOf(
+            "tool" to functionName,
+            "toolCallId" to processedCall.callIdentifier,
+            "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
+            "message" to (errorInfo["message"] ?: "Unknown error")
+          )
+        )
+      }
     }
 
     val resultString: String = JsonUtil.encodeMap(historyResult)
 
-    val todoReminder: String? = if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
+    val todoReminder: String? =
+      if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
     val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
-    // Tag tool messages with `alias` so subsequent calls can identify
-    // this skill's prior messages for [Skill.compactHistory] filtering.
     val toolMessage: Map<String, Any> = buildMap {
       put("role", "tool")
       put("alias", toolAlias)
       put("content", finalResult)
-      if (configuration.provider == Provider.OPENAI) {
+      if (configuration.provider == Provider.OPENAI)
         put("tool_call_id", processedCall.callIdentifier)
-      }
     }
 
     conversationHistory.add(toolMessage)
@@ -1104,9 +1145,9 @@ class Agent(
    */
   private fun recordGuardrail(
     type: String,
-    guardrailDetails: Map<String, Any>,
     hitCount: Int,
     maxAllowed: Int,
+    guardrailDetails: Map<String, Any>
   ): Unit {
     emitEvent(
       "guardrail",
@@ -1126,7 +1167,7 @@ class Agent(
   private fun handleGuardrailExceeded(
     responseText: String?,
     revokeReason: String,
-    revokeDetails: Map<String, Any>,
+    revokeDetails: Map<String, Any>
   ): Boolean {
     responseText?.let { text -> appendAssistantMessage(text, null) }
     emitRevoked(revokeReason, revokeDetails)
@@ -1155,10 +1196,6 @@ class Agent(
 
   /** Aborts the session from outside (e.g. via POST /stop). */
   fun abort() {
-    // Must emit session_end (with aborted=true) ourselves: finishSession()
-    // skips its emission once sessionAborted is set, so without this the
-    // plugin would wait forever for the stream terminator and stay stuck
-    // in "sending…".
     abortSession()
   }
 

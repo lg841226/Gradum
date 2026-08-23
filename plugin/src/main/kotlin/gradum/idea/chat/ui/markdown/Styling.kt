@@ -98,6 +98,12 @@ private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
 val LocalMarkdownBodyTextStyle = compositionLocalOf<TextStyle?> { null }
 
 /**
+ * Thinking mode flag for the Markdown renderer, set by [GradumMarkdownContent].
+ * Read by [rememberGradumMarkdownStyling] to apply muted gray colors.
+ */
+val LocalThinkingMode = compositionLocalOf { false }
+
+/**
  * The chat panel's body text style. Slightly tighter than the LaF default
  * (line-height 1.5×). Returned as a [TextStyle] so the inline chip parser
  * can read the font size for its placeholder width / height.
@@ -160,7 +166,6 @@ internal fun gradumInlinesStyling(
     link = linkSpan(linkColors.content),
     emphasis = SpanStyle(
       fontStyle = FontStyle.Italic,
-      fontFamily = editorFontFamily
     ),
     strongEmphasis = SpanStyle(fontWeight = FontWeight.SemiBold),
     linkFocused = linkSpan(linkColors.contentFocused),
@@ -198,7 +203,7 @@ fun rememberBadgeBlueColor(): Color =
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStyling {
+fun rememberGradumMarkdownStyling(): MarkdownStyling {
   val globalColors: GlobalColors = LocalGlobalColors.current
   val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
@@ -206,13 +211,14 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
   val codeBlockFontSize: Float = LocalCodeBlockFontSize.current
   val bodyTextStyle: TextStyle = LocalMarkdownBodyTextStyle.current
     ?: rememberGradumParagraphTextStyle()
+  val thinkingMode = LocalThinkingMode.current
   // When the code-block size is "auto" (0), follow the body text size.
   val codeBlockTextStyle: TextStyle = editorTextStyle.copy(
     fontSize = (if (codeBlockFontSize > 0f) codeBlockFontSize else bodyTextStyle.fontSize.value).sp
   )
 
   val thinkingGray: Color = globalColors.text.info
-  val inlineTint: Color = if (thinkingMode) thinkingGray else badgeBlue
+  val inlineTint: Color = thinkingGray
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     color = inlineTint,
     background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
@@ -274,11 +280,15 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
     val h6Style: TextStyle = headingStyle(HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 
     val numberStyle: TextStyle = paragraphTextStyle.copy(
-      fontFamily = editorTextStyle.fontFamily,
-      color = if (thinkingMode) thinkingGray else globalColors.text.info
+      color = if (thinkingMode) thinkingGray else globalColors.text.info,
+      fontFamily = editorTextStyle.fontFamily
     )
 
     val listItemPadding = PaddingValues(vertical = GradumSpacing.lg)
+
+    val listItemStyle: TextStyle = paragraphTextStyle.copy(
+      fontFamily = editorTextStyle.fontFamily
+    )
 
     val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
     val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else badgeBlue.copy(alpha = 0.6f)
@@ -344,7 +354,7 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
       ),
       blockQuote = blockQuote,
       list = MarkdownStyling.List.createListStyling(
-        paragraphTextStyle,
+        listItemStyle,
         Ordered.createOrderedListStyling(
           numberStyle = numberStyle,
           padding = listItemPadding
@@ -354,7 +364,6 @@ fun rememberGradumMarkdownStyling(thinkingMode: Boolean = false): MarkdownStylin
           padding = listItemPadding,
           bulletStyle = TextStyle(
             color = if (thinkingMode) thinkingGray else globalColors.text.info,
-            fontFamily = editorTextStyle.fontFamily
           )
         )
       )

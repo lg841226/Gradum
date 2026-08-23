@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-20 09:34:20 Changed by gwy
+ * GradumUI.kt  2026-08-23 13:22:09 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import com.intellij.openapi.wm.ToolWindow
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.ChatScreenCallbacks
+import gradum.idea.chat.ui.ChatScreenParams
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.EditorContext
@@ -63,50 +65,55 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
     ProvideAppearance {
       if (session.hasSentMessage) {
         ChatScreen(
-        messages = session.messages,
-        textState = session.textState,
-        inputState = state.inputState,
-        inputActions = state.inputActions,
-        onViewDiff = callbacks.onViewDiff,
-        onDeleteMessage = callbacks.onDeleteMessage,
-        onRetryMessage = callbacks.onRetryMessage,
-        onOpenInEditor = callbacks.onOpenInEditor,
-        onAttachmentClick = callbacks.onAttachmentClick,
-        modifier = Modifier.fillMaxSize(),
-        isLoading = session.isSending,
-        sendingPhase = session.sendingPhase,
-        hasSentMessage = session.hasSentMessage,
-        selectedPermission = session.selectedPermission,
-        isWaitingForResponse = session.isWaitingForResponse,
-        onCopyAsContext = callbacks.eventCallbacks.onCopyAsContext
-      )
-    } else {
-      WelcomeScreen(
-        inputState = state.inputState,
-        textState = session.textState,
-        inputActions = state.inputActions,
-        modifier = Modifier.fillMaxSize(),
-        sessions = session.sessions.toList(),
-        onCancelMerge = { session.exitMergeMode() },
-        onStartMerge = { session.enterMergeMode() },
-        isMergeModeActive = session.isMergeModeActive,
-        suggestionVariants = session.suggestionVariants,
-        selectedPermission = session.selectedPermission,
-        mergeSelectedIds = session.mergeSelection.toSet(),
-        welcomeLayout = gradum.idea.settings.AppearanceSettings.getInstance().snapshot.welcomeLayout,
-        onClearMergeSelection = { session.mergeSelection.clear() },
-        onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
-        onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
-        onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
-        onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
-        onOpenSession = { sessionId ->
-          coroutineScope.launch { session.switchSession(sessionId) }
-        },
-        onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) }
-      ) { sessionId, newTitle ->
-        coroutineScope.launch { session.renameSession(sessionId, newTitle) }
+          params = ChatScreenParams(
+            isLoading = session.isSending,
+            sendingPhase = session.sendingPhase,
+            selectedPermission = session.selectedPermission,
+            messages = session.messages,
+            textState = session.textState,
+            inputState = state.inputState,
+            subAgentState = session.subAgentState,
+            isWaitingForResponse = session.isWaitingForResponse,
+            hasSentMessage = session.hasSentMessage,
+            inputActions = state.inputActions
+          ),
+          callbacks = ChatScreenCallbacks(
+            onDeleteMessage = callbacks.onDeleteMessage,
+            onRetryMessage = callbacks.onRetryMessage,
+            onCopyAsContext = callbacks.eventCallbacks.onCopyAsContext,
+            onAttachmentClick = callbacks.onAttachmentClick,
+            onOpenInEditor = callbacks.onOpenInEditor,
+            onViewDiff = callbacks.onViewDiff
+          ),
+          modifier = Modifier.fillMaxSize()
+        )
+      } else {
+        WelcomeScreen(
+          inputState = state.inputState,
+          textState = session.textState,
+          inputActions = state.inputActions,
+          modifier = Modifier.fillMaxSize(),
+          sessions = session.sessions.toList(),
+          onCancelMerge = { session.exitMergeMode() },
+          onStartMerge = { session.enterMergeMode() },
+          isMergeModeActive = session.isMergeModeActive,
+          suggestionVariants = session.suggestionVariants,
+          selectedPermission = session.selectedPermission,
+          mergeSelectedIds = session.mergeSelection.toSet(),
+          welcomeLayout = gradum.idea.settings.AppearanceSettings.getInstance().snapshot.welcomeLayout,
+          onClearMergeSelection = { session.mergeSelection.clear() },
+          onDeleteSession = { sessionId -> session.deleteSession(sessionId) },
+          onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
+          onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
+          onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
+          onOpenSession = { sessionId ->
+            coroutineScope.launch { session.switchSession(sessionId) }
+          },
+          onToggleMergeSelection = { sessionId -> session.toggleMergeSelection(sessionId) }
+        ) { sessionId, newTitle ->
+          coroutineScope.launch { session.renameSession(sessionId, newTitle) }
+        }
       }
-    }
     }
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-21 16:19:55 Changed by gwy
+ * Table.kt  2026-08-22 21:46:16 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -452,7 +452,17 @@ fun ScrollableTable(
               renderer = renderer,
               paragraphStyling = paragraphStyling,
             )
-            table.rows.forEachIndexed { _, row ->
+            val dividerColor = JewelTheme.globalColors.borders.normal
+            val tableContentWidthPx = finalColumnWidthsPx.sum() +
+              horizontalPaddingPx * 2 * finalColumnWidthsPx.size
+            val tableContentWidthDp = with(density) { tableContentWidthPx.toDp() }
+            Box(
+              modifier = Modifier
+                .height(1.dp)
+                .background(dividerColor)
+                .width(tableContentWidthDp)
+            )
+            table.rows.forEachIndexed { rowIndex, row ->
               Row {
                 row.forEachIndexed { columnIndex, cell ->
                   SafeMarkdownText(
@@ -474,6 +484,14 @@ fun ScrollableTable(
                     textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
                   )
                 }
+              }
+              if (rowIndex < table.rows.lastIndex) {
+                Box(
+                  modifier = Modifier
+                    .width(tableContentWidthDp)
+                    .height(1.dp)
+                    .background(dividerColor)
+                )
               }
             }
           }

@@ -48,7 +48,7 @@ const val MAX_CODE_BLOCK_FONT_SIZE_SP: Float = 16f
 
 /** Sentinel meaning "follow the IDE editor font size" for code blocks. */
 const val CODE_BLOCK_FONT_SIZE_AUTO_SP: Float = 0f
-const val DEFAULT_CODE_BLOCK_FONT_SIZE_SP: Float = CODE_BLOCK_FONT_SIZE_AUTO_SP
+const val DEFAULT_CODE_BLOCK_FONT_SIZE_SP: Float = 13f
 
 /** Bounds for the auto-cleanup session age, in days. */
 const val MIN_AUTO_CLEANUP_DAYS: Int = 30

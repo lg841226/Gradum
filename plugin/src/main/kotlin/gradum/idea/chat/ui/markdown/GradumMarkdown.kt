@@ -2,16 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdown.kt  2026-08-22 15:14:53 Changed by gwy
+ * GradumMarkdown.kt  2026-08-22 21:02:42 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
@@ -22,6 +21,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.settings.LocalParagraphSpacing
@@ -80,6 +80,14 @@ class GradumMarkdownScope {
 
   /** Paragraph text style override. Defaults to [rememberGradumParagraphTextStyle]. */
   var paragraphStyle: TextStyle? = null
+
+  /**
+   * Font family override for the AI response body text.
+   * When set, the paragraph text (and all derived styles like headings,
+   * blockquotes, list items) will use this font family.
+   * Inline code, code blocks, and list markers retain the editor monospace font.
+   */
+  var fontFamily: FontFamily? = null
 }
 
 /**
@@ -87,9 +95,9 @@ class GradumMarkdownScope {
  *
  * Encapsulates the common rendering pipeline:
  * 1. [splitMarkdown] — split raw text into [MarkdownSegment]s
- * 2. [Plain] segments → [rememberInlineMarkdownRender] → [Text]
- * 3. [Table] segments → [ScrollableTable]
- * 4. [NonProseBlock] segments → [RenderNonProseBlock] or [Markdown]
+ * 2. [gradum.idea.chat.ui.markdown.MarkdownSegment.Plain] segments → [rememberInlineMarkdownRender] → [Text]
+ * 3. [gradum.idea.chat.ui.markdown.MarkdownSegment.Table] segments → [ScrollableTable]
+ * 4. [gradum.idea.chat.ui.markdown.MarkdownSegment.NonProseBlock] segments → [RenderNonProseBlock] or [Markdown]
  *
  * Usage:
  * ```kotlin
@@ -123,19 +131,29 @@ internal fun GradumMarkdownContent(
 ) {
   val segments = remember(text) { splitMarkdown(text) }
   val paragraphStyle = config.paragraphStyle ?: rememberGradumParagraphTextStyle()
+  val bodyTextStyle = if (config.fontFamily != null) {
+    paragraphStyle.copy(fontFamily = config.fontFamily)
+  } else {
+    paragraphStyle
+  }
   val paragraphSpacing: Dp = LocalParagraphSpacing.current
 
   val content = @Composable {
-    Column(
-      modifier = modifier,
-      verticalArrangement = Arrangement.spacedBy(paragraphSpacing)
+    CompositionLocalProvider(
+      LocalThinkingMode provides config.thinkingMode,
+      LocalMarkdownBodyTextStyle provides bodyTextStyle
     ) {
-      segments.forEach { segment ->
-        GradumMarkdownSegment(
-          segment = segment,
-          config = config,
-          paragraphStyle = paragraphStyle
-        )
+      Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(paragraphSpacing)
+      ) {
+        segments.forEach { segment ->
+          GradumMarkdownSegment(
+            segment = segment,
+            config = config,
+            paragraphStyle = bodyTextStyle
+          )
+        }
       }
     }
   }

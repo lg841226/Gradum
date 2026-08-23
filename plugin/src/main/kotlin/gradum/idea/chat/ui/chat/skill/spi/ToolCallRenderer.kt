@@ -76,4 +76,12 @@ interface ToolCallRenderer {
    */
   @Composable
   fun render(content: ToolCallContent, ctx: ToolCallRenderContext)
+
+  /**
+   * Whether this renderer should be visible while the tool call
+   * is still pending (running). Most renderers hide until the
+   * call completes; those with real-time progress (e.g. delegate
+   * countdown) override this to `true`.
+   */
+  fun rendersWhilePending(): Boolean = false
 }

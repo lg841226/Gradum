@@ -153,7 +153,14 @@ data class AgentConfiguration(
    * sessionId) genuinely forgets. Null/blank falls back to the legacy
    * `<projectRoot>/.gradum/context.json` for old-clients compatibility.
    */
-  val sessionId: String? = null
+  val sessionId: String? = null,
+
+  /**
+   * When non-null, the agent runs as a focused sub-agent dedicated to
+   * this task. The task description is injected into the system prompt,
+   * and the agent's conversation history is NOT persisted to disk.
+   */
+  val taskDescription: String? = null
 ) {
   companion object {
 

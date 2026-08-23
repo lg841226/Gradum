@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-08-22 15:14:53 Changed by gwy
+ * BlockRenderer.kt  2026-08-23 12:31:35 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -41,9 +41,6 @@ import org.jetbrains.jewel.ui.component.styling.LinkStyle
 import org.jetbrains.jewel.ui.theme.linkStyle
 
 internal val blockReparseParser: Parser = Parser.builder()
-  // Must mirror BlockSplit.kt's parser: ~~strike~~ is parsed as literal
-  // tildes when the extension is missing, even though splitPlainAtBlocks
-  // already recognized the Strikethrough node and serialized it back.
   .extensions(listOf(StrikethroughExtension.create(), LatexBlockExtension.create()))
   .build()
 

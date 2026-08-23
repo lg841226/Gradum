@@ -30,7 +30,8 @@ data class ToolCallInfo(
   val arguments: Map<String, Any> = emptyMap(),
   val errorMessage: String = "",
   val errorDetail: String = "",
-  val pending: Boolean = false
+  val pending: Boolean = false,
+  val timeoutSeconds: Int = 0
 )
 
 /** A single event in an assistant message's timeline, rendered in order. */
@@ -61,7 +62,8 @@ sealed class RenderBlock {
     val errorMessage: String = "",
     val errorDetail: String = "",
     val toolCallId: String = "",
-    val pending: Boolean = false
+    val pending: Boolean = false,
+    val timeoutSeconds: Int = 0
   ) : RenderBlock()
 
   data class Response(val content: String) : RenderBlock()
@@ -152,6 +154,22 @@ data class ChatMessage(
   fun appendEvent(event: ChatEvent): ChatMessage {
     val newEvents: List<ChatEvent> = when (event) {
       is ChatEvent.ToolCall -> appendToolCallEvent(event)
+      is ChatEvent.Response -> {
+        val last = events.lastOrNull()
+        if (last is ChatEvent.Response) {
+          events.dropLast(1) + ChatEvent.Response(last.content + event.content)
+        } else {
+          events + event
+        }
+      }
+      is ChatEvent.Thinking -> {
+        val last = events.lastOrNull()
+        if (last is ChatEvent.Thinking) {
+          events.dropLast(1) + ChatEvent.Thinking(last.content + event.content)
+        } else {
+          events + event
+        }
+      }
       else -> events + event
     }
     val newRenderBlocks = when (event) {
@@ -190,13 +208,13 @@ data class ChatMessage(
    * and unmatched events are appended normally.
    */
   private fun appendToolCallEvent(event: ChatEvent.ToolCall): List<ChatEvent> {
-    if (!event.info.pending && event.info.toolCallId.isNotBlank()) {
-      val pendingIdx = events.indexOfLast {
-        it is ChatEvent.ToolCall && it.info.pending && it.info.toolCallId == event.info.toolCallId
+    if (event.info.toolCallId.isNotBlank()) {
+      val existingIdx = events.indexOfLast {
+        it is ChatEvent.ToolCall && it.info.toolCallId == event.info.toolCallId
       }
-      if (pendingIdx >= 0) {
+      if (existingIdx >= 0) {
         val updated = events.toMutableList()
-        updated[pendingIdx] = event
+        updated[existingIdx] = event
         return updated
       }
     }
@@ -206,10 +224,14 @@ data class ChatMessage(
   /**
    * Resolve the [renderBlocks] change for a [ChatEvent.ToolCall].
    *
-   * If a pending block with the same [RenderBlock.ToolCall.toolCallId]
-   * exists, the pending block is replaced by the finished block so the
-   * UI shows a stable row (spinner → result) rather than a new entry.
-   * Otherwise a new block is appended.
+   * If a block with the same [RenderBlock.ToolCall.toolCallId] already
+   * exists, it is replaced by the new block regardless of pending state.
+   * This handles the delegate case where two `sub_agent:session_end`
+   * events arrive (one forwarded from the inner agent, one from the
+   * skill itself) — the second event carries the `conversation` payload
+   * and must replace the first.
+   *
+   * When no matching [toolCallId] exists, the block is appended.
    */
   private fun appendToolCall(event: ChatEvent.ToolCall): List<RenderBlock> {
     val info: ToolCallInfo = event.info
@@ -221,16 +243,17 @@ data class ChatMessage(
       errorDetail = info.errorDetail,
       errorMessage = info.errorMessage,
       toolCallId = info.toolCallId,
-      pending = info.pending
+      pending = info.pending,
+      timeoutSeconds = info.timeoutSeconds
     )
 
     if (info.toolCallId.isNotBlank()) {
-      val pendingIdx = renderBlocks.indexOfLast {
-        it is RenderBlock.ToolCall && it.pending && it.toolCallId == info.toolCallId
+      val existingIdx = renderBlocks.indexOfLast {
+        it is RenderBlock.ToolCall && it.toolCallId == info.toolCallId
       }
-      if (pendingIdx >= 0) {
+      if (existingIdx >= 0) {
         val blocks = renderBlocks.toMutableList()
-        blocks[pendingIdx] = newBlock
+        blocks[existingIdx] = newBlock
         return blocks
       }
     }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallRenderContext.kt  2026-08-12 12:38:25 Changed by gwy
+ * ToolCallRenderContext.kt  2026-08-23 13:33:40 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi
@@ -43,5 +43,13 @@ data class ToolCallRenderContext(
   val toolDetails: String? = null,
   val onCopy: ((payload: String) -> Unit)?,
   val onOpenInEditor: ((filePath: String, startLine: Int, endLine: Int) -> Unit)?,
-  val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?
+  val onViewDiff: ((filePath: String, originalContent: String?, modifiedContent: String?) -> Unit)?,
+  /**
+   * Opens a read-only sub-chat view showing the sub-agent's full
+   * conversation. Called by [gradum.idea.chat.ui.chat.skill.DelegateRenderer] when the user clicks
+   * the delegate capsule. The first argument is a Markdown transcript
+   * string (ChatTranscript format) of the sub-agent's conversation,
+   * the second is unused.
+   */
+  val onSubChatClick: ((transcriptMarkdown: String, unused: String, title: String) -> Unit)? = null
 )

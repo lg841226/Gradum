@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-08-21 20:38:07 Changed by gwy
+ * CodeBlockRenderer.kt  2026-08-22 21:23:49 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -76,9 +77,19 @@ class GradumCodeBlockRenderer(
   ) {
     val language = block.language?.takeUnless { it.isBlank() } ?: DEFAULT_CODE_LANGUAGE
 
-    val annotatedCode by LocalCodeHighlighter.current
+    val rawAnnotatedCode by LocalCodeHighlighter.current
       .highlight(block.content, language)
       .collectAsState(AnnotatedString(block.content))
+
+    val thinkingMode = LocalThinkingMode.current
+    val thinkingGray = if (thinkingMode) JewelTheme.globalColors.text.info else Color.Unspecified
+    val annotatedCode = remember(rawAnnotatedCode, thinkingMode, thinkingGray) {
+      if (thinkingMode) {
+        overrideAnnotatedStringColors(rawAnnotatedCode, thinkingGray)
+      } else {
+        rawAnnotatedCode
+      }
+    }
 
     val containerModifier = modifier
       .clip(CodeBlockCornerRadius)
@@ -259,9 +270,9 @@ class GradumCodeBlockRenderer(
     onTextLayout: ((TextLayoutResult) -> Unit) = {}
   ) {
     Text(
+      style = textStyle,
       softWrap = softWrap,
       text = annotatedCode,
-      style = textStyle,
       onTextLayout = onTextLayout,
       modifier = Modifier
         .padding(horizontal = GradumSpacing.lg, vertical = GradumSpacing.md)
@@ -454,4 +465,27 @@ private fun truncateAnnotatedString(annotated: AnnotatedString): AnnotatedString
   return if (truncateIndex < annotated.text.length)
     annotated.subSequence(0, truncateIndex)
   else annotated
+}
+
+/**
+ * Returns a copy of [annotated] with every [SpanStyle.color] replaced by
+ * [overrideColor]. All other span properties (fontSize, fontWeight,
+ * fontFamily, background, etc.) are preserved verbatim.
+ *
+ * Used in thinking mode to override syntax-highlighting colors so the
+ * entire code block renders in a uniform muted gray.
+ */
+private fun overrideAnnotatedStringColors(annotated: AnnotatedString, overrideColor: Color): AnnotatedString {
+  if (annotated.spanStyles.isEmpty()) {
+    return AnnotatedString(annotated.text, SpanStyle(color = overrideColor))
+  }
+  val builder = AnnotatedString.Builder(annotated.text)
+  for (range in annotated.spanStyles) {
+    builder.addStyle(
+      range.item.copy(color = overrideColor),
+      range.start,
+      range.end
+    )
+  }
+  return builder.toAnnotatedString()
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-20 09:38:19 Changed by gwy
+ * GradumChatSession.kt  2026-08-23 13:33:40 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -215,6 +215,9 @@ class GradumChatSession {
   /** The coroutine Job for the current sendMessage operation, used for cancellation. */
   var currentJob: Job? by mutableStateOf(null)
 
+  /** Timeout Job for the sub-agent, canceled when the sub-agent ends or errors. */
+  private var subAgentTimeoutJob: Job? = null
+
   /** The session ID returned by the server, used for stop requests. */
   var sessionId: String? by mutableStateOf(null)
 
@@ -258,6 +261,13 @@ class GradumChatSession {
 
   /** Background job refreshing the model list after a successful settings probe. */
   private var probeRefreshJob: Job? = null
+
+  /**
+   * Independent sub-agent session state, separate from the main
+   * conversation's ToolCall blocks. The Delegate skill writes to
+   * this state directly; the UI reads it for the sub-chat view.
+   */
+  val subAgentState: SubAgentState = SubAgentState()
 
   /**
    * Resets the entire session to its initial state.
@@ -502,6 +512,44 @@ class GradumChatSession {
       reset()
     }
     refreshSessions()
+  }
+
+  /**
+   * Deletes a user message and its corresponding assistant response from the
+   * current session, then persists the change to disk so the deletion survives
+   * a restart.
+   *
+   * Finds the next non-user message (the assistant's reply) after the given
+   * [userMessageIndex] and removes all messages in that range. If the user
+   * message is the last in the list (no response yet), only that message is
+   * removed. The session is saved immediately after removal.
+   *
+   * @param userMessageIndex Index of the user message to remove.
+   */
+  fun deleteMessage(userMessageIndex: Int) {
+    if (userMessageIndex !in messages.indices) return
+    if (!messages[userMessageIndex].isUserMessage) return
+
+    val assistantMessageIndex = (userMessageIndex + 1 until messages.size)
+      .firstOrNull { !messages[it].isUserMessage }
+
+    val messagesToRemove = if (assistantMessageIndex != null)
+      assistantMessageIndex - userMessageIndex + 1
+    else
+      1
+
+    repeat(messagesToRemove) { messages.removeAt(userMessageIndex) }
+
+    if (messages.isEmpty()) {
+      sendingPhase = ""
+      isSending = false
+      hasSentMessage = false
+      attachedFiles.clear()
+      pendingMessages.clear()
+      textState.edit { delete(0, length) }
+    }
+
+    saveCurrentSession()
   }
 
   /**
@@ -906,11 +954,13 @@ class GradumChatSession {
           }
 
           "response" -> {
-            isWaitingForResponse = false; handleResponseEvent(payload)
+            isWaitingForResponse = false
+            handleResponseEvent(payload)
           }
 
           "thinking" -> {
-            isWaitingForResponse = false; handleThinkingEvent(payload)
+            isWaitingForResponse = false
+            handleThinkingEvent(payload)
           }
 
           "tool_call_start" -> handleToolCallStartEvent(payload)
@@ -918,15 +968,25 @@ class GradumChatSession {
           "tool_call" -> handleToolCallEvent(payload)
 
           "tool_expect_mismatch" -> {
-            isWaitingForResponse = false; handleToolExpectMismatch(payload)
+            isWaitingForResponse = false
+            handleToolExpectMismatch(payload)
           }
 
           "error" -> handleErrorEvent(payload)
 
+          "sub_agent:start" -> handleSubAgentStart(payload)
+          "sub_agent:response" -> handleSubAgentResponse(payload)
+          "sub_agent:tool_call" -> handleSubAgentToolCall(payload)
+          "sub_agent:error" -> handleSubAgentError(payload)
+          "sub_agent:session_end" -> handleSubAgentEnd(payload)
+
           "session_end" -> {
             receivedSessionEnd = true
-            isSending = false; sendingPhase = ""
-            isWaitingForResponse = false; currentJob = null; sessionId = null
+            isWaitingForResponse = false
+            isSending = false
+            currentJob = null
+            sessionId = null
+            sendingPhase = ""
             saveCurrentSession()
             processPendingQueue()
           }
@@ -940,7 +1000,9 @@ class GradumChatSession {
             ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
           )
         }
-        isSending = false; sendingPhase = ""; isWaitingForResponse = false
+        sendingPhase = ""
+        isSending = false
+        isWaitingForResponse = false
         return
       }
       log.warn("Streaming interrupted for ${apiClient.baseUrl}", exception)
@@ -952,22 +1014,17 @@ class GradumChatSession {
           )
         )
       }
-      isSending = false
       sendingPhase = ""
+      isSending = false
       isWaitingForResponse = false
       processPendingQueue()
     } finally {
-      // The server signals completion via `session_end`. If the stream
-      // ends without it (server restart, dropped connection, old server
-      // that predates the event), the UI would stay stuck in
-      // "sending..." and the pending queue would be permanently blocked.
-      // Bail out of that state whenever we didn't see a proper end.
       if (!receivedSessionEnd) {
-        isSending = false
         sendingPhase = ""
-        isWaitingForResponse = false
+        isSending = false
         currentJob = null
         sessionId = null
+        isWaitingForResponse = false
         saveCurrentSession()
         processPendingQueue()
       }
@@ -1020,6 +1077,7 @@ class GradumChatSession {
    */
   private fun handleToolCallStartEvent(data: JsonObject?) {
     val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+
     val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
     val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
 
@@ -1031,13 +1089,13 @@ class GradumChatSession {
     }
 
     val toolCall = ToolCallInfo(
-      toolName = toolName,
-      alias = toolAlias,
-      toolCallId = toolCallId,
-      success = true,
       result = "",
-      arguments = callArguments,
-      pending = true
+      success = true,
+      pending = true,
+      alias = toolAlias,
+      toolName = toolName,
+      toolCallId = toolCallId,
+      arguments = callArguments
     )
 
     val assistantIndex: Int = messages.lastIndex
@@ -1058,6 +1116,7 @@ class GradumChatSession {
 
   private fun handleToolCallEvent(data: JsonObject?) {
     val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+
     val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
     val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
     val callSuccess = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
@@ -1071,10 +1130,10 @@ class GradumChatSession {
     }
 
     val toolCall = ToolCallInfo(
-      toolName = toolName,
       alias = toolAlias,
-      toolCallId = toolCallId,
+      toolName = toolName,
       success = callSuccess,
+      toolCallId = toolCallId,
       result = toolResultString,
       arguments = callArguments
     )
@@ -1131,6 +1190,213 @@ class GradumChatSession {
     }
   }
 
+  private fun handleSubAgentStart(data: JsonObject?) {
+    subAgentState.reset()
+    subAgentState.isActive = true
+    subAgentState.modelName = data?.get("modelName")?.jsonPrimitive?.contentOrNull ?: ""
+    subAgentState.title = data?.get("title")?.jsonPrimitive?.contentOrNull ?: ""
+    subAgentState.startTimestamp = System.currentTimeMillis()
+
+    // Capture the user's query that triggered the sub-agent.
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 1 && !messages[assistantIndex].isUserMessage) {
+      subAgentState.userQuery = messages[assistantIndex - 1].content
+    }
+
+    val timeoutSeconds: Int = data?.get("timeoutSeconds")?.jsonPrimitive?.intOrNull ?: 600
+    if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
+
+    val delegateArgs: Map<String, Any> = mapOf(
+      "timeoutSeconds" to timeoutSeconds,
+      "startTimestamp" to System.currentTimeMillis(),
+      "pending" to true,
+      "title" to subAgentState.title
+    )
+
+    val toolCall = ToolCallInfo(
+      success = true,
+      pending = true,
+      alias = "Delegate",
+      arguments = delegateArgs,
+      toolName = "delegate_task",
+      toolCallId = "delegate_task",
+      result = "Sub-agent running...",
+      timeoutSeconds = timeoutSeconds
+    )
+
+    try {
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+    } catch (appendException: Exception) {
+      log.warn("Failed to update delegate block on start", appendException)
+    }
+
+    subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout"))
+    subAgentTimeoutJob = scope?.launch {
+      delay(((timeoutSeconds * 1000L) + 30_000L).milliseconds)
+      if (subAgentState.isActive) {
+        log.warn("Sub-agent timed out after ${timeoutSeconds}s")
+        handleSubAgentError(
+          JsonObject(
+            mapOf(
+              "message" to JsonPrimitive("Sub-agent timed out after ${timeoutSeconds}s"),
+              "code" to JsonPrimitive("TIMEOUT")
+            )
+          )
+        )
+      }
+    }
+  }
+
+  private fun handleSubAgentResponse(data: JsonObject?) {
+    if (!subAgentState.isActive) return
+    val content: String = data?.get("content")?.jsonPrimitive?.content ?: return
+    subAgentState.streamingResponse += content
+  }
+
+  private fun handleSubAgentToolCall(data: JsonObject?) {
+    if (!subAgentState.isActive) return
+    val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: return
+    val alias: String = data["alias"]?.jsonPrimitive?.contentOrNull ?: toolName
+    val success: Boolean = data["success"]?.jsonPrimitive?.booleanOrNull ?: true
+    val toolCallId: String = data["toolCallId"]?.jsonPrimitive?.contentOrNull ?: toolName
+    val toolResultString: String = data["result"]?.toString() ?: ""
+
+    val callArguments: Map<String, Any> = try {
+      parseArguments(data["arguments"]?.jsonObject)
+    } catch (parseException: Exception) {
+      log.warn("Failed to parse sub-agent tool call arguments (using empty)", parseException)
+      emptyMap()
+    }
+
+    val toolCall = ToolCallInfo(
+      toolName = toolName,
+      alias = alias,
+      toolCallId = toolCallId,
+      success = success,
+      result = toolResultString,
+      arguments = callArguments,
+      pending = false
+    )
+
+    // Deduplicate by toolCallId: replace existing entry if present, otherwise append
+    val existingIndex: Int = subAgentState.toolCalls.indexOfFirst { it.toolCallId == toolCallId }
+    subAgentState.toolCalls = if (existingIndex >= 0) {
+      subAgentState.toolCalls.toMutableList().also { it[existingIndex] = toolCall }
+    } else {
+      subAgentState.toolCalls + toolCall
+    }
+  }
+
+  private fun handleSubAgentError(data: JsonObject?) {
+    val errorMessage: String = data?.get("message")?.jsonPrimitive?.contentOrNull
+      ?: data?.get("error")?.jsonPrimitive?.contentOrNull
+      ?: "Sub-agent encountered an error"
+    val errorCode: String = data?.get("code")?.jsonPrimitive?.contentOrNull ?: "UNKNOWN"
+
+    subAgentState.isActive = false
+    subAgentState.errorMessage = errorMessage
+    subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on error"))
+    log.warn("Sub-agent error: [$errorCode] $errorMessage")
+
+    // Update the delegate capsule in the main chat to show the error
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+      val toolCall = ToolCallInfo(
+        success = false,
+        pending = false,
+        alias = "Delegate",
+        result = errorMessage,
+        toolName = "delegate_task",
+        toolCallId = "delegate_task",
+        arguments = mapOf(
+          "pending" to false,
+          "result" to errorMessage,
+          "title" to subAgentState.title
+        ),
+      )
+      try {
+        messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+      } catch (appendException: Exception) {
+        log.warn("Failed to update delegate block on error", appendException)
+      }
+    }
+    sendingPhase = ""
+  }
+
+  private fun handleSubAgentEnd(data: JsonObject?) {
+    subAgentState.isActive = false
+    subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on end"))
+
+    val resultText: String = data?.get("result")?.jsonPrimitive?.content ?: "(no output)"
+
+    // Build ChatMessage list for the sub-agent conversation and save as Markdown transcript
+    val subMessages: List<ChatMessage> = buildList {
+      if (subAgentState.userQuery.isNotBlank()) {
+        add(ChatMessage(role = "user", content = subAgentState.userQuery))
+      }
+      val assistantEvents: MutableList<ChatEvent> = mutableListOf()
+      subAgentState.toolCalls.forEach { toolCall ->
+        assistantEvents.add(ChatEvent.ToolCall(toolCall))
+      }
+      if (subAgentState.streamingResponse.isNotBlank()) {
+        assistantEvents.add(ChatEvent.Response(subAgentState.streamingResponse))
+      }
+      add(
+        ChatMessage(
+          role = "assistant",
+          content = subAgentState.streamingResponse,
+          modelName = subAgentState.modelName,
+          events = assistantEvents
+        )
+      )
+    }
+
+    val transcriptMarkdown: String = ChatTranscript.generateTranscript(
+      messages = subMessages,
+      sessionMeta = SessionMeta(
+        title = subAgentState.title,
+        modelName = subAgentState.modelName,
+        sessionId = "sub_${System.nanoTime()}",
+        createdAt = subAgentState.startTimestamp,
+        updatedAt = System.currentTimeMillis()
+      )
+    )
+
+    log.warn("handleSubAgentEnd transcriptMarkdown length=${transcriptMarkdown.length}")
+
+    // Guard against stale assistantIndex: only update if the last message is still the assistant
+    val assistantIndex: Int = messages.lastIndex
+    if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) {
+      log.warn("Sub-agent end: assistant message no longer at last index, skipping capsule update")
+      sendingPhase = message("gradum.phase.delegate.done")
+      return
+    }
+
+    val delegateArgs: Map<String, Any> = mapOf(
+      "pending" to false,
+      "result" to resultText,
+      "transcriptMarkdown" to transcriptMarkdown,
+      "title" to subAgentState.title
+    )
+
+    val toolCall = ToolCallInfo(
+      success = true,
+      pending = false,
+      alias = "Delegate",
+      result = resultText,
+      arguments = delegateArgs,
+      toolName = "delegate_task",
+      toolCallId = "delegate_task",
+    )
+
+    try {
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+    } catch (appendException: Exception) {
+      log.warn("Failed to update delegate block on end", appendException)
+    }
+    sendingPhase = message("gradum.phase.delegate.done")
+  }
+
   private fun processPendingQueue() {
     if (pendingMessages.isNotEmpty()) {
       val next: PendingMessage = pendingMessages.removeFirst()
@@ -1141,8 +1407,8 @@ class GradumChatSession {
       messages.add(ChatMessage(role = "user", content = next.content, attachments = next.attachments))
       messages.add(
         ChatMessage(
-          role = "assistant",
           content = "",
+          role = "assistant",
           modelName = displayName,
           provider = providerName,
           serverName = serverLabel
@@ -1166,16 +1432,9 @@ class GradumChatSession {
       if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
       if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
 
-      // The server only authenticates when it actually receives a key:
-      // `/events` falls back to the server-wide env var and sends no
-      // Authorization header when that is also empty, which surfaces as
-      // a 401 even though the settings-page probe (which passes the key
-      // explicitly) succeeds. Match the selected model's server URL
-      // against the provider configs (cloud AND local — Ollama / LM
-      // Studio can be behind auth too) and forward the matching key.
+
       val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind ->
-        snapshot.isEnabled(kind) &&
-          model.server.isNotBlank() &&
+        snapshot.isEnabled(kind) && model.server.isNotBlank() &&
           snapshot.configFor(kind).first.trimEnd('/') == model.server.trimEnd('/')
       }
       configuredKind?.let { kind ->
@@ -1283,5 +1542,53 @@ class GradumChatSession {
       }
       return resultBuffer.toString() to wasReplaced
     }
+  }
+}
+
+/**
+ * Independent state for the currently running (or completed) sub-agent
+ * session. Kept separate from the main conversation's ToolCall blocks
+ * so the sub-agent data flows through its own dedicated channel instead
+ * of being stuffed into a Map<String, Any> in ToolCall arguments.
+ *
+ * The Delegate skill's event handlers in [GradumChatSession] write to
+ * this state directly. The UI ([gradum.idea.chat.ui.ChatScreen]) reads it for the sub-chat
+ * view ([gradum.idea.chat.ui.chat.SubChatView]) without needing to dig through render blocks.
+ */
+class SubAgentState {
+  /** Whether a sub-agent is currently running. */
+  var isActive: Boolean by mutableStateOf(false)
+
+  /** Accumulated streaming response text from the sub-agent. */
+  var streamingResponse: String by mutableStateOf("")
+
+  /** Model name used by the sub-agent. */
+  var modelName: String by mutableStateOf("")
+
+  /** Tool calls made by the sub-agent during its execution. */
+  var toolCalls: List<ToolCallInfo> by mutableStateOf(emptyList())
+
+  /** Error message from the sub-agent, non-empty when an error occurred. */
+  var errorMessage: String by mutableStateOf("")
+
+  /** Short title describing what the sub-agent is doing. */
+  var title: String by mutableStateOf("")
+
+  /** The user's original query that triggered this sub-agent. */
+  var userQuery: String by mutableStateOf("")
+
+  /** Timestamp (epoch millis) when the sub-agent started. */
+  var startTimestamp: Long by mutableStateOf(0L)
+
+  /** Resets all state to initial values. */
+  fun reset() {
+    isActive = false
+    streamingResponse = ""
+    modelName = ""
+    toolCalls = emptyList()
+    errorMessage = ""
+    title = ""
+    userQuery = ""
+    startTimestamp = 0L
   }
 }

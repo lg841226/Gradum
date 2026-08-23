@@ -2,10 +2,9 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-14 15:03:22 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-23 13:39:18 Changed by gwy
  */
 
-@file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat
@@ -20,7 +19,6 @@ import gradum.idea.chat.ui.markdown.GradumMarkdown
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
@@ -31,12 +29,9 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
  *
  * Renders the LLM's accumulated reasoning as Markdown inside a
  * muted-gray palette so the whole block reads as ephemeral context
- * rather than a finished reply. Fenced code blocks and GFM tables
- * inside the thinking text are rendered without toolbars
- * (`isSimplified = true`) — copy / insert-as-file affordances are
- * only useful once the user has committed to the final answer.
+ * rather than a finished reply.
  *
- * Shows "思考" label when collapsed, full thinking content when expanded.
+ * Shows "Thinking" label when collapsed, full thinking content when expanded.
  * Uses animated visibility for expand/collapse transitions.
  *
  * @param thinking The accumulated thinking content from the LLM.
@@ -53,9 +48,9 @@ fun ThinkingIndicator(
   thinking: String,
   modifier: Modifier = Modifier,
   isTaskComplete: Boolean = false,
+  startCollapsed: Boolean = false,
   hasResponseAfter: Boolean = false,
-  onUrlClick: (String) -> Unit = {},
-  startCollapsed: Boolean = false
+  onUrlClick: (String) -> Unit = {}
 ) {
   if (thinking.isBlank()) return
 
@@ -82,16 +77,17 @@ fun ThinkingIndicator(
       )
     }
 
-    if (isExpanded) Spacer(modifier = Modifier.height(GradumSpacing.md))
-
     if (isExpanded) {
-      GradumMarkdown(text = thinking) {
-        thinkingMode = true
-        isSimplified = true
-        animationEnabled = false
-        paragraphStyle = rememberGradumParagraphTextStyle().copy(
-          color = LocalGlobalColors.current.text.info
-        )
+      Column {
+        Spacer(modifier = Modifier.height(GradumSpacing.md))
+
+        GradumMarkdown(text = thinking) {
+          thinkingMode = true
+          animationEnabled = false
+          paragraphStyle = rememberGradumParagraphTextStyle().copy(
+            color = LocalGlobalColors.current.text.info
+          )
+        }
       }
     }
   }

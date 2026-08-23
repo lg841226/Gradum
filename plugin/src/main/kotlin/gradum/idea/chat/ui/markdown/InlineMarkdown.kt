@@ -1027,9 +1027,7 @@ private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
 @Composable
 private fun InlineCodeChip(text: String, fontSizeSp: Float, thinkingMode: Boolean = false) {
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val badgeColor: Color =
-    if (thinkingMode) JewelTheme.globalColors.text.info
-    else rememberBadgeBlueColor()
+  val badgeColor: Color = JewelTheme.globalColors.text.info
   val chipStyle = TextStyle(
     color = badgeColor,
     fontSize = fontSizeSp.sp,

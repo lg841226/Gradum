@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallRendererRegistry.kt  2026-08-12 12:38:25 Changed by gwy
+ * ToolCallRendererRegistry.kt  2026-08-23 13:39:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi
@@ -51,10 +51,6 @@ object ToolCallRendererRegistry {
    * `docs/PLUGIN_DEVELOPMENT.md` section 16 for the full tutorial.
    */
   private val RENDERERS: List<ToolCallRenderer> = listOf(
-    // Skill-specific renderers. One per server-side `Skill.alias`
-    // the Gradum plugin can emit. Order does not matter between
-    // specific-alias entries; the wildcard `*` entry must be
-    // last because it is the catch-all.
     RanRenderer(),
     EditedRenderer(),
     ReadRenderer(),
@@ -65,10 +61,7 @@ object ToolCallRendererRegistry {
     SearchedRenderer(),
     PlannedRenderer(),
     CompletedRenderer(),
-
-    // Catch-all. Must use the literal alias "*" and be the
-    // last entry in this list — it handles every alias that
-    // has no specific renderer registered.
+    DelegateRenderer(),
     DefaultRenderer()
   )
 
@@ -77,7 +70,7 @@ object ToolCallRendererRegistry {
    * Lookups that miss every specific renderer fall back to the
    * renderer whose [ToolCallRenderer.alias] returns this value.
    */
-  const val DEFAULT_ALIAS: String = "*"
+  const val DEFAULT_ALIAS: String = "Unregistered"
 
   /**
    * Look up the renderer registered for [aliasName]. Falls back

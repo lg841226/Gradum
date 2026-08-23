@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-08-18 12:45:23 Changed by gwy
+ * RunCommandSkill.kt  2026-08-22 22:15:59 Changed by gwy
  */
 
 package gradum.skill
@@ -19,7 +19,15 @@ import java.nio.file.Path
 import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
-private const val COMMAND_TIMEOUT_SECONDS: Long = 45
+
+/** Default timeout in seconds (matches opencode default: 2 minutes). */
+private const val DEFAULT_TIMEOUT_SECONDS: Long = 120
+
+/** Maximum allowed timeout in seconds (matches opencode max: 10 minutes). */
+private const val MAX_TIMEOUT_SECONDS: Long = 600
+
+/** Grace period after SIGTERM before SIGKILL. */
+private const val FORCE_KILL_DELAY_MS: Long = 3_000
 
 /** Cap on how much command output is read into the LLM context. */
 private const val MAX_OUTPUT_CHARS: Int = 16 * 1024
@@ -31,17 +39,70 @@ private val streamReaderPool: java.util.concurrent.ExecutorService =
   }
 
 /**
+ * Enumerates all descendants of [process] and returns them. This must be
+ * called BEFORE sending any signal to the parent, because once the parent
+ * dies the children become orphans (adopted by init) and are no longer
+ * findable via [ProcessHandle.descendants].
+ */
+private fun captureDescendants(process: Process): List<ProcessHandle> {
+  return try {
+    process.toHandle().descendants().toList()
+  } catch (_: Exception) {
+    // ProcessHandle may throw on unsupported platforms
+    emptyList()
+  }
+}
+
+/**
+ * Kills the entire process tree rooted at [process], not just the immediate
+ * child. Without this, `destroyForcibly()` on a `sh -c "command"` parent
+ * only kills the shell — the actual command becomes an orphan and continues
+ * running.
+ *
+ * This mirrors opencode's `killGroup` pattern which sends signals to the
+ * entire process group via `process.kill(-pid, signal)`. Since Java's
+ * ProcessBuilder does not expose `detached: true` (new process group), we
+ * enumerate descendants via [ProcessHandle] and kill them individually.
+ *
+ * ⚠️ The caller must pass pre-enumerated [descendants] (captured before
+ * any signal was sent) to avoid the orphan race. Example:
+ * ```
+ * val descendants = captureDescendants(process)  // enumerate first
+ * process.destroy()                               // then signal
+ * process.waitFor(FORCE_KILL_DELAY_MS, ...)
+ * killProcessTree(process, descendants)           // kill everything
+ * ```
+ */
+private fun killProcessTree(process: Process, descendants: List<ProcessHandle>) {
+  for (descendant in descendants) {
+    try {
+      descendant.destroyForcibly()
+    } catch (_: Exception) {
+    }
+  }
+  process.destroyForcibly()
+}
+
+/**
  * Executes a shell command and captures its output.
  *
  * Every command is pre-classified via [classifyCommand] and rejected with
  * `COMMAND_BLOCKED` if it touches a critical path or unsafe executable.
  * All execution sites are annotated `@OptIn(DangerousOperation::class)`.
+ *
+ * Process isolation is handled by [killProcessTree] — on timeout the entire
+ * process tree is killed (SIGTERM → grace period → SIGKILL), matching the
+ * `forceKillAfter` pattern from opencode's bash tool. No orphan processes
+ * are left behind.
  */
 class RunCommandSkill : Skill() {
 
   override val skillName: String = "run_cmd"
   override val alias: String = "Ran"
-  override val description: String = "Execute a shell command. Use detached=true to run in the background."
+  override val description: String =
+    "Execute a shell command. " +
+      "Use detached=true for background execution. " +
+      "Timeout defaults to ${DEFAULT_TIMEOUT_SECONDS}s, max ${MAX_TIMEOUT_SECONDS}s."
 
   override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("output")
@@ -63,7 +124,14 @@ class RunCommandSkill : Skill() {
   private fun cloudProperties(): Map<String, Any> = mapOf(
     "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
     "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
-    "detached" to mapOf("type" to "boolean", "description" to "Run in background mode"),
+    "detached" to mapOf(
+      "type" to "boolean",
+      "description" to "Run in background mode (fire-and-forget)",
+    ),
+    "timeout" to mapOf(
+      "type" to "integer",
+      "description" to "Timeout in seconds (default ${DEFAULT_TIMEOUT_SECONDS}, max ${MAX_TIMEOUT_SECONDS})",
+    ),
   )
 
   @OptIn(DangerousOperation::class)
@@ -98,12 +166,18 @@ class RunCommandSkill : Skill() {
     // Simple models always run blocking (no detached mode)
     if (runDetached && !useSimpleOutput) return executeDetached(commandText, context)
 
-    return executeBlocking(commandText, projectRoot, useSimpleOutput)
+    return executeBlocking(commandText, projectRoot, useSimpleOutput, arguments)
   }
 
   private fun executeBlocking(
-    commandText: String, projectRoot: String = "", useSimpleOutput: Boolean = false
+    commandText: String,
+    projectRoot: String = "",
+    useSimpleOutput: Boolean = false,
+    arguments: Map<String, Any> = emptyMap(),
   ): SkillResult {
+    // Parse and clamp timeout
+    val rawTimeout: Long = (arguments["timeout"] as? Number)?.toLong() ?: DEFAULT_TIMEOUT_SECONDS
+    val timeoutSeconds: Long = rawTimeout.coerceIn(1, MAX_TIMEOUT_SECONDS)
     return try {
       val processBuilder = ProcessBuilder("sh", "-c", commandText)
       processBuilder.redirectErrorStream(false)
@@ -114,28 +188,27 @@ class RunCommandSkill : Skill() {
 
       val commandProcess: Process = processBuilder.start()
 
-      // Drain stdout / stderr CONCURRENTLY with waiting for the process.
-      // Reading them only after waitFor() deadlocks once a command emits
-      // more than the OS pipe buffer (~64 KB): the child blocks writing,
-      // the parent blocks in waitFor, and every large-output command
-      // (cat of a big file, git diff, find /) spuriously times out.
-      // Each output is also capped so a huge stream cannot blow up the
-      // LLM context.
       val stdoutFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.inputStream, "stdout")
       val stderrFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.errorStream, "stderr")
 
-      val processFinished: Boolean = commandProcess.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      val processFinished: Boolean = commandProcess.waitFor(timeoutSeconds, TimeUnit.SECONDS)
 
       if (!processFinished) {
-        commandProcess.destroyForcibly()
+        val descendants = captureDescendants(commandProcess)
+
+        commandProcess.destroy()
+        commandProcess.waitFor(FORCE_KILL_DELAY_MS, TimeUnit.MILLISECONDS)
+
+        killProcessTree(commandProcess, descendants)
+
         return makeFailure(
           ErrorCode.TIMEOUT,
           buildXmlError(
             code = "TIMEOUT",
-            message = "Command timed out after $COMMAND_TIMEOUT_SECONDS seconds.",
-            fixHint = "The command took too long. Try a simpler command or use detached=true for long-running commands."
+            message = "Command timed out after $timeoutSeconds seconds.",
+            fixHint = "The command took too long. Try a longer timeout ($MAX_TIMEOUT_SECONDS s max), a simpler command, or detached=true for fire-and-forget tasks."
           ),
-          mapOf("command" to commandText),
+          mapOf("command" to commandText, "timeout" to true),
         )
       }
 
@@ -143,15 +216,30 @@ class RunCommandSkill : Skill() {
 
       val stdoutText: String = stdoutFuture.get(5, TimeUnit.SECONDS)
       val stderrText: String = stderrFuture.get(5, TimeUnit.SECONDS)
-      // Prefer stdout when it actually has content; fall back to stderr
-      // when stdout is empty. Both fall through with an explicit failure
-      // marker if the read itself threw — never a blank string, because
-      // the LLM needs to know the I/O failed and not assume the command
-      // simply produced no output.
-      val commandOutput: String = when {
-        stdoutText.isNotBlank() -> stdoutText
-        stderrText.isNotBlank() -> stderrText
-        else -> "[no output — stdout and stderr were both empty]"
+
+      // Detect whether either stream was truncated by checking for the
+      // truncation marker appended by [readStreamOutput].
+      val truncatedMarker = "[output truncated at "
+      val stdoutTruncated = truncatedMarker in stdoutText
+      val stderrTruncated = truncatedMarker in stderrText
+      val outputTruncated = stdoutTruncated || stderrTruncated
+
+
+      val commandOutput: String = buildString {
+        if (exitCode != 0) {
+          if (stderrText.isNotBlank()) append(stderrText)
+          if (stdoutText.isNotBlank()) {
+            if (isNotEmpty()) append("\n--- stdout ---")
+            append(stdoutText)
+          }
+        } else {
+          if (stdoutText.isNotBlank()) append(stdoutText)
+          if (stderrText.isNotBlank()) {
+            if (isNotEmpty()) append("\n--- stderr ---")
+            append(stderrText)
+          }
+        }
+        if (isEmpty()) append("[no output — stdout and stderr were both empty]")
       }
 
       if (useSimpleOutput) {
@@ -168,7 +256,8 @@ class RunCommandSkill : Skill() {
             "command" to commandText,
             "exitCode" to exitCode,
             "output" to commandOutput,
-            "timedOut" to false,
+            "timeout" to false,
+            "truncated" to outputTruncated,
           )
         )
       }
@@ -192,14 +281,22 @@ class RunCommandSkill : Skill() {
       logDirectory.toFile().mkdirs()
       val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
 
-      val processBuilder = ProcessBuilder("sh", "-c", commandText)
-      processBuilder.redirectOutput(logFile)
-      processBuilder.redirectErrorStream(true)
+      // Truly detach the child process so it survives the Java process
+      // and doesn't inherit stdin (which could block GUI apps waiting
+      // for input on the pipe).  nohup + /dev/null stdin + & is the
+      // standard Unix pattern for a fire-and-forget background process.
+      val processBuilder = ProcessBuilder(
+        "sh", "-c",
+        "nohup $commandText </dev/null >${logFile.absolutePath} 2>&1 &"
+      )
 
       val detachedProcess: Process = processBuilder.start()
       val processId: Long = detachedProcess.pid()
 
       logger.info("Detached command (PID $processId): $commandText to ${logFile.absolutePath}")
+
+      detachedProcess.waitFor(5, TimeUnit.SECONDS)
+      detachedProcess.toHandle().onExit()
 
       makeSuccess(
         mapOf(
@@ -236,13 +333,6 @@ class RunCommandSkill : Skill() {
   }
 
   private fun readStreamOutput(inputStream: java.io.InputStream, label: String): String {
-    // The output of this function is rendered verbatim into the LLM's
-    // tool-result message, so a swallowed exception here turns into
-    // `output: ""` in the model prompt — the LLM then assumes the
-    // command produced nothing and may retry, re-architect the plan,
-    // or give up entirely (e.g. `ls -la .idea/` returning `""` to a
-    // model that can't see the underlying EACCES). Always surface the
-    // failure as a visible marker so the model can react.
     return try {
       val builder = StringBuilder()
       BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
@@ -255,8 +345,9 @@ class RunCommandSkill : Skill() {
             builder.append(
               "\n[output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB — the full $label is not shown]"
             )
-            // Drain the rest without retaining it.
-            while (bufferedReader.read(buffer, 0, buffer.size) >= 0) { /* discard */
+
+            while (bufferedReader.read(buffer, 0, buffer.size) >= 0) {
+              /* discard */
             }
             break
           }

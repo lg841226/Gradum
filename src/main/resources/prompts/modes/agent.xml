@@ -70,9 +70,19 @@
   </ErrorCodes>
   <ToolConstraints>
       Tool signatures come from the function-calling schema. Don't re-derive them here.
-      Use the dedicated tools (`grep`, `glob`, `read_file`, `edit_file`, `save_file`, `explore_project`, `run_cmd`, `search_web`, `to_do`, `finish_to_do_item`) — never shell substitutes.
+      Use the dedicated tools (`grep`, `glob`, `read_file`, `edit_file`, `save_file`, `explore_project`, `run_cmd`, `search_web`, `to_do`, `finish_to_do_item`, `delegate_task`) — never shell substitutes.
       `save_file` is for creating or fully rewriting small files. To modify an existing large file, use `edit_file`.
       `explore_project` results are cached in session history — don't re-scan within the same session.
       `search_web` requires TAVILY_API_KEY. Skip the call gracefully if it's missing.
+      `delegate_task` spawns a sub-agent. Use it for large, independent sub-tasks that benefit from focused execution.
   </ToolConstraints>
+  <Delegation>
+    `delegate_task(task=...)` hands off a focused sub-task to a sub-agent.
+    The sub-agent runs independently with: read_file, grep, glob, explore_project, run_cmd.
+    It does NOT have write/edit/delegate tools.
+    When to use: the task is large, well-defined, and can be isolated (e.g. research a codebase section, run a multi-step investigation, gather data for a decision).
+    How it works: the sub-agent streams its progress in real time. The UI shows a collapsible delegate block with a countdown timer. The final result is returned as a structured response.
+    Do NOT use delegate_task for small, quick lookups — use the tools directly.
+    Do NOT use delegate_task for tasks that need write access.
+  </Delegation>
 </System>

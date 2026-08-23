@@ -131,15 +131,26 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
   "ls", "tree", "pwd", "dir",
   // file content
   "cat", "head", "tail", "less", "more", "bat",
+  "nl", "od", "hexdump", "xxd", "strings",
   // search / text
   "grep", "rg", "ag", "ack", "find", "wc",
   "sort", "uniq", "cut", "tr", "awk", "diff", "cmp", "xargs",
+  "comm", "join", "paste",
   // file metadata
   "file", "stat", "du", "df", "readlink", "realpath",
+  "basename", "dirname",
   // system info
   "uname", "whoami", "date", "which", "whereis", "type",
   "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
-  "system_profiler",
+  "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
+  // network info (read-only)
+  "ping", "nslookup", "dig", "host",
+  // network fetch (read-only reads)
+  "curl", "wget",
+  // interpreters (read-only execution)
+  "python3", "python",
+  // path / env
+  "env", "printenv",
   // pure output (no file write)
   "echo", "printf", "true", "false", "test", "yes",
 )

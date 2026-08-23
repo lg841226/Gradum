@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WhatsNewDialog.kt  2026-08-21 17:34:11 Changed by gwy
+ * WhatsNewDialog.kt  2026-08-22 17:05:46 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -30,7 +30,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.ide.BrowserUtil
-import gradum.idea.chat.ui.markdown.*
+import gradum.idea.chat.ui.markdown.GradumMarkdown
+import gradum.idea.chat.ui.markdown.LocalMarkdownBodyTextStyle
+import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
+import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -390,11 +393,8 @@ private fun rememberKeyEventHandler(
       }
 
       Key.Escape -> {
-        if (isImageExpanded) {
-          onImageExpandChange(false)
-        } else {
-          onDismiss()
-        }
+        if (isImageExpanded) onImageExpandChange(false)
+        else onDismiss()
         true
       }
 

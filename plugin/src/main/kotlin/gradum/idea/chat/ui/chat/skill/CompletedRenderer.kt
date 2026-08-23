@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-08-19 17:30:00 Changed by gwy
+ * CompletedRenderer.kt  2026-08-23 13:59:00 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -51,6 +51,7 @@ class CompletedRenderer : ToolCallRenderer {
 
   override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
     val taskName: String = (arguments["task"] as? String)
+      ?: (result["currentTask"] as? String)
       ?: (result["skippedTask"] as? String)
       ?: (result["task"] as? String)
       ?: (arguments["content"] as? String)
@@ -117,7 +118,9 @@ class CompletedRenderer : ToolCallRenderer {
       AnimatedVisibility(visible = isExpanded) {
         if (tasks.isNotEmpty()) {
           Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(start = 10.dp),
             verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
           ) {
             Spacer(modifier = Modifier.height(GradumSpacing.sml))

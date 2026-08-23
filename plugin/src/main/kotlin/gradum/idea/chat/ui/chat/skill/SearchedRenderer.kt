@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRenderer.kt  2026-08-19 17:30:00 Changed by gwy
+ * SearchedRenderer.kt  2026-08-23 13:59:00 Changed by gwy
  */
 package gradum.idea.chat.ui.chat.skill
 
@@ -129,7 +129,9 @@ class SearchedRenderer : ToolCallRenderer {
       AnimatedVisibility(visible = isExpanded) {
         if (results.isNotEmpty()) {
           Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(start = 10.dp),
             verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
           ) {
             Spacer(modifier = Modifier.height(GradumSpacing.sml))

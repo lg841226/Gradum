@@ -77,6 +77,15 @@ abstract class Skill {
   )
 
   /**
+   * Whether this skill manages its own event stream (e.g. emits
+   * progress events during execution) and should NOT receive the
+   * standard `tool_call_start` / `tool_call` events from the agent
+   * loop. Default `false`; override to `true` for skills like
+   * [DelegateSkill] that use their own event namespace.
+   */
+  open val manageOwnEventStream: Boolean = false
+
+  /**
    * How many recent calls of this skill keep their result fields in
    * full. Older calls have their [historyVolatileKeys] stripped by
    * [compactHistory]. Defaults to [Int.MAX_VALUE] (no stripping).

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-18 12:45:23 Changed by gwy
+ * Routes.kt  2026-08-23 13:44:58 Changed by gwy
  */
 
 package gradum.server
@@ -338,8 +338,8 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
           activeSessions[sessionId] = agentInstance
           agentInstance.executeTask(
             userInput = requestBody.message,
-            loadPreviousContext = requestBody.loadContext,
             toolCallXml = requestBody.toolCallXml,
+            loadPreviousContext = requestBody.loadContext,
             attachments = requestBody.attachments.map { attachment ->
               gradum.agent.AttachmentPayload(
                 type = attachment.type,
