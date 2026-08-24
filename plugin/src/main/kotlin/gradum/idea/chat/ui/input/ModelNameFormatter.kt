@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-08-12 12:38:25 Changed by gwy
+ * ModelNameFormatter.kt  2026-08-25 01:43:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -374,9 +374,9 @@ private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
  * Unit is `[bm]` only — `k` is reserved for context size, `M` for million-param models.
  */
 private val parameterSizePatterns: List<Regex> = listOf(
-  Regex("""(\d+)x(\d+(?:\.\d+)?)[bm]""", RegexOption.IGNORE_CASE),
-  Regex("""(\d+\.\d+)[bm]""", RegexOption.IGNORE_CASE),
-  Regex("""(\d+)[bm]""", RegexOption.IGNORE_CASE)
+  Regex(pattern = """(\d+)x(\d+(?:\.\d+)?)[bm]""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """(\d+\.\d+)[bm]""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """(\d+)[bm]""", option = RegexOption.IGNORE_CASE)
 )
 
 /**
@@ -385,12 +385,12 @@ private val parameterSizePatterns: List<Regex> = listOf(
  * Anchored to word boundary so `qwen2.5` doesn't lose the `2.5`.
  */
 private val quantPatterns: List<Regex> = listOf(
-  Regex("""\bq\d+_k_[sml]\b""", RegexOption.IGNORE_CASE),
-  Regex("""\bq\d+_k\b""", RegexOption.IGNORE_CASE),
-  Regex("""\bq\d+_[01]\b""", RegexOption.IGNORE_CASE),
-  Regex("""\bq[2-8]\b""", RegexOption.IGNORE_CASE),
-  Regex("""\b(?:fp16|fp32|bf16|int4|int8)\b""", RegexOption.IGNORE_CASE),
-  Regex("""\b(?:awq|gptq|exl2|gguf|ggml|bnb)\b""", RegexOption.IGNORE_CASE)
+  Regex(pattern = """\bq\d+_k_[sml]\b""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\bq\d+_k\b""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\bq\d+_[01]\b""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\bq[2-8]\b""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\b(?:fp16|fp32|bf16|int4|int8)\b""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\b(?:awq|gptq|exl2|gguf|ggml|bnb)\b""", option = RegexOption.IGNORE_CASE)
 )
 
 /**
@@ -411,8 +411,8 @@ private val variantSuffixes: Set<String> = setOf(
  * Bare digits preserved — they are usually model generations (`V3`, `3`, `5`).
  */
 private val versionPatterns: List<Regex> = listOf(
-  Regex("""v\d+(\.\d+)+""", RegexOption.IGNORE_CASE),
-  Regex("""\d+\.\d+\.\d+.*""")
+  Regex(pattern = """v\d+(\.\d+)+""", option = RegexOption.IGNORE_CASE),
+  Regex(pattern = """\d+\.\d+\.\d+.*""")
 )
 
 /**
@@ -426,21 +426,23 @@ private val versionPatterns: List<Regex> = listOf(
 fun parseModelName(raw: String): FormattedModelName {
   val rawTrimmed: String = raw.trim()
 
-  val beforeColon: String = rawTrimmed.substringBefore(":")
-  val afterColon: String = rawTrimmed.substringAfter(":", missingDelimiterValue = "")
+  val beforeColon: String = rawTrimmed.substringBefore(delimiter = ":")
+  val afterColon: String = rawTrimmed.substringAfter(delimiter = ":", missingDelimiterValue = "")
 
-  // `Mistral`, not "via a/b/c".
-  val baseName: String = if (beforeColon.contains("/")) beforeColon.substringAfterLast("/") else beforeColon
+  val baseName: String =
+    if (beforeColon.contains(other = "/"))
+      beforeColon.substringAfterLast(delimiter = "/")
+    else beforeColon
 
   val dateStripped: String = baseName
-    .replace(Regex("""-\d{8}$"""), "")
-    .replace(Regex("""-\d{4}-\d{2}-\d{2}$"""), "")
+    .replace(Regex(pattern = """-\d{8}$"""), replacement = "")
+    .replace(Regex(pattern = """-\d{4}-\d{2}-\d{2}$"""), replacement = "")
 
   val combined: String = if (afterColon.isNotBlank()) "$dateStripped-$afterColon" else dateStripped
-  val parameterSize: String? = extractParameterSize(combined)
-  val quant: String? = extractQuant(combined)
+  val parameterSize: String? = extractParameterSize(name = combined)
+  val quant: String? = extractQuant(name = combined)
 
-  val lookupKey: String = buildLookupKey(dateStripped)
+  val lookupKey: String = buildLookupKey(name = dateStripped)
 
   val resolvedDisplay: String = resolveGlmDisplay(lookupKey)
     ?: lookupDisplayNameWithSize(lookupKey, parameterSize)
@@ -448,17 +450,17 @@ fun parseModelName(raw: String): FormattedModelName {
 
   val lowerName: String = rawTrimmed.lowercase()
   val provider: String? = providerDisplayByKeyword
-    .firstOrNull { lowerName.contains(it.first) }
+    .firstOrNull { lowerName.contains(other = it.first) }
     ?.second
   val isFromCatalog: Boolean = lookupKey in knownModelSet
 
   return FormattedModelName(
-    displayName = resolvedDisplay,
-    parameterSize = parameterSize,
     quant = quant,
     provider = provider,
+    rawName = rawTrimmed,
+    displayName = resolvedDisplay,
     isFromCatalog = isFromCatalog,
-    rawName = rawTrimmed
+    parameterSize = parameterSize
   )
 }
 
@@ -492,20 +494,20 @@ private fun lookupDisplayName(key: String): String? {
   }
   if ("-" !in key) {
     val dashInserted: String = key
-      .replace(Regex("(?<=[a-z])(?=\\d)"), "-")
+      .replace(Regex(pattern = "(?<=[a-z])(?=\\d)"), replacement = "-")
     if (dashInserted != key) {
       modelDisplayNames[dashInserted]?.let { return it }
     }
     var current: String = dashInserted
-    while (current.contains('-')) {
-      current = current.substringBeforeLast('-')
+    while (current.contains(char = '-')) {
+      current = current.substringBeforeLast(delimiter = '-')
       modelDisplayNames[current]?.let { return it }
     }
     return null
   }
   var current: String = key
-  while (current.contains('-')) {
-    current = current.substringBeforeLast('-')
+  while (current.contains(char = '-')) {
+    current = current.substringBeforeLast(delimiter = '-')
     modelDisplayNames[current]?.let { return it }
   }
   return null
@@ -544,21 +546,20 @@ private fun lookupDisplayNameWithSize(key: String, parameterSize: String?): Stri
  * the **first** match in the input string.
  */
 private fun extractParameterSize(name: String): String? {
-  for (pattern in parameterSizePatterns) {
-    val match: MatchResult? = pattern.find(name)
+  for (pattern: Regex in parameterSizePatterns) {
+    val match: MatchResult? = pattern.find(input = name)
     if (match != null) {
       val raw: String = match.value
-      // Canonicalize: lowercase, then re-format the unit
-      // suffix. `8X7B` and `8x7b` both become `8x7B`.
-      return raw.lowercase().replace(Regex("""(\d+)x(\d+(?:\.\d+)?)([bm])""")) {
+
+      return raw.lowercase().replace(Regex(pattern = """(\d+)x(\d+(?:\.\d+)?)([bm])""")) {
+        val unit: String = it.groupValues[3]
         val count: String = it.groupValues[1]
         val perExpert: String = it.groupValues[2]
-        val unit: String = it.groupValues[3]
         "${count}x${perExpert}${unit.uppercase()}"
-      }.let { value ->
-        // Uppercase the trailing unit (B or M). We don't touch
-        // the leading digits so `0.5b` stays `0.5B`.
-        if (value.last() in "bm") value.dropLast(1) + value.last().uppercaseChar() else value
+      }.let { value: String ->
+        if (value.last() in "bm")
+          value.dropLast(n = 1) + value.last().uppercaseChar()
+        else value
       }
     }
   }
@@ -577,14 +578,11 @@ private fun extractParameterSize(name: String): String? {
  *    our list; would only show in rawName)
  */
 private fun extractQuant(name: String): String? {
-  for (pattern in quantPatterns) {
-    val match: MatchResult? = pattern.find(name)
+  for (pattern: Regex in quantPatterns) {
+    val match: MatchResult? = pattern.find(input = name)
     if (match != null) {
       val raw: String = match.value
-      // GGUF-style names need the underscore casing preserved
-      // (`Q4_K_M`), other names get full uppercase. We split on
-      // underscores and uppercase each part for safety.
-      return raw.split("_").joinToString("_") { segment ->
+      return raw.split("_").joinToString(separator = "_") { segment: String ->
         segment.uppercase()
       }
     }
@@ -602,12 +600,12 @@ private fun buildLookupKey(name: String): String {
   var changed = true
   while (changed) {
     changed = false
-    val lastDash: Int = working.lastIndexOf('-')
+    val lastDash: Int = working.lastIndexOf(char = '-')
     if (lastDash > 0) {
-      val tail: String = working.substring(lastDash + 1)
+      val tail: String = working.substring(startIndex = lastDash + 1)
       val tailLower: String = tail.lowercase()
       val isVariant: Boolean = tailLower in variantSuffixes
-      val isVersion: Boolean = versionPatterns.any { it.matches(tailLower) }
+      val isVersion: Boolean = versionPatterns.any { it.matches(input = tailLower) }
       if (isVariant || isVersion) {
         working = working.substring(0, lastDash)
         changed = true
@@ -615,8 +613,8 @@ private fun buildLookupKey(name: String): String {
       }
     }
     val moeStripped: String = working.replace(
-      Regex("""-\d+x\d+(?:\.\d+)?[bm]$""", RegexOption.IGNORE_CASE),
-      ""
+      Regex(pattern = """-\d+x\d+(?:\.\d+)?[bm]$""", option = RegexOption.IGNORE_CASE),
+      replacement = ""
     )
     if (moeStripped != working) {
       working = moeStripped
@@ -625,16 +623,16 @@ private fun buildLookupKey(name: String): String {
     }
 
     val sizeStripped: String = working.replace(
-      Regex("""-\d+(?:\.\d+)?[bm]$""", RegexOption.IGNORE_CASE),
-      ""
+      Regex(pattern = """-\d+(?:\.\d+)?[bm]$""", option = RegexOption.IGNORE_CASE),
+      replacement = ""
     )
     if (sizeStripped != working) {
       working = sizeStripped
       changed = true
       continue
     }
-    for (pattern in quantPatterns) {
-      val match: MatchResult? = pattern.find(working)
+    for (pattern: Regex in quantPatterns) {
+      val match: MatchResult? = pattern.find(input = working)
       if (match != null && match.range.last == working.lastIndex) {
         working = working.substring(0, match.range.first).trimEnd('-')
         changed = true
@@ -652,8 +650,9 @@ private fun buildLookupKey(name: String): String {
  * gets a readable approximation, not a guess.
  */
 private fun fallbackDisplay(key: String): String =
-  key.split("-").joinToString(" ") { part ->
-    if (part.isEmpty()) "" else part.replaceFirstChar { it.uppercase() }
+  key.split("-").joinToString(separator = " ") { part: String ->
+    if (part.isEmpty()) ""
+    else part.replaceFirstChar { it.uppercase() }
   }
 
 /**
@@ -672,47 +671,31 @@ private fun fallbackDisplay(key: String): String =
  * identical to the user.
  */
 private val OLLAMA_TRAILING_SUFFIXES: Regex = Regex(
-  // Ollama-style trailing markers — `9b`, `70b`, `chat`, `instruct`,
-  // `128k` context length, etc. Crucially does NOT match `air` or
-  // `turbo`, which are the real Zhipu GLM-4.5 / GLM-5 variant names
-  // and must survive into the display.
-  """-(?:\d+(?:\.\d+)?[bm]|chat|instruct|base|it|hf|cloud|\d+k)$""",
-  RegexOption.IGNORE_CASE
+  pattern = """-(?:\d+(?:\.\d+)?[bm]|chat|instruct|base|it|hf|cloud|\d+k)$""",
+  option = RegexOption.IGNORE_CASE
 )
 
 private fun resolveGlmDisplay(key: String): String? {
-  if (!key.startsWith("glm")) return null
+  if (!key.startsWith(prefix = "glm")) return null
 
-  // Strip trailing Ollama-style suffixes first. Without this
-  // `glm-4-9b-chat-128k` would render as the noisy
-  // `GLM 4 9b Chat 128k` — buildLookupKey only handles 9b/70b
-  // (size) and chat/instruct (variant), so a 128k context suffix
-  // would survive and end up as a tail word in the display name.
-  // We deliberately do NOT touch `air` / `turbo` because those are
-  // the real Zhipu GLM-4.5 / GLM-5 variant names.
   var working: String = key
   while (true) {
-    val next: String = OLLAMA_TRAILING_SUFFIXES.replace(working, "")
+    val next: String = OLLAMA_TRAILING_SUFFIXES.replace(input = working, replacement = "")
     if (next == working) break
     working = next
   }
 
-  // Handle both dash-separated (`glm-4.5-air`) and dashless
-  // (`glm4`) forms. For the dashless form we split on the
-  // alpha↔digit boundary so the family root and the version
-  // land in separate words: `glm4` → `GLM 4`, not `GLM4`.
-  val parts: List<String> = working.split("-").flatMap { part ->
+  val parts: List<String> = working.split("-").flatMap { part: String ->
     val lower: String = part.lowercase()
     if (lower == "glm") listOf("glm")
-    else if (lower.startsWith("glm") && lower.length > 3) {
-      // "glm4" → ["glm", "4"], "glm12" → ["glm", "12"]
+    else if (lower.startsWith(prefix = "glm") && lower.length > 3) {
       listOf("glm", lower.removePrefix("glm"))
     } else {
       listOf(part)
     }
   }
-  return parts.joinToString(" ") { part ->
-    if (part.equals("glm", ignoreCase = true)) "GLM"
+  return parts.joinToString(separator = " ") { part: String ->
+    if (part.equals(other = "glm", ignoreCase = true)) "GLM"
     else part.replaceFirstChar { it.uppercase() }
   }
 }

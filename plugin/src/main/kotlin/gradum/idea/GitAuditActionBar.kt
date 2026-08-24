@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GitAuditActionBar.kt  2026-08-12 20:10:59 Changed by gwy
+ * GitAuditActionBar.kt  2026-08-25 02:00:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -51,9 +51,9 @@ internal fun GitAuditActionBar(
   }
   val previewEnabled = selectedFinding?.hasRealCommitHash() == true
   val scope = rememberCoroutineScope()
-  var isCopied by remember { mutableStateOf(false) }
+  var isCopied by remember { mutableStateOf(value = false) }
   val findings = GradumGitAnalysisService.auditFindings
-  val findingsJson = remember(findings, reviewedFindings) {
+  val findingsJson = remember(key1 = findings, key2 = reviewedFindings) {
     auditFindingsToJson(findings.filter { findingKey(it) !in reviewedFindings })
   }
   val groupingTooltip = if (groupBySeverity) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdown.kt  2026-08-22 21:02:42 Changed by gwy
+ * GradumMarkdown.kt  2026-08-24 22:01:37 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -156,8 +156,8 @@ internal fun GradumMarkdownContent(
       ) {
         segments.forEach { segment ->
           GradumMarkdownSegment(
-            segment = segment,
             config = config,
+            segment = segment,
             paragraphStyle = bodyTextStyle,
           )
         }
@@ -178,20 +178,20 @@ internal fun GradumMarkdownContent(
 @Composable
 private fun GradumMarkdownSegment(
   segment: MarkdownSegment,
-  config: GradumMarkdownScope,
   paragraphStyle: TextStyle,
+  config: GradumMarkdownScope
 ) {
   if (config.animationEnabled) {
     AnimatedGradumSegment(
-      segment = segment,
       config = config,
-      paragraphStyle = paragraphStyle,
+      segment = segment,
+      paragraphStyle = paragraphStyle
     )
   } else {
     StaticGradumSegment(
-      segment = segment,
       config = config,
-      paragraphStyle = paragraphStyle,
+      segment = segment,
+      paragraphStyle = paragraphStyle
     )
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LatexRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * LatexRenderer.kt  2026-08-24 22:40:21 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -27,16 +27,13 @@ import com.hrm.latex.renderer.Latex
 import com.hrm.latex.renderer.model.LatexConfig
 import com.hrm.latex.renderer.model.LatexTheme
 import com.hrm.latex.renderer.model.LatexThemeColors
+import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
 private const val BLOCK_LATEX_DEFAULT_FONT_SIZE_SP: Float = 14f
-
-// Vertical padding around block formulas. Compact for chat panel.
 private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 16f
-
-// Minimum inner content height the Box reserves for the formula.
 private const val BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP: Float = 12f
 private const val FALLBACK_TEXT_VERTICAL_PADDING_DP: Float = 2f
 private const val FALLBACK_FONT_SIZE_SP: Float = 13f
@@ -99,8 +96,8 @@ internal fun RenderInlineLatex(
   } else {
     Latex(
       latex = formula,
-      config = renderState.config.copy(fontSize = fontSizeSp.sp),
-      isDarkTheme = isSystemInDarkTheme()
+      isDarkTheme = isSystemInDarkTheme(),
+      config = renderState.config.copy(fontSize = fontSizeSp.sp)
     )
   }
 }
@@ -108,12 +105,12 @@ internal fun RenderInlineLatex(
 /** Cached per-formula render decisions. */
 @Composable
 private fun rememberLatexRenderState(formula: String): LatexRenderState {
-  val globalColors = LocalGlobalColors.current
+  val globalColors: GlobalColors = LocalGlobalColors.current
   val baseColor: Color = JewelTheme.contentColor
-  val config: LatexConfig = remember(formula, baseColor, globalColors) {
+  val config: LatexConfig = remember(key1 = formula, key2 = baseColor, key3 = globalColors) {
     buildAdaptiveLatexConfig(baseColor = baseColor)
   }
-  return remember(formula, config) {
+  return remember(key1 = formula, key2 = config) {
     LatexRenderState(
       config = config,
       shouldFallback = formula.isBlank()
@@ -150,8 +147,10 @@ private fun LatexFallbackText(
   fontFamily: FontFamily? = null,
   fontSizeSp: Float = FALLBACK_FONT_SIZE_SP
 ) {
-  val globalColors = LocalGlobalColors.current
-  val wrapped: String = if (isBlock) "$$ ${formula.trim()} $$" else "$${formula}$"
+  val globalColors: GlobalColors = LocalGlobalColors.current
+  val wrapped: String =
+    if (isBlock) "$$ ${formula.trim()} $$"
+    else "$${formula}$"
 
   val fallbackStyle = TextStyle(
     fontFamily = fontFamily,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SweepLightText.kt  2026-08-12 12:38:25 Changed by gwy
+ * SweepLightText.kt  2026-08-24 23:18:57 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -36,9 +36,9 @@ import org.jetbrains.jewel.ui.component.Text
 @Composable
 fun SweepLightText(
   text: String,
-  modifier: Modifier = Modifier,
   enabled: Boolean = true,
-  durationMillis: Int = 1200
+  durationMillis: Int = 1200,
+  modifier: Modifier = Modifier
 ) {
   if (!enabled) {
     Text(
@@ -49,12 +49,15 @@ fun SweepLightText(
     return
   }
 
-  val transition = rememberInfiniteTransition(label = "sweep_light")
+  val transition: InfiniteTransition = rememberInfiniteTransition(label = "sweep_light")
   val offset: Float by transition.animateFloat(
     initialValue = -1f,
     targetValue = 2f,
     animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = durationMillis, easing = LinearEasing),
+      animation = tween(
+        durationMillis = durationMillis,
+        easing = LinearEasing
+      ),
       repeatMode = RepeatMode.Restart
     ),
     label = "sweep_offset"
@@ -70,8 +73,8 @@ fun SweepLightText(
           JewelTheme.globalColors.text.normal.copy(alpha = 0.9f),
           JewelTheme.globalColors.text.info.copy(alpha = 0.4f)
         ),
-        start = Offset(offset * 300f, 0f),
-        end = Offset(offset * 300f + 300f, 0f)
+        start = Offset(x = offset * 300f, y = 0f),
+        end = Offset(x = offset * 300f + 300f, y = 0f)
       )
     )
   )

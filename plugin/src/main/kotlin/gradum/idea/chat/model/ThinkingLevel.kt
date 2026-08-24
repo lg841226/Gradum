@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingLevel.kt  2026-08-14 14:10:00 Changed by gwy
+ * ThinkingLevel.kt  2026-08-25 01:13:35 Changed by gwy
  */
 package gradum.idea.chat.model
 
@@ -52,8 +52,8 @@ enum class ThinkingLevel {
      */
     fun fromStringOrDefault(rawValue: String?): ThinkingLevel {
       if (rawValue.isNullOrBlank()) return MEDIUM
-      if (rawValue.equals("OFF", ignoreCase = true)) return LOW
-      return entries.firstOrNull { it.name.equals(rawValue, ignoreCase = true) } ?: MEDIUM
+      if (rawValue.equals(other = "OFF", ignoreCase = true)) return LOW
+      return entries.firstOrNull { it.name.equals(other = rawValue, ignoreCase = true) } ?: MEDIUM
     }
   }
 }

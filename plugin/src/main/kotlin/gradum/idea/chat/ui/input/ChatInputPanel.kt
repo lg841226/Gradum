@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatInputPanel.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -112,7 +112,6 @@ fun ChatInputPanel(
             CircularProgressIndicator(modifier = Modifier.size(16.dp))
             SweepLightText(
               text = preview,
-              enabled = true,
               modifier = Modifier.weight(1f)
             )
             IconTooltipButton(

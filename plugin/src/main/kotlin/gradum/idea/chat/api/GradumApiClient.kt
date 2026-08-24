@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumApiClient.kt  2026-08-25 01:17:29 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -17,8 +17,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
-import java.io.InputStream
+import java.io.BufferedReader
 import java.io.IOException
+import java.io.InputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -82,11 +83,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val response: HttpResponse<String> =
       client.send(request, HttpResponse.BodyHandlers.ofString())
 
-    // A non-2xx response body is not a model list — decoding it as one
-    // fails with a SerializationException that callers misreport as
-    // "cannot reach server". Surface the real status code instead.
+
     if (response.statusCode() !in 200..299) {
-      val bodyPreview: String = response.body().take(200)
+      val bodyPreview: String = response.body().take(n = 200)
       throw IOException(
         "Server returned HTTP ${response.statusCode()} for GET $baseUrl/models" +
           (if (bodyPreview.isNotBlank()) ": $bodyPreview" else "")
@@ -180,26 +179,25 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       if (modelName != null) put("model", modelName)
 
       if (modelParams != null) {
-        put("config", JsonObject(modelParams.mapValues { (_, value) ->
-          JsonPrimitive(value)
-        }))
+        put(
+          key = "config",
+          element = JsonObject(content = modelParams.mapValues { (_, value: String) ->
+            JsonPrimitive(value)
+          })
+        )
       }
 
       put("loadContext", loadContext)
 
       if (toolMode != null) put("toolMode", toolMode)
-      if (promptVariant != null) put("promptVariant", promptVariant)
-      if (projectRoot != null) put("projectRoot", projectRoot)
       if (sessionId != null) put("sessionId", sessionId)
-
       if (toolCallXml != null) put("toolCallXml", toolCallXml)
+      if (projectRoot != null) put("projectRoot", projectRoot)
+      if (promptVariant != null) put("promptVariant", promptVariant)
 
       if (imageAttachments.isNotEmpty()) {
-        // OpenAI-style request: `attachments` array with `type` discriminator.
-        // Server projects this into the user message's content array.
-        // Then re-shapes per provider: Ollama `images` or OpenAI `image_url`.
         val imageAttachmentsJson: JsonArray = buildJsonArray {
-          for ((mime, data, filename) in imageAttachments) {
+          for ((mime: String, data: String, filename: String) in imageAttachments) {
             add(buildJsonObject {
               put("type", "image")
               put("mime", mime)
@@ -208,7 +206,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
             })
           }
         }
-        put("attachments", imageAttachmentsJson)
+        put(key = "attachments", element = imageAttachmentsJson)
       }
     }
 
@@ -222,20 +220,17 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val response: HttpResponse<InputStream> =
       client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
-    // Parse errors are handled here, not by callers.
-    // This avoids forgetting error handling in new consumers.
-    // Callers get typed Flow<JsonObject>; .catch covers only connection failures.
-    response.body().bufferedReader().use { reader ->
+    response.body().bufferedReader().use { reader: BufferedReader ->
       reader.useLines { lines ->
         lines
           .withIndex()
           .filter { it.value.isNotBlank() }
-          .forEach { (index, line) ->
-            parseAndEmit(line, index + 1)
+          .forEach { (index: Int, line: String) ->
+            parseAndEmit(line, lineNumber = index + 1)
           }
       }
     }
-  }.flowOn(Dispatchers.IO)
+  }.flowOn(context = Dispatchers.IO)
 
   /**
    * Parses a single NDJSON line into a [JsonObject] and emits it. Failures
@@ -246,9 +241,9 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    */
   private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
     val parsed: JsonElement = try {
-      ndjsonParser.parseToJsonElement(line)
+      ndjsonParser.parseToJsonElement(string = line)
     } catch (exception: SerializationException) {
-      val preview: String = line.take(MAX_LOGGED_LINE)
+      val preview: String = line.take(n = MAX_LOGGED_LINE)
 
       log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
       return
@@ -260,7 +255,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         return
       }
     }
-    emit(asObject)
+    emit(value = asObject)
   }
 
   /** Cap on how much of a malformed line we copy into the IDE log. */

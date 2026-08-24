@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-08-24 18:59:19 Changed by gwy
+ * UserChatBubble.kt  2026-08-24 19:35:05 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -72,18 +72,20 @@ fun UserChatBubble(
   onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
   var isCopied by remember { mutableStateOf(false) }
+  var isExpanded by remember { mutableStateOf(false) }
   var showResetPopup by remember { mutableStateOf(false) }
   var isAttachmentsExpanded by remember { mutableStateOf(true) }
-  var isExpanded by remember { mutableStateOf(false) }
+
   val content = message.content
   val maxLines = if (isExpanded) Int.MAX_VALUE else 1
-
   val panelBackground = globalColors.borders.normal
 
-  val imageAttachments: List<AttachedImage> = message.attachments.filterIsInstance<AttachedImage>()
-  val fileAttachments: List<AttachedContext> = message.attachments.filter {
-    it is AttachedFile || it is AttachedText
-  }
+  val imageAttachments: List<AttachedImage> =
+    message.attachments.filterIsInstance<AttachedImage>()
+  val fileAttachments: List<AttachedContext> =
+    message.attachments.filter {
+      it is AttachedFile || it is AttachedText
+    }
 
   Row(
     Modifier.fillMaxWidth(),
@@ -123,7 +125,9 @@ fun UserChatBubble(
               text = content,
               maxLines = maxLines,
               lineHeight = JewelTheme.typography.labelTextStyle.fontSize * 1.5f,
-              overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis
+              overflow =
+                if (isExpanded) TextOverflow.Visible
+                else TextOverflow.Ellipsis
             )
           }
         }
@@ -139,8 +143,9 @@ fun UserChatBubble(
         ) {
           Icon(
             contentDescription = null,
-            key = if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
-            else AllIconsKeys.General.ChevronRight
+            key =
+              if (isAttachmentsExpanded) AllIconsKeys.General.ChevronDown
+              else AllIconsKeys.General.ChevronRight
           )
           Text(
             text = message("gradum.attachments"),
@@ -170,8 +175,12 @@ fun UserChatBubble(
               IconButton(onClick = { isExpanded = !isExpanded }) {
                 Icon(
                   modifier = Modifier.size(16.dp),
-                  contentDescription = if (isExpanded) message("gradum.collapse") else message("gradum.expand"),
-                  key = if (isExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll
+                  contentDescription =
+                    if (isExpanded) message("gradum.collapse")
+                    else message("gradum.expand"),
+                  key =
+                    if (isExpanded) GradumIcons.CollapseAll
+                    else GradumIcons.ExpandAll
                 )
               }
             }
@@ -180,13 +189,19 @@ fun UserChatBubble(
             Text(text = message("gradum.reset.tooltip"))
           }) {
             IconButton(onClick = { showResetPopup = true }) {
-              Icon(key = AllIconsKeys.General.Reset, contentDescription = message("gradum.reset"))
+              Icon(
+                key = AllIconsKeys.General.Reset,
+                contentDescription = message("gradum.reset")
+              )
             }
           }
           if (showResetPopup) {
             PopupMenu(
               horizontalAlignment = Alignment.End,
-              onDismissRequest = { showResetPopup = false; true }
+              onDismissRequest = {
+                showResetPopup = false
+                true
+              }
             ) {
               passiveItem {
                 Column {
@@ -194,8 +209,8 @@ fun UserChatBubble(
                     modifier = Modifier
                       .fillMaxWidth()
                       .padding(
-                        horizontal = GradumSpacing.sml,
-                        vertical = GradumSpacing.sm
+                        vertical = GradumSpacing.sm,
+                        horizontal = GradumSpacing.sml
                       ),
                     verticalAlignment = Alignment.CenterVertically
                   ) {
@@ -211,7 +226,10 @@ fun UserChatBubble(
               separator()
               selectableItem(
                 selected = false,
-                onClick = { showResetPopup = false; onDeleteMessage() }
+                onClick = {
+                  showResetPopup = false
+                  onDeleteMessage()
+                }
               ) {
                 Row(
                   modifier = Modifier

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * StickySection.kt  2026-07-30
+ * StickySection.kt  2026-08-24 22:40:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -15,7 +15,7 @@ class StickySectionRegistry {
   private val _entries = mutableStateListOf<StickySectionEntry>()
   val entries: List<StickySectionEntry> get() = _entries
 
-  var columnOriginInWindow: Offset? by mutableStateOf(null)
+  var columnOriginInWindow: Offset? by mutableStateOf(value = null)
 
   fun register(id: Any, toolbar: @Composable () -> Unit): StickySectionEntry {
     val entry = StickySectionEntry(id, toolbar)
@@ -24,23 +24,22 @@ class StickySectionRegistry {
   }
 
   fun unregister(entry: StickySectionEntry) {
-    _entries.remove(entry)
+    _entries.remove(element = entry)
   }
 
   fun updateBounds(entry: StickySectionEntry, boundsInWindow: Rect) {
-    val origin = columnOriginInWindow ?: return
+    val origin: Offset = columnOriginInWindow ?: return
     entry.topInColumn = boundsInWindow.top - origin.y
     entry.bottomInColumn = boundsInWindow.bottom - origin.y
   }
 }
 
 class StickySectionEntry(
-  val id: Any,
-  val toolbar: @Composable () -> Unit,
+  val id: Any, val toolbar: @Composable () -> Unit
 ) {
-  var topInColumn by mutableStateOf(0f)
-  var bottomInColumn by mutableStateOf(0f)
-  var toolbarHeight by mutableStateOf(0f)
+  var topInColumn: Float by mutableStateOf(value = 0f)
+  var bottomInColumn: Float by mutableStateOf(value = 0f)
+  var toolbarHeight: Float by mutableStateOf(value = 0f)
 }
 
 val LocalStickySectionRegistry = staticCompositionLocalOf { StickySectionRegistry() }

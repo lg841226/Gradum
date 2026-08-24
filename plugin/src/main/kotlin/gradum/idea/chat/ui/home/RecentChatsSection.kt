@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-13 17:09:45 Changed by gwy
+ * RecentChatsSection.kt  2026-08-24 22:36:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -39,9 +39,6 @@ import org.jetbrains.jewel.ui.component.Tooltip
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-/** Maximum number of recent sessions shown on the Welcome screen. */
-const val MAX_RECENT_SESSIONS: Int = 2
-
 /**
  * "Recent Chats" region on the Welcome screen: the saved sessions for this
  * project, most recently updated first.
@@ -54,15 +51,16 @@ const val MAX_RECENT_SESSIONS: Int = 2
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecentChatsSection(
+  maxDisplay: Int = 2,
+  expanded: Boolean = false,
   sessions: List<SessionMeta>,
   modifier: Modifier = Modifier,
-  expanded: Boolean = false,
-  maxDisplay: Int = 2,
-  onStartMerge: (() -> Unit)? = null,
   onOpenSession: (String) -> Unit,
-  onDeleteSession: (String) -> Unit
+  onDeleteSession: (String) -> Unit,
+  onStartMerge: (() -> Unit)? = null
 ) {
-  val displayCount = if (expanded) maxDisplay + 2 else maxDisplay
+  val displayCount: Int = if (expanded) maxDisplay + 2 else maxDisplay
+
   Column(modifier = modifier) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
@@ -100,25 +98,26 @@ private fun RecentSessionRow(
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit
 ) {
-  var isHovered by remember { mutableStateOf(false) }
+  var isHovered: Boolean by remember { mutableStateOf(false) }
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.sm)
-      .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-      .onPointerEvent(PointerEventType.Exit) { isHovered = false },
+      .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+      .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false },
   ) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
       modifier = Modifier
         .weight(1f)
         .clickable { onOpenSession(session.sessionId) }
-        .clip(RoundedCornerShape(6.dp))
+        .clip(shape = RoundedCornerShape(size = 6.dp))
         .background(
-          if (isHovered) JewelTheme.globalColors.text.info
-            .copy(alpha = 0.08f) else Color.Transparent
+          color =
+            if (isHovered) JewelTheme.globalColors.text.info.copy(alpha = 0.08f)
+            else Color.Transparent
         )
         .padding(
           vertical = GradumSpacing.sml,
@@ -155,8 +154,8 @@ private fun RecentSessionRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
           .padding(start = GradumSpacing.sm)
-          .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-          .onPointerEvent(PointerEventType.Exit) { isHovered = false },
+          .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+          .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false },
       ) {
         Tooltip(tooltip = { Text(text = message("gradum.delete.action")) }) {
           IconButton(onClick = { onDeleteSession(session.sessionId) }) {

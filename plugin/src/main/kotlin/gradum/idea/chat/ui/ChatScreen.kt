@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-24 16:37:58 Changed by gwy
+ * ChatScreen.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -29,10 +29,7 @@ import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.SubChatView
 import gradum.idea.chat.ui.chat.UserChatBubble
 import gradum.idea.chat.ui.input.ChatInputSection
-import gradum.idea.chat.ui.markdown.FootnoteRegistry
-import gradum.idea.chat.ui.markdown.LocalFootnoteRegistry
-import gradum.idea.chat.ui.markdown.LocalStickySectionRegistry
-import gradum.idea.chat.ui.markdown.StickySectionRegistry
+import gradum.idea.chat.ui.markdown.*
 import gradum.idea.settings.*
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.delay
@@ -140,7 +137,7 @@ fun ChatScreen(
   val lastMessage: ChatMessage? = displayMessages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
-  LaunchedEffect(state.messages.size, lastBlockCount, autoScrollToBottom) {
+  LaunchedEffect(key1 = state.messages.size, key2 = lastBlockCount, key3 = autoScrollToBottom) {
     if (!autoScrollToBottom) return@LaunchedEffect
     if (state.messages.size > lastSeenMessageCount) {
       val newMessages: List<ChatMessage> = state.messages.subList(lastSeenMessageCount, state.messages.size)
@@ -166,18 +163,21 @@ fun ChatScreen(
         .weight(1f)
         .widthIn(max = 680.dp)
     ) {
-      val stickyRegistry = remember { StickySectionRegistry() }
+      val stickyRegistry: StickySectionRegistry = remember { StickySectionRegistry() }
 
-      CompositionLocalProvider(LocalStickySectionRegistry provides stickyRegistry) {
+      CompositionLocalProvider(value = LocalStickySectionRegistry provides stickyRegistry) {
         Column(
           modifier = Modifier
             .verticalScroll(scrollState)
-            .onGloballyPositioned { stickyRegistry.columnOriginInWindow = it.localToWindow(Offset.Zero) }
+            .onGloballyPositioned {
+              stickyRegistry.columnOriginInWindow = it.localToWindow(relativeToLocal = Offset.Zero)
+            }
         ) {
-          displayMessages.forEachIndexed { index, message ->
-            val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
+          displayMessages.forEachIndexed { index: Int, message: ChatMessage ->
+            val shouldShowTimestamp: Boolean = index == 0 || formatTimestamp(message.timestamp) !=
               formatTimestamp(displayMessages.getOrNull(index - 1)?.timestamp ?: 0L)
-            val isLastAssistant = index == displayMessages.lastIndex && !message.isUserMessage && state.isLoading
+            val isLastAssistant: Boolean =
+              index == displayMessages.lastIndex && !message.isUserMessage && state.isLoading
 
             if (LocalShowTimestamp.current && shouldShowTimestamp) {
               MessageTimestamp(
@@ -189,46 +189,50 @@ fun ChatScreen(
             when {
               message.isUserMessage -> UserChatBubble(
                 message = message,
-                onDeleteMessage = { state.onDeleteMessage(index) },
                 onCopyAsContext = state.onCopyAsContext,
-                onAttachmentClick = state.onAttachmentClick
+                onAttachmentClick = state.onAttachmentClick,
+                onDeleteMessage = { state.onDeleteMessage(index) }
               )
 
               else -> {
-                val footnoteRegistry: FootnoteRegistry = remember(message) {
+                val footnoteRegistry: FootnoteRegistry = remember(key1 = message) {
                   FootnoteRegistry(
                     getColumnOrigin = { stickyRegistry.columnOriginInWindow },
                     getCurrentScrollOffset = { scrollState.value.toFloat() },
-                  ).also { registry ->
-                    registry.scrollToPosition = { position, label ->
+                  ).also { registry: FootnoteRegistry ->
+                    registry.scrollToPosition = { position: Float, label: String ->
                       coroutineScope.launch {
-                        val paddingPx: Float = with(density) { FootnoteScrollPadding.toPx() }
+                        val paddingPx: Float = with(receiver = density) { FootnoteScrollPadding.toPx() }
                         scrollState.animateScrollTo(
-                          (position - paddingPx).toInt().coerceAtLeast(0)
+                          value = (position - paddingPx).toInt().coerceAtLeast(minimumValue = 0)
                         )
                         registry.onJumpComplete(label)
                       }
                     }
                   }
                 }
-                CompositionLocalProvider(LocalFootnoteRegistry provides footnoteRegistry) {
+                CompositionLocalProvider(value = LocalFootnoteRegistry provides footnoteRegistry) {
                   AssistantChatBubble(
                     message = message,
-                    sendingPhase = if (index == displayMessages.lastIndex && !message.isUserMessage && (state.isLoading || state.sendingPhase.isNotBlank())) state.sendingPhase else "",
+                    sendingPhase =
+                      if (index == displayMessages.lastIndex && !message.isUserMessage &&
+                        (state.isLoading || state.sendingPhase.isNotBlank())
+                      ) state.sendingPhase
+                      else "",
                     onRetry = { state.onRetryMessage(index) },
-                    onUrlClick = { url ->
+                    isLoading = isLastAssistant,
+                    actionsEnabled = !state.isWaitingForResponse,
+                    onUrlClick = { url: String ->
                       try {
                         Desktop.getDesktop().browse(URI(url))
                       } catch (iOException: IOException) {
                         logger.warn("Failed to open URL: $url", iOException)
                       }
                     },
-                    isLoading = isLastAssistant,
-                    onSubChatClick = onSubChatClick,
-                    onViewDiff = state.onViewDiff,
+                    selectedPermission = state.selectedPermission,
                     onOpenInEditor = state.onOpenInEditor,
-                    actionsEnabled = !state.isWaitingForResponse,
-                    selectedPermission = state.selectedPermission
+                    onViewDiff = state.onViewDiff,
+                    onSubChatClick = onSubChatClick
                   )
                 }
               }
@@ -240,25 +244,25 @@ fun ChatScreen(
       val enableStickySections: Boolean = LocalEnableStickySections.current
 
       val activeSection = if (enableStickySections) {
-        stickyRegistry.entries.firstOrNull { entry ->
+        stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
           scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
         }
       } else null
       if (enableStickySections) {
         Box(modifier = Modifier.fillMaxWidth()) {
-          stickyRegistry.entries.forEach { section ->
-            val isActive = section == activeSection
-            val remaining = section.bottomInColumn - scrollState.value
-            val toolbarHeight = section.toolbarHeight
-            val alpha = if (isActive && toolbarHeight > 0f) {
-              val linear = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
-              FastOutSlowInEasing.transform(linear)
+          stickyRegistry.entries.forEach { section: StickySectionEntry ->
+            val isActive: Boolean = section == activeSection
+            val remaining: Float = section.bottomInColumn - scrollState.value
+            val toolbarHeight: Float = section.toolbarHeight
+            val alpha: Float = if (isActive && toolbarHeight > 0f) {
+              val linear: Float = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
+              FastOutSlowInEasing.transform(fraction = linear)
             } else if (isActive) 1f else 0f
             if (alpha > 0f) {
               Box(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .background(JewelTheme.globalColors.panelBackground)
+                  .background(color = JewelTheme.globalColors.panelBackground)
                   .onGloballyPositioned { section.toolbarHeight = it.size.height.toFloat() }
                   .graphicsLayer { this.alpha = alpha }
               ) {
@@ -277,9 +281,9 @@ fun ChatScreen(
             scrollState.animateScrollTo(scrollState.maxValue)
           }
         },
-        {
+        onJumpToTop = {
           coroutineScope.launch {
-            scrollState.animateScrollTo(0)
+            scrollState.animateScrollTo(value = 0)
           }
         },
         modifier = Modifier

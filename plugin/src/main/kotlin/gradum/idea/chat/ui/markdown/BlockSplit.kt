@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockSplit.kt  2026-08-12 12:38:25 Changed by gwy
+ * BlockSplit.kt  2026-08-24 21:56:54 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -25,11 +25,11 @@ private const val LIST_CHILD_INDENT_COLUMNS: Int = 4
  * (children only, used for paragraph-in-block and list-item rendering paths).
  */
 internal fun serializeMarkdownNode(rootNode: Node): String =
-  serializeInto(rootNode)
+  serializeInto(currentNode = rootNode)
 
 internal fun serializeInlineChildren(containerNode: Node): String {
   val resultBuilder: StringBuilder = StringBuilder()
-  serializeChildrenInto(containerNode, resultBuilder)
+  serializeChildrenInto(containerNode, output = resultBuilder)
   return resultBuilder.toString()
 }
 
@@ -56,32 +56,25 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
 
   val blocks: List<Node> = buildList {
     if (children.first != null) add(children.first)
-    addAll(children.rest)
+    addAll(elements = children.rest)
   }
 
   return blocks
-    .filter { topLevelBlock -> topLevelBlock !is LinkReferenceDefinition }
-    .map { topLevelBlock ->
+    .filter { topLevelBlock: Node -> topLevelBlock !is LinkReferenceDefinition }
+    .map { topLevelBlock: Node ->
       when (topLevelBlock) {
-        is Paragraph -> MarkdownSegment.Plain(text = serializeInto(topLevelBlock))
-        is HtmlBlock -> stripHtmlBlockTags(topLevelBlock)?.let { stripped ->
+        is Paragraph -> MarkdownSegment.Plain(text = serializeInto(currentNode = topLevelBlock))
+        is HtmlBlock -> stripHtmlBlockTags(htmlBlock = topLevelBlock)?.let { stripped: String ->
           MarkdownSegment.Plain(text = stripped)
-        } ?: MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
-        // LaTeX blocks round-trip through the same NonProseBlock
-        // path as headings / lists / fenced code: the formula is
-        // re-serialized to `$$\n<formula>\n$$`, and
-        // `RenderNonProseBlock` reparses it (with the
-        // [LatexBlockExtension] registered on its parser) into a
-        // fresh `LatexBlock`, which [RenderBlockNode] dispatches
-        // to `RenderLatexBlock`. Carrying the formula through
-        // this serialize/parse round-trip keeps the
-        // [MarkdownSegment] variants stable — no new
-        // `LatexBlock` variant — at the cost of one extra
-        // parse. The LaTeX extension is cheap (one regex) so
-        // this is well below a frame.
-        is LatexBlock -> MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
+        } ?: MarkdownSegment.NonProseBlock(text = serializeInto(currentNode = topLevelBlock))
 
-        else -> MarkdownSegment.NonProseBlock(text = serializeInto(topLevelBlock))
+        is LatexBlock -> MarkdownSegment.NonProseBlock(
+          text = serializeInto(currentNode = topLevelBlock)
+        )
+
+        else -> MarkdownSegment.NonProseBlock(
+          text = serializeInto(currentNode = topLevelBlock)
+        )
       }
     }
 }
@@ -98,7 +91,7 @@ private fun stripHtmlBlockTags(htmlBlock: HtmlBlock): String? {
   val children: NodeChildren = NodeChildren.of(htmlBlock)
   val firstChild: Node? = children.first
   if (firstChild != null) appendHtmlBlockChild(firstChild, resultBuilder)
-  for (childNode in children.rest) appendHtmlBlockChild(childNode, resultBuilder)
+  for (childNode: Node in children.rest) appendHtmlBlockChild(childNode, resultBuilder)
   val text: String = resultBuilder.toString().trim()
   return text.ifEmpty { null }
 }
@@ -115,10 +108,10 @@ private fun appendHtmlBlockChild(childNode: Node, output: StringBuilder) {
 }
 
 private fun serializeChildrenInto(containerNode: Node, output: StringBuilder) {
-  val children: NodeChildren = NodeChildren.of(containerNode)
+  val children: NodeChildren = NodeChildren.of(parent = containerNode)
   val firstChild: Node? = children.first
-  if (firstChild != null) serializeInto(firstChild, output)
-  for (childNode in children.rest) serializeInto(childNode, output)
+  if (firstChild != null) serializeInto(currentNode = firstChild, output)
+  for (childNode: Node in children.rest) serializeInto(currentNode = childNode, output)
 }
 
 internal fun serializeInto(currentNode: Node): String {
@@ -131,6 +124,7 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
   when (currentNode) {
     // top-level container
     is Document -> serializeChildrenInto(currentNode, output)
+
     // block nodes
     is ThematicBreak -> output.append("---")
     is Heading -> serializeHeadingInto(currentNode, output)
@@ -138,12 +132,15 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
     is BlockQuote -> serializeBlockQuoteInto(currentNode, output)
     is OrderedList -> serializeOrderedListInto(currentNode, output)
     is FencedCodeBlock -> serializeFencedCodeBlockInto(currentNode, output)
-    is HtmlBlock -> output.append(currentNode.literal.orEmpty())
-    is IndentedCodeBlock -> output.append(currentNode.literal.orEmpty())
     is Paragraph -> serializeChildrenInto(currentNode, output)
     is LatexBlock -> serializeLatexBlockInto(currentNode, output)
+
+    // nodes serialized as their raw literal text
+    is HtmlBlock -> appendLiteral(currentNode, output)
+    is IndentedCodeBlock -> appendLiteral(currentNode, output)
+    is Text -> appendLiteral(currentNode, output)
+
     // inline nodes
-    is Text -> output.append(currentNode.literal.orEmpty())
     is Code -> output.append('`').append(currentNode.literal.orEmpty()).append('`')
     is Emphasis -> serializeWrapInlineInto("*", "*", currentNode, output)
     is StrongEmphasis -> serializeWrapInlineInto("**", "**", currentNode, output)
@@ -152,13 +149,21 @@ private fun serializeInto(currentNode: Node, output: StringBuilder) {
     is Strikethrough -> serializeStrikethroughInto(currentNode, output)
     is SoftLineBreak -> output.append('\n')
     is HardLineBreak -> output.append("\\\n")
-    // stripped / fallback
-    is HtmlInline -> {
-      // strip raw <tag> / </tag> markers from round-tripped markdown
-    }
+    is HtmlInline -> Unit // strip raw markers from round-tripped markdown
 
     else -> serializeChildrenInto(currentNode, output)
   }
+}
+
+/** Appends a node's literal text, if any. */
+private fun appendLiteral(node: Node, output: StringBuilder) {
+  val literalValue: String? = when (node) {
+    is HtmlBlock -> node.literal
+    is IndentedCodeBlock -> node.literal
+    is Text -> node.literal
+    else -> null
+  }
+  output.append(literalValue.orEmpty())
 }
 
 private fun serializeWrapInlineInto(
@@ -284,14 +289,7 @@ private fun serializeFencedCodeBlockInto(codeBlock: FencedCodeBlock, output: Str
   output.append("```")
 }
 
-/**
- * Emit `$$\n<formula>\n$$` for a [LatexBlock]. Trailing newline
- * before the closing `$$` is conditional so a multi-line formula
- * preserves its internal newlines, but a single-line formula
- * still serializes as `$$ x $$` (with one newline before/after
- * the body) so the reparse path recognizes it as a block rather
- * than a paragraph.
- */
+
 private fun serializeLatexBlockInto(latexBlock: LatexBlock, output: StringBuilder) {
   output.append("$$\n")
   output.append(latexBlock.formula)

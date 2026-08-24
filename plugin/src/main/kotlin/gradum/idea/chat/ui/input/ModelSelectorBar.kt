@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-16 16:11:14 Changed by gwy
+ * ModelSelectorBar.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -16,8 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
-import gradum.idea.chat.model.ModelInfo
 import gradum.idea.PluginConfig
+import gradum.idea.chat.model.ModelInfo
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.common.SelectorButton
@@ -58,9 +58,9 @@ fun ModelSelectorBar(
   models: List<ModelInfo> = emptyList(),
   pinnedModels: List<ModelInfo> = emptyList(),
   thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
+  onRefreshModels: () -> Unit = {},
   onTogglePin: (ModelInfo) -> Unit = {},
   onSelectModel: (ModelInfo?) -> Unit = {},
-  onRefreshModels: () -> Unit = {},
   onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
 ) {
   var showModelMenu by remember { mutableStateOf(false) }
@@ -132,8 +132,8 @@ private fun MenuScope.buildMenu(
     }
   }
 
-  val unpinnedModels = models.filter { model ->
-    pinnedModels.none { it.sameAs(model) }
+  val unpinnedModels = models.filter { model: ModelInfo ->
+    pinnedModels.none { it.sameAs(other = model) }
   }
 
   if (pinnedModels.isNotEmpty()) {
@@ -150,7 +150,7 @@ private fun MenuScope.buildMenu(
           )
       )
     }
-    pinnedModels.forEach { pinned ->
+    pinnedModels.forEach { pinned: ModelInfo ->
       selectableItem(
         selected = false,
         onClick = { onSelectModel(pinned) }
@@ -166,7 +166,7 @@ private fun MenuScope.buildMenu(
 
   if (unpinnedModels.isNotEmpty()) {
     if (pinnedModels.isNotEmpty()) separator()
-    unpinnedModels.forEach { model ->
+    unpinnedModels.forEach { model: ModelInfo ->
       selectableItem(
         selected = selectedModel?.name == model.name
           && selectedModel.serverName == model.serverName,
@@ -186,7 +186,7 @@ private fun MenuScope.buildMenu(
 @Composable
 private fun ModelItemRow(model: ModelInfo, isPinned: Boolean, onTogglePin: () -> Unit) {
   val iconKey: IconKey? = resolveProviderIcon(model)
-  val formatted: FormattedModelName = parseModelName(model.name)
+  val formatted: FormattedModelName = parseModelName(raw = model.name)
   val pinTip: String = if (isPinned) message("gradum.model.unpin") else message("gradum.model.pin")
   val pinIcon: IconKey = if (isPinned) AllIconsKeys.General.PinSelected else AllIconsKeys.General.Pin
 
@@ -267,18 +267,18 @@ private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
 private val MAX_MODEL_NAME_CHARS: Int = PluginConfig.MAX_MODEL_NAME_CHARS
 
 private fun clipModelName(name: String): String {
-  val trimmed = name.trim()
+  val trimmed: String = name.trim()
   if (trimmed.length <= MAX_MODEL_NAME_CHARS) return trimmed
-  return trimmed.take(MAX_MODEL_NAME_CHARS - 1) + "…"
+  return trimmed.take(n = MAX_MODEL_NAME_CHARS - 1) + "…"
 }
 
 private fun resolveProviderIcon(model: ModelInfo): IconKey? {
-  val providerName = model.provider.lowercase().trim()
+  val providerName: String = model.provider.lowercase().trim()
   if (providerName.isNotBlank()) {
-    GradumIcons.resolveModelIcon(model.name)?.let { return it }
+    GradumIcons.resolveModelIcon(modelName = model.name)?.let { return it }
     return AllIconsKeys.Stub
   }
-  return GradumIcons.resolveModelIcon(model.name)
+  return GradumIcons.resolveModelIcon(modelName = model.name)
 }
 
 private val CLOUD_SERVER_NAMES = setOf(

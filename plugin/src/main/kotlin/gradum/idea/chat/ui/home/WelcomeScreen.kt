@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-24 18:59:20 Changed by gwy
+ * WelcomeScreen.kt  2026-08-24 22:36:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -144,21 +144,21 @@ fun WelcomeScreen(
         ) {
           if (welcomeLayout.quickStartCount > 0) {
             QuickStartSection(
+              maxItems = welcomeLayout.quickStartCount,
               textState = state.textState,
               suggestionVariants = state.suggestionVariants,
-              onRefreshSuggestions = state.onRefreshSuggestions,
-              maxItems = welcomeLayout.quickStartCount
+              onRefreshSuggestions = state.onRefreshSuggestions
             )
           }
         }
         if (state.sessions.isNotEmpty()) {
           RecentChatsSection(
-            sessions = state.sessions.toList(),
-            expanded = isInputFocused,
             maxDisplay = welcomeLayout.recentCount,
-            onStartMerge = mergeCallbacks.onStartMerge,
+            expanded = isInputFocused,
+            sessions = state.sessions.toList(),
             onOpenSession = state.onOpenSession,
-            onDeleteSession = mergeCallbacks.onDeleteSession
+            onDeleteSession = mergeCallbacks.onDeleteSession,
+            onStartMerge = mergeCallbacks.onStartMerge
           )
         }
       }

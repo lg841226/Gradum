@@ -31,7 +31,7 @@ class GradumFootnoteTest {
     parseInlineMarkdown(
       plainText = text,
       fontSizeSp = testFontSizeSp,
-      chipTint = testTint,
+      codeColor = testTint,
       linkColor = testLinkColor,
       imageAltColor = testImageAltColor,
     )

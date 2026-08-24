@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageList.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatMessageList.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,23 +26,23 @@ private val TimestampSpacing = GradumSpacing.xs
 
 @Composable
 fun ChatMessageList(
+  sendingPhase: String = "",
+  isLoading: Boolean = false,
   messages: List<ChatMessage>,
   modifier: Modifier = Modifier,
-  isLoading: Boolean = false,
-  sendingPhase: String = "",
-  selectedPermission: String = PermissionMode.READONLY,
-  onDeleteMessage: (Int) -> Unit = {},
   onRetryMessage: (Int) -> Unit = {},
+  onDeleteMessage: (Int) -> Unit = {},
   onCopyAsContext: (String) -> Unit = {},
-  onAttachmentClick: (VirtualFile) -> Unit = {}
+  onAttachmentClick: (VirtualFile) -> Unit = {},
+  selectedPermission: String = PermissionMode.READONLY,
 ) {
-  val scrollState = rememberScrollState()
+  val scrollState: ScrollState = rememberScrollState()
 
   Column(
     modifier = modifier.verticalScroll(scrollState),
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
   ) {
-    messages.forEachIndexed { index, message ->
+    messages.forEachIndexed { index: Int, message: ChatMessage ->
       val isLastAssistant: Boolean = index == messages.lastIndex && !message.isUserMessage && isLoading
       val shouldShowTimestamp: Boolean = index == 0 ||
         formatTimestamp(message.timestamp) != formatTimestamp(messages[index - 1].timestamp)

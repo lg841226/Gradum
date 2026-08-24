@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfigFile.kt  2026-08-17 09:47:32 Changed by gwy
+ * ProviderConfigFile.kt  2026-08-25 01:43:26 Changed by gwy
  */
 package gradum.idea.provider
 
@@ -34,7 +34,7 @@ object ProviderConfigFile {
     val targetFile: File = configFile
     if (!targetFile.isFile) return Properties()
     return try {
-      FileInputStream(targetFile).use { inputStream ->
+      FileInputStream(targetFile).use { inputStream: FileInputStream ->
         Properties().also { it.load(inputStream) }
       }
     } catch (_: Exception) {
@@ -50,7 +50,7 @@ object ProviderConfigFile {
    */
   fun updateProviderConfig(configKey: String, baseUrl: String, apiKey: String) {
     val prefix = "GRADUM_${configKey.uppercase()}"
-    editConfigFile { properties ->
+    editConfigFile { properties: Properties ->
       properties.setProperty("${prefix}_API_KEY", apiKey.trim())
       properties.setProperty("${prefix}_BASE_URL", baseUrl.trim())
     }
@@ -64,9 +64,9 @@ object ProviderConfigFile {
    */
   fun removeProviderConfig(configKey: String) {
     val prefix = "GRADUM_${configKey.uppercase()}"
-    editConfigFile { properties ->
-      listOf("_API_KEY", "_BASE_URL", "_ALLOW_REMOTE").forEach { suffix ->
-        properties.remove("$prefix$suffix")
+    editConfigFile { properties: Properties ->
+      listOf("_API_KEY", "_BASE_URL", "_ALLOW_REMOTE").forEach { suffix: String ->
+        properties.remove(key = "$prefix$suffix")
       }
     }
   }
@@ -76,7 +76,6 @@ object ProviderConfigFile {
     try {
       configFile.delete()
     } catch (_: Exception) {
-      // Best-effort
     }
   }
 
@@ -87,7 +86,7 @@ object ProviderConfigFile {
    * Failures are swallowed so a toggle never breaks the settings panel.
    */
   fun updateAllowRemote(configKey: String, allowRemote: Boolean) {
-    editConfigFile { properties ->
+    editConfigFile { properties: Properties ->
       properties.setProperty("GRADUM_${configKey.uppercase()}_ALLOW_REMOTE", allowRemote.toString())
     }
   }
@@ -103,7 +102,7 @@ object ProviderConfigFile {
       configDir.mkdirs()
       val properties: Properties = loadProperties()
       transform(properties)
-      FileOutputStream(configFile).use { output ->
+      FileOutputStream(configFile).use { output: FileOutputStream ->
         properties.store(output, "Gradum provider configuration (edited by the plugin)")
       }
     } catch (_: Exception) {

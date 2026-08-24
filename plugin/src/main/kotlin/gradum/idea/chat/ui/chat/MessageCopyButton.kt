@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageCopyButton.kt  2026-08-12 12:38:25 Changed by gwy
+ * MessageCopyButton.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -44,8 +44,10 @@ fun MessageCopyButton(
   onCopyAsContext: (String) -> Unit = {},
   modifier: Modifier = Modifier
 ) {
-  val scope = rememberCoroutineScope()
-  val textToCopy = if (message.isUserMessage) message.content else message.fullContent
+  val scope: CoroutineScope = rememberCoroutineScope()
+  val textToCopy: String =
+    if (message.isUserMessage) message.content
+    else message.fullContent
 
   Tooltip(modifier = modifier, tooltip = { Text(text = message("gradum.copy.tooltip")) }) {
     IconButton(
@@ -60,7 +62,9 @@ fun MessageCopyButton(
       enabled = textToCopy.isNotBlank()
     ) {
       Icon(
-        key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
+        key =
+          if (isCopied) AllIconsKeys.Actions.Checked
+          else AllIconsKeys.General.Copy,
         contentDescription = message("gradum.copy")
       )
     }
@@ -80,10 +84,6 @@ fun copyToClipboard(
   scope: CoroutineScope,
   delayMillis: Long = 1000
 ) {
-  // Some headless / restricted environments throw (IllegalStateException,
-  // UnsupportedOperationException, HeadlessException) when the clipboard
-  // is unavailable. Let the button stay functional: skip the clipboard
-  // and just report success so the user isn't stuck.
   val copySucceeded: Boolean = try {
     val clipboard = Toolkit.getDefaultToolkit().systemClipboard
     val stringSelection = StringSelection(text)

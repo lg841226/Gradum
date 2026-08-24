@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderCoordinator.kt  2026-08-18 12:45:23 Changed by gwy
+ * ProviderCoordinator.kt  2026-08-25 01:38:41 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -27,12 +27,12 @@ import kotlin.time.Duration.Companion.milliseconds
 object ProviderCoordinator {
 
   private val appScope: CoroutineScope = CoroutineScope(
-    SupervisorJob() + Dispatchers.Default + CoroutineName("ProviderCoordinator")
+    context = SupervisorJob() + Dispatchers.Default + CoroutineName("ProviderCoordinator")
   )
   private val probe: ProviderProbeContract = ProviderProbe()
-  private val runtimes: Map<ProviderKind, ProviderRuntime> = ProviderKind.entries.associateWith { kind ->
-    ProviderRuntime(kind = kind, probe = probe, appScope = appScope) { probeSucceededKind ->
-      _probeSucceeded.tryEmit(probeSucceededKind)
+  private val runtimes: Map<ProviderKind, ProviderRuntime> = ProviderKind.entries.associateWith { kind: ProviderKind ->
+    ProviderRuntime(kind = kind, probe = probe, appScope = appScope) { probeSucceededKind: ProviderKind ->
+      _probeSucceeded.tryEmit(value = probeSucceededKind)
     }
   }
   private val _probeSucceeded: MutableSharedFlow<ProviderKind> = MutableSharedFlow(extraBufferCapacity = 8)
@@ -45,9 +45,9 @@ object ProviderCoordinator {
    */
   val probeSucceeded: SharedFlow<ProviderKind> = _probeSucceeded.asSharedFlow()
 
-  fun statusFlow(kind: ProviderKind): StateFlow<ProviderStatus> = runtimes.getValue(kind).status
+  fun statusFlow(kind: ProviderKind): StateFlow<ProviderStatus> = runtimes.getValue(key = kind).status
 
-  fun isTestingFlow(kind: ProviderKind): StateFlow<Boolean> = runtimes.getValue(kind).isTesting
+  fun isTestingFlow(kind: ProviderKind): StateFlow<Boolean> = runtimes.getValue(key = kind).isTesting
 
   /**
    * Push the latest configuration to the runtime for [kind] and restart
@@ -59,11 +59,11 @@ object ProviderCoordinator {
     kind: ProviderKind, baseUrl: String, apiKey: String, pollIntervalMs: Long,
     autoDetect: Boolean
   ) {
-    runtimes.getValue(kind).reconfigure(baseUrl.trim(), apiKey.trim(), pollIntervalMs, autoDetect)
+    runtimes.getValue(key = kind).reconfigure(baseUrl.trim(), apiKey.trim(), pollIntervalMs, autoDetect)
   }
 
   fun probeNow(kind: ProviderKind) {
-    runtimes.getValue(kind).probeNow()
+    runtimes.getValue(key = kind).probeNow()
   }
 
   internal class ProviderRuntime(
@@ -74,11 +74,11 @@ object ProviderCoordinator {
   ) {
     private val probeMutex: Mutex = Mutex()
     private val configMutex: Mutex = Mutex()
-    private val _status: MutableStateFlow<ProviderStatus> = MutableStateFlow(ProviderStatus.Untested)
-    private val _isTesting: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    private val _status: MutableStateFlow<ProviderStatus> = MutableStateFlow(value = ProviderStatus.Untested)
+    private val _isTesting: MutableStateFlow<Boolean> = MutableStateFlow(value = false)
     private var pollJob: Job? = null
     private var currentPollIntervalMs: Long = 0L
-    private var currentConfig: ProviderConfig = ProviderConfig(kind, "", "")
+    private var currentConfig: ProviderConfig = ProviderConfig(kind, baseUrl = "", apiKey = "")
 
     val status: StateFlow<ProviderStatus> = _status.asStateFlow()
     val isTesting: StateFlow<Boolean> = _isTesting.asStateFlow()
@@ -90,25 +90,18 @@ object ProviderCoordinator {
         configMutex.withLock {
           val newConfig = ProviderConfig(kind, baseUrl, apiKey)
           val wasPolling: Boolean = pollJob?.isActive == true
-          // pollIntervalMs is NOT part of ProviderConfig (its equals only
-          // compares kind/baseUrl/apiKey), so it must be tracked separately:
-          // an interval-only edit must still restart the poll loop.
           if (newConfig == currentConfig && wasPolling == autoDetect && pollIntervalMs == currentPollIntervalMs)
             return@withLock
           currentConfig = newConfig
           currentPollIntervalMs = pollIntervalMs
-          pollJob?.cancel(CancellationException("Gradum stop polling"))
+          pollJob?.cancel(cause = CancellationException("Gradum stop polling"))
           pollJob = null
           when {
-            // The URL is no longer valid — drop any stale "ok/latency" badge
-            // instead of letting a previous success linger next to a red field.
             !newConfig.isValid -> _status.value = ProviderStatus.Failed("URL is invalid")
             !autoDetect && newConfig.isValid -> probeOnce(newConfig)
             autoDetect -> pollJob = launch {
               while (isActive) {
                 if (currentConfig.isValid) probeOnce(currentConfig)
-                // Auth failures are deterministic — a bad key will not heal
-                // by itself, and retrying just burns the provider's rate limit.
                 if (_status.value is ProviderStatus.AuthError) return@launch
                 if (pollIntervalMs <= 0L) return@launch
                 delay(pollIntervalMs.milliseconds)
@@ -143,7 +136,9 @@ object ProviderCoordinator {
   }
 
   private data class ProviderConfig(val kind: ProviderKind, val baseUrl: String, val apiKey: String) {
-    val isValid: Boolean get() = baseUrl.isNotBlank() && isValidBaseUrl(baseUrl, kind)
+    val isValid: Boolean
+      get() = baseUrl.isNotBlank()
+        && isValidBaseUrl(value = baseUrl, kind)
   }
 }
 
@@ -171,7 +166,9 @@ internal fun isValidBaseUrl(value: String, kind: ProviderKind? = null): Boolean 
     return false
   }
   val scheme: String = uri.scheme ?: return false
-  if (!scheme.equals("http", ignoreCase = true) && !scheme.equals("https", ignoreCase = true)) {
+  if (!scheme.equals(other = "http", ignoreCase = true)
+    && !scheme.equals(other = "https", ignoreCase = true)
+  ) {
     return false
   }
   val host: String = uri.host ?: return false
@@ -179,19 +176,17 @@ internal fun isValidBaseUrl(value: String, kind: ProviderKind? = null): Boolean 
   if (uri.port != -1 && (uri.port !in 1..65535)) return false
   if (uri.query != null || uri.fragment != null || uri.userInfo != null) return false
   val path: String = uri.path ?: ""
-  // Cloud providers (Zhipu / DeepSeek / MiniMax) use deep fixed base
-  // URLs such as `https://open.bigmodel.cn/api/coding/paas/v4`, so their
-  // path is not restricted. Local providers only accept the empty path or
-  // the `/v1` OpenAI prefix.
   return kind?.isCloud == true || path.isEmpty() || path == "/" || path == "/v1" || path == "/v1/"
 }
 
 private fun isValidHost(host: String): Boolean {
   if (host.isEmpty()) return false
-  val ipv4: Boolean = host.matches(IPV4_PATTERN) &&
-    host.split(".").all { octet -> octet.toInt() in 0..255 }
-  return ipv4 || host.matches(HOSTNAME_PATTERN)
+  val ipv4: Boolean = host.matches(regex = IPV4_PATTERN) &&
+    host.split(".").all { octet: String ->
+      octet.toInt() in 0..255
+    }
+  return ipv4 || host.matches(regex = HOSTNAME_PATTERN)
 }
 
-private val IPV4_PATTERN: Regex = Regex("""\d{1,3}(\.\d{1,3}){3}""")
-private val HOSTNAME_PATTERN: Regex = Regex("""[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*""")
+private val IPV4_PATTERN: Regex = Regex(pattern = """\d{1,3}(\.\d{1,3}){3}""")
+private val HOSTNAME_PATTERN: Regex = Regex(pattern = """[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*""")

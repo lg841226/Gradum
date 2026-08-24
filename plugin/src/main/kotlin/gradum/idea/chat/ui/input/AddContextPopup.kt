@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-08-12 12:38:25 Changed by gwy
+ * AddContextPopup.kt  2026-08-25 01:43:26 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -83,12 +83,6 @@ fun AddContextPopup(
       }
     }
 
-    // Hidden when the active model is text-only (no vision =
-    // irrelevant option) and disabled when the per-message
-    // image cap is hit. The disabled dark background on
-    // `selectableItem(enabled = false)` reads as a visual
-    // glitch rather than a "you cannot do this" hint, which
-    // is why vision-unsupported is a visibility gate.
     val isVisionSupported: Boolean = state.isCurrentModelSupportsVision
     if (isVisionSupported) {
       val isLimitReached: Boolean = state.isAttachmentLimitReached
@@ -97,9 +91,6 @@ fun AddContextPopup(
         message("gradum.image.limit.reached", MAX_ATTACHMENTS)
       } else null
 
-      // `JewelTheme.globalColors` is `@Composable`, so color
-      // resolution must live inside the `selectableItem`
-      // lambda rather than the (non-composable) popup scope.
       selectableItem(
         selected = false,
         enabled = isUploadEnabled,
@@ -168,7 +159,7 @@ fun AddContextPopup(
         )
       }
     } else {
-      filteredFiles.forEach { file ->
+      filteredFiles.forEach { file: VirtualFile ->
         selectableItem(
           selected = file == state.editorContext.currentFile,
           onClick = { actions.onSelectFile(file) }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PermissionSelector.kt  2026-08-20 20:42:16 Changed by gwy
+ * PermissionSelector.kt  2026-08-25 01:43:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -70,7 +70,7 @@ fun PermissionSelector(
   isPermissionLocked: Boolean = false
 ) {
   SelectorButton(
-    text = permissionLabel(selectedPermission),
+    text = permissionLabel(wire = selectedPermission),
     onClick = { if (!isPermissionLocked) onToggle() },
     contentDescription =
       if (isPermissionLocked) message("gradum.debug.refuse")
@@ -166,7 +166,7 @@ fun PermissionSelector(
         }
       }
 
-      val showDebugEntry = !hasSentMessage || selectedPermission == PermissionMode.DEBUG
+      val showDebugEntry: Boolean = !hasSentMessage || selectedPermission == PermissionMode.DEBUG
       if (showDebugEntry) {
         separator()
 

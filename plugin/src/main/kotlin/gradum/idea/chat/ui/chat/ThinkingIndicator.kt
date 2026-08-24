@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-23 13:39:18 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-24 23:18:07 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -54,7 +54,7 @@ fun ThinkingIndicator(
 ) {
   if (thinking.isBlank()) return
 
-  var isExpanded by remember { mutableStateOf(!startCollapsed) }
+  var isExpanded: Boolean by remember { mutableStateOf(value = !startCollapsed) }
 
   Column(modifier = modifier.fillMaxWidth()) {
     Row(
@@ -72,8 +72,9 @@ fun ThinkingIndicator(
       )
       Icon(
         contentDescription = null,
-        key = if (isExpanded) AllIconsKeys.General.ChevronDown
-        else AllIconsKeys.General.ChevronRight
+        key =
+          if (isExpanded) AllIconsKeys.General.ChevronDown
+          else AllIconsKeys.General.ChevronRight
       )
     }
 

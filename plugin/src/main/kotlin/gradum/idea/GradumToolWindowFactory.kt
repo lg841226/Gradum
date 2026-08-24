@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-08-25 01:50:11 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -60,11 +60,11 @@ class GradumToolWindowFactory : ToolWindowFactory {
       SwingBridgeTheme {
         val uiCoroutineScope: CoroutineScope = rememberCoroutineScope()
         chatSession.scope = uiCoroutineScope
-        val codeHighlighter = remember(project, uiCoroutineScope) {
+        val codeHighlighter = remember(key1 = project, key2 = uiCoroutineScope) {
           CodeHighlighterFactory(project, uiCoroutineScope).createHighlighter()
         }
         val markdownStyling = rememberGradumMarkdownStyling()
-        val blockRenderer = remember(markdownStyling) {
+        val blockRenderer = remember(key1 = markdownStyling) {
           GradumCodeBlockRenderer(
             styling = markdownStyling,
             onInsertAsFile = { code, language ->
@@ -78,7 +78,7 @@ class GradumToolWindowFactory : ToolWindowFactory {
           markdownBlockRenderer = blockRenderer,
           codeHighlighter = codeHighlighter,
         ) {
-          CompositionLocalProvider(LocalCodeHighlighter provides codeHighlighter) {
+          CompositionLocalProvider(value = LocalCodeHighlighter provides codeHighlighter) {
             GradumUI(toolWindow = toolWindow, session = chatSession)
           }
         }

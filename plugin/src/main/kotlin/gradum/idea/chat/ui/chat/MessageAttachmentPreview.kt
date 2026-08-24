@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentPreview.kt  2026-08-12 12:38:25 Changed by gwy
+ * MessageAttachmentPreview.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -14,12 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +59,7 @@ fun MessageAttachmentPreview(
 
   HorizontallyScrollableContainer(modifier = modifier) {
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md, Alignment.End)) {
-      imageAttachments.forEach { image ->
+      imageAttachments.forEach { image: AttachedImage ->
         ImageThumbnailChip(
           imageAttachment = image,
           onClick = { onAttachmentClick(image.file) },
@@ -80,18 +75,16 @@ fun MessageAttachmentPreview(
 private fun ImageThumbnailChip(
   imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier
 ) {
-  // Decoding a full-size bitmap inside `remember` would run on the UI
-  // thread — a large photo stalls the chat panel. Decode on a background
-  // dispatcher and show the icon fallback until the bitmap is ready.
-  var decodedBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-  LaunchedEffect(imageAttachment.file.path) {
+
+  var decodedBitmap by remember { mutableStateOf<ImageBitmap?>(value = null) }
+  LaunchedEffect(key1 = imageAttachment.file.path) {
     val bitmap: ImageBitmap? = withContext(Dispatchers.IO) {
       decodeImage(imageAttachment.file)
     }
     decodedBitmap = bitmap
   }
 
-  val clipShape = RoundedCornerShape(bubbleThumbnailCornerRadiusDp.dp)
+  val clipShape = RoundedCornerShape(size = bubbleThumbnailCornerRadiusDp.dp)
   val chipModifier: Modifier = modifier
     .clip(clipShape)
     .border(
@@ -123,5 +116,5 @@ private fun ImageThumbnailChip(
 
 /** Decode `file` into a Compose `ImageBitmap`. Returns null on failure. */
 private fun decodeImage(file: VirtualFile): ImageBitmap? = runCatching {
-  SkiaImage.makeFromEncoded(file.contentsToByteArray()).toComposeImageBitmap()
+  SkiaImage.makeFromEncoded(bytes = file.contentsToByteArray()).toComposeImageBitmap()
 }.getOrNull()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-08-12 12:38:25 Changed by gwy
+ * Styling.kt  2026-08-24 22:36:53 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -145,7 +144,7 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
   contentHovered = contentHovered,
   contentPressed = contentPressed,
   contentVisited = contentVisited,
-  contentDisabled = contentDisabled,
+  contentDisabled = contentDisabled
 )
 
 /**
@@ -161,8 +160,7 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 @OptIn(ExperimentalJewelApi::class)
 @Suppress("UnstableApiUsage")
 internal fun gradumInlinesStyling(
-  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors,
-  editorFontFamily: FontFamily? = null
+  textStyle: TextStyle, inlineCodeStyle: SpanStyle, linkColors: LinkColors
 ): InlinesStyling {
   fun linkSpan(content: Color): SpanStyle = SpanStyle(color = content)
   return InlinesStyling(
@@ -174,11 +172,11 @@ internal fun gradumInlinesStyling(
       fontStyle = FontStyle.Italic,
     ),
     strongEmphasis = SpanStyle(fontWeight = FontWeight.SemiBold),
-    linkFocused = linkSpan(linkColors.contentFocused),
-    linkHovered = linkSpan(linkColors.contentHovered),
-    linkPressed = linkSpan(linkColors.contentPressed),
-    linkVisited = linkSpan(linkColors.contentVisited),
-    linkDisabled = linkSpan(linkColors.contentDisabled)
+    linkFocused = linkSpan(content = linkColors.contentFocused),
+    linkHovered = linkSpan(content = linkColors.contentHovered),
+    linkPressed = linkSpan(content = linkColors.contentPressed),
+    linkVisited = linkSpan(content = linkColors.contentVisited),
+    linkDisabled = linkSpan(content = linkColors.contentDisabled)
   )
 }
 
@@ -195,7 +193,6 @@ fun rememberGradumLinkStyle(): LinkStyle = JewelTheme.linkStyle
  * `JewelTheme.badgeStyle.blue` (the `background` may be a transparent
  * `SolidColor`, so the `content` is the fallback).
  */
-@Suppress("UnstableApiUsage")
 @Composable
 fun rememberBadgeBlueColor(): Color =
   (JewelTheme.badgeStyle.blue.colors.background as? SolidColor)?.value
@@ -210,15 +207,15 @@ fun rememberBadgeBlueColor(): Color =
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 fun rememberGradumMarkdownStyling(): MarkdownStyling {
-  val globalColors: GlobalColors = LocalGlobalColors.current
-  val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val linkStyle: LinkStyle = JewelTheme.linkStyle
   val badgeBlue: Color = rememberBadgeBlueColor()
+  val globalColors: GlobalColors = LocalGlobalColors.current
+  val editorTextStyle: TextStyle = JewelTheme.editorTextStyle
   val codeBlockFontSize: Float = LocalCodeBlockFontSize.current
   val bodyTextStyle: TextStyle = LocalMarkdownBodyTextStyle.current
     ?: rememberGradumParagraphTextStyle()
-  val thinkingMode = LocalThinkingMode.current
-  // When the code-block size is "auto" (0), follow the body text size.
+  val thinkingMode: Boolean = LocalThinkingMode.current
+
   val codeBlockTextStyle: TextStyle = editorTextStyle.copy(
     fontSize = (if (codeBlockFontSize > 0f) codeBlockFontSize else bodyTextStyle.fontSize.value).sp
   )
@@ -242,17 +239,19 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     )
   }
 
-  return remember(globalColors, editorTextStyle, linkStyle, inlineTint, paragraphTextStyle, thinkingMode, codeBlockTextStyle) {
+  return remember(
+    globalColors, editorTextStyle, linkStyle,
+    inlineTint, paragraphTextStyle, thinkingMode, codeBlockTextStyle
+  ) {
     val chatLinkColors: LinkColors = if (thinkingMode)
-      linkStyle.colors.withContent(thinkingGray)
+      linkStyle.colors.withContent(newContent = thinkingGray)
     else
       linkStyle.colors
 
     val paragraphInlines: InlinesStyling = gradumInlinesStyling(
       linkColors = chatLinkColors,
       textStyle = paragraphTextStyle,
-      inlineCodeStyle = inlineCodeTextStyle.toSpanStyle(),
-      editorFontFamily = editorTextStyle.fontFamily
+      inlineCodeStyle = inlineCodeTextStyle.toSpanStyle()
     )
 
     fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight, italic: Boolean = false): TextStyle {
@@ -273,17 +272,16 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       return gradumInlinesStyling(
         textStyle = textStyle,
         linkColors = chatLinkColors,
-        inlineCodeStyle = headingInlineCode,
-        editorFontFamily = editorTextStyle.fontFamily
+        inlineCodeStyle = headingInlineCode
       )
     }
 
-    val h1Style: TextStyle = headingStyle(HEADING_H1_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h2Style: TextStyle = headingStyle(HEADING_H2_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h3Style: TextStyle = headingStyle(HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h4Style: TextStyle = headingStyle(HEADING_H4_SIZE_MULTIPLIER, FontWeight.Medium)
-    val h5Style: TextStyle = headingStyle(HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
-    val h6Style: TextStyle = headingStyle(HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
+    val h1Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H1_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h2Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H2_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h3Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h4Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H4_SIZE_MULTIPLIER, FontWeight.Medium)
+    val h5Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
+    val h6Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 
     val numberStyle: TextStyle = paragraphTextStyle.copy(
       color = if (thinkingMode) thinkingGray else globalColors.text.info,
@@ -312,49 +310,49 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     )
 
     MarkdownStyling.createCodeStyling(
-      paragraphTextStyle,
-      paragraphTextStyle,
-      paragraphInlines,
-      GradumSpacing.lrl,
+      baseTextStyle = paragraphTextStyle,
+      editorTextStyle = paragraphTextStyle,
+      inlinesStyling = paragraphInlines,
+      blockVerticalSpacing = GradumSpacing.lrl,
       paragraph = MarkdownStyling.Paragraph.createInlinesStyling(paragraphInlines),
       heading = MarkdownStyling.Heading.createInlinesStyling(
-        paragraphTextStyle,
+        baseTextStyle = paragraphTextStyle,
         H1.createInlinesStyling(
           baseTextStyle = h1Style,
-          inlinesStyling = headingInlines(h1Style),
+          inlinesStyling = headingInlines(textStyle = h1Style),
           padding = HeadingBlockPadding
         ),
         H2.createInlinesStyling(
           baseTextStyle = h2Style,
-          inlinesStyling = headingInlines(h2Style),
+          inlinesStyling = headingInlines(textStyle = h2Style),
           padding = HeadingBlockPadding
         ),
         H3.createInlinesStyling(
           baseTextStyle = h3Style,
-          inlinesStyling = headingInlines(h3Style),
+          inlinesStyling = headingInlines(textStyle = h3Style),
           padding = HeadingBlockPadding
         ),
         H4.createInlinesStyling(
           baseTextStyle = h4Style,
-          inlinesStyling = headingInlines(h4Style),
+          inlinesStyling = headingInlines(textStyle = h4Style),
           padding = HeadingBlockPadding
         ),
         H5.createInlinesStyling(
           baseTextStyle = h5Style,
-          inlinesStyling = headingInlines(h5Style),
+          inlinesStyling = headingInlines(textStyle = h5Style),
           padding = HeadingBlockPadding
         ),
         H6.createInlinesStyling(
           baseTextStyle = h6Style,
-          inlinesStyling = headingInlines(h6Style),
+          inlinesStyling = headingInlines(textStyle = h6Style),
           padding = HeadingBlockPadding
         )
       ),
       code = MarkdownStyling.Code.createCodeStyling(
-        // In thinking mode, code block text should also be muted gray
-        // (background kept colored per design decision — code stays readable)
         fenced = MarkdownStyling.Code.Fenced.createCodeStyling(
-          textStyle = if (thinkingMode) codeBlockTextStyle.copy(color = thinkingGray) else codeBlockTextStyle,
+          textStyle =
+            if (thinkingMode) codeBlockTextStyle.copy(color = thinkingGray)
+            else codeBlockTextStyle,
           infoPosition = MarkdownStyling.Code.Fenced.InfoPosition.Hide
         )
       ),
@@ -369,7 +367,9 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
           bullet = '\u2022',
           padding = listItemPadding,
           bulletStyle = TextStyle(
-            color = if (thinkingMode) thinkingGray else globalColors.text.info,
+            color =
+              if (thinkingMode) thinkingGray
+              else globalColors.text.info,
           )
         )
       )

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageSender.kt  2026-08-24 18:59:19 Changed by gwy
+ * ChatMessageSender.kt  2026-08-25 01:13:35 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -41,15 +41,19 @@ internal suspend fun GradumChatSession.sendMessage(
   userMessage: String, attachments: List<AttachedContext> = emptyList(),
   contextPath: String = "", toolCallXml: String? = null
 ) {
-  var receivedSessionEnd = false
   var wasCancelled = false
+  var receivedSessionEnd = false
   val modelConfig: Map<String, String> = buildModelConfig()
-  val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
   val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
+  val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
   val prefix: String = buildString {
-    if (contextPath.isNotEmpty()) append("<Context path=\"$contextPath\"/>")
-    if (attachmentPaths.isNotEmpty()) append("<Attachments paths=\"${attachmentPaths.joinToString(", ")}\"/>")
-    textAttachments.forEach { append("<Context text=\"${it.content}\"/>") }
+    if (contextPath.isNotEmpty())
+      append("<Context path=\"$contextPath\"/>")
+    if (attachmentPaths.isNotEmpty())
+      append("<Attachments paths=\"${attachmentPaths.joinToString(separator = ", ")}\"/>")
+    textAttachments.forEach {
+      append("<Context text=\"${it.content}\"/>")
+    }
   }
 
   val systemRule = """
@@ -60,7 +64,7 @@ internal suspend fun GradumChatSession.sendMessage(
       </Rule>
   """.trimIndent()
 
-  val messageWithHint = "${prefix}${userMessage}\n\n$systemRule" +
+  val messageWithHint: String = "${prefix}${userMessage}\n\n$systemRule" +
     "\n\n${ThinkingPromptInjector.guideFor(thinkingLevel)}"
 
   sendingPhase = message("gradum.phase.synthesizing")
@@ -68,7 +72,7 @@ internal suspend fun GradumChatSession.sendMessage(
   var lastFailure: Exception? = null
   var response: ModelsListResponse? = null
 
-  for (attempt in 1..GradumChatSession.MAX_CONNECT_ATTEMPTS) {
+  for (attempt: Int in 1..GradumChatSession.MAX_CONNECT_ATTEMPTS) {
     try {
       val modelsJson: String = apiClient.getModels()
       response = GradumChatSession.jsonFormat.decodeFromString<ModelsListResponse>(modelsJson)
@@ -83,7 +87,7 @@ internal suspend fun GradumChatSession.sendMessage(
       lastFailure = exception
       if (attempt < GradumChatSession.MAX_CONNECT_ATTEMPTS) {
         sendingPhase = message("gradum.phase.connecting", attempt, GradumChatSession.MAX_CONNECT_ATTEMPTS - 1)
-        delay((GradumChatSession.CONNECT_BACKOFF_MS shl (attempt - 1)).milliseconds)
+        delay(duration = (GradumChatSession.CONNECT_BACKOFF_MS shl (attempt - 1)).milliseconds)
       }
     }
   }
@@ -130,7 +134,7 @@ internal suspend fun GradumChatSession.sendMessage(
   // Ensure the "Sending" animation is visible for at least MIN_SENDING_MS.
   val elapsed: Long = System.currentTimeMillis() - validationStart
   if (elapsed < GradumChatSession.MIN_SENDING_MS)
-    delay((GradumChatSession.MIN_SENDING_MS - elapsed).milliseconds)
+    delay(duration = (GradumChatSession.MIN_SENDING_MS - elapsed).milliseconds)
 
   try {
     val loadContext = true
@@ -149,7 +153,7 @@ internal suspend fun GradumChatSession.sendMessage(
         }
 
     if (imageAttachments.isNotEmpty() && selectedModel?.attachment != true) {
-      val userIndex = messages.lastIndex
+      val userIndex: Int = messages.lastIndex
       if (userIndex >= 0 && messages[userIndex].isUserMessage)
         messages.removeAt(userIndex)
 
@@ -177,28 +181,26 @@ internal suspend fun GradumChatSession.sendMessage(
       modelName = selectedModel?.name,
       projectRoot = project?.basePath,
       imageAttachments = imageAttachments
-    ).catch { exception ->
+    ).catch { exception: Throwable ->
       if (exception is CancellationException) {
         cleanupSubAgent()
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-          val hasOutput = messages[assistantIndex].content.isNotEmpty() ||
+          val hasOutput: Boolean = messages[assistantIndex].content.isNotEmpty() ||
             messages[assistantIndex].events.isNotEmpty()
           if (hasOutput) {
             wasCancelled = true
             messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+              ChatEvent.Error(message = "", code = ErrorCode.INTERRUPTED.code)
             )
             sendingPhase = message("gradum.phase.stopped")
           } else {
             messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Response("\u2026\u2026")
+              ChatEvent.Response(content = "\u2026\u2026")
             )
             sendingPhase = ""
           }
-        } else {
-          sendingPhase = ""
-        }
+        } else sendingPhase = ""
         isSending = false
         return@catch
       }
@@ -207,11 +209,11 @@ internal suspend fun GradumChatSession.sendMessage(
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
         messages[assistantIndex] = messages[assistantIndex].appendEvent(
           ChatEvent.Error(
-            exception.message ?: "Connection failed", code = ErrorCode.CLIENT_ERROR.code
+            message = exception.message ?: "Connection failed",
+            code = ErrorCode.CLIENT_ERROR.code
           )
         )
       }
-
       isSending = false
       sendingPhase = ""
       processPendingQueue()
@@ -226,30 +228,30 @@ internal suspend fun GradumChatSession.sendMessage(
 
         "response" -> {
           isWaitingForResponse = false
-          handleResponseEvent(payload)
+          handleResponseEvent(responseData = payload)
         }
 
         "thinking" -> {
           isWaitingForResponse = false
-          handleThinkingEvent(payload)
+          handleThinkingEvent(data = payload)
         }
 
-        "tool_call_start" -> handleToolCallStartEvent(payload)
+        "tool_call_start" -> handleToolCallStartEvent(data = payload)
 
-        "tool_call" -> handleToolCallEvent(payload)
+        "tool_call" -> handleToolCallEvent(data = payload)
 
         "tool_expect_mismatch" -> {
           isWaitingForResponse = false
-          handleToolExpectMismatch(payload)
+          handleToolExpectMismatch(data = payload)
         }
 
-        "error" -> handleErrorEvent(payload)
+        "error" -> handleErrorEvent(data = payload)
 
-        "sub_agent:start" -> handleSubAgentStart(payload)
-        "sub_agent:response" -> handleSubAgentResponse(payload)
-        "sub_agent:tool_call" -> handleSubAgentToolCall(payload)
-        "sub_agent:error" -> handleSubAgentError(payload)
-        "sub_agent:session_end" -> handleSubAgentEnd(payload)
+        "sub_agent:start" -> handleSubAgentStart(data = payload)
+        "sub_agent:response" -> handleSubAgentResponse(data = payload)
+        "sub_agent:tool_call" -> handleSubAgentToolCall(data = payload)
+        "sub_agent:error" -> handleSubAgentError(data = payload)
+        "sub_agent:session_end" -> handleSubAgentEnd(data = payload)
 
         "session_end" -> {
           receivedSessionEnd = true
@@ -268,17 +270,17 @@ internal suspend fun GradumChatSession.sendMessage(
       cleanupSubAgent()
       val assistantIndex: Int = messages.lastIndex
       if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-        val hasOutput = messages[assistantIndex].content.isNotEmpty() ||
+        val hasOutput: Boolean = messages[assistantIndex].content.isNotEmpty() ||
           messages[assistantIndex].events.isNotEmpty()
         if (hasOutput) {
           wasCancelled = true
           messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+            ChatEvent.Error(message = "", code = ErrorCode.INTERRUPTED.code)
           )
           sendingPhase = message("gradum.phase.stopped")
         } else {
           messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Response("\u2026\u2026")
+            ChatEvent.Response(content = "\u2026\u2026")
           )
           sendingPhase = ""
         }
@@ -294,7 +296,7 @@ internal suspend fun GradumChatSession.sendMessage(
     if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
       messages[assistantIndex] = messages[assistantIndex].appendEvent(
         ChatEvent.Error(
-          exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
+          message = exception.message ?: "Streaming interrupted", code = ErrorCode.CLIENT_ERROR.code
         )
       )
     }
@@ -321,15 +323,15 @@ private fun GradumChatSession.buildModelConfig(): Map<String, String> {
   val requestParams = mutableMapOf<String, String>()
   val snapshot = ProviderSettings.getInstance().snapshot
 
-  selectedModel?.let { model ->
+  selectedModel?.let { model: ModelInfo ->
     if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
     if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
 
-    val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind ->
+    val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind: ProviderKind ->
       snapshot.isEnabled(kind) && model.server.isNotBlank() &&
         snapshot.configFor(kind).first.trimEnd('/') == model.server.trimEnd('/')
     }
-    configuredKind?.let { kind ->
+    configuredKind?.let { kind: ProviderKind ->
       val key: String = snapshot.configFor(kind).second
       if (key.isNotBlank()) requestParams["apiKey"] = key
     }

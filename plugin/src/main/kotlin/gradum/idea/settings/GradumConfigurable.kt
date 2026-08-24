@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumConfigurable.kt  2026-08-22 12:10:13 Changed by gwy
+ * GradumConfigurable.kt  2026-08-24 21:44:02 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -23,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.options.Configurable
@@ -33,6 +35,7 @@ import gradum.idea.scanCompletedAgo
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.bridge.JewelComposePanel
@@ -47,7 +50,7 @@ import javax.swing.JComponent
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
-private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
+private val SETTINGS_PANEL_MAX_HEIGHT: Dp = 720.dp
 
 /**
  * IntelliJ settings entry point for Gradum.
@@ -59,7 +62,7 @@ private val SETTINGS_PANEL_MAX_HEIGHT = 720.dp
  */
 class GradumConfigurable : Configurable, Configurable.NoScroll {
 
-  private val appearance = AppearanceSettings.getInstance()
+  private val appearance: AppearanceSettings = AppearanceSettings.getInstance()
   private var composePanel: JComponent? = null
 
   /**
@@ -68,15 +71,15 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
    * changes take effect once the user confirms.
    */
   private val appearanceDraft: MutableState<AppearanceSettings.State> =
-    mutableStateOf(appearance.snapshot)
+    mutableStateOf(value = appearance.snapshot)
 
   override fun getDisplayName(): String = "Gradum"
 
   override fun createComponent(): JComponent {
-    val panel = JewelComposePanel {
+    val panel: JComponent = JewelComposePanel {
       SettingsPanel(
-        appearanceDraft = appearanceDraft,
         parentComponent = composePanel,
+        appearanceDraft = appearanceDraft
       )
     }
     composePanel = panel
@@ -121,29 +124,29 @@ private fun SettingsPanel(
   appearanceDraft: MutableState<AppearanceSettings.State>,
   parentComponent: JComponent?,
 ) {
-  var checkingUpdate by remember { mutableStateOf(false) }
-  var versionsCopied by remember { mutableStateOf(false) }
-  val autoOpenInEditor = remember { mutableStateOf(false) }
-  var lastCheckedAt by remember { mutableStateOf(0L) }
+  var checkingUpdate: Boolean by remember { mutableStateOf(value = false) }
+  var versionsCopied: Boolean by remember { mutableStateOf(value = false) }
+  val autoOpenInEditor: MutableState<Boolean> = remember { mutableStateOf(value = false) }
+  var lastCheckedAt: Long by remember { mutableStateOf(value = 0L) }
 
-  val updateScope = rememberCoroutineScope()
-  val copyScope = rememberCoroutineScope()
-  val versionSummary = remember {
+  val updateScope: CoroutineScope = rememberCoroutineScope()
+  val copyScope: CoroutineScope = rememberCoroutineScope()
+  val versionSummary: String = remember {
     buildString {
       appendLine(message("gradum.settings.devtools") + " 2026.0730.383-beta")
-      appendLine("Gradum Agent (0.9.2.3293)")
+      appendLine(value = "Gradum Agent (0.9.2.3293)")
       append("Gradum Git Analysis (1.1.0.2388)")
     }
   }
-  val onCopyVersions = {
+  val onCopyVersions: () -> Unit = {
     copyToClipboard(
+      scope = copyScope,
       text = versionSummary,
       onCopied = { versionsCopied = true },
-      onReset = { versionsCopied = false },
-      scope = copyScope
+      onReset = { versionsCopied = false }
     )
   }
-  val onCheckForUpdates = {
+  val onCheckForUpdates: () -> Unit = {
     if (!checkingUpdate) {
       checkingUpdate = true
       updateScope.launch {
@@ -158,7 +161,7 @@ private fun SettingsPanel(
     modifier = Modifier
       .fillMaxWidth()
       .heightIn(max = SETTINGS_PANEL_MAX_HEIGHT)
-      .verticalScroll(rememberScrollState())
+      .verticalScroll(state = rememberScrollState())
       .padding(horizontal = GradumSpacing.lg),
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
   ) {
@@ -192,7 +195,9 @@ private fun SettingsPanel(
       ) {
         IconButton(onClick = { onCopyVersions() }) {
           Icon(
-            key = if (versionsCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
+            key =
+              if (versionsCopied) AllIconsKeys.Actions.Checked
+              else AllIconsKeys.General.Copy,
             contentDescription = message("gradum.settings.copy.tooltip"),
           )
         }
@@ -220,18 +225,18 @@ private fun SettingsPanel(
       Spacer(Modifier.height(GradumSpacing.md))
       Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
         SettingCheckboxRow(
+          enabled = true,
           label = "Gradum Agent (0.9.2.3293)",
           checked = appearanceDraft.value.agentEnabled,
-          enabled = true,
-          onCheckedChange = { checked ->
+          onCheckedChange = { checked: Boolean ->
             appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)
           }
         )
         SettingCheckboxRow(
+          enabled = true,
           label = "Gradum Git Analysis (1.1.0.2388)",
           checked = appearanceDraft.value.gitEnabled,
-          enabled = true,
-          onCheckedChange = { checked ->
+          onCheckedChange = { checked: Boolean ->
             appearanceDraft.value = appearanceDraft.value.copy(gitEnabled = checked)
           }
         )
@@ -252,7 +257,7 @@ private fun SettingsPanel(
       if (lastCheckedAt > 0L) {
         Text(
           color = JewelTheme.globalColors.text.info,
-          text = message("gradum.settings.update.checked", scanCompletedAgo(lastCheckedAt))
+          text = message("gradum.settings.update.checked", scanCompletedAgo(millis = lastCheckedAt))
         )
       }
     }
@@ -272,20 +277,21 @@ private fun SettingsPanel(
 
 @Composable
 private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
-  val snapshot = draft.value
-  val density = snapshot.paragraphDensity
+  val snapshot: AppearanceSettings.State = draft.value
+  val density: ParagraphDensity = snapshot.paragraphDensity
 
-  val densityButtons = ParagraphDensity.entries.map { d ->
-    SegmentedControlButtonData(
-      selected = d == density,
-      content = { _ ->
-        Text(text = message("gradum.settings.appearance.density.${d.storageKey}"))
-      },
-      onSelect = {
-        draft.value = draft.value.copy(paragraphDensity = d)
-      },
-    )
-  }
+  val densityButtons: List<SegmentedControlButtonData> =
+    ParagraphDensity.entries.map { d: ParagraphDensity ->
+      SegmentedControlButtonData(
+        selected = d == density,
+        content = { _: SegmentedControlButtonState ->
+          Text(text = message(key = "gradum.settings.appearance.density.${d.storageKey}"))
+        },
+        onSelect = {
+          draft.value = draft.value.copy(paragraphDensity = d)
+        },
+      )
+    }
 
   Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
     Row(
@@ -309,7 +315,7 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         minSp = MIN_PARAGRAPH_FONT_SIZE_SP,
         maxSp = MAX_PARAGRAPH_FONT_SIZE_SP,
         fontSizeSp = snapshot.paragraphFontSizeSp,
-        onFontSizeChange = { fontSize ->
+        onFontSizeChange = { fontSize: Float ->
           draft.value = draft.value.copy(paragraphFontSizeSp = fontSize)
         }
       ),
@@ -317,7 +323,7 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         minSp = MIN_CODE_BLOCK_FONT_SIZE_SP,
         maxSp = MAX_CODE_BLOCK_FONT_SIZE_SP,
         fontSizeSp = snapshot.codeBlockFontSizeSp,
-        onFontSizeChange = { fontSize ->
+        onFontSizeChange = { fontSize: Float ->
           draft.value = draft.value.copy(codeBlockFontSizeSp = fontSize)
         },
         allowAuto = true
@@ -326,41 +332,41 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
 
     Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
       SettingCheckboxRow(
+        enabled = true,
         label = message("gradum.settings.appearance.timestamp"),
         checked = snapshot.showTimestamp,
-        enabled = true,
-        onCheckedChange = { checked ->
+        onCheckedChange = { checked: Boolean ->
           draft.value = draft.value.copy(showTimestamp = checked)
         }
       )
       SettingCheckboxRow(
+        enabled = true,
         label = message("gradum.settings.appearance.collapsethinking"),
         checked = snapshot.collapseThinkingByDefault,
-        enabled = true,
-        onCheckedChange = { checked ->
+        onCheckedChange = { checked: Boolean ->
           draft.value = draft.value.copy(collapseThinkingByDefault = checked)
         }
       )
       SettingCheckboxRow(
-        label = message("gradum.settings.appearance.modelname"),
-        checked = snapshot.showModelName,
         enabled = true,
-        onCheckedChange = { checked ->
+        label = message(key = "gradum.settings.appearance.modelname"),
+        checked = snapshot.showModelName,
+        onCheckedChange = { checked: Boolean ->
           draft.value = draft.value.copy(showModelName = checked)
         }
       )
       SettingCheckboxRow(
+        enabled = true,
         label = message("gradum.settings.appearance.autoscroll"),
         checked = snapshot.autoScrollToBottom,
-        enabled = true,
-        onCheckedChange = { checked ->
+        onCheckedChange = { checked: Boolean ->
           draft.value = draft.value.copy(autoScrollToBottom = checked)
         }
       )
       SettingCheckboxRow(
+        enabled = true,
         label = message("gradum.settings.appearance.stickysections"),
         checked = snapshot.enableStickySections,
-        enabled = true,
         onCheckedChange = { checked ->
           draft.value = draft.value.copy(enableStickySections = checked)
         }
@@ -461,7 +467,9 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         onCheckedChange = { checked ->
           draft.value = draft.value.copy(
             messageLoadEnabled = checked,
-            messageLoadCount = snapshot.messageLoadCount.coerceIn(MIN_MESSAGE_LOAD_COUNT, MAX_MESSAGE_LOAD_COUNT)
+            messageLoadCount = snapshot
+              .messageLoadCount
+              .coerceIn(MIN_MESSAGE_LOAD_COUNT, MAX_MESSAGE_LOAD_COUNT)
           )
         }
       )
@@ -470,8 +478,8 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
         modifier = Modifier.align(Alignment.CenterVertically)
       )
       MessageLoadCountField(
-        enabled = snapshot.messageLoadEnabled,
         days = snapshot.messageLoadCount,
+        enabled = snapshot.messageLoadEnabled,
         onDaysChange = { count ->
           draft.value = draft.value.copy(messageLoadCount = count)
         }
@@ -624,10 +632,10 @@ private fun WelcomeLayoutPreview(
   layout: WelcomeLayout,
   onLayoutChange: (WelcomeLayout) -> Unit
 ) {
-  val qsCount = layout.quickStartCount
-  val rcCount = layout.recentCount
-  val qsColor = JewelTheme.globalColors.text.info.copy(alpha = 0.25f)
-  val rcColor = JewelTheme.globalColors.text.info.copy(alpha = 0.15f)
+  val qsCount: Int = layout.quickStartCount
+  val rcCount: Int = layout.recentCount
+  val qsColor: Color = JewelTheme.globalColors.text.info.copy(alpha = 0.25f)
+  val rcColor: Color = JewelTheme.globalColors.text.info.copy(alpha = 0.15f)
   val featureIcons = listOf(
     GradumIcons.FeatChat, GradumIcons.FeatQuestion,
     GradumIcons.FeatCode, GradumIcons.FeatText
@@ -652,9 +660,9 @@ private fun WelcomeLayoutPreview(
           onDrag = { change: PointerInputChange, _: Offset ->
             val maxQs = 5
             val minRc = 2
-            val fraction = change.position.y / totalHeight
-            val targetQs = (fraction * maxQs).roundToInt().coerceIn(0, maxQs)
-            val targetRc = 6 - targetQs
+            val fraction: Float = change.position.y / totalHeight
+            val targetQs: Int = (fraction * maxQs).roundToInt().coerceIn(0, maxQs)
+            val targetRc: Int = 6 - targetQs
             if (targetRc >= minRc)
               onLayoutChange(welcomeLayoutFromQsCount(targetQs))
           }
@@ -664,22 +672,22 @@ private fun WelcomeLayoutPreview(
   ) {
     if (qsCount > 0) {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(qsCount) { i ->
+        repeat(times = qsCount) { i: Int ->
           Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.width(150.dp)
           ) {
             Icon(
-              key = featureIcons[i % featureIcons.size],
               contentDescription = null,
-              modifier = Modifier.size(16.dp)
+              modifier = Modifier.size(16.dp),
+              key = featureIcons[i % featureIcons.size]
             )
             Box(
               modifier = Modifier
                 .weight(1f)
                 .height(6.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(shape = RoundedCornerShape(size = 4.dp))
                 .background(qsColor)
             )
           }
@@ -707,7 +715,7 @@ private fun WelcomeLayoutPreview(
         modifier = Modifier
           .height(1.dp)
           .weight(1f)
-          .clip(RoundedCornerShape(2.dp))
+          .clip(shape = RoundedCornerShape(size = 2.dp))
           .background(dividerColor)
       )
     }
@@ -717,7 +725,7 @@ private fun WelcomeLayoutPreview(
 
     if (rcCount > 0) {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        repeat(rcCount) {
+        repeat(times = rcCount) {
           Row(
             modifier = Modifier.width(150.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -732,7 +740,7 @@ private fun WelcomeLayoutPreview(
               modifier = Modifier
                 .weight(1f)
                 .height(6.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(shape = RoundedCornerShape(size = 4.dp))
                 .background(rcColor)
             )
           }
@@ -769,7 +777,7 @@ private fun ActionOptionRow(
     )
     Spacer(Modifier.width(GradumSpacing.sm))
     Text(text = label)
-    iconKeys.forEach { iconKey ->
+    iconKeys.forEach { iconKey: IconKey ->
       Spacer(Modifier.width(GradumSpacing.sm))
       Icon(key = iconKey, contentDescription = label)
     }
@@ -799,9 +807,7 @@ private data class FontSizeEntry(
  */
 @Composable
 private fun FontSizeRow(
-  labelKey: String,
-  primary: FontSizeEntry,
-  secondary: FontSizeEntry
+  labelKey: String, primary: FontSizeEntry, secondary: FontSizeEntry
 ) {
   FlowRow(
     modifier = Modifier.fillMaxWidth(),
@@ -809,7 +815,7 @@ private fun FontSizeRow(
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
   ) {
     Text(
-      text = message("${labelKey}.before"),
+      text = message(key = "${labelKey}.before"),
       modifier = Modifier.align(Alignment.CenterVertically)
     )
     FontSizeField(
@@ -823,7 +829,7 @@ private fun FontSizeRow(
       modifier = Modifier.align(Alignment.CenterVertically)
     )
     Text(
-      text = message("${labelKey}.between"),
+      text = message(key = "${labelKey}.between"),
       modifier = Modifier.align(Alignment.CenterVertically)
     )
     FontSizeField(

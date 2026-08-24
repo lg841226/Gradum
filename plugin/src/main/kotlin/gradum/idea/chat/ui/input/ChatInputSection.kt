@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputSection.kt  2026-08-12 18:53:10 Changed by gwy
+ * ChatInputSection.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -49,9 +49,9 @@ fun ChatInputSection(
       models = state.models,
       pinnedModels = state.pinnedModels,
       thinkingLevel = state.thinkingLevel,
+      onRefreshModels = actions.onRefreshModels,
       onTogglePin = actions.onTogglePin,
       onSelectModel = actions.onSelectModel,
-      onRefreshModels = actions.onRefreshModels,
       onSelectThinkingLevel = actions.onSelectThinkingLevel
     )
   }

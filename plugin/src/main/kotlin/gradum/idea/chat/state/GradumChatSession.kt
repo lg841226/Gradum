@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-24 19:30:45 Changed by gwy
+ * GradumChatSession.kt  2026-08-25 01:01:14 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -181,16 +181,16 @@ class GradumChatSession {
     val coroutineScope: CoroutineScope? = scope
     if (coroutineScope == null) {
       sessions.clear()
-      sessions.addAll(sessionStore.listSessions())
+      sessions.addAll(elements = sessionStore.listSessions())
       return
     }
-    sessionRefreshJob?.cancel(CancellationException("Gradum, refresh sessions"))
+    sessionRefreshJob?.cancel(cause = CancellationException("Gradum, refresh sessions"))
     sessionRefreshJob = coroutineScope.launch {
       val listedSessions: List<SessionMeta> = withContext(Dispatchers.IO) {
         sessionStore.listSessions()
       }
       sessions.clear()
-      sessions.addAll(listedSessions)
+      sessions.addAll(elements = listedSessions)
     }
   }
 
@@ -205,7 +205,7 @@ class GradumChatSession {
   }
 
   fun toggleMergeSelection(sessionId: String) {
-    if (sessionId in mergeSelection) mergeSelection.remove(sessionId)
+    if (sessionId in mergeSelection) mergeSelection.remove(element = sessionId)
     else mergeSelection.add(sessionId)
   }
 
@@ -214,7 +214,7 @@ class GradumChatSession {
     val sessionStore: ChatSessionStore = chatStore ?: return false
     val resultTitle: String = nextMergeTitle()
     withContext(Dispatchers.IO) {
-      sessionStore.mergeSessions(mergeSelection.toList(), resultTitle)
+      sessionStore.mergeSessions(sessionIds = mergeSelection.toList(), resultTitle)
     } ?: return false
     mergeSelection.clear()
     refreshSessions()
@@ -223,10 +223,10 @@ class GradumChatSession {
 
   private fun nextMergeTitle(): String {
     val base: String = message("gradum.merge.titled")
-    val numberedTitlePattern = Regex("^${Regex.escape(base)}\\s+(\\d+)$")
+    val numberedTitlePattern = Regex(pattern = "^${Regex.escape(literal = base)}\\s+(\\d+)$")
     var maxIndex = 0
-    sessions.forEach { sessionMeta ->
-      val match: MatchResult? = numberedTitlePattern.matchEntire(sessionMeta.title)
+    sessions.forEach { sessionMeta: SessionMeta ->
+      val match: MatchResult? = numberedTitlePattern.matchEntire(input = sessionMeta.title)
       val index: Int = match?.groupValues?.get(1)?.toIntOrNull() ?: 0
       if (index > maxIndex) maxIndex = index
     }
@@ -245,7 +245,7 @@ class GradumChatSession {
   }
 
   fun deleteSessions(sessionIds: List<String>) {
-    sessionIds.forEach { sessionId -> deleteSession(sessionId) }
+    sessionIds.forEach { sessionId: String -> deleteSession(targetSessionId = sessionId) }
   }
 
   suspend fun switchSession(targetSessionId: String): Boolean {
@@ -257,13 +257,13 @@ class GradumChatSession {
 
     val job = currentJob
     currentJob = null
-    job?.cancel(CancellationException("Gradum: switch session"))
+    job?.cancel(cause = CancellationException("Gradum: switch session"))
     sessionId = null
     clearSendState()
     if (activeSessionId != null && messages.isNotEmpty()) saveCurrentSession()
 
     clearConversationState()
-    messages.addAll(loadedTranscript.messages)
+    messages.addAll(elements = loadedTranscript.messages)
     activeSessionId = targetSessionId
     currentSessionTitle = loadedTranscript.sessionMeta.title
     hasSentMessage = loadedTranscript.messages.isNotEmpty()
@@ -289,9 +289,9 @@ class GradumChatSession {
   fun deleteMessage(userMessageIndex: Int) {
     if (userMessageIndex !in messages.indices) return
     if (!messages[userMessageIndex].isUserMessage) return
-    val assistantMessageIndex = (userMessageIndex + 1 until messages.size)
+    val assistantMessageIndex: Int? = (userMessageIndex + 1 until messages.size)
       .firstOrNull { !messages[it].isUserMessage }
-    val messagesToRemove = if (assistantMessageIndex != null)
+    val messagesToRemove: Int = if (assistantMessageIndex != null)
       assistantMessageIndex - userMessageIndex + 1
     else 1
     repeat(messagesToRemove) { messages.removeAt(userMessageIndex) }
@@ -339,7 +339,13 @@ class GradumChatSession {
       isSending = true
       hasSentMessage = true
       isWaitingForResponse = true
-      currentJob = scope?.launch { sendMessage(next.content, next.attachments, "") }
+      currentJob = scope?.launch {
+        sendMessage(
+          userMessage = next.content,
+          next.attachments,
+          contextPath = ""
+        )
+      }
     }
   }
 
@@ -347,7 +353,8 @@ class GradumChatSession {
     try {
       val json: String = apiClient.getModels()
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
-      applyModelList(response.models)
+      applyModelList(newModels = response.models)
+
     } catch (loadException: Exception) {
       if (loadException is CancellationException) throw loadException
       log.warn("Failed to load models from ${apiClient.baseUrl}", loadException)
@@ -358,22 +365,36 @@ class GradumChatSession {
   private fun applyModelList(newModels: List<ModelInfo>) {
     val autoFilter: Boolean = ProviderSettings.getInstance().snapshot.ollamaAutoFilter
     val healthyModels: List<ModelInfo> =
-      if (autoFilter) newModels.filter { it.available } else newModels
+      if (autoFilter) newModels.filter { it.available }
+      else newModels
+
     if (healthyModels == models) {
-      modelsLoaded = true; return
+      modelsLoaded = true
+      return
     }
+
     models.clear()
-    models.addAll(healthyModels)
+    models.addAll(elements = healthyModels)
     modelsLoaded = true
+
     if (models.isEmpty()) {
-      selectedModel = null; pinnedModels.clear(); return
+      selectedModel = null
+      pinnedModels.clear(); return
     }
-    val selectedEntry = selectedModel
+
+    val selectedEntry: ModelInfo? = selectedModel
     when {
       selectedEntry == null -> selectedModel = models.first()
-      models.none { selectedEntry.sameAs(it) } -> selectedModel = models.first()
+      models.none {
+        selectedEntry.sameAs(other = it)
+      } -> selectedModel = models.first()
     }
-    pinnedModels.removeAll { pinned -> models.none { pinned.sameAs(it) } }
+
+    pinnedModels.removeAll { pinned: ModelInfo ->
+      models.none {
+        pinned.sameAs(other = it)
+      }
+    }
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
@@ -392,17 +413,17 @@ class GradumChatSession {
     pollingJob = scope.launch {
       tickerFlow(pollIntervalMs)
         .flatMapLatest { fetchModelsOnce() }
-        .catch { exception ->
+        .catch { exception: Throwable ->
           log.warn("Model polling stream error: ${exception.message}", exception)
         }
-        .collect { json ->
+        .collect { json: String ->
           runCatching {
             val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
             val before: List<ModelInfo> = models.toList()
-            applyModelList(response.models)
+            applyModelList(newModels = response.models)
             if (before != models.toList())
               log.info("Model state updated: ${models.size} models")
-          }.onFailure { exception ->
+          }.onFailure { exception: Throwable ->
             log.debug("Failed to decode /models response, skipping this tick", exception)
           }
         }
@@ -411,7 +432,8 @@ class GradumChatSession {
 
   private fun tickerFlow(intervalMs: Long): Flow<Unit> = flow {
     while (currentCoroutineContext().isActive) {
-      delay(intervalMs.milliseconds); emit(Unit)
+      delay(duration = intervalMs.milliseconds)
+      emit(value = Unit)
     }
   }
 
@@ -423,22 +445,22 @@ class GradumChatSession {
     } catch (exception: Exception) {
       log.debug("Polling /models failed: ${exception.message}"); return@flow
     }
-    emit(json)
+    emit(value = json)
   }
 
   fun stopModelPolling() {
-    val pollingActiveJob = pollingJob; pollingJob = null
+    val pollingActiveJob: Job? = pollingJob; pollingJob = null
     if (pollingActiveJob != null) {
       try {
-        pollingActiveJob.cancel(CancellationException("Gradum: stop model polling"))
+        pollingActiveJob.cancel(cause = CancellationException("Gradum: stop model polling"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel polling job", throwable)
       }
     }
-    val probeRefreshActiveJob = probeRefreshJob; probeRefreshJob = null
+    val probeRefreshActiveJob: Job? = probeRefreshJob; probeRefreshJob = null
     if (probeRefreshActiveJob != null) {
       try {
-        probeRefreshActiveJob.cancel(CancellationException("Gradum: stop probe refresh job"))
+        probeRefreshActiveJob.cancel(cause = CancellationException("Gradum: stop probe refresh job"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel probe refresh job", throwable)
       }
@@ -447,15 +469,17 @@ class GradumChatSession {
 
   suspend fun stopSession() {
     cleanupSubAgent()
-    val activeJob = currentJob; currentJob = null
+    val activeJob: Job? = currentJob
+    currentJob = null
+
     if (activeJob != null) {
       try {
-        activeJob.cancel(CancellationException("Gradum: stop session"))
+        activeJob.cancel(cause = CancellationException("Gradum: stop session"))
       } catch (throwable: Throwable) {
         log.warn("Failed to cancel current job on stopSession", throwable)
       }
     }
-    val currentSessionId = sessionId
+    val currentSessionId: String? = sessionId
     if (currentSessionId != null) {
       try {
         apiClient.stopSession(currentSessionId)
@@ -477,21 +501,22 @@ class GradumChatSession {
     private const val MAX_PENDING_MESSAGES: Int = PluginConfig.MAX_PENDING_MESSAGES
     internal const val MAX_CONNECT_ATTEMPTS: Int = PluginConfig.MAX_CONNECT_ATTEMPTS
 
-    private val FOCUS_FILE_PATTERN: Regex = Regex("@focus")
-    private val FILE_REF_PATTERN: Regex = Regex("""@file:(\S+)""")
+    private val FOCUS_FILE_PATTERN: Regex = Regex(pattern = "@focus")
+    private val FILE_REF_PATTERN: Regex = Regex(pattern = """@file:(\S+)""")
 
     fun resolveInlineTags(
       text: String, focusedFilePath: String, openFiles: List<VirtualFile>
     ): Pair<String, Boolean> {
-      val hasFocusTag = focusedFilePath.isNotEmpty() && FOCUS_FILE_PATTERN.containsMatchIn(text)
-      val hasFileReference = FILE_REF_PATTERN.containsMatchIn(text)
+      val hasFocusTag: Boolean = focusedFilePath.isNotEmpty()
+        && FOCUS_FILE_PATTERN.containsMatchIn(input = text)
+      val hasFileReference: Boolean = FILE_REF_PATTERN.containsMatchIn(input = text)
       if (!hasFocusTag && !hasFileReference) return text to false
 
       val resultBuffer = StringBuilder(text)
       var wasReplaced = false
 
       if (hasFocusTag) {
-        val resolvedText = resultBuffer.replace(
+        val resolvedText: String = resultBuffer.replace(
           regex = FOCUS_FILE_PATTERN,
           replacement = "<Context path=\"$focusedFilePath\"/>"
         )
@@ -500,16 +525,21 @@ class GradumChatSession {
         wasReplaced = true
       }
       if (hasFileReference) {
-        FILE_REF_PATTERN.findAll(resultBuffer).toList().reversed().forEach { match ->
-          val fileName: String = match.groupValues[1]
-          val matchedFile: VirtualFile? = openFiles.find { it.name == fileName }
-          if (matchedFile != null) {
-            resultBuffer.replace(
-              match.range.first, match.range.last + 1, "<Attachments paths=\"${matchedFile.path}\"/>"
-            )
-            wasReplaced = true
+        FILE_REF_PATTERN.findAll(input = resultBuffer)
+          .toList()
+          .reversed()
+          .forEach { match: MatchResult ->
+            val fileName: String = match.groupValues[1]
+            val matchedFile: VirtualFile? = openFiles.find { it.name == fileName }
+            if (matchedFile != null) {
+              resultBuffer.replace(
+                match.range.first,
+                match.range.last + 1,
+                "<Attachments paths=\"${matchedFile.path}\"/>"
+              )
+              wasReplaced = true
+            }
           }
-        }
       }
       return resultBuffer.toString() to wasReplaced
     }

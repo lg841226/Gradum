@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-23 21:07:57 Changed by gwy
+ * InlineMarkdown.kt  2026-08-24 21:56:54 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -447,11 +447,11 @@ internal fun parseInlineNodes(
   return try {
     val renderState = RenderState(
       density = density,
+      codeColor = codeColor,
       linkColor = linkColor,
       fontSizeSp = fontSizeSp,
       latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
-      codeColor = codeColor,
       editorFontFamily = editorFontFamily
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
@@ -560,17 +560,19 @@ private class RenderState(
   val fontSizeSp: Float,
   val imageAltColor: Color,
   val codeColor: Color,
-  var latexCounter: Int = 0,
-  var imageAltCounter: Int = 0,
-  var footnoteCounter: Int = 0,
   val density: Density? = null,
-  var currentStyle: SpanStyle = SpanStyle(),
-  val parenLatexFormulas: Map<String, String> = emptyMap(),
-  val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf(),
-  val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf(),
   private val latexMeasurer: LatexMeasurerState? = null,
+  val parenLatexFormulas: Map<String, String> = emptyMap(),
   val editorFontFamily: FontFamily = FontFamily.Default
 ) {
+  // Mutable state mutated while walking the AST, kept out of the config
+  // constructor so callers pass only immutable rendering settings.
+  var currentStyle: SpanStyle = SpanStyle()
+  private var latexCounter: Int = 0
+  private var imageAltCounter: Int = 0
+  private var footnoteCounter: Int = 0
+  val urlAnnotations: MutableList<UrlAnnotation> = mutableListOf()
+  val inlineContent: MutableMap<String, InlineTextContent> = mutableMapOf()
   private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
 
   /** Snapshot + restore helper for the recursive walker. */

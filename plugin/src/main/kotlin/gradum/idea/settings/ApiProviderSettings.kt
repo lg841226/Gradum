@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-17 18:24:32 Changed by gwy
+ * ApiProviderSettings.kt  2026-08-24 21:28:34 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -24,8 +24,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import gradum.idea.provider.ProviderConfigFile
 import gradum.idea.PluginConfig
+import gradum.idea.provider.ProviderConfigFile
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
@@ -115,13 +115,12 @@ internal fun ApiProviderSettings() {
         checked = state.ollamaAutoFilter,
         messageKey = "gradum.settings.provider.ollama.autofilter"
       ),
-      onExtraToggleChange = { isChecked ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.ollamaAutoFilter = isChecked
-        }
-        settings.update(transform, persistToDisk = false)
-      },
-    )
+    ) { isChecked ->
+      val transform: (ProviderSettings.State) -> Unit = { s ->
+        s.ollamaAutoFilter = isChecked
+      }
+      settings.update(transform, persistToDisk = false)
+    }
 
     Spacer(Modifier.height(GradumSpacing.ml))
 
@@ -147,14 +146,13 @@ internal fun ApiProviderSettings() {
         messageKey = "gradum.settings.provider.lmstudio.allowremote",
         checked = state.lmStudioAllowRemote,
       ),
-      onExtraToggleChange = { isChecked ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.lmStudioAllowRemote = isChecked
-        }
-        settings.update(transform, persistToDisk = false)
-        ProviderConfigFile.updateAllowRemote("lmstudio", isChecked)
-      },
-    )
+    ) { isChecked ->
+      val transform: (ProviderSettings.State) -> Unit = { s ->
+        s.lmStudioAllowRemote = isChecked
+      }
+      settings.update(transform, persistToDisk = false)
+      ProviderConfigFile.updateAllowRemote("lmstudio", isChecked)
+    }
 
     Spacer(Modifier.height(GradumSpacing.ml))
 
@@ -281,9 +279,9 @@ private fun CloudProviderTabsSection(
   } else {
     ApiProviderRow(
       kind = activeKind,
+      showTitle = false,
       apiKeyState = keyState!!,
       baseUrlState = urlState!!,
-      showTitle = false,
       onUrlChange = { newUrl ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
           s.setBaseUrl(activeKind, newUrl)

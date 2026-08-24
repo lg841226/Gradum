@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditorContext.kt  2026-08-14 09:53:38 Changed by gwy
+ * EditorContext.kt  2026-08-24 22:47:10 Changed by gwy
  */
 
 package gradum.idea.editor
@@ -24,7 +24,7 @@ data class EditorContext(
   val allOpenFiles: List<VirtualFile>
 ) {
   companion object {
-    val EMPTY = EditorContext(null, null, emptyList())
+    val EMPTY = EditorContext(projectDir = null, currentFile = null, allOpenFiles = emptyList())
   }
 }
 
@@ -134,9 +134,9 @@ object EditorUtils {
    *                 unknown / unlabelled blocks — falls back to plain text.
    */
   fun openCodeAsNewFile(project: Project, code: String, language: String) {
-    val normalizedLanguage = language.trim().lowercase()
-    val extension = extensionForLanguage(normalizedLanguage)
-    val stem = normalizedLanguage.ifBlank { "untitled" }
+    val normalizedLanguage: String = language.trim().lowercase()
+    val extension: String = extensionForLanguage(normalizedLanguage)
+    val stem: String = normalizedLanguage.ifBlank { "untitled" }
     val fileName = "gradum_$stem.$extension"
 
     val basePath: String = project.basePath ?: return
@@ -144,7 +144,7 @@ object EditorUtils {
 
     val virtualFile = WriteCommandAction.writeCommandAction(project)
       .compute<VirtualFile, Exception> {
-        val newFile = baseDir.createChildData(this, fileName)
+        val newFile: VirtualFile = baseDir.createChildData(this, fileName)
         newFile.setBinaryContent(code.toByteArray(Charsets.UTF_8))
         newFile
       }
@@ -158,30 +158,31 @@ object EditorUtils {
    * Maps a GFM fenced-code language tag to a conventional file extension.
    * Unknown / blank tags fall back to `.txt`.
    */
-  private fun extensionForLanguage(language: String): String = when (language) {
-    "kotlin", "kt" -> "kt"
-    "java" -> "java"
-    "javascript", "js" -> "js"
-    "typescript", "ts" -> "ts"
-    "python", "py" -> "py"
-    "go", "golang" -> "go"
-    "rust", "rs" -> "rs"
-    "c" -> "c"
-    "cpp", "c++" -> "cpp"
-    "csharp", "cs", "c#" -> "cs"
-    "html" -> "html"
-    "css" -> "css"
-    "scss" -> "scss"
-    "json" -> "json"
-    "yaml", "yml" -> "yaml"
-    "xml" -> "xml"
-    "shell", "bash", "sh", "zsh" -> "sh"
-    "ruby", "rb" -> "rb"
-    "php" -> "php"
-    "sql" -> "sql"
-    "markdown", "md" -> "md"
-    "swift" -> "swift"
-    "kotlin-script", "kts" -> "kts"
-    else -> "txt"
-  }
+  private fun extensionForLanguage(language: String): String =
+    when (language) {
+      "kotlin", "kt" -> "kt"
+      "java" -> "java"
+      "javascript", "js" -> "js"
+      "typescript", "ts" -> "ts"
+      "python", "py" -> "py"
+      "go", "golang" -> "go"
+      "rust", "rs" -> "rs"
+      "c" -> "c"
+      "cpp", "c++" -> "cpp"
+      "csharp", "cs", "c#" -> "cs"
+      "html" -> "html"
+      "css" -> "css"
+      "scss" -> "scss"
+      "json" -> "json"
+      "yaml", "yml" -> "yaml"
+      "xml" -> "xml"
+      "shell", "bash", "sh", "zsh" -> "sh"
+      "ruby", "rb" -> "rb"
+      "php" -> "php"
+      "sql" -> "sql"
+      "markdown", "md" -> "md"
+      "swift" -> "swift"
+      "kotlin-script", "kts" -> "kts"
+      else -> "txt"
+    }
 }

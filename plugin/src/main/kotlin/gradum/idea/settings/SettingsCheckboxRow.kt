@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SettingsCheckboxRow.kt  2026-08-16 09:55:28 Changed by gwy
+ * SettingsCheckboxRow.kt  2026-08-24 21:24:48 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -37,9 +37,12 @@ internal fun SettingCheckboxRow(
     Spacer(Modifier.width(GradumSpacing.sm))
     Text(
       text = label,
-      color = if (enabled) LocalContentColor.current
-      else JewelTheme.globalColors.text.disabled,
-      modifier = Modifier.clickable(enabled = enabled) { onCheckedChange(!checked) }
+      color =
+        if (enabled) LocalContentColor.current
+        else JewelTheme.globalColors.text.disabled,
+      modifier = Modifier.clickable(enabled = enabled) {
+        onCheckedChange(!checked)
+      }
     )
   }
 }

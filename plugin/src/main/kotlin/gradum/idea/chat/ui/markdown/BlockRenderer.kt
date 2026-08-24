@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-08-24 04:06:59 Changed by gwy
+ * BlockRenderer.kt  2026-08-24 23:08:14 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -27,6 +27,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -83,14 +84,25 @@ fun RenderNonProseBlock(
   isSimplified: Boolean = false,
   thinkingMode: Boolean = false
 ) {
-  val document: Document = remember(segment.text) {
+  val document: Document = remember(key1 = segment.text) {
     blockReparseParser.parse(segment.text) as Document
   }
 
-  val children: NodeChildren = NodeChildren.of(document)
+  val children: NodeChildren = NodeChildren.of(parent = document)
   val firstNode: Node? = children.first
-  if (firstNode != null) RenderBlockNode(firstNode, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
-  for (childNode in children.rest) RenderBlockNode(childNode, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
+  if (firstNode != null) RenderBlockNode(
+    block = firstNode,
+    onUrlClick = onUrlClick,
+    isSimplified = isSimplified,
+    thinkingMode = thinkingMode
+  )
+  for (childNode: Node in children.rest)
+    RenderBlockNode(
+      block = childNode,
+      onUrlClick = onUrlClick,
+      isSimplified = isSimplified,
+      thinkingMode = thinkingMode
+    )
 }
 
 /**
@@ -132,7 +144,7 @@ fun RenderBlockNode(
 
     else -> Text(
       modifier = Modifier.fillMaxWidth(),
-      text = serializeMarkdownNode(block)
+      text = serializeMarkdownNode(rootNode = block)
     )
   }
 }
@@ -152,17 +164,14 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
     5 -> styling.heading.h5
     else -> styling.heading.h6
   }
-  // Walk the heading's inline children directly. The previous
-  // flow serialized `### 2. **bold**` to `"2. **bold**"` and
-  // reparsed it; commonmark re-interpreted `"2. "` as an
-  // OrderedList, the inline parser bailed, and the bold was lost.
-  // Walking the AST skips the lossy round-trip.
-  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(heading)
+
+  val parseOutcome: InlineMarkdownRenderResult =
+    rememberInlineMarkdownRenderFromNode(heading)
   RenderInlineRender(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(headingStyle.padding)
-      .padding(headingExtraPadding),
+      .padding(paddingValues = headingStyle.padding)
+      .padding(paddingValues = headingExtraPadding),
     onUrlClick = onUrlClick,
     parseOutcome = parseOutcome,
     style = headingStyle.inlinesStyling.textStyle,
@@ -186,7 +195,7 @@ private fun RenderBulletList(
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val unorderedList: MarkdownStyling.List.Unordered = styling.list.unordered
-  val listItems: List<ListItem> = collectListItems(list)
+  val listItems: List<ListItem> = collectListItems(listNode = list)
   val bulletStyle: TextStyle = unorderedList.bulletStyle
   val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
 
@@ -194,20 +203,20 @@ private fun RenderBulletList(
     modifier = Modifier
       .fillMaxWidth()
       .padding(start = startPadding)
-      .padding(listOuterPadding),
+      .padding(paddingValues = listOuterPadding),
     verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
   ) {
     listItems.forEach { listItem: ListItem ->
-      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(::extractTaskListMarker)
+      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(block = ::extractTaskListMarker)
       if (taskMarker != null) {
         RenderTaskListItem(
           item = listItem,
           onUrlClick = onUrlClick,
           indentDepth = indentDepth,
-          isChecked = taskMarker.checked,
-          contentStyle = styling.paragraph.inlinesStyling.textStyle,
           isSimplified = isSimplified,
-          thinkingMode = thinkingMode
+          thinkingMode = thinkingMode,
+          isChecked = taskMarker.checked,
+          contentStyle = styling.paragraph.inlinesStyling.textStyle
         )
       } else {
         RenderListItem(
@@ -245,9 +254,9 @@ private fun RenderOrderedList(
   thinkingMode: Boolean = false
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
+  val listItems: List<ListItem> = collectListItems(list)
   val orderedList: MarkdownStyling.List.Ordered = styling.list.ordered
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-  val listItems: List<ListItem> = collectListItems(list)
   val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
 
   Column(
@@ -257,10 +266,11 @@ private fun RenderOrderedList(
       .padding(listOuterPadding),
     verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
   ) {
-    listItems.forEachIndexed { index, listItem: ListItem ->
+    listItems.forEachIndexed { index: Int, listItem: ListItem ->
       @Suppress("DEPRECATION")
       val number: Int = list.startNumber + index
-      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(::extractTaskListMarker)
+      val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)
+        ?.let(block = ::extractTaskListMarker)
       if (taskMarker != null) {
         RenderTaskListItem(
           item = listItem,
@@ -292,7 +302,8 @@ private fun RenderOrderedList(
 }
 
 internal fun collectListItems(listNode: Node): List<ListItem> =
-  generateSequence(listNode.firstChild) { it.next }.filterIsInstance<ListItem>().toList()
+  generateSequence(seed = listNode.firstChild) { it.next }
+    .filterIsInstance<ListItem>().toList()
 
 /** A `ListItem` that starts with a GFM task-list marker. */
 internal data class TaskListMarker(val checked: Boolean)
@@ -310,9 +321,9 @@ internal fun extractTaskListMarker(paragraph: Paragraph): TaskListMarker? {
   val literal: String = firstText.literal ?: return null
 
   return when {
-    literal == "[ ]" || literal.startsWith("[ ] ") -> TaskListMarker(checked = false)
-    literal == "[x]" || literal.startsWith("[x] ") -> TaskListMarker(checked = true)
-    literal == "[X]" || literal.startsWith("[X] ") -> TaskListMarker(checked = true)
+    literal == "[ ]" || literal.startsWith(prefix = "[ ] ") -> TaskListMarker(checked = false)
+    literal == "[x]" || literal.startsWith(prefix = "[x] ") -> TaskListMarker(checked = true)
+    literal == "[X]" || literal.startsWith(prefix = "[X] ") -> TaskListMarker(checked = true)
     else -> null
   }
 }
@@ -330,16 +341,15 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   // [extractTaskListMarker] — see comment there.
   val stripped: String = when {
     literal == "[ ]" -> ""
-    literal.startsWith("[ ] ") -> literal.removePrefix("[ ] ")
+    literal.startsWith(prefix = "[ ] ") -> literal.removePrefix("[ ] ")
     literal == "[x]" -> ""
-    literal.startsWith("[x] ") -> literal.removePrefix("[x] ")
+    literal.startsWith(prefix = "[x] ") -> literal.removePrefix("[x] ")
     literal == "[X]" -> ""
-    literal.startsWith("[X] ") -> literal.removePrefix("[X] ")
+    literal.startsWith(prefix = "[X] ") -> literal.removePrefix("[X] ")
     else -> return null
   }
   val strippedParagraph = Paragraph()
   strippedParagraph.appendChild(org.commonmark.node.Text(stripped))
-
 
   var currentNode: Node? = firstText.next
   while (currentNode != null) {
@@ -374,7 +384,7 @@ private fun RenderTaskListItem(
   isSimplified: Boolean = false,
   thinkingMode: Boolean = false
 ) {
-  val children: NodeChildren = NodeChildren.of(item)
+  val children: NodeChildren = NodeChildren.of(parent = item)
   if (children.isEmpty) return
   val first: Node? = children.first
 
@@ -383,7 +393,7 @@ private fun RenderTaskListItem(
       paragraph = first,
       isChecked = isChecked,
       onUrlClick = onUrlClick,
-      contentStyle = contentStyle,
+      contentStyle = contentStyle
     )
     return
   }
@@ -406,10 +416,10 @@ private fun RenderTaskListItem(
           onCheckedChange = {}
         ) {}
       }
-      RenderBlockNode(first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
+      RenderBlockNode(block = first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
-    for (child in children.rest) {
-      RenderBlockNode(child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
+    for (child: Node in children.rest) {
+      RenderBlockNode(block = child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
   }
 }
@@ -431,7 +441,7 @@ private fun RenderTaskListItemRow(
 ) {
   val strippedParagraph: Paragraph = stripTaskListMarker(paragraph) ?: paragraph
   val parseOutcome: InlineMarkdownRenderResult =
-    rememberInlineMarkdownRenderFromNode(strippedParagraph)
+    rememberInlineMarkdownRenderFromNode(parentNode = strippedParagraph)
   Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
     CheckboxRow(
       enabled = false,
@@ -443,7 +453,7 @@ private fun RenderTaskListItemRow(
         onUrlClick = onUrlClick,
         parseOutcome = parseOutcome,
         modifier = Modifier.weight(1f),
-        fallbackText = serializeInlineChildren(strippedParagraph)
+        fallbackText = serializeInlineChildren(containerNode = strippedParagraph)
       )
     }
   }
@@ -477,7 +487,7 @@ private fun RenderListItem(
   isSimplified: Boolean = false,
   thinkingMode: Boolean = false
 ) {
-  val children: NodeChildren = NodeChildren.of(item)
+  val children: NodeChildren = NodeChildren.of(parent = item)
   if (children.isEmpty) return
   val first: Node? = children.first
 
@@ -506,10 +516,10 @@ private fun RenderListItem(
         style = listStyle.prefixStyle
       )
       if (first != null)
-        RenderBlockNode(first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
+        RenderBlockNode(block = first, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
-    for (child in children.rest) {
-      RenderBlockNode(child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
+    for (child: Node in children.rest) {
+      RenderBlockNode(block = child, indentDepth + 1, onUrlClick, isSimplified, thinkingMode)
     }
   }
 }
@@ -530,19 +540,22 @@ private fun RenderInlineTextInListRow(
   onUrlClick: (String) -> Unit
 ) {
   val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
-  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.Top
+  ) {
     MarkerColumn(
       prefixText = prefixText,
       prefixStyle = listStyle.prefixStyle,
-      prefixColumnMinWidth = listStyle.prefixColumnMinWidth,
       prefixContentGap = listStyle.prefixContentGap,
+      prefixColumnMinWidth = listStyle.prefixColumnMinWidth
     )
     RenderInlineRender(
+      onUrlClick = onUrlClick,
       parseOutcome = parseOutcome,
       style = listStyle.contentStyle,
       modifier = Modifier.weight(1f),
-      onUrlClick = onUrlClick,
-      fallbackText = serializeInlineChildren(paragraph),
+      fallbackText = serializeInlineChildren(containerNode = paragraph)
     )
   }
 }
@@ -592,15 +605,15 @@ private fun RenderBlockQuote(
   isSimplified: Boolean = false, thinkingMode: Boolean = false
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
-  val quoteTextColor = styling.blockQuote.textColor
+  val quoteTextColor: Color = styling.blockQuote.textColor
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle.copy(
     color = quoteTextColor,
     lineHeight = styling.paragraph.inlinesStyling.textStyle.fontSize * 1.6f
   )
   val quotePadding: PaddingValues = styling.blockQuote.padding
-  val borderColor = styling.blockQuote.lineColor
+  val borderColor: Color = styling.blockQuote.lineColor
   val indentStart: Dp = quotePadding.calculateStartPadding(LayoutDirection.Ltr)
-  val children: NodeChildren = NodeChildren.of(quote)
+  val children: NodeChildren = NodeChildren.of(parent = quote)
 
 
   Row(
@@ -611,7 +624,7 @@ private fun RenderBlockQuote(
       modifier = Modifier
         .width(styling.blockQuote.lineWidth)
         .fillMaxHeight()
-        .clip(RoundedCornerShape(percent = 50))
+        .clip(shape = RoundedCornerShape(percent = 50))
         .background(borderColor)
     )
     Column(
@@ -625,9 +638,13 @@ private fun RenderBlockQuote(
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
     ) {
       val firstChild: Node? = children.first
-      if (firstChild != null) RenderBlockQuoteChild(firstChild, contentStyle, onUrlClick, isSimplified, thinkingMode)
-      for (childNode in children.rest) {
-        RenderBlockQuoteChild(childNode, contentStyle, onUrlClick, isSimplified, thinkingMode)
+      if (firstChild != null) RenderBlockQuoteChild(
+        node = firstChild, quoteTextStyle = contentStyle, onUrlClick, isSimplified, thinkingMode
+      )
+      for (childNode: Node in children.rest) {
+        RenderBlockQuoteChild(
+          childNode, quoteTextStyle = contentStyle, onUrlClick, isSimplified, thinkingMode
+        )
       }
     }
   }
@@ -644,17 +661,23 @@ private fun RenderBlockQuoteChild(
 ) {
   when (node) {
     is Paragraph -> {
-      val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(node)
+      val parseOutcome: InlineMarkdownRenderResult =
+        rememberInlineMarkdownRenderFromNode(parentNode = node)
       RenderInlineRender(
         style = quoteTextStyle,
         onUrlClick = onUrlClick,
         parseOutcome = parseOutcome,
         modifier = Modifier.fillMaxWidth(),
-        fallbackText = serializeInlineChildren(node)
+        fallbackText = serializeInlineChildren(containerNode = node)
       )
     }
 
-    else -> RenderBlockNode(node, onUrlClick = onUrlClick, isSimplified = isSimplified, thinkingMode = thinkingMode)
+    else -> RenderBlockNode(
+      block = node,
+      onUrlClick = onUrlClick,
+      isSimplified = isSimplified,
+      thinkingMode = thinkingMode
+    )
   }
 }
 
@@ -671,7 +694,7 @@ private fun RenderFencedCodeBlock(block: FencedCodeBlock) {
   val blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
   val markdownStyling: MarkdownStyling = rememberGradumMarkdownStyling()
   val fencedStyling: MarkdownStyling.Code.Fenced = markdownStyling.code.fenced
-  val markdownBlock: MarkdownBlock.CodeBlock.FencedCodeBlock = remember(block) {
+  val markdownBlock: MarkdownBlock.CodeBlock.FencedCodeBlock = remember(key1 = block) {
     parseFencedCodeBlock(block)
   }
   blockRenderer.RenderFencedCodeBlock(
@@ -703,9 +726,10 @@ private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {
 @OptIn(ExperimentalJewelApi::class)
 private fun parseFencedCodeBlock(block: FencedCodeBlock): MarkdownBlock.CodeBlock.FencedCodeBlock {
   val markdownSource = "```${block.info ?: ""}\n${block.literal?.trimEnd('\n') ?: ""}\n```"
-  val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(markdownSource)
+  val blocks: List<MarkdownBlock> =
+    GradumMarkdownProcessor.processMarkdownDocument(rawMarkdown = markdownSource)
   val first: MarkdownBlock = blocks.first()
-  require(first is MarkdownBlock.CodeBlock.FencedCodeBlock) {
+  require(value = first is MarkdownBlock.CodeBlock.FencedCodeBlock) {
     "Expected FencedCodeBlock from re-parse, got ${first::class.simpleName}"
   }
   return first
@@ -715,15 +739,14 @@ private fun parseFencedCodeBlock(block: FencedCodeBlock): MarkdownBlock.CodeBloc
 private fun parseIndentedCodeBlock(
   block: IndentedCodeBlock,
 ): MarkdownBlock.CodeBlock.IndentedCodeBlock {
-  // Indented code blocks need a leading blank line to be recognized as a separate block.
   val rawLines: List<String> = (block.literal ?: "").lines()
   val indented: String = buildString {
     append('\n')
-    rawLines.forEach { line -> append("    ").append(line).append('\n') }
+    rawLines.forEach { line: String -> append("    ").append(line).append('\n') }
   }
   val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(indented)
   val first: MarkdownBlock = blocks.first()
-  require(first is MarkdownBlock.CodeBlock.IndentedCodeBlock) {
+  require(value = first is MarkdownBlock.CodeBlock.IndentedCodeBlock) {
     "Expected IndentedCodeBlock from re-parse, got ${first::class.simpleName}"
   }
   return first
@@ -747,13 +770,13 @@ private fun RenderThematicBreak() {
 private fun RenderParagraphWithChips(paragraph: Paragraph, onUrlClick: (String) -> Unit) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
   val baseStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(paragraph)
+  val parseOutcome: InlineMarkdownRenderResult = rememberInlineMarkdownRenderFromNode(parentNode = paragraph)
   RenderInlineRender(
     style = baseStyle,
     onUrlClick = onUrlClick,
     parseOutcome = parseOutcome,
     modifier = Modifier.fillMaxWidth(),
-    fallbackText = serializeInlineChildren(paragraph)
+    fallbackText = serializeInlineChildren(containerNode = paragraph)
   )
 }
 
@@ -784,12 +807,12 @@ fun RenderInlineTextWithChips(
   modifier: Modifier = Modifier,
   onUrlClick: (String) -> Unit = {},
   inlineCodeFontSizeSp: Float? = null,
-  editorFontFamily: FontFamily = FontFamily.Default,
+  editorFontFamily: FontFamily = FontFamily.Default
 ) {
   if (text.isEmpty()) return
   val fontSizeSp: Float = inlineCodeFontSizeSp
     ?: style.fontSize.value.let { if (it <= 0f) FALLBACK_FONT_SIZE_SP_NO_STYLE else it }
-  val textColor: Color = style.color.let { colorValue ->
+  val textColor: Color = style.color.let { colorValue: Color ->
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }
   val linkColor: Color = JewelTheme.linkStyle.colors.content
@@ -828,11 +851,11 @@ private fun RenderInlineRender(
   onUrlClick: (String) -> Unit,
   parseOutcome: InlineMarkdownRenderResult
 ) {
-  val resolvedStyle: TextStyle = if (style.lineHeight.value.isNaN() || style.lineHeight.value <= 0f) {
-    style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
-  } else {
-    style
-  }
+  val resolvedStyle: TextStyle =
+    if (style.lineHeight.value.isNaN() || style.lineHeight.value <= 0f)
+      style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
+    else style
+
   if (parseOutcome.render == null) {
     Text(text = fallbackText, style = resolvedStyle, modifier = modifier)
     return
@@ -844,10 +867,7 @@ private fun RenderInlineRender(
     inlineContent = inlineRender.inlineContent,
   )
   val gradumLinkStyle: LinkStyle = rememberGradumLinkStyle()
-  // Anchor by first baseline so `Text` and `ExternalLink` line up
-  // across wrap boundaries — using `FirstBaseline` would force
-  // ExternalLink's icon row to bottom-align with the text glyphs,
-  // which reads as "links hang below" on multi-line wraps.
+
   FlowRow(
     modifier = modifier,
     horizontalArrangement = Arrangement.Start,
@@ -856,54 +876,34 @@ private fun RenderInlineRender(
     segments.forEach { segment: InlineSegment ->
       when (segment) {
         is InlineSegment.TextSegment -> {
-          val codeSpanAnnotations = remember(segment.annotated) {
-            segment.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, segment.annotated.length)
+          val codeSpanAnnotations = remember(key1 = segment.annotated) {
+            segment.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, start = 0, end = segment.annotated.length)
           }
-          var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-          val density = LocalDensity.current
-          val badgeColor = JewelTheme.globalColors.text.info
-          val backgroundColor = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
-          val borderColor = badgeColor.copy(alpha = 0.3f)
+          var textLayoutResult by remember {
+            mutableStateOf<TextLayoutResult?>(value = null)
+          }
+          val density: Density = LocalDensity.current
+          val badgeColor: Color = JewelTheme.globalColors.text.info
+          val backgroundColor: Color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+          val borderColor: Color = badgeColor.copy(alpha = 0.3f)
           Text(
             style = resolvedStyle,
             text = segment.annotated,
             inlineContent = segment.inlineContent,
-            onTextLayout = { layoutResult -> textLayoutResult = layoutResult },
+            onTextLayout = { layoutResult: TextLayoutResult -> textLayoutResult = layoutResult },
             modifier = Modifier.drawWithContent {
-              val layoutResult = textLayoutResult
-              if (layoutResult != null && codeSpanAnnotations.isNotEmpty()) {
-                val cornerRadiusPx = INLINE_CODE_CORNER_RADIUS.toPx()
-                val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
-                for ((_, start, end) in codeSpanAnnotations) {
-                  if (start >= end) continue
-                  val startLine = layoutResult.getLineForOffset(start)
-                  val endLine = layoutResult.getLineForOffset(end - 1)
-                  for (line in startLine..endLine) {
-                    val lineStart = layoutResult.getLineStart(line)
-                    val lineEnd = layoutResult.getLineEnd(line)
-                    val segmentStart = maxOf(start, lineStart)
-                    val segmentEnd = minOf(end, lineEnd)
-                    if (segmentStart >= segmentEnd) continue
-                    val left = layoutResult.getBoundingBox(segmentStart).left
-                    val right = layoutResult.getBoundingBox(segmentEnd - 1).right
-                    val baseline = layoutResult.getLineBaseline(line)
-                    val chipTop = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
-                    drawRoundRect(
-                      color = backgroundColor,
-                      topLeft = Offset(left, chipTop),
-                      size = Size(right - left, chipHeightPx),
-                      cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
-                    )
-                    drawRoundRect(
-                      color = borderColor,
-                      topLeft = Offset(left, chipTop),
-                      size = Size(right - left, chipHeightPx),
-                      cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
-                      style = Stroke(width = 0.5.dp.toPx())
-                    )
-                  }
+              textLayoutResult
+                ?.takeIf { codeSpanAnnotations.isNotEmpty() }
+                ?.run {
+                  drawInlineCodeChips(
+                    layoutResult = this,
+                    density = density,
+                    style = resolvedStyle,
+                    codeSpans = codeSpanAnnotations,
+                    backgroundColor = backgroundColor,
+                    borderColor = borderColor,
+                  )
                 }
-              }
               drawContent()
             }
           )
@@ -916,6 +916,65 @@ private fun RenderInlineRender(
           onClick = { onUrlClick(segment.url) }
         )
       }
+    }
+  }
+}
+
+/**
+ * Draws the rounded background + border chip behind each inline-code span.
+ *
+ * Works at line granularity so a multi-line code span gets one chip per line.
+ * [layoutResult] is the Text layout used to resolve offsets to geometry; [style]
+ * drives the chip height via its line-height so all chips in the paragraph
+ * render at a uniform height regardless of the glyphs they contain.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawInlineCodeChips(
+  layoutResult: TextLayoutResult,
+  density: Density,
+  style: TextStyle,
+  codeSpans: List<androidx.compose.ui.text.AnnotatedString.Range<String>>,
+  backgroundColor: Color,
+  borderColor: Color,
+) {
+  if (codeSpans.isEmpty()) return
+
+  val cornerRadiusPx: Float = INLINE_CODE_CORNER_RADIUS.toPx()
+  val chipHeightPx: Float = with(density) {
+    style.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER
+  }
+
+  for ((_, start: Int, end: Int) in codeSpans) {
+    if (start >= end) continue
+    val startLine: Int = layoutResult.getLineForOffset(start)
+    val endLine: Int = layoutResult.getLineForOffset(end - 1)
+
+    for (line: Int in startLine..endLine) {
+      val lineStart: Int = layoutResult.getLineStart(line)
+      val lineEnd: Int = layoutResult.getLineEnd(line)
+      val segmentStart: Int = maxOf(a = start, b = lineStart)
+      val segmentEnd: Int = minOf(a = end, b = lineEnd)
+      if (segmentStart >= segmentEnd) continue
+
+      val left: Float = layoutResult.getBoundingBox(offset = segmentStart).left
+      val right: Float = layoutResult.getBoundingBox(offset = segmentEnd - 1).right
+      val baseline: Float = layoutResult.getLineBaseline(line)
+      val chipTop: Float = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
+      val chipOrigin: Offset = Offset(x = left, y = chipTop)
+      val chipSize: Size = Size(width = right - left, height = chipHeightPx)
+
+      drawRoundRect(
+        color = backgroundColor,
+        topLeft = chipOrigin,
+        size = chipSize,
+        cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+      )
+      drawRoundRect(
+        color = borderColor,
+        topLeft = chipOrigin,
+        size = chipSize,
+        cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+        style = Stroke(width = 0.5.dp.toPx())
+      )
     }
   }
 }

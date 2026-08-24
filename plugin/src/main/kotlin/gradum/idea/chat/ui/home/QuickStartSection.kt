@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * QuickStartSection.kt  2026-08-14 02:18:32 Changed by gwy
+ * QuickStartSection.kt  2026-08-24 22:28:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -43,13 +43,13 @@ import org.jetbrains.jewel.ui.typography
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun QuickStartSection(
+  maxItems: Int = 4,
   textState: TextFieldState,
-  suggestionVariants: List<Int>,
-  onRefreshSuggestions: () -> Unit,
   modifier: Modifier = Modifier,
-  maxItems: Int = 4
+  suggestionVariants: List<Int>,
+  onRefreshSuggestions: () -> Unit
 ) {
-  val featureIcons = remember {
+  val featureIcons: List<PathIconKey> = remember {
     listOf(
       GradumIcons.FeatChat, GradumIcons.FeatQuestion,
       GradumIcons.FeatCode, GradumIcons.FeatText
@@ -80,38 +80,40 @@ fun QuickStartSection(
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
       verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs)
     ) {
-      listOf(0, 1, 2, 3).take(maxItems).forEach { categoryIndex ->
-        SuggestionCard(
-          textState = textState,
-          suggestionVariants = suggestionVariants,
-          featureIcons = featureIcons,
-          categoryIndex = categoryIndex,
-        )
-      }
+      listOf(0, 1, 2, 3)
+        .take(n = maxItems)
+        .forEach { categoryIndex: Int ->
+          SuggestionCard(
+            textState = textState,
+            featureIcons = featureIcons,
+            categoryIndex = categoryIndex,
+            suggestionVariants = suggestionVariants
+          )
+        }
     }
   }
 }
 
 @Composable
 private fun SuggestionCard(
+  categoryIndex: Int,
   textState: TextFieldState,
   suggestionVariants: List<Int>,
   featureIcons: List<PathIconKey>,
-  categoryIndex: Int,
   modifier: Modifier = Modifier
 ) {
-  val suggestionText = message("gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
-  val interactionSource = remember { MutableInteractionSource() }
-  val isHovered by interactionSource.collectIsHoveredAsState()
+  val suggestionText: String = message(key = "gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
+  val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+  val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
   Row(
     verticalAlignment = Alignment.CenterVertically,
     modifier = modifier
       .padding(vertical = GradumSpacing.sm)
       .hoverable(interactionSource)
-      .clickable { textState.edit { replace(0, length, suggestionText) } }
-      .clip(RoundedCornerShape(6.dp))
+      .clickable { textState.edit { replace(start = 0, end = 0, suggestionText) } }
+      .clip(shape = RoundedCornerShape(size = 6.dp))
       .background(
-        if (isHovered) JewelTheme.globalColors.text.info
+        color = if (isHovered) JewelTheme.globalColors.text.info
           .copy(alpha = 0.08f) else Color.Transparent
       )
       .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
@@ -123,9 +125,9 @@ private fun SuggestionCard(
     Spacer(modifier = Modifier.width(GradumSpacing.md))
     Text(
       modifier = Modifier.weight(1f),
-      text = suggestionText,
       maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
+      text = suggestionText,
+      overflow = TextOverflow.Ellipsis
     )
     Icon(
       key = AllIconsKeys.General.ArrowRight,

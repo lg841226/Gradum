@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatEventHandlers.kt  2026-08-24 18:59:19 Changed by gwy
+ * ChatEventHandlers.kt  2026-08-25 01:13:35 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -33,7 +33,7 @@ internal fun GradumChatSession.handleResponseEvent(responseData: JsonObject?) {
 
   var updatedMessage = messages[assistantIndex]
 
-  val totalTokens = responseData["totalTokens"]?.jsonPrimitive?.intOrNull ?: 0
+  val totalTokens: Int = responseData["totalTokens"]?.jsonPrimitive?.intOrNull ?: 0
   val responseContent: String = responseData["content"]?.jsonPrimitive?.content ?: ""
 
   if (responseContent.isNotEmpty()) {
@@ -93,7 +93,7 @@ internal fun GradumChatSession.handleToolCallStartEvent(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
       sendingPhase = toolPendingPhase(toolName, toolAlias)
     } catch (appendException: Exception) {
       log.warn("Failed to append tool_call_start event", appendException)
@@ -102,17 +102,17 @@ internal fun GradumChatSession.handleToolCallStartEvent(data: JsonObject?) {
 }
 
 internal fun toolPendingPhase(toolName: String, toolAlias: String): String {
-  return GradumBundle.messageOrNull("gradum.phase.tool.$toolName")
+  return GradumBundle.messageOrNull(key = "gradum.phase.tool.$toolName")
     ?: message("gradum.phase.tool.running", toolAlias)
 }
 
 internal fun GradumChatSession.handleToolCallEvent(data: JsonObject?) {
-  val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
 
-  val toolResultString = data?.get("result")?.toString() ?: ""
-  val toolAlias = data?.get("alias")?.jsonPrimitive?.content ?: toolName
-  val toolCallId = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
-  val callSuccess = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+  val toolResultString: String = data?.get("result")?.toString() ?: ""
+  val toolName: String = data?.get("tool")?.jsonPrimitive?.content ?: "unknown"
+  val toolAlias: String = data?.get("alias")?.jsonPrimitive?.content ?: toolName
+  val toolCallId: String = data?.get("toolCallId")?.jsonPrimitive?.content ?: ""
+  val callSuccess: Boolean = data?.get("success")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
 
   val callArguments: Map<String, Any> = try {
     parseArguments(data?.get("arguments")?.jsonObject)
@@ -133,9 +133,9 @@ internal fun GradumChatSession.handleToolCallEvent(data: JsonObject?) {
   val assistantIndex: Int = messages.lastIndex
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
       scope?.launch {
-        delay(WEAVING_FADE_BUFFER_MS.milliseconds)
+        delay(duration = WEAVING_FADE_BUFFER_MS.milliseconds)
         sendingPhase = message("gradum.phase.weaving")
       }
     } catch (appendException: Exception) {
@@ -167,15 +167,15 @@ internal fun GradumChatSession.handleErrorEvent(data: JsonObject?) {
   val rawMessage: String = data?.get("message")?.jsonPrimitive?.content ?: "Unknown error"
 
   if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-    val updatedMessage = messages[assistantIndex].updateLastError(
-      friendlyErrorMessage(errorCode),
-      errorDetailText(errorCode, rawMessage, errorToolName)
+    val updatedMessage: ChatMessage = messages[assistantIndex].updateLastError(
+      friendlyMessage = friendlyErrorMessage(errorCode),
+      errorDetailText(errorCode, rawMessage, tool = errorToolName)
     )
     if (updatedMessage !== messages[assistantIndex])
       messages[assistantIndex] = updatedMessage
     else
       messages[assistantIndex] = messages[assistantIndex].appendEvent(
-        ChatEvent.Error(rawMessage, errorCode, errorToolName)
+        ChatEvent.Error(rawMessage, errorCode, tool = errorToolName)
       )
   }
 }
@@ -219,21 +219,21 @@ internal fun GradumChatSession.handleSubAgentStart(data: JsonObject?) {
   )
 
   try {
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
   } catch (appendException: Exception) {
     log.warn("Failed to update delegate block on start", appendException)
   }
 
   subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout"))
   subAgentTimeoutJob = scope?.launch {
-    delay(((timeoutSeconds * 1000L) + 30_000L).milliseconds)
+    delay(duration = ((timeoutSeconds * 1000L) + 30_000L).milliseconds)
     if (subAgentState.isActive) {
       log.warn("Sub-agent timed out after ${timeoutSeconds}s")
       handleSubAgentError(
-        JsonObject(
-          mapOf(
-            "message" to JsonPrimitive("Sub-agent timed out after ${timeoutSeconds}s"),
-            "code" to JsonPrimitive("TIMEOUT")
+        data = JsonObject(
+          content = mapOf(
+            "message" to JsonPrimitive(value = "Sub-agent timed out after ${timeoutSeconds}s"),
+            "code" to JsonPrimitive(value = "TIMEOUT")
           )
         )
       )
@@ -275,7 +275,9 @@ internal fun GradumChatSession.handleSubAgentToolCall(data: JsonObject?) {
   // Deduplicate by toolCallId: replace existing entry if present, otherwise append
   val existingIndex: Int = subAgentState.toolCalls.indexOfFirst { it.toolCallId == toolCallId }
   subAgentState.toolCalls = if (existingIndex >= 0) {
-    subAgentState.toolCalls.toMutableList().also { it[existingIndex] = toolCall }
+    subAgentState.toolCalls.toMutableList().also {
+      it[existingIndex] = toolCall
+    }
   } else {
     subAgentState.toolCalls + toolCall
   }
@@ -293,7 +295,7 @@ internal fun GradumChatSession.cleanupSubAgent() {
   val wasActive: Boolean = subAgentState.isActive
   val savedStartTimestamp: Long = subAgentState.startTimestamp
 
-  subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on cleanup"))
+  subAgentTimeoutJob?.cancel(cause = CancellationException("Gradum: cancel sub-agent timeout on cleanup"))
   subAgentTimeoutJob = null
   subAgentState.resetAllState()
   subAgentState.wasInterrupted = true
@@ -320,7 +322,7 @@ internal fun GradumChatSession.cleanupSubAgent() {
         ),
       )
       try {
-        messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(updateToolCall))
+        messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = updateToolCall))
       } catch (appendException: Exception) {
         log.warn("Failed to update delegate capsule on sub-agent cleanup", appendException)
       }
@@ -336,7 +338,7 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
 
   subAgentState.isActive = false
   subAgentState.errorMessage = errorMessage
-  subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on error"))
+  subAgentTimeoutJob?.cancel(cause = CancellationException("Gradum: cancel sub-agent timeout on error"))
   log.warn("Sub-agent error: [$errorCode] $errorMessage")
 
   // Update the delegate capsule in the main chat to show the error
@@ -361,7 +363,7 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
       ),
     )
     try {
-      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+      messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
     } catch (appendException: Exception) {
       log.warn("Failed to update delegate block on error", appendException)
     }
@@ -371,7 +373,7 @@ internal fun GradumChatSession.handleSubAgentError(data: JsonObject?) {
 
 internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
   subAgentState.isActive = false
-  subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on end"))
+  subAgentTimeoutJob?.cancel(cause = CancellationException("Gradum: cancel sub-agent timeout on end"))
 
   val resultText: String = data?.get("result")?.jsonPrimitive?.content ?: "(no output)"
 
@@ -380,11 +382,11 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
       add(ChatMessage(role = "user", content = subAgentState.userQuery))
     }
     val assistantEvents: MutableList<ChatEvent> = mutableListOf()
-    subAgentState.toolCalls.forEach { toolCall ->
-      assistantEvents.add(ChatEvent.ToolCall(toolCall))
+    subAgentState.toolCalls.forEach { toolCall: ToolCallInfo ->
+      assistantEvents.add(ChatEvent.ToolCall(info = toolCall))
     }
     if (subAgentState.streamingResponse.isNotBlank()) {
-      assistantEvents.add(ChatEvent.Response(subAgentState.streamingResponse))
+      assistantEvents.add(ChatEvent.Response(content = subAgentState.streamingResponse))
     }
     add(
       ChatMessage(
@@ -438,7 +440,7 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
   )
 
   try {
-    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(toolCall))
+    messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(info = toolCall))
   } catch (appendException: Exception) {
     log.warn("Failed to update delegate block on end", appendException)
   }
@@ -449,7 +451,7 @@ internal fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
   if (jsonObject == null) return emptyMap()
 
   return try {
-    jsonObject.mapValues { (_, jsonElement) -> convertJsonElement(jsonElement) ?: "" }
+    jsonObject.mapValues { (_, jsonElement: JsonElement) -> convertJsonElement(jsonElement) ?: "" }
   } catch (exception: Exception) {
     Logger.getInstance("ChatEventHandlers").warn("Failed to parse tool arguments", exception)
     emptyMap()
@@ -459,14 +461,17 @@ internal fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {
 private fun convertJsonElement(jsonElement: JsonElement): Any? {
   return when (jsonElement) {
     is JsonArray -> jsonElement.map { convertJsonElement(it) }
-    is JsonObject -> jsonElement.mapValues { (_, value) -> convertJsonElement(value) }
+    is JsonObject -> jsonElement.mapValues { (_, value: JsonElement) ->
+      convertJsonElement(value)
+    }
+
     is JsonPrimitive -> {
       when {
         jsonElement.isString -> jsonElement.content
-        jsonElement.booleanOrNull != null -> jsonElement.boolean
         jsonElement.intOrNull != null -> jsonElement.int
         jsonElement.longOrNull != null -> jsonElement.long
         jsonElement.doubleOrNull != null -> jsonElement.double
+        jsonElement.booleanOrNull != null -> jsonElement.boolean
         else -> jsonElement.content
       }
     }

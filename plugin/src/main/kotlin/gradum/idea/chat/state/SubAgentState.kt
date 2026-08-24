@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubAgentState.kt  2026-08-24 18:59:19 Changed by gwy
+ * SubAgentState.kt  2026-08-25 01:13:35 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -24,31 +24,31 @@ import gradum.idea.chat.model.ToolCallInfo
  */
 class SubAgentState {
   /** Whether a sub-agent is currently running. */
-  var isActive: Boolean by mutableStateOf(false)
+  var isActive: Boolean by mutableStateOf(value = false)
 
   /** Accumulated streaming response text from the sub-agent. */
-  var streamingResponse: String by mutableStateOf("")
+  var streamingResponse: String by mutableStateOf(value = "")
 
   /** Model name used by the sub-agent. */
-  var modelName: String by mutableStateOf("")
+  var modelName: String by mutableStateOf(value = "")
 
   /** Tool calls made by the sub-agent during its execution. */
-  var toolCalls: List<ToolCallInfo> by mutableStateOf(emptyList())
+  var toolCalls: List<ToolCallInfo> by mutableStateOf(value = emptyList())
 
   /** Error message from the sub-agent, non-empty when an error occurred. */
-  var errorMessage: String by mutableStateOf("")
+  var errorMessage: String by mutableStateOf(value = "")
 
   /** Short title describing what the sub-agent is doing. */
-  var title: String by mutableStateOf("")
+  var title: String by mutableStateOf(value = "")
 
   /** The user's original query that triggered this sub-agent. */
-  var userQuery: String by mutableStateOf("")
+  var userQuery: String by mutableStateOf(value = "")
 
   /** Timestamp (epoch millis) when the sub-agent started. */
-  var startTimestamp: Long by mutableStateOf(0L)
+  var startTimestamp: Long by mutableStateOf(value = 0L)
 
   /** Whether the sub-agent was externally interrupted (stop/resetAllState/cancel). */
-  var wasInterrupted: Boolean by mutableStateOf(false)
+  var wasInterrupted: Boolean by mutableStateOf(value = false)
 
   /** Resets all state to initial values. */
   fun resetAllState() {

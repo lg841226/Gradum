@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WhatsNewDialog.kt  2026-08-22 17:05:46 Changed by gwy
+ * WhatsNewDialog.kt  2026-08-25 00:39:18 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -27,6 +28,8 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.ide.BrowserUtil
@@ -42,6 +45,7 @@ import org.jetbrains.jewel.bridge.JewelComposePanel
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
+import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.badgeStyle
@@ -65,7 +69,7 @@ private const val ANIMATION_DURATION_MS = 300
 const val pluginVersion = "0.9.2"
 
 internal fun showWhatsNewDialog() {
-  val dialog = JDialog().apply {
+  val dialog: JDialog = JDialog().apply {
     isModal = true
     title = message("gradum.whatsnew.title", pluginVersion)
     defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
@@ -83,43 +87,42 @@ internal fun showWhatsNewDialog() {
 @OptIn(ExperimentalFoundationApi::class, ExperimentalJewelApi::class)
 @Composable
 private fun WhatsNewContent(onDismiss: () -> Unit) {
-  var currentPage by remember { mutableStateOf(0) }
-  var isPlaying by remember { mutableStateOf(false) }
-  var isImageExpanded by remember { mutableStateOf(false) }
-  val features = remember { featureItems() }
-  val pageCount = features.size
-  val markdownStyling = rememberGradumMarkdownStyling()
-  val baseParagraphStyle = rememberGradumParagraphTextStyle()
-  val enlargedParagraphStyle = remember(baseParagraphStyle) {
+  var currentPage: Int by remember { mutableStateOf(value = 0) }
+  var isPlaying: Boolean by remember { mutableStateOf(value = false) }
+  var isImageExpanded: Boolean by remember { mutableStateOf(value = false) }
+  val features: List<FeatureItem> = remember { featureItems() }
+  val pageCount: Int = features.size
+  val markdownStyling: MarkdownStyling = rememberGradumMarkdownStyling()
+  val baseParagraphStyle: TextStyle = rememberGradumParagraphTextStyle()
+  val enlargedParagraphStyle: TextStyle = remember(key1 = baseParagraphStyle) {
     baseParagraphStyle.copy(fontSize = baseParagraphStyle.fontSize + 1.sp)
   }
 
-  val currentIsPlaying by rememberUpdatedState(isPlaying)
+  val currentIsPlaying: Boolean by rememberUpdatedState(newValue = isPlaying)
 
-  LaunchedEffect(isPlaying) {
+  LaunchedEffect(key1 = isPlaying) {
     if (!currentIsPlaying) return@LaunchedEffect
     while (true) {
-      delay(4000L.milliseconds)
+      delay(duration = 4000L.milliseconds)
       currentPage = (currentPage + 1) % pageCount
     }
   }
 
-  val imageWeight by animateFloatAsState(
+  val imageWeight: Float by animateFloatAsState(
     targetValue = if (isImageExpanded) 1f else 0.6f,
     animationSpec = snap(),
     label = "imageWeight"
   )
 
   val handleKeyEvent: (KeyEvent) -> Boolean = rememberKeyEventHandler(
-    currentPage = currentPage,
     isPlaying = isPlaying,
     pageCount = pageCount,
-    isImageExpanded = isImageExpanded,
     onDismiss = onDismiss,
+    currentPage = currentPage,
+    isImageExpanded = isImageExpanded,
     onPageChange = { currentPage = it },
     onImageExpandChange = { isImageExpanded = it }
   )
-
 
   Column(
     modifier = Modifier
@@ -131,31 +134,31 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
       AnimatedContent(
         targetState = currentPage,
         transitionSpec = {
-          val direction = if (targetState > initialState) 1 else -1
+          val direction: Int = if (targetState > initialState) 1 else -1
           if (direction == 1) {
             (slideInHorizontally(
-              animationSpec = tween(ANIMATION_DURATION_MS, easing = LinearOutSlowInEasing),
-              initialOffsetX = { fullWidth -> fullWidth }
-            ) + fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)))
+              animationSpec = tween(durationMillis = ANIMATION_DURATION_MS, easing = LinearOutSlowInEasing),
+              initialOffsetX = { fullWidth: Int -> fullWidth }
+            ) + fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)))
               .togetherWith(
-                fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
+                exit = fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
               )
           } else {
             (slideInHorizontally(
-              animationSpec = tween(ANIMATION_DURATION_MS),
-              initialOffsetX = { fullWidth -> direction * fullWidth }
-            ) + fadeIn(animationSpec = tween(ANIMATION_DURATION_MS)))
+              animationSpec = tween(durationMillis = ANIMATION_DURATION_MS),
+              initialOffsetX = { fullWidth: Int -> direction * fullWidth }
+            ) + fadeIn(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS)))
               .togetherWith(
-                slideOutHorizontally(
-                  animationSpec = tween(ANIMATION_DURATION_MS),
-                  targetOffsetX = { fullWidth -> -direction * fullWidth }
-                ) + fadeOut(animationSpec = tween(ANIMATION_DURATION_MS))
+                exit = slideOutHorizontally(
+                  animationSpec = tween(durationMillis = ANIMATION_DURATION_MS),
+                  targetOffsetX = { fullWidth: Int -> -direction * fullWidth }
+                ) + fadeOut(animationSpec = tween(durationMillis = ANIMATION_DURATION_MS))
               )
           }
         },
         label = "featurePage",
-      ) { page ->
-        val feature = features[page]
+      ) { page: Int ->
+        val feature: FeatureItem = features[page]
         Row(
           modifier = Modifier.fillMaxSize(),
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.xxl)
@@ -245,7 +248,7 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
                 )
               }
               CompositionLocalProvider(
-                LocalMarkdownBodyTextStyle provides enlargedParagraphStyle
+                value = LocalMarkdownBodyTextStyle provides enlargedParagraphStyle
               ) {
                 ProvideMarkdownStyling(markdownStyling = markdownStyling) {
                   RenderMarkdownText("## ${message(feature.titleKey)}\n\n${message(feature.descriptionKey)}")
@@ -286,7 +289,7 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
         pageCount = pageCount,
         currentPage = currentPage,
         isPlaying = isPlaying,
-        onDotClick = { page -> currentPage = page },
+        onDotClick = { page: Int -> currentPage = page },
         features = features
       )
 
@@ -344,7 +347,7 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
                   key = GradumIcons.Github,
                   contentDescription = null
                 )
-                val afterText = message("gradum.whatsnew.changelog.after")
+                val afterText: String = message("gradum.whatsnew.changelog.after")
                 if (afterText.isNotEmpty()) {
                   Spacer(Modifier.width(GradumSpacing.sm))
                   Text(text = afterText)
@@ -370,7 +373,7 @@ private fun rememberKeyEventHandler(
   pageCount: Int, currentPage: Int, isPlaying: Boolean, isImageExpanded: Boolean,
   onDismiss: () -> Unit, onPageChange: (Int) -> Unit, onImageExpandChange: (Boolean) -> Unit
 ): (KeyEvent) -> Boolean = remember(currentPage, isPlaying, pageCount, isImageExpanded) {
-  { event ->
+  { event: KeyEvent ->
     event.type == KeyEventType.KeyUp && when (event.key) {
       Key.DirectionLeft -> {
         if (isPlaying || currentPage > 0) {
@@ -420,34 +423,34 @@ private fun PaginationDots(
   onDotClick: (Int) -> Unit,
   features: List<FeatureItem>
 ) {
-  val primaryColor = when {
+  val primaryColor: Color = when {
     JewelTheme.badgeStyle.blue.colors.background is SolidColor ->
       (JewelTheme.badgeStyle.blue.colors.background as SolidColor).value
 
     else -> JewelTheme.badgeStyle.blue.colors.content
   }
-  val trackColor = JewelTheme.globalColors.borders.disabled
-  val hoverColor = JewelTheme.globalColors.text.info
+  val trackColor: Color = JewelTheme.globalColors.borders.disabled
+  val hoverColor: Color = JewelTheme.globalColors.text.info
 
-  var animPhase by remember { mutableIntStateOf(0) } // 0=idle, 1=auto-play, 2=pausing
-  val currentIsPlaying by rememberUpdatedState(isPlaying)
-  val animProgress = remember { Animatable(0f) }
+  var animPhase: Int by remember { mutableIntStateOf(value = 0) } // 0=idle, 1=auto-play, 2=pausing
+  val currentIsPlaying: Boolean by rememberUpdatedState(newValue = isPlaying)
+  val animProgress = remember { Animatable(initialValue = 0f) }
 
-  LaunchedEffect(isPlaying, currentPage) {
+  LaunchedEffect(key1 = isPlaying, key2 = currentPage) {
     if (isPlaying) {
       animPhase = 1
-      animProgress.snapTo(0f)
-      val startNanos = withFrameNanos { it }
+      animProgress.snapTo(targetValue = 0f)
+      val startNanos: Long = withFrameNanos { it }
       while (currentIsPlaying) {
-        val elapsed = (withFrameNanos { it } - startNanos) / 4_000_000_000f
-        val progress = elapsed.coerceIn(0f, 1f)
-        animProgress.snapTo(progress)
+        val elapsed: Float = (withFrameNanos { it } - startNanos) / 4_000_000_000f
+        val progress: Float = elapsed.coerceIn(0f, 1f)
+        animProgress.snapTo(targetValue = progress)
         if (progress >= 1f) break
       }
     }
   }
 
-  LaunchedEffect(isPlaying) {
+  LaunchedEffect(key1 = isPlaying) {
     if (!isPlaying && animPhase == 1) {
       animPhase = 2
       animProgress.animateTo(
@@ -465,26 +468,26 @@ private fun PaginationDots(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
   ) {
-    repeat(pageCount) { index ->
-      val isActive = index == currentPage
-      val interactionSource = remember { MutableInteractionSource() }
-      val isHovered by interactionSource.collectIsHoveredAsState()
-      val targetColor = when {
+    repeat(times = pageCount) { index: Int ->
+      val isActive: Boolean = index == currentPage
+      val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+      val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
+      val targetColor: Color = when {
         isActive -> primaryColor
         isHovered -> hoverColor
         else -> trackColor
       }
-      val dotColor by animateColorAsState(
+      val dotColor: Color by animateColorAsState(
         targetValue = targetColor,
-        animationSpec = tween(ANIMATION_DURATION_MS),
+        animationSpec = tween(durationMillis = ANIMATION_DURATION_MS),
         label = "dotColor"
       )
-      val dotWidth by animateDpAsState(
+      val dotWidth: Dp by animateDpAsState(
         targetValue = if (isActive) 60.dp else 6.dp,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
         label = "dotWidth"
       )
-      val cornerRadius by animateDpAsState(
+      val cornerRadius: Dp by animateDpAsState(
         targetValue = if (isActive) 4.dp else 3.dp,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
         label = "dotCornerRadius"
@@ -502,14 +505,14 @@ private fun PaginationDots(
           Box(
             modifier = Modifier
               .size(width = dotWidth, height = 6.dp)
-              .clip(RoundedCornerShape(cornerRadius))
+              .clip(shape = RoundedCornerShape(size = cornerRadius))
               .background(trackColor)
           ) {
             Box(
               modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = animProgress.value)
-                .clip(RoundedCornerShape(cornerRadius))
+                .clip(shape = RoundedCornerShape(size = cornerRadius))
                 .background(primaryColor)
             )
           }
@@ -517,14 +520,14 @@ private fun PaginationDots(
           Box(
             modifier = Modifier
               .size(width = dotWidth, height = 6.dp)
-              .clip(RoundedCornerShape(cornerRadius))
+              .clip(shape = RoundedCornerShape(size = cornerRadius))
               .background(trackColor)
           ) {
             Box(
               modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = animProgress.value)
-                .clip(RoundedCornerShape(cornerRadius))
+                .clip(shape = RoundedCornerShape(size = cornerRadius))
                 .background(primaryColor)
             )
           }
@@ -532,7 +535,7 @@ private fun PaginationDots(
           Box(
             modifier = Modifier
               .size(width = dotWidth, height = 6.dp)
-              .clip(RoundedCornerShape(cornerRadius))
+              .clip(shape = RoundedCornerShape(size = cornerRadius))
               .background(dotColor)
               .clickable(
                 indication = null,
@@ -547,12 +550,12 @@ private fun PaginationDots(
 
 @Composable
 private fun featureImageCache(baseImageName: String?): ImageBitmap? {
-  val isDark = JewelTheme.isDark
-  return remember(baseImageName, isDark) {
+  val isDark: Boolean = JewelTheme.isDark
+  return remember(key1 = baseImageName, key2 = isDark) {
     if (baseImageName == null) null
     else runCatching {
       val imagePath = "$baseImageName${if (isDark) "_Dark" else "_Light"}.png"
-      val bytes = GradumConfigurable::class.java.getResourceAsStream("/new/$imagePath")
+      val bytes: ByteArray = GradumConfigurable::class.java.getResourceAsStream("/new/$imagePath")
         ?.use { it.readAllBytes() }
         ?: return@remember null
       SkiaImage.makeFromEncoded(bytes).toComposeImageBitmap()

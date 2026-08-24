@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-22 21:46:16 Changed by gwy
+ * Table.kt  2026-08-24 21:56:54 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -178,11 +178,6 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
       val bodyRows: List<List<String>> = bodyLines
         .filter { it.length <= MAX_TABLE_LINE_LENGTH }
         .map { parseTableRow(it) }
-        // GFM pads short rows with empty trailing cells (a row may omit the
-        // trailing `|` or a final empty cell). Dropping them here silently
-        // deletes real body content and can leave a table header-only →
-        // non-renderable → placeholder. Pad instead of filter; rows with too
-        // many cells are truncated to the header width.
         .map { row ->
           when {
             row.size < headers.size -> row + List(headers.size - row.size) { "" }
@@ -514,14 +509,14 @@ fun ScrollableTable(
  */
 @Composable
 private fun TableHeaderRow(
+  density: Density,
   header: List<String>,
   columnWidthsPx: IntArray,
-  alignments: List<TextAlign>,
-  density: Density,
   horizontalPaddingPx: Int,
+  alignments: List<TextAlign>,
   onUrlClick: (String) -> Unit,
   renderer: MarkdownBlockRenderer,
-  paragraphStyling: MarkdownStyling.Paragraph,
+  paragraphStyling: MarkdownStyling.Paragraph
 ) {
   Row(
     modifier = Modifier.fillMaxWidth()
@@ -613,7 +608,11 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
 private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
   val escapeCell: (String) -> String = { it.replace("|", "\\|") }
   val joinRow: (List<String>) -> String =
-    { row -> row.joinToString(separator = " | ", prefix = "| ", postfix = " |") { escapeCell(it) } }
+    { row ->
+      row.joinToString(separator = " | ", prefix = "| ", postfix = " |") {
+        escapeCell(it)
+      }
+    }
   val separatorRow: String =
     "| " + table.header.joinToString(separator = " | ", postfix = " |") { "---" }
   return buildString {
@@ -646,10 +645,6 @@ internal fun distributeTableWidth(
   val paddingPerColumn = horizontalPaddingPx * 2
   val columnCount = naturalColumnWidthsPx.size
 
-  // Clamp every column to [min, max] before doing any width math. This
-  // keeps a single very wide cell from forcing the whole table wider than
-  // the chat bubble; columns that hit the cap can still wrap, and columns
-  // that are narrower than the minimum still render at the minimum.
   val clamped = IntArray(columnCount) { index ->
     naturalColumnWidthsPx[index]
       .coerceIn(minCellWidthPx, maxCellWidthPx)
@@ -666,14 +661,10 @@ internal fun distributeTableWidth(
   val scaledTotal = scaled.sum() + paddingPerColumn * columnCount
   val leftover = containerWidthPx - scaledTotal
   if (leftover != 0) {
-    // If there's leftover room and the last column hasn't already hit the
-    // cap, give it the residue; otherwise distribute it across other
-    // non-saturated columns.
     val lastIndex = columnCount - 1
     if (scaled[lastIndex] < maxCellWidthPx) {
       scaled[lastIndex] = (scaled[lastIndex] + leftover).coerceAtMost(maxCellWidthPx)
     } else {
-      // Spread leftover to non-saturated columns, last to first
       var remaining = leftover
       for (i in (columnCount - 1) downTo 0) {
         if (remaining == 0) break
@@ -724,9 +715,11 @@ fun SafeMarkdownText(
     )
     return
   }
-  val baseStyle: TextStyle = rememberGradumMarkdownStyling().paragraph.inlinesStyling.textStyle
+  val baseStyle: TextStyle = rememberGradumMarkdownStyling()
+    .paragraph.inlinesStyling.textStyle
     .copy(fontWeight = fontWeight)
-  val editorFontSizeSp: Float = JewelTheme.editorTextStyle.fontSize.value
+  val editorFontSizeSp: Float = JewelTheme.editorTextStyle
+    .fontSize.value
     .let { if (it <= 0f) 13f else it }
   val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   RenderInlineTextWithChips(
@@ -734,8 +727,8 @@ fun SafeMarkdownText(
     style = baseStyle,
     modifier = modifier,
     onUrlClick = onUrlClick,
-    inlineCodeFontSizeSp = editorFontSizeSp,
     editorFontFamily = editorFontFamily,
+    inlineCodeFontSizeSp = editorFontSizeSp
   )
 }
 

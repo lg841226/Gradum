@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-24 18:59:19 Changed by gwy
+ * GradumUI.kt  2026-08-25 00:42:46 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -16,10 +16,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.ScrollType.CENTER
 import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.TextEditor
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
@@ -36,6 +40,7 @@ import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.state.sendMessage
 import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.common.DiffViewer.showFileDiff
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
 import gradum.idea.editor.*
@@ -48,6 +53,7 @@ import kotlinx.coroutines.*
 import kotlinx.io.IOException
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
+import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.io.File
 import java.nio.charset.StandardCharsets
@@ -56,7 +62,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
-private val logger = Logger.getInstance(MarkdownProcessor::class.java)
+private val logger: Logger = Logger.getInstance(MarkdownProcessor::class.java)
 
 private val MARKDOWN_EXTENSIONS = setOf(".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdwn")
 private val SCENARIO_EXTENSIONS = setOf(".tls", ".tls.xml", ".xml")
@@ -66,7 +72,7 @@ private val MAX_MARKDOWN_LINES: Int = PluginConfig.MAX_MARKDOWN_LINES
 private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
   return if (lines.size > MAX_MARKDOWN_LINES) {
-    lines.take(MAX_MARKDOWN_LINES).joinToString("\n") +
+    lines.take(n = MAX_MARKDOWN_LINES).joinToString(separator = "\n") +
       "**Truncated to $MAX_MARKDOWN_LINES lines — this Markdown file has ${lines.size} lines**"
   } else content
 }
@@ -83,10 +89,21 @@ private fun sendPlaybackXml(
   val serverLabel: String = session.selectedModel?.serverName ?: ""
 
   if (!preserveUserMessage)
-    session.messages.add(ChatMessage(role = "user", content = message("gradum.debug.play", scenarioLabel)))
+    session.messages.add(
+      ChatMessage(
+        role = "user",
+        content = message("gradum.debug.play", scenarioLabel)
+      )
+    )
 
   session.messages.add(
-    ChatMessage(content = "", role = "assistant", modelName = displayName, provider = providerName, serverName = serverLabel)
+    ChatMessage(
+      content = "",
+      role = "assistant",
+      modelName = displayName,
+      provider = providerName,
+      serverName = serverLabel
+    )
   )
   session.hasSentMessage = true
   session.isSending = true
@@ -94,13 +111,20 @@ private fun sendPlaybackXml(
   logger.info("Sending tool-call scenario '$scenarioLabel' to server for playback")
 
   session.currentJob = coroutineScope.launch {
-    session.sendMessage(contextPath = "", attachments = emptyList(), toolCallXml = scenarioXml, userMessage = message("gradum.debug.play", scenarioLabel))
+    session.sendMessage(
+      contextPath = "",
+      attachments = emptyList(),
+      toolCallXml = scenarioXml,
+      userMessage = message("gradum.debug.play", scenarioLabel)
+    )
   }
 }
 
-private fun sendPlaybackScenario(session: GradumChatSession, currentFile: VirtualFile, coroutineScope: CoroutineScope) {
+private fun sendPlaybackScenario(
+  session: GradumChatSession, currentFile: VirtualFile, coroutineScope: CoroutineScope
+) {
   val scenarioXml: String = try {
-    String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8)
+    String(bytes = currentFile.contentsToByteArray(), charset = StandardCharsets.UTF_8)
   } catch (ioError: IOException) {
     logger.error("IO error reading scenario file: ${currentFile.name}", ioError); return
   } catch (securityError: SecurityException) {
@@ -108,7 +132,7 @@ private fun sendPlaybackScenario(session: GradumChatSession, currentFile: Virtua
   } catch (generalError: Exception) {
     logger.warn("Unexpected error reading scenario file: ${currentFile.name}", generalError); return
   }
-  sendPlaybackXml(scenarioXml, currentFile.name, session, coroutineScope)
+  sendPlaybackXml(scenarioXml, scenarioLabel = currentFile.name, session, coroutineScope)
 }
 
 /**
@@ -117,29 +141,37 @@ private fun sendPlaybackScenario(session: GradumChatSession, currentFile: Virtua
 @Composable
 fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
   val editorContext: EditorContext = toolWindow?.project?.let {
-    EditorUtils.getEditorContext(it)
+    EditorUtils.getEditorContext(project = it)
   } ?: EditorContext.EMPTY
-  val coroutineScope = rememberCoroutineScope()
+  val coroutineScope: CoroutineScope = rememberCoroutineScope()
 
   TabNameEffect(session, toolWindow)
   ModelPollingEffect(session, coroutineScope)
 
   val state: ChatSessionState = rememberChatSessionState(
+    toolWindow = toolWindow,
     session = session,
     editorContext = editorContext,
-    toolWindow = toolWindow,
     coroutineScope = coroutineScope,
   )
 
   Box(
-    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+    modifier = Modifier.fillMaxSize()
+      .padding(horizontal = 16.dp),
     contentAlignment = Alignment.Center
   ) {
     ProvideAppearance {
       if (session.hasSentMessage) {
-        ChatScreen(state = state, modifier = Modifier.fillMaxSize())
+        ChatScreen(
+          state = state,
+          modifier = Modifier.fillMaxSize()
+        )
       } else {
-        WelcomeScreen(state = state, modifier = Modifier.fillMaxSize(), welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout)
+        WelcomeScreen(
+          state = state,
+          modifier = Modifier.fillMaxSize(),
+          welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout
+        )
       }
     }
   }
@@ -147,35 +179,56 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
 @Composable
 private fun rememberChatSessionState(
+  toolWindow: ToolWindow?,
   session: GradumChatSession,
   editorContext: EditorContext,
-  toolWindow: ToolWindow?,
-  coroutineScope: CoroutineScope,
+  coroutineScope: CoroutineScope
 ): ChatSessionState {
-  val onClearText = remember(session) { { session.textState.edit { delete(0, length) } } }
+  val onClearText = remember(key1 = session) {
+    {
+      session.textState.edit { delete(0, length) }
+    }
+  }
 
-  val onStop: () -> Unit = remember(session, coroutineScope) { { coroutineScope.launch { session.stopSession() }; Unit } }
+  val onStop: () -> Unit = remember(key1 = session, key2 = coroutineScope) {
+    {
+      coroutineScope.launch { session.stopSession() }
+    }
+  }
 
-  val onDeleteMessage = remember(session) { { userMessageIndex: Int -> session.deleteMessage(userMessageIndex) } }
+  val onDeleteMessage = remember(key1 = session) {
+    { userMessageIndex: Int -> session.deleteMessage(userMessageIndex) }
+  }
 
-  val onUploadImage = remember(toolWindow, session) {
+  val onUploadImage: () -> Unit = remember(key1 = toolWindow, key2 = session) {
     {
       val remainingSlots: Int = MAX_ATTACHMENTS - session.attachedFiles.size
       if (remainingSlots > 0) {
-        val currentProject = toolWindow?.project
+        val currentProject: Project? = toolWindow?.project
         if (currentProject != null) {
-          val imageExtensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff")
-          val fileDescriptor = FileChooserDescriptorFactory.multiFiles().apply {
-            withFileFilter { file -> file.extension?.lowercase() in imageExtensions }
+          val imageExtensions: Set<String> = setOf("png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "tiff")
+          val fileDescriptor: FileChooserDescriptor = FileChooserDescriptorFactory.multiFiles().apply {
+            withFileFilter { file: VirtualFile ->
+              file.extension?.lowercase() in imageExtensions
+            }
             title = "Select Images"
           }
-          val baseDir = currentProject.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+          val baseDir: VirtualFile? = currentProject.basePath?.let {
+            LocalFileSystem.getInstance().findFileByPath(it)
+          }
           FileChooser.chooseFiles(fileDescriptor, currentProject, baseDir) { files ->
             files.asSequence()
               .filter { it.extension?.lowercase() in imageExtensions }
-              .filter { imageFile -> session.attachedFiles.none { existing -> (existing is AttachedFile && existing.file.path == imageFile.path) || (existing is AttachedImage && existing.originalName == imageFile.name && imageFile.length == existing.originalSizeBytes) } }
-              .take(remainingSlots)
-              .forEach { file ->
+              .filter { imageFile: VirtualFile ->
+                session.attachedFiles.none { existing: AttachedContext ->
+                  (existing is AttachedFile && existing.file.path == imageFile.path)
+                    || (existing is AttachedImage
+                    && existing.originalName == imageFile.name
+                    && imageFile.length == existing.originalSizeBytes)
+                }
+              }
+              .take(n = remainingSlots)
+              .forEach { file: VirtualFile ->
                 if (file.length <= MAX_IMAGE_BYTES) {
                   val attachment: AttachedImage? = encodeImageToAttachment(file)
                   if (attachment != null) session.attachedFiles.add(attachment)
@@ -187,34 +240,38 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onCopyAsContext = remember(session) {
+  val onCopyAsContext = remember(key1 = session) {
     { text: String ->
       if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-        val previewText = if (text.length > 30) text.take(30) + "..." else text
+        val previewText: String = if (text.length > 30) text.take(n = 30) + "..." else text
         session.attachedFiles.add(AttachedText(content = text, preview = previewText))
       }
     }
   }
 
-  val onPasteAsContext = remember(session) {
+  val onPasteAsContext = remember(key1 = session) {
     { text: String ->
       if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-        val previewText = if (text.length > 30) text.take(30) + "..." else text
+        val previewText: String = if (text.length > 30) text.take(n = 30) + "..." else text
         session.attachedFiles.add(AttachedText(content = text, preview = previewText))
       }
     }
   }
 
-  val onSelectFile = remember(session) {
+  val onSelectFile: (VirtualFile) -> Unit = remember(key1 = session) {
     { file: VirtualFile ->
-      if (session.attachedFiles.size < MAX_ATTACHMENTS && session.attachedFiles.none { it is AttachedFile && it.file.path == file.path }) {
-        val iconKey = if (file.isDirectory) AllIconsKeys.Actions.ProjectDirectory else (getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown)
+      if (session.attachedFiles.size < MAX_ATTACHMENTS && session.attachedFiles.none {
+          it is AttachedFile && it.file.path == file.path
+        }) {
+        val iconKey: IconKey =
+          if (file.isDirectory) AllIconsKeys.Actions.ProjectDirectory
+          else (getLanguageIconKey(file.extension) ?: AllIconsKeys.FileTypes.Unknown)
         session.attachedFiles.add(AttachedFile(file = file, iconKey = iconKey))
       }
     }
   }
 
-  val onSelectPermission = remember(session) {
+  val onSelectPermission: (String) -> Unit = remember(key1 = session) {
     { permission: String ->
       session.selectedPermission = permission
       session.isMenuVisible = false
@@ -222,99 +279,158 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onRemoveFile: (AttachedContext) -> Unit = remember(session) {
+  val onRemoveFile: (AttachedContext) -> Unit = remember(key1 = session) {
     { attachedContext: AttachedContext ->
       when (attachedContext) {
         is AttachedFile -> {
-          session.attachedFiles.removeAll { it is AttachedFile && it.file.path == attachedContext.file.path }; Unit
+          session.attachedFiles.removeAll {
+            it is AttachedFile && it.file.path == attachedContext.file.path
+          }
         }
 
         is AttachedText -> {
-          session.attachedFiles.removeAll { it is AttachedText && it.content == attachedContext.content }; Unit
+          session.attachedFiles.removeAll {
+            it is AttachedText && it.content == attachedContext.content
+          }
         }
 
         is AttachedImage -> {
-          session.attachedFiles.removeAll { it is AttachedImage && it.id == attachedContext.id }; Unit
-        }
-      }
-    }
-  }
-
-  val onRemovePending: (PendingMessage) -> Unit = remember(session) { { pending: PendingMessage -> session.pendingMessages.remove(pending); Unit } }
-
-  val onToggleExpanded = remember(session) {
-    { session.isExpanded = !session.isExpanded; AppearanceSettings.getInstance().update { it.lastContextEnabled = session.isExpanded } }
-  }
-
-  val onAttachmentClick = remember(toolWindow) {
-    { file: VirtualFile ->
-      val project = toolWindow?.project
-      if (project != null && file.isValid) FileEditorManager.getInstance(project).openFile(file, true)
-    }
-  }
-
-  val onViewDiff = remember(toolWindow) {
-    { filePath: String, originalContent: String, modifiedContent: String ->
-      gradum.idea.chat.ui.common.DiffViewer.showFileDiff(path = filePath, project = toolWindow?.project, originalContent = originalContent, modifiedContent = modifiedContent)
-    }
-  }
-
-  val onOpenInEditor = remember(toolWindow, coroutineScope) {
-    { filePath: String, startLine: Int, _: Int ->
-      val project = toolWindow?.project
-      if (project != null && filePath.isNotBlank()) {
-        coroutineScope.launch(Dispatchers.IO) {
-          try {
-            val absolutePath = if (File(filePath).isAbsolute) filePath else project.basePath?.let { "$it/$filePath" } ?: filePath
-            val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
-            if (virtualFile != null && virtualFile.exists()) {
-              withContext(Dispatchers.Main) {
-                val editors = FileEditorManager.getInstance(project).openFile(virtualFile, true)
-                val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-                if (startLine > 0 && textEditor != null) {
-                  val editor = textEditor.editor
-                  val offset = editor.document.getLineStartOffset((startLine - 1).coerceAtLeast(0))
-                  editor.caretModel.moveToOffset(offset)
-                  editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)
-                }
-              }
-            } else {
-              val tempFile = File.createTempFile("gradum_cmd_", ".sh")
-              tempFile.writeText(filePath)
-              tempFile.deleteOnExit()
-              val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
-              if (tempVirtual != null) {
-                withContext(Dispatchers.Main) { FileEditorManager.getInstance(project).openFile(tempVirtual, true) }
-              }
-            }
-          } catch (exception: Exception) {
-            Logger.getInstance(GradumToolWindowFactory::class.java).warn("Failed to open target in editor: $filePath", exception)
+          session.attachedFiles.removeAll {
+            it is AttachedImage && it.id == attachedContext.id
           }
         }
       }
     }
   }
 
-  val onRetryMessage = remember(toolWindow, session, coroutineScope) {
+  val onRemovePending: (PendingMessage) -> Unit = remember(key1 = session) {
+    { pending: PendingMessage ->
+      session.pendingMessages.remove(element = pending)
+    }
+  }
+
+  val onToggleExpanded = remember(key1 = session) {
+    {
+      session.isExpanded = !session.isExpanded
+      AppearanceSettings.getInstance().update {
+        it.lastContextEnabled = session.isExpanded
+      }
+    }
+  }
+
+  val onAttachmentClick = remember(key1 = toolWindow) {
+    { file: VirtualFile ->
+      val project: Project? = toolWindow?.project
+      if (project != null && file.isValid)
+        FileEditorManager.getInstance(project).openFile(file, true)
+    }
+  }
+
+  val onViewDiff = remember(key1 = toolWindow) {
+    { filePath: String, originalContent: String, modifiedContent: String ->
+      showFileDiff(
+        path = filePath,
+        project = toolWindow?.project,
+        originalContent = originalContent,
+        modifiedContent = modifiedContent
+      )
+    }
+  }
+
+  val onOpenInEditor = remember(key1 = toolWindow, key2 = coroutineScope) {
+    { filePath: String, startLine: Int, _: Int ->
+      val project: Project? = toolWindow?.project
+      if (project != null && filePath.isNotBlank()) {
+        coroutineScope.launch(context = Dispatchers.IO) {
+          try {
+            val absolutePath: String =
+              if (File(filePath).isAbsolute) filePath
+              else project.basePath?.let { "$it/$filePath" } ?: filePath
+
+            val virtualFile: VirtualFile? = LocalFileSystem.getInstance().findFileByPath(absolutePath)
+            if (virtualFile != null && virtualFile.exists()) {
+              withContext(Dispatchers.Main) {
+                val editors = FileEditorManager.getInstance(project).openFile(virtualFile, true)
+                val textEditor: TextEditor? = editors.filterIsInstance<TextEditor>().firstOrNull()
+                if (startLine > 0 && textEditor != null) {
+                  val editor: Editor = textEditor.editor
+                  val offset: Int = editor.document.getLineStartOffset((startLine - 1).coerceAtLeast(minimumValue = 0))
+                  editor.caretModel.moveToOffset(offset)
+                  editor.scrollingModel.scrollToCaret(CENTER)
+                }
+              }
+            } else {
+              val tempFile: File = File.createTempFile("gradum_cmd_", ".sh")
+              tempFile.writeText(filePath)
+              tempFile.deleteOnExit()
+
+              val tempVirtual: VirtualFile? = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(tempFile)
+              if (tempVirtual != null)
+                withContext(Dispatchers.Main) {
+                  FileEditorManager.getInstance(project).openFile(tempVirtual, true)
+                }
+            }
+          } catch (exception: Exception) {
+            Logger.getInstance(GradumToolWindowFactory::class.java)
+              .warn("Failed to open target in editor: $filePath", exception)
+          }
+        }
+      }
+    }
+  }
+
+  val onRetryMessage: (Int) -> Unit = remember(key1 = toolWindow, key2 = session, key3 = coroutineScope) {
     { assistantMessageIndex: Int ->
-      val userMessageIndex = (assistantMessageIndex - 1 downTo 0).firstOrNull { session.messages[it].isUserMessage } ?: return@remember
-      val userMessage = session.messages[userMessageIndex]
+      val userMessageIndex: Int = (assistantMessageIndex - 1 downTo 0).firstOrNull {
+        session.messages[it].isUserMessage
+      } ?: return@remember
+      val userMessage: ChatMessage = session.messages[userMessageIndex]
 
       if (PermissionMode.isDebugMode(session.selectedPermission)) {
-        val toolProject = toolWindow?.project
-        val currentEditorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
+        val toolProject: Project? = toolWindow?.project
+        val currentEditorContext: EditorContext? = toolProject?.let {
+          EditorUtils.getEditorContext(project = it)
+        }
         val currentFile = currentEditorContext?.currentFile
-        if (currentFile != null && MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+
+        if (currentFile != null && MARKDOWN_EXTENSIONS.any {
+            currentFile.name.endsWith(suffix = it, ignoreCase = true)
+          }) {
           try {
             val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
-            val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-            val content = truncateToMaxLines(textEditor?.editor?.document?.text ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8))
-            val messagesToRemove = assistantMessageIndex - userMessageIndex + 1
-            repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
-            session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content))
+            val textEditor: TextEditor? = editors.filterIsInstance<TextEditor>().firstOrNull()
+            val content: String = truncateToMaxLines(
+              content = textEditor?.editor?.document?.text ?: String(
+                bytes = currentFile.contentsToByteArray(),
+                charset = StandardCharsets.UTF_8
+              )
+            )
+            val messagesToRemove: Int = assistantMessageIndex - userMessageIndex + 1
+            repeat(times = messagesToRemove) {
+              session.messages.removeAt(userMessageIndex)
+            }
+
+            session.messages.add(
+              userMessageIndex,
+              element = ChatMessage(
+                role = "user",
+                content = userMessage.content
+              )
+            )
             session.hasSentMessage = true
-            val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
-            if (compiled != null) sendPlaybackXml(compiled, currentFile.name, session, coroutineScope, preserveUserMessage = true)
+
+            val compiled: String? = MarkdownTlsScenario.compile(
+              markdown = content,
+              scenarioName = currentFile.name
+            )
+            if (compiled != null)
+              sendPlaybackXml(
+                scenarioXml = compiled,
+                scenarioLabel = currentFile.name,
+                session,
+                coroutineScope,
+                preserveUserMessage = true
+              )
             else session.loadDebugMarkdown(content)
           } catch (ioError: IOException) {
             logger.error("IO error reading file: ${currentFile.path}", ioError)
@@ -327,53 +443,101 @@ private fun rememberChatSessionState(
         return@remember
       }
 
-      val activeProject = toolWindow?.project
-      val currentEditorContext = activeProject?.let { EditorUtils.getEditorContext(it) }
-      val focusedPath = currentEditorContext?.currentFile?.path ?: ""
+      val activeProject: Project? = toolWindow?.project
+      val currentEditorContext: EditorContext? = activeProject?.let {
+        EditorUtils.getEditorContext(project = it)
+      }
+      val focusedPath: String = currentEditorContext?.currentFile?.path ?: ""
       val openFiles = currentEditorContext?.allOpenFiles ?: emptyList()
-      val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(userMessage.content, focusedPath, openFiles)
+      val (resolvedText: String, anyReplaced: Boolean) =
+        GradumChatSession.resolveInlineTags(
+          text = userMessage.content,
+          focusedFilePath = focusedPath, openFiles
+        )
 
-      val displayName = session.selectedModel?.name ?: ""
-      val providerName = session.selectedModel?.provider ?: ""
-      val serverLabel = session.selectedModel?.serverName ?: ""
+      val displayName: String = session.selectedModel?.name ?: ""
+      val providerName: String = session.selectedModel?.provider ?: ""
+      val serverLabel: String = session.selectedModel?.serverName ?: ""
 
-      val messagesToRemove = assistantMessageIndex - userMessageIndex + 1
-      repeat(messagesToRemove) { session.messages.removeAt(userMessageIndex) }
+      val messagesToRemove: Int = assistantMessageIndex - userMessageIndex + 1
+      repeat(times = messagesToRemove) { session.messages.removeAt(userMessageIndex) }
 
-      session.messages.add(userMessageIndex, ChatMessage(role = "user", content = userMessage.content, attachments = userMessage.attachments))
-      session.messages.add(userMessageIndex + 1, ChatMessage(content = "", role = "assistant", modelName = displayName, provider = providerName, serverName = serverLabel))
+      session.messages.add(
+        userMessageIndex,
+        element = ChatMessage(
+          role = "user",
+          content = userMessage.content,
+          attachments = userMessage.attachments
+        )
+      )
+      session.messages.add(
+        index = userMessageIndex + 1,
+        element = ChatMessage(
+          content = "",
+          role = "assistant",
+          modelName = displayName,
+          provider = providerName,
+          serverName = serverLabel
+        )
+      )
 
       session.isSending = true
       session.isWaitingForResponse = true
       session.currentJob = coroutineScope.launch {
-        val contextPath = if (session.isExpanded && !anyReplaced) focusedPath else ""
-        session.sendMessage(resolvedText, userMessage.attachments, contextPath)
+        val contextPath: String =
+          if (session.isExpanded && !anyReplaced) focusedPath
+          else ""
+        session.sendMessage(userMessage = resolvedText, userMessage.attachments, contextPath)
       }
     }
   }
 
-  val onSend = remember(toolWindow, session, coroutineScope) {
+  val onSend: () -> Unit = remember(key1 = toolWindow, key2 = session, key3 = coroutineScope) {
     {
       val rawText: String = session.textState.text.toString()
-      val hasModel = session.selectedModel != null
+      val hasModel: Boolean = session.selectedModel != null
 
       if (PermissionMode.isDebugMode(session.selectedPermission)) {
         if (rawText.isNotBlank()) {
-          val toolProject = toolWindow?.project
-          val currentEditorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
-          val currentFile = currentEditorContext?.currentFile
+          val toolProject: Project? = toolWindow?.project
+          val currentEditorContext: EditorContext? = toolProject?.let {
+            EditorUtils.getEditorContext(project = it)
+          }
+          val currentFile: VirtualFile? = currentEditorContext?.currentFile
           if (currentFile != null) {
-            if (SCENARIO_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            if (SCENARIO_EXTENSIONS.any {
+                currentFile.name.endsWith(suffix = it, ignoreCase = true)
+              }) {
               sendPlaybackScenario(session, currentFile, coroutineScope)
-            } else if (MARKDOWN_EXTENSIONS.any { currentFile.name.endsWith(it, ignoreCase = true) }) {
+            } else if (MARKDOWN_EXTENSIONS.any {
+                currentFile.name.endsWith(suffix = it, ignoreCase = true)
+              }) {
               try {
                 val editors = FileEditorManager.getInstance(toolProject).getEditors(currentFile)
-                val textEditor = editors.filterIsInstance<TextEditor>().firstOrNull()
-                val content = truncateToMaxLines(textEditor?.editor?.document?.text ?: String(currentFile.contentsToByteArray(), StandardCharsets.UTF_8))
-                val compiled: String? = MarkdownTlsScenario.compile(content, currentFile.name)
-                if (compiled != null) sendPlaybackXml(compiled, currentFile.name, session, coroutineScope)
+                val textEditor: TextEditor? = editors.filterIsInstance<TextEditor>().firstOrNull()
+                val content: String = truncateToMaxLines(
+                  content = textEditor?.editor?.document?.text ?: String(
+                    bytes = currentFile.contentsToByteArray(),
+                    charset = StandardCharsets.UTF_8
+                  )
+                )
+
+                val compiled: String? = MarkdownTlsScenario.compile(
+                  markdown = content,
+                  scenarioName = currentFile.name
+                )
+
+                if (compiled != null)
+                  sendPlaybackXml(
+                    scenarioXml = compiled,
+                    scenarioLabel = currentFile.name,
+                    session,
+                    coroutineScope
+                  )
                 else {
-                  session.hasSentMessage = true; session.messages.add(ChatMessage(role = "user", content = rawText)); session.loadDebugMarkdown(content)
+                  session.hasSentMessage = true
+                  session.messages.add(ChatMessage(role = "user", content = rawText))
+                  session.loadDebugMarkdown(content)
                 }
               } catch (ioError: IOException) {
                 logger.error("IO error reading markdown file: ${currentFile.name}", ioError)
@@ -390,28 +554,52 @@ private fun rememberChatSessionState(
       }
 
       if (rawText.isNotBlank() && hasModel) {
-        val toolProject = toolWindow?.project
-        val currentEditorContext = toolProject?.let { EditorUtils.getEditorContext(it) }
-        val focusedPath = currentEditorContext?.currentFile?.path ?: ""
-        val openFiles = currentEditorContext?.allOpenFiles ?: emptyList()
-        val (resolvedText, anyReplaced) = GradumChatSession.resolveInlineTags(rawText, focusedPath, openFiles)
+        val toolProject: Project? = toolWindow?.project
+        val currentEditorContext: EditorContext? = toolProject?.let {
+          EditorUtils.getEditorContext(project = it)
+        }
+        val focusedPath: String = currentEditorContext?.currentFile?.path ?: ""
+        val openFiles: List<VirtualFile> = currentEditorContext?.allOpenFiles ?: emptyList()
+        val (resolvedText: String, anyReplaced: Boolean) =
+          GradumChatSession.resolveInlineTags(rawText, focusedFilePath = focusedPath, openFiles)
         if (session.isSending) {
-          if (!session.isPendingQueueFull) {
-            session.pendingMessages.add(PendingMessage(content = resolvedText, attachments = session.attachedFiles.toList()))
-          }
+          if (!session.isPendingQueueFull)
+            session.pendingMessages.add(
+              PendingMessage(
+                content = resolvedText,
+                attachments = session.attachedFiles.toList()
+              )
+            )
+
         } else {
+          val displayName: String = session.selectedModel?.name ?: ""
+          val providerName: String = session.selectedModel?.provider ?: ""
+          val serverLabel: String = session.selectedModel?.serverName ?: ""
           val attachedList = session.attachedFiles.toList()
-          val displayName = session.selectedModel?.name ?: ""
-          val providerName = session.selectedModel?.provider ?: ""
-          val serverLabel = session.selectedModel?.serverName ?: ""
-          session.messages.add(ChatMessage(role = "user", content = rawText, attachments = attachedList))
-          session.messages.add(ChatMessage(content = "", role = "assistant", modelName = displayName, provider = providerName, serverName = serverLabel))
+          session.messages.add(
+            ChatMessage(
+              role = "user",
+              content = rawText,
+              attachments = attachedList
+            )
+          )
+          session.messages.add(
+            ChatMessage(
+              content = "",
+              role = "assistant",
+              modelName = displayName,
+              provider = providerName,
+              serverName = serverLabel
+            )
+          )
           session.isSending = true
           session.hasSentMessage = true
           session.isWaitingForResponse = true
           session.currentJob = coroutineScope.launch {
-            val contextPath = if (session.isExpanded && !anyReplaced) focusedPath else ""
-            session.sendMessage(resolvedText, attachedList, contextPath)
+            val contextPath: String =
+              if (session.isExpanded && !anyReplaced) focusedPath
+              else ""
+            session.sendMessage(userMessage = resolvedText, attachments = attachedList, contextPath)
           }
         }
         session.textState.edit { delete(0, length) }
@@ -420,22 +608,36 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onSelectModel = remember(session) { { model: ModelInfo? -> session.selectedModel = model } }
-
-  val onTogglePin: (ModelInfo) -> Unit = remember(session) {
-    { model: ModelInfo ->
-      if (session.pinnedModels.any { it.sameAs(model) }) session.pinnedModels.removeAll { it.sameAs(model) }
-      else session.pinnedModels.add(model)
-      Unit
+  val onSelectModel: (ModelInfo?) -> Unit = remember(key1 = session) {
+    { model: ModelInfo? ->
+      session.selectedModel = model
     }
   }
 
-  val onRefreshModels: () -> Unit = remember(session, coroutineScope) { { coroutineScope.launch { session.loadModels() }; Unit } }
+  val onTogglePin: (ModelInfo) -> Unit = remember(key1 = session) {
+    { model: ModelInfo ->
+      if (session.pinnedModels.any {
+          it.sameAs(other = model)
+        }) session.pinnedModels.removeAll {
+        it.sameAs(other = model)
+      }
+      else session.pinnedModels.add(model)
+    }
+  }
 
-  val onSelectThinkingLevel = remember(session) { { level: ThinkingLevel -> session.setThinkingLevel(level) } }
+  val onRefreshModels: () -> Unit = remember(key1 = session, key2 = coroutineScope) {
+    {
+      coroutineScope.launch { session.loadModels() }
+    }
+  }
 
-  // Build ChatInputActions
-  val inputActions = remember(
+  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = remember(key1 = session) {
+    { level: ThinkingLevel ->
+      session.setThinkingLevel(level)
+    }
+  }
+
+  val inputActions: ChatInputActions = remember(
     onSend, onStop, onUploadImage, onClearText, session,
     onCopyAsContext, onPasteAsContext, onSelectFile, onSelectPermission,
     onRemoveFile, onRemovePending, onSelectModel, onTogglePin, onRefreshModels, onToggleExpanded
@@ -520,33 +722,48 @@ private fun rememberChatSessionState(
     onSelectFile = onSelectFile,
     onRemovePending = onRemovePending,
     onSelectThinkingLevel = onSelectThinkingLevel,
-    onRefreshSuggestions = { session.suggestionVariants = List(4) { Random.nextInt(5) } },
-    onOpenSession = { id -> coroutineScope.launch { session.switchSession(id) }; Unit },
+    onRefreshSuggestions = { session.suggestionVariants = List(size = 4) { Random.nextInt(5) } },
+    onOpenSession = { id -> coroutineScope.launch { session.switchSession(id) } },
     onStartMerge = { session.enterMergeMode() },
     onCancelMerge = { session.exitMergeMode() },
-    onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() }; Unit },
+    onMergeSelected = { coroutineScope.launch { session.mergeSelectedSessions() } },
     onDeleteSelected = { session.deleteSessions(session.mergeSelection.toList()) },
     onClearMergeSelection = { session.mergeSelection.clear() },
-    onToggleMergeSelection = { id -> session.toggleMergeSelection(id) },
-    onRenameSession = { id, title -> coroutineScope.launch { session.renameSession(id, title) }; Unit },
-    onDeleteSession = { id -> session.deleteSession(id) },
+    onToggleMergeSelection = { id: String -> session.toggleMergeSelection(id) },
+    onRenameSession = { id: String, title: String -> coroutineScope.launch { session.renameSession(id, title) } },
+    onDeleteSession = { id: String -> session.deleteSession(id) },
   ) {}
 }
 
 @Composable
 private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
-  LaunchedEffect(session.hasSentMessage, session.isSending, session.selectedPermission) {
-    val tabContent = toolWindow?.contentManager?.contents?.firstOrNull() ?: return@LaunchedEffect
+  LaunchedEffect(
+    key1 = session.hasSentMessage,
+    key2 = session.isSending,
+    key3 = session.selectedPermission
+  ) {
+    val tabContent =
+      toolWindow
+        ?.contentManager
+        ?.contents
+        ?.firstOrNull()
+        ?: return@LaunchedEffect
+
     if (PermissionMode.isDebugMode(session.selectedPermission)) {
-      tabContent.displayName = message("gradum.debug.mode"); return@LaunchedEffect
+      tabContent.displayName = message(key = "gradum.debug.mode")
+      return@LaunchedEffect
     }
+
     val tabName: String = if (session.hasSentMessage) message("gradum.toolwindow.newchat") else message("gradum.toolwindow.welcome")
     if (session.isSending) {
-      val spinnerFrames = charArrayOf('\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827')
+      val spinnerFrames: CharArray = charArrayOf(
+        '\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827'
+      )
       var frameIndex = 0
       while (session.isSending) {
-        tabContent.displayName = "$tabName  ${spinnerFrames[frameIndex]}"
-        frameIndex = (frameIndex + 1) % spinnerFrames.size; delay(100.milliseconds)
+        tabContent.displayName = "$tabName ${spinnerFrames[frameIndex]}"
+        frameIndex = (frameIndex + 1) % spinnerFrames.size
+        delay(duration = 100.milliseconds)
       }
     }
     tabContent.displayName = tabName
@@ -555,12 +772,20 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
 
 @Composable
 private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
-  val settings = remember { ProviderSettings.getInstance() }
+  val settings: ProviderSettings = remember { ProviderSettings.getInstance() }
   val autoDetect: Boolean = settings.snapshot.autoDetectEnabled
   val pollIntervalSeconds: Int = settings.snapshot.pollIntervalSeconds
-  LaunchedEffect(autoDetect, pollIntervalSeconds) {
+
+  LaunchedEffect(key1 = autoDetect, key2 = pollIntervalSeconds) {
     if (!session.modelsLoaded) coroutineScope.launch { session.loadModels() }
-    session.startModelPolling(autoDetect, pollIntervalSeconds * 1000L, coroutineScope)
+    session.startModelPolling(
+      autoDetect,
+      pollIntervalMs = pollIntervalSeconds * 1000L, coroutineScope
+    )
   }
-  DisposableEffect(Unit) { onDispose { session.stopModelPolling() } }
+  DisposableEffect(key1 = Unit) {
+    onDispose {
+      session.stopModelPolling()
+    }
+  }
 }

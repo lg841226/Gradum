@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AttachmentBar.kt  2026-08-12 12:38:25 Changed by gwy
+ * AttachmentBar.kt  2026-08-25 01:43:26 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -41,10 +41,10 @@ fun AttachmentBar(
   Row(
     modifier = modifier
       .fillMaxWidth()
-      .horizontalScroll(rememberScrollState()),
+      .horizontalScroll(state = rememberScrollState()),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    attachedFiles.forEach { attachedContext ->
+    attachedFiles.forEach { attachedContext: AttachedContext ->
       Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),

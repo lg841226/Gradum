@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-08-12 12:38:25 Changed by gwy
+ * JumpToBottomButton.kt  2026-08-24 22:47:15 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isAltPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.unit.dp
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -88,11 +89,7 @@ fun JumpToBottomButton(
   onJumpToTop: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
-  var isAlternativeMode by remember { mutableStateOf(false) }
-  // The pill is visible when the user could benefit from its
-  // current action. The rule flips on mode: in alternative
-  // mode (jump to top), being at the top is the "done" scanState
-  // so the pill hides there.
+  var isAlternativeMode: Boolean by remember { mutableStateOf(false) }
   val isVisible: Boolean = if (isAlternativeMode) !isAtTop else !isAtBottom
   val textAlpha: Float = rememberTextRevealAlpha(isVisible)
   AltKeyModeEffect(isVisible) { isAlternativeMode = !isAlternativeMode }
@@ -114,11 +111,13 @@ fun JumpToBottomButton(
  */
 @Composable
 private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
-  val windowInfo = LocalWindowInfo.current
-  LaunchedEffect(isVisible) {
+  val windowInfo: WindowInfo = LocalWindowInfo.current
+  LaunchedEffect(key1 = isVisible) {
     if (!isVisible) return@LaunchedEffect
     var wasAltDown: Boolean = windowInfo.keyboardModifiers.isAltPressed
-    snapshotFlow { windowInfo.keyboardModifiers.isAltPressed }.collect { isAltDown ->
+    snapshotFlow {
+      windowInfo.keyboardModifiers.isAltPressed
+    }.collect { isAltDown: Boolean ->
       if (isAltDown && !wasAltDown) onToggle()
       wasAltDown = isAltDown
     }
@@ -134,10 +133,10 @@ private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
   var textVisible: Boolean by remember { mutableStateOf(false) }
-  LaunchedEffect(isVisible) {
+  LaunchedEffect(key1 = isVisible) {
     if (isVisible) {
       textVisible = false
-      delay(TEXT_REVEAL_DELAY_MS.milliseconds)
+      delay(duration = TEXT_REVEAL_DELAY_MS.milliseconds)
       textVisible = true
     } else {
       textVisible = false
@@ -256,10 +255,10 @@ private fun PillForeground(
       },
       label = "JumpToBottomLabel",
       modifier = Modifier.graphicsLayer { alpha = textAlpha }
-    ) { alternative ->
+    ) { alternative: Boolean ->
       Text(
         style = JewelTheme.typography.regular,
-        text = message(if (alternative) "gradum.jump.to.top" else "gradum.jump.to.bottom")
+        text = message(key = if (alternative) "gradum.jump.to.top" else "gradum.jump.to.bottom")
       )
     }
   }

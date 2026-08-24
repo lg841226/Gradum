@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-24 16:38:10 Changed by gwy
+ * SubChatView.kt  2026-08-24 23:20:59 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -72,14 +72,14 @@ fun SubChatView(
   val historyMessages: List<ChatMessage> = remember(transcriptMarkdown) {
     if (transcriptMarkdown.isNotBlank()) {
       try {
-        ChatTranscript.parseTranscript(transcriptMarkdown).messages
+        ChatTranscript.parseTranscript(content = transcriptMarkdown).messages
       } catch (parseException: Exception) {
         logger.warn("Failed to parse sub-agent transcript", parseException)
         emptyList()
       }
     } else emptyList()
   }
-  val scrollState = rememberScrollState()
+  val scrollState: ScrollState = rememberScrollState()
 
   Column(
     modifier = modifier.fillMaxSize(),
@@ -111,10 +111,10 @@ fun SubChatView(
               )
             }
           }
-          val truncatedTitle =
+          val truncatedTitle: String =
             if (title.length > 30) title.take(30) + "…"
             else title
-          val showTooltip = title.length > 30
+          val showTooltip: Boolean = title.length > 30
           val titleContent =
             @Composable {
               Text(
@@ -131,9 +131,7 @@ fun SubChatView(
             Tooltip(
               modifier = Modifier,
               tooltip = { Text(text = title) }
-            ) {
-              titleContent()
-            }
+            ) { titleContent() }
           } else titleContent()
         }
       }
@@ -146,8 +144,8 @@ fun SubChatView(
     ) {
       if (historyMessages.isNotEmpty()) {
         SubChatConversationContent(
-          messages = historyMessages,
-          scrollState = scrollState
+          scrollState = scrollState,
+          messages = historyMessages
         )
       } else {
         SubChatStreamingContent(
@@ -211,12 +209,12 @@ private fun SubChatStreamingContent(
 
     ModelNameHeader(modelName = modelName)
 
-    toolCalls.forEachIndexed { index, toolCall ->
+    toolCalls.forEachIndexed { index: Int, toolCall: ToolCallInfo ->
       ToolCallBlock(
         onSubChatClick = null,
         block = toolCall.toRenderBlock(),
-        onViewDiff = { _, _, _ -> },
-        onOpenInEditor = { _, _, _ -> },
+        onViewDiff = { _: String, _: String, _: String -> },
+        onOpenInEditor = { _: String, _: Int, _: Int -> },
       )
       if (index < toolCalls.lastIndex || subAgentResponse.isNotBlank())
         Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -249,21 +247,20 @@ private fun SubChatStreamingContent(
       ) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp))
         SweepLightText(
-          enabled = true,
           text = message("gradum.subchat.working")
         )
       }
     } else if (wasInterrupted) {
       Spacer(Modifier.height(GradumSpacing.lg))
       SweepLightText(
-        enabled = false,
-        text = message("gradum.subchat.interrupted")
+        text = message("gradum.subchat.interrupted"),
+        enabled = false
       )
     } else {
       Spacer(Modifier.height(GradumSpacing.lg))
       SweepLightText(
-        enabled = false,
-        text = message("gradum.subchat.done")
+        text = message("gradum.subchat.done"),
+        enabled = false
       )
     }
     Spacer(Modifier.height(GradumSpacing.xxl))
@@ -285,7 +282,7 @@ private fun ModelNameHeader(modelName: String) {
       Text(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        text = formatModelName(modelName)
+        text = formatModelName(raw = modelName)
       )
     }
     Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -300,7 +297,7 @@ private fun SubChatConversationContent(
     modifier = Modifier
       .verticalScroll(scrollState)
   ) {
-    messages.forEachIndexed { index, message ->
+    messages.forEachIndexed { index: Int, message: ChatMessage ->
       val shouldShowTimestamp: Boolean = index == 0 ||
         formatTimestamp(message.timestamp) !=
         formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
@@ -322,9 +319,6 @@ private fun SubChatConversationContent(
         AssistantChatBubble(
           message = message,
           showActions = false,
-          onSubChatClick = null,
-          onViewDiff = { _, _, _ -> },
-          onOpenInEditor = { _, _, _ -> }
         )
       }
     }
