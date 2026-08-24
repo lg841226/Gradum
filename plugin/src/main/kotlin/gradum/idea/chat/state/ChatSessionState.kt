@@ -2,28 +2,29 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionState.kt  2026-08-24 18:05:42 Changed by gwy
+ * ChatSessionState.kt  2026-08-24 18:49:37 Changed by gwy
  */
 
 package gradum.idea.chat.state
 
 import androidx.compose.foundation.text.input.TextFieldState
+import com.intellij.openapi.vfs.VirtualFile
+import gradum.idea.chat.history.SessionMeta
 import gradum.idea.chat.input.ChatInputActions
 import gradum.idea.chat.input.ChatInputState
-import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.model.*
+import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.ModelInfo
+import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.editor.AttachedContext
-import gradum.idea.editor.EditorContext
 import gradum.idea.editor.PendingMessage
-import com.intellij.openapi.vfs.VirtualFile
 
 data class ChatSessionState(
   val messages: List<ChatMessage>,
   val textState: TextFieldState,
   val isLoading: Boolean,
   val sendingPhase: String,
-  val selectedPermission: String,
   val hasSentMessage: Boolean,
+  val selectedPermission: String,
   val isWaitingForResponse: Boolean,
 
   val inputState: ChatInputState,

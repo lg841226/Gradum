@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-13 17:05:03 Changed by gwy
+ * WelcomeScreen.kt  2026-08-24 18:59:20 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -24,15 +24,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.dp
-import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.state.ChatSessionState
 import gradum.idea.chat.ui.input.ChatInputSection
-import gradum.idea.chat.ui.input.PermissionMode
+import gradum.idea.settings.WelcomeLayout
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
-import gradum.idea.settings.WelcomeLayout
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text

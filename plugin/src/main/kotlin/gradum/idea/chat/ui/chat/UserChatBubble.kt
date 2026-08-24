@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-08-14 20:08:39 Changed by gwy
+ * UserChatBubble.kt  2026-08-24 18:59:19 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -51,7 +51,7 @@ import org.jetbrains.jewel.ui.typography
 private val EXPAND_MAX_HEIGHT: Dp = 200.dp
 
 /**
- * Right-aligned user message bubble with copy and reset buttons.
+ * Right-aligned user message bubble with copy and resetAllState buttons.
  *
  * Image attachments render as a compact preview row *above* the
  * bubble ([MessageAttachmentPreview]). File and text attachments
