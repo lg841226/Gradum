@@ -17,7 +17,7 @@ import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("SaveFileSkill")
 
-private const val MAXIMUM_CONTENT_SIZE: Int = 512 * 1024
+private val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
 /**
  * Writes content to a file, creating parent directories as needed.

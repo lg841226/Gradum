@@ -13,6 +13,7 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.string
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -37,9 +38,7 @@ class DefaultRenderer : ToolCallRenderer {
   override fun labelKey(): String? = null
 
   override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-    val aliasName: String = (arguments["alias"] as? String)
-      ?: (result["alias"] as? String)
-      ?: WILDCARD_ALIAS
+    val aliasName: String = arguments.string("alias").ifEmpty { result.string("alias").ifEmpty { WILDCARD_ALIAS } }
     return ToolCallContent(
       aliasName = aliasName,
       fieldMap = emptyMap()

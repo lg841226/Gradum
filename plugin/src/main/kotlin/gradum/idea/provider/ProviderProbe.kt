@@ -6,6 +6,7 @@
  */
 package gradum.idea.provider
 
+import gradum.idea.PluginConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -90,7 +91,7 @@ class ProviderProbe(
   }
 
   private companion object {
-    const val CONNECT_TIMEOUT_SECONDS: Long = 2
-    const val REQUEST_TIMEOUT_SECONDS: Long = 5
+    val CONNECT_TIMEOUT_SECONDS: Long = PluginConfig.PROBE_CONNECT_TIMEOUT.seconds
+    val REQUEST_TIMEOUT_SECONDS: Long = PluginConfig.PROBE_REQUEST_TIMEOUT.seconds
   }
 }

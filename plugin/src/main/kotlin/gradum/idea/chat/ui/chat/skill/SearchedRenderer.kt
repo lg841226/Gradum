@@ -27,6 +27,7 @@ import gradum.idea.chat.ui.chat.skill.SearchedRenderer.Companion.faviconCache
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.chat.ui.util.FaviconHostCache
 import gradum.idea.chat.ui.util.ThumbnailImageLoader
@@ -61,7 +62,7 @@ class SearchedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val query: String = (arguments["query"] as? String).orEmpty()
+    val query: String = arguments.string("query")
 
     @Suppress("UNCHECKED_CAST")
     val results: List<Map<String, Any>> = (result["results"] as? List<Map<String, Any>>) ?: emptyList()

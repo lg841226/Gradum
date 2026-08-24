@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PlannedRenderer.kt  2026-08-23 13:59:00 Changed by gwy
+ * PlannedRenderer.kt  2026-08-24 16:31:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -141,8 +141,9 @@ class PlannedRenderer : ToolCallRenderer {
                     )
 
                   index == currentIndex ->
-                    CircularProgressIndicator(
-                      modifier = Modifier.size(16.dp)
+                    Icon(
+                      contentDescription = null,
+                      key = AllIconsKeys.Vcs.Arrow_right
                     )
 
                   else ->
@@ -157,8 +158,12 @@ class PlannedRenderer : ToolCallRenderer {
                   maxLines = 1,
                   style = bodyStyle,
                   overflow = TextOverflow.Ellipsis,
-                  color = if (index < currentIndex) dimmerColor else textColor,
-                  textDecoration = if (index < currentIndex) TextDecoration.LineThrough else null
+                  color =
+                    if (index < currentIndex) dimmerColor
+                    else textColor,
+                  textDecoration =
+                    if (index < currentIndex) TextDecoration.LineThrough
+                    else null
                 )
               }
             }

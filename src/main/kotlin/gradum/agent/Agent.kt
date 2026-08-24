@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-23 20:21:41 Changed by gwy
+ * Agent.kt  2026-08-24 14:42:39 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -81,7 +81,13 @@ data class AttachmentPayload(
  */
 class Agent(
   private val configuration: AgentConfiguration,
-  private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit
+  private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
+  private val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
+  /**
+   * Paired with [registerChildSession]; called when a sub-agent completes
+   * or errors so the session hierarchy stays clean.
+   */
+  private val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
 ) {
   private val ollamaClient: OllamaClient = OllamaClient(configuration)
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
@@ -97,13 +103,15 @@ class Agent(
   private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
   private val toolExecutor: ToolExecutor = ToolExecutor(
     skillContext = SkillContext(
+      emitEvent = emitEvent,
       toolMode = configuration.toolMode,
       provider = configuration.provider,
       agentConfiguration = configuration,
       modelName = configuration.modelName,
       projectRoot = configuration.projectRoot,
-      conversationHistory = conversationHistory.toList(),
-      emitEvent = emitEvent,
+      registerChildSession = registerChildSession,
+      unregisterChildSession = unregisterChildSession,
+      conversationHistory = { conversationHistory.toList() },
     ), sessionManager, configuration,
     conversationHistory,
     emitEvent = emitEvent
@@ -341,9 +349,9 @@ class Agent(
     flushResponse()
 
     return AgentTurnResult(
-      toolCalls = toolCallsResult,
       errorMessage = errorMessage,
       responseText = contentParts.joinToString(""),
+      toolCalls = toolCallsResult,
     )
   }
 
@@ -510,8 +518,8 @@ class Agent(
   }
 
   private data class AgentTurnResult(
+    val errorMessage: String?,
     val responseText: String?,
-    val toolCalls: List<ToolCallEntry>?,
-    val errorMessage: String?
+    val toolCalls: List<ToolCallEntry>?
   )
 }

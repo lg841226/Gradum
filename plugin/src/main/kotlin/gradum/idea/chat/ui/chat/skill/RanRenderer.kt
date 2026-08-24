@@ -15,6 +15,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -40,8 +41,8 @@ class RanRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val shellCommand: String = (arguments["command"] as? String).orEmpty()
-    val reasonText: String = (arguments["reason"] as? String).orEmpty()
+    val shellCommand: String = arguments.string("command")
+    val reasonText: String = arguments.string("reason")
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 

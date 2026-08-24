@@ -16,11 +16,11 @@ import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("ExploreProjectSkill")
 
-private const val MINIMUM_DEPTH: Int = 5
-private const val MAXIMUM_DEPTH: Int = 14
-private const val DEFAULT_DEPTH: Int = 8
-private const val DEFAULT_LIMIT: Int = 500
-private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2048
+private val MINIMUM_DEPTH: Int = GradumConfig.EXPLORE_MIN_DEPTH
+private val MAXIMUM_DEPTH: Int = GradumConfig.EXPLORE_MAX_DEPTH
+private val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
+private val DEFAULT_LIMIT: Int = GradumConfig.EXPLORE_DEFAULT_LIMIT
+private val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = GradumConfig.EXPLORE_MAX_CHILDREN
 
 /**
  * Scans a project directory tree and returns a flat categorized summary:

@@ -7,6 +7,7 @@
 package gradum.idea.chat.ui.util
 
 import androidx.compose.ui.graphics.ImageBitmap
+import gradum.idea.PluginConfig
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import org.jetbrains.skia.Image
 import org.slf4j.Logger
@@ -26,7 +27,7 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailImageLoader")
  * the whole row feel laggy. 3 s matches JetBrains' own URL handler
  * default for image previews in the IDE.
  */
-private const val THUMBNAIL_HTTP_TIMEOUT_MS: Int = 3_000
+private val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOUT_MS
 
 /**
  * Hard upper bound on the in-memory LRU. 64 entries is more than
@@ -34,7 +35,7 @@ private const val THUMBNAIL_HTTP_TIMEOUT_MS: Int = 3_000
  * returns more than 10 items) and keeps the cache from leaking
  * across very long sessions.
  */
-private const val LRU_MAX_ENTRIES: Int = 64
+private val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
 
 /**
  * Hard cap on the bytes we will read from any single response. Real
@@ -44,7 +45,7 @@ private const val LRU_MAX_ENTRIES: Int = 64
  * someone using this channel to exfiltrate data into the cache. We
  * abort the read and discard the response in that case.
  */
-private const val MAX_IMAGE_BYTES: Int = 512 * 1024
+private val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
 
 /**
  * In-house loader for thumbnail images used in tool-call result rows.

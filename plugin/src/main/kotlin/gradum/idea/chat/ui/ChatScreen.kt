@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-23 21:06:53 Changed by gwy
+ * ChatScreen.kt  2026-08-24 16:37:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -11,7 +11,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,12 +21,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.vfs.VirtualFile
-import gradum.idea.chat.input.ChatInputActions
-import gradum.idea.chat.input.ChatInputState
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.formatTimestamp
-import gradum.idea.chat.state.SubAgentState
+import gradum.idea.chat.state.ChatSessionState
 import gradum.idea.chat.ui.chat.AssistantChatBubble
 import gradum.idea.chat.ui.chat.MessageTimestamp
 import gradum.idea.chat.ui.chat.SubChatView
@@ -49,48 +45,19 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = Logger.getInstance("ChatScreen"::class.java)
 
-/** Tolerance (dp) for "user is at the bottom". Hides jump-to-bottom button when within this range. */
 private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 256.dp
-
-/** Gap (dp) left between the viewport top and a footnote definition after a jump. */
 private val FootnoteScrollPadding: androidx.compose.ui.unit.Dp = GradumSpacing.xxl
-
-/** State and data parameters for [ChatScreen]. */
-data class ChatScreenParams(
-  val isLoading: Boolean,
-  val sendingPhase: String,
-  val selectedPermission: String,
-  val messages: List<ChatMessage>,
-  val textState: TextFieldState,
-  val inputState: ChatInputState,
-  val subAgentState: SubAgentState,
-  val isWaitingForResponse: Boolean,
-  val hasSentMessage: Boolean = false,
-  val inputActions: ChatInputActions
-)
-
-/** Callback lambdas for [ChatScreen]. */
-data class ChatScreenCallbacks(
-  val onDeleteMessage: (Int) -> Unit,
-  val onRetryMessage: (Int) -> Unit,
-  val onCopyAsContext: (String) -> Unit,
-  val onAttachmentClick: (VirtualFile) -> Unit = {},
-  val onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
-  val onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> }
-)
 
 /**
  * Active conversation: scrollable history + input pinned to bottom.
  *
  * Auto-scrolls to the bottom when new content arrives and the user was at
- * the bottom; otherwise a `JumpToBottomButton` appears. The scroll decision
- * uses a `wasAtBottom` snapshot taken at the user's last scroll — reading
- * `scrollState.value` live would flip to "not at bottom" while `maxValue`
- * grows during the layout pass. New user messages always force-scroll.
+ * the bottom; otherwise a `JumpToBottomButton` appears.
  */
 @Composable
 fun ChatScreen(
-  params: ChatScreenParams, callbacks: ChatScreenCallbacks, modifier: Modifier = Modifier
+  state: ChatSessionState,
+  modifier: Modifier = Modifier
 ) {
   var subChatActive by remember { mutableStateOf(false) }
   var subChatTranscriptMarkdown by remember { mutableStateOf("") }
@@ -109,29 +76,29 @@ fun ChatScreen(
   }
 
   if (subChatActive) {
-    // Elapsed time timer for the sub-agent view.
     val elapsedSeconds = remember { mutableStateOf(0) }
-    LaunchedEffect(params.subAgentState.startTimestamp) {
-      if (params.subAgentState.startTimestamp > 0L) {
-        while (params.subAgentState.isActive) {
+    LaunchedEffect(state.subAgentState.startTimestamp) {
+      if (state.subAgentState.startTimestamp > 0L) {
+        while (state.subAgentState.isActive) {
           elapsedSeconds.value =
-            ((System.currentTimeMillis() - params.subAgentState.startTimestamp) / 1000).toInt()
+            ((System.currentTimeMillis() - state.subAgentState.startTimestamp) / 1000).toInt()
           delay(1_000L.milliseconds)
         }
       }
     }
 
     SubChatView(
-      modifier = modifier,
       onBack = onBackToMainChat,
-      modelName = params.subAgentState.modelName,
-      userQuery = params.subAgentState.userQuery,
-      toolCalls = params.subAgentState.toolCalls,
-      hasCompleted = !params.subAgentState.isActive,
+      title = subChatTitle.ifBlank { state.subAgentState.title },
+      modelName = state.subAgentState.modelName,
+      userQuery = state.subAgentState.userQuery,
+      errorMessage = state.subAgentState.errorMessage,
+      modifier = modifier,
+      hasCompleted = !state.subAgentState.isActive,
+      wasInterrupted = state.subAgentState.wasInterrupted,
+      subAgentResponse = state.subAgentState.streamingResponse,
       transcriptMarkdown = subChatTranscriptMarkdown,
-      errorMessage = params.subAgentState.errorMessage,
-      subAgentResponse = params.subAgentState.streamingResponse,
-      title = subChatTitle.ifBlank { params.subAgentState.title }
+      toolCalls = state.subAgentState.toolCalls
     )
     return
   }
@@ -159,25 +126,25 @@ fun ChatScreen(
     wasAtBottom = isNearBottom
   }
 
-  var lastSeenMessageCount by remember { mutableIntStateOf(params.messages.size) }
+  var lastSeenMessageCount by remember { mutableIntStateOf(state.messages.size) }
 
   val autoScrollToBottom: Boolean = LocalAutoScrollToBottom.current
   val messageLoadEnabled: Boolean = LocalMessageLoadEnabled.current
   val messageLoadCount: Int = LocalMessageLoadCount.current
 
-  val displayMessages: List<ChatMessage> = remember(params.messages, messageLoadEnabled, messageLoadCount) {
-    if (messageLoadEnabled && params.messages.size > messageLoadCount) params.messages.takeLast(messageLoadCount)
-    else params.messages
+  val displayMessages: List<ChatMessage> = remember(state.messages, messageLoadEnabled, messageLoadCount) {
+    if (messageLoadEnabled && state.messages.size > messageLoadCount) state.messages.takeLast(messageLoadCount)
+    else state.messages
   }
 
   val lastMessage: ChatMessage? = displayMessages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
 
-  LaunchedEffect(params.messages.size, lastBlockCount, autoScrollToBottom) {
+  LaunchedEffect(state.messages.size, lastBlockCount, autoScrollToBottom) {
     if (!autoScrollToBottom) return@LaunchedEffect
-    if (params.messages.size > lastSeenMessageCount) {
-      val newMessages: List<ChatMessage> = params.messages.subList(lastSeenMessageCount, params.messages.size)
-      lastSeenMessageCount = params.messages.size
+    if (state.messages.size > lastSeenMessageCount) {
+      val newMessages: List<ChatMessage> = state.messages.subList(lastSeenMessageCount, state.messages.size)
+      lastSeenMessageCount = state.messages.size
       if (newMessages.any { it.isUserMessage }) {
         withFrameNanos { }
         scrollState.animateScrollTo(scrollState.maxValue)
@@ -210,7 +177,7 @@ fun ChatScreen(
           displayMessages.forEachIndexed { index, message ->
             val shouldShowTimestamp = index == 0 || formatTimestamp(message.timestamp) !=
               formatTimestamp(displayMessages.getOrNull(index - 1)?.timestamp ?: 0L)
-            val isLastAssistant = index == displayMessages.lastIndex && !message.isUserMessage && params.isLoading
+            val isLastAssistant = index == displayMessages.lastIndex && !message.isUserMessage && state.isLoading
 
             if (LocalShowTimestamp.current && shouldShowTimestamp) {
               MessageTimestamp(
@@ -222,9 +189,9 @@ fun ChatScreen(
             when {
               message.isUserMessage -> UserChatBubble(
                 message = message,
-                onDeleteMessage = { callbacks.onDeleteMessage(index) },
-                onCopyAsContext = callbacks.onCopyAsContext,
-                onAttachmentClick = callbacks.onAttachmentClick
+                onDeleteMessage = { state.onDeleteMessage(index) },
+                onCopyAsContext = state.onCopyAsContext,
+                onAttachmentClick = state.onAttachmentClick
               )
 
               else -> {
@@ -247,8 +214,8 @@ fun ChatScreen(
                 CompositionLocalProvider(LocalFootnoteRegistry provides footnoteRegistry) {
                   AssistantChatBubble(
                     message = message,
-                    sendingPhase = if (isLastAssistant) params.sendingPhase else "",
-                    onRetry = { callbacks.onRetryMessage(index) },
+                    sendingPhase = if (index == displayMessages.lastIndex && !message.isUserMessage && (state.isLoading || state.sendingPhase.isNotBlank())) state.sendingPhase else "",
+                    onRetry = { state.onRetryMessage(index) },
                     onUrlClick = { url ->
                       try {
                         Desktop.getDesktop().browse(URI(url))
@@ -258,10 +225,10 @@ fun ChatScreen(
                     },
                     isLoading = isLastAssistant,
                     onSubChatClick = onSubChatClick,
-                    onViewDiff = callbacks.onViewDiff,
-                    onOpenInEditor = callbacks.onOpenInEditor,
-                    actionsEnabled = !params.isWaitingForResponse,
-                    selectedPermission = params.selectedPermission
+                    onViewDiff = state.onViewDiff,
+                    onOpenInEditor = state.onOpenInEditor,
+                    actionsEnabled = !state.isWaitingForResponse,
+                    selectedPermission = state.selectedPermission
                   )
                 }
               }
@@ -324,11 +291,11 @@ fun ChatScreen(
     ChatInputSection(
       modifier = Modifier
         .padding(bottom = GradumSpacing.sml),
-      state = params.inputState,
-      textState = params.textState,
-      actions = params.inputActions,
-      hasSentMessage = params.hasSentMessage,
-      selectedPermission = params.selectedPermission
+      state = state.inputState,
+      textState = state.textState,
+      actions = state.inputActions,
+      hasSentMessage = state.hasSentMessage,
+      selectedPermission = state.selectedPermission
     )
   }
 }

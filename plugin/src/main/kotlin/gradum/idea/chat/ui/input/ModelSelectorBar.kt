@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import gradum.idea.chat.model.ModelInfo
+import gradum.idea.PluginConfig
 import gradum.idea.chat.model.ThinkingLevel
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.common.SelectorButton
@@ -263,7 +264,7 @@ private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
 }
 
 /** Caps a model display name at [MAX_MODEL_NAME_CHARS] characters for narrow selectors. */
-private const val MAX_MODEL_NAME_CHARS: Int = 14
+private val MAX_MODEL_NAME_CHARS: Int = PluginConfig.MAX_MODEL_NAME_CHARS
 
 private fun clipModelName(name: String): String {
   val trimmed = name.trim()

@@ -19,6 +19,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import gradum.idea.chat.api.GradumApiClient
+import gradum.idea.PluginConfig
 import gradum.idea.chat.history.ChatSessionStore
 import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.history.SessionMeta
@@ -283,6 +284,7 @@ class GradumChatSession {
    * discarded and started fresh.
    */
   fun reset() {
+    cleanupSubAgent()
     saveCurrentSession()
     exitMergeMode()
     val cancellableJob = currentJob
@@ -731,6 +733,7 @@ class GradumChatSession {
    * to abort the agent's execution.
    */
   suspend fun stopSession() {
+    cleanupSubAgent()
     val activeJob = currentJob
     currentJob = null
     if (activeJob != null) {
@@ -750,7 +753,6 @@ class GradumChatSession {
       }
       sessionId = null
     }
-    sendingPhase = ""
     isSending = false
     isWaitingForResponse = false
     processPendingQueue()
@@ -780,6 +782,7 @@ class GradumChatSession {
     contextPath: String = "", toolCallXml: String? = null
   ) {
     var receivedSessionEnd = false
+    var wasCancelled = false
     val modelConfig: Map<String, String> = buildModelConfig()
     val attachmentPaths: List<String> = attachments.filterIsInstance<AttachedFile>().map { it.file.path }
     val textAttachments: List<AttachedText> = attachments.filterIsInstance<AttachedText>()
@@ -919,14 +922,27 @@ class GradumChatSession {
         sessionId = activeSessionId
       ).catch { exception ->
         if (exception is CancellationException) {
+          cleanupSubAgent()
           val assistantIndex: Int = messages.lastIndex
           if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-            messages[assistantIndex] = messages[assistantIndex].appendEvent(
-              ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
-            )
+            val hasOutput = messages[assistantIndex].content.isNotEmpty() ||
+              messages[assistantIndex].events.isNotEmpty()
+            if (hasOutput) {
+              wasCancelled = true
+              messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+              )
+              sendingPhase = message("gradum.phase.stopped")
+            } else {
+              messages[assistantIndex] = messages[assistantIndex].appendEvent(
+                ChatEvent.Response("\u2026\u2026")
+              )
+              sendingPhase = ""
+            }
+          } else {
+            sendingPhase = ""
           }
           isSending = false
-          sendingPhase = ""
           return@catch
         }
         log.warn("Failed to send message to ${apiClient.baseUrl}", exception)
@@ -994,13 +1010,26 @@ class GradumChatSession {
       }
     } catch (exception: Exception) {
       if (exception is CancellationException) {
+        cleanupSubAgent()
         val assistantIndex: Int = messages.lastIndex
         if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
-          messages[assistantIndex] = messages[assistantIndex].appendEvent(
-            ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
-          )
+          val hasOutput = messages[assistantIndex].content.isNotEmpty() ||
+            messages[assistantIndex].events.isNotEmpty()
+          if (hasOutput) {
+            wasCancelled = true
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(
+              ChatEvent.Error("", code = ErrorCode.INTERRUPTED.code)
+            )
+            sendingPhase = message("gradum.phase.stopped")
+          } else {
+            messages[assistantIndex] = messages[assistantIndex].appendEvent(
+              ChatEvent.Response("\u2026\u2026")
+            )
+            sendingPhase = ""
+          }
+        } else {
+          sendingPhase = ""
         }
-        sendingPhase = ""
         isSending = false
         isWaitingForResponse = false
         return
@@ -1020,7 +1049,9 @@ class GradumChatSession {
       processPendingQueue()
     } finally {
       if (!receivedSessionEnd) {
-        sendingPhase = ""
+        if (!wasCancelled) {
+          sendingPhase = ""
+        }
         isSending = false
         currentJob = null
         sessionId = null
@@ -1197,13 +1228,15 @@ class GradumChatSession {
     subAgentState.title = data?.get("title")?.jsonPrimitive?.contentOrNull ?: ""
     subAgentState.startTimestamp = System.currentTimeMillis()
 
-    // Capture the user's query that triggered the sub-agent.
     val assistantIndex: Int = messages.lastIndex
-    if (assistantIndex >= 1 && !messages[assistantIndex].isUserMessage) {
-      subAgentState.userQuery = messages[assistantIndex - 1].content
-    }
 
-    val timeoutSeconds: Int = data?.get("timeoutSeconds")?.jsonPrimitive?.intOrNull ?: 600
+    // Extract the actual task from the sub_agent:start event data,
+    // so the sub-agent UI shows what the sub-agent actually received,
+    // not the original user message from the main conversation.
+    subAgentState.userQuery = data?.get("task")?.jsonPrimitive?.contentOrNull
+      ?: messages.getOrNull(assistantIndex - 1)?.content.orEmpty()
+
+    val timeoutSeconds: Int = data?.get("timeoutSeconds")?.jsonPrimitive?.intOrNull ?: PluginConfig.SUB_AGENT_TIMEOUT_FALLBACK
     if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
 
     val delegateArgs: Map<String, Any> = mapOf(
@@ -1288,6 +1321,51 @@ class GradumChatSession {
     }
   }
 
+  /**
+   * Clean up sub-agent state: cancel the timeout job, reset state, and update
+   * the delegate capsule to show "stopped" if the assistant message still exists.
+   *
+   * Called when the session is externally terminated (stop, reset, cancellation)
+   * while a sub-agent is still running.
+   */
+  private fun cleanupSubAgent() {
+    val wasActive: Boolean = subAgentState.isActive
+    val savedTitle: String = subAgentState.title
+    val savedStartTimestamp: Long = subAgentState.startTimestamp
+
+    subAgentTimeoutJob?.cancel(CancellationException("Gradum: cancel sub-agent timeout on cleanup"))
+    subAgentTimeoutJob = null
+    subAgentState.reset()
+    subAgentState.wasInterrupted = true
+
+    if (wasActive) {
+      log.warn("Sub-agent cleaned up due to external termination")
+      val assistantIndex: Int = messages.lastIndex
+      if (assistantIndex >= 0 && assistantIndex < messages.size && !messages[assistantIndex].isUserMessage) {
+        val updateToolCall = ToolCallInfo(
+          success = false,
+          pending = false,
+          alias = "Delegate",
+          result = "Interrupted",
+          toolName = "delegate_task",
+          toolCallId = "delegate_task",
+          arguments = mapOf(
+            "pending" to false,
+            "result" to "Interrupted",
+            "title" to savedTitle,
+            "startTimestamp" to savedStartTimestamp,
+            "endTimestamp" to System.currentTimeMillis(),
+          ),
+        )
+        try {
+          messages[assistantIndex] = messages[assistantIndex].appendEvent(ChatEvent.ToolCall(updateToolCall))
+        } catch (appendException: Exception) {
+          log.warn("Failed to update delegate capsule on sub-agent cleanup", appendException)
+        }
+      }
+    }
+  }
+
   private fun handleSubAgentError(data: JsonObject?) {
     val errorMessage: String = data?.get("message")?.jsonPrimitive?.contentOrNull
       ?: data?.get("error")?.jsonPrimitive?.contentOrNull
@@ -1301,7 +1379,7 @@ class GradumChatSession {
 
     // Update the delegate capsule in the main chat to show the error
     val assistantIndex: Int = messages.lastIndex
-    if (assistantIndex >= 0 && !messages[assistantIndex].isUserMessage) {
+    if (assistantIndex >= 0 && assistantIndex < messages.size && !messages[assistantIndex].isUserMessage) {
       val toolCall = ToolCallInfo(
         success = false,
         pending = false,
@@ -1370,7 +1448,7 @@ class GradumChatSession {
 
     // Guard against stale assistantIndex: only update if the last message is still the assistant
     val assistantIndex: Int = messages.lastIndex
-    if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) {
+    if (assistantIndex < 0 || assistantIndex >= messages.size || messages[assistantIndex].isUserMessage) {
       log.warn("Sub-agent end: assistant message no longer at last index, skipping capsule update")
       sendingPhase = message("gradum.phase.delegate.done")
       return
@@ -1484,20 +1562,20 @@ class GradumChatSession {
 
   companion object {
     private val jsonFormat: Json = Json { ignoreUnknownKeys = true }
-    const val MAX_ATTACHMENTS: Int = 10
-    const val MAX_PENDING_MESSAGES: Int = 2
+    val MAX_ATTACHMENTS: Int = PluginConfig.MAX_ATTACHMENTS
+    private val MAX_PENDING_MESSAGES: Int = PluginConfig.MAX_PENDING_MESSAGES
 
     /** Minimum number of sessions a merge combines. */
-    const val MIN_MERGE_SESSIONS: Int = 2
+    val MIN_MERGE_SESSIONS: Int = PluginConfig.MIN_MERGE_SESSIONS
 
     /** Minimum milliseconds to display the "Sending" animation before the request fires. */
-    const val MIN_SENDING_MS: Long = 400
+    private val MIN_SENDING_MS: Long = PluginConfig.MIN_SENDING_MS
 
     /** Max connection retry attempts before surfacing a server error. */
-    const val MAX_CONNECT_ATTEMPTS: Int = 6
+    private val MAX_CONNECT_ATTEMPTS: Int = PluginConfig.MAX_CONNECT_ATTEMPTS
 
     /** Base backoff delay in ms, doubled after each failed attempt (2s, 4s, 8s, ...). */
-    const val CONNECT_BACKOFF_MS: Long = 2_000
+    private val CONNECT_BACKOFF_MS: Long = PluginConfig.CONNECT_BACKOFF_MS
 
     private val FOCUS_FILE_PATTERN: Regex = Regex("@focus")
     private val FILE_REF_PATTERN: Regex = Regex("""@file:(\S+)""")
@@ -1587,6 +1665,9 @@ class SubAgentState {
   /** Timestamp (epoch millis) when the sub-agent started. */
   var startTimestamp: Long by mutableStateOf(0L)
 
+  /** Whether the sub-agent was externally interrupted (stop/reset/cancel). */
+  var wasInterrupted: Boolean by mutableStateOf(false)
+
   /** Resets all state to initial values. */
   fun reset() {
     isActive = false
@@ -1597,5 +1678,6 @@ class SubAgentState {
     title = ""
     userQuery = ""
     startTimestamp = 0L
+    wasInterrupted = false
   }
 }

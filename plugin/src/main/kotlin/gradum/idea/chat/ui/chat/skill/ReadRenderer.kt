@@ -20,6 +20,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
@@ -47,11 +48,11 @@ class ReadRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = (arguments["path"] as? String).orEmpty()
+    val filePath: String = arguments.string("path")
     val startLine: Int? = (result["startLine"] as? Number)?.toInt()
-      ?: parseLineRangeStart(result["lineRange"] as? String)
+      ?: parseLineRangeStart(result.string("lineRange"))
     val endLine: Int? = (result["endLine"] as? Number)?.toInt()
-      ?: parseLineRangeEnd(result["lineRange"] as? String)
+      ?: parseLineRangeEnd(result.string("lineRange"))
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) {
       actionList.add(

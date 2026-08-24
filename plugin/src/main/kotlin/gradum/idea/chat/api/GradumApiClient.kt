@@ -8,6 +8,7 @@
 package gradum.idea.chat.api
 
 import com.intellij.openapi.diagnostic.Logger
+import gradum.idea.PluginConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -22,7 +23,6 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.time.Duration
 
 /**
  * HTTP client for the Gradum backend REST API (models + streaming NDJSON at `POST /events`).
@@ -37,7 +37,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
   private val log: Logger = Logger.getInstance(GradumApiClient::class.java)
   private val client: HttpClient = HttpClient.newBuilder()
-    .connectTimeout(Duration.ofSeconds(5))
+    .connectTimeout(PluginConfig.API_CONNECT_TIMEOUT)
     .build()
 
   /**
@@ -215,7 +215,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val request: HttpRequest = HttpRequest.newBuilder()
       .uri(URI.create("$baseUrl/events"))
       .header("Content-Type", "application/json")
-      .timeout(Duration.ofSeconds(30))
+      .timeout(PluginConfig.API_REQUEST_TIMEOUT)
       .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
       .build()
 

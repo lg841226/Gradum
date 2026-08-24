@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-08-23 13:59:00 Changed by gwy
+ * CompletedRenderer.kt  2026-08-24 16:31:49 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -24,7 +24,6 @@ import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.CircularProgressIndicator
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -109,8 +108,9 @@ class CompletedRenderer : ToolCallRenderer {
           )
         }
         Icon(
-          key = if (isExpanded) AllIconsKeys.General.ChevronDown
-          else AllIconsKeys.General.ChevronRight,
+          key =
+            if (isExpanded) AllIconsKeys.General.ChevronDown
+            else AllIconsKeys.General.ChevronRight,
           contentDescription = null
         )
       }
@@ -131,14 +131,17 @@ class CompletedRenderer : ToolCallRenderer {
                 horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
               ) {
                 when {
-                  index < currentIndex -> Icon(
-                    contentDescription = null,
-                    key = AllIconsKeys.General.GreenCheckmark
-                  )
+                  index < currentIndex ->
+                    Icon(
+                      contentDescription = null,
+                      key = AllIconsKeys.General.GreenCheckmark
+                    )
 
-                  index == currentIndex -> CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp)
-                  )
+                  index == currentIndex ->
+                    Icon(
+                      contentDescription = null,
+                      key = AllIconsKeys.Vcs.Arrow_right
+                    )
 
                   else -> Text(
                     color = infoColor,

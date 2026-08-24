@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-23 21:12:19 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-24 14:00:57 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -140,7 +140,8 @@ fun AssistantChatBubble(
         TokenStatusRow(
           isLoading = isLoading,
           tokenCount = tokenCount,
-          sendingPhase = if (isLoading) sendingPhase else message("gradum.done")
+          sendingPhase = if (isLoading) sendingPhase
+          else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
         )
       }
 
@@ -149,7 +150,7 @@ fun AssistantChatBubble(
         MessageActionsRow(
           onRetry = onRetry,
           message = message,
-          isLoading = isLoading,
+          isLoading = false,
           hasContent = hasContent,
           actionsEnabled = actionsEnabled,
           selectedPermission = selectedPermission
@@ -213,7 +214,8 @@ fun ToolCallBlock(
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
 ) {
   // Delegate blocks are rendered even when pending (live countdown).
-  if (block.pending && !(ToolCallRendererRegistry.find(block.alias)?.rendersWhilePending() ?: false)) return
+  if (block.pending && !(ToolCallRendererRegistry.find(block.alias)?.rendersWhilePending() ?: false))
+    return
 
   val fadeAlpha = remember { Animatable(0f) }
   LaunchedEffect(Unit) {
@@ -348,9 +350,9 @@ private fun TokenStatusRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
-    if (isLoading) {
+    if (isLoading)
       CircularProgressIndicator(modifier = Modifier.size(16.dp))
-    }
+
     SweepLightText(
       text = displayText,
       enabled = isLoading,

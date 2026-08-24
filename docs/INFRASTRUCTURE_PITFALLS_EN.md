@@ -1279,3 +1279,93 @@ httpClient.preparePost(requestUrl) {
 > This bug took half a day of debugging — Ollama logs showed token generation, `curl -N` confirmed Ollama was
 > streaming correctly, but the Ktor client still received everything at once. The Ktor documentation's "Streaming data"
 > section is the key reference, but it's easy to miss when you're focused on the `bodyAsChannel()` function name.
+
+## 18. Inline Code Chip Height — Unreliable Dynamic Measurement vs Formula-Based Approach
+
+> **Date**: 2026-08-24 (3:00 AM — 4 hours of debugging, 12+ iterations)
+> **Files**: `BlockRenderer.kt`, `GradumMarkdown.kt`, `Styling.kt`
+> **Key insight**: `TextLayoutResult.getLineTop()/getLineBottom()` return different heights for different lines
+> within the same `Text` composable. A formula `fontSize * multiplier` bypasses the unreliable measurement entirely.
+
+### Symptoms
+
+- Long inline code chips that wrap to a second line show the second line's chip "stuck to the top" — the background
+  chip is positioned at the top of the line instead of vertically centered.
+- Different lines within the same `Text` composable produce different chip heights, even though they use the same
+  `TextStyle` and `fontSize`.
+- The same formula applied in two different rendering paths (`BlockRenderer.kt` and `GradumMarkdown.kt`) produces
+  different pixel heights (e.g., 37px vs 45px), because each path uses a different `TextStyle` with different
+  `lineHeight` values.
+
+### Root Cause
+
+The root cause is a chain of compounding issues:
+
+1. **`TextLayoutResult.getLineTop(line)` / `getLineBottom(line)` are not reliable for chip backgrounds.**
+   These functions return the line's bounding box within the layout, which can vary between lines due to how Compose
+   distributes leading (line spacing) across lines. The difference `lineBottom - lineTop` is not guaranteed to be
+   consistent across lines.
+
+2. **Each `Text` composable is independent.** A `FlowRow` containing multiple `Text` segments means each segment
+   has its own `TextLayoutResult` and its own coordinate system. The chip heights can differ between segments
+   if their `TextStyle` differs (even subtly).
+
+3. **`TextStyle.lineHeight` varies between rendering paths.** `BlockRenderer.kt` generates its `TextStyle` from
+   Jewel's Markdown styling pipeline, while `GradumMarkdown.kt` uses a separate resolved style. The same
+   `BODY_LINE_HEIGHT_MULTIPLIER` can produce different actual heights because the base `fontSize` differs.
+
+4. **Glyph-level bounding box (`getBoundingBox`) is even worse** — it measures per-character and is highly
+   font-dependent, producing inconsistent results for CJK vs Latin characters, punctuation, and whitespace.
+
+### Fix
+
+Replace **dynamic measurement** with a **formula-based approach**:
+
+```kotlin
+// Styling.kt — named constants
+internal const val INLINE_CODE_CHIP_HEIGHT_MULTIPLIER: Float = 1.2f
+internal const val INLINE_CODE_CHIP_BASELINE_RATIO: Float = 0.75f
+
+// In drawWithContent — chip height calculation
+val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
+
+// Position relative to baseline, not line center
+val baseline = layoutResult.getLineBaseline(line)
+val chipTop = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
+```
+
+Key design decisions:
+
+- **`fontSize` as the base**: Unlike `lineHeight`, `fontSize` is a stable, well-defined typographic unit. It does not
+  vary between rendering paths or between lines within the same `Text`.
+- **`INLINE_CODE_CHIP_HEIGHT_MULTIPLIER = 1.2f`**: The chip is 20% taller than the font size, providing enough
+  padding around the text glyphs without being as tall as the full line height (which would be ~1.3x).
+- **`INLINE_CODE_CHIP_BASELINE_RATIO = 0.75f`**: 75% of the chip height is above the baseline, 25% below. This
+  matches the natural distribution of text glyphs (ascent ≈ 0.8x, descent ≈ 0.2x of font size).
+- **Baseline-based positioning**: Using `getLineBaseline(line)` instead of `getLineTop(line)` / `getLineBottom(line)`
+  ensures the chip is visually centered on the text, not on the line's bounding box (which includes leading).
+
+### Verification
+
+- All inline code chips now have the same height regardless of which line in the `Text` composable they appear on.
+- `BlockRenderer.kt` and `GradumMarkdown.kt` produce identical chip heights for the same `fontSize`.
+- The chip height scales correctly with the surrounding text's font size (no hard-coded pixel values).
+- Long inline code that wraps to multiple lines shows consistent chip backgrounds on every line.
+- No visual "stuck to top" or "stuck to baseline" artifacts.
+
+### Lesson
+
+> **Do not trust `TextLayoutResult.getLineTop()/getLineBottom()` for measuring chip/background heights.**
+> These values are line-positioning coordinates within the text layout engine, not design-specified heights.
+> They can vary between lines of the same `Text` composable due to leading distribution.
+>
+> When you need a consistent visual element that scales with text, use a formula based on `fontSize`:
+> `chipHeight = fontSize * multiplier`. This is deterministic, controllable, and automatically adapts to
+> font size changes.
+>
+> For vertical positioning, use `getLineBaseline(line)` as the reference point rather than line center.
+> Text glyphs are not centered within the line — they sit on the baseline with asymmetric ascent/descent.
+> A baseline-relative formula (`chipTop = baseline - chipHeight * ratio`) gives visually correct centering.
+>
+> This bug took 4 hours of debugging with 12+ iterations. The fingerprint: second-line chips are "stuck to the top"
+> or have inconsistent heights. The fix is always the same: formula, not measurement.

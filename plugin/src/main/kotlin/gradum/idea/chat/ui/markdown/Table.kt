@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -326,36 +327,20 @@ fun ScrollableTable(
   val tableBackground = Color.Transparent
   val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
-  val editorFontSizeSp: Float = JewelTheme.editorTextStyle.fontSize.value
-    .let { if (it <= 0f) 13f else it }
 
-  val naturalColumnWidthsPx: IntArray = remember(table, editorFontSizeSp) {
+  val naturalColumnWidthsPx: IntArray = remember(table) {
     val widths = IntArray(table.header.size.coerceAtLeast(1))
     val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
-    val codeSpanRegex = Regex("`([^`]+)`")
 
     fun measure(row: List<String>, style: TextStyle) {
       row.forEachIndexed { columnIndex, cell ->
         if (columnIndex >= widths.size) return@forEachIndexed
-        val rawWidth: Int = textMeasurer.measure(
+        val cellWidth: Int = textMeasurer.measure(
           maxLines = 1,
           style = style,
           softWrap = false,
           text = AnnotatedString(cell)
-        ).size.width
-        var chipDelta = 0
-        for (match in codeSpanRegex.findAll(cell)) {
-          val codeText: String = match.groupValues[1]
-          val chipWidth: Int = (editorFontSizeSp * cjkAwareWidthRatio(codeText) + INLINE_CODE_PLACEHOLDER_PADDING_SP).toInt()
-          val rawCodeWidth: Int = textMeasurer.measure(
-            maxLines = 1,
-            style = style,
-            softWrap = false,
-            text = AnnotatedString(match.value)
-          ).size.width
-          chipDelta += chipWidth - rawCodeWidth
-        }
-        val cellWidth: Int = (rawWidth + chipDelta).coerceAtMost(maxCellWidthPx)
+        ).size.width.coerceAtMost(maxCellWidthPx)
         if (cellWidth > widths[columnIndex]) widths[columnIndex] = cellWidth
       }
     }
@@ -743,12 +728,14 @@ fun SafeMarkdownText(
     .copy(fontWeight = fontWeight)
   val editorFontSizeSp: Float = JewelTheme.editorTextStyle.fontSize.value
     .let { if (it <= 0f) 13f else it }
+  val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   RenderInlineTextWithChips(
     text = text,
     style = baseStyle,
     modifier = modifier,
     onUrlClick = onUrlClick,
     inlineCodeFontSizeSp = editorFontSizeSp,
+    editorFontFamily = editorFontFamily,
   )
 }
 

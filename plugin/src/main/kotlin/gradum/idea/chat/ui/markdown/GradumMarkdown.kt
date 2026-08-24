@@ -16,10 +16,16 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
@@ -29,6 +35,7 @@ import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.LocalGlobalColors
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.Markdown
 import org.jetbrains.jewel.ui.component.ExternalLink
 import org.jetbrains.jewel.ui.component.Text
@@ -151,7 +158,7 @@ internal fun GradumMarkdownContent(
           GradumMarkdownSegment(
             segment = segment,
             config = config,
-            paragraphStyle = bodyTextStyle
+            paragraphStyle = bodyTextStyle,
           )
         }
       }
@@ -172,19 +179,19 @@ internal fun GradumMarkdownContent(
 private fun GradumMarkdownSegment(
   segment: MarkdownSegment,
   config: GradumMarkdownScope,
-  paragraphStyle: TextStyle
+  paragraphStyle: TextStyle,
 ) {
   if (config.animationEnabled) {
     AnimatedGradumSegment(
       segment = segment,
       config = config,
-      paragraphStyle = paragraphStyle
+      paragraphStyle = paragraphStyle,
     )
   } else {
     StaticGradumSegment(
       segment = segment,
       config = config,
-      paragraphStyle = paragraphStyle
+      paragraphStyle = paragraphStyle,
     )
   }
 }
@@ -196,7 +203,7 @@ private fun GradumMarkdownSegment(
 private fun StaticGradumSegment(
   segment: MarkdownSegment,
   config: GradumMarkdownScope,
-  paragraphStyle: TextStyle
+  paragraphStyle: TextStyle,
 ) {
   when (segment) {
     is MarkdownSegment.Plain -> {
@@ -220,11 +227,63 @@ private fun StaticGradumSegment(
         ) {
           segments.forEach { inlineSegment ->
             when (inlineSegment) {
-              is InlineSegment.TextSegment -> Text(
-                style = resolvedStyle,
-                text = inlineSegment.annotated,
-                inlineContent = inlineSegment.inlineContent
-              )
+              is InlineSegment.TextSegment -> {
+                val codeSpanAnnotations = remember(inlineSegment.annotated) {
+                  inlineSegment.annotated.getStringAnnotations(
+                    INLINE_CODE_SPAN_TAG, 0, inlineSegment.annotated.length
+                  )
+                }
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                val density = LocalDensity.current
+                val badgeColor = JewelTheme.globalColors.text.info
+                val backgroundColor = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+                val borderColor = badgeColor.copy(alpha = 0.3f)
+                Text(
+                  style = resolvedStyle,
+                  text = inlineSegment.annotated,
+                  inlineContent = inlineSegment.inlineContent,
+                  onTextLayout = { layoutResult -> textLayoutResult = layoutResult },
+                  modifier = Modifier.drawWithContent {
+                    val layoutResult = textLayoutResult
+                    if (layoutResult != null && codeSpanAnnotations.isNotEmpty()) {
+                      val cornerRadiusPx = INLINE_CODE_CORNER_RADIUS.toPx()
+                      val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
+                      for (annotation in codeSpanAnnotations) {
+                        val start = annotation.start
+                        val end = annotation.end
+                        if (start >= end) continue
+                        val startLine = layoutResult.getLineForOffset(start)
+                        val endLine = layoutResult.getLineForOffset(end - 1)
+                        for (line in startLine..endLine) {
+                          val lineStart = layoutResult.getLineStart(line)
+                          val lineEnd = layoutResult.getLineEnd(line)
+                          val segmentStart = maxOf(start, lineStart)
+                          val segmentEnd = minOf(end, lineEnd)
+                          if (segmentStart >= segmentEnd) continue
+                          val left = layoutResult.getBoundingBox(segmentStart).left
+                          val right = layoutResult.getBoundingBox(segmentEnd - 1).right
+                          val baseline = layoutResult.getLineBaseline(line)
+                          val chipTop = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
+                          drawRoundRect(
+                            color = backgroundColor,
+                            topLeft = Offset(left, chipTop),
+                            size = Size(right - left, chipHeightPx),
+                            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                          )
+                          drawRoundRect(
+                            color = borderColor,
+                            topLeft = Offset(left, chipTop),
+                            size = Size(right - left, chipHeightPx),
+                            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                            style = Stroke(width = 0.5.dp.toPx())
+                          )
+                        }
+                      }
+                    }
+                    drawContent()
+                  }
+                )
+              }
 
               is InlineSegment.LinkSegment -> ExternalLink(
                 text = inlineSegment.text,
@@ -274,7 +333,7 @@ private fun StaticGradumSegment(
 private fun AnimatedGradumSegment(
   segment: MarkdownSegment,
   config: GradumMarkdownScope,
-  paragraphStyle: TextStyle
+  paragraphStyle: TextStyle,
 ) {
   val density = LocalDensity.current
   var contentHeightPx by remember { mutableIntStateOf(0) }
@@ -299,7 +358,11 @@ private fun AnimatedGradumSegment(
         translationY = offsetY.value
       }
   ) {
-    StaticGradumSegment(segment = segment, config = config, paragraphStyle = paragraphStyle)
+    StaticGradumSegment(
+      segment = segment,
+      config = config,
+      paragraphStyle = paragraphStyle,
+    )
   }
 }
 

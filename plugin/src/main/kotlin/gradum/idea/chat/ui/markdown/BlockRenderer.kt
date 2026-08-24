@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-08-23 12:31:35 Changed by gwy
+ * BlockRenderer.kt  2026-08-24 04:06:59 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -12,13 +12,20 @@ package gradum.idea.chat.ui.markdown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -333,16 +340,7 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   val strippedParagraph = Paragraph()
   strippedParagraph.appendChild(org.commonmark.node.Text(stripped))
 
-  // Walk the original paragraph's children starting at the
-  // sibling after `firstText`. We must capture `currentNode.next`
-  // *before* `appendChild` because the call goes through
-  // `Node.unlink`, which nulls the moved node's `next` field
-  // (see commonmark `org.commonmark.node.Node#unlink`).
-  // A `generateSequence { it.next }` over the moved node would
-  // terminate after the first sibling — a real bug that dropped
-  // every-other-child for paragraphs with a strong/emphasis
-  // sibling in a task-list item. The manual loop captures
-  // `next` before the destructive append.
+
   var currentNode: Node? = firstText.next
   while (currentNode != null) {
     val nextNode: Node? = currentNode.next
@@ -786,6 +784,7 @@ fun RenderInlineTextWithChips(
   modifier: Modifier = Modifier,
   onUrlClick: (String) -> Unit = {},
   inlineCodeFontSizeSp: Float? = null,
+  editorFontFamily: FontFamily = FontFamily.Default,
 ) {
   if (text.isEmpty()) return
   val fontSizeSp: Float = inlineCodeFontSizeSp
@@ -794,13 +793,16 @@ fun RenderInlineTextWithChips(
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }
   val linkColor: Color = JewelTheme.linkStyle.colors.content
+  val codeColor: Color = JewelTheme.globalColors.text.info
   val imageAltColor: Color = textColor.copy(alpha = 0.6f)
   val parseOutcome: InlineMarkdownRenderResult = remember(text) {
     parseInlineMarkdown(
       plainText = text,
       fontSizeSp = fontSizeSp,
       linkColor = linkColor,
-      imageAltColor = imageAltColor
+      codeColor = codeColor,
+      imageAltColor = imageAltColor,
+      editorFontFamily = editorFontFamily
     )
   }
   RenderInlineRender(
@@ -853,11 +855,59 @@ private fun RenderInlineRender(
   ) {
     segments.forEach { segment: InlineSegment ->
       when (segment) {
-        is InlineSegment.TextSegment -> Text(
-          style = resolvedStyle,
-          text = segment.annotated,
-          inlineContent = segment.inlineContent
-        )
+        is InlineSegment.TextSegment -> {
+          val codeSpanAnnotations = remember(segment.annotated) {
+            segment.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, segment.annotated.length)
+          }
+          var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+          val density = LocalDensity.current
+          val badgeColor = JewelTheme.globalColors.text.info
+          val backgroundColor = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+          val borderColor = badgeColor.copy(alpha = 0.3f)
+          Text(
+            style = resolvedStyle,
+            text = segment.annotated,
+            inlineContent = segment.inlineContent,
+            onTextLayout = { layoutResult -> textLayoutResult = layoutResult },
+            modifier = Modifier.drawWithContent {
+              val layoutResult = textLayoutResult
+              if (layoutResult != null && codeSpanAnnotations.isNotEmpty()) {
+                val cornerRadiusPx = INLINE_CODE_CORNER_RADIUS.toPx()
+                val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
+                for ((_, start, end) in codeSpanAnnotations) {
+                  if (start >= end) continue
+                  val startLine = layoutResult.getLineForOffset(start)
+                  val endLine = layoutResult.getLineForOffset(end - 1)
+                  for (line in startLine..endLine) {
+                    val lineStart = layoutResult.getLineStart(line)
+                    val lineEnd = layoutResult.getLineEnd(line)
+                    val segmentStart = maxOf(start, lineStart)
+                    val segmentEnd = minOf(end, lineEnd)
+                    if (segmentStart >= segmentEnd) continue
+                    val left = layoutResult.getBoundingBox(segmentStart).left
+                    val right = layoutResult.getBoundingBox(segmentEnd - 1).right
+                    val baseline = layoutResult.getLineBaseline(line)
+                    val chipTop = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
+                    drawRoundRect(
+                      color = backgroundColor,
+                      topLeft = Offset(left, chipTop),
+                      size = Size(right - left, chipHeightPx),
+                      cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                    )
+                    drawRoundRect(
+                      color = borderColor,
+                      topLeft = Offset(left, chipTop),
+                      size = Size(right - left, chipHeightPx),
+                      cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                      style = Stroke(width = 0.5.dp.toPx())
+                    )
+                  }
+                }
+              }
+              drawContent()
+            }
+          )
+        }
 
         is InlineSegment.LinkSegment -> ExternalLink(
           text = segment.text,

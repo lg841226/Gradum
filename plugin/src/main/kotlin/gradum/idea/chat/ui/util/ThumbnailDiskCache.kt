@@ -7,6 +7,7 @@
 package gradum.idea.chat.ui.util
 
 import com.intellij.openapi.application.PathManager
+import gradum.idea.PluginConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
@@ -52,14 +53,11 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailDiskCache")
  * working network fetch fail.
  */
 internal class ThumbnailDiskCache(
-  private val maxBytes: Long = DEFAULT_MAX_BYTES,
+  private val maxBytes: Long = PluginConfig.THUMBNAIL_DISK_CACHE_MAX_BYTES,
   private val rootDirectory: Path = defaultRootDirectory(),
 ) {
 
   companion object {
-    /** 50 MB. Comfortably holds ~3000 favicons. */
-    private const val DEFAULT_MAX_BYTES: Long = 50L * 1024 * 1024
-
     /** First 32 hex chars (128 bits) of SHA-256 — collision-safe for any realistic URL set. */
     private const val HASH_HEX_LENGTH: Int = 32
 

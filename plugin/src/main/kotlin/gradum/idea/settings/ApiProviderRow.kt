@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.provider.ProviderCoordinator
+import gradum.idea.PluginConfig
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderStatus
 import gradum.idea.provider.isValidBaseUrl
@@ -38,7 +39,7 @@ private val MASK_TRANSFORMATION: OutputTransformation = OutputTransformation {
 
 private const val LABEL_WIDTH_DP = 68
 private const val URL_FIELD_WIDTH_DP = 400
-private const val INPUT_DEBOUNCE_MS: Long = 500
+private val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
 private const val MAX_ERROR_PREVIEW_CHARS = 120
 
 /**

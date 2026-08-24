@@ -26,13 +26,13 @@ import java.util.regex.PatternSyntaxException
 
 private val logger: Logger = LoggerFactory.getLogger("SearchSkills")
 
-private const val MAX_CONCURRENCY: Int = 4
-private const val MAX_FILE_SIZE: Long = 2L * 1024 * 1024
-private const val MAX_MATCHES_DEFAULT: Int = 100
-private const val MAX_MATCHES_LIMIT: Int = 1000
-private const val MIN_PATTERN_LENGTH: Int = 3
-private const val GLOB_MAX_RESULTS: Int = 500
-private const val GLOB_MAX_LIMIT: Int = 2000
+private val MAX_CONCURRENCY: Int = GradumConfig.SEARCH_MAX_CONCURRENCY
+private val MAX_FILE_SIZE: Long = GradumConfig.SEARCH_MAX_FILE_SIZE
+private val MAX_MATCHES_DEFAULT: Int = GradumConfig.SEARCH_MAX_MATCHES_DEFAULT
+private val MAX_MATCHES_LIMIT: Int = GradumConfig.SEARCH_MAX_MATCHES_LIMIT
+private val MIN_PATTERN_LENGTH: Int = GradumConfig.SEARCH_MIN_PATTERN_LENGTH
+private val GLOB_MAX_RESULTS: Int = GradumConfig.GLOB_MAX_RESULTS
+private val GLOB_MAX_LIMIT: Int = GradumConfig.GLOB_MAX_LIMIT
 
 private val BINARY_EXTENSIONS: Set<String> = setOf(
   "class", "jar", "so", "dylib", "dll", "exe", "bin", "o", "a",

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-23 21:19:51 Changed by gwy
+ * SubChatView.kt  2026-08-24 16:38:10 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -35,10 +35,7 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -66,10 +63,11 @@ fun SubChatView(
   userQuery: String = "",
   errorMessage: String = "",
   modifier: Modifier = Modifier,
+  hasCompleted: Boolean = false,
+  wasInterrupted: Boolean = false,
   subAgentResponse: String = "",
   transcriptMarkdown: String = "",
-  toolCalls: List<ToolCallInfo> = emptyList(),
-  hasCompleted: Boolean = false
+  toolCalls: List<ToolCallInfo> = emptyList()
 ) {
   val historyMessages: List<ChatMessage> = remember(transcriptMarkdown) {
     if (transcriptMarkdown.isNotBlank()) {
@@ -96,32 +94,39 @@ fun SubChatView(
       BackButton(onBack = onBack)
       if (title.isNotBlank()) {
         Spacer(Modifier.weight(1f))
-
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
           if (hasCompleted) {
-            Icon(
-              contentDescription = null,
-              key = AllIconsKeys.Actions.Checked
-            )
+            if (wasInterrupted) {
+              Icon(
+                contentDescription = null,
+                key = AllIconsKeys.General.Close
+              )
+            } else {
+              Icon(
+                contentDescription = null,
+                key = AllIconsKeys.Actions.Checked
+              )
+            }
           }
           val truncatedTitle =
             if (title.length > 30) title.take(30) + "…"
             else title
           val showTooltip = title.length > 30
-          val titleContent = @Composable {
-            Text(
-              maxLines = 1,
-              text = truncatedTitle,
-              overflow = TextOverflow.Ellipsis,
-              style = rememberGradumParagraphTextStyle().copy(
-                fontWeight = FontWeight.Medium
-              ),
-              modifier = Modifier.padding(end = GradumSpacing.sml)
-            )
-          }
+          val titleContent =
+            @Composable {
+              Text(
+                maxLines = 1,
+                text = truncatedTitle,
+                overflow = TextOverflow.Ellipsis,
+                style = rememberGradumParagraphTextStyle().copy(
+                  fontWeight = FontWeight.Medium
+                ),
+                modifier = Modifier.padding(end = GradumSpacing.sml)
+              )
+            }
           if (showTooltip) {
             Tooltip(
               modifier = Modifier,
@@ -148,10 +153,12 @@ fun SubChatView(
         SubChatStreamingContent(
           modelName = modelName,
           userQuery = userQuery,
-          errorMessage = errorMessage,
-          subAgentResponse = subAgentResponse,
+          toolCalls = toolCalls,
           scrollState = scrollState,
-          toolCalls = toolCalls
+          errorMessage = errorMessage,
+          hasCompleted = hasCompleted,
+          wasInterrupted = wasInterrupted,
+          subAgentResponse = subAgentResponse
         )
       }
     }
@@ -183,6 +190,8 @@ private fun SubChatStreamingContent(
   modelName: String,
   userQuery: String,
   errorMessage: String,
+  hasCompleted: Boolean,
+  wasInterrupted: Boolean,
   subAgentResponse: String,
   scrollState: ScrollState,
   toolCalls: List<ToolCallInfo>
@@ -223,13 +232,39 @@ private fun SubChatStreamingContent(
     }
 
     if (subAgentResponse.isNotBlank()) {
-      GradumMarkdown(
-        text = subAgentResponse, modifier = Modifier
-      ) {
+      GradumMarkdown(text = subAgentResponse, modifier = Modifier) {
         isSimplified = true
         withSelection = true
         animationEnabled = false
       }
+    }
+
+    if (!hasCompleted) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = GradumSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+      ) {
+        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+        SweepLightText(
+          enabled = true,
+          text = message("gradum.subchat.working")
+        )
+      }
+    } else if (wasInterrupted) {
+      Spacer(Modifier.height(GradumSpacing.lg))
+      SweepLightText(
+        enabled = false,
+        text = message("gradum.subchat.interrupted")
+      )
+    } else {
+      Spacer(Modifier.height(GradumSpacing.lg))
+      SweepLightText(
+        enabled = false,
+        text = message("gradum.subchat.done")
+      )
     }
     Spacer(Modifier.height(GradumSpacing.xxl))
   }

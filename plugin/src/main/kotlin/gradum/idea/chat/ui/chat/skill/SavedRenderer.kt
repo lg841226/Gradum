@@ -16,6 +16,8 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.long
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -37,8 +39,8 @@ class SavedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = (arguments["path"] as? String).orEmpty()
-    val sizeBytes: Long = (result["sizeBytes"] as? Number)?.toLong() ?: 0L
+    val filePath: String = arguments.string("path")
+    val sizeBytes: Long = result.long("sizeBytes")
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
 

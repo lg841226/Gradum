@@ -116,7 +116,8 @@ class DelegateSkillTest {
       agentConfiguration = null,
       emitEvent = { _, _ -> }
     )
-    val result = skill.execute(mapOf("task" to "do something"), context)
+    val longTask = "a".repeat(GradumConfig.MIN_TASK_LENGTH)
+    val result = skill.execute(mapOf("task" to longTask), context)
 
     assertIs<SkillResult.Failure>(result)
     assertEquals("CLIENT_ERROR", result.code)
@@ -134,7 +135,8 @@ class DelegateSkillTest {
       agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA),
       emitEvent = null
     )
-    val result = skill.execute(mapOf("task" to "do something"), context)
+    val longTask = "a".repeat(GradumConfig.MIN_TASK_LENGTH)
+    val result = skill.execute(mapOf("task" to longTask), context)
 
     assertIs<SkillResult.Failure>(result)
     assertEquals("CLIENT_ERROR", result.code)

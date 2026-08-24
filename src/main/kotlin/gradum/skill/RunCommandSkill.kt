@@ -20,17 +20,17 @@ import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 
-/** Default timeout in seconds (matches opencode default: 2 minutes). */
-private const val DEFAULT_TIMEOUT_SECONDS: Long = 120
+/** Default timeout in seconds — delegated to [GradumConfig]. */
+private val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
 
-/** Maximum allowed timeout in seconds (matches opencode max: 10 minutes). */
-private const val MAX_TIMEOUT_SECONDS: Long = 600
+/** Maximum allowed timeout in seconds — delegated to [GradumConfig]. */
+private val MAX_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_MAX_TIMEOUT_SECONDS
 
-/** Grace period after SIGTERM before SIGKILL. */
-private const val FORCE_KILL_DELAY_MS: Long = 3_000
+/** Grace period after SIGTERM before SIGKILL — delegated to [GradumConfig]. */
+private val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
-/** Cap on how much command output is read into the LLM context. */
-private const val MAX_OUTPUT_CHARS: Int = 16 * 1024
+/** Cap on how much command output is read into the LLM context — delegated to [GradumConfig]. */
+private val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 
 /** Reader used for stdout/stderr draining that happens before waitFor. */
 private val streamReaderPool: java.util.concurrent.ExecutorService =

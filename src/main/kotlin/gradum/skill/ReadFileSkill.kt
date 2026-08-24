@@ -8,6 +8,7 @@
 package gradum.skill
 
 import gradum.ErrorCode
+import gradum.GradumConfig
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
@@ -16,8 +17,8 @@ import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
 
-private const val MAXIMUM_LINES: Int = 10000
-private const val MAXIMUM_FILE_SIZE: Int = 1 * 1024 * 1024
+private val MAXIMUM_LINES: Int = GradumConfig.READ_MAX_LINES
+private val MAXIMUM_FILE_SIZE: Int = GradumConfig.READ_MAX_FILE_SIZE
 
 /**
  * Reads file content for the agent.

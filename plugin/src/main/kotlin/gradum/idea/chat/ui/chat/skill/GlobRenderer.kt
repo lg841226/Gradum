@@ -17,6 +17,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.int
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -37,8 +39,8 @@ class GlobRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val pattern: String = (arguments["pattern"] as? String).orEmpty()
-    val totalFiles: Int = (result["total_files"] as? Number)?.toInt() ?: 0
+    val pattern: String = arguments.string("pattern")
+    val totalFiles: Int = result.int("total_files")
 
     return ToolCallContent(
       aliasName = ALIAS,

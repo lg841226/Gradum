@@ -8,6 +8,7 @@
 package gradum.client
 
 import gradum.AgentConfiguration
+import gradum.GradumConfig
 import gradum.Provider
 import gradum.utils.JsonUtil
 import io.ktor.client.*
@@ -35,7 +36,7 @@ private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 /** Shared across clients to reuse connections instead of building a client per turn. */
 private val sharedHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
-    requestTimeoutMillis = 600_000L
+    requestTimeoutMillis = GradumConfig.LLM_REQUEST_TIMEOUT_MS
   }
 }
 

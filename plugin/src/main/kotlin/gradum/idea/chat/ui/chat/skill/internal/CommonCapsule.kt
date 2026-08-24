@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.PluginConfig
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
@@ -28,7 +29,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private val REASON_MAX_WIDTH_DP: Dp = 200.dp
-private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
+private val TOOL_DETAILS_RESULT_MAX_CHARS = PluginConfig.TOOL_DETAILS_RESULT_MAX_CHARS
 
 /** Error metadata for a failed tool call capsule. */
 data class ToolCallErrorInfo(

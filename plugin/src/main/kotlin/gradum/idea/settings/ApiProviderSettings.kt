@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import gradum.idea.provider.ProviderConfigFile
+import gradum.idea.PluginConfig
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderSettings
@@ -37,8 +38,8 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private const val API_FIELD_WIDTH_DP = 56
-private const val MIN_POLL_INTERVAL_SECONDS = 2
-private const val MAX_POLL_INTERVAL_SECONDS = 60
+private val MIN_POLL_INTERVAL_SECONDS = PluginConfig.MIN_POLL_INTERVAL_SECONDS
+private val MAX_POLL_INTERVAL_SECONDS = PluginConfig.MAX_POLL_INTERVAL_SECONDS
 
 /**
  * Settings page section that owns both provider rows.

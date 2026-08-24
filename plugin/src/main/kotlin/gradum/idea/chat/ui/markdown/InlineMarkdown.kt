@@ -39,6 +39,7 @@ import com.hrm.latex.renderer.measure.LatexMeasurerState
 import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
+import gradum.idea.PluginConfig
 import gradum.idea.utils.GradumIcons
 import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
@@ -55,8 +56,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 private val log: Logger = Logger.getInstance("gradum.idea.chat.ui.markdown.InlineMarkdown")
 
-private const val INLINE_CODE_PLACEHOLDER: Char = '\uE000'
-private const val INLINE_CODE_TEXT_TAG: String = "INLINE_CODE_TEXT"
+internal const val INLINE_CODE_SPAN_TAG: String = "INLINE_CODE_SPAN"
 
 /** Compose's internal tag for inline-content lookups. Must match exactly — custom tags are silently dropped. */
 internal const val INLINE_CONTENT_TAG: String = "androidx.compose.foundation.text.inlineContent"
@@ -111,9 +111,9 @@ private val LATEX_NARROW_SYMBOLS: Set<Char> = setOf(
 private const val INLINE_LATEX_PLACEHOLDER_PADDING_SP: Float = PLACEHOLDER_WIDTH_PADDING_SP
 private const val FALLBACK_FONT_SIZE_SP: Float = 14f
 private const val FALLBACK_EM_FONT_SIZE_SP: Float = 14f
-private const val BAIL_REASON_LOG_PREVIEW_CHARS: Int = 80
-private const val PARSE_FAILURE_LOG_PREVIEW_CHARS: Int = 120
-private const val WALK_FAILURE_LOG_PREVIEW_CHARS: Int = 120
+private val BAIL_REASON_LOG_PREVIEW_CHARS: Int = PluginConfig.BAIL_REASON_LOG_PREVIEW_CHARS
+private val PARSE_FAILURE_LOG_PREVIEW_CHARS: Int = PluginConfig.PARSE_FAILURE_LOG_PREVIEW_CHARS
+private val WALK_FAILURE_LOG_PREVIEW_CHARS: Int = PluginConfig.WALK_FAILURE_LOG_PREVIEW_CHARS
 
 
 /** Returns `true` for CJK ideographs / full-width punctuation (~1.0 font size vs ~0.6 Latin). */
@@ -181,11 +181,12 @@ fun rememberInlineMarkdownRender(plainText: String, thinkingMode: Boolean = fals
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
   val linkColor: Color = JewelTheme.linkStyle.colors.content
+  val codeColor: Color = JewelTheme.globalColors.text.info
   val latexMeasurer: LatexMeasurerState = rememberLatexMeasurer()
   val density: Density = androidx.compose.ui.platform.LocalDensity.current
   val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
   return remember(
-    plainText, linkColor, imageAltColor, fontSizeSp, editorFontFamily, thinkingMode
+    plainText, linkColor, imageAltColor, fontSizeSp, editorFontFamily, thinkingMode, codeColor
   ) {
     parseInlineMarkdown(
       density = density,
@@ -195,6 +196,7 @@ fun rememberInlineMarkdownRender(plainText: String, thinkingMode: Boolean = fals
       thinkingMode = thinkingMode,
       latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
+      codeColor = codeColor,
       editorFontFamily = editorFontFamily
     )
   }
@@ -210,13 +212,15 @@ fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRender
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
+  val codeColor: Color = JewelTheme.globalColors.text.info
   val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
-  return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily) {
+  return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily, codeColor) {
     parseInlineNodes(
       linkColor = linkColor,
       parentNode = parentNode,
       fontSizeSp = fontSizeSp,
       imageAltColor = imageAltColor,
+      codeColor = codeColor,
       editorFontFamily = editorFontFamily
     )
   }
@@ -273,6 +277,7 @@ internal fun parseInlineMarkdown(
   density: Density? = null,
   thinkingMode: Boolean = false,
   latexMeasurer: LatexMeasurerState? = null,
+  codeColor: Color = Color.Unspecified,
   editorFontFamily: FontFamily = FontFamily.Default,
   plainText: String, fontSizeSp: Float, linkColor: Color, imageAltColor: Color
 ): InlineMarkdownRenderResult {
@@ -308,6 +313,7 @@ internal fun parseInlineMarkdown(
       thinkingMode = thinkingMode,
       latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
+      codeColor = codeColor,
       editorFontFamily = editorFontFamily,
       parenLatexFormulas = mergedFormulas,
       fontSizeSp = fontSizeSp
@@ -433,6 +439,7 @@ internal fun parseInlineNodes(
   linkColor: Color,
   fontSizeSp: Float,
   imageAltColor: Color,
+  codeColor: Color,
   density: Density? = null,
   latexMeasurer: LatexMeasurerState? = null,
   editorFontFamily: FontFamily = FontFamily.Default
@@ -444,6 +451,7 @@ internal fun parseInlineNodes(
       fontSizeSp = fontSizeSp,
       latexMeasurer = latexMeasurer,
       imageAltColor = imageAltColor,
+      codeColor = codeColor,
       editorFontFamily = editorFontFamily
     )
     val annotatedString: AnnotatedString = buildAnnotatedString {
@@ -495,6 +503,7 @@ internal data class InlineRenderConfig(
   val parenLatexFormulas: Map<String, String> = emptyMap(),
   val linkColor: Color,
   val imageAltColor: Color,
+  val codeColor: Color,
   val fontSizeSp: Float
 )
 
@@ -511,6 +520,7 @@ private fun buildInlineRender(
       linkColor = config.linkColor,
       fontSizeSp = config.fontSizeSp,
       imageAltColor = config.imageAltColor,
+      codeColor = config.codeColor,
       latexMeasurer = config.latexMeasurer,
       editorFontFamily = config.editorFontFamily,
       parenLatexFormulas = config.parenLatexFormulas
@@ -524,7 +534,7 @@ private fun buildInlineRender(
         renderInlineChildren(blockNode as Paragraph, renderState, builder)
       }
     }
-    log.debug("InlineMarkdown: parse done — chipCounter=${renderState.chipCounter}, inlineContent.keys=${renderState.inlineContent.keys}")
+    log.debug("InlineMarkdown: parse done — inlineContent.keys=${renderState.inlineContent.keys}")
     InlineMarkdownRenderResult(
       render = InlineMarkdownRender(
         annotated = annotatedString,
@@ -549,7 +559,7 @@ private class RenderState(
   val linkColor: Color,
   val fontSizeSp: Float,
   val imageAltColor: Color,
-  var chipCounter: Int = 0,
+  val codeColor: Color,
   var latexCounter: Int = 0,
   var imageAltCounter: Int = 0,
   var footnoteCounter: Int = 0,
@@ -563,7 +573,7 @@ private class RenderState(
 ) {
   private val latexMeasureCache = mutableMapOf<String, LatexDimensions?>()
 
-  // Snapshot + restore helper for the recursive walker.
+  /** Snapshot + restore helper for the recursive walker. */
   fun <T> withStyle(replacementStyle: SpanStyle, block: () -> T): T {
     val savedStyle: SpanStyle = currentStyle
     currentStyle = replacementStyle
@@ -573,23 +583,6 @@ private class RenderState(
       currentStyle = savedStyle
     }
   }
-
-  /** Consume a fresh chip placeholder + register the chip in `inlineContent`. */
-  fun allocateChip(codeText: String) {
-    val placeholderKey: String = makePlaceholder(chipCounter)
-    chipCounter += 1
-    val chipWidth: Float = fontSizeSp * cjkAwareWidthRatio(codeText) + INLINE_CODE_PLACEHOLDER_PADDING_SP
-    val chipHeight: Float = fontSizeSp * PLACEHOLDER_LINE_HEIGHT_MULTIPLIER + INLINE_CODE_PLACEHOLDER_PADDING_SP
-    val placeholderShape = Placeholder(
-      width = chipWidth.sp,
-      height = chipHeight.sp,
-      placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-    )
-    inlineContent[placeholderKey] = InlineTextContent(placeholder = placeholderShape) {
-      InlineCodeChip(text = codeText, fontSizeSp = fontSizeSp)
-    }
-  }
-
 
   /** Consume a fresh image-alt placeholder + register the GradumIcons.Image icon. */
   fun allocateImageAlt(): String {
@@ -872,22 +865,16 @@ private fun renderCodeInline(
 ) {
   val codeText: String = codeNode.literal.orEmpty()
   if (codeText.isEmpty()) return
-  val placeholderKey: String = makePlaceholder(renderState.chipCounter)
-  val placeholderStart: Int = annotatedStringBuilder.length
-
-  annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CODE_TEXT_TAG, annotation = codeText)
-  annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CONTENT_TAG, annotation = placeholderKey)
-  annotatedStringBuilder.pushStyle(SpanStyle())
-  annotatedStringBuilder.append(placeholderKey)
-  annotatedStringBuilder.pop()
-  annotatedStringBuilder.pop()
-  annotatedStringBuilder.pop()
-  val placeholderEnd: Int = annotatedStringBuilder.length
-  check(placeholderEnd - placeholderStart == placeholderKey.length) {
-    "Inline-code placeholder length changed under inline-content push; " +
-      "expected ${placeholderKey.length} chars, got ${placeholderEnd - placeholderStart}"
-  }
-  renderState.allocateChip(codeText)
+  val codeSpanStyle = SpanStyle(
+    fontFamily = renderState.editorFontFamily,
+    color = renderState.codeColor,
+    fontSize = renderState.fontSizeSp.sp
+  )
+  annotatedStringBuilder.pushStringAnnotation(tag = INLINE_CODE_SPAN_TAG, annotation = codeText)
+  annotatedStringBuilder.pushStyle(codeSpanStyle)
+  annotatedStringBuilder.append(codeText)
+  annotatedStringBuilder.pop() // SpanStyle
+  annotatedStringBuilder.pop() // StringAnnotation
 }
 
 private fun renderLinkInline(
@@ -966,11 +953,6 @@ private fun combineDecoration(
 }
 
 
-/** Build a unique PUA placeholder substring for the N-th code span — adjacent chips never collide. */
-private fun makePlaceholder(chipIndex: Int): String =
-  INLINE_CODE_PLACEHOLDER.toString().repeat(chipIndex + 1)
-
-
 /**
  * Split walker output at link boundaries: prose stays on Text(annotated, inlineContent),
  * links use ExternalLink (standalone Composable with icon).
@@ -1018,53 +1000,11 @@ private fun stripInlineLinkText(range: CharSequence): String {
 
 /** One of the PUA placeholders reserved for an inline-only chip / icon / formula. */
 private fun Char.isInlinePlaceholderPua(): Boolean = when (this) {
-  INLINE_CODE_PLACEHOLDER,
   IMAGE_ALT_PLACEHOLDER_BASE,
   FOOTNOTE_PLACEHOLDER_BASE,
   LATEX_PLACEHOLDER_BASE -> true
 
   else -> this.code in PAREN_LATEX_MARKER_RANGE_START..DOLLAR_LATEX_MARKER_RANGE_END
-}
-
-
-/**
- * Inline code chip. Uses background(color, shape) without clip to avoid clipping descenders (p, g, y).
- */
-@Composable
-private fun InlineCodeChip(text: String, fontSizeSp: Float) {
-  val editorStyle: TextStyle = JewelTheme.editorTextStyle
-  val badgeColor: Color = JewelTheme.globalColors.text.info
-  val chipStyle = TextStyle(
-    color = badgeColor,
-    fontSize = fontSizeSp.sp,
-    lineHeight = fontSizeSp.sp,
-    fontWeight = FontWeight.Normal,
-    fontFamily = editorStyle.fontFamily
-  )
-  Box(
-    modifier = Modifier
-      .background(
-        shape = RoundedCornerShape(INLINE_CODE_CORNER_RADIUS),
-        color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
-      )
-      .padding(
-        vertical = INLINE_CODE_PADDING_VERTICAL,
-        horizontal = INLINE_CODE_PADDING_HORIZONTAL
-      )
-      .onGloballyPositioned { coordinates ->
-        log.info(
-          "InlineCodeChip render: text='$text', " +
-            "actualWidth=${coordinates.size.width}px, fontSize=$fontSizeSp"
-        )
-      }
-  ) {
-    Text(
-      text = text,
-      maxLines = 1,
-      softWrap = false,
-      style = chipStyle
-    )
-  }
 }
 
 

@@ -13,6 +13,8 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.int
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -33,9 +35,8 @@ class ExploredRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val projectRoot: String = (arguments["projectRoot"] as? String)
-      ?: (arguments["project_root"] as? String) ?: ""
-    val scanDepth: Int = (result["depth"] as? Number)?.toInt() ?: 0
+    val projectRoot: String = arguments.string("projectRoot").ifEmpty { arguments.string("project_root") }
+    val scanDepth: Int = result.int("depth")
     return ToolCallContent(
       aliasName = ALIAS,
       fieldMap = mapOf(

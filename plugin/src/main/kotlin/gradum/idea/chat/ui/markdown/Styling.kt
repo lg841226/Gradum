@@ -62,6 +62,12 @@ internal val INLINE_CODE_PADDING_HORIZONTAL: Dp = GradumSpacing.sm
 /** Vertical padding for inline code chip. */
 internal val INLINE_CODE_PADDING_VERTICAL: Dp = GradumSpacing.xs
 
+/** Multiplier for inline code chip height (relative to fontSize). */
+internal const val INLINE_CODE_CHIP_HEIGHT_MULTIPLIER: Float = 1.2f
+
+/** Ratio of inline code chip height above the baseline. */
+internal const val INLINE_CODE_CHIP_BASELINE_RATIO: Float = 0.75f
+
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
 private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
 private const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f

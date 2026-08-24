@@ -9,6 +9,7 @@ package gradum.idea.chat.history
 
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.chat.model.ChatEvent
+import gradum.idea.PluginConfig
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.TokenUsage
 import gradum.idea.chat.model.ToolCallInfo
@@ -77,7 +78,7 @@ import kotlinx.serialization.json.*
 object ChatTranscript {
 
   /** Max characters kept for a session's title (derived from first user message). */
-  const val MAX_TITLE_LENGTH: Int = 48
+  val MAX_TITLE_LENGTH: Int = PluginConfig.MAX_TITLE_LENGTH
 
   private const val HEADER_V1: String = "<!-- gradum-transcript v1 -->"
   private const val SESSION_PREFIX: String = "<!-- gradum-session"

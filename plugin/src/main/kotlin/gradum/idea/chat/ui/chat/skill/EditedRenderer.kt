@@ -16,6 +16,9 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.boolean
+import gradum.idea.chat.ui.chat.skill.spi.int
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -49,13 +52,13 @@ class EditedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = (arguments["path"] as? String).orEmpty()
-    val linesAdded: Int = (result["linesAdded"] as? Number)?.toInt() ?: 0
-    val linesRemoved: Int = (result["linesRemoved"] as? Number)?.toInt() ?: 0
+    val filePath: String = arguments.string("path")
+    val linesAdded: Int = result.int("linesAdded")
+    val linesRemoved: Int = result.int("linesRemoved")
     val originalContent: String? = result["originalContent"] as? String
     val modifiedContent: String? = result["modifiedContent"] as? String
     val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
-    val isSuccess: Boolean = (result["success"] as? Boolean) ?: true
+    val isSuccess: Boolean = result.boolean("success", defaultValue = true)
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
     if (hasDiffPayload) actionList.add(ToolCallAction.ViewDiff(filePath = filePath, diffType = "default"))

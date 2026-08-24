@@ -17,6 +17,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.int
+import gradum.idea.chat.ui.chat.skill.spi.string
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -37,8 +39,8 @@ class GrepRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val pattern: String = (arguments["pattern"] as? String).orEmpty()
-    val totalMatches: Int = (result["total_matches"] as? Number)?.toInt() ?: 0
+    val pattern: String = arguments.string("pattern")
+    val totalMatches: Int = result.int("total_matches")
 
     return ToolCallContent(
       aliasName = ALIAS,
