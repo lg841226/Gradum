@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-16 19:36:00 Changed by gwy
+ * ModelIdentity.kt  2026-08-25 21:52:32 Changed by gwy
  */
 
 package gradum
@@ -93,9 +93,9 @@ object ModelIdentity {
     val host: String = runCatching { URI(url).host }.getOrNull() ?: return false
     val normalized: String = host.removePrefix("[").removeSuffix("]")
 
-    if (normalized.equals("localhost", ignoreCase = true)) return true
+    if (normalized.equals(other = "localhost", ignoreCase = true)) return true
     if (normalized == "::1") return true
-    if (normalized.startsWith("127.")) return true
+    if (normalized.startsWith(prefix = "127.")) return true
     if (normalized == "0.0.0.0") return true
     return false
   }
@@ -109,7 +109,8 @@ object ModelIdentity {
   fun resolveModelsEndpoint(baseUrl: String, endpoint: String): String {
     val base: String = baseUrl.trimEnd('/')
     val suffix: String = endpoint.trimStart('/')
-    return if (base.endsWith("/v1") && suffix.startsWith("v1/")) {
+
+    return if (base.endsWith(suffix = "/v1") && suffix.startsWith(prefix = "v1/")) {
       base.removeSuffix("/v1") + "/" + suffix
     } else {
       "$base/$suffix"
@@ -125,11 +126,13 @@ object ModelIdentity {
    */
   fun parseModelNamesFromBody(providerType: String, body: String): List<String> {
     if (body.isBlank()) return emptyList()
+
     val responseJson: JsonObject = try {
-      Json { ignoreUnknownKeys = true }.parseToJsonElement(body).jsonObject
+      Json { ignoreUnknownKeys = true }.parseToJsonElement(string = body).jsonObject
     } catch (_: Exception) {
       return emptyList()
     }
+
     val modelNames: List<String> = when (providerType) {
       Provider.OLLAMA.wireType -> responseJson["models"]?.jsonArray?.map {
         it.jsonObject["name"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -154,14 +157,16 @@ object ModelIdentity {
     val parsedUri = runCatching { URI(baseUrl) }.getOrNull() ?: return false
 
     val uriScheme = parsedUri.scheme
-    if (uriScheme == null || !uriScheme.matches(Regex("https?", RegexOption.IGNORE_CASE)))
+    if (uriScheme == null || !uriScheme.matches(
+        Regex(pattern = "https?", option = RegexOption.IGNORE_CASE)
+      )
+    ) return false
+
+    if (parsedUri.host == null || !isValidHost(parsedUri.host))
       return false
 
-    val uriHost = parsedUri.host
-    if (uriHost == null || !isValidHost(uriHost)) return false
-
-    val uriPort = parsedUri.port
-    if (uriPort != -1 && uriPort !in 1..65535) return false
+    if (parsedUri.port != -1 && parsedUri.port !in 1..65535)
+      return false
 
     if (parsedUri.query != null || parsedUri.fragment != null || parsedUri.userInfo != null)
       return false
@@ -175,16 +180,20 @@ object ModelIdentity {
 
   private fun isValidHost(host: String): Boolean {
     if (host.isEmpty()) return false
-    val ipv4: Boolean = host.matches(IPV4_PATTERN) &&
-      host.split(".").all { octet -> octet.toInt() in 0..255 }
-    return ipv4 || host.matches(HOSTNAME_PATTERN)
+    val ipv4: Boolean = host.matches(regex = IPV4_PATTERN) && host.split(".")
+      .all { octet -> octet.toInt() in 0..255 }
+    return ipv4 || host.matches(regex = HOSTNAME_PATTERN)
   }
 
-  private val IPV4_PATTERN: Regex = Regex("""\d{1,3}(\.\d{1,3}){3}""")
-  private val HOSTNAME_PATTERN: Regex = Regex("""[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*""")
-
-  private val PARAMETER_PATTERN: Regex =
-    Regex("""(\d+\.?\d*)b(?:\s|$|:|[-_])""", RegexOption.IGNORE_CASE)
+  private val IPV4_PATTERN: Regex = Regex(
+    pattern = """\d{1,3}(\.\d{1,3}){3}"""
+  )
+  private val HOSTNAME_PATTERN: Regex = Regex(
+    pattern = """[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*"""
+  )
+  private val PARAMETER_PATTERN: Regex = Regex(
+    pattern = """(\d+\.?\d*)b(?:\s|$|:|[-_])""", option = RegexOption.IGNORE_CASE
+  )
 
   private val CLOUD_KEYWORDS: Set<String> = setOf(
     "cloud", "api", "gpt", "claude", "gemini",
@@ -193,19 +202,22 @@ object ModelIdentity {
   )
 
   fun isCloudTagged(modelName: String): Boolean =
-    modelName.contains("cloud", ignoreCase = true)
+    modelName.contains(other = "cloud", ignoreCase = true)
 
   fun isSmallModel(modelName: String): Boolean {
     if (modelName.isBlank()) return false
     val lowerName = modelName.lowercase()
-    if (CLOUD_KEYWORDS.any { lowerName.contains(it) }) return false
-    val match = PARAMETER_PATTERN.find(lowerName) ?: return false
+
+    if (CLOUD_KEYWORDS.any { lowerName.contains(other = it) }) return false
+    val match = PARAMETER_PATTERN.find(input = lowerName) ?: return false
     val modelSize = match.groupValues[1].toDoubleOrNull() ?: return false
+
     return modelSize <= MAX_SMALL_MODEL_PARAMETERS_B
   }
 
   fun schemaVariant(modelName: String): SchemaVariant =
-    if (isSmallModel(modelName)) SchemaVariant.SIMPLE else SchemaVariant.FULL
+    if (isSmallModel(modelName)) SchemaVariant.SIMPLE
+    else SchemaVariant.FULL
 
   fun discoverModels(): List<ModelEntry> = Discovery.probe()
 
@@ -235,7 +247,7 @@ object ModelIdentity {
     val startedAt: Long = System.nanoTime()
     HttpClient().use { client ->
       val response = runBlocking {
-        client.get(url) {
+        client.get(urlString = url) {
           timeout { requestTimeoutMillis = 5000 }
           apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             header("Authorization", "Bearer $key")
@@ -243,7 +255,9 @@ object ModelIdentity {
         }
       }
       val latencyMs: Long = (System.nanoTime() - startedAt) / 1_000_000
-      return HttpProbe(response.status, runBlocking { response.bodyAsText() }, latencyMs)
+      return HttpProbe(response.status, body = runBlocking {
+        response.bodyAsText()
+      }, latencyMs)
     }
   }
 
@@ -258,38 +272,45 @@ object ModelIdentity {
   fun probeProvider(kind: String, baseUrl: String, apiKey: String?): ProviderProbeResult {
     val trimmedBaseUrl: String = baseUrl.trim().trimEnd('/')
     if (trimmedBaseUrl.isEmpty()) {
-      return ProviderProbeResult("failed", 0, "URL is empty")
+      return ProviderProbeResult(status = "failed", latencyMs = 0, error = "URL is empty")
     }
+
     if (!isWellFormedProviderUrl(kind, trimmedBaseUrl)) {
       return ProviderProbeResult(
         latencyMs = 0,
         status = "failed",
-        error = "Malformed provider URL: expected http(s)://host[:port] with an optional /v1 path",
+        error = "Malformed provider URL: expected http(s)://host[:port] with an optional /v1 path"
       )
     }
+
     val configKey: String? = ProviderConfigStore.configKeyFor(kind)
-    if (configKey == "lmstudio" && !isLocalHostUrl(trimmedBaseUrl) && !ProviderConfigStore.isAllowRemote(configKey)) {
+    if (configKey == "lmstudio" && !isLocalHostUrl(trimmedBaseUrl)
+      && !ProviderConfigStore.isAllowRemote(configKey)
+    ) {
       return ProviderProbeResult(
         latencyMs = 0,
         status = "failed",
         error = "Remote provider connections are disabled; enable \"Allow connection to a local network or remote server\"",
       )
+
     }
     val endpoint: String = when (kind.lowercase()) {
       "ollama" -> "$trimmedBaseUrl/api/tags"
-      "zhipu" -> resolveModelsEndpoint(trimmedBaseUrl, "/models")
-      else -> resolveModelsEndpoint(trimmedBaseUrl, "/v1/models")
+      "zhipu" -> resolveModelsEndpoint(trimmedBaseUrl, endpoint = "/models")
+      else -> resolveModelsEndpoint(trimmedBaseUrl, endpoint = "/v1/models")
     }
+
     val startedAt: Long = System.nanoTime()
     return try {
-      val httpProbe: HttpProbe = httpProbe(endpoint, apiKey)
-      val wireType: String = if (kind.equals("ollama", ignoreCase = true))
-        Provider.OLLAMA.wireType
-      else Provider.OPENAI.wireType
+      val httpProbe: HttpProbe = httpProbe(url = endpoint, apiKey)
+      val wireType: String =
+        if (kind.equals(other = "ollama", ignoreCase = true))
+          Provider.OLLAMA.wireType
+        else Provider.OPENAI.wireType
 
       when (httpProbe.status.value) {
         in 200..299 -> {
-          val modelNames: List<String> = parseModelNamesFromBody(wireType, httpProbe.body)
+          val modelNames: List<String> = parseModelNamesFromBody(providerType = wireType, httpProbe.body)
           if (modelNames.isEmpty()) {
             ProviderProbeResult(
               status = "failed",
@@ -297,12 +318,17 @@ object ModelIdentity {
               error = "HTTP 200 but no model list in the response body"
             )
           } else {
-            ProviderProbeResult("ok", httpProbe.latencyMs)
+            ProviderProbeResult(status = "ok", httpProbe.latencyMs)
           }
         }
 
-        401, 403 -> ProviderProbeResult("auth", httpProbe.latencyMs, "HTTP ${httpProbe.status.value}")
-        else -> ProviderProbeResult("failed", httpProbe.latencyMs, "HTTP ${httpProbe.status.value}")
+        401, 403 -> ProviderProbeResult(
+          status = "auth", httpProbe.latencyMs, error = "HTTP ${httpProbe.status.value}"
+        )
+
+        else -> ProviderProbeResult(
+          status = "failed", httpProbe.latencyMs, error = "HTTP ${httpProbe.status.value}"
+        )
       }
     } catch (probeException: Exception) {
       ProviderProbeResult(
@@ -341,10 +367,34 @@ object ModelIdentity {
      * shared [cloudApiKeyEnvCandidates] list is tried as a fallback.
      */
     private val baseKnownServers = listOf(
-      ServerDef("vLLM", "", "/v1/models", Provider.OPENAI.wireType, configKey = "vllm"),
-      ServerDef("LocalAI", "", "/v1/models", Provider.OPENAI.wireType, configKey = "localai"),
-      ServerDef("LM Studio", "", "/v1/models", Provider.OPENAI.wireType, configKey = "lmstudio"),
-      ServerDef("Ollama", "", "/api/tags", Provider.OLLAMA.wireType, configKey = "ollama"),
+      ServerDef(
+        name = "vLLM",
+        baseUrl = "",
+        endpoint = "/v1/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "vllm"
+      ),
+      ServerDef(
+        name = "LocalAI",
+        baseUrl = "",
+        endpoint = "/v1/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "localai"
+      ),
+      ServerDef(
+        name = "LM Studio",
+        baseUrl = "",
+        endpoint = "/v1/models",
+        providerType = Provider.OPENAI.wireType,
+        configKey = "lmstudio"
+      ),
+      ServerDef(
+        name = "Ollama",
+        baseUrl = "",
+        endpoint = "/api/tags",
+        providerType = Provider.OLLAMA.wireType,
+        configKey = "ollama"
+      ),
       ServerDef(
         configKey = "zhipu",
         endpoint = "/models",
@@ -427,28 +477,28 @@ object ModelIdentity {
           ?.let { providerEnv.getProperty(it) }
           ?.trim()
           ?.takeIf { it.isNotEmpty() }
-        /*
-         * Resolve the base URL: an explicitly configured value wins; a local
-         * provider with no configured URL (and no fixed default) is skipped;
-         * a cloud provider falls back to its built-in fixed endpoint.
-         */
+
         val resolvedUrl: String? = configuredUrl
           ?: server.baseUrl.trim().takeIf { it.isNotEmpty() }
         if (resolvedUrl == null) return@mapNotNull null
+
         var effective: ServerDef = server.copy(baseUrl = resolvedUrl.trimEnd('/'))
+
         if (effective.apiKey == null) {
           val providerKey: String? = ProviderConfigStore.apiKeyKey(server.configKey)
             ?.let { providerEnv.getProperty(it) }?.trim()
             ?.takeIf { it.isNotEmpty() }
-            ?: effective.apiKeyEnvVar?.let { resolveEnvVar(it) }
+            ?: effective.apiKeyEnvVar?.let { resolveEnvVar(envVarName = it) }
 
           val effectiveKey: String? = providerKey ?: cloudApiKey
+
           if (effectiveKey != null && effective.providerType == Provider.OPENAI.wireType) {
             effective = effective.copy(apiKey = effectiveKey)
           }
         }
 
-        if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank()) return@mapNotNull null
+        if (effective.apiKeyEnvVar != null && effective.apiKey.isNullOrBlank())
+          return@mapNotNull null
 
         if (effective.configKey == "lmstudio" && !isLocalHostUrl(effective.baseUrl) &&
           !ProviderConfigStore.isAllowRemote(effective.configKey)
@@ -461,8 +511,11 @@ object ModelIdentity {
         }
         effective
       }
-      logger.info(
-        "Probing ${serversToProbe.size} server(s): " + serversToProbe.joinToString { "${it.name}@${it.baseUrl}" })
+
+      logger.info("Probing ${serversToProbe.size} server(s): " + serversToProbe.joinToString {
+        "${it.name}@${it.baseUrl}"
+      })
+
       val discovered = mutableListOf<ModelEntry>()
       for (server in serversToProbe) {
         logger.info("Probing ${server.name} at ${server.baseUrl}${server.endpoint}")
@@ -471,7 +524,7 @@ object ModelIdentity {
           probeServer(server)
         } catch (any: Throwable) {
           logger.error(
-            "Uncaught throwable while probing ${server.name} at " + "${server.baseUrl}${server.endpoint} (after " +
+            "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint} (after " +
               "${(System.nanoTime() - probeStart) / 1_000_000} ms)", any
           )
           ProbeResult.Unreachable
@@ -480,8 +533,13 @@ object ModelIdentity {
         val probeDurationMs: Long = (System.nanoTime() - probeStart) / 1_000_000
         when (result) {
           is ProbeResult.Ok -> {
-            logger.info("Discovered ${result.models.size} model(s) from ${server.name} at ${server.baseUrl} in ${probeDurationMs}ms")
-            discovered.addAll(result.models.map { it.copy(available = true) })
+            logger.info(
+              "Discovered ${result.models.size} model(s) from ${server.name} at " +
+                "${server.baseUrl} in ${probeDurationMs}ms"
+            )
+            discovered.addAll(elements = result.models.map {
+              it.copy(available = true)
+            })
           }
 
           is ProbeResult.HttpError -> Unit
@@ -492,8 +550,8 @@ object ModelIdentity {
       val withHealth = runBlocking {
         coroutineScope {
           val cloudHealth = discovered
-            .filter { isOllamaCloudModel(it) }
-            .associate { it.modelName to async { probeCloudModel(it) } }
+            .filter { isOllamaCloudModel(entry = it) }
+            .associate { it.modelName to async { probeCloudModel(entry = it) } }
           discovered.map { entry ->
             if (isOllamaCloudModel(entry)) {
               cloudHealth[entry.modelName]?.await()?.let { reason ->
@@ -507,10 +565,10 @@ object ModelIdentity {
     }
 
     private fun probeServer(server: ServerDef): ProbeResult {
-      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(6) + "xxx" }
+      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(n = 6) + "xxx" }
       logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
       return try {
-        val probe: HttpProbe = httpProbe(resolveModelsEndpoint(server.baseUrl, server.endpoint), server.apiKey)
+        val probe: HttpProbe = httpProbe(url = resolveModelsEndpoint(server.baseUrl, server.endpoint), server.apiKey)
         logger.info("probeServer got response: ${server.name} status=${probe.status.value}")
         if (probe.status != HttpStatusCode.OK) {
           logger.warn(
@@ -522,7 +580,14 @@ object ModelIdentity {
 
         val modelNames: List<String> = parseModelNamesFromBody(server.providerType, probe.body)
 
-        ProbeResult.Ok(modelNames.map { ModelEntry(it, server.baseUrl, server.name, server.providerType) })
+        ProbeResult.Ok(models = modelNames.map {
+          ModelEntry(
+            modelName = it,
+            serverUrl = server.baseUrl,
+            serverName = server.name,
+            server.providerType
+          )
+        })
       } catch (probeException: Exception) {
         logger.warn(
           "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
@@ -531,7 +596,8 @@ object ModelIdentity {
         ProbeResult.Unreachable
       } catch (probeError: Throwable) {
         logger.error(
-          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}", probeError
+          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}",
+          probeError
         )
         ProbeResult.Unreachable
       }
@@ -559,15 +625,17 @@ object ModelIdentity {
             timeout { requestTimeoutMillis = 5000 }
             setBody(
               """
-              {"model":"${entry.modelName}","messages":[{"role":"user","content":"."}],"stream":false,"options":{"num_predict":1}}
+              {"model":"${entry.modelName}",
+              "messages":[{"role":"user","content":"."}],"stream":false,"options":{"num_predict":1}}
               """.trimIndent()
             )
           }
         }
-        if (response.status != HttpStatusCode.OK) return classifyHttpStatus(response.status)
+        if (response.status != HttpStatusCode.OK)
+          return classifyHttpStatus(response.status)
 
         val responseBody = runBlocking { response.bodyAsText() }
-        val errorElement = jsonParser.parseToJsonElement(responseBody).jsonObject["error"]
+        val errorElement = jsonParser.parseToJsonElement(string = responseBody).jsonObject["error"]
         if (errorElement != null) {
           classifyErrorMessage(errorElement.jsonPrimitive.contentOrNull ?: errorElement.toString())
         } else null
@@ -577,13 +645,14 @@ object ModelIdentity {
       UnavailableReason.NETWORK
     }
 
-    private fun classifyHttpStatus(status: HttpStatusCode): UnavailableReason = when (status.value) {
-      401 -> UnavailableReason.AUTH
-      429 -> UnavailableReason.RATE_LIMIT
-      402, 403 -> UnavailableReason.QUOTA_EXCEEDED
-      in 500..599 -> UnavailableReason.NETWORK
-      else -> UnavailableReason.OTHER
-    }
+    private fun classifyHttpStatus(status: HttpStatusCode): UnavailableReason =
+      when (status.value) {
+        401 -> UnavailableReason.AUTH
+        429 -> UnavailableReason.RATE_LIMIT
+        402, 403 -> UnavailableReason.QUOTA_EXCEEDED
+        in 500..599 -> UnavailableReason.NETWORK
+        else -> UnavailableReason.OTHER
+      }
 
     private fun classifyErrorMessage(message: String): UnavailableReason {
       val lower = message.lowercase()
@@ -612,10 +681,11 @@ object ModelIdentity {
         val currentFingerprint: String = ProviderConfigStore.fingerprint()
         val configChanged: Boolean = currentFingerprint != configFingerprint
         snap?.let {
-          if (!configChanged && currentTimeMillis - it.timestamp < TTL_MS) return it.models
+          if (!configChanged && currentTimeMillis - it.timestamp < TTL_MS)
+            return it.models
         }
         return computeBlock().also {
-          snap = Snapshot(currentTimeMillis, it)
+          snap = Snapshot(timestamp = currentTimeMillis, models = it)
           configFingerprint = currentFingerprint
         }
       }

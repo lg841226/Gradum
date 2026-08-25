@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAuditFindingTest.kt  2026-08-25 13:21:36 Changed by gwy
+ * GradumGitAuditFindingTest.kt  2026-08-25 22:19:19 Changed by gwy
  */
 
 package gradum.idea
@@ -25,8 +25,8 @@ class GradumGitAuditFindingTest {
     code: String, level: String = "alert", hash: String = "-", params: Map<String, Any?>
   ): AuditFinding =
     AuditFinding(
-      code = code, level = level, params = params, hash = hash,
-      index = -1, date = "", days = "-", type = "T"
+      index = -1, code = code, type = "T", hash = hash,
+      date = "", days = "-", level = level, params = params
     )
 
   @Test

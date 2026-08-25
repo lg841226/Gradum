@@ -180,14 +180,12 @@ class WebSearchSkill : Skill() {
 
       logger.info("Got {} results for query='{}'", results.size, query)
 
-      makeSuccess(
-        data = linkedMapOf(
-          "query" to query,
-          "max_results" to maxResults,
-          "search_depth" to searchDepth,
-          "results" to results
-        )
-      )
+      makeSuccess {
+        string("query", query)
+        integer("max_results", maxResults)
+        string("search_depth", searchDepth)
+        objectList("results", results)
+      }
     } catch (networkException: Exception) {
       logger.error("Web search failed for query='{}': {}", query, networkException.message, networkException)
       makeFailure(

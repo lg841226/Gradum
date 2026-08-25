@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * IconTooltipButton.kt  2026-08-12 12:38:25 Changed by gwy
+ * IconTooltipButton.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -25,14 +25,21 @@ import org.jetbrains.jewel.ui.icon.IconKey
 fun IconTooltipButton(
   tooltip: String,
   iconKey: IconKey,
-  contentDescription: String,
   onClick: () -> Unit,
   enabled: Boolean = true,
+  contentDescription: String,
   modifier: Modifier = Modifier
 ) {
   Tooltip(tooltip = { Text(text = tooltip) }) {
-    IconButton(onClick = onClick, enabled = enabled, modifier = modifier) {
-      Icon(key = iconKey, contentDescription = contentDescription)
+    IconButton(
+      onClick = onClick,
+      enabled = enabled,
+      modifier = modifier
+    ) {
+      Icon(
+        key = iconKey,
+        contentDescription = contentDescription
+      )
     }
   }
 }

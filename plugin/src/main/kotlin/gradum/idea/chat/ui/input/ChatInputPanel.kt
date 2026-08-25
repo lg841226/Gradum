@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-08-24 23:20:59 Changed by gwy
+ * ChatInputPanel.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -117,8 +117,8 @@ fun ChatInputPanel(
             IconTooltipButton(
               tooltip = message("gradum.remove"),
               iconKey = AllIconsKeys.Actions.Close,
-              contentDescription = message("gradum.remove"),
               onClick = { actions.onRemovePending(pending) },
+              contentDescription = message("gradum.remove"),
               modifier = Modifier.size(18.dp)
             )
           }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkillTest.kt  2026-08-25 14:13:18 Changed by gwy
+ * DelegateSkillTest.kt  2026-08-25 21:48:28 Changed by gwy
  */
 
 package gradum.skill
@@ -87,7 +87,7 @@ class DelegateSkillTest {
       agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA),
       emitEvent = { _, _ -> }
     )
-    val result = skill.execute(emptyMap(), context)
+    val result = skill.execute(arguments = emptyMap(), context)
 
     assertIs<SkillResult.Failure>(value = result)
     assertEquals(

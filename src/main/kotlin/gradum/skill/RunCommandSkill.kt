@@ -244,23 +244,19 @@ class RunCommandSkill : Skill() {
       }
 
       if (useSimpleOutput) {
-        makeSuccess(
-          data = mapOf(
-            "exitCode" to exitCode,
-            "command" to commandText,
-            "output" to commandOutput.take(n = 2000)
-          )
-        )
+        makeSuccess {
+          integer("exitCode", exitCode)
+          string("command", commandText)
+          string("output", commandOutput.take(n = 2000))
+        }
       } else {
-        makeSuccess(
-          data = mapOf(
-            "timeout" to false,
-            "exitCode" to exitCode,
-            "command" to commandText,
-            "output" to commandOutput,
-            "truncated" to outputTruncated
-          )
-        )
+        makeSuccess {
+          boolean("timeout", false)
+          integer("exitCode", exitCode)
+          string("command", commandText)
+          string("output", commandOutput)
+          boolean("truncated", outputTruncated)
+        }
       }
     } catch (executionException: Exception) {
       makeFailure(
@@ -299,15 +295,13 @@ class RunCommandSkill : Skill() {
       detachedProcess.waitFor(5, TimeUnit.SECONDS)
       detachedProcess.toHandle().onExit()
 
-      makeSuccess(
-        data = mapOf(
-          "command" to commandText,
-          "detached" to true,
-          "processId" to processId,
-          "logPath" to logFile.absolutePath,
-          "message" to "Command started in background with PID $processId"
-        ),
-      )
+      makeSuccess {
+        string("command", commandText)
+        boolean("detached", true)
+        integer("processId", processId.toInt())
+        string("logPath", logFile.absolutePath)
+        string("message", "Command started in background with PID $processId")
+      }
     } catch (detachedStartException: Exception) {
       makeFailure(
         code = ErrorCode.IO_ERROR,

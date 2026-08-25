@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentPreview.kt  2026-08-24 23:20:59 Changed by gwy
+ * MessageAttachmentPreview.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -61,9 +61,9 @@ fun MessageAttachmentPreview(
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md, Alignment.End)) {
       imageAttachments.forEach { image: AttachedImage ->
         ImageThumbnailChip(
-          imageAttachment = image,
           onClick = { onAttachmentClick(image.file) },
-          modifier = Modifier.size(chipSizeDp)
+          modifier = Modifier.size(chipSizeDp),
+          imageAttachment = image
         )
       }
     }
@@ -73,9 +73,10 @@ fun MessageAttachmentPreview(
 /** Single thumbnail chip with rounded corners and border. */
 @Composable
 private fun ImageThumbnailChip(
-  imageAttachment: AttachedImage, onClick: () -> Unit, modifier: Modifier = Modifier
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  imageAttachment: AttachedImage
 ) {
-
   var decodedBitmap by remember { mutableStateOf<ImageBitmap?>(value = null) }
   LaunchedEffect(key1 = imageAttachment.file.path) {
     val bitmap: ImageBitmap? = withContext(Dispatchers.IO) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParserTest.kt  2026-08-25 14:41:48 Changed by gwy
+ * ToolCallScenarioParserTest.kt  2026-08-25 21:51:45 Changed by gwy
  */
 
 package gradum.debug
@@ -17,7 +17,7 @@ class ToolCallScenarioParserTest {
   @Test
   fun `parses a scenario with path detailed attributes`() {
     val scenario: ToolCallScenario = ToolCallScenarioParser.parse(
-      """
+      rawXml = """
       <tls nam="demo">
         <t nam="read_file" pth="src/main/kotlin/gradum/AgentConfiguration.kt"/>
         <t nam="grep" pth="src/main" ptr="TODO"/>
@@ -40,7 +40,7 @@ class ToolCallScenarioParserTest {
     )
     assertEquals(
       "src/main/kotlin/gradum/AgentConfiguration.kt",
-      arg(scenario, 0, "path")
+      arg(scenario, index = 0, key = "path")
     )
     assertEquals(
       true,
@@ -64,7 +64,7 @@ class ToolCallScenarioParserTest {
   @Test
   fun `tool calls are kept in document order`() {
     val scenario: ToolCallScenario = ToolCallScenarioParser.parse(
-      """
+      rawXml = """
       <tls>
         <t nam="read_file" pth="a.txt"/>
         <t nam="grep" pth="src/main" ptr="TODO"/>
@@ -254,7 +254,7 @@ class ToolCallScenarioParserTest {
   fun `unknown child element inside tls throws`() {
     assertFailsWith<ToolCallScenarioParseException> {
       ToolCallScenarioParser.parse(
-        """
+        rawXml = """
         <tls>
           <x nam="read_file" pth="a.txt"/>
         </tls>
@@ -424,7 +424,7 @@ class ToolCallScenarioParserTest {
     )
     assertEquals(
       "  a.txt  ",
-      arg(scenario, 0, "path")
+      arg(scenario, index = 0, key = "path")
     )
   }
 

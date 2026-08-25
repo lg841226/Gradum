@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentityTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * ModelIdentityTest.kt  2026-08-25 21:51:45 Changed by gwy
  */
 
 package gradum
@@ -13,91 +13,103 @@ class ModelIdentityTest {
 
   @Test
   fun `isSmallModel returns true for sub-32B local models`() {
-    assertTrue(ModelIdentity.isSmallModel("qwen-14b"))
-    assertTrue(ModelIdentity.isSmallModel("qwen-7b"))
-    assertTrue(ModelIdentity.isSmallModel("qwen-0.5b"))
+    assertTrue(ModelIdentity.isSmallModel(modelName = "qwen-14b"))
+    assertTrue(ModelIdentity.isSmallModel(modelName = "qwen-7b"))
+    assertTrue(ModelIdentity.isSmallModel(modelName = "qwen-0.5b"))
   }
 
   @Test
   fun `isSmallModel returns false for models above threshold`() {
-    assertFalse(ModelIdentity.isSmallModel("qwen-70b"))
-    assertFalse(ModelIdentity.isSmallModel("qwen-110b"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "qwen-70b"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "qwen-110b"))
   }
 
   @Test
   fun `isSmallModel returns false for cloud-named models regardless of size`() {
-    assertFalse(ModelIdentity.isSmallModel("gpt-4o"))
-    assertFalse(ModelIdentity.isSmallModel("llama-7b-cloud"))
-    assertFalse(ModelIdentity.isSmallModel("claude-sonnet"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "gpt-4o"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "llama-7b-cloud"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "claude-sonnet"))
   }
 
   @Test
   fun `isSmallModel returns false for blank name`() {
-    assertFalse(ModelIdentity.isSmallModel(""))
+    assertFalse(ModelIdentity.isSmallModel(modelName = ""))
   }
 
   @Test
   fun `isSmallModel returns false when no size tag is present`() {
-    assertFalse(ModelIdentity.isSmallModel("qwen2.5"))
+    assertFalse(ModelIdentity.isSmallModel(modelName = "qwen2.5"))
   }
 
   @Test
   fun `schemaVariant returns SIMPLE for small local models`() {
     assertEquals(
-          SchemaVariant.SIMPLE,
-          ModelIdentity.schemaVariant("qwen-14b")
+      SchemaVariant.SIMPLE,
+      ModelIdentity.schemaVariant(modelName = "qwen-14b")
     )
   }
 
   @Test
   fun `schemaVariant returns FULL for large models`() {
     assertEquals(
-          SchemaVariant.FULL,
-          ModelIdentity.schemaVariant("qwen-70b")
+      SchemaVariant.FULL,
+      ModelIdentity.schemaVariant(modelName = "qwen-70b")
     )
   }
 
   @Test
   fun `schemaVariant returns FULL for blank name`() {
     assertEquals(
-          SchemaVariant.FULL,
-          ModelIdentity.schemaVariant("")
+      SchemaVariant.FULL,
+      ModelIdentity.schemaVariant(modelName = "")
     )
   }
 
   @Test
   fun `schemaVariant returns FULL for cloud models`() {
     assertEquals(
-          SchemaVariant.FULL,
-          ModelIdentity.schemaVariant("gpt-4o")
+      SchemaVariant.FULL,
+      ModelIdentity.schemaVariant(modelName = "gpt-4o")
     )
   }
 
   @Test
   fun `isCloudTagged matches cloud in name`() {
-    assertTrue(ModelIdentity.isCloudTagged("minimax-m2.5:cloud"))
-    assertTrue(ModelIdentity.isCloudTagged("qwen3-coder-480b-cloud"))
-    assertTrue(ModelIdentity.isCloudTagged("FOO-CLOUD"))
+    assertTrue(ModelIdentity.isCloudTagged(modelName = "minimax-m2.5:cloud"))
+    assertTrue(ModelIdentity.isCloudTagged(modelName = "qwen3-coder-480b-cloud"))
+    assertTrue(ModelIdentity.isCloudTagged(modelName = "FOO-CLOUD"))
   }
 
   @Test
   fun `isCloudTagged rejects names without cloud`() {
-    assertFalse(ModelIdentity.isCloudTagged("qwen-14b"))
-    assertFalse(ModelIdentity.isCloudTagged("gpt-4o"))
+    assertFalse(ModelIdentity.isCloudTagged(modelName = "qwen-14b"))
+    assertFalse(ModelIdentity.isCloudTagged(modelName = "gpt-4o"))
   }
 
   @Test
   fun `knownCloudServers contains Zhipu DeepSeek and MiniMax`() {
     val names: Set<String> = ModelIdentity.knownCloudServers.map { it.name }.toSet()
-    assertTrue("Zhipu BigModel" in names, "Zhipu BigModel should be in knownCloudServers")
-    assertTrue("DeepSeek" in names, "DeepSeek should be in knownCloudServers")
-    assertTrue("MiniMax" in names, "MiniMax should be in knownCloudServers")
+    assertTrue(
+      "Zhipu BigModel" in names,
+      "Zhipu BigModel should be in knownCloudServers"
+    )
+    assertTrue(
+      "DeepSeek" in names,
+      "DeepSeek should be in knownCloudServers"
+    )
+    assertTrue(
+      "MiniMax" in names,
+      "MiniMax should be in knownCloudServers"
+    )
   }
 
   @Test
   fun `every cloud server uses OpenAI wire type`() {
     val cloudServers: List<ServerDef> = ModelIdentity.knownCloudServers
-    assertTrue(cloudServers.isNotEmpty(), "expected at least one cloud server")
+    assertTrue(
+      cloudServers.isNotEmpty(),
+      "expected at least one cloud server"
+    )
     for ((name, _, _, providerType) in cloudServers) {
       assertEquals(
         Provider.OPENAI.wireType,
@@ -112,11 +124,11 @@ class ModelIdentityTest {
     val cloudServers: List<ServerDef> = ModelIdentity.knownCloudServers
     for ((name, baseUrl, endpoint) in cloudServers) {
       assertTrue(
-        baseUrl.startsWith("https://"),
+        baseUrl.startsWith(prefix = "https://"),
         "$name baseUrl should be https, was: $baseUrl"
       )
       assertTrue(
-        baseUrl.endsWith("/v1") || baseUrl.endsWith("/v4"),
+        baseUrl.endsWith(suffix = "/v1") || baseUrl.endsWith(suffix = "/v4"),
         "$name baseUrl should end with /v1 or /v4, was: $baseUrl"
       )
       assertEquals(
@@ -129,8 +141,14 @@ class ModelIdentityTest {
   @Test
   fun `DeepSeek and MiniMax declare their own apiKeyEnvVar`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
-    assertNotNull(byName["DeepSeek"], "DeepSeek should be in knownCloudServers")
-    assertNotNull(byName["MiniMax"], "MiniMax should be in knownCloudServers")
+    assertNotNull(
+      byName["DeepSeek"],
+      "DeepSeek should be in knownCloudServers"
+    )
+    assertNotNull(
+      byName["MiniMax"],
+      "MiniMax should be in knownCloudServers"
+    )
     assertEquals(
       "DEEPSEEK_API_KEY", byName["DeepSeek"]?.apiKeyEnvVar,
       "DeepSeek should bind to DEEPSEEK_API_KEY"
@@ -144,14 +162,14 @@ class ModelIdentityTest {
   @Test
   fun `Zhipu BigModel falls back to shared cloudApiKeyEnvCandidates so it can also use a dedicated env var`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
-    val zhipu: ServerDef = byName.getValue("Zhipu BigModel")
+    val zhipu: ServerDef = byName.getValue(key = "Zhipu BigModel")
     assertEquals(
-          "https://open.bigmodel.cn/api/coding/paas/v4",
-          zhipu.baseUrl
+      "https://open.bigmodel.cn/api/coding/paas/v4",
+      zhipu.baseUrl
     )
     assertEquals(
-          "/models",
-          zhipu.endpoint
+      "/models",
+      zhipu.endpoint
     )
   }
 
@@ -159,12 +177,12 @@ class ModelIdentityTest {
   fun `DeepSeek and MiniMax baseUrls match their official OpenAI-compatible hosts`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
     assertEquals(
-          "https://api.deepseek.com/v1",
-          byName.getValue("DeepSeek").baseUrl
+      "https://api.deepseek.com/v1",
+      byName.getValue(key = "DeepSeek").baseUrl
     )
     assertEquals(
-          "https://api.minimaxi.com/v1",
-          byName.getValue("MiniMax").baseUrl
+      "https://api.minimaxi.com/v1",
+      byName.getValue(key = "MiniMax").baseUrl
     )
   }
 
@@ -177,12 +195,12 @@ class ModelIdentityTest {
       providerType = Provider.OPENAI.wireType
     )
     assertEquals(
-          null,
-          bareDef.apiKey
+      null,
+      bareDef.apiKey
     )
     assertEquals(
-          null,
-          bareDef.apiKeyEnvVar
+      null,
+      bareDef.apiKeyEnvVar
     )
   }
 }

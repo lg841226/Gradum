@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfigStoreTest.kt  2026-08-25 14:13:18 Changed by gwy
+ * ProviderConfigStoreTest.kt  2026-08-25 21:48:23 Changed by gwy
  */
 package gradum
 
@@ -57,15 +57,15 @@ class ProviderConfigStoreTest {
   fun `base url and api key keys are derived from configKey`() {
     assertEquals(
       "GRADUM_OLLAMA_BASE_URL",
-      ProviderConfigStore.baseUrlKey("ollama")
+      ProviderConfigStore.baseUrlKey(configKey = "ollama")
     )
     assertEquals(
       "GRADUM_LMSTUDIO_API_KEY",
-      ProviderConfigStore.apiKeyKey("lmstudio")
+      ProviderConfigStore.apiKeyKey(configKey = "lmstudio")
     )
     assertEquals(
       null,
-      ProviderConfigStore.baseUrlKey(null)
+      ProviderConfigStore.baseUrlKey(configKey = null)
     )
   }
 
@@ -73,17 +73,17 @@ class ProviderConfigStoreTest {
   fun `allow remote flag defaults to false and reads from env file`() {
     assertEquals(
       "GRADUM_LMSTUDIO_ALLOW_REMOTE",
-      ProviderConfigStore.allowRemoteKey("lmstudio")
+      ProviderConfigStore.allowRemoteKey(configKey = "lmstudio")
     )
     assertEquals(
       false,
-      ProviderConfigStore.isAllowRemote("lmstudio")
+      ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
     )
 
     File(tempDir, "provider.env").writeText("GRADUM_LMSTUDIO_ALLOW_REMOTE=true")
     assertEquals(
       true,
-      ProviderConfigStore.isAllowRemote("lmstudio")
+      ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
     )
   }
 
@@ -91,15 +91,15 @@ class ProviderConfigStoreTest {
   fun `configKeyFor maps probe kinds`() {
     assertEquals(
       "ollama",
-      ProviderConfigStore.configKeyFor("ollama")
+      ProviderConfigStore.configKeyFor(kind = "ollama")
     )
     assertEquals(
       "lmstudio",
-      ProviderConfigStore.configKeyFor("lmstudio")
+      ProviderConfigStore.configKeyFor(kind = "lmstudio")
     )
     assertEquals(
       null,
-      ProviderConfigStore.configKeyFor("unknown")
+      ProviderConfigStore.configKeyFor(kind = "unknown")
     )
   }
 
@@ -116,7 +116,7 @@ class ProviderConfigStoreTest {
   @Test
   fun `parseModelNamesFromBody extracts openai data ids`() {
     val body = """{"data":[{"id":"gpt-4o"},{"id":"deepseek-chat"},{"id":""}]}"""
-    val names = ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, body)
+    val names = ModelIdentity.parseModelNamesFromBody(providerType = Provider.OPENAI.wireType, body)
     assertEquals(
       listOf("gpt-4o", "deepseek-chat"),
       names
@@ -126,7 +126,7 @@ class ProviderConfigStoreTest {
   @Test
   fun `parseModelNamesFromBody extracts ollama models`() {
     val body = """{"models":[{"name":"llama3"},{"name":"qwen2.5"}]}"""
-    val names = ModelIdentity.parseModelNamesFromBody(Provider.OLLAMA.wireType, body)
+    val names = ModelIdentity.parseModelNamesFromBody(providerType = Provider.OLLAMA.wireType, body)
     assertEquals(
       listOf("llama3", "qwen2.5"),
       names
@@ -280,6 +280,9 @@ class ProviderConfigStoreTest {
 
     configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434")
     val second: String = ProviderConfigStore.fingerprint()
-    assertTrue(second != first, "fingerprint must change when the file content changes")
+    assertTrue(
+      second != first,
+      "fingerprint must change when the file content changes"
+    )
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * UserChatBubble.kt  2026-08-24 19:35:05 Changed by gwy
+ * UserChatBubble.kt  2026-08-25 22:05:14 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -71,10 +71,10 @@ fun UserChatBubble(
   onCopyAsContext: (String) -> Unit = {},
   onAttachmentClick: (VirtualFile) -> Unit = {}
 ) {
-  var isCopied by remember { mutableStateOf(false) }
-  var isExpanded by remember { mutableStateOf(false) }
-  var showResetPopup by remember { mutableStateOf(false) }
-  var isAttachmentsExpanded by remember { mutableStateOf(true) }
+  var isCopied by remember { mutableStateOf(value = false) }
+  var isExpanded by remember { mutableStateOf(value = false) }
+  var showResetPopup by remember { mutableStateOf(value = false) }
+  var isAttachmentsExpanded by remember { mutableStateOf(value = true) }
 
   val content = message.content
   val maxLines = if (isExpanded) Int.MAX_VALUE else 1
@@ -102,7 +102,7 @@ fun UserChatBubble(
       Box(
         modifier = Modifier
           .clip(
-            RoundedCornerShape(
+            shape = RoundedCornerShape(
               topStart = 16.dp, topEnd = 16.dp,
               bottomStart = 16.dp, bottomEnd = 6.dp
             )
@@ -118,7 +118,7 @@ fun UserChatBubble(
           )
       ) {
         Row(
-          modifier = Modifier.verticalScroll(rememberScrollState())
+          modifier = Modifier.verticalScroll(state = rememberScrollState())
         ) {
           SelectionContainer {
             Text(

@@ -334,31 +334,27 @@ class GrepSkill : Skill() {
   }
 
   private fun buildEmptyResult(params: SearchParams): SkillResult {
-    return makeSuccess(
-      data = linkedMapOf(
-        "total_matches" to 0,
-        "files_searched" to 0,
-        "pattern" to params.pattern,
-        "matches" to emptyList<Map<String, Any>>(),
-        "search_path" to params.resolvedPath.toString()
-      )
-    )
+    return makeSuccess {
+      integer("total_matches", 0)
+      integer("files_searched", 0)
+      string("pattern", params.pattern)
+      objectList("matches", emptyList())
+      string("search_path", params.resolvedPath.toString())
+    }
   }
 
   private fun buildSearchResult(
     params: SearchParams, results: List<Map<String, Any>>, filesSearched: Int
   ): SkillResult {
     val limitApplied = results.size >= params.limit
-    return makeSuccess(
-      data = linkedMapOf(
-        "matches" to results,
-        "pattern" to params.pattern,
-        "total_matches" to results.size,
-        "limit_applied" to limitApplied,
-        "files_searched" to filesSearched,
-        "search_path" to params.resolvedPath.toString()
-      )
-    )
+    return makeSuccess {
+      objectList("matches", results)
+      string("pattern", params.pattern)
+      integer("total_matches", results.size)
+      boolean("limit_applied", limitApplied)
+      integer("files_searched", filesSearched)
+      string("search_path", params.resolvedPath.toString())
+    }
   }
 
   private fun buildIncludeMatcher(includeFilter: String): PathMatcher? {
@@ -494,15 +490,13 @@ class GlobSkill : Skill() {
     )
     val limitApplied = matchedFiles.size >= params.limit
 
-    return makeSuccess(
-      data = linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_files" to matchedFiles.size,
-        "files" to matchedFiles,
-        "limit_applied" to limitApplied
-      )
-    )
+    return makeSuccess {
+      string("pattern", params.pattern)
+      string("search_path", params.resolvedPath.toString())
+      integer("total_files", matchedFiles.size)
+      stringList("files", matchedFiles)
+      boolean("limit_applied", limitApplied)
+    }
   }
 
   private fun prepareGlobSearch(

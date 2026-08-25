@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-24 21:48:02 Changed by gwy
+ * ApiProviderRow.kt  2026-08-25 22:23:42 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -154,7 +154,9 @@ private fun ApiKeyField(
       state = state,
       textStyle = JewelTheme.editorTextStyle,
       modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
-      outputTransformation = if (isKeyVisible) null else MASK_TRANSFORMATION,
+      outputTransformation =
+        if (isKeyVisible) null
+        else MASK_TRANSFORMATION,
       trailingIcon = {
         Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -230,30 +232,32 @@ private fun ActionRow(
 /** Renders an icon + localized text pair; hides itself for transient states. */
 @Composable
 private fun StatusBadge(status: ProviderStatus) {
-  val (icon: IntelliJIconKey, text: String) = when (status) {
-    is ProviderStatus.Ok ->
-      AllIconsKeys.General.GreenCheckmark to message("gradum.settings.provider.status.ok", status.latencyMs)
+  val (icon: IntelliJIconKey, text: String) =
+    when (status) {
+      is ProviderStatus.Ok ->
+        AllIconsKeys.General.GreenCheckmark to message("gradum.settings.provider.status.ok", status.latencyMs)
 
-    is ProviderStatus.Unreachable ->
-      AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
+      is ProviderStatus.Unreachable ->
+        AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
 
-    is ProviderStatus.AuthError ->
-      AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
+      is ProviderStatus.AuthError ->
+        AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
 
-    is ProviderStatus.Failed -> {
-      val key: String =
-        if (status.message.contains(other = "remote", ignoreCase = true)
-          && status.message.contains(other = "disabled", ignoreCase = true)
-        )
-          "gradum.settings.provider.status.remotedisabled"
-        else "gradum.settings.provider.status.failed"
-      AllIconsKeys.Vcs.Ignore_file to message(key) + if (status.message.isBlank()) "" else " (${
-        status.message.take(n = MAX_ERROR_PREVIEW_CHARS)
-      })"
+      is ProviderStatus.Failed -> {
+        val key: String =
+          if (status.message.contains(other = "remote", ignoreCase = true)
+            && status.message.contains(other = "disabled", ignoreCase = true)
+          )
+            "gradum.settings.provider.status.remotedisabled"
+          else "gradum.settings.provider.status.failed"
+        AllIconsKeys.Vcs.Ignore_file to message(key) +
+          if (status.message.isBlank()) "" else " (${
+            status.message.take(n = MAX_ERROR_PREVIEW_CHARS)
+          })"
+      }
+
+      ProviderStatus.Untested, ProviderStatus.Testing -> return
     }
-
-    ProviderStatus.Untested, ProviderStatus.Testing -> return
-  }
   Row(verticalAlignment = Alignment.CenterVertically) {
     Icon(key = icon, contentDescription = null)
     Spacer(Modifier.width(GradumSpacing.sm))

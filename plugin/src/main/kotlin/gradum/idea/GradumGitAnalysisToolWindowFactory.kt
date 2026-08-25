@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-25 01:50:11 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-25 22:19:19 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -173,8 +173,9 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   onToggleReviewed = {
                     if (selectedFinding != null) {
                       val key = findingKey(selectedFinding!!)
-                      reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
-                      else reviewedFindings + key
+                      reviewedFindings =
+                        if (key in reviewedFindings) reviewedFindings - key
+                        else reviewedFindings + key
                     }
                   },
                   onToggleExpandAll = { isAllExpanded = !isAllExpanded },
@@ -189,12 +190,12 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                     }
                   },
                   isAllExpanded = isAllExpanded,
-                  enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING,
                   groupBySeverity = groupBySeverity,
-                  isGroupingTransition = isGroupingTransition,
-                  reviewedFindings = reviewedFindings,
                   selectedFinding = selectedFinding,
-                  modifier = Modifier.fillMaxHeight()
+                  reviewedFindings = reviewedFindings,
+                  modifier = Modifier.fillMaxHeight(),
+                  isGroupingTransition = isGroupingTransition,
+                  enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING
                 )
                 Box(modifier = Modifier.weight(1f)) {
                   when (scanState) {
@@ -265,12 +266,15 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                             project = project,
                             isPinned = pinnedFinding != null,
                             onTogglePin = {
-                              pinnedFinding = if (pinnedFinding == null) displayFinding else null
+                              pinnedFinding =
+                                if (pinnedFinding == null) displayFinding
+                                else null
                             },
                             onToggleReviewed = {
                               val key = findingKey(displayFinding)
-                              reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
-                              else reviewedFindings + key
+                              reviewedFindings =
+                                if (key in reviewedFindings) reviewedFindings - key
+                                else reviewedFindings + key
                             },
                             modifier = Modifier
                               .fillMaxHeight()

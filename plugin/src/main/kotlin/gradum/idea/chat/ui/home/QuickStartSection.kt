@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * QuickStartSection.kt  2026-08-24 22:28:49 Changed by gwy
+ * QuickStartSection.kt  2026-08-25 22:08:43 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -98,11 +98,13 @@ fun QuickStartSection(
 private fun SuggestionCard(
   categoryIndex: Int,
   textState: TextFieldState,
+  modifier: Modifier = Modifier,
   suggestionVariants: List<Int>,
-  featureIcons: List<PathIconKey>,
-  modifier: Modifier = Modifier
+  featureIcons: List<PathIconKey>
 ) {
-  val suggestionText: String = message(key = "gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}")
+  val suggestionText: String = message(
+    key = "gradum.suggestion.$categoryIndex.${suggestionVariants[categoryIndex]}"
+  )
   val interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
   val isHovered: Boolean by interactionSource.collectIsHoveredAsState()
   Row(
@@ -113,20 +115,24 @@ private fun SuggestionCard(
       .clickable { textState.edit { replace(start = 0, end = 0, suggestionText) } }
       .clip(shape = RoundedCornerShape(size = 6.dp))
       .background(
-        color = if (isHovered) JewelTheme.globalColors.text.info
-          .copy(alpha = 0.08f) else Color.Transparent
+        color =
+          if (isHovered) JewelTheme.globalColors.text.info.copy(alpha = 0.08f)
+          else Color.Transparent
       )
-      .padding(horizontal = GradumSpacing.md, vertical = 6.dp)
+      .padding(
+        horizontal = GradumSpacing.md,
+        vertical = GradumSpacing.sml
+      )
   ) {
     Icon(
-      key = featureIcons[categoryIndex],
-      contentDescription = null
+      contentDescription = null,
+      key = featureIcons[categoryIndex]
     )
     Spacer(modifier = Modifier.width(GradumSpacing.md))
     Text(
-      modifier = Modifier.weight(1f),
       maxLines = 1,
       text = suggestionText,
+      modifier = Modifier.weight(1f),
       overflow = TextOverflow.Ellipsis
     )
     Icon(

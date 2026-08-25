@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-24 23:20:59 Changed by gwy
+ * ChatScreen.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -293,11 +293,11 @@ fun ChatScreen(
     }
 
     ChatInputSection(
+      state = state.inputState,
+      actions = state.inputActions,
+      textState = state.textState,
       modifier = Modifier
         .padding(bottom = GradumSpacing.sml),
-      state = state.inputState,
-      textState = state.textState,
-      actions = state.inputActions,
       hasSentMessage = state.hasSentMessage,
       selectedPermission = state.selectedPermission
     )

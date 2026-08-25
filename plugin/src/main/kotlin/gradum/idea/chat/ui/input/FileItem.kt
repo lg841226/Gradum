@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FileItem.kt  2026-08-25 01:43:26 Changed by gwy
+ * FileItem.kt  2026-08-25 22:10:00 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -46,7 +46,12 @@ fun FileItem(
         .size(14.dp)
     )
     Column {
-      Text(text = file.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+      Text(
+        text = file.name,
+        fontWeight =
+          if (isSelected) FontWeight.Bold
+          else FontWeight.Normal
+      )
     }
   }
 }

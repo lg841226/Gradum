@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatToolbar.kt  2026-08-25 01:43:26 Changed by gwy
+ * ChatToolbar.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -53,13 +53,13 @@ fun ChatToolbar(
     verticalAlignment = Alignment.CenterVertically
   ) {
     IconTooltipButton(
-      contentDescription = message("gradum.add"),
-      onClick = actions.onToggleAddMenu,
-      iconKey = AllIconsKeys.Actions.Attach,
-      enabled = !state.isAttachmentLimitReached,
       tooltip =
         if (state.isAttachmentLimitReached) message("gradum.add.context.disabled")
-        else message("gradum.add.context")
+        else message("gradum.add.context"),
+      iconKey = AllIconsKeys.Actions.Attach,
+      onClick = actions.onToggleAddMenu,
+      enabled = !state.isAttachmentLimitReached,
+      contentDescription = message("gradum.add")
     )
     if (state.showAddMenu) {
       AddContextPopup(
@@ -83,19 +83,19 @@ fun ChatToolbar(
     Spacer(modifier = Modifier.weight(1f))
 
     IconTooltipButton(
-      onClick = actions.onToggleExpanded,
-      enabled = state.editorContext.currentFile != null,
       tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
       iconKey = if (state.isExpanded) AllIconsKeys.Actions.Share else AllIconsKeys.Actions.Unshare,
+      onClick = actions.onToggleExpanded,
+      enabled = state.editorContext.currentFile != null,
       contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context")
     )
 
     IconTooltipButton(
-      enabled = isTextNotEmpty,
       tooltip = message("gradum.clear"),
+      iconKey = AllIconsKeys.General.Delete,
       onClick = actions.onClearText,
-      contentDescription = message("gradum.delete"),
-      iconKey = AllIconsKeys.General.Delete
+      enabled = isTextNotEmpty,
+      contentDescription = message("gradum.delete")
     )
 
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
@@ -104,8 +104,8 @@ fun ChatToolbar(
         IconTooltipButton(
           tooltip = message("gradum.stop"),
           iconKey = AllIconsKeys.Run.Stop,
-          contentDescription = message("gradum.stop.response"),
-          onClick = actions.onStop
+          onClick = actions.onStop,
+          contentDescription = message("gradum.stop.response")
         )
       }
       val hasModel: Boolean = state.selectedModel != null
@@ -117,10 +117,10 @@ fun ChatToolbar(
         else -> message("gradum.send")
       }
       IconTooltipButton(
-        enabled = canSend,
         tooltip = sendTooltip,
-        onClick = actions.onSend,
         iconKey = GradumIcons.Send,
+        onClick = actions.onSend,
+        enabled = canSend,
         contentDescription = message("gradum.send")
       )
     }

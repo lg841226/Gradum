@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-08-23 21:12:19 Changed by gwy
+ * SkillContext.kt  2026-08-25 21:22:54 Changed by gwy
  */
 
 package gradum.skill
@@ -79,7 +79,7 @@ data class SkillContext(
    * [registerChildSession]; the [DelegateSkill] calls this in
    * a `finally` block to guarantee cleanup.
    */
-  val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
+  val unregisterChildSession: ((childSessionId: String) -> Unit)? = null
 ) {
   /**
    * True when the active model wants the SIMPLE schema variant (small /

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-25 16:41:02 Changed by gwy
+ * TodoSkill.kt  2026-08-25 22:00:16 Changed by gwy
  */
 
 package gradum.skill
@@ -79,7 +79,10 @@ class CompletePlanSkill : Skill() {
   )
 
   override val schemaProperties: SchemaBuilder.() -> Unit = {
-    string(name = "task", description = "Task that was completed")
+    string(
+      name = "task",
+      description = "Task that was completed"
+    )
     integer(
       name = "count",
       description = "Number of tasks to complete/skip at once (default 1)",

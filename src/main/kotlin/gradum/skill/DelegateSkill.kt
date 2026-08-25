@@ -109,7 +109,7 @@ class DelegateSkill : Skill() {
 
     emitStartEvent(emitEvent, config.modelName, title, task)
     val result: String = runSubAgent(subConfig, task, emitEvent, registerChild, unregisterChild)
-    return makeSuccess(data = mapOf("result" to result))
+    return makeSuccess { string("result", result) }
   }
 
   /** Extracts the task string from arguments, or null if missing/too short/duplicate of user input. */

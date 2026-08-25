@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DiffViewer.kt  2026-08-25 01:43:26 Changed by gwy
+ * DiffViewer.kt  2026-08-25 22:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.ui.common
@@ -52,10 +52,10 @@ object DiffViewer {
    * non-project window.
    */
   fun showFileDiff(
-    project: Project?,
     path: String,
+    project: Project?,
     originalContent: String,
-    modifiedContent: String,
+    modifiedContent: String
   ) {
     log.debug(
       "showFileDiff invoked: project=${project?.name ?: "<null>"}, " +
@@ -71,14 +71,15 @@ object DiffViewer {
 
       val fileName: String = path.substringAfterLast(delimiter = '/').ifBlank { "diff" }
       val virtualFile: VirtualFile? = resolveVirtualFile(project, path)
-      val resolvedType: ResolvedType = if (virtualFile != null) {
-        ResolvedType.FromVirtualFile(virtualFile)
-      } else {
-        val inferred: FileType = FileTypeRegistry.getInstance().getFileTypeByFileName(fileName)
-        if (inferred is PlainTextFileType) ResolvedType.PlainTextFallback else ResolvedType.FromFileType(
-          inferred
-        )
-      }
+      val resolvedType: ResolvedType =
+        if (virtualFile != null) {
+          ResolvedType.FromVirtualFile(virtualFile)
+        } else {
+          val inferred: FileType = FileTypeRegistry.getInstance().getFileTypeByFileName(fileName)
+          if (inferred is PlainTextFileType)
+            ResolvedType.PlainTextFallback
+          else ResolvedType.FromFileType(inferred)
+        }
 
       val leftContent: DiffContent
       val rightContent: DiffContent

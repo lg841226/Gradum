@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillCompactHistoryTest.kt  2026-08-25 14:04:50 Changed by gwy
+ * SkillCompactHistoryTest.kt  2026-08-25 19:47:50 Changed by gwy
  */
 
 package gradum.skill
@@ -89,7 +89,7 @@ class SkillCompactHistoryTest {
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
 
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       assertEquals(
         "body-$i", historyResult["content"],
         "call #$i: current call's `content` was stripped — keys: ${historyResult.keys}"
@@ -113,7 +113,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
 
@@ -176,7 +176,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
 
@@ -219,7 +219,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
 
@@ -252,7 +252,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
 
@@ -290,7 +290,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
       assertEquals(
         i,
@@ -325,7 +325,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
 
@@ -361,7 +361,7 @@ class SkillCompactHistoryTest {
         .filter { (_, entry) ->
           (entry["role"] as? String) == "tool" && (entry["alias"] as? String) == skill.alias
         }.map { it.index }
-      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(data, history, ownIndices)
+      val historyResult: Map<String, Any> = skill.recordAndCompactHistory(ownIndices, data, history)
       appendToolMessage(history, skill.alias, historyResult)
     }
     for (i in 1..5) callBody("body-$i")

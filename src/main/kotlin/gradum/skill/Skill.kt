@@ -2,13 +2,15 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-08-12 12:38:25 Changed by gwy
+ * Skill.kt  2026-08-25 21:21:54 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.utils.JsonUtil.decodeMap
+import gradum.utils.JsonUtil.encodeMap
 
 abstract class Skill {
   abstract val skillName: String
@@ -55,7 +57,8 @@ abstract class Skill {
     val useSimple: Boolean = context?.isSimpleModel == true
     return buildFunctionSchema(
       useSimple = useSimple,
-      description = if (useSimple) (simpleDescription ?: description) else description,
+      description =
+        if (useSimple) (simpleDescription ?: description) else description,
     ) {
       schemaProperties()
     }
@@ -93,8 +96,8 @@ abstract class Skill {
       "description" to description,
       "parameters" to mapOf(
         "type" to "object",
-        "properties" to properties,
         "required" to required,
+        "properties" to properties
       ),
     ),
   )
@@ -108,20 +111,26 @@ abstract class Skill {
    * are dropped and required is derived from the remaining parameters.
    */
   protected fun buildFunctionSchema(
-    useSimple: Boolean,
-    description: String,
-    properties: SchemaBuilder.() -> Unit,
+    useSimple: Boolean, description: String, properties: SchemaBuilder.() -> Unit
   ): Map<String, Any> {
-    val builder: SchemaBuilder = SchemaBuilder()
+    val builder = SchemaBuilder()
     builder.properties()
-    val visible: List<SkillParameter> = if (useSimple) {
-      builder.schemaParameters.filter { parameter -> parameter.level != ParameterLevel.CLOUD_ONLY }
-    } else {
-      builder.schemaParameters
+
+    val visible: List<SkillParameter> =
+      if (useSimple) {
+        builder.schemaParameters.filter { parameter ->
+          parameter.level != ParameterLevel.CLOUD_ONLY
+        }
+      } else builder.schemaParameters
+
+    val required: List<String> = visible.filter { parameter ->
+      parameter.required
+    }.map { parameter -> parameter.name }
+
+    val parameterMap: Map<String, Any> = visible.associate { parameter ->
+      parameter.name to parameter.schema
     }
-    val required: List<String> = visible.filter { parameter -> parameter.required }.map { parameter -> parameter.name }
-    val parameterMap: Map<String, Any> = visible.associate { parameter -> parameter.name to parameter.schema }
-    return buildFunctionSchema(description, parameterMap, required)
+    return buildFunctionSchema(description, properties = parameterMap, required)
   }
 
   /**
@@ -171,12 +180,12 @@ abstract class Skill {
    * the counter increment and can leave the two paths inconsistent.
    */
   fun recordAndCompactHistory(
+    ownMessageIndices: List<Int>,
     currentResult: Map<String, Any>,
-    conversationHistory: MutableList<Map<String, Any>>,
-    ownMessageIndices: List<Int>
+    conversationHistory: MutableList<Map<String, Any>>
   ): Map<String, Any> {
     prepareHistoryCallCount++
-    compactHistory(conversationHistory, ownMessageIndices, prepareHistoryCallCount)
+    compactHistory(prepareHistoryCallCount, ownMessageIndices, conversationHistory)
     return prepareHistoryResult(currentResult)
   }
 
@@ -202,22 +211,18 @@ abstract class Skill {
    * calls intact so the LLM can still refer back to them.
    */
   open fun compactHistory(
-    conversationHistory: MutableList<Map<String, Any>>,
+    callCount: Int,
     ownMessageIndices: List<Int>,
-    callCount: Int
+    conversationHistory: MutableList<Map<String, Any>>
   ) {
     if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) return
     if (ownMessageIndices.isEmpty()) return
-    // Use the actual remaining own-message count (not the session-global
-    // callCount) so that truncation by [Agent.truncateHistory] doesn't
-    // cause over-stripping.  `ownMessageIndices.size + 1` accounts for
-    // the current call (not yet appended when this runs).  In the normal
-    // no-truncation case `size + 1 == callCount`, so behavior is unchanged.
+
     val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
     val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
     if (dropEndIndex == 0) return
-    for (i in 0 until dropEndIndex) {
-      val historyIndex: Int = ownMessageIndices[i]
+    for (dropIndex in 0 until dropEndIndex) {
+      val historyIndex: Int = ownMessageIndices[dropIndex]
       if (historyIndex in conversationHistory.indices) {
         conversationHistory[historyIndex] =
           stripVolatileKeys(conversationHistory[historyIndex])
@@ -226,20 +231,24 @@ abstract class Skill {
   }
 
   private fun stripVolatileKeys(message: Map<String, Any>): Map<String, Any> {
-    val content: String = message["content"] as? String ?: return message
-    // Cheap substring pre-check: when none of the volatile keys appear
-    // in the payload, the filter below would be a no-op, so skip the
-    // JSON decode/re-encode round-trip entirely.
-    if (historyVolatileKeys.none { key -> key in content }) return message
-    val parsed: Map<String, Any?>? = try {
-      gradum.utils.JsonUtil.decodeMap(content)
+    val encodedContent = message["content"] as? String ?: return message
+
+    val hasVolatileKey = historyVolatileKeys.any { key ->
+      key in encodedContent
+    }
+    if (!hasVolatileKey) return message
+
+    val decodedMap = try {
+      decodeMap(input = encodedContent)
     } catch (_: Exception) {
-      // Not a JSON object (plain string, error marker, etc.) —
-      // leave the message as-is.
       return message
     }
-    val stripped: Map<String, Any?> = parsed?.filterKeys { it !in historyVolatileKeys } ?: emptyMap()
-    val reencoded: String = gradum.utils.JsonUtil.encodeMap(stripped)
-    return message + ("content" to reencoded)
+
+    val filteredMap = decodedMap.filterKeys { key ->
+      key !in historyVolatileKeys
+    }
+
+    val filteredContent = encodeMap(input = filteredMap)
+    return message + ("content" to filteredContent)
   }
 }

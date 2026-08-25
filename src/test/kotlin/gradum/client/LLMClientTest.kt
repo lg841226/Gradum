@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClientTest.kt  2026-08-25 14:34:39 Changed by gwy
+ * LLMClientTest.kt  2026-08-25 21:58:31 Changed by gwy
  */
 
 package gradum.client
@@ -29,9 +29,9 @@ import kotlin.test.assertTrue
 class LLMClientTest {
 
   private fun config(
-    baseUrl: String = "https://api.example.com/v1",
-    apiKey: String? = "test-key",
     thinking: Boolean = false,
+    apiKey: String? = "test-key",
+    baseUrl: String = "https://api.example.com/v1"
   ): AgentConfiguration = AgentConfiguration(
     apiKey = apiKey,
     baseUrl = baseUrl,
@@ -43,8 +43,8 @@ class LLMClientTest {
   private fun sseChunks(lines: List<String>): MockEngine =
     MockEngine { _ ->
       respond(
-        content = ByteReadChannel(text = lines.joinToString(separator = "\n") + "\n"),
         status = HttpStatusCode.OK,
+        content = ByteReadChannel(text = lines.joinToString(separator = "\n") + "\n"),
         headers = headersOf(name = HttpHeaders.ContentType, value = "text/event-stream"),
       )
     }
@@ -60,27 +60,25 @@ class LLMClientTest {
       )
     )
     val client = OpenAICompatibleClient(
-      config(baseUrl = "https://api.deepseek.com/v1"),
-      HttpClient(engine),
+      config(baseUrl = "https://api.deepseek.com/v1"), HttpClient(engine)
     )
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+    ).toList()
 
     assertEquals(
       expected = listOf(
         LLMResponseChunk.TextContent("Hello "),
-        LLMResponseChunk.ReasoningContent("thinking..."),
+        LLMResponseChunk.ReasoningContent(text = "thinking..."),
         LLMResponseChunk.TextContent("world"),
       ),
-      chunks,
+      chunks
     )
   }
 
   @Test
   fun `openai sse preserves pure-whitespace deltas that separate markdown`() = runBlocking {
-    // Paragraph breaks, blank lines inside code blocks and trailing
-    // spaces (hard line break) arrive as standalone whitespace chunks in
-    // real streams. They must NOT be dropped or Markdown collapses.
     val engine: MockEngine = sseChunks(
       lines = listOf(
         """data: {"choices":[{"delta":{"content":"## Title"}}]}""",
@@ -97,7 +95,9 @@ class LLMClientTest {
       HttpClient(engine),
     )
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+    ).toList()
 
     assertEquals(
       expected = listOf(
@@ -122,9 +122,11 @@ class LLMClientTest {
         "data: [DONE]",
       )
     )
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     val toolBatches = chunks.filterIsInstance<LLMResponseChunk.ToolCallBatch>()
     assertEquals(
@@ -160,19 +162,18 @@ class LLMClientTest {
 
   @Test
   fun `openai index-less tool-call chunks do not collapse into one call`() = runBlocking {
-    // Some providers (DeepSeek, proxies) omit `index` and emit each tool
-    // call as a single complete chunk. optInt("index") would map both to 0
-    // and merge them into one corrupted entry — each must stay distinct.
     val engine: MockEngine = sseChunks(
-      listOf(
+      lines = listOf(
         """data: {"choices":[{"delta":{"tool_calls":[{"id":"call_a","function":{"name":"read_file","arguments":"{\"path\":\"A.kt\"}"}}]}}]}""",
         """data: {"choices":[{"delta":{"tool_calls":[{"id":"call_b","function":{"name":"run_cmd","arguments":"{\"command\":\"ls\"}"}}]}}]}""",
         "data: [DONE]",
       )
     )
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     val toolBatches = chunks.filterIsInstance<LLMResponseChunk.ToolCallBatch>()
     assertEquals(
@@ -193,7 +194,7 @@ class LLMClientTest {
       calls[0].functionName
     )
     assertEquals(
-      mapOf("path" to JsonPrimitive("A.kt")),
+      mapOf("path" to JsonPrimitive(value = "A.kt")),
       calls[0].functionArguments
     )
     assertEquals(
@@ -205,7 +206,7 @@ class LLMClientTest {
       calls[1].functionName
     )
     assertEquals(
-      mapOf("command" to JsonPrimitive("ls")),
+      mapOf("command" to JsonPrimitive(value = "ls")),
       calls[1].functionArguments
     )
   }
@@ -213,15 +214,17 @@ class LLMClientTest {
   @Test
   fun `openai usage deltas accumulate across chunks`() = runBlocking {
     val engine: MockEngine = sseChunks(
-      listOf(
+      lines = listOf(
         """data: {"choices":[{"delta":{"content":"a"}}],"usage":{"prompt_tokens":10,"completion_tokens":2}}""",
         """data: {"choices":[{"delta":{"content":"b"}}],"usage":{"prompt_tokens":5,"completion_tokens":3}}""",
         "data: [DONE]",
       )
     )
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    client.sendChat(listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     assertEquals(
       15,
@@ -242,8 +245,10 @@ class LLMClientTest {
     val engine: MockEngine = sseChunks(
       lines = listOf("""data: {"choices":[{"delta":{"content":"partial"}}]}""")
     )
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     assertTrue(chunks.contains(LLMResponseChunk.TextContent("partial")))
     assertTrue(
@@ -257,11 +262,13 @@ class LLMClientTest {
     var requestCount = 0
     val engine = MockEngine { _ ->
       requestCount++
-      respondError(status = HttpStatusCode.Unauthorized, "bad key")
+      respondError(status = HttpStatusCode.Unauthorized, content = "bad key")
     }
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     assertTrue(chunks.any { it is LLMResponseChunk.ErrorMessage })
     assertEquals(
@@ -279,11 +286,13 @@ class LLMClientTest {
         status = HttpStatusCode.Unauthorized,
       )
     }
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
-
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
     val error = chunks.filterIsInstance<LLMResponseChunk.ErrorMessage>()
+
     assertEquals(
       expected = 1,
       actual = error.size
@@ -302,11 +311,13 @@ class LLMClientTest {
         status = HttpStatusCode.BadGateway,
       )
     }
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
-
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
     val error = chunks.filterIsInstance<LLMResponseChunk.ErrorMessage>()
+
     assertEquals(
       expected = 1,
       actual = error.size
@@ -322,10 +333,12 @@ class LLMClientTest {
     var requestCount = 0
     val engine = MockEngine { _ ->
       requestCount++
-      respondError(status = HttpStatusCode.InternalServerError, "boom")
+      respondError(status = HttpStatusCode.InternalServerError, content = "boom")
     }
-    val client = OpenAICompatibleClient(config(), HttpClient(engine))
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "x"))).toList()
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
 
     assertTrue(actual = chunks.any { it is LLMResponseChunk.ErrorMessage })
     assertEquals(
@@ -348,7 +361,7 @@ class LLMClientTest {
       )
     }
     val client = OllamaClient(
-      config(baseUrl = "http://localhost:11434", apiKey = null),
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434"),
       HttpClient(engine),
     )
 
@@ -388,11 +401,13 @@ class LLMClientTest {
       respondError(status = HttpStatusCode.BadRequest, content = "nope")
     }
     val client = OllamaClient(
-      configuration = config(baseUrl = "http://localhost:11434", apiKey = null),
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434"),
       HttpClient(engine),
     )
 
-    val chunks = client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))
+    ).toList()
 
     assertTrue(actual = chunks.any { it is LLMResponseChunk.ErrorMessage })
     assertEquals(

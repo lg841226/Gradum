@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBanner.kt  2026-08-25 02:00:11 Changed by gwy
+ * GradumBanner.kt  2026-08-25 22:19:19 Changed by gwy
  */
 
 package gradum.idea
@@ -78,7 +78,11 @@ internal fun GradumBanner(
     Row(
       modifier = Modifier
         .clip(bannerShape)
-        .border(width = 1.dp, color = compactStyle.colors.border, bannerShape)
+        .border(
+          width = 1.dp,
+          color = compactStyle.colors.border,
+          bannerShape
+        )
         .background(color = compactStyle.colors.background)
         .padding(paddingValues = compactStyle.metrics.padding),
       verticalAlignment = Alignment.CenterVertically
@@ -104,7 +108,7 @@ internal fun GradumBanner(
         Spacer(Modifier.width(GradumSpacing.md))
         Row(
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
         ) {
           linkContent?.invoke()
           iconContent?.invoke()

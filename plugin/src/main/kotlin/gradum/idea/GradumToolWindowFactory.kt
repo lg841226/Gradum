@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumToolWindowFactory.kt  2026-08-25 01:50:11 Changed by gwy
+ * GradumToolWindowFactory.kt  2026-08-25 22:19:19 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -98,7 +98,6 @@ class GradumToolWindowFactory : ToolWindowFactory {
         val welcomeTabContent = toolWindow.contentManager.contents.firstOrNull() ?: return
 
         session.reset()
-
         welcomeTabContent.displayName = message("gradum.toolwindow.welcome")
       }
     }

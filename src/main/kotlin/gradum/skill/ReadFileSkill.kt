@@ -151,27 +151,23 @@ class ReadFileSkill : Skill() {
           (startLineNumber + index).toString() to line
         }.toMap()
 
-        makeSuccess(
-          data = mapOf(
-            "path" to resolvedPath.toString(),
-            "content" to numberedContent,
-          )
-        )
+        makeSuccess {
+          string("path", resolvedPath.toString())
+          set("content", numberedContent)
+        }
       } else {
         val selectedContent: String = selectedLines.joinToString(separator = "\n")
         val contentHash = MessageDigest.getInstance("MD5")
           .digest(selectedContent.toByteArray(Charsets.UTF_8))
           .joinToString(separator = "") { "%02x".format(it) }
 
-        makeSuccess(
-          data = mapOf(
-            "path" to resolvedPath.toString(),
-            "lineRange" to "$startLineNumber-$endLineNumber",
-            "totalLines" to endLineNumber,
-            "contentHashShort" to contentHash.take(n = 5),
-            "content" to selectedContent,
-          )
-        )
+        makeSuccess {
+          string("path", resolvedPath.toString())
+          string("lineRange", "$startLineNumber-$endLineNumber")
+          integer("totalLines", endLineNumber)
+          string("contentHashShort", contentHash.take(n = 5))
+          string("content", selectedContent)
+        }
       }
     } catch (_: FileNotFoundException) {
       makeFailure(

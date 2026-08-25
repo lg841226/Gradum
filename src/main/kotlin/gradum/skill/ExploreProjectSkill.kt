@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-25 16:41:02 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-25 19:48:16 Changed by gwy
  */
 
 package gradum.skill
@@ -55,9 +55,9 @@ class ExploreProjectSkill : Skill() {
    * to decide what to read next.
    */
   override fun compactHistory(
-    conversationHistory: MutableList<Map<String, Any>>,
+    callCount: Int,
     ownMessageIndices: List<Int>,
-    callCount: Int
+    conversationHistory: MutableList<Map<String, Any>>
   ) {
     if (ownMessageIndices.isEmpty()) return
     val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
@@ -248,48 +248,44 @@ class ExploreProjectSkill : Skill() {
         .sortedBy { (it["path"] as? String) ?: "" }
         .map { entry -> "${entry["path"]}:${entry["lines"]}" }
 
-      return makeSuccess(
-        data = linkedMapOf(
-          "depth" to requestedDepth,
-          "code_files" to filteredCodeFiles.size,
-          "other_files" to filteredOtherFiles.size,
-          "project_root" to resolvedPath.toString(),
-          "config_files" to filteredConfigFiles.size,
-          "total_size" to formatSize(sizeInBytes = scanResult.totalSize),
-          "code_file_details" to codeFileDetails.take(n = filterConfig.limit),
-          "unreadable_paths" to scanResult.failedPaths.sortedBy {
-            (it["path"] as? String) ?: ""
-          },
-        )
-      )
+      return makeSuccess {
+        integer("depth", requestedDepth)
+        integer("code_files", filteredCodeFiles.size)
+        integer("other_files", filteredOtherFiles.size)
+        string("project_root", resolvedPath.toString())
+        integer("config_files", filteredConfigFiles.size)
+        string("total_size", formatSize(sizeInBytes = scanResult.totalSize))
+        set("code_file_details", codeFileDetails.take(n = filterConfig.limit))
+        objectList("unreadable_paths", scanResult.failedPaths.sortedBy {
+          (it["path"] as? String) ?: ""
+        })
+      }
     }
 
-    return makeSuccess(
-      data = linkedMapOf(
-        "depth" to requestedDepth,
-        "project_root" to resolvedPath.toString(),
-        "total_size" to formatSize(sizeInBytes = scanResult.totalSize),
-        "config_files" to filteredConfigFiles,
-        "code_files" to filteredCodeFiles.sortedBy {
-          (it["path"] as? String) ?: ""
-        }.take(n = filterConfig.limit),
-        "other_files" to filteredOtherFiles,
-        "unreadable_paths" to scanResult.failedPaths.sortedBy {
-          (it["path"] as? String) ?: ""
-        }.take(n = filterConfig.limit),
-        "filter_applied" to linkedMapOf(
-          "limit" to filterConfig.limit,
-          "sort_by" to filterConfig.sortBy,
-          "exclude_pattern" to excludePattern,
-        ),
-        "result_count" to linkedMapOf(
-          "code_files" to filteredCodeFiles.size,
-          "other_files" to filteredOtherFiles.size,
-          "config_files" to filteredConfigFiles.size,
-          "unreadable_paths" to scanResult.failedPaths.size,
-        )
-      )
-    )
+    return makeSuccess {
+      integer("depth", requestedDepth)
+      string("project_root", resolvedPath.toString())
+      string("total_size", formatSize(sizeInBytes = scanResult.totalSize))
+      objectList("config_files", filteredConfigFiles)
+      objectList("code_files", filteredCodeFiles.sortedBy {
+        (it["path"] as? String) ?: ""
+      }.take(n = filterConfig.limit))
+      objectList("other_files", filteredOtherFiles)
+      objectList("unreadable_paths", scanResult.failedPaths.sortedBy {
+        (it["path"] as? String) ?: ""
+      }.take(n = filterConfig.limit))
+      `object`("filter_applied") {
+        integer("limit", filterConfig.limit)
+        string("sort_by", filterConfig.sortBy)
+        string("exclude_pattern", excludePattern)
+      }
+      `object`("result_count") {
+        integer("code_files", filteredCodeFiles.size)
+        integer("other_files", filteredOtherFiles.size)
+        integer("config_files", filteredConfigFiles.size)
+        integer("unreadable_paths", scanResult.failedPaths.size)
+      }
+    }
   }
 }
 

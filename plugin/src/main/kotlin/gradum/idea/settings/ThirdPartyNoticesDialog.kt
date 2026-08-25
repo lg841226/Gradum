@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThirdPartyNoticesDialog.kt  2026-08-24 22:51:43 Changed by gwy
+ * ThirdPartyNoticesDialog.kt  2026-08-25 22:23:59 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -174,11 +174,12 @@ private fun ThirdPartyNoticesContentInner() {
           }
 
           val enableStickySections: Boolean = LocalEnableStickySections.current
-          val activeSection = if (enableStickySections) {
-            stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
-              scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
-            }
-          } else null
+          val activeSection =
+            if (enableStickySections) {
+              stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
+                scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
+              }
+            } else null
           if (enableStickySections) {
             Box(modifier = Modifier.fillMaxWidth()) {
               stickyRegistry.entries.forEach { section: StickySectionEntry ->

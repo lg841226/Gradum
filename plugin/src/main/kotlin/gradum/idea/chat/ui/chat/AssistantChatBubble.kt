@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-25 19:29:24 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-25 22:05:14 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -99,11 +99,9 @@ fun AssistantChatBubble(
           Text(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            text = if (isDebugMode) {
-              message.modelName
-            } else {
-              formatModelName(raw = message.modelName)
-            }
+            text =
+              if (isDebugMode) message.modelName
+              else formatModelName(raw = message.modelName)
           )
         }
         hasContentBefore = true
@@ -113,8 +111,12 @@ fun AssistantChatBubble(
         if (block is RenderBlock.ToolCall && block.pending &&
           !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false)
         ) return@forEachIndexed
-        if (hasContentBefore) Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        if (hasContentBefore) {
+          Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        }
+
         hasContentBefore = true
+
         key(block.key(index)) {
           when (block) {
             is RenderBlock.Thinking -> {
@@ -145,8 +147,9 @@ fun AssistantChatBubble(
         TokenStatusRow(
           isLoading = isLoading,
           tokenCount = tokenCount,
-          sendingPhase = if (isLoading) sendingPhase
-          else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
+          sendingPhase =
+            if (isLoading) sendingPhase
+            else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
         )
       }
 
@@ -179,18 +182,17 @@ private fun ThinkingBlock(
   onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
 ) {
   ThinkingIndicator(
+    onUrlClick = onUrlClick,
     thinking = block.content,
     isTaskComplete = !isLoading,
     startCollapsed = !isLoading && LocalCollapseThinkingByDefault.current,
     hasResponseAfter = hasResponseAfter,
-    onUrlClick = onUrlClick
   )
 }
 
 @Composable
 private fun ResponseBlock(
-  block: RenderBlock.Response,
-  onUrlClick: (String) -> Unit
+  block: RenderBlock.Response, onUrlClick: (String) -> Unit
 ) {
   GradumMarkdown(
     text = block.content,
@@ -218,7 +220,6 @@ fun ToolCallBlock(
     (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
 ) {
-  // Delegate blocks are rendered even when pending (live countdown).
   if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
     return
 
@@ -229,9 +230,9 @@ fun ToolCallBlock(
       animationSpec = tween(durationMillis = FADE_IN_MS)
     )
   }
-  val animModifier: Modifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
   val clipboardScope: CoroutineScope = rememberCoroutineScope()
   val renderer = ToolCallRendererRegistry.find(aliasName = block.alias)
+  val animModifier: Modifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
   if (renderer == null) {
     val fallbackToolDetails: String = if (!block.success) {
       formatToolDetails(
@@ -267,15 +268,16 @@ fun ToolCallBlock(
       arguments = delegateArgs,
       result = parseJsonResult(serializedResult = block.result)
     )
-  val toolDetails: String? = if (!block.success) {
-    formatToolDetails(
-      alias = block.alias,
-      result = block.result,
-      errorDetail = block.errorDetail,
-      errorMessage = block.errorMessage,
-      arguments = block.arguments
-    )
-  } else null
+  val toolDetails: String? =
+    if (!block.success) {
+      formatToolDetails(
+        alias = block.alias,
+        result = block.result,
+        errorDetail = block.errorDetail,
+        errorMessage = block.errorMessage,
+        arguments = block.arguments
+      )
+    } else null
   val ctx =
     ToolCallRenderContext(
       project = null,
@@ -300,7 +302,7 @@ fun ToolCallBlock(
       },
       onSubChatClick = onSubChatClick,
     )
-  Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
+  Box(modifier = animModifier.horizontalScroll(state = rememberScrollState())) {
     renderer.render(content, ctx)
   }
 }
@@ -309,10 +311,11 @@ fun ToolCallBlock(
 private fun TokenStatusRow(
   isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0
 ) {
-  val tokenText: String = if (tokenCount > 0)
-    "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
-  else
-    sendingPhase.ifEmpty { "..." }
+  val tokenText: String =
+    if (tokenCount > 0)
+      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
+    else
+      sendingPhase.ifEmpty { "..." }
   val density: Density = LocalDensity.current
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
   val verticalOffset = remember { Animatable(initialValue = 0f) }

@@ -183,27 +183,23 @@ class SaveFileSkill : Skill() {
           fileContent.lines().size
 
       if (useSimpleOutput) {
-        makeSuccess(
-          data = mapOf(
-            "created" to wasCreated,
-            "bytesWritten" to bytesWritten,
-            "path" to resolvedPath.toString()
-          )
-        )
+        makeSuccess {
+          boolean("created", wasCreated)
+          long("bytesWritten", bytesWritten)
+          string("path", resolvedPath.toString())
+        }
       } else {
-        makeSuccess(
-          data = buildMap {
-            put("path", resolvedPath.toString())
-            put("bytesWritten", bytesWritten)
-            put("totalLines", totalLines)
-            put("created", wasCreated)
-            put("mode", writeMode)
-            put("encoding", fileCharset.name())
-            if (writeMode == "append" && !wasCreated) {
-              put("previousSize", previousSize)
-            }
-          },
-        )
+        makeSuccess {
+          string("path", resolvedPath.toString())
+          long("bytesWritten", bytesWritten)
+          integer("totalLines", totalLines)
+          boolean("created", wasCreated)
+          string("mode", writeMode)
+          string("encoding", fileCharset.name())
+          if (writeMode == "append" && !wasCreated) {
+            long("previousSize", previousSize)
+          }
+        }
       }
     } catch (fileWriteException: Exception) {
       makeFailure(

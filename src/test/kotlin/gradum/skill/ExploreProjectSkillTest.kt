@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkillTest.kt  2026-08-25 14:08:20 Changed by gwy
+ * ExploreProjectSkillTest.kt  2026-08-25 21:48:28 Changed by gwy
  */
 
 package gradum.skill
@@ -46,11 +46,11 @@ class ExploreProjectSkillTest {
     }
 
     // Mimics a Maven layout: files live under a submodule.
-    write("reading-notes/src/main/java/com/example/readingnotes/Main.java", "class Main {}\n")
-    write("reading-notes/src/main/java/com/example/readingnotes/Note.java", "class Note {}\n")
-    write("reading-notes/pom.xml", "<project/>\n")
-    write("README.md", "# readme\n")
-    write("notes", "plain notes content\n")
+    write(relative = "reading-notes/src/main/java/com/example/readingnotes/Main.java", body = "class Main {}\n")
+    write(relative = "reading-notes/src/main/java/com/example/readingnotes/Note.java", body = "class Note {}\n")
+    write(relative = "reading-notes/pom.xml", body = "<project/>\n")
+    write(relative = "README.md", body = "# readme\n")
+    write(relative = "notes", body = "plain notes content\n")
   }
 
   @AfterTest
@@ -64,7 +64,7 @@ class ExploreProjectSkillTest {
       projectRoot = projectRoot.absolutePath,
       modelName = "gpt-4o",
     )
-    return skill.execute(mapOf("depth" to 8), context)
+    return skill.execute(arguments = mapOf("depth" to 8), context)
   }
 
   private fun assertSuccess(result: SkillResult): Map<String, Any> {
@@ -81,7 +81,7 @@ class ExploreProjectSkillTest {
   @Test
   fun `code files carry project-root-relative paths, not bare basenames`() {
     val payload: Map<String, Any> = assertSuccess(runSkill())
-    val codePaths: List<String> = pathsFor(payload["code_files"])
+    val codePaths: List<String> = pathsFor(listValue = payload["code_files"])
 
     assertTrue(
       codePaths.isNotEmpty(),
@@ -94,10 +94,7 @@ class ExploreProjectSkillTest {
       )
     }
 
-    // The fixture's Main.java lives three directories deep — the path
-    // the incident log cared about. It must surface as a multi-segment
-    // path, not a bare basename.
-    val mainPath: String = codePaths.firstOrNull { it.endsWith("Main.java") }
+    val mainPath: String = codePaths.firstOrNull { it.endsWith(suffix = "Main.java") }
       ?: error("code_files must contain Main.java, got: $codePaths")
     assertTrue(
       mainPath.contains(char = '/'),

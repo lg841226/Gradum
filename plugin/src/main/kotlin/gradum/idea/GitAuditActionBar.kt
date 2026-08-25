@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GitAuditActionBar.kt  2026-08-25 02:00:11 Changed by gwy
+ * GitAuditActionBar.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -71,33 +71,33 @@ internal fun GitAuditActionBar(
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.close"),
         iconKey = AllIconsKeys.General.Close,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
         onClick = onClose,
         enabled = enabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.refresh"),
         iconKey = AllIconsKeys.General.Refresh,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
         onClick = onRefresh,
         enabled = enabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.preview"),
         iconKey = AllIconsKeys.General.LayoutEditorPreview,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
         onClick = onTogglePreview,
         enabled = enabled && previewEnabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = currentTooltip,
         iconKey = if (isAllExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll,
-        contentDescription = currentTooltip,
         onClick = onToggleExpandAll,
         enabled = enabled,
+        contentDescription = currentTooltip,
         modifier = Modifier.iconButtonPadding()
       )
       Tooltip(tooltip = { Text(text = groupingTooltip) }) {
@@ -135,7 +135,6 @@ internal fun GitAuditActionBar(
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.copy.json"),
         iconKey = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.copy.json"),
         onClick = {
           copyToClipboard(
             text = findingsJson,
@@ -145,6 +144,7 @@ internal fun GitAuditActionBar(
           )
         },
         enabled = enabled && findings.isNotEmpty(),
+        contentDescription = message("gradum.toolwindow.git.analysis.action.copy.json"),
         modifier = Modifier.iconButtonPadding()
       )
       Spacer(Modifier.height(GradumSpacing.sml))

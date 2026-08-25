@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkillPrepareHistoryTest.kt  2026-08-25 14:01:24 Changed by gwy
+ * ReadFileSkillPrepareHistoryTest.kt  2026-08-25 21:51:45 Changed by gwy
  */
 
 package gradum.skill
@@ -75,7 +75,7 @@ class ReadFileSkillPrepareHistoryTest {
 
     for (i in 1..5) {
       val raw: SkillResult = skill.execute(
-        mapOf("path" to "hello.txt"),
+        arguments = mapOf("path" to "hello.txt"),
         context
       )
 
@@ -95,7 +95,7 @@ class ReadFileSkillPrepareHistoryTest {
       )
 
       val rendered: String = when (val content: Any = history["content"]!!) {
-        is Map<*, *> -> content.values.joinToString("\n") { it.toString() }
+        is Map<*, *> -> content.values.joinToString(separator = "\n") { it.toString() }
         is String -> content
         else -> content.toString()
       }
@@ -116,12 +116,12 @@ class ReadFileSkillPrepareHistoryTest {
   @Test
   fun `read_file with lineRange preserves content across many calls`() {
     val skill = ReadFileSkill()
-    skill.resetHistoryCount()
     val context = readContext()
+    skill.resetHistoryCount()
 
     for (i in 1..4) {
       val raw: SkillResult = skill.execute(
-        mapOf("path" to "hello.txt", "lineRange" to "2-3"),
+        arguments = mapOf("path" to "hello.txt", "lineRange" to "2-3"),
         context
       )
       val data: Map<String, Any> = when (raw) {
@@ -134,18 +134,19 @@ class ReadFileSkillPrepareHistoryTest {
         history.containsKey("content"),
         "call #$i (lineRange=2-3): `content` was stripped — keys: ${history.keys}"
       )
-      val rendered: String = when (val content: Any = history["content"]!!) {
-        is Map<*, *> -> content.values.joinToString("\n") { it.toString() }
-        is String -> content
-        else -> content.toString()
-      }
+      val rendered: String =
+        when (val content: Any = history["content"]!!) {
+          is Map<*, *> -> content.values.joinToString(separator = "\n") { it.toString() }
+          is String -> content
+          else -> content.toString()
+        }
 
       assertTrue(
-        rendered.contains("line two"),
+        rendered.contains(other = "line two"),
         "call #$i: line 2 missing from content: $rendered"
       )
       assertTrue(
-        rendered.contains("line three"),
+        rendered.contains(other = "line three"),
         "call #$i: line 3 missing from content: $rendered"
       )
     }

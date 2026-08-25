@@ -64,16 +64,16 @@ import java.time.ZoneId
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ManageSessionsBoard(
-  sessions: List<SessionMeta>,
-  selectedIds: Set<String>,
   onMerge: () -> Unit,
+  onBack: () -> Unit = {},
+  selectedIds: Set<String>,
+  sessions: List<SessionMeta>,
   onClearSelection: () -> Unit,
   onDeleteSelected: () -> Unit,
   modifier: Modifier = Modifier,
-  onBack: () -> Unit = {},
   onToggleSelection: (String) -> Unit,
+  onDeleteSession: (String) -> Unit = {},
   onRenameSession: (String, String) -> Unit,
-  onDeleteSession: (String) -> Unit = {}
 ) {
   val selectedCount: Int = selectedIds.size
   val searchState: TextFieldState = remember { TextFieldState() }

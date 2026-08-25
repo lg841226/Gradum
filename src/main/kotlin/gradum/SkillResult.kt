@@ -40,6 +40,10 @@ class SkillResponseBuilder {
     entries[key] = value
   }
 
+  fun long(key: String, value: Long) {
+    entries[key] = value
+  }
+
   fun boolean(key: String, value: Boolean) {
     entries[key] = value
   }

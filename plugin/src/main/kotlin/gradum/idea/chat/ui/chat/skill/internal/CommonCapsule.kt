@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-25 19:30:12 Changed by gwy
+ * CommonCapsule.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
@@ -47,7 +47,7 @@ data class ToolCallErrorInfo(
  * Edited, Read, Saved, Explored, Planned, Completed, Default) and
  * tests depend on this composable.
  *
- * Error display — when [success] is `false` and [errorInfo.message] is
+ * Error display — when [success] is `false` and [message] is
  * non-blank, the trailing status icon (`Status.FailedInProgress`)
  * becomes clickable and opens a minimal `PopupMenu` with a single
  * `selectableItem`:
@@ -116,7 +116,6 @@ internal fun ToolCallCapsule(
         iconKey =
           if (isCopied) AllIconsKeys.Actions.Checked
           else AllIconsKeys.General.Copy,
-        contentDescription = "",
         onClick = {
           if (!isCopied && copyPayload.isNotBlank()) {
             copyToClipboard(
@@ -127,7 +126,8 @@ internal fun ToolCallCapsule(
             )
           }
         },
-        enabled = copyPayload.isNotBlank()
+        enabled = copyPayload.isNotBlank(),
+        contentDescription = ""
       )
     }
   }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ConversationHistory.kt  2026-08-23 20:21:07 Changed by gwy
+ * ConversationHistory.kt  2026-08-25 19:47:50 Changed by gwy
  */
 
 package gradum.agent
@@ -173,7 +173,7 @@ class ConversationHistory {
   fun recordAndCompact(
     skillInstance: Skill?, currentResult: Map<String, Any>, ownMessageIndices: List<Int>
   ): Map<String, Any> {
-    return skillInstance?.recordAndCompactHistory(currentResult, messages, ownMessageIndices)
+    return skillInstance?.recordAndCompactHistory(ownMessageIndices, currentResult, messages)
       ?: currentResult
   }
 }

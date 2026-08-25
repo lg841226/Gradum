@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RecentChatsSection.kt  2026-08-24 22:36:53 Changed by gwy
+ * RecentChatsSection.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -80,7 +80,7 @@ fun RecentChatsSection(
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
-    sessions.take(displayCount).forEach { session ->
+    sessions.take(n = displayCount).forEach { session ->
       RecentSessionRow(
         session = session,
         onOpenSession = onOpenSession,
@@ -98,7 +98,7 @@ private fun RecentSessionRow(
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit
 ) {
-  var isHovered: Boolean by remember { mutableStateOf(false) }
+  var isHovered: Boolean by remember { mutableStateOf(value = false) }
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
@@ -147,8 +147,8 @@ private fun RecentSessionRow(
     }
     AnimatedVisibility(
       visible = isHovered,
-      enter = fadeIn(animationSpec = tween(400)) +
-        scaleIn(initialScale = 0.6f, animationSpec = tween(400))
+      enter = fadeIn(animationSpec = tween(durationMillis = 400)) +
+        scaleIn(initialScale = 0.6f, animationSpec = tween(durationMillis = 400))
     ) {
       Row(
         verticalAlignment = Alignment.CenterVertically,

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-24 22:36:53 Changed by gwy
+ * WelcomeScreen.kt  2026-08-25 22:12:07 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -71,7 +71,7 @@ fun WelcomeScreen(
   val titleFontFamily = remember { FontFamily(titleFont) }
 
   // Derive MergeModeCallbacks from ChatSessionState
-  val mergeCallbacks = remember(state) {
+  val mergeCallbacks = remember(key1 = state) {
     MergeModeCallbacks(
       onStartMerge = state.onStartMerge,
       onCancelMerge = state.onCancelMerge,
@@ -90,21 +90,21 @@ fun WelcomeScreen(
   ) {
     if (state.isMergeModeActive) {
       ManageSessionsBoard(
-        sessions = state.sessions.toList(),
-        selectedIds = state.mergeSelectedIds,
         onMerge = mergeCallbacks.onMergeSelected,
+        onBack = mergeCallbacks.onCancelMerge,
+        selectedIds = state.mergeSelectedIds,
+        sessions = state.sessions.toList(),
         onClearSelection = mergeCallbacks.onClearMergeSelection,
         onDeleteSelected = mergeCallbacks.onDeleteSelected,
-        onBack = mergeCallbacks.onCancelMerge,
         onToggleSelection = mergeCallbacks.onToggleMergeSelection,
-        onRenameSession = mergeCallbacks.onRenameSession,
-        onDeleteSession = mergeCallbacks.onDeleteSession
+        onDeleteSession = mergeCallbacks.onDeleteSession,
+        onRenameSession = mergeCallbacks.onRenameSession
       )
     } else {
       val isInputFocused: Boolean = state.inputState.isFocused
       Column(
         modifier = Modifier
-          .verticalScroll(rememberScrollState())
+          .verticalScroll(state = rememberScrollState())
           .widthIn(max = 600.dp),
         verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
       ) {
@@ -133,14 +133,14 @@ fun WelcomeScreen(
         }
         ChatInputSection(
           state = state.inputState,
-          textState = state.textState,
           actions = state.inputActions,
-          selectedPermission = state.selectedPermission,
-          modifier = Modifier.widthIn(max = 600.dp)
+          textState = state.textState,
+          modifier = Modifier.widthIn(max = 600.dp),
+          selectedPermission = state.selectedPermission
         )
         AnimatedVisibility(
           visible = !isInputFocused || state.sessions.isEmpty(),
-          exit = shrinkVertically(animationSpec = tween(200))
+          exit = shrinkVertically(animationSpec = tween(durationMillis = 200))
         ) {
           if (welcomeLayout.quickStartCount > 0) {
             QuickStartSection(

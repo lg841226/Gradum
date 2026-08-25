@@ -417,17 +417,15 @@ class EditFileSkill : Skill() {
       }
     }
 
-    return makeSuccess(
-      data = mapOf(
-        "path" to resolvedPath.toString(),
-        "linesAdded" to linesAdded,
-        "linesRemoved" to linesRemoved,
-        "modifiedContent" to currentContent,
-        "editsApplied" to appliedEdits.size,
-        "totalEdits" to editOperations.size,
-        "originalContent" to originalContent
-      ),
-    )
+    return makeSuccess {
+      string("path", resolvedPath.toString())
+      integer("linesAdded", linesAdded)
+      integer("linesRemoved", linesRemoved)
+      string("modifiedContent", currentContent)
+      integer("editsApplied", appliedEdits.size)
+      integer("totalEdits", editOperations.size)
+      string("originalContent", originalContent)
+    }
   }
 
   private data class EditOperation(val searchText: String, val replaceText: String, val editIndex: Int)
