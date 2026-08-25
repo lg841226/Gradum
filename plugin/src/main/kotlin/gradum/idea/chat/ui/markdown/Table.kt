@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-24 21:56:54 Changed by gwy
+ * Table.kt  2026-08-25 18:07:24 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -748,7 +748,7 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
     modifier = modifier
       .fillMaxWidth()
-      .horizontalScroll(rememberScrollState())
+      .horizontalScroll(state = rememberScrollState())
   ) {
     Icon(
       contentDescription = null,
@@ -757,7 +757,7 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
     Text(
       maxLines = 1,
       color = textErrorColor,
-      text = message("gradum.markdown.table.parse.failed"),
+      text = message(key = "gradum.markdown.table.parse.failed"),
       style = JewelTheme.typography.editorTextStyle.copy(
         color = textErrorColor
       )
@@ -773,9 +773,9 @@ fun TableParseFailurePlaceholder(modifier: Modifier = Modifier) {
  */
 internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
   fun Node.childNodes(): List<Node> = buildList {
-    val nc = NodeChildren.of(this@childNodes)
-    if (nc.first != null) add(nc.first)
-    addAll(nc.rest)
+    val nodeChildren = NodeChildren.of(parent = this@childNodes)
+    if (nodeChildren.first != null) add(nodeChildren.first)
+    addAll(elements = nodeChildren.rest)
   }
 
   val headNode: TableHead? = childNodes().filterIsInstance<TableHead>().firstOrNull()

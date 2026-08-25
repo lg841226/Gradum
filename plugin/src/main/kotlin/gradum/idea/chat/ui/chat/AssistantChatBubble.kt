@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-24 23:20:59 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-25 18:07:24 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -237,9 +237,9 @@ fun ToolCallBlock(
       formatToolDetails(
         alias = block.alias,
         result = block.result,
-        arguments = block.arguments,
         errorDetail = block.errorDetail,
-        errorMessage = block.errorMessage
+        errorMessage = block.errorMessage,
+        arguments = block.arguments
       )
     } else ""
     ToolCallCapsule(
@@ -271,9 +271,9 @@ fun ToolCallBlock(
     formatToolDetails(
       alias = block.alias,
       result = block.result,
-      arguments = block.arguments,
       errorDetail = block.errorDetail,
-      errorMessage = block.errorMessage
+      errorMessage = block.errorMessage,
+      arguments = block.arguments
     )
   } else null
   val ctx =

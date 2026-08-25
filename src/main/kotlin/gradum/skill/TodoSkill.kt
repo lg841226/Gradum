@@ -131,14 +131,12 @@ class TodoManager {
 
     taskList = taskDescriptions; currentTaskIndex = 0
 
-    return makeSuccess(
-      data = mapOf(
-        "currentIndex" to 0,
-        "tasks" to taskDescriptions,
-        "totalTasks" to taskDescriptions.size,
-        "currentTask" to taskDescriptions[0],
-      )
-    )
+    return makeSuccess {
+      integer("currentIndex", 0)
+      stringList("tasks", taskDescriptions)
+      integer("totalTasks", taskDescriptions.size)
+      string("currentTask", taskDescriptions[0])
+    }
   }
 
   fun completeCurrentTask(count: Int = 1): SkillResult {
@@ -156,25 +154,21 @@ class TodoManager {
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
     if (allDone) {
-      return makeSuccess(
-        data = mapOf(
-          "completed" to true,
-          "totalTasks" to taskItems.size,
-          "tasks" to taskItems,
-          "message" to "All tasks completed"
-        ),
-      )
+      return makeSuccess {
+        boolean("completed", true)
+        integer("totalTasks", taskItems.size)
+        stringList("tasks", taskItems)
+        string("message", "All tasks completed")
+      }
     }
 
-    return makeSuccess(
-      data = mapOf(
-        "completed" to false,
-        "totalTasks" to taskItems.size,
-        "tasks" to taskItems,
-        "currentTask" to taskItems[currentTaskIndex],
-        "currentIndex" to currentTaskIndex
-      ),
-    )
+    return makeSuccess {
+      boolean("completed", false)
+      integer("totalTasks", taskItems.size)
+      stringList("tasks", taskItems)
+      string("currentTask", taskItems[currentTaskIndex])
+      integer("currentIndex", currentTaskIndex)
+    }
   }
 
   /**
@@ -197,19 +191,15 @@ class TodoManager {
 
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
-    return makeSuccess(
-      data = mapOf(
-        "skipped" to true,
-        "tasks" to taskItems,
-        "completed" to allDone,
-        "skippedTask" to skippedTask,
-        "totalTasks" to taskItems.size,
-        "currentTask" to
-          if (allDone) ""
-          else taskItems[currentTaskIndex],
-        "currentIndex" to currentTaskIndex
-      )
-    )
+    return makeSuccess {
+      boolean("skipped", true)
+      stringList("tasks", taskItems)
+      boolean("completed", allDone)
+      string("skippedTask", skippedTask)
+      integer("totalTasks", taskItems.size)
+      string("currentTask", if (allDone) "" else taskItems[currentTaskIndex])
+      integer("currentIndex", currentTaskIndex)
+    }
   }
 
   fun getTaskReminder(): String? {
