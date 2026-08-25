@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-25 02:10:58 Changed by gwy
+ * GradumUI.kt  2026-08-25 19:05:02 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -66,8 +66,8 @@ private val logger: Logger = Logger.getInstance(MarkdownProcessor::class.java)
 
 private val MARKDOWN_EXTENSIONS = setOf(".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdwn")
 private val SCENARIO_EXTENSIONS = setOf(".tls", ".tls.xml", ".xml")
-private val MAX_IMAGE_BYTES: Long = PluginConfig.MAX_IMAGE_UPLOAD_BYTES
-private val MAX_MARKDOWN_LINES: Int = PluginConfig.MAX_MARKDOWN_LINES
+private const val MAX_IMAGE_BYTES: Long = PluginConfig.MAX_IMAGE_UPLOAD_BYTES
+private const val MAX_MARKDOWN_LINES: Int = PluginConfig.MAX_MARKDOWN_LINES
 
 private fun truncateToMaxLines(content: String): String {
   val lines = content.lines()
@@ -240,7 +240,7 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onCopyAsContext = remember(key1 = session) {
+  val attachText: (String) -> Unit = remember(key1 = session) {
     { text: String ->
       if (session.attachedFiles.size < MAX_ATTACHMENTS) {
         val previewText: String = if (text.length > 30) text.take(n = 30) + "..." else text
@@ -249,14 +249,8 @@ private fun rememberChatSessionState(
     }
   }
 
-  val onPasteAsContext = remember(key1 = session) {
-    { text: String ->
-      if (session.attachedFiles.size < MAX_ATTACHMENTS) {
-        val previewText: String = if (text.length > 30) text.take(n = 30) + "..." else text
-        session.attachedFiles.add(AttachedText(content = text, preview = previewText))
-      }
-    }
-  }
+  val onCopyAsContext = attachText
+  val onPasteAsContext = attachText
 
   val onSelectFile: (VirtualFile) -> Unit = remember(key1 = session) {
     { file: VirtualFile ->

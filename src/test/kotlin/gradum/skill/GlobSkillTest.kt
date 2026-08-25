@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GlobSkillTest.kt  2026-08-25 18:13:05 Changed by gwy
+ * GlobSkillTest.kt  2026-08-25 19:05:02 Changed by gwy
  */
 
 package gradum.skill
@@ -106,10 +106,13 @@ class GlobSkillTest {
       arguments = mapOf("pattern" to "   "),
       context = ctx(),
     )
-    assertTrue(result is SkillResult.Failure, "blank pattern should fail")
+    assertTrue(
+      result is SkillResult.Failure,
+      "blank pattern should fail"
+    )
     assertEquals(
-      expected = "INVALID_PARAMETER",
       actual = result.code,
+      expected = "INVALID_PARAMETER"
     )
   }
 
@@ -124,8 +127,8 @@ class GlobSkillTest {
       "missing pattern should fail"
     )
     assertEquals(
-      expected = "INVALID_PARAMETER",
       actual = result.code,
+      expected = "INVALID_PARAMETER"
     )
   }
 
@@ -180,7 +183,10 @@ class GlobSkillTest {
 
     @Suppress("UNCHECKED_CAST")
     val files: List<String> = payload["files"] as List<String>
-    assertTrue(files.isNotEmpty(), "*.md must match at least README.md")
+    assertTrue(
+      files.isNotEmpty(),
+      "*.md must match at least README.md"
+    )
     assertTrue(
       files.all { it.endsWith(".md") },
       "all matched files must end with .md, got: $files"
