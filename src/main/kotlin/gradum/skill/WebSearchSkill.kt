@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-19 17:24:33 Changed by gwy
+ * WebSearchSkill.kt  2026-08-25 16:04:55 Changed by gwy
  */
 
 package gradum.skill
@@ -58,8 +58,7 @@ class WebSearchSkill : Skill() {
     integer(
       name = "max_results",
       description = "Max results (1-10, default 5)",
-      minimum = 1,
-      maximum = 10,
+      constraints = IntConstraints(minimum = 1, maximum = 10),
     )
     string(
       name = "search_depth",

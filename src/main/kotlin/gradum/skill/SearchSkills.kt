@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-25 02:57:40 Changed by gwy
+ * SearchSkills.kt  2026-08-25 16:04:55 Changed by gwy
  */
 package gradum.skill
 
@@ -236,8 +236,7 @@ class GrepSkill : Skill() {
       integer(
         name = "limit",
         description = "Maximum number of matches to return. Defaults to 100.",
-        minimum = 1,
-        maximum = MAX_MATCHES_LIMIT,
+        constraints = IntConstraints(minimum = 1, maximum = MAX_MATCHES_LIMIT),
       )
       boolean(
         name = "caseSensitive",
@@ -470,8 +469,7 @@ class GlobSkill : Skill() {
       integer(
         name = "limit",
         description = "Maximum number of files to return. Defaults to 500.",
-        minimum = 1,
-        maximum = GLOB_MAX_LIMIT,
+        constraints = IntConstraints(minimum = 1, maximum = GLOB_MAX_LIMIT),
       )
     }
   }

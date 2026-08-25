@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SchemaDsl.kt  2026-08-25 15:51:48 Changed by gwy
+ * SchemaDsl.kt  2026-08-25 16:04:55 Changed by gwy
  */
 
 package gradum.skill
@@ -22,11 +22,16 @@ enum class ParameterLevel {
   CLOUD_ONLY,
 }
 
+/** Bundled constraints for [SchemaAdapter.integer]. */
+class IntConstraints(
+  val default: Int? = null,
+  val minimum: Int? = null,
+  val maximum: Int? = null
+)
+
 /**
  * A single compiled schema parameter: its JSON key, whether it is required,
- * its visibility level, and the OpenAI JSON-schema map describing it. The
- * [schema] map and the [level] are consumed by the framework; a skill only
- * names a parameter once and never inspects these internals.
+ * its visibility level, and the OpenAI JSON-schema map describing it.
  */
 class SkillParameter(
   val name: String, val required: Boolean,
@@ -48,28 +53,27 @@ open class MutableSchemaAdapter : SchemaAdapter {
   override fun add(parameter: SkillParameter) { parameters.add(parameter) }
 }
 
-/** A `string` parameter, optionally restricted to [enumValues] or given a [default]. */
+/** A `string` parameter, optionally restricted to [enumValues]. */
 fun SchemaAdapter.string(
-  name: String, description: String, default: String? = null,
+  name: String, description: String,
   required: Boolean = false, enumValues: List<String> = emptyList(),
   level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
   val schema = linkedMapOf<String, Any>("type" to "string", "description" to description)
-  if (default != null) schema["default"] = default
   if (enumValues.isNotEmpty()) schema["enum"] = enumValues
   add(SkillParameter(name, required, level, schema))
 }
 
-/** An `integer` parameter with optional [default], [minimum], and [maximum] constraints. */
+/** An `integer` parameter with optional [IntConstraints] (default, min, max). */
 fun SchemaAdapter.integer(
-  name: String, description: String, default: Int? = null,
-  minimum: Int? = null, maximum: Int? = null,
-  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
+  name: String, description: String,
+  required: Boolean = false, constraints: IntConstraints = IntConstraints(),
+  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
   val schema = linkedMapOf<String, Any>("type" to "integer", "description" to description)
-  if (default != null) schema["default"] = default
-  if (minimum != null) schema["minimum"] = minimum
-  if (maximum != null) schema["maximum"] = maximum
+  if (constraints.default != null) schema["default"] = constraints.default
+  if (constraints.minimum != null) schema["minimum"] = constraints.minimum
+  if (constraints.maximum != null) schema["maximum"] = constraints.maximum
   add(SkillParameter(name, required, level, schema))
 }
 
