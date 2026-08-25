@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSessionStateTest.kt  2026-08-25 14:41:48 Changed by gwy
+ * GradumChatSessionStateTest.kt  2026-08-25 15:52:33 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -112,7 +112,6 @@ class GradumChatSessionStateTest {
   @Test
   fun `inline tags resolve file reference to matching open file`() {
     val openFile: VirtualFile = mockk()
-    // Mock the VirtualFile contract used by resolveInlineTags.
     io.mockk.every { openFile.name } returns "Main.kt"
     io.mockk.every { openFile.path } returns "/project/src/Main.kt"
 

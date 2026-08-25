@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-18 12:45:23 Changed by gwy
+ * EditFileSkill.kt  2026-08-25 15:41:14 Changed by gwy
  */
 
 package gradum.skill
@@ -77,16 +77,17 @@ class EditFileSkill : Skill() {
           " Edits are applied in order. You can batch multiple edits to the same file in one call.",
         required = true,
         itemRequired = listOf("oldString", "newString"),
-      ) {
-        string(
-          name = "oldString",
-          description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
-        )
-        string(
-          name = "newString",
-          description = "You want replacement text. Can be empty to delete lines."
-        )
-      }
+        {
+          string(
+            name = "oldString",
+            description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
+          )
+          string(
+            name = "newString",
+            description = "You want replacement text. Can be empty to delete lines."
+          )
+        },
+      )
     }
   }
 

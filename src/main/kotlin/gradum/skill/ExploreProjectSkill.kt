@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-23 21:12:19 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-25 15:38:14 Changed by gwy
  */
 
 package gradum.skill
@@ -112,9 +112,9 @@ class ExploreProjectSkill : Skill() {
       name = "depth",
       description = "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
         "depth=$MINIMUM_DEPTH lists immediate children only. Values below $MINIMUM_DEPTH are forced to $DEFAULT_DEPTH.",
+      default = DEFAULT_DEPTH,
       minimum = MINIMUM_DEPTH,
       maximum = MAXIMUM_DEPTH,
-      default = DEFAULT_DEPTH,
     )
     cloudOnly {
       string(

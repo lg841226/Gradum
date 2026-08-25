@@ -2,13 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SchemaDsl.kt  Type-safe, compile-time DSL for building OpenAI function schemas.
- *
- * Replaces hand-rolled `mapOf("type" to "string", ...)` property literals
- * across skills with a checked builder. Each property names its JSON key once
- * and derives its OpenAI type from the adapter method, so a typo in a field
- * name or a wrong property type fails at compile time instead of silently
- * reaching the LLM.
+ * SchemaDsl.kt  2026-08-25 15:51:48 Changed by gwy
  */
 
 package gradum.skill
@@ -35,91 +29,65 @@ enum class ParameterLevel {
  * names a parameter once and never inspects these internals.
  */
 class SkillParameter(
-  val name: String,
-  val required: Boolean,
-  val level: ParameterLevel,
-  internal val schema: Map<String, Any>,
+  val name: String, val required: Boolean,
+  val level: ParameterLevel, internal val schema: Map<String, Any>
 )
 
 /**
  * A producer that accumulates [SkillParameter]s. Every scope that wants to
- * declare schema properties (`[SchemaBuilder]`, `[CloudOnlyScope]`,
- * `[SimpleOnlyScope]`, and the items of an `objectArray`) implements this via
- * the extension methods below, so the four share one API surface.
+ * declare schema properties implements this via the extension methods below.
  */
 interface SchemaAdapter {
-  /**
-   * The level forced onto every parameter appended through this adapter, or
-   * `null` on the main [SchemaBuilder] where the caller chooses per property.
-   */
   val fixedLevel: ParameterLevel?
-
   fun add(parameter: SkillParameter)
+}
+
+open class MutableSchemaAdapter : SchemaAdapter {
+  override val fixedLevel: ParameterLevel? get() = null
+  val parameters: MutableList<SkillParameter> = mutableListOf()
+  override fun add(parameter: SkillParameter) { parameters.add(parameter) }
 }
 
 /** A `string` parameter, optionally restricted to [enumValues] or given a [default]. */
 fun SchemaAdapter.string(
-  name: String,
-  description: String,
-  required: Boolean = false,
-  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL,
-  default: String? = null,
-  enumValues: List<String> = emptyList(),
+  name: String, description: String, default: String? = null,
+  required: Boolean = false, enumValues: List<String> = emptyList(),
+  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val jsonSchema: MutableMap<String, Any> = linkedMapOf(
-    "type" to "string",
-    "description" to description,
-  )
-  if (default != null) jsonSchema["default"] = default
-  if (enumValues.isNotEmpty()) jsonSchema["enum"] = enumValues
-  add(SkillParameter(name, required, level, jsonSchema))
+  val schema = linkedMapOf<String, Any>("type" to "string", "description" to description)
+  if (default != null) schema["default"] = default
+  if (enumValues.isNotEmpty()) schema["enum"] = enumValues
+  add(SkillParameter(name, required, level, schema))
 }
 
 /** An `integer` parameter with optional [default], [minimum], and [maximum] constraints. */
 fun SchemaAdapter.integer(
-  name: String,
-  description: String,
-  required: Boolean = false,
-  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL,
-  default: Int? = null,
-  minimum: Int? = null,
-  maximum: Int? = null,
+  name: String, description: String, default: Int? = null,
+  minimum: Int? = null, maximum: Int? = null,
+  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val jsonSchema: MutableMap<String, Any> = linkedMapOf(
-    "type" to "integer",
-    "description" to description,
-  )
-  if (default != null) jsonSchema["default"] = default
-  if (minimum != null) jsonSchema["minimum"] = minimum
-  if (maximum != null) jsonSchema["maximum"] = maximum
-  add(SkillParameter(name, required, level, jsonSchema))
+  val schema = linkedMapOf<String, Any>("type" to "integer", "description" to description)
+  if (default != null) schema["default"] = default
+  if (minimum != null) schema["minimum"] = minimum
+  if (maximum != null) schema["maximum"] = maximum
+  add(SkillParameter(name, required, level, schema))
 }
 
 /** A `boolean` parameter. */
 fun SchemaAdapter.boolean(
-  name: String,
-  description: String,
-  required: Boolean = false,
-  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL,
+  name: String, description: String,
+  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  add(
-    SkillParameter(name, required, level, mapOf("type" to "boolean", "description" to description))
-  )
+  add(SkillParameter(name, required, level, mapOf("type" to "boolean", "description" to description)))
 }
 
 /** An array of plain `string` items. */
 fun SchemaAdapter.stringArray(
-  name: String,
-  description: String,
-  required: Boolean = false,
-  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL,
+  name: String, description: String,
+  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val jsonSchema: Map<String, Any> = mapOf(
-    "type" to "array",
-    "description" to description,
-    "items" to mapOf("type" to "string"),
-  )
-  add(SkillParameter(name, required, level, jsonSchema))
+  val schema = mapOf("type" to "array", "description" to description, "items" to mapOf("type" to "string"))
+  add(SkillParameter(name, required, level, schema))
 }
 
 /**
@@ -127,92 +95,36 @@ fun SchemaAdapter.stringArray(
  * [items], with [itemRequired] naming which of them are mandatory.
  */
 fun SchemaAdapter.objectArray(
-  name: String,
-  description: String,
-  required: Boolean = false,
-  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL,
-  itemRequired: List<String>,
-  items: ObjectItemBuilder.() -> Unit,
+  name: String, description: String, required: Boolean = false,
+  itemRequired: List<String>, items: ObjectItemBuilder.() -> Unit,
+  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val itemBuilder: ObjectItemBuilder = ObjectItemBuilder()
-  itemBuilder.items()
-  val itemProperties: Map<String, Any> = itemBuilder.itemParameters.associate { item ->
-    item.name to item.schema
-  }
-  val jsonSchema: Map<String, Any> = mapOf(
-    "type" to "array",
-    "description" to description,
-    "items" to mapOf(
-      "type" to "object",
-      "properties" to itemProperties,
-      "required" to itemRequired,
-    ),
+  val builder = ObjectItemBuilder()
+  builder.items()
+  val itemProperties = builder.parameters.associate { it.name to it.schema }
+  val schema = mapOf(
+    "type" to "array", "description" to description,
+    "items" to mapOf("type" to "object", "required" to itemRequired, "properties" to itemProperties)
   )
-  add(SkillParameter(name, required, level, jsonSchema))
+  add(SkillParameter(name, required, level, schema))
 }
 
-/**
- * Receiver for [objectArray] that collects the properties of each array item.
- */
-class ObjectItemBuilder : SchemaAdapter {
-  override val fixedLevel: ParameterLevel? = null
-
-  internal val itemParameters: MutableList<SkillParameter> = mutableListOf()
-
-  override fun add(parameter: SkillParameter) {
-    itemParameters.add(parameter)
-  }
-}
+/** Receiver for [objectArray] that collects the properties of each array item. */
+class ObjectItemBuilder : MutableSchemaAdapter()
 
 /**
- * Main builder for a skill's `properties` object. Every property method is a
- * distinct OpenAI JSON type derived from the method itself. The [cloudOnly]
- * and [simpleOnly] scopes group parameters that are only visible to one model
+ * Main builder for a skill's `properties` object. The [cloudOnly] and
+ * [simpleOnly] scopes group parameters that are only visible to one model
  * tier, so a single declaration set serves both schemas.
  */
-class SchemaBuilder : SchemaAdapter {
-  override val fixedLevel: ParameterLevel? = null
-
-  internal val schemaParameters: MutableList<SkillParameter> = mutableListOf()
-
-  override fun add(parameter: SkillParameter) {
-    schemaParameters.add(parameter)
-  }
-
-  /**
-   * Registers every parameter declared inside [block] as cloud-only, so a
-   * cloud-only group reads like a sub-scope instead of repeating the level
-   * on each property.
-   */
-  fun cloudOnly(block: CloudOnlyScope.() -> Unit) {
-    val scope: CloudOnlyScope = CloudOnlyScope(this)
-    scope.block()
-  }
-
-  /**
-   * Registers every parameter declared inside [block] as simple-only, mirroring
-   * [cloudOnly] for parameters that must only reach simple (local) models.
-   */
-  fun simpleOnly(block: SimpleOnlyScope.() -> Unit) {
-    val scope: SimpleOnlyScope = SimpleOnlyScope(this)
-    scope.block()
-  }
+class SchemaBuilder : MutableSchemaAdapter() {
+  val schemaParameters: List<SkillParameter> get() = parameters.toList()
+  fun cloudOnly(block: SchemaAdapter.() -> Unit) { LevelScope(ParameterLevel.CLOUD_ONLY, this).block() }
+  fun simpleOnly(block: SchemaAdapter.() -> Unit) { LevelScope(ParameterLevel.SIMPLE_ONLY, this).block() }
 }
 
-/** Receiver for [SchemaBuilder.cloudOnly]: pins every property to [ParameterLevel.CLOUD_ONLY]. */
-class CloudOnlyScope(private val schemaBuilder: SchemaAdapter) : SchemaAdapter {
-  override val fixedLevel: ParameterLevel? = ParameterLevel.CLOUD_ONLY
-
-  override fun add(parameter: SkillParameter) {
-    schemaBuilder.add(parameter)
-  }
-}
-
-/** Receiver for [SchemaBuilder.simpleOnly]: pins every property to [ParameterLevel.SIMPLE_ONLY]. */
-class SimpleOnlyScope(private val schemaBuilder: SchemaAdapter) : SchemaAdapter {
-  override val fixedLevel: ParameterLevel? = ParameterLevel.SIMPLE_ONLY
-
-  override fun add(parameter: SkillParameter) {
-    schemaBuilder.add(parameter)
-  }
+private class LevelScope(
+  override val fixedLevel: ParameterLevel, private val delegate: SchemaAdapter
+) : SchemaAdapter {
+  override fun add(parameter: SkillParameter) = delegate.add(parameter)
 }
