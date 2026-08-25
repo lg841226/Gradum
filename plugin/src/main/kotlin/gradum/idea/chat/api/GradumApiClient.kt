@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumApiClient.kt  2026-08-25 01:17:29 Changed by gwy
+ * GradumApiClient.kt  2026-08-25 23:04:38 Changed by gwy
  */
 
 package gradum.idea.chat.api
@@ -57,6 +57,24 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val mime: String,
     val data: String,
     val filename: String
+  )
+
+  /**
+   * Request payload for [sendMessage]. Groups the 10 per-call
+   * parameters into a single data class so callers construct one
+   * object instead of passing a long positional / named list.
+   */
+  data class SendMessageRequest(
+    val message: String,
+    val modelName: String? = null,
+    val modelParams: Map<String, String>? = null,
+    val loadContext: Boolean = true,
+    val toolMode: String? = null,
+    val promptVariant: String? = null,
+    val projectRoot: String? = null,
+    val imageAttachments: List<ApiImageAttachment> = emptyList(),
+    val toolCallXml: String? = null,
+    val sessionId: String? = null
   )
 
   /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
@@ -159,45 +177,35 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * connection-level failures abort the flow (caught by caller's `.catch`).
    * Line payload truncated to [MAX_LOGGED_LINE] chars in logs.
    *
-   * @param sessionId The client-generated conversation session id that scopes
-   *   this session's model context on the server. `null` keeps the legacy
-   *   single `.gradum/context.json` behavior for old clients / servers.
+   * @param request The chat message and its associated parameters.
    * @return A [Flow] of [JsonObject] events. Failed lines are skipped silently.
    */
-  fun sendMessage(
-    message: String, modelName: String? = null,
-    modelParams: Map<String, String>? = null,
-    loadContext: Boolean = true, toolMode: String? = null,
-    promptVariant: String? = null, projectRoot: String? = null,
-    imageAttachments: List<ApiImageAttachment> = emptyList(),
-    toolCallXml: String? = null,
-    sessionId: String? = null
-  ): Flow<JsonObject> = flow {
+  fun sendMessage(request: SendMessageRequest): Flow<JsonObject> = flow {
     val requestBody: JsonObject = buildJsonObject {
-      put("message", message)
+      put("message", request.message)
 
-      if (modelName != null) put("model", modelName)
+      if (request.modelName != null) put("model", request.modelName)
 
-      if (modelParams != null) {
+      if (request.modelParams != null) {
         put(
           key = "config",
-          element = JsonObject(content = modelParams.mapValues { (_, value: String) ->
-            JsonPrimitive(value)
-          })
+          element = JsonObject(
+            content = request.modelParams.mapValues { (_, value: String) ->
+              JsonPrimitive(value)
+            })
         )
       }
 
-      put("loadContext", loadContext)
+      put("loadContext", request.loadContext)
 
-      if (toolMode != null) put("toolMode", toolMode)
-      if (sessionId != null) put("sessionId", sessionId)
-      if (toolCallXml != null) put("toolCallXml", toolCallXml)
-      if (projectRoot != null) put("projectRoot", projectRoot)
-      if (promptVariant != null) put("promptVariant", promptVariant)
-
-      if (imageAttachments.isNotEmpty()) {
+      if (request.toolMode != null) put("toolMode", request.toolMode)
+      if (request.sessionId != null) put("sessionId", request.sessionId)
+      if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)
+      if (request.projectRoot != null) put("projectRoot", request.projectRoot)
+      if (request.promptVariant != null) put("promptVariant", request.promptVariant)
+      if (request.imageAttachments.isNotEmpty()) {
         val imageAttachmentsJson: JsonArray = buildJsonArray {
-          for ((mime: String, data: String, filename: String) in imageAttachments) {
+          for ((mime: String, data: String, filename: String) in request.imageAttachments) {
             add(buildJsonObject {
               put("type", "image")
               put("mime", mime)
@@ -240,21 +248,22 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * called.
    */
   private suspend fun FlowCollector<JsonObject>.parseAndEmit(line: String, lineNumber: Int) {
-    val parsed: JsonElement = try {
-      ndjsonParser.parseToJsonElement(string = line)
-    } catch (exception: SerializationException) {
-      val preview: String = line.take(n = MAX_LOGGED_LINE)
-
-      log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
-      return
-    }
-    val asObject: JsonObject = when (parsed) {
-      is JsonObject -> parsed
-      else -> {
-        log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
+    val parsed: JsonElement =
+      try {
+        ndjsonParser.parseToJsonElement(string = line)
+      } catch (exception: SerializationException) {
+        val preview: String = line.take(n = MAX_LOGGED_LINE)
+        log.warn("Skipping malformed NDJSON line #$lineNumber (len=${line.length}): $preview", exception)
         return
       }
-    }
+    val asObject: JsonObject =
+      when (parsed) {
+        is JsonObject -> parsed
+        else -> {
+          log.warn("Skipping NDJSON line #$lineNumber: expected object, got ${parsed::class.simpleName}")
+          return
+        }
+      }
     emit(value = asObject)
   }
 

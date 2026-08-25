@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-25 17:05:14 Changed by gwy
+ * WebSearchSkill.kt  2026-08-25 22:29:33 Changed by gwy
  */
 
 package gradum.skill
@@ -106,9 +106,6 @@ class WebSearchSkill : Skill() {
         )
       )
 
-    // `include_favicon` is a UI-rendering concern, not a search behavior
-    // concern — the LLM doesn't need to know it exists. Hardcoded so a
-    // tool-call argument can't accidentally disable favicons.
     return try {
       val requestBody = buildJsonObject {
         put("query", query)

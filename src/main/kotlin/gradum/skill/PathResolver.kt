@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-08-25 17:08:55 Changed by gwy
+ * PathResolver.kt  2026-08-25 22:55:50 Changed by gwy
  */
 
 package gradum.skill
@@ -135,22 +135,17 @@ fun resolveProjectPath(
   val normalizedRoot: Path? = projectRootOrNull(projectRoot)
 
   if (trimmed.isBlank()) {
-    // A blank file path can't be a valid file. Reject regardless of
-    // projectRoot state — the LLM has to provide something.
     return rejectedPath(trimmed, "file path is blank")
   }
   if (Paths.get(trimmed).isAbsolute) {
     val absolute = Paths.get(trimmed).toAbsolutePath().normalize()
-    // The caller asked for an absolute path explicitly. Safe-prefix
-    // opt-in is meaningful here — the LLM typed a real /tmp
-    // scratch path on purpose, not as a `..` escape.
     return evaluate(
-      resolved = absolute,
-      original = trimmed,
       shifted = false,
-      normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
+      original = trimmed,
+      resolved = absolute,
       originalWasAbsolute = true,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject
     )
   }
 
@@ -293,7 +288,7 @@ private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean 
   if (normalizedRoot == null) return false
   val resolvedString: String = resolved.toString()
   val rootString: String = normalizedRoot.toString()
-  return resolvedString == rootString || resolvedString.startsWith("$rootString/")
+  return resolvedString == rootString || resolvedString.startsWith(prefix = "$rootString/")
 }
 
 /**

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-24 23:20:59 Changed by gwy
+ * SubChatView.kt  2026-08-25 23:00:17 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -69,7 +69,7 @@ fun SubChatView(
   transcriptMarkdown: String = "",
   toolCalls: List<ToolCallInfo> = emptyList()
 ) {
-  val historyMessages: List<ChatMessage> = remember(transcriptMarkdown) {
+  val historyMessages: List<ChatMessage> = remember(key1 = transcriptMarkdown) {
     if (transcriptMarkdown.isNotBlank()) {
       try {
         ChatTranscript.parseTranscript(content = transcriptMarkdown).messages
@@ -112,7 +112,7 @@ fun SubChatView(
             }
           }
           val truncatedTitle: String =
-            if (title.length > 30) title.take(30) + "…"
+            if (title.length > 30) title.take(n = 30) + "…"
             else title
           val showTooltip: Boolean = title.length > 30
           val titleContent =
@@ -213,8 +213,8 @@ private fun SubChatStreamingContent(
       ToolCallBlock(
         onSubChatClick = null,
         block = toolCall.toRenderBlock(),
-        onViewDiff = { _: String, _: String, _: String -> },
         onOpenInEditor = { _: String, _: Int, _: Int -> },
+        onViewDiff = { _: String, _: String, _: String -> },
       )
       if (index < toolCalls.lastIndex || subAgentResponse.isNotBlank())
         Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -318,7 +318,7 @@ private fun SubChatConversationContent(
       } else {
         AssistantChatBubble(
           message = message,
-          showActions = false,
+          showActions = false
         )
       }
     }

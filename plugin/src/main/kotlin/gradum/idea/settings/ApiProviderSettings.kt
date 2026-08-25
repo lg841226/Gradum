@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-24 21:28:34 Changed by gwy
+ * ApiProviderSettings.kt  2026-08-25 23:08:29 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -59,14 +59,11 @@ internal fun ApiProviderSettings() {
   val lmStudioKeyState = remember { TextFieldState(initialText = state.lmStudioApiKey) }
   val lmStudioUrlState = remember { TextFieldState(initialText = state.lmStudioBaseUrl) }
 
-  LaunchedEffect(Unit) {
+  LaunchedEffect(key1 = Unit) {
     pushAllKindsToCoordinator(settings)
-    ProviderConfigFile.updateAllowRemote("lmstudio", state.lmStudioAllowRemote)
+    ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", state.lmStudioAllowRemote)
   }
 
-  // Spacing is controlled explicitly here (not via a uniform spacedBy):
-  // header + auto-detect get a compact md gap, while the three provider
-  // panels (Ollama / LM Studio / Cloud) are separated by a wider lg gap.
   Column {
     GroupHeader(
       modifier = Modifier.fillMaxWidth(),
@@ -99,17 +96,17 @@ internal fun ApiProviderSettings() {
       baseUrlState = ollamaUrlState,
       onUrlChange = { newUrl ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setBaseUrl(ProviderKind.OLLAMA, newUrl)
+          s.setBaseUrl(kind = ProviderKind.OLLAMA, value = newUrl)
         }
         settings.update(transform)
-        pushKindToCoordinator(settings, ProviderKind.OLLAMA)
+        pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
       },
       onApiKeyChange = { newKey ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setApiKey(ProviderKind.OLLAMA, newKey)
+          s.setApiKey(kind = ProviderKind.OLLAMA, value = newKey)
         }
         settings.update(transform)
-        pushKindToCoordinator(settings, ProviderKind.OLLAMA)
+        pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
       },
       extraToggle = ExtraToggle(
         checked = state.ollamaAutoFilter,
@@ -130,17 +127,17 @@ internal fun ApiProviderSettings() {
       baseUrlState = lmStudioUrlState,
       onUrlChange = { newUrl ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setBaseUrl(ProviderKind.LM_STUDIO, newUrl)
+          s.setBaseUrl(kind = ProviderKind.LM_STUDIO, value = newUrl)
         }
         settings.update(transform)
-        pushKindToCoordinator(settings, ProviderKind.LM_STUDIO)
+        pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
       },
       onApiKeyChange = { newKey ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setApiKey(ProviderKind.LM_STUDIO, newKey)
+          s.setApiKey(kind = ProviderKind.LM_STUDIO, value = newKey)
         }
         settings.update(transform)
-        pushKindToCoordinator(settings, ProviderKind.LM_STUDIO)
+        pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
       },
       extraToggle = ExtraToggle(
         messageKey = "gradum.settings.provider.lmstudio.allowremote",
@@ -151,14 +148,14 @@ internal fun ApiProviderSettings() {
         s.lmStudioAllowRemote = isChecked
       }
       settings.update(transform, persistToDisk = false)
-      ProviderConfigFile.updateAllowRemote("lmstudio", isChecked)
+      ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", allowRemote = isChecked)
     }
 
     Spacer(Modifier.height(GradumSpacing.ml))
 
     CloudProviderTabsSection(
       settings = settings,
-      enabledKinds = ProviderKind.cloudKinds.filter { state.isEnabled(it) },
+      enabledKinds = ProviderKind.cloudKinds.filter { state.isEnabled(kind = it) },
     )
   }
 }
@@ -184,17 +181,21 @@ private fun CloudProviderTabsSection(
   settings: ProviderSettings, enabledKinds: List<ProviderKind>
 ) {
   val state: ProviderSettings.State = settings.snapshot
-  var selectedKind by remember { mutableStateOf(enabledKinds.firstOrNull()) }
+  var selectedKind by remember { mutableStateOf(value = enabledKinds.firstOrNull()) }
   val currentSelection: ProviderKind? = selectedKind?.takeIf { it in enabledKinds }
+  var showAddMenu by remember { mutableStateOf(value = false) }
   val activeKind: ProviderKind? = currentSelection ?: enabledKinds.firstOrNull()
-  var showAddMenu by remember { mutableStateOf(false) }
   val addableKinds: List<ProviderKind> = ProviderKind.cloudKinds.filterNot { it in enabledKinds }
 
   val keyState = activeKind?.let {
-    remember(it) { TextFieldState(initialText = state.configFor(it).second) }
+    remember(key1 = it) {
+      TextFieldState(initialText = state.configFor(kind = it).second)
+    }
   }
   val urlState = activeKind?.let {
-    remember(it) { TextFieldState(initialText = state.configFor(it).first) }
+    remember(key1 = it) {
+      TextFieldState(initialText = state.configFor(kind = it).first)
+    }
   }
 
   Text(
@@ -240,9 +241,9 @@ private fun CloudProviderTabsSection(
                 onClick = {
                   showAddMenu = false
                   val transform: (ProviderSettings.State) -> Unit = { s ->
-                    s.setEnabled(kind, true)
-                    s.setApiKey(kind, state.configFor(kind).second)
-                    s.setBaseUrl(kind, state.configFor(kind).first.ifBlank { kind.defaultBaseUrl })
+                    s.setEnabled(kind, enabled = true)
+                    s.setApiKey(kind, value = state.configFor(kind).second)
+                    s.setBaseUrl(kind, value = state.configFor(kind).first.ifBlank { kind.defaultBaseUrl })
                   }
                   settings.update(transform)
                   pushKindToCoordinator(settings, kind)
@@ -284,14 +285,14 @@ private fun CloudProviderTabsSection(
       baseUrlState = urlState!!,
       onUrlChange = { newUrl ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setBaseUrl(activeKind, newUrl)
+          s.setBaseUrl(activeKind, value = newUrl)
         }
         settings.update(transform)
         pushKindToCoordinator(settings, activeKind)
       },
       onApiKeyChange = { newKey ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setApiKey(activeKind, newKey)
+          s.setApiKey(activeKind, value = newKey)
         }
         settings.update(transform)
         pushKindToCoordinator(settings, activeKind)
@@ -314,9 +315,9 @@ private fun removeCloudProvider(
   val index: Int = enabledKinds.indexOf(kind)
   val snapshot: ProviderSettings.State = settings.snapshot
   val transform: (ProviderSettings.State) -> Unit = { s ->
-    s.setEnabled(kind, false)
-    s.setBaseUrl(kind, "")
-    s.setApiKey(kind, "")
+    s.setEnabled(kind, enabled = false)
+    s.setBaseUrl(kind, value = "")
+    s.setApiKey(kind, value = "")
   }
   settings.update(transform)
   ProviderCoordinator.reconfigure(
@@ -328,7 +329,7 @@ private fun removeCloudProvider(
   )
   val remaining: List<ProviderKind> = enabledKinds - kind
   return if (remaining.isEmpty()) null
-  else remaining.getOrNull((index - 1).coerceAtLeast(0)) ?: remaining.last()
+  else remaining.getOrNull(index = (index - 1).coerceAtLeast(minimumValue = 0)) ?: remaining.last()
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -341,16 +342,17 @@ private fun CloudTab(
     verticalAlignment = Alignment.CenterVertically,
     modifier = modifier
       .background(
-        shape = RoundedCornerShape(80),
+        shape = RoundedCornerShape(percent = 80),
         color = if (isSelected) JewelTheme.globalColors.toolwindowBackground
         else Color.Transparent
       )
       .then(
-        if (isSelected) Modifier.border(
-          width = 1.dp,
-          shape = RoundedCornerShape(80),
-          color = JewelTheme.globalColors.borders.normal
-        ) else Modifier
+        if (isSelected)
+          Modifier.border(
+            width = 1.dp,
+            shape = RoundedCornerShape(percent = 80),
+            color = JewelTheme.globalColors.borders.normal
+          ) else Modifier
       )
       .padding(vertical = GradumSpacing.sm, horizontal = GradumSpacing.md)
       .clickable(onClick = onClick)
@@ -387,7 +389,7 @@ private fun CloudAddIcon(enabled: Boolean, onClick: () -> Unit) {
   ) {
     IconButton(
       onClick = onClick, enabled = enabled,
-      modifier = Modifier.padding(GradumSpacing.xs)
+      modifier = Modifier.padding(all = GradumSpacing.xs)
     ) {
       Icon(
         key = AllIconsKeys.General.Add,
@@ -418,9 +420,9 @@ private fun AutoDetectRow(
   onIntervalChange: (Int) -> Unit,
   onCheckedChange: (Boolean) -> Unit
 ) {
-  var isFocused by remember { mutableStateOf(false) }
-  var isInputValid by remember { mutableStateOf(true) }
-  var lastValidSeconds by remember { mutableStateOf(intervalSeconds) }
+  var isFocused by remember { mutableStateOf(value = false) }
+  var isInputValid by remember { mutableStateOf(value = true) }
+  var lastValidSeconds by remember { mutableStateOf(value = intervalSeconds) }
   val state = remember { TextFieldState(initialText = intervalSeconds.toString()) }
 
   fun validate(): Boolean {
@@ -439,14 +441,14 @@ private fun AutoDetectRow(
     }
     val normalizedText: String = clampedSeconds.toString()
     if (state.text.toString() != normalizedText)
-      state.edit { replace(0, length, normalizedText) }
+      state.edit { replace(start = 0, end = length, normalizedText) }
 
     lastValidSeconds = clampedSeconds
     isInputValid = true
     if (clampedSeconds != intervalSeconds) onIntervalChange(clampedSeconds)
   }
 
-  LaunchedEffect(state.text, isFocused) {
+  LaunchedEffect(key1 = state.text, key2 = isFocused) {
     if (isFocused) isInputValid = validate()
   }
 
@@ -469,7 +471,9 @@ private fun AutoDetectRow(
               normalizeAndCommit()
             isFocused = focusState.isFocused
           },
-        outline = if (enabled && !isInputValid) Outline.Error else Outline.None,
+        outline =
+          if (enabled && !isInputValid) Outline.Error
+          else Outline.None,
         placeholder = { Text("$MIN_POLL_INTERVAL_SECONDS~$MAX_POLL_INTERVAL_SECONDS") }
       )
       Spacer(Modifier.width(GradumSpacing.sml))

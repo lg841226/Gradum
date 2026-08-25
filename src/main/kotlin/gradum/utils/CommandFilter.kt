@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommandFilter.kt  2026-08-25 17:26:15 Changed by gwy
+ * CommandFilter.kt  2026-08-25 22:55:50 Changed by gwy
  */
 
 package gradum.utils
@@ -175,7 +175,7 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
 fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): CommandVerdict {
   if (commandText.isBlank()) return CommandVerdict.Safe
 
-  val tokens: List<String> = commandText.trim().split(WHITESPACE_PATTERN)
+  val tokens: List<String> = commandText.trim().split(regex = WHITESPACE_PATTERN)
   if (tokens.isEmpty()) return CommandVerdict.Safe
 
   val executableName: String = Paths.get(tokens[0]).fileName.toString()

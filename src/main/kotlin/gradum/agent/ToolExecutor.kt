@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolExecutor.kt  2026-08-23 20:17:32 Changed by gwy
+ * ToolExecutor.kt  2026-08-25 22:47:18 Changed by gwy
  */
 
 package gradum.agent
@@ -89,17 +89,19 @@ class ToolExecutor(
       }
     }
 
-    convertedArguments.remove("projectRoot")
-    convertedArguments.remove("project_root")
+    convertedArguments.remove(key = "projectRoot")
+    convertedArguments.remove(key = "project_root")
     convertedArguments["projectRoot"] = configuration.projectRoot
 
     logger.info("Skill: $functionName")
     if (logger.isDebugEnabled) logger.debug("Args: ${truncateToolArguments(convertedArguments)}")
 
-    val skillInstance: Skill? = SkillRegistry.getSkill(functionName)
+    val skillInstance: Skill? = SkillRegistry.getSkill(skillName = functionName)
     val toolAlias: String = skillInstance?.alias ?: functionName
 
-    emitToolCallStart(toolAlias, processedCall.callIdentifier, functionName, skillInstance, convertedArguments)
+    emitToolCallStart(
+      toolAlias, toolCallId = processedCall.callIdentifier, functionName, skillInstance, convertedArguments
+    )
 
     val executionResult: Map<String, Any>
 
@@ -116,10 +118,11 @@ class ToolExecutor(
       return executionResult
     }
 
-    if (checkToolRunaway(functionName, convertedArguments)) {
+    if (checkToolRunaway(toolName = functionName, toolArguments = convertedArguments)) {
       logger.error("Result: TOOL_RUNAWAY repeated call ($repeatedToolCallCount times), aborting")
       sessionManager.emitRevoked(
-        "tool_runaway", mapOf(
+        reason = "tool_runaway",
+        details = mapOf(
           "tool" to functionName,
           "arguments" to convertedArguments,
           "repeatedCount" to repeatedToolCallCount
@@ -134,7 +137,7 @@ class ToolExecutor(
       )
       emitToolResult(functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments)
       logToolResult(executionResult)
-      sessionManager.abort("tool_runaway")
+      sessionManager.abort(reason = "tool_runaway")
       return executionResult
     }
 
@@ -146,9 +149,9 @@ class ToolExecutor(
         executionResult = mapOf(
           "success" to false,
           "error" to mapOf(
-            "code" to ErrorCode.COMMAND_BLOCKED.name,
-            "message" to verdict.description,
             "rule" to verdict.ruleName,
+            "message" to verdict.description,
+            "code" to ErrorCode.COMMAND_BLOCKED.name
           ),
         )
         emitToolResult(
@@ -187,21 +190,24 @@ class ToolExecutor(
       val allowedNames: List<String> = skillInstance.allowedToolModes.map { it.name }
       logger.error(
         "Result: TOOL_NOT_PERMITTED — '${functionName}' not allowed in ${configuration.toolMode} " +
-          "(allowed: ${allowedNames.joinToString(", ")})"
+          "(allowed: ${allowedNames.joinToString(separator = ", ")})"
       )
       return mapOf(
         "success" to false,
         "error" to mapOf(
           "code" to ErrorCode.TOOL_NOT_PERMITTED.name,
           "message" to "Tool '${functionName}' is not permitted in ${configuration.toolMode} mode " +
-            "(allowed: ${allowedNames.joinToString(", ")})",
+            "(allowed: ${allowedNames.joinToString(separator = ", ")})",
           "toolMode" to configuration.toolMode.name,
           "allowedModes" to allowedNames,
         ),
       )
     }
     return when (val result: SkillResult = skillInstance.execute(convertedArguments, skillContext)) {
-      is SkillResult.Success -> mapOf("success" to true).plus(result.data)
+      is SkillResult.Success -> mapOf(
+        "success" to true
+      ).plus(map = result.data)
+
       is SkillResult.Failure -> mapOf(
         "success" to false,
         "error" to mapOf("code" to result.code, "message" to result.message)
@@ -212,8 +218,14 @@ class ToolExecutor(
   /** Checks whether the current tool call is a runaway (identical signature). */
   fun checkToolRunaway(toolName: String, toolArguments: Map<String, Any>): Boolean {
     val callSignature =
-      "$toolName|${toolArguments.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" }}"
-    repeatedToolCallCount = if (callSignature == lastToolCallKey) repeatedToolCallCount + 1 else 1
+      "$toolName|${
+        toolArguments.entries.sortedBy { it.key }.joinToString(separator = ",") {
+          "${it.key}=${it.value}"
+        }
+      }"
+    repeatedToolCallCount =
+      if (callSignature == lastToolCallKey) repeatedToolCallCount + 1
+      else 1
     lastToolCallKey = callSignature
     return repeatedToolCallCount >= configuration.maxRepeatedToolCalls
   }
@@ -231,7 +243,8 @@ class ToolExecutor(
   ) {
     if (skillInstance?.manageOwnEventStream == true) return
     emitEvent(
-      "tool_call_start", mapOf(
+      "tool_call_start",
+      mapOf(
         "alias" to toolAlias,
         "tool" to functionName,
         "toolCallId" to toolCallId,
@@ -250,12 +263,12 @@ class ToolExecutor(
     isLastToolCall: Boolean = true,
     processedCall: ProcessedToolCall,
     executionResult: Map<String, Any>,
-    convertedArguments: Map<String, Any>,
+    convertedArguments: Map<String, Any>
   ) {
     val toolAlias: String = skillInstance?.alias ?: functionName
     val ownMessageIndices: List<Int> = conversationHistory.toolMessageIndices(toolAlias)
     val historyResult: Map<String, Any> = conversationHistory.recordAndCompact(
-      skillInstance, executionResult, ownMessageIndices
+      skillInstance, currentResult = executionResult, ownMessageIndices
     )
     val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
 
@@ -263,7 +276,8 @@ class ToolExecutor(
 
     if (!skipEvent) {
       emitEvent(
-        "tool_call", mapOf(
+        "tool_call",
+        mapOf(
           "tool" to functionName,
           "alias" to toolAlias,
           "arguments" to convertedArguments,
@@ -277,7 +291,8 @@ class ToolExecutor(
         @Suppress("UNCHECKED_CAST")
         val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
         emitEvent(
-          "error", mapOf(
+          "error",
+          mapOf(
             "tool" to functionName,
             "toolCallId" to processedCall.callIdentifier,
             "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
@@ -287,13 +302,13 @@ class ToolExecutor(
       }
     }
 
-    val resultString: String = JsonUtil.encodeMap(historyResult)
+    val resultString: String = JsonUtil.encodeMap(input = historyResult)
     val todoReminder: String? =
       if (isLastToolCall) getTodoManagerInstance().getTaskReminder() else null
     val finalResult: String = todoReminder?.let { "$resultString\n\n$it" } ?: resultString
 
     conversationHistory.addToolMessage(
-      toolAlias, finalResult, processedCall.callIdentifier, configuration.provider
+      toolAlias, content = finalResult, toolCallId = processedCall.callIdentifier, configuration.provider
     )
   }
 
@@ -312,8 +327,8 @@ class ToolExecutor(
 
   private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
     val maxValueLength = 512
-    val serialized: String = JsonUtil.encodeMap(toolArguments, prettyPrint = true)
+    val serialized: String = JsonUtil.encodeMap(input = toolArguments, prettyPrint = true)
     return if (serialized.length <= maxValueLength) serialized
-    else serialized.take(maxValueLength) + "... [truncated, ${serialized.length} chars total]"
+    else serialized.take(n = maxValueLength) + "(truncated, ${serialized.length} chars total)"
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WhatsNewDialog.kt  2026-08-25 00:39:18 Changed by gwy
+ * WhatsNewDialog.kt  2026-08-25 22:26:54 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -114,15 +114,16 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
     label = "imageWeight"
   )
 
-  val handleKeyEvent: (KeyEvent) -> Boolean = rememberKeyEventHandler(
-    isPlaying = isPlaying,
-    pageCount = pageCount,
-    onDismiss = onDismiss,
-    currentPage = currentPage,
-    isImageExpanded = isImageExpanded,
-    onPageChange = { currentPage = it },
-    onImageExpandChange = { isImageExpanded = it }
-  )
+  val handleKeyEvent: (KeyEvent) -> Boolean =
+    rememberKeyEventHandler(
+      isPlaying = isPlaying,
+      pageCount = pageCount,
+      onDismiss = onDismiss,
+      currentPage = currentPage,
+      isImageExpanded = isImageExpanded,
+      onPageChange = { currentPage = it },
+      onImageExpandChange = { isImageExpanded = it }
+    )
 
   Column(
     modifier = Modifier
@@ -243,8 +244,9 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
                   else JewelTheme.badgeStyle.blue,
               ) {
                 Text(
-                  text = if (feature.badgeIsNew) message("gradum.whatsnew.badge.new")
-                  else message("gradum.whatsnew.badge.beta")
+                  text =
+                    if (feature.badgeIsNew) message("gradum.whatsnew.badge.new")
+                    else message("gradum.whatsnew.badge.beta")
                 )
               }
               CompositionLocalProvider(
@@ -286,11 +288,11 @@ private fun WhatsNewContent(onDismiss: () -> Unit) {
       Spacer(Modifier.width(GradumSpacing.lg))
 
       PaginationDots(
+        features = features,
         pageCount = pageCount,
-        currentPage = currentPage,
         isPlaying = isPlaying,
+        currentPage = currentPage,
         onDotClick = { page: Int -> currentPage = page },
-        features = features
       )
 
       Spacer(Modifier.width(GradumSpacing.lg))
@@ -423,18 +425,19 @@ private fun PaginationDots(
   onDotClick: (Int) -> Unit,
   features: List<FeatureItem>
 ) {
-  val primaryColor: Color = when {
-    JewelTheme.badgeStyle.blue.colors.background is SolidColor ->
-      (JewelTheme.badgeStyle.blue.colors.background as SolidColor).value
+  val primaryColor: Color =
+    when {
+      JewelTheme.badgeStyle.blue.colors.background is SolidColor ->
+        (JewelTheme.badgeStyle.blue.colors.background as SolidColor).value
 
-    else -> JewelTheme.badgeStyle.blue.colors.content
-  }
+      else -> JewelTheme.badgeStyle.blue.colors.content
+    }
   val trackColor: Color = JewelTheme.globalColors.borders.disabled
   val hoverColor: Color = JewelTheme.globalColors.text.info
 
+  val animProgress = remember { Animatable(initialValue = 0f) }
   var animPhase: Int by remember { mutableIntStateOf(value = 0) } // 0=idle, 1=auto-play, 2=pausing
   val currentIsPlaying: Boolean by rememberUpdatedState(newValue = isPlaying)
-  val animProgress = remember { Animatable(initialValue = 0f) }
 
   LaunchedEffect(key1 = isPlaying, key2 = currentPage) {
     if (isPlaying) {

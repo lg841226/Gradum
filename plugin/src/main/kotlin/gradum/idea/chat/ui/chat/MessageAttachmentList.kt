@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentList.kt  2026-08-24 23:20:59 Changed by gwy
+ * MessageAttachmentList.kt  2026-08-25 23:00:17 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -38,8 +38,7 @@ import org.jetbrains.jewel.ui.component.Text
  */
 @Composable
 fun MessageAttachmentList(
-  attachments: List<AttachedContext>,
-  modifier: Modifier = Modifier
+  attachments: List<AttachedContext>, modifier: Modifier = Modifier
 ) {
   if (attachments.isEmpty()) return
   FlowRow(

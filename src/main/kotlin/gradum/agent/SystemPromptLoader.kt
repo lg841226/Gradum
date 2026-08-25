@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SystemPromptLoader.kt  2026-08-23 Changed by gwy
+ * SystemPromptLoader.kt  2026-08-25 22:50:20 Changed by gwy
  */
 
 package gradum.agent
@@ -109,7 +109,7 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
       val trimmedLine = currentLine.trim()
 
       when {
-        !insideConditional && trimmedLine.startsWith("<!-- if ") && trimmedLine.endsWith(" -->") -> {
+        !insideConditional && trimmedLine.startsWith(prefix = "<!-- if ") && trimmedLine.endsWith(" -->") -> {
           val conditionName = trimmedLine
             .removePrefix("<!-- if ")
             .removeSuffix(" -->")
@@ -133,12 +133,12 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
 
         insideConditional -> {
           if (!skipUntilEndif)
-            outputBuffer.appendLine(currentLine)
+            outputBuffer.appendLine(value = currentLine)
           lineIndex++
         }
 
         else -> {
-          outputBuffer.appendLine(currentLine)
+          outputBuffer.appendLine(value = currentLine)
           lineIndex++
         }
       }
@@ -155,7 +155,7 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
     return try {
       Agent::class.java.getResourceAsStream("/red_line_keywords.txt")?.use { stream ->
         stream.reader(Charsets.UTF_8).readLines().map { it.trim() }
-          .filter { it.isNotBlank() && !it.startsWith("#") }
+          .filter { it.isNotBlank() && !it.startsWith(prefix = "#") }
       } ?: run {
         logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
         emptyList()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThirdPartyNoticesDialog.kt  2026-08-25 22:23:59 Changed by gwy
+ * ThirdPartyNoticesDialog.kt  2026-08-25 22:26:54 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -57,7 +57,7 @@ private val FontSizeOption.fontSizeSp: Float
     FontSizeOption.LARGE -> 18f
   }
 
-// Dialog size constants for the third-party notices dialog
+
 private const val THIRD_PARTY_DIALOG_WIDTH = 540
 private const val THIRD_PARTY_DIALOG_HEIGHT = 750
 private const val THIRD_PARTY_DIALOG_MIN_WIDTH = 400
@@ -123,9 +123,9 @@ private fun ThirdPartyNoticesContentInner() {
   Box(
     modifier = Modifier
       .fillMaxSize()
+      .focusTarget()
       .padding(all = GradumSpacing.xxl)
       .focusRequester(focusRequester)
-      .focusTarget()
   ) {
     Column(
       modifier = Modifier

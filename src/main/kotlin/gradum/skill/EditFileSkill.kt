@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-25 17:11:13 Changed by gwy
+ * EditFileSkill.kt  2026-08-25 22:29:33 Changed by gwy
  */
 
 package gradum.skill
@@ -178,21 +178,21 @@ class EditFileSkill : Skill() {
 
   private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
-
-    val rawEdits: List<Map<String, Any>> = try {
-      parseEdits(rawInput = arguments["edits"])
-    } catch (parseException: Exception) {
-      val errorMessage = parseException.message ?: "unknown parse error"
-      return makeFailure(
-        code = ErrorCode.INVALID_PARAMETER,
-        message = buildXmlError(
-          code = "INVALID_PARAMETER",
-          message = "Failed to parse 'edits' parameter: $errorMessage",
-          fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
-        ),
-        context = mapOf("path" to filePath)
-      )
-    }
+    val rawEdits: List<Map<String, Any>> =
+      try {
+        parseEdits(rawInput = arguments["edits"])
+      } catch (parseException: Exception) {
+        val errorMessage = parseException.message ?: "unknown parse error"
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Failed to parse 'edits' parameter: $errorMessage",
+            fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
+          ),
+          context = mapOf("path" to filePath)
+        )
+      }
     val projectRoot: String = context.projectRoot
 
     if (filePath.isBlank())
@@ -488,17 +488,23 @@ private fun findMatchesWithFallback(
     failedAtStep = MatchStrategy.NONE, searchPreview = searchNonBlank.take(n = 3)
   )
 
-  val exactMatches = findMatchesByStrategy(fileLines, searchLines = searchNonBlank) { fileLine, searchLine ->
+  val exactMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.trimEnd('\r', ' ') == searchLine.trimEnd('\r', ' ')
   }
   if (exactMatches.isNotEmpty()) return FindResult.Found(exactMatches)
 
-  val normalizedMatches = findMatchesByStrategy(fileLines, searchLines = searchNonBlank) { fileLine, searchLine ->
+  val normalizedMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.trim() == searchLine.trim()
   }
   if (normalizedMatches.isNotEmpty()) return FindResult.Found(normalizedMatches)
 
-  val strippedMatches = findMatchesByStrategy(fileLines, searchLines = searchNonBlank) { fileLine, searchLine ->
+  val strippedMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.filterNot { it.isWhitespace() } == searchLine.filterNot { it.isWhitespace() }
   }
   if (strippedMatches.isNotEmpty()) return FindResult.Found(strippedMatches)

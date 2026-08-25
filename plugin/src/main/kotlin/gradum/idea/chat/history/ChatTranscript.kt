@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-08-25 01:23:14 Changed by gwy
+ * ChatTranscript.kt  2026-08-25 23:00:35 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -219,24 +219,23 @@ object ChatTranscript {
 
   /** Parses a full transcript back into its [ParsedTranscript]. */
   fun parseTranscript(content: String): ParsedTranscript {
-    var sessionMeta = SessionMeta("", "", "", 0L, 0L)
+    var sessionMeta = SessionMeta(title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L)
     val messages: MutableList<ChatMessage> = mutableListOf()
 
     // Working message: assistant messages are built incrementally as their
     // event blocks stream in; user messages accumulate verbatim content and
     // attachments. Flushed into `messages` when a new message starts or EOF.
-    var workingRole: String? = null
     var workingTimestamp = 0L
     var workingModel: String
-    var workingProvider: String
     var workingServer: String
+    var workingProvider: String
     var workingTokens: TokenUsage?
-    val workingAttachments: MutableList<AttachedContext> = mutableListOf()
-    var workingMessage: ChatMessage? = null
-
     var blockType: String? = null
-    val blockLines: MutableList<String> = mutableListOf()
+    var workingRole: String? = null
+    var workingMessage: ChatMessage? = null
     var pendingToolCall: ToolCallInfo? = null
+    val blockLines: MutableList<String> = mutableListOf()
+    val workingAttachments: MutableList<AttachedContext> = mutableListOf()
     var pendingErrorCode = ""
     var pendingErrorTool = ""
     var pendingUserContent = ""
@@ -248,6 +247,7 @@ object ChatTranscript {
       val blockContent: String = blockLines.joinToString(separator = "\n")
       blockLines.clear()
       val blockKind: String = blockType ?: return
+
       blockType = null
       when (blockKind) {
         "thinking" -> {
@@ -256,18 +256,24 @@ object ChatTranscript {
 
         "toolcall" -> {
           val toolCallInfo: ToolCallInfo = pendingToolCall ?: return
-          pendingToolCall = toolCallInfo.copy(arguments = jsonToArguments(blockContent))
+          pendingToolCall = toolCallInfo.copy(
+            arguments = jsonToArguments(rawJson = blockContent)
+          )
         }
 
         "toolresult" -> {
           val toolCallInfo: ToolCallInfo = pendingToolCall ?: return
           pendingToolCall = null
-          workingMessage = workingMessage?.appendEvent(ChatEvent.ToolCall(toolCallInfo.copy(result = blockContent)))
+          workingMessage = workingMessage?.appendEvent(
+            ChatEvent.ToolCall(info = toolCallInfo.copy(result = blockContent))
+          )
         }
 
         "error" -> {
           workingMessage = workingMessage?.appendEvent(
-            ChatEvent.Error(blockContent, code = pendingErrorCode, tool = pendingErrorTool)
+            ChatEvent.Error(
+              message = blockContent, code = pendingErrorCode, tool = pendingErrorTool
+            )
           )
           pendingErrorCode = ""
           pendingErrorTool = ""
@@ -324,7 +330,7 @@ object ChatTranscript {
 
         line.startsWith(MSG_PREFIX) -> {
           finalizeMessage()
-          val attributeMap: Map<String, String> = parseAttributes(line)
+          val attributeMap: Map<String, String> = parseAttributes(marker = line)
           val messageRole: String = attributeMap["role"].orEmpty()
           workingRole = messageRole
           workingModel = attributeMap["model"].orEmpty()
@@ -342,13 +348,13 @@ object ChatTranscript {
             blockType = "user"
           } else {
             workingMessage = ChatMessage(
-              role = "assistant",
               content = "",
-              timestamp = workingTimestamp,
+              role = "assistant",
               modelName = workingModel,
               provider = workingProvider,
               serverName = workingServer,
-              tokenUsage = workingTokens
+              tokenUsage = workingTokens,
+              timestamp = workingTimestamp
             )
           }
         }
@@ -369,14 +375,14 @@ object ChatTranscript {
 
         line.startsWith(TOOLCALL_PREFIX) -> {
           flushBlock()
-          val attributeMap: Map<String, String> = parseAttributes(line)
+          val attributeMap: Map<String, String> = parseAttributes(marker = line)
           pendingToolCall = ToolCallInfo(
             alias = attributeMap["alias"].orEmpty(),
             toolCallId = attributeMap["id"].orEmpty(),
             toolName = attributeMap["name"].orEmpty(),
             errorDetail = attributeMap["errorDetail"].orEmpty(),
             errorMessage = attributeMap["errorMessage"].orEmpty(),
-            success = attributeMap["success"]?.toBooleanStrictOrNull() ?: true,
+            success = attributeMap["success"]?.toBooleanStrictOrNull() ?: true
           )
           blockType = "toolcall"
         }
@@ -488,7 +494,9 @@ object ChatTranscript {
         element.isString -> element.content
         element.intOrNull != null -> element.int
         element.longOrNull != null -> element.long
-        element.content.toBooleanStrictOrNull() != null -> element.content.toBooleanStrict()
+        element.content.toBooleanStrictOrNull() != null ->
+          element.content.toBooleanStrict()
+
         else -> element.content.toDoubleOrNull() ?: element.content
       }
 
@@ -501,6 +509,7 @@ object ChatTranscript {
   private fun parseAttributes(marker: String): Map<String, String> {
     val attributeMap: MutableMap<String, String> = mutableMapOf()
     val pairPattern = Regex(pattern = """(\w+)="((?:\\.|[^"])*)"""")
+
     for (match: MatchResult in pairPattern.findAll(input = marker)) {
       attributeMap[match.groupValues[1]] = unescapeValue(match.groupValues[2])
     }
@@ -517,16 +526,18 @@ object ChatTranscript {
 
   private fun unescapeValue(value: String): String {
     if (value.indexOf(char = '\\') < 0) return value
-    val escapedBuilder: StringBuilder = StringBuilder(value.length)
-    var index = 0
-    while (index < value.length) {
-      val currentChar: Char = value[index]
-      if (currentChar == '\\' && index + 1 < value.length) {
-        escapedBuilder.append(value[index + 1]); index += 2
+    val unescapedBuilder: StringBuilder = StringBuilder(value.length)
+    var currentIndex = 0
+    while (currentIndex < value.length) {
+      val currentChar: Char = value[currentIndex]
+      if (currentChar == '\\' && currentIndex + 1 < value.length) {
+        unescapedBuilder.append(value[currentIndex + 1])
+        currentIndex += 2
       } else {
-        escapedBuilder.append(currentChar); index++
+        unescapedBuilder.append(currentChar)
+        currentIndex++
       }
     }
-    return escapedBuilder.toString()
+    return unescapedBuilder.toString()
   }
 }

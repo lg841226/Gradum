@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderHintsTest.kt  2026-08-25 14:34:39 Changed by gwy
+ * ProviderHintsTest.kt  2026-08-25 22:34:40 Changed by gwy
  */
 
 package gradum.client
@@ -20,7 +20,10 @@ class ProviderHintsTest {
       "max_tokens",
       hints.maxTokensFieldName
     )
-    assertNull(hints.thinkingFieldValue, "OpenAI standard has no native thinking field")
+    assertNull(
+      hints.thinkingFieldValue,
+      "OpenAI standard has no native thinking field"
+    )
     assertNull(hints.reasoningDeltaField)
   }
 

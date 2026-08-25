@@ -2,14 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GuardrailManager.kt  2026-08-23 20:21:07 Changed by gwy
+ * GuardrailManager.kt  2026-08-25 22:50:20 Changed by gwy
  */
 
 package gradum.agent
 
 import gradum.AgentConfiguration
 
-private val SENTENCE_SPLIT_PATTERN: Regex = Regex("(?<=[.!?])\\s+")
+private val SENTENCE_SPLIT_PATTERN: Regex = Regex(pattern = "(?<=[.!?])\\s+")
 
 /**
  * Detects guardrail violations during an agent session.
@@ -59,14 +59,14 @@ class GuardrailManager(private val configuration: AgentConfiguration) {
     }
     val lowercasedText: String = text.lowercase()
     return redLineKeywords.filterIndexed { index: Int, _: String ->
-      lowercasedText.contains(redLineKeywordsLowercase[index])
+      lowercasedText.contains(other = redLineKeywordsLowercase[index])
     }
   }
 
   /** Records a red-line hit and returns the updated hit count. */
   fun recordRedLineHit(matched: List<String>): Int {
     redLineHitCounter++
-    redLineHitKeywords.addAll(matched)
+    redLineHitKeywords.addAll(elements = matched)
     return redLineHitCounter
   }
 
@@ -77,7 +77,7 @@ class GuardrailManager(private val configuration: AgentConfiguration) {
   fun isAbnormalResponse(responseText: String?): Boolean {
     if (responseText.isNullOrBlank()) return false
     val trimmedText = responseText.trim()
-    val sentenceList = trimmedText.split(SENTENCE_SPLIT_PATTERN)
+    val sentenceList = trimmedText.split(regex = SENTENCE_SPLIT_PATTERN)
       .map { it.trim() }
       .filter { it.isNotBlank() && it.length > 3 }
     return sentenceList.size >= 3 && sentenceList.groupingBy {

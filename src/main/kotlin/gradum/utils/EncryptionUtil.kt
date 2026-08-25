@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EncryptionUtil.kt  2026-08-12 12:38:25 Changed by gwy
+ * EncryptionUtil.kt  2026-08-25 22:54:09 Changed by gwy
  */
 
 package gradum.utils
@@ -32,7 +32,9 @@ private val classLogger = Logger.getLogger("EncryptionUtil")
 
 private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
   val hmac: Mac = Mac.getInstance("HmacSHA256")
-  hmac.init(SecretKeySpec("gradum-key-derivation".toByteArray(Charsets.UTF_8), "HmacSHA256"))
+  hmac.init(
+    SecretKeySpec("gradum-key-derivation".toByteArray(Charsets.UTF_8), "HmacSHA256")
+  )
   val pseudorandomKey: ByteArray = hmac.doFinal(keySource)
 
   hmac.init(SecretKeySpec(pseudorandomKey, "HmacSHA256"))

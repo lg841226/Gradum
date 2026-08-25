@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-25 22:00:16 Changed by gwy
+ * TodoSkill.kt  2026-08-25 22:29:33 Changed by gwy
  */
 
 package gradum.skill
@@ -189,7 +189,8 @@ class TodoManager {
       )
 
     val skippedTask: String =
-      if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex] else ""
+      if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex]
+      else ""
     currentTaskIndex += count
 
     val allDone: Boolean = currentTaskIndex >= taskItems.size
@@ -200,8 +201,8 @@ class TodoManager {
       boolean("completed", allDone)
       string("skippedTask", skippedTask)
       integer("totalTasks", taskItems.size)
-      string("currentTask", if (allDone) "" else taskItems[currentTaskIndex])
       integer("currentIndex", currentTaskIndex)
+      string("currentTask", if (allDone) "" else taskItems[currentTaskIndex])
     }
   }
 

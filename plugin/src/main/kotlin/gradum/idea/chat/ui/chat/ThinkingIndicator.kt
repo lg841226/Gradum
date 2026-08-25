@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-24 23:18:07 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-25 23:00:17 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -53,7 +53,6 @@ fun ThinkingIndicator(
   onUrlClick: (String) -> Unit = {}
 ) {
   if (thinking.isBlank()) return
-
   var isExpanded: Boolean by remember { mutableStateOf(value = !startCollapsed) }
 
   Column(modifier = modifier.fillMaxWidth()) {

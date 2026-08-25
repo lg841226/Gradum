@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputState.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatInputState.kt  2026-08-25 23:02:43 Changed by gwy
  */
 
 package gradum.idea.chat.input
@@ -81,5 +81,5 @@ data class ChatInputActions(
   val onSelectFile: (VirtualFile) -> Unit,
   val onRemovePending: (PendingMessage) -> Unit = {},
   val onPasteAsContext: (String) -> Unit = {},
-  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {},
+  val onSelectThinkingLevel: (ThinkingLevel) -> Unit = {}
 )

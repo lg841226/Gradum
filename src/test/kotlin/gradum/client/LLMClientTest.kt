@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClientTest.kt  2026-08-25 21:58:31 Changed by gwy
+ * LLMClientTest.kt  2026-08-25 22:34:45 Changed by gwy
  */
 
 package gradum.client
@@ -60,7 +60,7 @@ class LLMClientTest {
       )
     )
     val client = OpenAICompatibleClient(
-      config(baseUrl = "https://api.deepseek.com/v1"), HttpClient(engine)
+      configuration = config(baseUrl = "https://api.deepseek.com/v1"), HttpClient(engine)
     )
 
     val chunks = client.sendChat(
@@ -91,7 +91,7 @@ class LLMClientTest {
       )
     )
     val client = OpenAICompatibleClient(
-      config(baseUrl = "https://api.deepseek.com/v1"),
+      configuration = config(baseUrl = "https://api.deepseek.com/v1"),
       HttpClient(engine),
     )
 

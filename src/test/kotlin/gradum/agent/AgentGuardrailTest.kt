@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentGuardrailTest.kt  2026-08-25 14:34:39 Changed by gwy
+ * AgentGuardrailTest.kt  2026-08-25 22:32:29 Changed by gwy
  */
 
 package gradum.agent
@@ -25,8 +25,8 @@ class AgentGuardrailTest {
 
   private val testRedLineKeywords: List<String> = listOf(
     "red-flag",
-    "confidential",
     "TOP-SECRET",
+    "confidential",
   )
 
   @Test
@@ -38,7 +38,7 @@ class AgentGuardrailTest {
           messageHistory = any(),
           toolDefinitions = any()
         )
-      } returns flowOf(LLMResponseChunk.TextContent("normal response without keywords"))
+      } returns flowOf(value = LLMResponseChunk.TextContent("normal response without keywords"))
       every { tokenUsage } returns TokenUsageSnapshot()
     }
 
@@ -51,7 +51,10 @@ class AgentGuardrailTest {
     agent.executeTask(userInput = "hello")
 
     val eventTypes = events.map { it.first }
-    assertTrue("mission_revoked" !in eventTypes, "Should not revoke when no red line keyword hits")
+    assertTrue(
+      "mission_revoked" !in eventTypes,
+      "Should not revoke when no red line keyword hits"
+    )
   }
 
   @Test
@@ -73,11 +76,18 @@ class AgentGuardrailTest {
       redLineKeywords = testRedLineKeywords,
     ) { type, data -> events.add(type to data) }
 
-    agent.executeTask("test")
+    agent.executeTask(userInput = "test")
 
     val eventTypes = events.map { it.first }
-    assertContains(iterable = eventTypes, element = "guardrail", message = "Should emit guardrail warning on keyword hit")
-    assertTrue("mission_revoked" !in eventTypes, "Should not revoke when hits are below threshold")
+    assertContains(
+      iterable = eventTypes,
+      element = "guardrail",
+      message = "Should emit guardrail warning on keyword hit"
+    )
+    assertTrue(
+      "mission_revoked" !in eventTypes,
+      "Should not revoke when hits are below threshold"
+    )
   }
 
   @Test
@@ -190,7 +200,10 @@ class AgentGuardrailTest {
       element = "guardrail",
       message = "Should emit guardrail on first hit"
     )
-    assertTrue("mission_revoked" !in eventTypes, "One hit with maxRedLineHits=2 should not revoke")
+    assertTrue(
+      "mission_revoked" !in eventTypes,
+      "One hit with maxRedLineHits=2 should not revoke"
+    )
   }
 
   @Test
@@ -296,6 +309,9 @@ class AgentGuardrailTest {
     agent.executeTask(userInput = "test")
 
     val eventTypes = events.map { it.first }
-    assertTrue("mission_revoked" !in eventTypes, "Should not revoke when tool calls differ")
+    assertTrue(
+      "mission_revoked" !in eventTypes,
+      "Should not revoke when tool calls differ"
+    )
   }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-25 01:25:41 Changed by gwy
+ * ChatSessionStore.kt  2026-08-25 23:00:17 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -71,7 +71,7 @@ class ChatSessionStore(private val projectRoot: Path) {
       Files.createDirectories(sessionDirectory)
       val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
       val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
-      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(1_000_000)}")
+      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(until = 1_000_000)}")
 
       Files.writeString(tempFile, content, Charsets.UTF_8)
       try {

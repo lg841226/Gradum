@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SessionContextDirectoryTest.kt  2026-08-25 14:34:46 Changed by gwy
+ * SessionContextDirectoryTest.kt  2026-08-25 22:32:29 Changed by gwy
  */
 
 package gradum.agent
@@ -24,7 +24,7 @@ class SessionContextDirectoryTest {
 
   @Test
   fun `session id scopes context into its own directory`() {
-    val dir: Path = contextOutputDirectory(config("20260812-131500-a1b2"))
+    val dir: Path = contextOutputDirectory(configuration = config(sessionId = "20260812-131500-a1b2"))
     assertEquals(
       Path.of("/work/MyProject/.gradum/sessions/20260812-131500-a1b2"),
       dir
@@ -33,7 +33,7 @@ class SessionContextDirectoryTest {
 
   @Test
   fun `blank session id falls back to legacy context directory`() {
-    val dir: Path = contextOutputDirectory(config(""))
+    val dir: Path = contextOutputDirectory(configuration = config(sessionId = ""))
     assertEquals(
       Path.of("/work/MyProject/.gradum"),
       dir
@@ -42,7 +42,7 @@ class SessionContextDirectoryTest {
 
   @Test
   fun `whitespace session id falls back to legacy context directory`() {
-    val dir: Path = contextOutputDirectory(config("   "))
+    val dir: Path = contextOutputDirectory(configuration = config(sessionId = "   "))
     assertEquals(
       Path.of("/work/MyProject/.gradum"),
       dir
@@ -51,7 +51,7 @@ class SessionContextDirectoryTest {
 
   @Test
   fun `null session id falls back to legacy context directory`() {
-    val dir: Path = contextOutputDirectory(config(null))
+    val dir: Path = contextOutputDirectory(configuration = config(sessionId = null))
     assertEquals(
       Path.of("/work/MyProject/.gradum"),
       dir

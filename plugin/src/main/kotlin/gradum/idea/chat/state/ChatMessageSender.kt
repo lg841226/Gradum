@@ -172,15 +172,17 @@ internal suspend fun GradumChatSession.sendMessage(
     }
 
     apiClient.sendMessage(
-      toolMode = toolMode,
-      message = messageWithHint,
-      modelParams = modelConfig,
-      loadContext = loadContext,
-      toolCallXml = toolCallXml,
-      sessionId = activeSessionId,
-      modelName = selectedModel?.name,
-      projectRoot = project?.basePath,
-      imageAttachments = imageAttachments
+      request = GradumApiClient.SendMessageRequest(
+        message = messageWithHint,
+        modelName = selectedModel?.name,
+        modelParams = modelConfig,
+        loadContext = loadContext,
+        toolMode = toolMode,
+        projectRoot = project?.basePath,
+        imageAttachments = imageAttachments,
+        toolCallXml = toolCallXml,
+        sessionId = activeSessionId
+      )
     ).catch { exception: Throwable ->
       if (exception is CancellationException) {
         cleanupSubAgent()
