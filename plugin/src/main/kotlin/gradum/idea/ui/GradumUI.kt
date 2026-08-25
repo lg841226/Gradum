@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-25 19:05:02 Changed by gwy
+ * GradumUI.kt  2026-08-25 19:07:35 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -248,9 +248,6 @@ private fun rememberChatSessionState(
       }
     }
   }
-
-  val onCopyAsContext = attachText
-  val onPasteAsContext = attachText
 
   val onSelectFile: (VirtualFile) -> Unit = remember(key1 = session) {
     { file: VirtualFile ->
@@ -633,7 +630,7 @@ private fun rememberChatSessionState(
 
   val inputActions: ChatInputActions = remember(
     onSend, onStop, onUploadImage, onClearText, session,
-    onCopyAsContext, onPasteAsContext, onSelectFile, onSelectPermission,
+    attachText, attachText, onSelectFile, onSelectPermission,
     onRemoveFile, onRemovePending, onSelectModel, onTogglePin, onRefreshModels, onToggleExpanded
   ) {
     ChatInputActions(
@@ -647,7 +644,7 @@ private fun rememberChatSessionState(
       onUploadImage = onUploadImage,
       onRefreshModels = onRefreshModels,
       onRemovePending = onRemovePending,
-      onPasteAsContext = onPasteAsContext,
+      onPasteAsContext = attachText,
       onToggleExpanded = onToggleExpanded,
       onSelectPermission = onSelectPermission,
       onFocusChange = { session.isFocused = it },
@@ -700,10 +697,10 @@ private fun rememberChatSessionState(
     onRemoveFile = onRemoveFile,
     onUploadImage = onUploadImage,
     onSelectModel = onSelectModel,
-    onCopyAsContext = onCopyAsContext,
+    onCopyAsContext = attachText,
     onRefreshModels = onRefreshModels,
     onRemovePending = onRemovePending,
-    onPasteAsContext = onPasteAsContext,
+    onPasteAsContext = attachText,
     onToggleExpanded = onToggleExpanded,
     subAgentState = session.subAgentState,
     onSelectPermission = onSelectPermission,

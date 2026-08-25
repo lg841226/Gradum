@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-25 18:07:24 Changed by gwy
+ * CommonCapsule.kt  2026-08-25 19:19:30 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,13 +18,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.PluginConfig
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.foundation.theme.LocalColorPalette
 import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -36,8 +35,8 @@ private const val TOOL_DETAILS_RESULT_MAX_CHARS = PluginConfig.TOOL_DETAILS_RESU
 /** Error metadata for a failed tool call capsule. */
 data class ToolCallErrorInfo(
   val detail: String = "",
+  val message: String = "",
   val toolDetails: String = "",
-  val message: String = ""
 )
 
 /**
@@ -81,7 +80,6 @@ internal fun ToolCallCapsule(
   val bodyStyle = rememberGradumParagraphTextStyle()
   val hasError = !success && errorInfo.message.isNotBlank()
   var isCopied by remember { mutableStateOf(value = false) }
-  var showErrorPopup by remember { mutableStateOf(value = false) }
   val copyPayload: String = errorInfo.toolDetails.ifBlank { errorInfo.detail }
 
   Row(
@@ -111,58 +109,29 @@ internal fun ToolCallCapsule(
     trailingIcon()
 
     if (hasError) {
-      Icon(
-        contentDescription = message("gradum.tool.error.open"),
-        key = AllIconsKeys.Status.FailedInProgress,
-        modifier = Modifier.clickable { showErrorPopup = true }
+      IconTooltipButton(
+        tooltip =
+          if (isCopied) message(key = "gradum.error.copied")
+          else message(key = "gradum.tool.copy.details"),
+        iconKey =
+          if (isCopied) AllIconsKeys.Actions.Checked
+          else AllIconsKeys.General.Copy,
+        contentDescription = "",
+        onClick = {
+          if (!isCopied && copyPayload.isNotBlank()) {
+            copyToClipboard(
+              text = copyPayload,
+              scope = clipboardScope,
+              onCopied = { isCopied = true },
+              onReset = { isCopied = false }
+            )
+          }
+        },
+        enabled = copyPayload.isNotBlank()
       )
     }
   }
 
-  if (hasError && showErrorPopup) {
-    PopupMenu(
-      onDismissRequest = {
-        showErrorPopup = false
-        true
-      },
-      horizontalAlignment = Alignment.Start
-    ) {
-      if (copyPayload.isNotBlank()) {
-        selectableItem(
-          selected = false,
-          onClick = {
-            showErrorPopup = false
-            if (!isCopied) {
-              copyToClipboard(
-                scope = clipboardScope,
-                text = copyPayload,
-                onCopied = { isCopied = true },
-                onReset = { isCopied = false }
-              )
-            }
-          }
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-          ) {
-            Icon(
-              contentDescription = null,
-              key = AllIconsKeys.General.Copy,
-              modifier = Modifier.size(16.dp)
-            )
-            Text(
-              text = if (isCopied) message("gradum.error.copied")
-              else message("gradum.tool.copy.details")
-            )
-          }
-        }
-      }
-    }
-  }
 }
 
 @Composable
@@ -208,9 +177,8 @@ internal fun formatToolDetails(
   stringBuilder.append("Tool: ").appendLine(value = alias)
   if (arguments.isNotEmpty()) {
     stringBuilder.appendLine(value = "Arguments:")
-    for ((key, value) in arguments) {
+    for ((key, value) in arguments)
       stringBuilder.append("  ").append(key).append(": ").appendLine(value)
-    }
   }
   if (result.isNotBlank()) {
     val truncated: String = if (result.length > TOOL_DETAILS_RESULT_MAX_CHARS) {
@@ -218,9 +186,8 @@ internal fun formatToolDetails(
     } else result
     stringBuilder.append("Result: ").appendLine(value = truncated)
   }
-  if (errorMessage.isNotBlank()) {
+  if (errorMessage.isNotBlank())
     stringBuilder.append("Error: ").appendLine(value = errorMessage)
-  }
   if (errorDetail.isNotBlank()) {
     stringBuilder.appendLine(value = "Detail:")
     stringBuilder.appendLine(value = errorDetail)

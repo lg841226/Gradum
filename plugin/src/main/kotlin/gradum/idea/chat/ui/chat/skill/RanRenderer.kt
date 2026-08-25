@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RanRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * RanRenderer.kt  2026-08-25 19:18:15 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -11,11 +11,7 @@ import androidx.compose.runtime.Composable
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import gradum.idea.chat.ui.chat.skill.spi.string
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -66,8 +62,8 @@ class RanRenderer : ToolCallRenderer {
       success = !ctx.isError,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty(),
-        message = ctx.errorDetail.orEmpty()
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
       ),
       trailingText = reasonText,
       trailingIcon = {

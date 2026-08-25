@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DefaultRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * DefaultRenderer.kt  2026-08-25 19:18:15 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -53,8 +53,8 @@ class DefaultRenderer : ToolCallRenderer {
       success = !ctx.isError,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty(),
-        message = ctx.errorDetail.orEmpty()
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
       )
     )
   }
