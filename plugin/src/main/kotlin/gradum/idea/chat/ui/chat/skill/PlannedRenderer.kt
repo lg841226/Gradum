@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PlannedRenderer.kt  2026-08-24 16:31:49 Changed by gwy
+ * PlannedRenderer.kt  2026-08-25 19:25:05 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -53,7 +53,9 @@ class PlannedRenderer : ToolCallRenderer {
 
   override fun labelKey(): String = LABEL_KEY
 
-  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
+  override fun parseContent(
+    arguments: Map<String, Any?>, result: Map<String, Any?>
+  ): ToolCallContent {
     @Suppress("UNCHECKED_CAST")
     val taskList: List<String> = (result["tasks"] as? List<String>)
       ?: (arguments["tasks"] as? List<String>) ?: emptyList()
@@ -62,8 +64,8 @@ class PlannedRenderer : ToolCallRenderer {
       aliasName = ALIAS,
       fieldMap = mapOf(
         "tasks" to taskList,
-        "currentIndex" to currentIndex,
         "totalTasks" to taskList.size,
+        "currentIndex" to currentIndex,
         "firstTask" to taskList.firstOrNull().orEmpty()
       )
     )
@@ -80,7 +82,7 @@ class PlannedRenderer : ToolCallRenderer {
     val dimmerColor = JewelTheme.globalColors.text.disabled
     val bodyStyle = rememberGradumParagraphTextStyle()
 
-    var isExpanded by remember { mutableStateOf(true) }
+    var isExpanded by remember { mutableStateOf(value = true) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
       Row(
@@ -109,7 +111,7 @@ class PlannedRenderer : ToolCallRenderer {
           style = bodyStyle,
           color = dimmerColor,
           overflow = TextOverflow.Ellipsis,
-          text = message(LABEL_KEY_LISTS, tasks.size)
+          text = message(key = LABEL_KEY_LISTS, tasks.size)
         )
         Icon(
           contentDescription = null,

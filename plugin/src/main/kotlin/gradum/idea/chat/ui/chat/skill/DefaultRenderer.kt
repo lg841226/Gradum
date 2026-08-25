@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DefaultRenderer.kt  2026-08-25 19:18:15 Changed by gwy
+ * DefaultRenderer.kt  2026-08-25 19:29:24 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -37,8 +37,14 @@ class DefaultRenderer : ToolCallRenderer {
 
   override fun labelKey(): String? = null
 
-  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-    val aliasName: String = arguments.string("alias").ifEmpty { result.string("alias").ifEmpty { WILDCARD_ALIAS } }
+  override fun parseContent(
+    arguments: Map<String, Any?>, result: Map<String, Any?>
+  ): ToolCallContent {
+    val aliasName: String = arguments
+      .string(key = "alias").ifEmpty {
+        result.string(key = "alias key = , ")
+          .ifEmpty { WILDCARD_ALIAS }
+      }
     return ToolCallContent(
       aliasName = aliasName,
       fieldMap = emptyMap()

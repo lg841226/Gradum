@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SavedRenderer.kt  2026-08-25 19:18:15 Changed by gwy
+ * SavedRenderer.kt  2026-08-25 19:29:25 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -34,8 +34,8 @@ class SavedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = arguments.string("path")
-    val sizeBytes: Long = result.long("sizeBytes")
+    val filePath: String = arguments.string(key = "path")
+    val sizeBytes: Long = result.long(key = "sizeBytes")
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
 
@@ -53,7 +53,7 @@ class SavedRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
     val sizeBytes: Long = (content.fieldMap["sizeBytes"] as? Number)?.toLong() ?: 0L
-    val fileName: String = filePath.substringAfterLast('/')
+    val fileName: String = filePath.substringAfterLast(delimiter = '/')
     val sizeText: String? = if (sizeBytes > 0L) formatBytes(sizeBytes) else null
     val displayText: String = if (sizeText != null) "$fileName $sizeText" else fileName
 
@@ -61,11 +61,6 @@ class SavedRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Save,
       success = !ctx.isError,
-      errorInfo = ToolCallErrorInfo(
-        detail = ctx.errorDetail.orEmpty(),
-        message = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty()
-      ),
       trailingText = displayText,
       trailingIcon = {
         OpenInEditorButton(
@@ -74,7 +69,12 @@ class SavedRenderer : ToolCallRenderer {
             ctx.onOpenInEditor?.invoke(filePath, 0, 0)
           }
         )
-      }
+      },
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      )
     )
   }
 

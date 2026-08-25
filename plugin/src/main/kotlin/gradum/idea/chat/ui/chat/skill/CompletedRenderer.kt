@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CompletedRenderer.kt  2026-08-24 16:31:49 Changed by gwy
+ * CompletedRenderer.kt  2026-08-25 19:25:05 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -91,7 +91,10 @@ class CompletedRenderer : ToolCallRenderer {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
       ) {
-        Icon(AllIconsKeys.Actions.Report, contentDescription = null)
+        Icon(
+          contentDescription = null,
+          key = AllIconsKeys.Actions.Report
+        )
         Text(
           color = textColor,
           style = bodyStyle,

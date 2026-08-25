@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRenderer.kt  2026-08-23 13:59:00 Changed by gwy
+ * SearchedRenderer.kt  2026-08-25 19:21:54 Changed by gwy
  */
 package gradum.idea.chat.ui.chat.skill
 
@@ -62,7 +62,7 @@ class SearchedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val query: String = arguments.string("query")
+    val query: String = arguments.string(key = "query")
 
     @Suppress("UNCHECKED_CAST")
     val results: List<Map<String, Any>> = (result["results"] as? List<Map<String, Any>>) ?: emptyList()
@@ -87,9 +87,10 @@ class SearchedRenderer : ToolCallRenderer {
     val bodyStyle = rememberGradumParagraphTextStyle()
 
     @Suppress("UNCHECKED_CAST")
-    val results: List<Map<String, Any>> = (content.fieldMap["results"] as? List<Map<String, Any>>) ?: emptyList()
+    val results: List<Map<String, Any>> = (content.fieldMap["results"]
+      as? List<Map<String, Any>>) ?: emptyList()
 
-    var isExpanded by remember { mutableStateOf(true) }
+    var isExpanded by remember { mutableStateOf(value = true) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
       Row(
@@ -117,12 +118,13 @@ class SearchedRenderer : ToolCallRenderer {
           maxLines = 1,
           color = JewelTheme.globalColors.text.disabled,
           overflow = TextOverflow.Ellipsis,
-          text = message(LABEL_KEY_DISPLAY, totalResults),
+          text = message(key = LABEL_KEY_DISPLAY, totalResults),
           style = bodyStyle
         )
         Icon(
-          key = if (isExpanded) AllIconsKeys.General.ChevronDown
-          else AllIconsKeys.General.ChevronRight,
+          key =
+            if (isExpanded) AllIconsKeys.General.ChevronDown
+            else AllIconsKeys.General.ChevronRight,
           contentDescription = null
         )
       }

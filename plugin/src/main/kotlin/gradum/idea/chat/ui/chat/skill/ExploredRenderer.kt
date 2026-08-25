@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploredRenderer.kt  2026-08-25 19:18:15 Changed by gwy
+ * ExploredRenderer.kt  2026-08-25 19:29:24 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -31,8 +31,9 @@ class ExploredRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val projectRoot: String = arguments.string("projectRoot").ifEmpty { arguments.string("project_root") }
-    val scanDepth: Int = result.int("depth")
+    val projectRoot: String = arguments.string(key = "projectRoot")
+      .ifEmpty { arguments.string(key = "project_root") }
+    val scanDepth: Int = result.int(key = "depth")
     return ToolCallContent(
       aliasName = ALIAS,
       fieldMap = mapOf(
@@ -51,12 +52,12 @@ class ExploredRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Explore,
       success = !ctx.isError,
+      trailingText = displayText,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),
         message = ctx.errorDetail.orEmpty(),
         toolDetails = ctx.toolDetails.orEmpty()
-      ),
-      trailingText = displayText
+      )
     )
   }
 

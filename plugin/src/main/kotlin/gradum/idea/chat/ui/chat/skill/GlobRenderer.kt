@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GlobRenderer.kt  2026-08-16 00:08:59 Changed by gwy
+ * GlobRenderer.kt  2026-08-25 19:23:04 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -14,11 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import gradum.idea.chat.ui.chat.skill.spi.int
-import gradum.idea.chat.ui.chat.skill.spi.string
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -39,8 +35,8 @@ class GlobRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val pattern: String = arguments.string("pattern")
-    val totalFiles: Int = result.int("total_files")
+    val pattern: String = arguments.string(key = "pattern")
+    val totalFiles: Int = result.int(key = "total_files")
 
     return ToolCallContent(
       aliasName = ALIAS,
@@ -65,7 +61,10 @@ class GlobRenderer : ToolCallRenderer {
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(GradumSpacing.sml)
     ) {
-      Icon(GradumIcons.Search, contentDescription = null)
+      Icon(
+        key = GradumIcons.Search,
+        contentDescription = null
+      )
       Text(
         color = textColor,
         style = bodyStyle,

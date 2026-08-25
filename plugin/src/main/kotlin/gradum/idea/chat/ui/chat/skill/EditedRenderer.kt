@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditedRenderer.kt  2026-08-25 19:18:15 Changed by gwy
+ * EditedRenderer.kt  2026-08-25 19:29:24 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -46,13 +46,13 @@ class EditedRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = arguments.string("path")
-    val linesAdded: Int = result.int("linesAdded")
-    val linesRemoved: Int = result.int("linesRemoved")
+    val filePath: String = arguments.string(key = "path")
+    val linesAdded: Int = result.int(key = "linesAdded")
+    val linesRemoved: Int = result.int(key = "linesRemoved")
     val originalContent: String? = result["originalContent"] as? String
     val modifiedContent: String? = result["modifiedContent"] as? String
     val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
-    val isSuccess: Boolean = result.boolean("success", defaultValue = true)
+    val isSuccess: Boolean = result.boolean(key = "success", defaultValue = true)
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) actionList.add(ToolCallAction.OpenInEditor(filePath = filePath))
     if (hasDiffPayload) actionList.add(ToolCallAction.ViewDiff(filePath = filePath, diffType = "default"))
@@ -76,7 +76,7 @@ class EditedRenderer : ToolCallRenderer {
   @Composable
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
-    val fileName: String = filePath.substringAfterLast('/')
+    val fileName: String = filePath.substringAfterLast(delimiter = '/')
     val linesAdded: Int = (content.fieldMap["linesAdded"] as? Number)?.toInt() ?: 0
     val linesRemoved: Int = (content.fieldMap["linesRemoved"] as? Number)?.toInt() ?: 0
     val hasDiffPayload: Boolean = content.fieldMap["hasDiffPayload"] == true
@@ -92,11 +92,6 @@ class EditedRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Edit,
       success = !isError,
-      errorInfo = ToolCallErrorInfo(
-        detail = ctx.errorDetail.orEmpty(),
-        message = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty()
-      ),
       trailingText = fileName,
       trailingIcon = {
         Row(
@@ -120,7 +115,12 @@ class EditedRenderer : ToolCallRenderer {
             )
           }
         }
-      }
+      },
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      )
     )
   }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-25 19:19:30 Changed by gwy
+ * CommonCapsule.kt  2026-08-25 19:30:12 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
@@ -69,18 +69,18 @@ internal fun ToolCallCapsule(
   label: String,
   iconKey: IconKey,
   success: Boolean,
-  errorInfo: ToolCallErrorInfo = ToolCallErrorInfo(),
   trailingText: String = "",
   modifier: Modifier = Modifier,
-  trailingIcon: @Composable RowScope.() -> Unit = {}
+  trailingIcon: @Composable RowScope.() -> Unit = {},
+  errorInfo: ToolCallErrorInfo = ToolCallErrorInfo(),
 ) {
   val infoColor = JewelTheme.globalColors.text.info
   val textColor = JewelTheme.globalColors.text.normal
   val clipboardScope = rememberCoroutineScope()
   val bodyStyle = rememberGradumParagraphTextStyle()
-  val hasError = !success && errorInfo.message.isNotBlank()
-  var isCopied by remember { mutableStateOf(value = false) }
   val copyPayload: String = errorInfo.toolDetails.ifBlank { errorInfo.detail }
+  val hasError = !success && copyPayload.isNotBlank()
+  var isCopied by remember { mutableStateOf(value = false) }
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -131,7 +131,6 @@ internal fun ToolCallCapsule(
       )
     }
   }
-
 }
 
 @Composable

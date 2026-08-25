@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RanRenderer.kt  2026-08-25 19:18:15 Changed by gwy
+ * RanRenderer.kt  2026-08-25 19:29:24 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -37,8 +37,8 @@ class RanRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val shellCommand: String = arguments.string("command")
-    val reasonText: String = arguments.string("reason")
+    val shellCommand: String = arguments.string(key = "command")
+    val reasonText: String = arguments.string(key = "reason")
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 
@@ -60,11 +60,6 @@ class RanRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Ran,
       success = !ctx.isError,
-      errorInfo = ToolCallErrorInfo(
-        detail = ctx.errorDetail.orEmpty(),
-        message = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty()
-      ),
       trailingText = reasonText,
       trailingIcon = {
         OpenInEditorButton(
@@ -73,7 +68,12 @@ class RanRenderer : ToolCallRenderer {
             ctx.onOpenInEditor?.invoke(shellCommand, 0, 0)
           }
         )
-      }
+      },
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      )
     )
   }
 

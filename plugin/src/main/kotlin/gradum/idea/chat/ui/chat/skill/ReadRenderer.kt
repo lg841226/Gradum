@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadRenderer.kt  2026-08-16 00:08:59 Changed by gwy
+ * ReadRenderer.kt  2026-08-25 19:25:05 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -16,11 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
-import gradum.idea.chat.ui.chat.skill.spi.string
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
@@ -48,11 +44,11 @@ class ReadRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val filePath: String = arguments.string("path")
+    val filePath: String = arguments.string(key = "path")
     val startLine: Int? = (result["startLine"] as? Number)?.toInt()
-      ?: parseLineRangeStart(result.string("lineRange"))
+      ?: parseLineRangeStart(lineRange = result.string(key = "lineRange"))
     val endLine: Int? = (result["endLine"] as? Number)?.toInt()
-      ?: parseLineRangeEnd(result.string("lineRange"))
+      ?: parseLineRangeEnd(lineRange = result.string(key = "lineRange"))
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (filePath.isNotBlank()) {
       actionList.add(
@@ -79,7 +75,7 @@ class ReadRenderer : ToolCallRenderer {
     val filePath: String = (content.fieldMap["filePath"] as? String).orEmpty()
     val startLine: Int? = (content.fieldMap["startLine"] as? Number)?.toInt()
     val endLine: Int? = (content.fieldMap["endLine"] as? Number)?.toInt()
-    val fileName: String = filePath.substringAfterLast('/')
+    val fileName: String = filePath.substringAfterLast(delimiter = '/')
     val lineText: String = when {
       startLine != null && endLine != null -> message("gradum.tool.line.range", startLine, endLine)
       startLine != null -> message("gradum.tool.line.single", startLine)
@@ -95,7 +91,10 @@ class ReadRenderer : ToolCallRenderer {
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
     ) {
-      Icon(AllIconsKeys.General.Show, contentDescription = null)
+      Icon(
+        contentDescription = null,
+        key = AllIconsKeys.General.Show,
+      )
       Text(
         color = textColor,
         style = bodyStyle,
