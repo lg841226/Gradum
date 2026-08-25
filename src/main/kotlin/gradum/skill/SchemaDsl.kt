@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SchemaDsl.kt  2026-08-25 16:04:55 Changed by gwy
+ * SchemaDsl.kt  2026-08-25 16:29:19 Changed by gwy
  */
 
 package gradum.skill
@@ -50,47 +50,73 @@ interface SchemaAdapter {
 open class MutableSchemaAdapter : SchemaAdapter {
   override val fixedLevel: ParameterLevel? get() = null
   val parameters: MutableList<SkillParameter> = mutableListOf()
-  override fun add(parameter: SkillParameter) { parameters.add(parameter) }
+  override fun add(parameter: SkillParameter) {
+    parameters.add(parameter)
+  }
 }
 
-/** A `string` parameter, optionally restricted to [enumValues]. */
 fun SchemaAdapter.string(
-  name: String, description: String,
-  required: Boolean = false, enumValues: List<String> = emptyList(),
+  name: String,
+  description: String,
+  required: Boolean = false,
+  enumValues: List<String> = emptyList(),
   level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val schema = linkedMapOf<String, Any>("type" to "string", "description" to description)
+  val schema = linkedMapOf<String, Any>(
+    "type" to "string",
+    "description" to description
+  )
   if (enumValues.isNotEmpty()) schema["enum"] = enumValues
   add(SkillParameter(name, required, level, schema))
 }
 
-/** An `integer` parameter with optional [IntConstraints] (default, min, max). */
 fun SchemaAdapter.integer(
-  name: String, description: String,
-  required: Boolean = false, constraints: IntConstraints = IntConstraints(),
+  name: String,
+  description: String,
+  required: Boolean = false,
+  constraints: IntConstraints = IntConstraints(),
   level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val schema = linkedMapOf<String, Any>("type" to "integer", "description" to description)
+  val schema = linkedMapOf<String, Any>(
+    "type" to "integer",
+    "description" to description
+  )
   if (constraints.default != null) schema["default"] = constraints.default
   if (constraints.minimum != null) schema["minimum"] = constraints.minimum
   if (constraints.maximum != null) schema["maximum"] = constraints.maximum
   add(SkillParameter(name, required, level, schema))
 }
 
-/** A `boolean` parameter. */
 fun SchemaAdapter.boolean(
-  name: String, description: String,
-  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
+  name: String,
+  description: String,
+  required: Boolean = false,
+  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  add(SkillParameter(name, required, level, mapOf("type" to "boolean", "description" to description)))
+  add(
+    SkillParameter(
+      name, required, level, schema =
+        mapOf(
+          "type" to "boolean",
+          "description" to description
+        )
+    )
+  )
 }
 
-/** An array of plain `string` items. */
 fun SchemaAdapter.stringArray(
-  name: String, description: String,
-  required: Boolean = false, level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
+  name: String,
+  description: String,
+  required: Boolean = false,
+  level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
-  val schema = mapOf("type" to "array", "description" to description, "items" to mapOf("type" to "string"))
+  val schema = mapOf(
+    "type" to "array",
+    "description" to description,
+    "items" to mapOf(
+      "type" to "string"
+    )
+  )
   add(SkillParameter(name, required, level, schema))
 }
 
@@ -99,21 +125,30 @@ fun SchemaAdapter.stringArray(
  * [items], with [itemRequired] naming which of them are mandatory.
  */
 fun SchemaAdapter.objectArray(
-  name: String, description: String, required: Boolean = false,
-  itemRequired: List<String>, items: ObjectItemBuilder.() -> Unit,
+  name: String,
+  description: String,
+  required: Boolean = false,
+  itemRequired: List<String>,
+  items: ObjectItemBuilder.() -> Unit,
   level: ParameterLevel = fixedLevel ?: ParameterLevel.ALL
 ) {
   val builder = ObjectItemBuilder()
   builder.items()
-  val itemProperties = builder.parameters.associate { it.name to it.schema }
+  val itemProperties = builder.parameters.associate {
+    it.name to it.schema
+  }
   val schema = mapOf(
-    "type" to "array", "description" to description,
-    "items" to mapOf("type" to "object", "required" to itemRequired, "properties" to itemProperties)
+    "type" to "array",
+    "description" to description,
+    "items" to mapOf(
+      "type" to "object",
+      "required" to itemRequired,
+      "properties" to itemProperties
+    )
   )
   add(SkillParameter(name, required, level, schema))
 }
 
-/** Receiver for [objectArray] that collects the properties of each array item. */
 class ObjectItemBuilder : MutableSchemaAdapter()
 
 /**
@@ -123,12 +158,18 @@ class ObjectItemBuilder : MutableSchemaAdapter()
  */
 class SchemaBuilder : MutableSchemaAdapter() {
   val schemaParameters: List<SkillParameter> get() = parameters.toList()
-  fun cloudOnly(block: SchemaAdapter.() -> Unit) { LevelScope(ParameterLevel.CLOUD_ONLY, this).block() }
-  fun simpleOnly(block: SchemaAdapter.() -> Unit) { LevelScope(ParameterLevel.SIMPLE_ONLY, this).block() }
+  fun cloudOnly(block: SchemaAdapter.() -> Unit) {
+    LevelScope(fixedLevel = ParameterLevel.CLOUD_ONLY, delegate = this).block()
+  }
+
+  fun simpleOnly(block: SchemaAdapter.() -> Unit) {
+    LevelScope(fixedLevel = ParameterLevel.SIMPLE_ONLY, delegate = this).block()
+  }
 }
 
 private class LevelScope(
-  override val fixedLevel: ParameterLevel, private val delegate: SchemaAdapter
+  override val fixedLevel: ParameterLevel,
+  private val delegate: SchemaAdapter
 ) : SchemaAdapter {
   override fun add(parameter: SkillParameter) = delegate.add(parameter)
 }
