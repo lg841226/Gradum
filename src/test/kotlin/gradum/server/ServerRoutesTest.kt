@@ -25,7 +25,10 @@ class ServerRoutesTest {
 
         val response: HttpResponse = client.get("/health")
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+              HttpStatusCode.OK,
+              response.status
+        )
         val body: String = response.bodyAsText()
 
         assertContains(body, "\"status\":\"healthy\"")
@@ -40,7 +43,10 @@ class ServerRoutesTest {
 
         val response: HttpResponse = client.get("/skills")
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+              HttpStatusCode.OK,
+              response.status
+        )
         val body: String = response.bodyAsText()
 
         assertContains(body, "\"skills\"")
@@ -55,7 +61,10 @@ class ServerRoutesTest {
 
         val response: HttpResponse = client.get("/models")
 
-        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(
+              HttpStatusCode.OK,
+              response.status
+        )
         val body: String = response.bodyAsText()
 
         assertContains(body, "\"models\"")

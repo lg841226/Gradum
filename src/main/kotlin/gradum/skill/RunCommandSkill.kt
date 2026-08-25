@@ -107,32 +107,26 @@ class RunCommandSkill : Skill() {
   override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("output")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimple) "Execute a shell command" else description,
-      properties = if (useSimple) simpleProperties() else cloudProperties(),
-      required = listOf("command"),
+  override val simpleDescription: String = "Execute a shell command"
+
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "command",
+      description = "Shell command to execute",
+      required = true,
     )
+    string(name = "reason", description = "Why this command is needed")
+    cloudOnly {
+      boolean(
+        name = "detached",
+        description = "Run in background mode (fire-and-forget)",
+      )
+      integer(
+        name = "timeout",
+        description = "Timeout in seconds (default ${DEFAULT_TIMEOUT_SECONDS}, max ${MAX_TIMEOUT_SECONDS})",
+      )
+    }
   }
-
-  private fun simpleProperties(): Map<String, Any> = mapOf(
-    "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
-    "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "command" to mapOf("type" to "string", "description" to "Shell command to execute"),
-    "reason" to mapOf("type" to "string", "description" to "Why this command is needed"),
-    "detached" to mapOf(
-      "type" to "boolean",
-      "description" to "Run in background mode (fire-and-forget)",
-    ),
-    "timeout" to mapOf(
-      "type" to "integer",
-      "description" to "Timeout in seconds (default ${DEFAULT_TIMEOUT_SECONDS}, max ${MAX_TIMEOUT_SECONDS})",
-    ),
-  )
 
   @OptIn(DangerousOperation::class)
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {

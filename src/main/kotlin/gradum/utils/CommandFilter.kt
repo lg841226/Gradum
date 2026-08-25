@@ -145,8 +145,6 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
   "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
   // network info (read-only)
   "ping", "nslookup", "dig", "host",
-  // network fetch (read-only reads)
-  "curl", "wget",
   // interpreters (read-only execution)
   "python3", "python",
   // path / env

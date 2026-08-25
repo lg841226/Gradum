@@ -36,10 +36,16 @@ class GradumInlineSegmentTest {
       urlAnnotations = emptyList(),
       inlineContent = emptyMap(),
     )
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     assertTrue(segments[0] is InlineSegment.TextSegment)
     val textSeg: InlineSegment.TextSegment = segments[0] as InlineSegment.TextSegment
-    assertEquals("plain prose with no links", textSeg.annotated.toString())
+    assertEquals(
+      "plain prose with no links",
+      textSeg.annotated.toString()
+    )
   }
 
   @Test
@@ -58,15 +64,30 @@ class GradumInlineSegmentTest {
       urlAnnotations = urlAnnotations,
       inlineContent = emptyMap(),
     )
-    assertEquals(3, segments.size)
+    assertEquals(
+      3,
+      segments.size
+    )
     assertTrue(segments[0] is InlineSegment.TextSegment)
-    assertEquals("see ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      "see ",
+      (segments[0] as InlineSegment.TextSegment).annotated.toString()
+    )
     assertTrue(segments[1] is InlineSegment.LinkSegment)
     val linkSeg: InlineSegment.LinkSegment = segments[1] as InlineSegment.LinkSegment
-    assertEquals("the docs", linkSeg.text)
-    assertEquals("https://example.com", linkSeg.url)
+    assertEquals(
+      "the docs",
+      linkSeg.text
+    )
+    assertEquals(
+      "https://example.com",
+      linkSeg.url
+    )
     assertTrue(segments[2] is InlineSegment.TextSegment)
-    assertEquals(" please", (segments[2] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      " please",
+      (segments[2] as InlineSegment.TextSegment).annotated.toString()
+    )
   }
 
   @Test
@@ -80,11 +101,20 @@ class GradumInlineSegmentTest {
       urlAnnotations = urlAnnotations,
       inlineContent = emptyMap(),
     )
-    assertEquals(2, segments.size)
+    assertEquals(
+      2,
+      segments.size
+    )
     assertTrue(segments[0] is InlineSegment.LinkSegment)
-    assertEquals("docs", (segments[0] as InlineSegment.LinkSegment).text)
+    assertEquals(
+      "docs",
+      (segments[0] as InlineSegment.LinkSegment).text
+    )
     assertTrue(segments[1] is InlineSegment.TextSegment)
-    assertEquals(" and more", (segments[1] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      " and more",
+      (segments[1] as InlineSegment.TextSegment).annotated.toString()
+    )
   }
 
   @Test
@@ -98,11 +128,20 @@ class GradumInlineSegmentTest {
       urlAnnotations = urlAnnotations,
       inlineContent = emptyMap(),
     )
-    assertEquals(2, segments.size)
+    assertEquals(
+      2,
+      segments.size
+    )
     assertTrue(segments[0] is InlineSegment.TextSegment)
-    assertEquals("check ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      "check ",
+      (segments[0] as InlineSegment.TextSegment).annotated.toString()
+    )
     assertTrue(segments[1] is InlineSegment.LinkSegment)
-    assertEquals("home", (segments[1] as InlineSegment.LinkSegment).text)
+    assertEquals(
+      "home",
+      (segments[1] as InlineSegment.LinkSegment).text
+    )
   }
 
   @Test
@@ -117,12 +156,30 @@ class GradumInlineSegmentTest {
       urlAnnotations = urlAnnotations,
       inlineContent = emptyMap(),
     )
-    assertEquals(5, segments.size)
-    assertEquals("see ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
-    assertEquals("A", (segments[1] as InlineSegment.LinkSegment).text)
-    assertEquals(" and ", (segments[2] as InlineSegment.TextSegment).annotated.toString())
-    assertEquals("B", (segments[3] as InlineSegment.LinkSegment).text)
-    assertEquals(" ok", (segments[4] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      5,
+      segments.size
+    )
+    assertEquals(
+      "see ",
+      (segments[0] as InlineSegment.TextSegment).annotated.toString()
+    )
+    assertEquals(
+      "A",
+      (segments[1] as InlineSegment.LinkSegment).text
+    )
+    assertEquals(
+      " and ",
+      (segments[2] as InlineSegment.TextSegment).annotated.toString()
+    )
+    assertEquals(
+      "B",
+      (segments[3] as InlineSegment.LinkSegment).text
+    )
+    assertEquals(
+      " ok",
+      (segments[4] as InlineSegment.TextSegment).annotated.toString()
+    )
   }
 
   @Test
@@ -137,12 +194,30 @@ class GradumInlineSegmentTest {
       urlAnnotations = urlAnnotations,
       inlineContent = emptyMap(),
     )
-    assertEquals(5, segments.size)
-    assertEquals("a ", (segments[0] as InlineSegment.TextSegment).annotated.toString())
-    assertEquals("B", (segments[1] as InlineSegment.LinkSegment).text)
-    assertEquals(" c ", (segments[2] as InlineSegment.TextSegment).annotated.toString())
-    assertEquals("A", (segments[3] as InlineSegment.LinkSegment).text)
-    assertEquals(" d", (segments[4] as InlineSegment.TextSegment).annotated.toString())
+    assertEquals(
+      5,
+      segments.size
+    )
+    assertEquals(
+      "a ",
+      (segments[0] as InlineSegment.TextSegment).annotated.toString()
+    )
+    assertEquals(
+      "B",
+      (segments[1] as InlineSegment.LinkSegment).text
+    )
+    assertEquals(
+      " c ",
+      (segments[2] as InlineSegment.TextSegment).annotated.toString()
+    )
+    assertEquals(
+      "A",
+      (segments[3] as InlineSegment.LinkSegment).text
+    )
+    assertEquals(
+      " d",
+      (segments[4] as InlineSegment.TextSegment).annotated.toString()
+    )
   }
 
   @Test
@@ -168,9 +243,15 @@ class GradumInlineSegmentTest {
     )
     val textSegments: List<InlineSegment.TextSegment> = segments
       .filterIsInstance<InlineSegment.TextSegment>()
-    assertEquals(2, textSegments.size)
+    assertEquals(
+      2,
+      textSegments.size
+    )
     for ((_, inlineContent1) in textSegments) {
-      assertEquals(setOf(placeholder), inlineContent1.keys)
+      assertEquals(
+        setOf(placeholder),
+        inlineContent1.keys
+      )
     }
   }
 }

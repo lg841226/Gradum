@@ -46,11 +46,34 @@ abstract class Skill {
   /**
    * Returns the OpenAI-compatible function schema for this skill.
    *
-   * When [context] is provided, skills that offer different parameter
-   * structures for local vs cloud models (e.g. [EditFileSkill]) return
-   * a schema tailored to the active [gradum.Provider].
+   * A final template method: it decides whether the active model is simple by
+   * reading [SkillContext.isSimpleModel], then renders [schemaProperties]
+   * through the [SchemaBuilder] DSL. A skill declares its parameters once and
+   * never branches on simple vs cloud here.
    */
-  abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
+  fun getSchema(context: SkillContext? = null): Map<String, Any> {
+    val useSimple: Boolean = context?.isSimpleModel == true
+    return buildFunctionSchema(
+      useSimple = useSimple,
+      description = if (useSimple) (simpleDescription ?: description) else description,
+    ) {
+      schemaProperties()
+    }
+  }
+
+  /**
+   * Single source of truth for this skill's parameters, declared with the
+   * [SchemaBuilder] DSL (`string`, `integer`, `boolean`, `stringArray`,
+   * `objectArray`, and the `cloudOnly` / `simpleOnly` scopes). One declaration
+   * is rendered into both the simple and cloud schemas.
+   */
+  protected abstract val schemaProperties: SchemaBuilder.() -> Unit
+
+  /**
+   * Optional shorter description used for simple (local) model schemas. When
+   * `null`, [description] is reused for both model tiers.
+   */
+  protected open val simpleDescription: String? = null
 
   /**
    * Builds the standard OpenAI function-schema envelope
@@ -75,6 +98,31 @@ abstract class Skill {
       ),
     ),
   )
+
+  /**
+   * Builds the schema envelope from a [SchemaBuilder] DSL block instead of
+   * raw `mapOf` property maps. The [properties] argument describes the
+   * parameter object's fields with `string` / `integer` / ... helpers.
+   *
+   * When [useSimple] is true, parameters marked [ParameterLevel.CLOUD_ONLY]
+   * are dropped and required is derived from the remaining parameters.
+   */
+  protected fun buildFunctionSchema(
+    useSimple: Boolean,
+    description: String,
+    properties: SchemaBuilder.() -> Unit,
+  ): Map<String, Any> {
+    val builder: SchemaBuilder = SchemaBuilder()
+    builder.properties()
+    val visible: List<SkillParameter> = if (useSimple) {
+      builder.schemaParameters.filter { parameter -> parameter.level != ParameterLevel.CLOUD_ONLY }
+    } else {
+      builder.schemaParameters
+    }
+    val required: List<String> = visible.filter { parameter -> parameter.required }.map { parameter -> parameter.name }
+    val parameterMap: Map<String, Any> = visible.associate { parameter -> parameter.name to parameter.schema }
+    return buildFunctionSchema(description, parameterMap, required)
+  }
 
   /**
    * Whether this skill manages its own event stream (e.g. emits

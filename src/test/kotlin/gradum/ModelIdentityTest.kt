@@ -43,22 +43,34 @@ class ModelIdentityTest {
 
   @Test
   fun `schemaVariant returns SIMPLE for small local models`() {
-    assertEquals(SchemaVariant.SIMPLE, ModelIdentity.schemaVariant("qwen-14b"))
+    assertEquals(
+          SchemaVariant.SIMPLE,
+          ModelIdentity.schemaVariant("qwen-14b")
+    )
   }
 
   @Test
   fun `schemaVariant returns FULL for large models`() {
-    assertEquals(SchemaVariant.FULL, ModelIdentity.schemaVariant("qwen-70b"))
+    assertEquals(
+          SchemaVariant.FULL,
+          ModelIdentity.schemaVariant("qwen-70b")
+    )
   }
 
   @Test
   fun `schemaVariant returns FULL for blank name`() {
-    assertEquals(SchemaVariant.FULL, ModelIdentity.schemaVariant(""))
+    assertEquals(
+          SchemaVariant.FULL,
+          ModelIdentity.schemaVariant("")
+    )
   }
 
   @Test
   fun `schemaVariant returns FULL for cloud models`() {
-    assertEquals(SchemaVariant.FULL, ModelIdentity.schemaVariant("gpt-4o"))
+    assertEquals(
+          SchemaVariant.FULL,
+          ModelIdentity.schemaVariant("gpt-4o")
+    )
   }
 
   @Test
@@ -133,15 +145,27 @@ class ModelIdentityTest {
   fun `Zhipu BigModel falls back to shared cloudApiKeyEnvCandidates so it can also use a dedicated env var`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
     val zhipu: ServerDef = byName.getValue("Zhipu BigModel")
-    assertEquals("https://open.bigmodel.cn/api/coding/paas/v4", zhipu.baseUrl)
-    assertEquals("/models", zhipu.endpoint)
+    assertEquals(
+          "https://open.bigmodel.cn/api/coding/paas/v4",
+          zhipu.baseUrl
+    )
+    assertEquals(
+          "/models",
+          zhipu.endpoint
+    )
   }
 
   @Test
   fun `DeepSeek and MiniMax baseUrls match their official OpenAI-compatible hosts`() {
     val byName: Map<String, ServerDef> = ModelIdentity.knownCloudServers.associateBy { it.name }
-    assertEquals("https://api.deepseek.com/v1", byName.getValue("DeepSeek").baseUrl)
-    assertEquals("https://api.minimaxi.com/v1", byName.getValue("MiniMax").baseUrl)
+    assertEquals(
+          "https://api.deepseek.com/v1",
+          byName.getValue("DeepSeek").baseUrl
+    )
+    assertEquals(
+          "https://api.minimaxi.com/v1",
+          byName.getValue("MiniMax").baseUrl
+    )
   }
 
   @Test
@@ -152,7 +176,13 @@ class ModelIdentityTest {
       baseUrl = "https://example.com",
       providerType = Provider.OPENAI.wireType
     )
-    assertEquals(null, bareDef.apiKey)
-    assertEquals(null, bareDef.apiKeyEnvVar)
+    assertEquals(
+          null,
+          bareDef.apiKey
+    )
+    assertEquals(
+          null,
+          bareDef.apiKeyEnvVar
+    )
   }
 }

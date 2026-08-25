@@ -25,26 +25,19 @@ class TodoSkill : Skill() {
   override val description: String = "Initialize a task list"
 
   /**
-   * Available in AGENT and EDIT modes. EDIT mode permits task planning
-   * and tracking (project discovery and structured edits both benefit
-   * from a task list). READ_ONLY still excludes it since to_do imply
-   * that the agent will mutate the project.
+   * Available in AGENT mode only. Task planning drives the agent's
+   * step-by-step execution; EDIT and READ_ONLY exclude it because the
+   * to_do / finish_to_do_item pair implies an active agent workflow.
    */
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+    gradum.ToolMode.AGENT
   )
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return buildFunctionSchema(
-      description = description,
-      properties = mapOf(
-        "tasks" to mapOf(
-          "type" to "array",
-          "items" to mapOf("type" to "string"),
-          "description" to "List of tasks to complete",
-        ),
-      ),
-      required = listOf("tasks"),
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    stringArray(
+      name = "tasks",
+      description = "List of tasks to complete",
+      required = true,
     )
   }
 
@@ -76,30 +69,24 @@ class CompletePlanSkill : Skill() {
   override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
 
   /**
-   * Available in AGENT and EDIT modes, matching [TodoSkill].
-   * READ_ONLY still excludes it since finishing tasks implies the
-   * agent can mutate the project.
+   * Available in AGENT mode only, matching [TodoSkill]. EDIT and
+   * READ_ONLY exclude it since finishing tasks implies the active
+   * agent workflow that owns the task list.
    */
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+    gradum.ToolMode.AGENT
   )
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return buildFunctionSchema(
-      description = description,
-      properties = mapOf(
-        "task" to mapOf("type" to "string", "description" to "Task that was completed"),
-        "count" to mapOf(
-          "type" to "integer",
-          "description" to "Number of tasks to complete/skip at once (default 1)",
-        ),
-        "action" to mapOf(
-          "type" to "string",
-          "description" to "'complete' (default) marks tasks done; 'skip' advances without completing",
-          "enum" to listOf("complete", "skip")
-        ),
-      ),
-      required = emptyList(),
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(name = "task", description = "Task that was completed")
+    integer(
+      name = "count",
+      description = "Number of tasks to complete/skip at once (default 1)",
+    )
+    string(
+      name = "action",
+      description = "'complete' (default) marks tasks done; 'skip' advances without completing",
+      enumValues = listOf("complete", "skip"),
     )
   }
 

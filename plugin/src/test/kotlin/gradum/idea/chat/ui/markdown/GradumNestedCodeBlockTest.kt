@@ -29,7 +29,10 @@ class GradumNestedCodeBlockTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("task list marker should be preserved: $text", text.contains("- [ ] Configure settings:"))
@@ -52,7 +55,10 @@ class GradumNestedCodeBlockTest {
       |- [ ] Second task
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("first task should be present: $text", text.contains("- [ ] First task with code:"))
@@ -74,7 +80,10 @@ class GradumNestedCodeBlockTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("list item should be preserved: $text", text.contains("- Configure syntax highlighting:"))
@@ -94,7 +103,10 @@ class GradumNestedCodeBlockTest {
       |- Test code block rendering
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("first task should be present: $text", text.contains("- Task with code block:"))
@@ -123,7 +135,10 @@ class GradumNestedCodeBlockTest {
       |2. Run tests
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("ordered marker should be preserved: $text", text.contains("1. Setup environment:"))
@@ -142,7 +157,10 @@ class GradumNestedCodeBlockTest {
       |        ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("parent task should be present: $text", text.contains("- Parent task"))
@@ -167,7 +185,10 @@ class GradumNestedCodeBlockTest {
       |    > quoted text
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("task marker should be preserved: $text", text.contains("- [ ] Task with code and quote:"))
@@ -189,7 +210,10 @@ class GradumNestedCodeBlockTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("first task should be present: $text", text.contains("- First task:"))
@@ -208,7 +232,10 @@ class GradumNestedCodeBlockTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("language tag should be preserved: $text", text.contains("    ```bash"))
@@ -224,7 +251,10 @@ class GradumNestedCodeBlockTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("task should be present: $text", text.contains("- [ ] Task with empty code:"))

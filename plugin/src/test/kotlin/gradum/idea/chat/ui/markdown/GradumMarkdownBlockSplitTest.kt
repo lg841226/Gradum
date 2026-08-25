@@ -16,9 +16,15 @@ class GradumMarkdownBlockSplitTest {
   @Test
   fun `single paragraph stays as a single Plain segment`() {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("just some prose with `code`")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
-    assertEquals("just some prose with `code`", plain.text)
+    assertEquals(
+      "just some prose with `code`",
+      plain.text
+    )
   }
 
   @Test
@@ -27,11 +33,20 @@ class GradumMarkdownBlockSplitTest {
     // heading used to render as 20 chars (the heading was dropped).
     // The new splitter must emit two segments so both render.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("some prose\n\n## heading after")
-    assertEquals(2, segments.size)
+    assertEquals(
+      2,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     val heading: MarkdownSegment.NonProseBlock = segments[1] as MarkdownSegment.NonProseBlock
-    assertEquals("some prose", plain.text)
-    assertEquals("## heading after", heading.text)
+    assertEquals(
+      "some prose",
+      plain.text
+    )
+    assertEquals(
+      "## heading after",
+      heading.text
+    )
   }
 
   @Test
@@ -41,35 +56,62 @@ class GradumMarkdownBlockSplitTest {
     // in a fenced block. Both must render.
     val segments: List<MarkdownSegment> =
       splitPlainAtBlocks("here is `foo()`:\n\n```\nbar\n```\n")
-    assertEquals(2, segments.size)
+    assertEquals(
+      2,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     val code: MarkdownSegment.NonProseBlock = segments[1] as MarkdownSegment.NonProseBlock
-    assertEquals("here is `foo()`:", plain.text)
-    assertEquals("```\nbar\n```", code.text)
+    assertEquals(
+      "here is `foo()`:",
+      plain.text
+    )
+    assertEquals(
+      "```\nbar\n```",
+      code.text
+    )
   }
 
   @Test
   fun `bullet list becomes a single NonProseBlock`() {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("- item 1\n- item 2\n- item 3")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
-    assertEquals("- item 1\n- item 2\n- item 3", list.text)
+    assertEquals(
+      "- item 1\n- item 2\n- item 3",
+      list.text
+    )
   }
 
   @Test
   fun `blockquote becomes a single NonProseBlock`() {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("> quoted line\n> more quote")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val quote: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
-    assertEquals("> quoted line\n> more quote", quote.text)
+    assertEquals(
+      "> quoted line\n> more quote",
+      quote.text
+    )
   }
 
   @Test
   fun `thematic break becomes a single NonProseBlock`() {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("---")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val horizontalRule: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
-    assertEquals("---", horizontalRule.text)
+    assertEquals(
+      "---",
+      horizontalRule.text
+    )
   }
 
   @Test
@@ -90,14 +132,23 @@ class GradumMarkdownBlockSplitTest {
       |paragraph two
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(5, segments.size)
+    assertEquals(
+      5,
+      segments.size
+    )
     assertTrue("segment 0 should be Plain", segments[0] is MarkdownSegment.Plain)
     assertTrue("segment 1 should be NonProseBlock (list)", segments[1] is MarkdownSegment.NonProseBlock)
     assertTrue("segment 2 should be NonProseBlock (heading)", segments[2] is MarkdownSegment.NonProseBlock)
     assertTrue("segment 3 should be NonProseBlock (thematic break)", segments[3] is MarkdownSegment.NonProseBlock)
     assertTrue("segment 4 should be Plain", segments[4] is MarkdownSegment.Plain)
-    assertEquals("paragraph one with `code`", (segments[0] as MarkdownSegment.Plain).text)
-    assertEquals("paragraph two", (segments[4] as MarkdownSegment.Plain).text)
+    assertEquals(
+      "paragraph one with `code`",
+      (segments[0] as MarkdownSegment.Plain).text
+    )
+    assertEquals(
+      "paragraph two",
+      (segments[4] as MarkdownSegment.Plain).text
+    )
   }
 
   @Test
@@ -109,7 +160,10 @@ class GradumMarkdownBlockSplitTest {
     val segments: List<MarkdownSegment> =
       splitPlainAtBlocks("see [text][ref]\n\n[ref]: https://example.com")
     // Only the paragraph remains.
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     // The reference link resolves — the re-serialized text contains
     // the inline link form, not the reference form.
@@ -121,8 +175,14 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `blank input returns an empty list`() {
-    assertEquals(0, splitPlainAtBlocks("").size)
-    assertEquals(0, splitPlainAtBlocks("   \n  \t  ").size)
+    assertEquals(
+      0,
+      splitPlainAtBlocks("").size
+    )
+    assertEquals(
+      0,
+      splitPlainAtBlocks("   \n  \t  ").size
+    )
   }
 
   @Test
@@ -133,7 +193,10 @@ class GradumMarkdownBlockSplitTest {
     // the structure must survive.
     val input = "a **bold** *italic* `code` [link](https://x.test) end"
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     assertTrue(plain.text.contains("**bold**"))
     assertTrue(plain.text.contains("*italic*"))
@@ -159,7 +222,10 @@ class GradumMarkdownBlockSplitTest {
       |    1. 有序嵌套
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     // Each outer list item's paragraph must be on the same line
@@ -202,7 +268,10 @@ class GradumMarkdownBlockSplitTest {
       |    ```
       """.trimMargin()
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(input)
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val list: MarkdownSegment.NonProseBlock = segments[0] as MarkdownSegment.NonProseBlock
     val text: String = list.text
     assertTrue("list item should retain the paragraph: $text", text.contains("- list item"))
@@ -220,9 +289,15 @@ class GradumMarkdownBlockSplitTest {
     // serializer branch, the tildes would be silently dropped and
     // the inline parser would see plain text.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("a ~~struck~~ word")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
-    assertEquals("a ~~struck~~ word", plain.text)
+    assertEquals(
+      "a ~~struck~~ word",
+      plain.text
+    )
   }
 
   @Test
@@ -232,9 +307,15 @@ class GradumMarkdownBlockSplitTest {
     // user sees the thinking content, not a code block of raw HTML.
     val segments: List<MarkdownSegment> =
       splitPlainAtBlocks("<thinking>step by step plan</thinking>")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
-    assertEquals("step by step plan", plain.text)
+    assertEquals(
+      "step by step plan",
+      plain.text
+    )
   }
 
   @Test
@@ -242,7 +323,10 @@ class GradumMarkdownBlockSplitTest {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(
       "<thinking>The user wants X.\nThen Y.\n</thinking>"
     )
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
     assertTrue(
       "inner newline must be preserved: <${plain.text}>",
@@ -257,7 +341,10 @@ class GradumMarkdownBlockSplitTest {
     // stripper returns null, so the splitter emits a NonProseBlock
     // and falls through to Jewel's native Markdown(...) path.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("<br>")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     assertTrue(segments[0] is MarkdownSegment.NonProseBlock)
   }
 
@@ -266,13 +353,25 @@ class GradumMarkdownBlockSplitTest {
     val segments: List<MarkdownSegment> = splitPlainAtBlocks(
       "before\n\n<thinking>trace content</thinking>\n\nafter"
     )
-    assertEquals(3, segments.size)
+    assertEquals(
+      3,
+      segments.size
+    )
     assertTrue("segment 0 should be Plain (prose)", segments[0] is MarkdownSegment.Plain)
-    assertEquals("before", (segments[0] as MarkdownSegment.Plain).text)
+    assertEquals(
+      "before",
+      (segments[0] as MarkdownSegment.Plain).text
+    )
     assertTrue("segment 1 should be Plain (HtmlBlock → strip)", segments[1] is MarkdownSegment.Plain)
-    assertEquals("trace content", (segments[1] as MarkdownSegment.Plain).text)
+    assertEquals(
+      "trace content",
+      (segments[1] as MarkdownSegment.Plain).text
+    )
     assertTrue("segment 2 should be Plain (prose)", segments[2] is MarkdownSegment.Plain)
-    assertEquals("after", (segments[2] as MarkdownSegment.Plain).text)
+    assertEquals(
+      "after",
+      (segments[2] as MarkdownSegment.Plain).text
+    )
   }
 
   @Test
@@ -281,8 +380,14 @@ class GradumMarkdownBlockSplitTest {
     // `<b>` / `</b>` markers, so a paragraph with inline HTML tags
     // round-trips to the inner text only.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("plain <b>bold</b> text")
-    assertEquals(1, segments.size)
+    assertEquals(
+      1,
+      segments.size
+    )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
-    assertEquals("plain bold text", plain.text)
+    assertEquals(
+      "plain bold text",
+      plain.text
+    )
   }
 }

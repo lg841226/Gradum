@@ -2,21 +2,21 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DebugPlaybackEndToEndTest.kt  2026-08-10 23:19:40 Changed by gwy
+ * DebugPlaybackEndToEndTest.kt  2026-08-25 14:34:39 Changed by gwy
  */
 
 package gradum.server
 
-import io.ktor.client.HttpClient
+import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.*
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import java.nio.file.Files
-import java.nio.file.Path
 
 /**
  * Verifies the debug tool-call playback mode end-to-end: manuscript
@@ -39,7 +39,7 @@ class DebugPlaybackEndToEndTest {
     val scenarioXml = """
       <tls>
         <tt>Let me inspect the error codes first.</tt>
-        <t nam="read_file" pth="src/main/java/gradum/ErrorCode.java" lin="1-10"/>
+        <t nam="read_file" pth="src/main/kotlin/gradum/ErrorCode.kt" lin="1-10"/>
         <tt>Found them; searching for usages.</tt>
         <t nam="grep" pth="src/main" ptr="TOOL_NOT_PERMITTED" include="*.java" limit="5"/>
         <t nam="read_file" pth="gradum-does-not-exist.txt" exp="error"/>
@@ -48,16 +48,42 @@ class DebugPlaybackEndToEndTest {
 
     val body = postScenario(client, Path.of(projectRoot), scenarioXml)
 
-    assertTrue(body.lines().any { it.contains("\"type\":\"playback_start\"") }, "missing playback_start")
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"response\"") && it.contains("Let me inspect the error codes first.") },
+      body.lines().any {
+        it.contains(other = "\"type\":\"playback_start\"")
+      },
+      "missing playback_start"
+    )
+    assertTrue(
+      body.lines().any {
+        it.contains(other = "\"type\":\"response\"")
+          && it.contains(other = "Let me inspect the error codes first.")
+      },
       "missing response narration"
     )
-    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
-    assertTrue(body.lines().any { it.contains("\"type\":\"playback_end\"") }, "missing playback_end")
-    assertTrue(body.lines().any { it.contains("\"type\":\"session_end\"") }, "missing session_end")
     assertTrue(
-      body.lines().any { it.contains("playback_2") && it.contains("\"tool\":\"grep\"") },
+      body.lines().any {
+        it.contains(other = "\"type\":\"tool_call\"")
+      },
+      "missing tool_call"
+    )
+    assertTrue(
+      body.lines().any {
+        it.contains(other = "\"type\":\"playback_end\"")
+      },
+      "missing playback_end"
+    )
+    assertTrue(
+      body.lines().any {
+        it.contains(other = "\"type\":\"session_end\"")
+      },
+      "missing session_end"
+    )
+    assertTrue(
+      body.lines().any {
+        it.contains(other = "playback_2")
+          && it.contains(other = "\"tool\":\"grep\"")
+      },
       "grep tool_call event should carry the playback call id"
     )
   }
@@ -65,11 +91,13 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `invalid scenario xml surfaces an INVALID_SCENARIO_XML error`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client, temporaryProject(), "this is not xml")
+    val body = postScenario(client, temporaryProject(), scenarioXml = "this is not xml")
 
     assertNoPlayback(body)
     assertTrue(
-      body.lines().any { it.contains("\"code\":\"INVALID_SCENARIO_XML\"") },
+      body.lines().any {
+        it.contains(other = "\"code\":\"INVALID_SCENARIO_XML\"")
+      },
       "missing INVALID_SCENARIO_XML error event"
     )
   }
@@ -77,9 +105,10 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `wrong root element is rejected`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
+    val body = postScenario(
+      client,
       temporaryProject(),
-      """
+      scenarioXml = """
       <scenario>
         <t nam="glob" pth="src" ptr="*"/>
       </scenario>
@@ -88,7 +117,9 @@ class DebugPlaybackEndToEndTest {
 
     assertNoPlayback(body)
     assertTrue(
-      body.lines().any { it.contains("\"code\":\"INVALID_SCENARIO_XML\"") && it.contains("Expected root element") },
+      body.lines().any {
+        it.contains(other = "\"code\":\"INVALID_SCENARIO_XML\"") && it.contains(other = "Expected root element")
+      },
       "root mismatch should produce an INVALID_SCENARIO_XML error"
     )
   }
@@ -108,7 +139,8 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `unknown tool streams a SKILL_NOT_FOUND tool_call and error`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
+    val body = postScenario(
+      client,
       temporaryProject(),
       """
       <tls>
@@ -131,7 +163,8 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `expected failure passes without a mismatch`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
+    val body = postScenario(
+      client,
       temporaryProject(),
       """
       <tls>
@@ -140,24 +173,34 @@ class DebugPlaybackEndToEndTest {
       """.trimIndent()
     )
 
-    assertTrue(body.lines().any { it.contains("\"type\":\"tool_call\"") }, "missing tool_call")
-    assertTrue(body.lines().any { it.contains("\"code\":\"FILE_NOT_FOUND\"") }, "missing FILE_NOT_FOUND error")
+    assertTrue(actual = body.lines().any {
+      it.contains(other = "\"type\":\"tool_call\"")
+    }, message = "missing too other = l_call")
+    assertTrue(actual = body.lines().any {
+      it.contains(other = "\"code\":\"FILE_NOT_FOUND\"")
+    }, message = "missing FILE_NOT_FOUND error")
     assertTrue(
-      body.lines().none { it.contains("\"type\":\"tool_expect_mismatch\"") },
-      "expected failure must not be a mismatch"
+      actual = body.lines().none {
+        it.contains(other = "\"type\":\"tool_expect_mismatch\"")
+      },
+      message = "expected failure must not be a mismatch"
     )
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"mismatchCount\":0") },
-      "playback_end should report zero mismatches"
+      actual = body.lines().any {
+        it.contains(other = "\"type\":\"playback_end\"")
+          && it.contains(other = "\"mismatchCount\":0")
+      },
+      message = "playback_end should report zero mismatches"
     )
   }
 
   @Test
   fun `unexpected failure surfaces as a tool_expect_mismatch`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
+    val body = postScenario(
+      client,
       temporaryProject(),
-      """
+      scenarioXml = """
       <tls>
         <t nam="read_file" pth="does-not-exist.txt"/>
       </tls>
@@ -165,11 +208,16 @@ class DebugPlaybackEndToEndTest {
     )
 
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"tool_expect_mismatch\"") },
+      body.lines().any {
+        it.contains(other = "\"type\":\"tool_expect_mismatch\"")
+      },
       "missing tool_expect_mismatch for an unexpected failure"
     )
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"mismatchCount\":1") },
+      body.lines().any {
+        it.contains(other = "\"type\":\"playback_end\"")
+          && it.contains("\"mismatchCount\":1")
+      },
       "playback_end should report one mismatch"
     )
   }
@@ -177,9 +225,9 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `narration-only scenario streams response but no tool_call`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
-      temporaryProject(),
-      """
+    val body = postScenario(
+      client, temporaryProject(),
+      scenarioXml = """
       <tls>
         <tt>Just talking about the plan.</tt>
       </tls>
@@ -187,15 +235,27 @@ class DebugPlaybackEndToEndTest {
     )
 
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"response\"") && it.contains("Just talking about the plan.") },
+      body.lines().any {
+        it.contains(
+          other = "\"type\":\"response\""
+        ) && it.contains(other = "Just talking about the plan.")
+      },
       "missing response narration"
     )
     assertTrue(
-      body.lines().none { it.contains("\"type\":\"tool_call\"") },
+      body.lines().none {
+        it.contains(
+          other = "\"type\":\"tool_call\""
+        )
+      },
       "narration-only scenario must not emit tool_call"
     )
     assertTrue(
-      body.lines().any { it.contains("\"type\":\"playback_end\"") && it.contains("\"executedCalls\":0") },
+      body.lines().any {
+        it.contains(
+          other = "\"type\":\"playback_end\""
+        ) && it.contains(other = "\"executedCalls\":0")
+      },
       "playback_end should report zero executed calls"
     )
   }
@@ -203,9 +263,10 @@ class DebugPlaybackEndToEndTest {
   @Test
   fun `tools keep document order across narration`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
-    val body = postScenario(client,
+    val body = postScenario(
+      client,
       temporaryProject(),
-      """
+      scenarioXml = """
       <tls>
         <tt>first</tt>
         <t nam="read_file" pth="a.txt" exp="error"/>
@@ -215,22 +276,46 @@ class DebugPlaybackEndToEndTest {
       """.trimIndent()
     )
 
-    val toolLines: List<String> = body.lines().filter { it.contains("\"type\":\"tool_call\"") }
-    assertEquals(toolLines.size, 2, "expected exactly two tool_call events, got ${toolLines.size}")
-    assertTrue(toolLines[0].contains("a.txt"), "first tool_call should be the first tool")
-    assertTrue(toolLines[1].contains("b.txt"), "second tool_call should be the second tool")
+    val toolLines: List<String> = body.lines().filter {
+      it.contains(other = "\"type\":\"tool_call\"")
+    }
+    assertEquals(
+      2,
+      toolLines.size,
+      "expected exactly two tool_call events, got ${toolLines.size}"
+    )
+    assertTrue(
+      toolLines[0].contains("a.txt"),
+      "first tool_call should be the first tool"
+    )
+    assertTrue(
+      toolLines[1].contains("b.txt"),
+      "second tool_call should be the second tool"
+    )
   }
+
 
   @Test
   fun `recording file is written under gradum recordings dir`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
     val project = Files.createTempDirectory("gradum_playback_rec_")
-    postScenario(client, project, """<tls nam="recording_probe"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
-
     val recordingsDir = project.resolve(".gradum").resolve("recordings")
-    assertTrue(Files.isDirectory(recordingsDir), "recordings dir should exist under the project root")
+
+    postScenario(
+      client, project,
+      scenarioXml = """<tls nam="recording_probe"><t nam="read_file" pth="x.txt" exp="error"/></tls>"""
+    )
+
     val files = Files.list(recordingsDir).use { stream -> stream.toList() }
-    assertTrue(files.isNotEmpty(), "expected at least one recording file")
+
+    assertTrue(
+      Files.isDirectory(recordingsDir),
+      "recordings dir should exist under the project root"
+    )
+    assertTrue(
+      files.isNotEmpty(),
+      "expected at least one recording file"
+    )
     assertTrue(
       files.any { it.fileName.toString().startsWith("recording_probe-") },
       "recording file should be prefixed with the scenario name"
@@ -241,9 +326,14 @@ class DebugPlaybackEndToEndTest {
   fun `context is written under gradum sessions dir when sessionId is sent`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
     val project = Files.createTempDirectory("gradum_playback_session_")
-    postScenario(client, project, """<tls nam="ctx_session"><t nam="read_file" pth="x.txt" exp="error"/></tls>""", "20260812-131500-a1b2c3")
-
     val sessionDir = project.resolve(".gradum").resolve("sessions").resolve("20260812-131500-a1b2c3")
+
+    postScenario(
+      client, project,
+      scenarioXml = """<tls nam="ctx_session"><t nam="read_file" pth="x.txt" exp="error"/></tls>""",
+      sessionId = "20260812-131500-a1b2c3"
+    )
+
     assertTrue(
       Files.isRegularFile(sessionDir.resolve("context.json")),
       "context.json should be written under .gradum/sessions/<sessionId>/"
@@ -258,7 +348,7 @@ class DebugPlaybackEndToEndTest {
   fun `context falls back to legacy file when sessionId is absent`(): Unit = testApplication {
     application { module(ServerConfiguration()) }
     val project = Files.createTempDirectory("gradum_playback_legacy_")
-    postScenario(client, project, """<tls nam="ctx_legacy"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
+    postScenario(client, project, scenarioXml = """<tls nam="ctx_legacy"><t nam="read_file" pth="x.txt" exp="error"/></tls>""")
 
     assertTrue(
       Files.isRegularFile(project.resolve(".gradum").resolve("context.json")),
@@ -271,10 +361,12 @@ class DebugPlaybackEndToEndTest {
   }
 
   private suspend fun postScenario(client: HttpClient, project: Path, scenarioXml: String): String {
-    return postScenario(client, project, scenarioXml, null)
+    return postScenario(client, project, scenarioXml, sessionId = null)
   }
 
-  private suspend fun postScenario(client: HttpClient, project: Path, scenarioXml: String, sessionId: String?): String {
+  private suspend fun postScenario(
+    client: HttpClient, project: Path, scenarioXml: String, sessionId: String?
+  ): String {
     val projectRoot = project.toAbsolutePath().toString()
     val sessionField: String = if (sessionId != null) """"sessionId": "$sessionId",""" else ""
     val response: HttpResponse = client.post("/events") {
@@ -284,18 +376,36 @@ class DebugPlaybackEndToEndTest {
           "message": "play it back",
           "projectRoot": "$projectRoot",
           $sessionField
-          "toolCallXml": "${sceneEscape(scenarioXml)}"
+          "toolCallXml": "${sceneEscape(raw = scenarioXml)}"
         }"""
       )
     }
-    assertEquals(HttpStatusCode.OK, response.status)
+    assertEquals(
+      HttpStatusCode.OK,
+      response.status
+    )
     return response.bodyAsText()
   }
 
   private fun assertNoPlayback(body: String) {
-    assertTrue(body.lines().none { it.contains("\"type\":\"playback_start\"") }, "no playback_start on parse failure")
-    assertTrue(body.lines().none { it.contains("\"type\":\"playback_end\"") }, "no playback_end on parse failure")
-    assertTrue(body.lines().none { it.contains("\"type\":\"tool_call\"") }, "no tool_call on parse failure")
+    assertTrue(
+      body.lines().none {
+        it.contains(other = "\"type\":\"playback_start\"")
+      },
+      "no playback_start on parse failure"
+    )
+    assertTrue(
+      body.lines().none {
+        it.contains(other = "\"type\":\"playback_end\"")
+      },
+      "no playback_end on parse failure"
+    )
+    assertTrue(
+      body.lines().none {
+        it.contains(other = "\"type\":\"tool_call\"")
+      },
+      "no tool_call on parse failure"
+    )
   }
 
   private fun temporaryProject(): Path = Files.createTempDirectory("gradum_playback_e2e_")

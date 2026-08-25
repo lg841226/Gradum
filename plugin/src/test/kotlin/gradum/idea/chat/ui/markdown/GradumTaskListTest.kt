@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumTaskListTest.kt  2026-08-16 17:48:39 Changed by gwy
+ * GradumTaskListTest.kt  2026-08-25 14:56:51 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -27,7 +27,10 @@ class GradumTaskListTest {
     val paragraph: Paragraph = parseFirstParagraph("- [ ] todo item")
     val marker: TaskListMarker? = extractTaskListMarker(paragraph)
     assertNotNull(marker)
-    assertEquals(false, marker!!.checked)
+    assertEquals(
+      false,
+      marker!!.checked
+    )
   }
 
   @Test
@@ -35,7 +38,10 @@ class GradumTaskListTest {
     val paragraph: Paragraph = parseFirstParagraph("- [x] done item")
     val marker: TaskListMarker? = extractTaskListMarker(paragraph)
     assertNotNull(marker)
-    assertEquals(true, marker!!.checked)
+    assertEquals(
+      true,
+      marker!!.checked
+    )
   }
 
   @Test
@@ -43,7 +49,10 @@ class GradumTaskListTest {
     val paragraph: Paragraph = parseFirstParagraph("- [X] done item")
     val marker: TaskListMarker? = extractTaskListMarker(paragraph)
     assertNotNull(marker)
-    assertEquals(true, marker!!.checked)
+    assertEquals(
+      true,
+      marker!!.checked
+    )
   }
 
   @Test
@@ -75,21 +84,30 @@ class GradumTaskListTest {
   fun `stripping unchecked marker yields the text after the marker`() {
     val paragraph: Paragraph = parseFirstParagraph("- [ ] todo item")
     val stripped: Paragraph = stripTaskListMarker(paragraph) ?: error("should strip")
-    assertEquals("todo item", firstTextLiteral(stripped))
+    assertEquals(
+      "todo item",
+      firstTextLiteral(stripped)
+    )
   }
 
   @Test
   fun `stripping checked marker (lowercase x) yields the text after the marker`() {
     val paragraph: Paragraph = parseFirstParagraph("- [x] done item")
     val stripped: Paragraph = stripTaskListMarker(paragraph) ?: error("should strip")
-    assertEquals("done item", firstTextLiteral(stripped))
+    assertEquals(
+      "done item",
+      firstTextLiteral(stripped)
+    )
   }
 
   @Test
   fun `stripping checked marker (uppercase X) yields the text after the marker`() {
     val paragraph: Paragraph = parseFirstParagraph("- [X] done item")
     val stripped: Paragraph = stripTaskListMarker(paragraph) ?: error("should strip")
-    assertEquals("done item", firstTextLiteral(stripped))
+    assertEquals(
+      "done item",
+      firstTextLiteral(stripped)
+    )
   }
 
   @Test
@@ -102,7 +120,10 @@ class GradumTaskListTest {
   fun `stripping a task-list paragraph with empty content yields an empty Text`() {
     val paragraph: Paragraph = parseFirstParagraph("- [ ] ")
     val stripped: Paragraph = stripTaskListMarker(paragraph) ?: error("should strip")
-    assertEquals("", firstTextLiteral(stripped))
+    assertEquals(
+      "",
+      firstTextLiteral(stripped)
+    )
   }
 
   @Test
@@ -110,9 +131,15 @@ class GradumTaskListTest {
     val paragraph: Paragraph = parseFirstParagraph("- [ ] **bold** item")
     val stripped: Paragraph = stripTaskListMarker(paragraph) ?: error("should strip")
     val firstText: Text = stripped.firstChild as Text
-    assertEquals("", firstText.literal)
+    assertEquals(
+      "",
+      firstText.literal
+    )
     val children: List<Node> = collectAllChildren(stripped)
-    assertEquals(3, children.size)
+    assertEquals(
+      3,
+      children.size
+    )
   }
 
   @Test
@@ -120,16 +147,25 @@ class GradumTaskListTest {
     val parsed: Node = Parser.builder().build().parse("- [ ] one\n- [x] two\n- three")
     val list: BulletList = parsed.firstChild as BulletList
     val items: List<ListItem> = collectListItems(list)
-    assertEquals(3, items.size)
+    assertEquals(
+      3,
+      items.size
+    )
     val firstMarker: TaskListMarker? = (items[0].firstChild as? Paragraph)?.let(::extractTaskListMarker)
     val secondMarker: TaskListMarker? = (items[1].firstChild as? Paragraph)?.let(::extractTaskListMarker)
     val thirdMarker: TaskListMarker? = (items[2].firstChild as? Paragraph)?.let(::extractTaskListMarker)
-    assertEquals(TaskListMarker(checked = false), firstMarker)
-    assertEquals(TaskListMarker(checked = true), secondMarker)
+    assertEquals(
+      TaskListMarker(checked = false),
+      firstMarker
+    )
+    assertEquals(
+      TaskListMarker(checked = true),
+      secondMarker
+    )
     assertNull(thirdMarker)
   }
 
-  /** Parse a single line of markdown and return the first Paragraph found. */
+  /** Parse a single line of Markdown and return the first Paragraph found. */
   private fun parseFirstParagraph(line: String): Paragraph {
     val parser: Parser = Parser.builder().build()
     val bulletList: BulletList = parser.parse(line).firstChild as BulletList

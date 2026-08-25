@@ -439,7 +439,7 @@ internal fun parseInlineNodes(
   linkColor: Color,
   fontSizeSp: Float,
   imageAltColor: Color,
-  codeColor: Color,
+  codeColor: Color = Color.Unspecified,
   density: Density? = null,
   latexMeasurer: LatexMeasurerState? = null,
   editorFontFamily: FontFamily = FontFamily.Default

@@ -29,7 +29,10 @@ class SearchedRendererTest {
       arguments = mapOf("query" to "Kotlin coroutines"),
       result = mapOf("results" to emptyList<Map<String, Any>>())
     )
-    assertEquals("Kotlin coroutines", content.fieldMap["query"])
+    assertEquals(
+      "Kotlin coroutines",
+      content.fieldMap["query"]
+    )
   }
 
   @Test
@@ -42,7 +45,10 @@ class SearchedRendererTest {
       arguments = mapOf("query" to "x"),
       result = mapOf("results" to resultRows)
     )
-    assertEquals(2, content.fieldMap["totalResults"])
+    assertEquals(
+      2,
+      content.fieldMap["totalResults"]
+    )
   }
 
   @Test
@@ -61,7 +67,10 @@ class SearchedRendererTest {
     @Suppress("UNCHECKED_CAST")
     val first: Map<String, Any> =
       (content.fieldMap["results"] as List<Map<String, Any>>).first()
-    assertEquals("https://cdn.tavily.com/favicon.ico", first["faviconUrl"])
+    assertEquals(
+      "https://cdn.tavily.com/favicon.ico",
+      first["faviconUrl"]
+    )
   }
 
   @Test
@@ -92,11 +101,17 @@ class SearchedRendererTest {
       arguments = mapOf("query" to "nothing"),
       result = mapOf("results" to emptyList<Map<String, Any>>())
     )
-    assertEquals(0, content.fieldMap["totalResults"])
+    assertEquals(
+      0,
+      content.fieldMap["totalResults"]
+    )
     @Suppress("UNCHECKED_CAST")
     val rows: List<Map<String, Any>> =
       content.fieldMap["results"] as List<Map<String, Any>>
-    assertEquals(0, rows.size)
+    assertEquals(
+      0,
+      rows.size
+    )
   }
 
   @Test
@@ -109,13 +124,22 @@ class SearchedRendererTest {
     @Suppress("UNCHECKED_CAST")
     val rows: List<Map<String, Any>> =
       content.fieldMap["results"] as List<Map<String, Any>>
-    assertEquals(0, rows.size)
-    assertEquals(0, content.fieldMap["totalResults"])
+    assertEquals(
+      0,
+      rows.size
+    )
+    assertEquals(
+      0,
+      content.fieldMap["totalResults"]
+    )
   }
 
   @Test
   fun `renderer exposes Searched alias and Web icon`() {
-    assertEquals("Searched", renderer.alias())
+    assertEquals(
+      "Searched",
+      renderer.alias()
+    )
     assertNotNull(renderer.iconKey())
   }
 }

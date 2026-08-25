@@ -2,14 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PendingToolCallTest.kt  2026-08-19 15:45:37 Changed by gwy
+ * PendingToolCallTest.kt  2026-08-25 14:51:48 Changed by gwy
  */
 
 package gradum.idea.chat.model
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 
 /**
@@ -27,7 +25,7 @@ class PendingToolCallTest {
   fun `pending tool call appends a pending render block`() {
     val message = assistantMessage().appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(
+        info = ToolCallInfo(
           toolName = "run_cmd",
           alias = "Ran",
           toolCallId = "call_1",
@@ -39,17 +37,29 @@ class PendingToolCallTest {
 
     val block = message.renderBlocks.last() as RenderBlock.ToolCall
     assertTrue(block.pending)
-    assertEquals("call_1", block.toolCallId)
-    assertEquals("Ran", block.alias)
-    assertEquals(1, message.renderBlocks.size)
-    assertEquals(1, message.events.size)
+    assertEquals(
+      "call_1",
+      block.toolCallId
+    )
+    assertEquals(
+      "Ran",
+      block.alias
+    )
+    assertEquals(
+      1,
+      message.renderBlocks.size
+    )
+    assertEquals(
+      1,
+      message.events.size
+    )
   }
 
   @Test
   fun `completed tool call replaces its pending placeholder in place`() {
     val pending = assistantMessage().appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(
+        info = ToolCallInfo(
           toolName = "run_cmd",
           alias = "Ran",
           toolCallId = "call_1",
@@ -61,7 +71,7 @@ class PendingToolCallTest {
 
     val finished = pending.appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(
+        info = ToolCallInfo(
           toolName = "run_cmd",
           alias = "Ran",
           toolCallId = "call_1",
@@ -72,19 +82,30 @@ class PendingToolCallTest {
       )
     )
 
-    assertEquals("one event after replacement", 1, finished.events.size)
-    assertEquals("one block after replacement", 1, finished.renderBlocks.size)
+    assertEquals(
+      "one event after replacement",
+      1,
+      finished.events.size
+    )
+    assertEquals(
+      "one block after replacement",
+      1,
+      finished.renderBlocks.size
+    )
     val block = finished.renderBlocks.last() as RenderBlock.ToolCall
     assertFalse("pending flag cleared", block.pending)
     assertTrue(block.success)
-    assertEquals("{\"exitCode\":0,\"output\":\"On branch master\"}", block.result)
+    assertEquals(
+      "{\"exitCode\":0,\"output\":\"On branch master\"}",
+      block.result
+    )
   }
 
   @Test
   fun `completed tool call with no matching pending id appends a new block`() {
     val message = assistantMessage().appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(
+        info = ToolCallInfo(
           toolName = "read_file",
           alias = "Read",
           toolCallId = "call_9",
@@ -94,7 +115,7 @@ class PendingToolCallTest {
       )
     ).appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(
+        info = ToolCallInfo(
           toolName = "run_cmd",
           alias = "Ran",
           toolCallId = "call_10",
@@ -103,23 +124,32 @@ class PendingToolCallTest {
       )
     )
 
-    assertEquals(2, message.renderBlocks.size)
-    assertEquals(2, message.events.size)
+    assertEquals(
+      2,
+      message.renderBlocks.size
+    )
+    assertEquals(
+      2,
+      message.events.size
+    )
   }
 
   @Test
   fun `two pending calls with distinct ids both survive`() {
     val message = assistantMessage().appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(toolName = "read_file", toolCallId = "call_1", pending = true)
+        info = ToolCallInfo(toolName = "read_file", toolCallId = "call_1", pending = true)
       )
     ).appendEvent(
       ChatEvent.ToolCall(
-        ToolCallInfo(toolName = "grep", toolCallId = "call_2", pending = true)
+        info = ToolCallInfo(toolName = "grep", toolCallId = "call_2", pending = true)
       )
     )
 
-    assertEquals(2, message.renderBlocks.size)
+    assertEquals(
+      2,
+      message.renderBlocks.size
+    )
     assertTrue((message.renderBlocks[0] as RenderBlock.ToolCall).pending)
     assertTrue((message.renderBlocks[1] as RenderBlock.ToolCall).pending)
   }

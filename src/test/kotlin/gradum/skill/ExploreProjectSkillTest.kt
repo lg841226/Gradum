@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkillTest.kt  2026-08-18 20:11:54 Changed by gwy
+ * ExploreProjectSkillTest.kt  2026-08-25 14:08:20 Changed by gwy
  */
 
 package gradum.skill
@@ -45,12 +45,11 @@ class ExploreProjectSkillTest {
       file.writeText(body)
     }
 
-    // Mimics a Maven layout: files live under a sub-module.
+    // Mimics a Maven layout: files live under a submodule.
     write("reading-notes/src/main/java/com/example/readingnotes/Main.java", "class Main {}\n")
     write("reading-notes/src/main/java/com/example/readingnotes/Note.java", "class Note {}\n")
     write("reading-notes/pom.xml", "<project/>\n")
     write("README.md", "# readme\n")
-    // No extension → falls into other_files (md / txt are treated as code).
     write("notes", "plain notes content\n")
   }
 
@@ -69,7 +68,7 @@ class ExploreProjectSkillTest {
   }
 
   private fun assertSuccess(result: SkillResult): Map<String, Any> {
-    val success: SkillResult.Success = assertIs<SkillResult.Success>(result)
+    val success: SkillResult.Success = assertIs<SkillResult.Success>(value = result)
     return success.data
   }
 
@@ -90,7 +89,7 @@ class ExploreProjectSkillTest {
     )
     codePaths.forEach { filePath ->
       assertFalse(
-        filePath.startsWith('/'),
+        filePath.startsWith(char = '/'),
         "code_files path '$filePath' must be project-relative, not absolute"
       )
     }
@@ -101,11 +100,11 @@ class ExploreProjectSkillTest {
     val mainPath: String = codePaths.firstOrNull { it.endsWith("Main.java") }
       ?: error("code_files must contain Main.java, got: $codePaths")
     assertTrue(
-      mainPath.contains('/'),
+      mainPath.contains(char = '/'),
       "Main.java path '$mainPath' must include its directory segments"
     )
     assertTrue(
-      mainPath.contains("reading-notes"),
+      mainPath.contains(other = "reading-notes"),
       "Main.java path '$mainPath' must include the 'reading-notes' module segment"
     )
   }
@@ -122,9 +121,12 @@ class ExploreProjectSkillTest {
     )
     configEntries.forEach { entry ->
       val path: String = entry["path"] as? String ?: ""
-      assertTrue(path.isNotBlank(), "config_files entry missing 'path': $entry")
       assertTrue(
-        path.contains('/') || !path.contains('.'),
+        path.isNotBlank(),
+        "config_files entry missing 'path': $entry"
+      )
+      assertTrue(
+        path.contains(char = '/') || !path.contains(char = '.'),
         "config_files path '$path' looks like a bare basename"
       )
     }

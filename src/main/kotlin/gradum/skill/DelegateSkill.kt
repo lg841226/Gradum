@@ -42,25 +42,20 @@ class DelegateSkill : Skill() {
 
   private val subAgentTimeoutSeconds: Int = GradumConfig.DELEGATE_TIMEOUT_SECONDS
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return buildFunctionSchema(
-      description = description,
-      properties = mapOf(
-        "task" to mapOf(
-          "type" to "string",
-          "description" to "The task description for the sub-agent. Must be at least 120 characters. " +
-            "Be specific and include what information to gather, what questions to answer, " +
-            "and how to structure the result. IMPORTANT: Do not pass the user's message verbatim — " +
-            "rewrite the task in your own words with additional context.",
-        ),
-        "title" to mapOf(
-          "type" to "string",
-          "description" to "A short, concise title describing what the sub-agent is doing. " +
-            "This is displayed to the user so they know the purpose of the sub-agent. " +
-            "Keep it under 20 characters. ",
-        ),
-      ),
-      required = listOf("task"),
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "task",
+      description = "The task description for the sub-agent. Must be at least 120 characters. " +
+        "Be specific and include what information to gather, what questions to answer, " +
+        "and how to structure the result. IMPORTANT: Do not pass the user's message verbatim — " +
+        "rewrite the task in your own words with additional context.",
+      required = true,
+    )
+    string(
+      name = "title",
+      description = "A short, concise title describing what the sub-agent is doing. " +
+        "This is displayed to the user so they know the purpose of the sub-agent. " +
+        "Keep it under 20 characters. ",
     )
   }
 

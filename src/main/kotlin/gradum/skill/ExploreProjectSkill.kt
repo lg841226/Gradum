@@ -103,50 +103,31 @@ class ExploreProjectSkill : Skill() {
     return message + ("content" to reencoded)
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = emptyList(),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Scan project directory tree and return file summary (config, code with line counts, other files)." +
       " Use depth to control recursion depth."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "depth" to mapOf(
-      "type" to "integer",
-      "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
-        "depth=$MINIMUM_DEPTH lists immediate children only.",
-      "minimum" to MINIMUM_DEPTH,
-      "maximum" to MAXIMUM_DEPTH,
-      "default" to DEFAULT_DEPTH,
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "depth" to mapOf(
-      "type" to "integer",
-      "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    integer(
+      name = "depth",
+      description = "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
         "depth=$MINIMUM_DEPTH lists immediate children only. Values below $MINIMUM_DEPTH are forced to $DEFAULT_DEPTH.",
-      "minimum" to MINIMUM_DEPTH,
-      "maximum" to MAXIMUM_DEPTH,
-      "default" to DEFAULT_DEPTH,
-    ),
-    "exclude" to mapOf(
-      "type" to "string",
-      "description" to "Glob patterns to exclude, comma-separated (e.g. '*.test.*,**/node_modules/**')",
-    ),
-    "sort_by" to mapOf(
-      "type" to "string",
-      "description" to "Sort results by: 'name', 'lines', 'size' (default='name')",
-      "enum" to listOf("name", "lines", "size"),
-    ),
-  )
+      minimum = MINIMUM_DEPTH,
+      maximum = MAXIMUM_DEPTH,
+      default = DEFAULT_DEPTH,
+    )
+    cloudOnly {
+      string(
+        name = "exclude",
+        description = "Glob patterns to exclude, comma-separated (e.g. '*.test.*,**/node_modules/**')",
+      )
+      string(
+        name = "sort_by",
+        description = "Sort results by: 'name', 'lines', 'size' (default='name')",
+        enumValues = listOf("name", "lines", "size"),
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val projectRoot: String = context.projectRoot

@@ -71,7 +71,10 @@ class ReadFileSkillSecurityTest {
     )
     assertTrue("expected failure for absolute system path", result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+          ErrorCode.PERMISSION_DENIED.code,
+          result.code
+    )
     assertTrue(
       "rejection message should not leak whether the file exists: ${result.message}",
       result.message.contains("outside the project root")
@@ -86,7 +89,10 @@ class ReadFileSkillSecurityTest {
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+          ErrorCode.PERMISSION_DENIED.code,
+          result.code
+    )
   }
 
   @Test
@@ -105,7 +111,10 @@ class ReadFileSkillSecurityTest {
       )
       assertTrue(result is SkillResult.Failure)
       result as SkillResult.Failure
-      assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+      assertEquals(
+            ErrorCode.PERMISSION_DENIED.code,
+            result.code
+      )
     } finally {
       trapRoot.deleteRecursively()
     }
@@ -128,7 +137,10 @@ class ReadFileSkillSecurityTest {
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+          ErrorCode.PERMISSION_DENIED.code,
+          result.code
+    )
   }
 
   @Test
@@ -144,7 +156,10 @@ class ReadFileSkillSecurityTest {
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+          ErrorCode.PERMISSION_DENIED.code,
+          result.code
+    )
   }
 
   @Test

@@ -61,12 +61,30 @@ class GradumLinkStylingTest {
       inlineCodeStyle = inlineCodeStyle,
       linkColors = linkColors,
     )
-    assertEquals(SpanStyle(color = linkColors.content), styling.link)
-    assertEquals(SpanStyle(color = linkColors.contentDisabled), styling.linkDisabled)
-    assertEquals(SpanStyle(color = linkColors.contentFocused), styling.linkFocused)
-    assertEquals(SpanStyle(color = linkColors.contentHovered), styling.linkHovered)
-    assertEquals(SpanStyle(color = linkColors.contentPressed), styling.linkPressed)
-    assertEquals(SpanStyle(color = linkColors.contentVisited), styling.linkVisited)
+    assertEquals(
+      SpanStyle(color = linkColors.content),
+      styling.link
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentDisabled),
+      styling.linkDisabled
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentFocused),
+      styling.linkFocused
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentHovered),
+      styling.linkHovered
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentPressed),
+      styling.linkPressed
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentVisited),
+      styling.linkVisited
+    )
   }
 
   @Test
@@ -103,7 +121,10 @@ class GradumLinkStylingTest {
       inlineCodeStyle = inlineCodeStyle,
       linkColors = linkColors,
     )
-    assertEquals(inlineCodeStyle, styling.inlineCode)
+    assertEquals(
+      inlineCodeStyle,
+      styling.inlineCode
+    )
   }
 
   @Test

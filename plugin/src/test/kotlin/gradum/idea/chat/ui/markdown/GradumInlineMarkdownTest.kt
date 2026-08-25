@@ -157,11 +157,23 @@ class GradumInlineMarkdownTest {
   @Test
   fun `plain text round-trips without spans`() {
     val render: InlineMarkdownRender = inlineRender("just some prose")
-    assertEquals("just some prose", visibleText(render.annotated))
+    assertEquals(
+      "just some prose",
+      visibleText(render.annotated)
+    )
     // Empty SpanStyle ranges are skipped to keep the annotated string clean.
-    assertEquals(0, render.annotated.spanStyles.size)
-    assertEquals(0, render.inlineContent.size)
-    assertEquals(1, render.paragraphCount)
+    assertEquals(
+      0,
+      render.annotated.spanStyles.size
+    )
+    assertEquals(
+      0,
+      render.inlineContent.size
+    )
+    assertEquals(
+      1,
+      render.paragraphCount
+    )
   }
 
   @Test
@@ -170,7 +182,10 @@ class GradumInlineMarkdownTest {
     // (it's normalized during block parsing), but internal whitespace
     // is preserved. We assert the internal-whitespace guarantee.
     val render: InlineMarkdownRender = inlineRender("a  spaced  word")
-    assertEquals("a  spaced  word", visibleText(render.annotated))
+    assertEquals(
+      "a  spaced  word",
+      visibleText(render.annotated)
+    )
   }
 
   @Test
@@ -178,77 +193,114 @@ class GradumInlineMarkdownTest {
     val render: InlineMarkdownRender = inlineRender("a **bold** word")
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
-    assertEquals(1, boldSpans.size)
-    assertEquals("bold", visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)))
+    assertEquals(
+      1,
+      boldSpans.size
+    )
+    assertEquals(
+      "bold",
+      visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end))
+    )
   }
 
   @Test
-  fun `inline code produces one PUA placeholder`() {
+  fun `inline code renders as real text without a PUA placeholder`() {
+    // renderCodeInline writes the literal code text directly (with a
+    // SpanStyle + INLINE_CODE_SPAN_TAG annotation) instead of allocating
+    // a PUA chip — so the annotated string carries the text and there is
+    // no PUA placeholder to strip.
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
-    assertEquals(1, countPua(render.annotated))
+    assertEquals(
+      0,
+      countPua(render.annotated)
+    )
+    assertEquals(
+      "use foo() here",
+      visibleText(render.annotated)
+    )
   }
 
   @Test
-  fun `inline code registers exactly one chip`() {
+  fun `inline code registers no inlineContent chip`() {
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
-    assertEquals(1, render.inlineContent.size)
+    assertEquals(
+      0,
+      render.inlineContent.size
+    )
   }
 
   @Test
-  fun `multiple inline codes produce multiple chips with unique keys`() {
+  fun `multiple inline codes produce one code annotation each with the literal text`() {
     val render: InlineMarkdownRender = inlineRender("`a` and `bb` and `ccc`")
-    assertEquals(3, render.inlineContent.size)
-    // Each chip key must be unique — the PUA placeholder substrings
-    // are repeated to differentiate them.
-    assertEquals(3, render.inlineContent.keys.distinct().size)
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(
+        tag = INLINE_CODE_SPAN_TAG,
+        start = 0,
+        end = render.annotated.length,
+      )
+    assertEquals(
+      3,
+      codeAnnotations.size
+    )
+    assertEquals(
+      listOf("a", "bb", "ccc"),
+      codeAnnotations.map { annotation -> annotation.item }
+    )
   }
 
   @Test
   fun `inline code with backticks uses double backticks`() {
     // CommonMark: ``code with `backtick` inside``
     val render: InlineMarkdownRender = inlineRender("``code with `backtick` inside``")
-    assertEquals(1, render.inlineContent.size)
-    assertEquals(1, countPua(render.annotated))
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "code with `backtick` inside",
+      codeAnnotations[0].item
+    )
   }
 
   @Test
-  fun `inline code text is exposed via the code text annotation`() {
-    // The code text is NOT the map key in `inlineContent` (that's the
-    // PUA placeholder, which Compose needs as `StringAnnotation.item`
-    // to do the chip lookup). The raw code text is exposed via a
-    // separate annotation tag, so v3 can implement click-to-copy
-    // without re-walking the AST.
+  fun `inline code text is exposed via the code span annotation`() {
+    // The code text rides on the INLINE_CODE_SPAN_TAG annotation item,
+    // so consumers can implement click-to-copy etc. without re-walking
+    // the AST.
     val render: InlineMarkdownRender = inlineRender("see `myFunc`")
     val codeAnnotations: List<AnnotatedString.Range<String>> =
       render.annotated.getStringAnnotations(
-        tag = "INLINE_CODE_TEXT",
+        tag = INLINE_CODE_SPAN_TAG,
         start = 0,
         end = render.annotated.length,
       )
-    assertEquals(1, codeAnnotations.size)
-    assertEquals("myFunc", codeAnnotations[0].item)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "myFunc",
+      codeAnnotations[0].item
+    )
   }
 
   @Test
-  fun `INLINE_CONTENT_TAG annotation item matches the map key`() {
-    // Pins the bug that originally caused every chip to fall back to
-    // default Markdown rendering. Compose's `inlineContent` scans for
-    // annotations with the FIXED internal tag Compose owns. User-defined tags are ignored. The previous v1 used
-    // `pushStringAnnotation("INLINE_CODE", ...)`, which Compose
-    // ignored, so the chip was silently dropped. We now use
-    // `appendInlineContent(id, alternateText)` and use the PUA
-    // placeholder as both the annotation item and the map key.
+  fun `inline code uses the dedicated code tag, not an inline-content chip`() {
+    // Code is NOT an inlineContent chip (that path is for latex /
+    // footnote / image placeholders). It stays as styled text wrapped in
+    // INLINE_CODE_SPAN_TAG, which the renderer reads later to draw the
+    // rounded chip background.
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
-    val codeAnnotations: List<AnnotatedString.Range<String>> =
-      render.annotated.getStringAnnotations(
-        tag = INLINE_CONTENT_TAG,
-        start = 0,
-        end = render.annotated.length,
-      )
-    assertEquals(1, codeAnnotations.size)
-    // The annotation item must be one of the keys in `inlineContent`.
-    // For a single chip, that's the only key.
-    assertEquals(render.inlineContent.keys.single(), codeAnnotations[0].item)
+    assertEquals(
+      0,
+      render.annotated.getStringAnnotations(INLINE_CONTENT_TAG, 0, render.annotated.length).size,
+    )
+    assertEquals(
+      1,
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length).size,
+    )
   }
 
   @Test
@@ -338,10 +390,19 @@ class GradumInlineMarkdownTest {
   fun `link emits a URL annotation covering the link text range`() {
     val render: InlineMarkdownRender = inlineRender("visit [Example](https://example.com) today")
     val urlAnnotations: List<UrlAnnotation> = render.urlAnnotations
-    assertEquals(1, urlAnnotations.size)
-    assertEquals("https://example.com", urlAnnotations[0].url)
+    assertEquals(
+      1,
+      urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com",
+      urlAnnotations[0].url
+    )
     val linkText: String = visibleText(render.annotated.subSequence(urlAnnotations[0].start, urlAnnotations[0].end))
-    assertEquals("Example", linkText)
+    assertEquals(
+      "Example",
+      linkText
+    )
   }
 
   @Test
@@ -352,73 +413,136 @@ class GradumInlineMarkdownTest {
     // scope: paragraph-only). Inline links like `[text](https://...)`
     // resolve inline with no extra block, so they're always supported.
     val render: InlineMarkdownRender = inlineRender("see [Example](https://example.com/page)")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://example.com/page", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com/page",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare https URL is detected as link`() {
     val render: InlineMarkdownRender = inlineRender("visit https://example.com today")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://example.com", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com",
+      render.urlAnnotations[0].url
+    )
     val linkText: String = visibleText(render.annotated.subSequence(render.urlAnnotations[0].start, render.urlAnnotations[0].end))
-    assertEquals("https://example.com", linkText)
+    assertEquals(
+      "https://example.com",
+      linkText
+    )
   }
 
   @Test
   fun `bare http URL is detected as link`() {
     val render: InlineMarkdownRender = inlineRender("check http://localhost:8080/api now")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("http://localhost:8080/api", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "http://localhost:8080/api",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare URL followed by period excludes trailing punctuation`() {
     val render: InlineMarkdownRender = inlineRender("see https://example.com.")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://example.com", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare URL inside inline code is NOT detected as link`() {
     val render: InlineMarkdownRender = inlineRender("use `https://example.com` in code")
-    assertEquals(0, render.urlAnnotations.size)
+    assertEquals(
+      0,
+      render.urlAnnotations.size
+    )
   }
 
   @Test
   fun `multiple bare URLs in one paragraph are all detected`() {
     val render: InlineMarkdownRender = inlineRender("a https://first.com and https://second.org here")
-    assertEquals(2, render.urlAnnotations.size)
-    assertEquals("https://first.com", render.urlAnnotations[0].url)
-    assertEquals("https://second.org", render.urlAnnotations[1].url)
+    assertEquals(
+      2,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://first.com",
+      render.urlAnnotations[0].url
+    )
+    assertEquals(
+      "https://second.org",
+      render.urlAnnotations[1].url
+    )
   }
 
   @Test
   fun `bare URL with path containing hyphens and dots is detected as link`() {
     val render: InlineMarkdownRender = inlineRender("see http://www.apache.org/licenses/LICENSE-2.0.")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("http://www.apache.org/licenses/LICENSE-2.0", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "http://www.apache.org/licenses/LICENSE-2.0",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare URL with path containing hyphens and html extension is detected as link`() {
     val render: InlineMarkdownRender = inlineRender("see https://www.eclipse.org/legal/epl-v10.html.")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://www.eclipse.org/legal/epl-v10.html", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://www.eclipse.org/legal/epl-v10.html",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare URL with path containing multiple hyphens is detected as link`() {
     val render: InlineMarkdownRender = inlineRender("visit https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `bare URL in markdown link text does NOT duplicate annotations`() {
     val render: InlineMarkdownRender = inlineRender("[click](https://example.com)")
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://example.com", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
@@ -428,22 +552,40 @@ class GradumInlineMarkdownTest {
       "expected bold span",
       render.annotated.spanStyles.any { span -> span.item.fontWeight == FontWeight.SemiBold },
     )
-    assertEquals(1, render.inlineContent.size)
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "code",
+      codeAnnotations[0].item
+    )
   }
 
   @Test
   fun `two paragraphs separated by blank line render as two paragraphs`() {
     val render: InlineMarkdownRender = inlineRender("first.\n\nsecond.")
-    assertEquals(2, render.paragraphCount)
+    assertEquals(
+      2,
+      render.paragraphCount
+    )
     val visible: String = visibleText(render.annotated)
-    assertEquals("first.\n\nsecond.", visible)
+    assertEquals(
+      "first.\n\nsecond.",
+      visible
+    )
   }
 
   @Test
   fun `escaped asterisks render as literal asterisks - no emphasis`() {
     val render: InlineMarkdownRender = inlineRender("not \\*italic\\* here")
     val visible: String = visibleText(render.annotated)
-    assertEquals("not *italic* here", visible)
+    assertEquals(
+      "not *italic* here",
+      visible
+    )
     assertTrue(render.annotated.spanStyles.none { span -> span.item.fontStyle == FontStyle.Italic })
   }
 
@@ -451,19 +593,29 @@ class GradumInlineMarkdownTest {
   fun `soft line break becomes a single space`() {
     val render: InlineMarkdownRender = inlineRender("line one\nline two")
     val visible: String = visibleText(render.annotated)
-    assertEquals("line one line two", visible)
+    assertEquals(
+      "line one line two",
+      visible
+    )
   }
 
   @Test
-  fun `paragraph with only inline code renders correctly`() {
-    // The chip is the source of truth for the code text — the
-    // `InlineTextContent` lambda closes over the `code` String and
-    // passes it to `InlineCodeChip`. We can't easily reach into the
-    // chip from a unit test, so the chip-registered assertion is the
-    // meaningful one.
+  fun `paragraph with only inline code renders the code text`() {
     val render: InlineMarkdownRender = inlineRender("`only code`")
-    assertEquals(1, render.inlineContent.size)
-    assertEquals(1, countPua(render.annotated))
+    assertEquals(
+      "only code",
+      visibleText(render.annotated)
+    )
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "only code",
+      codeAnnotations[0].item
+    )
   }
 
   @Test
@@ -491,7 +643,10 @@ class GradumInlineMarkdownTest {
       render.annotated.spanStyles.filter { span ->
         span.item.textDecoration?.contains(TextDecoration.LineThrough) == true
       }
-    assertEquals(1, strikeSpans.size)
+    assertEquals(
+      1,
+      strikeSpans.size
+    )
     assertEquals(
       "struck",
       visibleText(render.annotated.subSequence(strikeSpans[0].start, strikeSpans[0].end)),
@@ -507,9 +662,15 @@ class GradumInlineMarkdownTest {
       render.annotated.spanStyles.filter { span ->
         span.item.textDecoration?.contains(TextDecoration.LineThrough) == true
       }
-    assertEquals(1, strikeSpans.size)
+    assertEquals(
+      1,
+      strikeSpans.size
+    )
     val strikeRange: AnnotatedString.Range<SpanStyle> = strikeSpans[0]
-    assertEquals(FontWeight.SemiBold, strikeRange.item.fontWeight)
+    assertEquals(
+      FontWeight.SemiBold,
+      strikeRange.item.fontWeight
+    )
     assertEquals(
       "bold strike",
       visibleText(render.annotated.subSequence(strikeRange.start, strikeRange.end)),
@@ -529,28 +690,49 @@ class GradumInlineMarkdownTest {
     assertTrue("expected at least one strike span", strikeSpans.isNotEmpty())
     // The link's URL is still emitted (URL annotations are not
     // stripped by the strike wrapper).
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://x.test", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://x.test",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
   fun `strikethrough and inline code in same paragraph both render`() {
-    // Mix of formatting — the chip and the strike should be
-    // independent (the strike only spans the tided text, the chip is
-    // a separate `inlineContent` entry).
+    // Mix of formatting — the strike spans only the struck text while
+    // the code is independent via its own INLINE_CODE_SPAN_TAG range.
     val render: InlineMarkdownRender = inlineRender("struck ~~here~~ with `code`")
     val strikeSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span ->
         span.item.textDecoration?.contains(TextDecoration.LineThrough) == true
       }
-    assertEquals(1, strikeSpans.size)
-    assertEquals(1, render.inlineContent.size)
+    assertEquals(
+      1,
+      strikeSpans.size
+    )
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "code",
+      codeAnnotations[0].item
+    )
   }
 
   @Test
   fun `cjkAwareWidthRatio for pure Latin uses latin ratio`() {
     // 5 ASCII chars × 0.6 = 3.0
-    assertEquals(3.0f, cjkAwareWidthRatio("hello"), 0.0001f)
+    assertEquals(
+      3.0f,
+      cjkAwareWidthRatio("hello"),
+      0.0001f
+    )
   }
 
   @Test
@@ -560,13 +742,21 @@ class GradumInlineMarkdownTest {
     // is the bug the user reported: chip clipped Chinese code spans
     // because the old computation under-allocated width for full-width
     // characters.
-    assertEquals(3.0f, cjkAwareWidthRatio("中文测"), 0.0001f)
+    assertEquals(
+      3.0f,
+      cjkAwareWidthRatio("中文测"),
+      0.0001f
+    )
   }
 
   @Test
   fun `cjkAwareWidthRatio for mixed CJK and Latin sums per char`() {
     // "中a文" — 2 CJK × 1.0 + 1 Latin × 0.6 = 2.6
-    assertEquals(2.6f, cjkAwareWidthRatio("中a文"), 0.0001f)
+    assertEquals(
+      2.6f,
+      cjkAwareWidthRatio("中a文"),
+      0.0001f
+    )
   }
 
   @Test
@@ -579,22 +769,30 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio empty string returns zero`() {
-    assertEquals(0f, cjkAwareWidthRatio(""), 0.0001f)
+    assertEquals(
+      0f,
+      cjkAwareWidthRatio(""),
+      0.0001f
+    )
   }
 
   @Test
   fun `inline code with Chinese characters renders successfully`() {
-    // The fix for the "chip clips Chinese code" bug. We can't easily
-    // reach into the chip's Placeholder from a unit test (it's stored
-    // in a private map and computed inside a closure), but the chip
-    // width is derived from `cjkAwareWidthRatio`, so a longer code
-    // string of CJK chars produces a wider chip than the same length
-    // of Latin chars. We verify the helper directly in the dedicated
-    // tests above and assert the public render still succeeds here
-    // (no exception, one chip registered).
     val render: InlineMarkdownRender = inlineRender("use `中文测试` here")
-    assertEquals(1, render.inlineContent.size)
-    assertEquals(1, countPua(render.annotated))
+    assertEquals(
+      "use 中文测试 here",
+      visibleText(render.annotated)
+    )
+    val codeAnnotations: List<AnnotatedString.Range<String>> =
+      render.annotated.getStringAnnotations(INLINE_CODE_SPAN_TAG, 0, render.annotated.length)
+    assertEquals(
+      1,
+      codeAnnotations.size
+    )
+    assertEquals(
+      "中文测试",
+      codeAnnotations[0].item
+    )
   }
 
   // parseInlineNodes — the AST-walking entry point used by
@@ -616,19 +814,29 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val visible: String = visibleText(render.annotated)
     // The list-marker-looking "2. " prefix is preserved as text and
     // the strong-emphasis renders as a bold span — neither was
     // possible through the old serialize-then-re-parse flow.
-    assertEquals("2. 游戏速度不一致", visible)
+    assertEquals(
+      "2. 游戏速度不一致",
+      visible
+    )
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
-    assertEquals(1, boldSpans.size)
+    assertEquals(
+      1,
+      boldSpans.size
+    )
     val boldText: String =
       visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end))
-    assertEquals("游戏速度不一致", boldText)
+    assertEquals(
+      "游戏速度不一致",
+      boldText
+    )
   }
 
   @Test
@@ -641,11 +849,15 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
-    assertEquals(1, boldSpans.size)
+    assertEquals(
+      1,
+      boldSpans.size
+    )
     assertEquals(
       "bold heading",
       visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),
@@ -662,10 +874,17 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
-    assertEquals(1, render.urlAnnotations.size)
-    assertEquals("https://example.com", render.urlAnnotations[0].url)
+    assertEquals(
+      1,
+      render.urlAnnotations.size
+    )
+    assertEquals(
+      "https://example.com",
+      render.urlAnnotations[0].url
+    )
   }
 
   @Test
@@ -680,9 +899,13 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
-    assertEquals("just text", visibleText(render.annotated))
+    assertEquals(
+      "just text",
+      visibleText(render.annotated)
+    )
   }
 
   @Test
@@ -706,13 +929,20 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val visible: String = visibleText(render.annotated)
-    assertEquals("bold item", visible)
+    assertEquals(
+      "bold item",
+      visible
+    )
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
-    assertEquals(1, boldSpans.size)
+    assertEquals(
+      1,
+      boldSpans.size
+    )
     assertEquals(
       "bold item",
       visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),
@@ -735,11 +965,15 @@ class GradumInlineMarkdownTest {
       linkColor = testLinkColor,
       fontSizeSp = testFontSizeSp,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val boldSpans: List<AnnotatedString.Range<SpanStyle>> =
       render.annotated.spanStyles.filter { span -> span.item.fontWeight == FontWeight.SemiBold }
-    assertEquals(1, boldSpans.size)
+    assertEquals(
+      1,
+      boldSpans.size
+    )
     assertEquals(
       "bold quote",
       visibleText(render.annotated.subSequence(boldSpans[0].start, boldSpans[0].end)),

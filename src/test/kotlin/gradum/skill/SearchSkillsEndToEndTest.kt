@@ -113,7 +113,10 @@ class SearchSkillsEndToEndTest {
             files,
             "Glob must return the file's path relative to the project root"
         )
-        assertEquals(1, result.fields("total_files"))
+        assertEquals(
+              1,
+              result.fields("total_files")
+        )
     }
 
     @Test
@@ -150,7 +153,10 @@ class SearchSkillsEndToEndTest {
             context = simpleContext(),
         )
         val files = result.fields("files") as List<*>
-        assertEquals(listOf("gradum_kotlin.kt"), files)
+        assertEquals(
+              listOf("gradum_kotlin.kt"),
+              files
+        )
     }
 
     @Test
@@ -199,7 +205,10 @@ class SearchSkillsEndToEndTest {
             context = simpleContext(),
         )
         val files = (result.fields("files") as List<*>).map { it as String }
-        assertEquals(listOf("README.md"), files)
+        assertEquals(
+              listOf("README.md"),
+              files
+        )
     }
 
     @Test
@@ -209,8 +218,14 @@ class SearchSkillsEndToEndTest {
             arguments = mapOf("pattern" to "**/DoesNotExist.kt"),
             context = simpleContext(),
         )
-        assertEquals(0, result.fields("total_files"))
-        assertEquals(emptyList<String>(), result.fields("files"))
+        assertEquals(
+              0,
+              result.fields("total_files")
+        )
+        assertEquals(
+              emptyList<String>(),
+              result.fields("files")
+        )
     }
 
     @Test
@@ -294,7 +309,10 @@ class SearchSkillsEndToEndTest {
             ),
             context = simpleContext(),
         )
-        assertEquals(0, result.fields("total_matches"))
+        assertEquals(
+              0,
+              result.fields("total_matches")
+        )
     }
 
     @Test
@@ -412,8 +430,14 @@ class SearchSkillsEndToEndTest {
         val total = result.fields("total_files") as Int
         val limitApplied = result.fields("limit_applied") as Boolean
         val files = result.fields("files") as List<*>
-        assertEquals(2, files.size)
-        assertEquals(2, total)
+        assertEquals(
+              2,
+              files.size
+        )
+        assertEquals(
+              2,
+              total
+        )
         assertTrue(limitApplied, "limit_applied must be true when result hit the cap")
     }
 
@@ -428,7 +452,11 @@ class SearchSkillsEndToEndTest {
             context = simpleContext(),
         )
         val files = result.fields("files") as List<*>
-        assertEquals(1, files.size, "limit=0 should be coerced up to 1, not silently drop results")
+        assertEquals(
+              1,
+              files.size,
+              "limit=0 should be coerced up to 1, not silently drop results"
+        )
     }
 
     @Test
@@ -439,7 +467,10 @@ class SearchSkillsEndToEndTest {
             arguments = mapOf("pattern" to "src/*/kotlin")
         )
         val files = (result.fields("files") as List<*>).map { it as String }
-        assertEquals(emptyList(), files)
+        assertEquals(
+              emptyList(),
+              files
+        )
     }
 
     @Test
@@ -548,7 +579,10 @@ class SearchSkillsEndToEndTest {
         )
         val matches = result.fields("matches") as List<*>
         val limitApplied = result.fields("limit_applied") as Boolean
-        assertEquals(2, matches.size)
+        assertEquals(
+              2,
+              matches.size
+        )
         assertTrue(limitApplied, "limit_applied must be true when matches hit the cap")
     }
 

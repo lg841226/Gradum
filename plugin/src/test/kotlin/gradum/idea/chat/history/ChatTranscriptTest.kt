@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscriptTest.kt  2026-08-17 09:33:13 Changed by gwy
+ * ChatTranscriptTest.kt  2026-08-25 14:53:11 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -50,7 +50,7 @@ class ChatTranscriptTest {
       serverName = "ollama",
       tokenUsage = TokenUsage(promptTokens = 10, completionTokens = 20, totalTokens = 30)
     )
-      .appendEvent(ChatEvent.Thinking("Let me look at the block aggregation logic.\n\nSecond thought line."))
+      .appendEvent(ChatEvent.Thinking(content = "Let me look at the block aggregation logic.\n\nSecond thought line."))
       .appendEvent(
         ChatEvent.ToolCall(
           ToolCallInfo(
@@ -67,7 +67,7 @@ class ChatTranscriptTest {
           )
         )
       )
-      .appendEvent(ChatEvent.Response("The bug is that consecutive responses are coalesced into one render block.\n\nHere's the fix:"))
+      .appendEvent(ChatEvent.Response(content = "The bug is that consecutive responses are coalesced into one render block.\n\nHere's the fix:"))
       .appendEvent(
         ChatEvent.Error(
           message = "Tool execution failed",
@@ -75,24 +75,28 @@ class ChatTranscriptTest {
           tool = "read_file"
         )
       )
-      .appendEvent(ChatEvent.Response("I've corrected the aggregation."))
+      .appendEvent(ChatEvent.Response(content = "I've corrected the aggregation."))
 
     return listOf(user, assistant)
   }
 
   @Test
   fun `generate produces a valid v1 header`() {
-    val transcriptMarkdown: String = ChatTranscript.generateTranscript(sampleMessages(), sessionMeta)
-    assertTrue(transcriptMarkdown.startsWith("<!-- gradum-transcript v1 -->"))
-    assertTrue(transcriptMarkdown.contains("<!-- gradum-session id=\"20260812-131500-a1b2\""))
+    val transcriptMarkdown: String = ChatTranscript.generateTranscript(messages = sampleMessages(), sessionMeta)
+    assertTrue(transcriptMarkdown.startsWith(prefix = "<!-- gradum-transcript v1 -->"))
+    assertTrue(transcriptMarkdown.contains(other = "<!-- gradum-session id=\"20260812-131500-a1b2\""))
   }
 
   @Test
   fun `round trip preserves fullContent exactly`() {
     val messages: List<ChatMessage> = sampleMessages()
-    val parsed: ChatTranscript.ParsedTranscript = ChatTranscript.parseTranscript(ChatTranscript.generateTranscript(messages, sessionMeta))
+    val parsed: ChatTranscript.ParsedTranscript =
+      ChatTranscript.parseTranscript(content = ChatTranscript.generateTranscript(messages, sessionMeta))
 
-    assertEquals(messages.size, parsed.messages.size)
+    assertEquals(
+      messages.size,
+      parsed.messages.size
+    )
     for (index in messages.indices) {
       assertEquals(
         "fullContent mismatch at message $index",
@@ -105,32 +109,64 @@ class ChatTranscriptTest {
   @Test
   fun `round trip preserves event sequence and tool call details`() {
     val messages: List<ChatMessage> = sampleMessages()
-    val parsed: ChatTranscript.ParsedTranscript = ChatTranscript.parseTranscript(ChatTranscript.generateTranscript(messages, sessionMeta))
+    val parsed: ChatTranscript.ParsedTranscript =
+      ChatTranscript.parseTranscript(content = ChatTranscript.generateTranscript(messages, sessionMeta))
 
     val originalAssistant: ChatMessage = messages[1]
     val parsedAssistant: ChatMessage = parsed.messages[1]
 
-    assertEquals(originalAssistant.events.size, parsedAssistant.events.size)
+    assertEquals(
+      originalAssistant.events.size,
+      parsedAssistant.events.size
+    )
     for (index in originalAssistant.events.indices) {
       val original: ChatEvent = originalAssistant.events[index]
       val parsedEvent: ChatEvent = parsedAssistant.events[index]
-      assertEquals("event type at index $index", original::class, parsedEvent::class)
+      assertEquals(
+        "event type at index $index",
+        original::class,
+        parsedEvent::class
+      )
 
       when (original) {
         is ChatEvent.ToolCall -> {
           val parsedCall: ChatEvent.ToolCall = parsedEvent as ChatEvent.ToolCall
-          assertEquals(original.info.alias, parsedCall.info.alias)
-          assertEquals(original.info.toolCallId, parsedCall.info.toolCallId)
-          assertEquals(original.info.success, parsedCall.info.success)
-          assertEquals(original.info.result, parsedCall.info.result)
-          assertEquals(original.info.arguments, parsedCall.info.arguments)
+          assertEquals(
+            original.info.alias,
+            parsedCall.info.alias
+          )
+          assertEquals(
+            original.info.toolCallId,
+            parsedCall.info.toolCallId
+          )
+          assertEquals(
+            original.info.success,
+            parsedCall.info.success
+          )
+          assertEquals(
+            original.info.result,
+            parsedCall.info.result
+          )
+          assertEquals(
+            original.info.arguments,
+            parsedCall.info.arguments
+          )
         }
 
         is ChatEvent.Error -> {
           val parsedError: ChatEvent.Error = parsedEvent as ChatEvent.Error
-          assertEquals(original.code, parsedError.code)
-          assertEquals(original.tool, parsedError.tool)
-          assertEquals(original.message, parsedError.message)
+          assertEquals(
+            original.code,
+            parsedError.code
+          )
+          assertEquals(
+            original.tool,
+            parsedError.tool
+          )
+          assertEquals(
+            original.message,
+            parsedError.message
+          )
         }
 
         else -> assertEquals(original, parsedEvent)
@@ -141,40 +177,76 @@ class ChatTranscriptTest {
   @Test
   fun `round trip preserves metadata token usage and attachments`() {
     val messages: List<ChatMessage> = sampleMessages()
-    val parsed: ChatTranscript.ParsedTranscript = ChatTranscript.parseTranscript(ChatTranscript.generateTranscript(messages, sessionMeta))
+    val parsed: ChatTranscript.ParsedTranscript =
+      ChatTranscript.parseTranscript(content = ChatTranscript.generateTranscript(messages, sessionMeta))
 
-    assertEquals(sessionMeta, parsed.sessionMeta)
+    assertEquals(
+      sessionMeta,
+      parsed.sessionMeta
+    )
 
     val originalAssistant: ChatMessage = messages[1]
     val parsedAssistant: ChatMessage = parsed.messages[1]
-    assertEquals(originalAssistant.modelName, parsedAssistant.modelName)
-    assertEquals(originalAssistant.provider, parsedAssistant.provider)
-    assertEquals(originalAssistant.serverName, parsedAssistant.serverName)
-    assertEquals(originalAssistant.tokenUsage, parsedAssistant.tokenUsage)
+    assertEquals(
+      originalAssistant.modelName,
+      parsedAssistant.modelName
+    )
+    assertEquals(
+      originalAssistant.provider,
+      parsedAssistant.provider
+    )
+    assertEquals(
+      originalAssistant.serverName,
+      parsedAssistant.serverName
+    )
+    assertEquals(
+      originalAssistant.tokenUsage,
+      parsedAssistant.tokenUsage
+    )
 
     val parsedUser: ChatMessage = parsed.messages[0]
-    assertEquals(1, parsedUser.attachments.size)
+    assertEquals(
+      1,
+      parsedUser.attachments.size
+    )
     val attachment: AttachedText = parsedUser.attachments[0] as AttachedText
-    assertEquals("Main.kt", attachment.preview)
-    assertEquals("/project/src/Main.kt", attachment.content)
+    assertEquals(
+      "Main.kt",
+      attachment.preview
+    )
+    assertEquals(
+      "/project/src/Main.kt",
+      attachment.content
+    )
   }
 
   @Test
   fun `user message content round trips verbatim`() {
     val messages: List<ChatMessage> = sampleMessages()
-    val parsed: ChatTranscript.ParsedTranscript = ChatTranscript.parseTranscript(ChatTranscript.generateTranscript(messages, sessionMeta))
-    assertEquals(messages[0].content, parsed.messages[0].content)
+    val parsed: ChatTranscript.ParsedTranscript =
+      ChatTranscript.parseTranscript(content = ChatTranscript.generateTranscript(messages, sessionMeta))
+    assertEquals(
+      messages[0].content,
+      parsed.messages[0].content
+    )
   }
 
   @Test
   fun `parseMeta extracts header without parsing messages`() {
     val transcriptMarkdown: String = ChatTranscript.generateTranscript(sampleMessages(), sessionMeta)
-    assertEquals(sessionMeta, ChatTranscript.parseMeta(transcriptMarkdown))
+    assertEquals(
+      sessionMeta,
+      ChatTranscript.parseMeta(transcriptMarkdown)
+    )
   }
 
   @Test
   fun `parseMeta returns blank sessionMeta for non transcript content`() {
-    assertEquals(SessionMeta("", "", "", 0L, 0L), ChatTranscript.parseMeta("# just markdown"))
+    assertEquals(
+      SessionMeta(
+        title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L
+      ), ChatTranscript.parseMeta("# just markdown")
+    )
   }
 
   @Test
@@ -191,6 +263,9 @@ class ChatTranscriptTest {
 
   @Test
   fun `titleFor falls back to empty for no user message`() {
-    assertEquals("", ChatTranscript.titleFor(listOf(ChatMessage(role = "assistant", content = ""))))
+    assertEquals(
+      "",
+      ChatTranscript.titleFor(messages = listOf(ChatMessage(role = "assistant", content = "")))
+    )
   }
 }

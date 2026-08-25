@@ -54,49 +54,35 @@ class SaveFileSkill : Skill() {
   override val historyKeepCount: Int = 1
   override val historyVolatileKeys: List<String> = listOf("content")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimple) "Create or overwrite a file" else description,
-      properties = if (useSimple) simpleProperties() else cloudProperties(),
-      required = listOf("path", "content"),
+  override val simpleDescription: String = "Create or overwrite a file"
+
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "path",
+      description = "File path to write. Relative paths are resolved from the project root. Parent directories are created automatically if they do not exist.",
+      required = true,
     )
-  }
-
-  private fun simpleProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path to write. Relative paths are resolved from the project root. Parent directories are created automatically if they do not exist.",
-    ),
-    "content" to mapOf(
-      "type" to "string",
-      "description" to "Content to write to the file. This is the exact text that will be written. Must not be empty.",
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path to write. Parent directories are created if missing.",
-    ),
-    "content" to mapOf(
-      "type" to "string",
-      "description" to "Content to write to the file.",
-    ),
-    "mode" to mapOf(
-      "type" to "string",
-      "description" to "Write mode: 'overwrite' (default) replaces entire file, 'append' adds to end.",
-      "enum" to listOf("overwrite", "append")
-    ),
-    "encoding" to mapOf(
-      "type" to "string",
-      "description" to "Character encoding for the file. Defaults to 'UTF-8'.",
-      "enum" to listOf(
-        "UTF-8", "UTF-16", "UTF-16LE", "UTF-16BE",
-        "ISO-8859-1", "GBK", "GB2312", "US-ASCII"
+    string(
+      name = "content",
+      description = "Content to write to the file. This is the exact text that will be written. Must not be empty.",
+      required = true,
+    )
+    cloudOnly {
+      string(
+        name = "mode",
+        description = "Write mode: 'overwrite' (default) replaces entire file, 'append' adds to end.",
+        enumValues = listOf("overwrite", "append"),
       )
-    ),
-  )
+      string(
+        name = "encoding",
+        description = "Character encoding for the file. Defaults to 'UTF-8'.",
+        enumValues = listOf(
+          "UTF-8", "UTF-16", "UTF-16LE", "UTF-16BE",
+          "ISO-8859-1", "GBK", "GB2312", "US-ASCII"
+        ),
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""

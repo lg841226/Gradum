@@ -47,61 +47,48 @@ class EditFileSkill : Skill() {
     return result.filterKeys { it != "originalContent" && it != "modifiedContent" }
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("path") + if (useSimpleSchema) listOf("oldString", "newString") else listOf("edits"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new" +
       " text as newString. oldString must match exactly. You can only edit one location per call."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path relative to project root, e.g. 'src/main.py'."
-    ),
-    "oldString" to mapOf(
-      "type" to "string",
-      "description" to "Exact text to find. Include 2-3 lines of context for uniqueness. " +
-        "Must match file content including whitespace and indentation."
-    ),
-    "newString" to mapOf(
-      "type" to "string",
-      "description" to "Replacement text. Can be longer, shorter, or empty to delete."
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Replace text in a file. Provide the exact text to find (oldString) " +
-        "and the replacement (newString).",
-    ),
-    "edits" to mapOf(
-      "type" to "array",
-      "description" to "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
-        " Edits are applied in order. You can batch multiple edits to the same file in one call.",
-      "items" to mapOf(
-        "type" to "object",
-        "properties" to mapOf(
-          "oldString" to mapOf(
-            "type" to "string",
-            "description" to "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
-          ),
-          "newString" to mapOf(
-            "type" to "string",
-            "description" to "You want replacement text. Can be empty to delete lines."
-          ),
-        ),
-        "required" to listOf("oldString", "newString"),
-      ),
-    ),
-  )
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "path",
+      description = "File path relative to project root, e.g. 'src/main.py'.",
+      required = true,
+    )
+    simpleOnly {
+      string(
+        name = "oldString",
+        description = "Exact text to find. Include 2-3 lines of context for uniqueness. " +
+          "Must match file content including whitespace and indentation.",
+        required = true,
+      )
+      string(
+        name = "newString",
+        description = "Replacement text. Can be longer, shorter, or empty to delete.",
+        required = true,
+      )
+    }
+    cloudOnly {
+      objectArray(
+        name = "edits",
+        description = "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
+          " Edits are applied in order. You can batch multiple edits to the same file in one call.",
+        required = true,
+        itemRequired = listOf("oldString", "newString"),
+      ) {
+        string(
+          name = "oldString",
+          description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
+        )
+        string(
+          name = "newString",
+          description = "You want replacement text. Can be empty to delete lines."
+        )
+      }
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val useSimpleSchema = context.isSimpleModel

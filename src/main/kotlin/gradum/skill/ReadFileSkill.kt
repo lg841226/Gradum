@@ -50,41 +50,27 @@ class ReadFileSkill : Skill() {
   override val historyKeepCount: Int = Int.MAX_VALUE
   override val historyVolatileKeys: List<String> = emptyList()
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("path"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Read file content. Returns content as a map of line numbers to line text." +
       " Use this before edit_file to see the exact text to replace."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path relative to project root, e.g. 'src/main.py'."
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path to read. Use relative path from current directory.",
-    ),
-    "lineRange" to mapOf(
-      "type" to "string",
-      "description" to "Line range to read. Format: 'start-end' (e.g., '12-22').",
-    ),
-    "line_range" to mapOf(
-      "type" to "string",
-      "description" to "Alias for lineRange. Format: 'start-end' (e.g., '12-22').",
-    ),
-  )
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "path",
+      description = "File path relative to project root, e.g. 'src/main.py'.",
+      required = true,
+    )
+    cloudOnly {
+      string(
+        name = "lineRange",
+        description = "Line range to read. Format: 'start-end' (e.g., '12-22').",
+      )
+      string(
+        name = "line_range",
+        description = "Alias for lineRange. Format: 'start-end' (e.g., '12-22').",
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""

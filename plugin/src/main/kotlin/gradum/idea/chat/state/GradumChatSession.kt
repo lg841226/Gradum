@@ -75,9 +75,11 @@ class GradumChatSession {
   var selectedPermission: String by mutableStateOf(PermissionMode.READONLY)
 
   init {
-    val appearance = AppearanceSettings.getInstance().snapshot
-    if (appearance.rememberPermission) selectedPermission = appearance.lastPermission
-    if (appearance.rememberContext) isExpanded = appearance.lastContextEnabled
+    try {
+      val appearance = AppearanceSettings.getInstance().snapshot
+      if (appearance.rememberPermission) selectedPermission = appearance.lastPermission
+      if (appearance.rememberContext) isExpanded = appearance.lastContextEnabled
+    } catch (_: Throwable) { /* no IntelliJ platform in unit tests */ }
   }
 
   val toolMode: String get() = selectedPermission

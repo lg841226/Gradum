@@ -47,28 +47,24 @@ class WebSearchSkill : Skill() {
     }
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimple) "Search the web for information" else description,
-      properties = mapOf(
-        "query" to mapOf(
-          "type" to "string",
-          "description" to "Search query"
-        ),
-        "max_results" to mapOf(
-          "type" to "integer",
-          "description" to "Max results (1-10, default 5)",
-          "minimum" to 1,
-          "maximum" to 10
-        ),
-        "search_depth" to mapOf(
-          "type" to "string",
-          "description" to "Search depth: basic (fast) or advanced (thorough). Default basic.",
-          "enum" to listOf("basic", "advanced")
-        )
-      ),
-      required = listOf("query"),
+  override val simpleDescription: String = "Search the web for information"
+
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "query",
+      description = "Search query",
+      required = true,
+    )
+    integer(
+      name = "max_results",
+      description = "Max results (1-10, default 5)",
+      minimum = 1,
+      maximum = 10,
+    )
+    string(
+      name = "search_depth",
+      description = "Search depth: basic (fast) or advanced (thorough). Default basic.",
+      enumValues = listOf("basic", "advanced"),
     )
   }
 

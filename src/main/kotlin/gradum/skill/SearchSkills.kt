@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-13 21:07:46 Changed by gwy
+ * SearchSkills.kt  2026-08-25 02:57:40 Changed by gwy
  */
 package gradum.skill
 
@@ -103,10 +103,6 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
   }
 
   val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
-  // Reject paths the resolver flagged as outside the project root.
-  // The LLM is untrusted, and search is read-only but still
-  // expensive when pointed at `/` or `/etc` — better to fail fast
-  // than enumerate the whole filesystem.
   if (resolved.rejectionReason != null) {
     logger.debug("Search path rejected: {} ({})", relativePath, resolved.rejectionReason)
     return null
@@ -219,58 +215,36 @@ class GrepSkill : Skill() {
 
   override val historyVolatileKeys: List<String> = listOf("matches")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("pattern"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Search file contents by pattern. Returns matching lines with file path and line number."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Text or regex pattern to search for."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory to search in. Relative to project root. Defaults to project root."
-    ),
-    "include" to mapOf(
-      "type" to "string",
-      "description" to "File filter, e.g. '*.txt'."
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "pattern",
+      description = "Text or regex pattern to search for.",
+      required = true,
     )
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Regular expression pattern to search for in file contents."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory path to search in. Relative to project root. Defaults to project root."
-    ),
-    "include" to mapOf(
-      "type" to "string",
-      "description" to "File glob pattern to filter which files to search, e.g. '*.kt' or '*.{kt,java}'."
-    ),
-    "limit" to mapOf(
-      "type" to "integer",
-      "description" to "Maximum number of matches to return. Defaults to 100.",
-      "minimum" to 1,
-      "maximum" to MAX_MATCHES_LIMIT
-    ),
-    "caseSensitive" to mapOf(
-      "type" to "boolean",
-      "description" to "Whether the search is case-sensitive. Defaults to false."
+    string(
+      name = "path",
+      description = "Directory to search in. Relative to project root. Defaults to project root.",
     )
-  )
+    string(
+      name = "include",
+      description = "File filter, e.g. '*.txt'.",
+    )
+    cloudOnly {
+      integer(
+        name = "limit",
+        description = "Maximum number of matches to return. Defaults to 100.",
+        minimum = 1,
+        maximum = MAX_MATCHES_LIMIT,
+      )
+      boolean(
+        name = "caseSensitive",
+        description = "Whether the search is case-sensitive. Defaults to false.",
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val ignoreCase = if (context.isSimpleModel) {
@@ -479,46 +453,28 @@ class GlobSkill : Skill() {
 
   override val historyVolatileKeys: List<String> = listOf("files")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("pattern"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Find files matching a glob pattern. Returns matching file paths."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Glob pattern, e.g. '*.kt', '**/*.test.*', 'src/**'."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory to search in. Relative to project root. Defaults to project root."
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "pattern",
+      description = "Glob pattern, e.g. '*.kt', '**/*.test.*', 'src/**'.",
+      required = true,
     )
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Glob pattern to match files, e.g. '*.kt', '**/*.test.*', 'src/**/*.{kt,java}'."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory path to search in. Relative to project root. Defaults to project root."
-    ),
-    "limit" to mapOf(
-      "type" to "integer",
-      "description" to "Maximum number of files to return. Defaults to 500.",
-      "minimum" to 1,
-      "maximum" to GLOB_MAX_LIMIT
+    string(
+      name = "path",
+      description = "Directory to search in. Relative to project root. Defaults to project root.",
     )
-  )
+    cloudOnly {
+      integer(
+        name = "limit",
+        description = "Maximum number of files to return. Defaults to 500.",
+        minimum = 1,
+        maximum = GLOB_MAX_LIMIT,
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     return executeInternal(arguments, context)

@@ -2,18 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkillTest.kt  2026-08-23 Changed by gwy
+ * DelegateSkillTest.kt  2026-08-25 14:13:18 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.*
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /**
  * Pins [DelegateSkill] behavior that the agent orchestration and the
@@ -32,20 +27,22 @@ class DelegateSkillTest {
 
   private val skill: DelegateSkill = DelegateSkill()
 
-  // ------------------------------------------------------------------
-  // Schema
-  // ------------------------------------------------------------------
-
   @Test
   fun `getSchema returns a function schema with task and title`() {
     val schema: Map<String, Any> = skill.getSchema()
 
-    assertEquals("function", schema["type"])
+    assertEquals(
+      "function",
+      schema["type"]
+    )
     @Suppress("UNCHECKED_CAST")
     val function: Map<String, Any> = schema["function"] as? Map<String, Any>
       ?: error("schema missing 'function' key")
 
-    assertEquals("delegate_task", function["name"])
+    assertEquals(
+      "delegate_task",
+      function["name"]
+    )
     assertTrue(
       (function["description"] as? String)?.isNotBlank() ?: false,
       "description must not be blank"
@@ -70,10 +67,6 @@ class DelegateSkillTest {
     assertFalse("title" in required, "title must NOT be a required parameter")
   }
 
-  // ------------------------------------------------------------------
-  // Tool-mode gates
-  // ------------------------------------------------------------------
-
   @Test
   fun `allows agent edit and read-only tool modes`() {
     assertTrue(skill.allows(ToolMode.AGENT), "must allow AGENT mode")
@@ -81,18 +74,10 @@ class DelegateSkillTest {
     assertTrue(skill.allows(ToolMode.READ_ONLY), "must allow READ_ONLY mode")
   }
 
-  // ------------------------------------------------------------------
-  // Event-stream ownership
-  // ------------------------------------------------------------------
-
   @Test
   fun `manageOwnEventStream is true`() {
     assertTrue(skill.manageOwnEventStream, "delegate skill must manage its own event stream")
   }
-
-  // ------------------------------------------------------------------
-  // Parameter validation
-  // ------------------------------------------------------------------
 
   @Test
   fun `execute fails when task parameter is missing`() {
@@ -104,8 +89,11 @@ class DelegateSkillTest {
     )
     val result = skill.execute(emptyMap(), context)
 
-    assertIs<SkillResult.Failure>(result)
-    assertEquals("INVALID_PARAMETER", result.code)
+    assertIs<SkillResult.Failure>(value = result)
+    assertEquals(
+      "INVALID_PARAMETER",
+      result.code
+    )
   }
 
   @Test
@@ -116,13 +104,16 @@ class DelegateSkillTest {
       agentConfiguration = null,
       emitEvent = { _, _ -> }
     )
-    val longTask = "a".repeat(GradumConfig.MIN_TASK_LENGTH)
-    val result = skill.execute(mapOf("task" to longTask), context)
+    val longTask = "a".repeat(n = GradumConfig.MIN_TASK_LENGTH)
+    val result = skill.execute(arguments = mapOf("task" to longTask), context)
 
-    assertIs<SkillResult.Failure>(result)
-    assertEquals("CLIENT_ERROR", result.code)
+    assertIs<SkillResult.Failure>(value = result)
+    assertEquals(
+      "CLIENT_ERROR",
+      result.code
+    )
     assertTrue(
-      result.message.contains("AgentConfiguration", ignoreCase = true),
+      result.message.contains(other = "AgentConfiguration", ignoreCase = true),
       "error message should mention AgentConfiguration"
     )
   }
@@ -135,14 +126,17 @@ class DelegateSkillTest {
       agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA),
       emitEvent = null
     )
-    val longTask = "a".repeat(GradumConfig.MIN_TASK_LENGTH)
-    val result = skill.execute(mapOf("task" to longTask), context)
+    val longTask = "a".repeat(n = GradumConfig.MIN_TASK_LENGTH)
+    val result = skill.execute(arguments = mapOf("task" to longTask), context)
 
-    assertIs<SkillResult.Failure>(result)
-    assertEquals("CLIENT_ERROR", result.code)
+    assertIs<SkillResult.Failure>(value = result)
+    assertEquals(
+      "CLIENT_ERROR",
+      result.code
+    )
     assertTrue(
-      result.message.contains("emitEvent", ignoreCase = true)
-        || result.message.contains("event", ignoreCase = true),
+      result.message.contains(other = "emitEvent", ignoreCase = true)
+        || result.message.contains(other = "event", ignoreCase = true),
       "error message should mention emitEvent"
     )
   }

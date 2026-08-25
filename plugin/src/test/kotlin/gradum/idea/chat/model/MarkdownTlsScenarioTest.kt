@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MarkdownTlsScenarioTest.kt  2026-08-09 22:25:00 Changed by gwy
+ * MarkdownTlsScenarioTest.kt  2026-08-25 14:40:47 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -43,15 +43,15 @@ class MarkdownTlsScenarioTest {
   @Test
   fun `multiple tls blocks keep document order with narration between`() {
     val xml: String = MarkdownTlsScenario.compile(
-      """
+      markdown = """
       <tls><t nam="glob" pth="src" ptr="**/*.kt"/></tls>
       between
       <tls><t nam="grep" pth="src" ptr="TODO"/></tls>
       """.trimIndent()
     )!!
 
-    val globIndex = xml.indexOf("glob")
-    val grepIndex = xml.indexOf("grep")
+    val globIndex = xml.indexOf(string = "glob")
+    val grepIndex = xml.indexOf(string = "grep")
     assertTrue("glob tool should come first", globIndex in 0..<grepIndex)
     assertTrue("narration must be embedded between tool blocks", xml.contains("between"))
   }
@@ -59,7 +59,7 @@ class MarkdownTlsScenarioTest {
   @Test
   fun `a single tls block compiles intact`() {
     val xml: String = MarkdownTlsScenario.compile(
-      "<tls><t nam=\"glob\" pth=\"src\" ptr=\"**\"/></tls>"
+      markdown = "<tls><t nam=\"glob\" pth=\"src\" ptr=\"**\"/></tls>"
     )!!
     assertTrue(xml.contains("<t nam=\"glob\" pth=\"src\" ptr=\"**\"/>"))
     assertTrue(xml.startsWith("<tls"))
@@ -69,18 +69,18 @@ class MarkdownTlsScenarioTest {
   @Test
   fun `scenario name is xml escaped`() {
     val xml: String = MarkdownTlsScenario.compile(
-      "<tls><t nam=\"glob\" pth=\"src\"/></tls>",
+      markdown = "<tls><t nam=\"glob\" pth=\"src\"/></tls>",
       scenarioName = "a \"weird\" & <name>"
     )!!
-    assertTrue(xml.contains("nam=\"a &quot;weird&quot; &amp; &lt;name&gt;\""))
-    assertTrue(xml.startsWith("<tls"))
-    assertTrue(xml.endsWith("</tls>"))
+    assertTrue(xml.contains(other = "nam=\"a &quot;weird&quot; &amp; &lt;name&gt;\""))
+    assertTrue(xml.startsWith(prefix = "<tls"))
+    assertTrue(xml.endsWith(suffix = "</tls>"))
   }
 
   @Test
   fun `narration before and after the last tool block is both kept`() {
     val xml: String = MarkdownTlsScenario.compile(
-      """
+      markdown = """
       Leading thoughts before any tool.
 
       <tls>
@@ -91,16 +91,16 @@ class MarkdownTlsScenarioTest {
       """.trimIndent()
     )!!
 
-    assertTrue(xml.contains("<tt><![CDATA[Leading thoughts before any tool.]]></tt>"))
-    assertTrue(xml.contains("<t nam=\"glob\" pth=\"src\" ptr=\"*\"/>"))
-    assertTrue(xml.contains("<tt><![CDATA[Trailing summary after the last tool.]]></tt>"))
-    assertTrue(xml.endsWith("</tls>"))
+    assertTrue(xml.contains(other = "<tt><![CDATA[Leading thoughts before any tool.]]></tt>"))
+    assertTrue(xml.contains(other = "<t nam=\"glob\" pth=\"src\" ptr=\"*\"/>"))
+    assertTrue(xml.contains(other = "<tt><![CDATA[Trailing summary after the last tool.]]></tt>"))
+    assertTrue(xml.endsWith(suffix = "</tls>"))
   }
 
   @Test
   fun `cdata escaping keeps well-formed xml when narration contains cd terminator`() {
     val xml: String = MarkdownTlsScenario.compile(
-      """
+      markdown = """
       Code ends with ]]> here.
 
       <tls>
@@ -116,16 +116,19 @@ class MarkdownTlsScenarioTest {
   @Test
   fun `adjacent tool blocks without narration compile back to back`() {
     val xml: String = MarkdownTlsScenario.compile(
-      """
+      markdown = """
       <tls><t nam="glob" pth="src" ptr="*.kt"/></tls>
       <tls><t nam="grep" pth="src" ptr="TODO"/></tls>
       """.trimIndent()
     )!!
 
-    val globIndex = xml.indexOf("glob")
-    val grepIndex = xml.indexOf("grep")
-    assertTrue("glob should come first", globIndex in 0..<grepIndex)
-    assertTrue(xml.startsWith("<tls"))
-    assertTrue(xml.endsWith("</tls>"))
+    val globIndex = xml.indexOf(string = "glob")
+    val grepIndex = xml.indexOf(string = "grep")
+    assertTrue(
+      "glob should come first",
+      globIndex in 0..<grepIndex
+    )
+    assertTrue(xml.startsWith(prefix = "<tls"))
+    assertTrue(xml.endsWith(suffix = "</tls>"))
   }
 }

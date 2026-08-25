@@ -275,6 +275,7 @@ class OllamaClient(
           if (httpResponse.status.value !in 200..299) {
             flowCollector.emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
             lastError = null
+            succeeded = true
             return@execute
           }
 
