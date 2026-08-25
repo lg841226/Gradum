@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-24 15:24:31 Changed by gwy
+ * DelegateSkill.kt  2026-08-25 17:03:08 Changed by gwy
  */
 
 package gradum.skill
@@ -80,13 +80,13 @@ class DelegateSkill : Skill() {
 
     delegateLog.info(
       "Validation passed: taskLength={}, title='{}', taskFirst80='{}'",
-      task.length, title, task.take(80).replace('\n', ' ')
+      task.length, title, task.take(n = 80).replace('\n', ' ')
     )
 
     val config: AgentConfiguration = context.agentConfiguration
       ?: return makeFailure(
-        ErrorCode.CLIENT_ERROR,
-        buildXmlError(
+        code = ErrorCode.CLIENT_ERROR,
+        message = buildXmlError(
           code = "CLIENT_ERROR",
           message = "AgentConfiguration not available in skill context.",
           fixHint = "This is a server-side issue. The skill context must carry the agent configuration."
@@ -94,8 +94,8 @@ class DelegateSkill : Skill() {
       )
     val emitEvent: (String, Map<String, Any>) -> Unit = context.emitEvent
       ?: return makeFailure(
-        ErrorCode.CLIENT_ERROR,
-        buildXmlError(
+        code = ErrorCode.CLIENT_ERROR,
+        message = buildXmlError(
           code = "CLIENT_ERROR",
           message = "emitEvent not available in skill context.",
           fixHint = "This is a server-side issue. The skill context must carry the event emitter."
@@ -109,7 +109,7 @@ class DelegateSkill : Skill() {
 
     emitStartEvent(emitEvent, config.modelName, title, task)
     val result: String = runSubAgent(subConfig, task, emitEvent, registerChild, unregisterChild)
-    return makeSuccess(mapOf("result" to result))
+    return makeSuccess(data = mapOf("result" to result))
   }
 
   /** Extracts the task string from arguments, or null if missing/too short/duplicate of user input. */
@@ -164,9 +164,9 @@ class DelegateSkill : Skill() {
     emitEvent(
       "sub_agent:start", mapOf(
         "timeoutSeconds" to subAgentTimeoutSeconds,
-        "modelName" to modelName,
+        "task" to task,
         "title" to title,
-        "task" to task
+        "modelName" to modelName
       )
     )
   }

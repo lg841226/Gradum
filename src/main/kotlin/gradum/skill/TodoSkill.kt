@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-23 21:35:57 Changed by gwy
+ * TodoSkill.kt  2026-08-25 16:41:02 Changed by gwy
  */
 
 package gradum.skill
@@ -46,14 +46,15 @@ class TodoSkill : Skill() {
 
     if (rawTasks.isEmpty())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Tasks list cannot be empty.",
           fixHint = "Provide at least one task description in the 'tasks' parameter."
         )
       )
 
-    return sharedTodoManager.initializeTasks(rawTasks)
+    return sharedTodoManager.initializeTasks(taskDescriptions = rawTasks)
   }
 }
 
@@ -113,13 +114,15 @@ class TodoManager {
   private var currentTaskIndex: Int = 0
 
   fun resetTaskList() {
-    taskList = null; currentTaskIndex = 0
+    taskList = null
+    currentTaskIndex = 0
   }
 
   fun initializeTasks(taskDescriptions: List<String>): SkillResult {
     if (taskDescriptions.isEmpty())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Task list cannot be empty.",
           fixHint = "Provide at least one task description in the 'tasks' parameter."
@@ -129,11 +132,11 @@ class TodoManager {
     taskList = taskDescriptions; currentTaskIndex = 0
 
     return makeSuccess(
-      mapOf(
-        "totalTasks" to taskDescriptions.size,
-        "currentTask" to taskDescriptions[0],
+      data = mapOf(
         "currentIndex" to 0,
         "tasks" to taskDescriptions,
+        "totalTasks" to taskDescriptions.size,
+        "currentTask" to taskDescriptions[0],
       )
     )
   }
@@ -141,7 +144,8 @@ class TodoManager {
   fun completeCurrentTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
-        ErrorCode.NOT_INITIALIZED, buildXmlError(
+        code = ErrorCode.NOT_INITIALIZED,
+        message = buildXmlError(
           code = "NOT_INITIALIZED",
           message = "To-do list not initialized.",
           fixHint = "Call to_do first to initialize the task list."
@@ -153,7 +157,7 @@ class TodoManager {
 
     if (allDone) {
       return makeSuccess(
-        mapOf(
+        data = mapOf(
           "completed" to true,
           "totalTasks" to taskItems.size,
           "tasks" to taskItems,
@@ -163,7 +167,7 @@ class TodoManager {
     }
 
     return makeSuccess(
-      mapOf(
+      data = mapOf(
         "completed" to false,
         "totalTasks" to taskItems.size,
         "tasks" to taskItems,
@@ -179,26 +183,30 @@ class TodoManager {
   fun skipTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
-        ErrorCode.NOT_INITIALIZED, buildXmlError(
+        code = ErrorCode.NOT_INITIALIZED,
+        message = buildXmlError(
           code = "NOT_INITIALIZED",
           message = "To-do list not initialized.",
           fixHint = "Call to_do first to initialize the task list."
         )
       )
 
-    val skippedTask: String = if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex] else ""
+    val skippedTask: String =
+      if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex] else ""
     currentTaskIndex += count
 
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
     return makeSuccess(
-      mapOf(
+      data = mapOf(
         "skipped" to true,
-        "skippedTask" to skippedTask,
-        "completed" to allDone,
-        "totalTasks" to taskItems.size,
         "tasks" to taskItems,
-        "currentTask" to if (allDone) "" else taskItems[currentTaskIndex],
+        "completed" to allDone,
+        "skippedTask" to skippedTask,
+        "totalTasks" to taskItems.size,
+        "currentTask" to
+          if (allDone) ""
+          else taskItems[currentTaskIndex],
         "currentIndex" to currentTaskIndex
       )
     )
@@ -210,10 +218,10 @@ class TodoManager {
 
     val remainingCount: Int = taskItems.size - currentTaskIndex
     return """
-            You still have $remainingCount task(s) remaining.
-            Current task: ${taskItems[currentTaskIndex]}.
-            Complete them using finish_to_do_item, or ask the user for guidance.
-        """.trimIndent()
+      You still have $remainingCount task(s) remaining.
+      Current task: ${taskItems[currentTaskIndex]}.
+      Complete them using finish_to_do_item, or ask the user for guidance.
+    """.trimIndent()
   }
 }
 

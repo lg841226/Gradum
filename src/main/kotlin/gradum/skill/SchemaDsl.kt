@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SchemaDsl.kt  2026-08-25 16:29:19 Changed by gwy
+ * SchemaDsl.kt  2026-08-25 16:30:31 Changed by gwy
  */
 
 package gradum.skill
@@ -34,8 +34,10 @@ class IntConstraints(
  * its visibility level, and the OpenAI JSON-schema map describing it.
  */
 class SkillParameter(
-  val name: String, val required: Boolean,
-  val level: ParameterLevel, internal val schema: Map<String, Any>
+  val name: String,
+  val required: Boolean,
+  val level: ParameterLevel,
+  internal val schema: Map<String, Any>
 )
 
 /**
@@ -159,17 +161,17 @@ class ObjectItemBuilder : MutableSchemaAdapter()
 class SchemaBuilder : MutableSchemaAdapter() {
   val schemaParameters: List<SkillParameter> get() = parameters.toList()
   fun cloudOnly(block: SchemaAdapter.() -> Unit) {
-    LevelScope(fixedLevel = ParameterLevel.CLOUD_ONLY, delegate = this).block()
+    LevelScope(delegate = this, fixedLevel = ParameterLevel.CLOUD_ONLY).block()
   }
 
   fun simpleOnly(block: SchemaAdapter.() -> Unit) {
-    LevelScope(fixedLevel = ParameterLevel.SIMPLE_ONLY, delegate = this).block()
+    LevelScope(delegate = this, fixedLevel = ParameterLevel.SIMPLE_ONLY).block()
   }
 }
 
 private class LevelScope(
-  override val fixedLevel: ParameterLevel,
-  private val delegate: SchemaAdapter
+  private val delegate: SchemaAdapter,
+  override val fixedLevel: ParameterLevel
 ) : SchemaAdapter {
   override fun add(parameter: SkillParameter) = delegate.add(parameter)
 }

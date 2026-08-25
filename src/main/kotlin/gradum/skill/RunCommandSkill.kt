@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-08-22 22:15:59 Changed by gwy
+ * RunCommandSkill.kt  2026-08-25 17:03:08 Changed by gwy
  */
 
 package gradum.skill
@@ -14,27 +14,30 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.file.Path
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 
 /** Default timeout in seconds — delegated to [GradumConfig]. */
-private val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
+private const val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
 
 /** Maximum allowed timeout in seconds — delegated to [GradumConfig]. */
-private val MAX_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_MAX_TIMEOUT_SECONDS
+private const val MAX_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_MAX_TIMEOUT_SECONDS
 
 /** Grace period after SIGTERM before SIGKILL — delegated to [GradumConfig]. */
-private val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
+private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
 /** Cap on how much command output is read into the LLM context — delegated to [GradumConfig]. */
-private val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
+private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 
 /** Reader used for stdout/stderr draining that happens before waitFor. */
 private val streamReaderPool: java.util.concurrent.ExecutorService =
-  java.util.concurrent.Executors.newCachedThreadPool { runnable ->
+  Executors.newCachedThreadPool { runnable ->
     Thread(runnable, "gradum-run-cmd-stream").apply { isDaemon = true }
   }
 
@@ -137,7 +140,8 @@ class RunCommandSkill : Skill() {
 
     if (commandText.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'command' parameter.",
           fixHint = "Provide a shell command string in the 'command' parameter."
@@ -147,18 +151,19 @@ class RunCommandSkill : Skill() {
     val commandVerdict: CommandVerdict = classifyCommand(commandText)
     if (commandVerdict is CommandVerdict.Blocked) {
       return makeFailure(
-        ErrorCode.COMMAND_BLOCKED,
-        buildXmlError(
+        code = ErrorCode.COMMAND_BLOCKED,
+        message = buildXmlError(
           code = "COMMAND_BLOCKED",
           message = "Blocked by safety filter: ${commandVerdict.description}",
           fixHint = "This command is blocked by security policy. Choose a different command or ask the user for permission."
         ),
-        mapOf("command" to commandText, "rule" to commandVerdict.ruleName)
+        context = mapOf("command" to commandText, "rule" to commandVerdict.ruleName)
       )
     }
 
     // Simple models always run blocking (no detached mode)
-    if (runDetached && !useSimpleOutput) return executeDetached(commandText, context)
+    if (runDetached && !useSimpleOutput)
+      return executeDetached(commandText, skillContext = context)
 
     return executeBlocking(commandText, projectRoot, useSimpleOutput, arguments)
   }
@@ -167,9 +172,8 @@ class RunCommandSkill : Skill() {
     commandText: String,
     projectRoot: String = "",
     useSimpleOutput: Boolean = false,
-    arguments: Map<String, Any> = emptyMap(),
+    arguments: Map<String, Any> = emptyMap()
   ): SkillResult {
-    // Parse and clamp timeout
     val rawTimeout: Long = (arguments["timeout"] as? Number)?.toLong() ?: DEFAULT_TIMEOUT_SECONDS
     val timeoutSeconds: Long = rawTimeout.coerceIn(1, MAX_TIMEOUT_SECONDS)
     return try {
@@ -182,8 +186,10 @@ class RunCommandSkill : Skill() {
 
       val commandProcess: Process = processBuilder.start()
 
-      val stdoutFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.inputStream, "stdout")
-      val stderrFuture: java.util.concurrent.Future<String> = startStreamReader(commandProcess.errorStream, "stderr")
+      val stdoutFuture: Future<String> =
+        startStreamReader(commandProcess.inputStream, label = "stdout")
+      val stderrFuture: Future<String> =
+        startStreamReader(inputStream = commandProcess.errorStream, label = "stderr")
 
       val processFinished: Boolean = commandProcess.waitFor(timeoutSeconds, TimeUnit.SECONDS)
 
@@ -196,13 +202,14 @@ class RunCommandSkill : Skill() {
         killProcessTree(commandProcess, descendants)
 
         return makeFailure(
-          ErrorCode.TIMEOUT,
-          buildXmlError(
+          code = ErrorCode.TIMEOUT,
+          message = buildXmlError(
             code = "TIMEOUT",
             message = "Command timed out after $timeoutSeconds seconds.",
-            fixHint = "The command took too long. Try a longer timeout ($MAX_TIMEOUT_SECONDS s max), a simpler command, or detached=true for fire-and-forget tasks."
+            fixHint = "The command took too long. Try a longer timeout " +
+              "($MAX_TIMEOUT_SECONDS s max), a simpler command, or detached=true for fire-and-forget tasks."
           ),
-          mapOf("command" to commandText, "timeout" to true),
+          context = mapOf("command" to commandText, "timeout" to true),
         )
       }
 
@@ -223,47 +230,47 @@ class RunCommandSkill : Skill() {
         if (exitCode != 0) {
           if (stderrText.isNotBlank()) append(stderrText)
           if (stdoutText.isNotBlank()) {
-            if (isNotEmpty()) append("\n--- stdout ---")
+            if (isNotEmpty()) append("\n(stderr)")
             append(stdoutText)
           }
         } else {
           if (stdoutText.isNotBlank()) append(stdoutText)
           if (stderrText.isNotBlank()) {
-            if (isNotEmpty()) append("\n--- stderr ---")
+            if (isNotEmpty()) append("\n(stderr)")
             append(stderrText)
           }
         }
-        if (isEmpty()) append("[no output — stdout and stderr were both empty]")
+        if (isEmpty()) append("(no output — stdout and stderr were both empty)")
       }
 
       if (useSimpleOutput) {
         makeSuccess(
-          mapOf(
-            "command" to commandText,
+          data = mapOf(
             "exitCode" to exitCode,
-            "output" to commandOutput.take(2000),
+            "command" to commandText,
+            "output" to commandOutput.take(n = 2000)
           )
         )
       } else {
         makeSuccess(
-          mapOf(
-            "command" to commandText,
-            "exitCode" to exitCode,
-            "output" to commandOutput,
+          data = mapOf(
             "timeout" to false,
-            "truncated" to outputTruncated,
+            "exitCode" to exitCode,
+            "command" to commandText,
+            "output" to commandOutput,
+            "truncated" to outputTruncated
           )
         )
       }
     } catch (executionException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR,
-        buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = executionException.message ?: "Failed to execute command.",
           fixHint = "This is not your fault. Check the command syntax and try again."
         ),
-        mapOf("command" to commandText)
+        context = mapOf("command" to commandText)
       )
     }
   }
@@ -293,7 +300,7 @@ class RunCommandSkill : Skill() {
       detachedProcess.toHandle().onExit()
 
       makeSuccess(
-        mapOf(
+        data = mapOf(
           "command" to commandText,
           "detached" to true,
           "processId" to processId,
@@ -303,13 +310,13 @@ class RunCommandSkill : Skill() {
       )
     } catch (detachedStartException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR,
-        buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = detachedStartException.message ?: "Failed to start detached command.",
           fixHint = "This is not your fault. Check the command syntax and system resources."
         ),
-        mapOf("command" to commandText)
+        context = mapOf("command" to commandText)
       )
     }
   }
@@ -320,21 +327,21 @@ class RunCommandSkill : Skill() {
    * called for BOTH stdout and stderr BEFORE `waitFor`, otherwise a
    * large-output child blocks on a full pipe and deadlocks the wait.
    */
-  private fun startStreamReader(inputStream: java.io.InputStream, label: String): java.util.concurrent.Future<String> {
+  private fun startStreamReader(inputStream: InputStream, label: String): Future<String> {
     return streamReaderPool.submit<String> {
       readStreamOutput(inputStream, label)
     }
   }
 
-  private fun readStreamOutput(inputStream: java.io.InputStream, label: String): String {
+  private fun readStreamOutput(inputStream: InputStream, label: String): String {
     return try {
       val builder = StringBuilder()
       BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
-        val buffer = CharArray(4096)
+        val buffer = CharArray(size = 4096)
         while (true) {
           val read: Int = bufferedReader.read(buffer, 0, buffer.size)
           if (read < 0) break
-          builder.appendRange(buffer, 0, read)
+          builder.appendRange(value = buffer, startIndex = 0, endIndex = read)
           if (builder.length >= MAX_OUTPUT_CHARS) {
             builder.append(
               "\n[output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB — the full $label is not shown]"
@@ -353,7 +360,7 @@ class RunCommandSkill : Skill() {
         ?: streamReadException::class.simpleName
         ?: "unknown I/O error"
       logger.warn("Failed to read $label stream: $reason", streamReadException)
-      "[stream read failed for $label: $reason]"
+      "(stream read failed for $label: $reason)"
     }
   }
 }

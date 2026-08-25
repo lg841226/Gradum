@@ -2,16 +2,12 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * ReadFileSkill.kt  2026-08-25 17:03:08 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.ErrorCode
-import gradum.GradumConfig
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
+import gradum.*
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path
@@ -81,7 +77,8 @@ class ReadFileSkill : Skill() {
 
     if (filePath.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'path' parameter.",
           fixHint = "Provide a current file path in the 'path' parameter."
@@ -92,13 +89,14 @@ class ReadFileSkill : Skill() {
     val resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
       return makeFailure(
-        ErrorCode.PERMISSION_DENIED, buildXmlError(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
           code = "PERMISSION_DENIED",
           message = "Path is outside the project root: ${resolved.rejectionReason}",
           fixHint = "Use a path relative to the project root. " +
             "If the file lives outside the project, copy it into the project first."
         ),
-        mapOf("path" to filePath)
+        context = mapOf("path" to filePath)
       )
     }
     val targetFile: File = resolvedPath.toFile()
@@ -107,13 +105,13 @@ class ReadFileSkill : Skill() {
       val fileSize: Long = targetFile.length()
       if (fileSize > MAXIMUM_FILE_SIZE) {
         return makeFailure(
-          ErrorCode.FILE_TOO_LARGE,
-          buildXmlError(
+          code = ErrorCode.FILE_TOO_LARGE,
+          message = buildXmlError(
             code = "FILE_TOO_LARGE",
             message = "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes).",
             fixHint = "Use lineRange to read specific sections of the file."
           ),
-          mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
+          context = mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
         )
       }
 
@@ -121,25 +119,25 @@ class ReadFileSkill : Skill() {
         val allLines = targetFile.readLines(Charsets.UTF_8)
         if (allLines.size > MAXIMUM_LINES) {
           return makeFailure(
-            ErrorCode.FILE_TOO_LARGE,
-            buildXmlError(
+            code = ErrorCode.FILE_TOO_LARGE,
+            message = buildXmlError(
               code = "FILE_TOO_LARGE",
               message = "File has ${allLines.size} lines (max: $MAXIMUM_LINES).",
               fixHint = "Use lineRange to read specific sections of the file."
             ),
-            mapOf("path" to resolvedPath.toString(), "totalLines" to allLines.size)
+            context = mapOf("path" to resolvedPath.toString(), "totalLines" to allLines.size)
           )
         }
         Triple(1, allLines.size, allLines)
       } else {
-        val range: LineRange = parseLineRange(lineRange) ?: return makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        val range: LineRange = parseLineRange(rawValue = lineRange) ?: return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
             fixHint = "Provide lineRange in the format 'start-end' with numeric values."
           ),
-          mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
+          context = mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
         )
 
         val lines = targetFile.useLines { it.drop(range.start - 1).take(range.end - range.start + 1).toList() }
@@ -154,46 +152,46 @@ class ReadFileSkill : Skill() {
         }.toMap()
 
         makeSuccess(
-          mapOf(
+          data = mapOf(
             "path" to resolvedPath.toString(),
             "content" to numberedContent,
           )
         )
       } else {
-        val selectedContent: String = selectedLines.joinToString("\n")
+        val selectedContent: String = selectedLines.joinToString(separator = "\n")
         val contentHash = MessageDigest.getInstance("MD5")
           .digest(selectedContent.toByteArray(Charsets.UTF_8))
-          .joinToString("") { "%02x".format(it) }
+          .joinToString(separator = "") { "%02x".format(it) }
 
         makeSuccess(
-          mapOf(
+          data = mapOf(
             "path" to resolvedPath.toString(),
             "lineRange" to "$startLineNumber-$endLineNumber",
             "totalLines" to endLineNumber,
-            "contentHashShort" to contentHash.take(5),
+            "contentHashShort" to contentHash.take(n = 5),
             "content" to selectedContent,
           )
         )
       }
     } catch (_: FileNotFoundException) {
       makeFailure(
-        ErrorCode.FILE_NOT_FOUND,
-        buildXmlError(
+        code = ErrorCode.FILE_NOT_FOUND,
+        message = buildXmlError(
           code = "FILE_NOT_FOUND",
           message = "File not found: $filePath",
           fixHint = "Check the file path. Use explore_project to find the correct path."
         ),
-        mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to resolvedPath.toString())
       )
     } catch (fileReadException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR,
-        buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = fileReadException.message ?: "Unknown I/O error.",
           fixHint = "This is not your fault. Check file permissions and try again."
         ),
-        mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to resolvedPath.toString())
       )
     }
   }
@@ -221,7 +219,7 @@ private fun parseLineRange(rawValue: String): LineRange? {
   val actualStart = rawStart.coerceAtLeast(1)
   val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
   return LineRange(
-    start = minOf(actualStart, actualEnd),
-    end = maxOf(actualStart, actualEnd),
+    start = minOf(actualStart, b = actualEnd),
+    end = maxOf(actualStart, b = actualEnd),
   )
 }

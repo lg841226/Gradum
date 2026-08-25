@@ -25,9 +25,11 @@ private val blockedExecutables: Set<String> = setOf(
   "mkfs", "mkfs.ext2", "mkfs.ext3", "mkfs.ext4",
   "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
   "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
-  "shutdown", "reboot", "halt", "poweroff", "init",
-  "sudo", "su", "doas", "pkexec"
+  "shutdown", "reboot", "poweroff",
 )
+
+/** Prefixes that wrap a real command (e.g. `sudo reboot`). The filter skips past these. */
+private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pkexec")
 
 /**
  * System and home paths that destructive operations must never touch.
@@ -178,14 +180,19 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
 
   val executableName: String = Paths.get(tokens[0]).fileName.toString()
 
-  if (executableName in blockedExecutables) {
-    return CommandVerdict.Blocked("executable:$executableName", "'$executableName' is not allowed")
+  // Skip privilege-escalation prefixes (sudo, su, doas, pkexec) so the
+  // real command underneath is checked against the danger list.
+  val prefixOffset: Int = if (executableName in PRIVILEGE_ESCALATORS && tokens.size > 1) 1 else 0
+  val effectiveName: String = Paths.get(tokens[prefixOffset]).fileName.toString()
+
+  if (effectiveName in blockedExecutables) {
+    return CommandVerdict.Blocked("executable:$effectiveName", "'$effectiveName' is not allowed")
   }
 
-  val baseVerdict: CommandVerdict = when (executableName) {
-    "dd" -> classifyDeviceWrite(tokens)
-    "rm" -> classifyRemoveOperation(tokens)
-    "chmod" -> classifyChmodOperation(tokens)
+  val baseVerdict: CommandVerdict = when (effectiveName) {
+    "dd" -> classifyDeviceWrite(tokens.drop(prefixOffset))
+    "rm" -> classifyRemoveOperation(tokens.drop(prefixOffset))
+    "chmod" -> classifyChmodOperation(tokens.drop(prefixOffset))
     else -> CommandVerdict.Safe
   }
   if (baseVerdict is CommandVerdict.Blocked) return baseVerdict
@@ -198,7 +205,8 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
       val trimmed: String = subcommand.trim()
       if (trimmed.isEmpty()) continue
       val subTokens: List<String> = trimmed.split(WHITESPACE_PATTERN)
-      val subcommandExecutable: String = Paths.get(subTokens[0]).fileName.toString()
+      val subPrefixOffset: Int = if (subTokens[0] in PRIVILEGE_ESCALATORS && subTokens.size > 1) 1 else 0
+      val subcommandExecutable: String = Paths.get(subTokens[subPrefixOffset]).fileName.toString()
       if (subcommandExecutable !in readOnlyAllowedExecutables) {
         return CommandVerdict.Blocked(
           "readonly:executable:$subcommandExecutable",

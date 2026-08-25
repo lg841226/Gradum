@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-08-12 12:38:25 Changed by gwy
+ * SaveFileSkill.kt  2026-08-25 17:08:55 Changed by gwy
  */
 
 package gradum.skill
@@ -94,7 +94,8 @@ class SaveFileSkill : Skill() {
 
     if (filePath.isBlank()) {
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'path' parameter.",
           fixHint = "Provide a file path in the 'path' parameter."
@@ -107,7 +108,8 @@ class SaveFileSkill : Skill() {
     } catch (encodingException: Exception) {
       logger.warn("Unsupported encoding '$encodingName': ${encodingException.message}", encodingException)
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Unsupported encoding: $encodingName",
           fixHint = "Use a supported encoding: UTF-8, UTF-16, ISO-8859-1, GBK, US-ASCII."
@@ -117,8 +119,8 @@ class SaveFileSkill : Skill() {
 
     if (fileContent.isBlank() && writeMode == "overwrite")
       return makeFailure(
-        ErrorCode.EMPTY_RESULT,
-        buildXmlError(
+        code = ErrorCode.EMPTY_RESULT,
+        message = buildXmlError(
           code = "EMPTY_RESULT",
           message = "Content is blank. Use append mode or provide non-empty content.",
           fixHint = "Provide content to write, or set mode='append' to add to an existing file."
@@ -128,8 +130,8 @@ class SaveFileSkill : Skill() {
     val contentBytes: ByteArray = fileContent.toByteArray(fileCharset)
     if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
       return makeFailure(
-        ErrorCode.FILE_TOO_LARGE,
-        buildXmlError(
+        code = ErrorCode.FILE_TOO_LARGE,
+        message = buildXmlError(
           code = "FILE_TOO_LARGE",
           message = "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
           fixHint = "Reduce the content size or split it into smaller writes."
@@ -140,7 +142,8 @@ class SaveFileSkill : Skill() {
     val resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
       return makeFailure(
-        ErrorCode.PERMISSION_DENIED, buildXmlError(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
           code = "PERMISSION_DENIED",
           message = "Path is outside the project root: ${resolved.rejectionReason}",
           fixHint = "Use a path relative to the project root."
@@ -153,10 +156,10 @@ class SaveFileSkill : Skill() {
     val previousSize: Long = if (writeMode == "append" && !wasCreated) targetFile.length() else 0L
 
     return try {
-      if (isBlockedPaths(resolvedPath)) {
+      if (isBlockedPaths(targetPath = resolvedPath)) {
         return makeFailure(
-          ErrorCode.PERMISSION_DENIED,
-          buildXmlError(
+          code = ErrorCode.PERMISSION_DENIED,
+          message = buildXmlError(
             code = "PERMISSION_DENIED",
             message = "Writing to '${resolvedPath}' is not allowed for security reasons.",
             fixHint = "Choose a different file path outside protected system directories."
@@ -166,27 +169,30 @@ class SaveFileSkill : Skill() {
 
       targetFile.parentFile?.mkdirs()
 
-      if (writeMode == "append") {
+      if (writeMode == "append")
         targetFile.appendText(fileContent, fileCharset)
-      } else targetFile.writeText(fileContent, fileCharset)
+      else
+        targetFile.writeText(fileContent, fileCharset)
 
       val bytesWritten: Long = targetFile.length()
 
-      val totalLines: Int = if (writeMode == "append") {
-        targetFile.readLines(fileCharset).size
-      } else fileContent.lines().size
+      val totalLines: Int =
+        if (writeMode == "append")
+          targetFile.readLines(fileCharset).size
+        else
+          fileContent.lines().size
 
       if (useSimpleOutput) {
         makeSuccess(
-          mapOf(
-            "path" to resolvedPath.toString(),
-            "bytesWritten" to bytesWritten,
+          data = mapOf(
             "created" to wasCreated,
+            "bytesWritten" to bytesWritten,
+            "path" to resolvedPath.toString()
           )
         )
       } else {
         makeSuccess(
-          buildMap {
+          data = buildMap {
             put("path", resolvedPath.toString())
             put("bytesWritten", bytesWritten)
             put("totalLines", totalLines)
@@ -201,13 +207,13 @@ class SaveFileSkill : Skill() {
       }
     } catch (fileWriteException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR,
-        buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = fileWriteException.message ?: "Failed to write file.",
           fixHint = "This is not your fault. Check file permissions and disk space."
         ),
-        mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to resolvedPath.toString())
       )
     }
   }

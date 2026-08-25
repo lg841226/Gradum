@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-08-12 12:38:25 Changed by gwy
+ * SkillRegistry.kt  2026-08-25 17:11:13 Changed by gwy
  */
 
 package gradum.skill
@@ -63,7 +63,7 @@ object SkillRegistry {
     toolMode: ToolMode = ToolMode.AGENT,
     provider: Provider = Provider.OLLAMA
   ): List<Map<String, Any>> {
-    val schemaContext = SkillContext(toolMode, "", provider, modelName)
+    val schemaContext = SkillContext(toolMode, projectRoot = "", provider, modelName)
     return registeredSkills.values
       .filter { skill: Skill -> skill.allows(toolMode) }
       .map { skill: Skill -> skill.getSchema(schemaContext) }
@@ -100,7 +100,7 @@ object SkillRegistry {
     val packageName = SKILL_PACKAGE
 
     val classLoader = Thread.currentThread().contextClassLoader
-    val packagePath = packageName.replace('.', '/')
+    val packagePath = packageName.replace(oldChar = '.', newChar = '/')
     val discoveredClasses = mutableListOf<Class<*>>()
 
     val packageResources = classLoader.getResources(packagePath)
@@ -111,11 +111,11 @@ object SkillRegistry {
       when (resourceUri.scheme) {
         "file" -> {
           val filePath = Paths.get(resourceUri)
-          discoveredClasses.addAll(findClassesInDirectory(filePath))
+          discoveredClasses.addAll(elements = findClassesInDirectory(targetDirectory = filePath))
         }
 
         "jar" -> {
-          discoveredClasses.addAll(findClassesInJar(resourceUri, packagePath))
+          discoveredClasses.addAll(elements = findClassesInJar(jarUri = resourceUri, packagePath))
         }
       }
     }
@@ -127,9 +127,9 @@ object SkillRegistry {
     val discoveredClasses = mutableListOf<Class<*>>()
 
     Files.walk(targetDirectory).use { paths ->
-      paths.filter { it.toString().endsWith(".class") }
+      paths.filter { it.toString().endsWith(suffix = ".class") }
         .forEach { classFilePath ->
-          loadConcreteClass(getClassName(classFilePath, targetDirectory))
+          loadConcreteClass(className = getClassName(classFilePath, baseDirectory = targetDirectory))
             ?.let { discoveredClasses.add(it) }
         }
     }
@@ -141,16 +141,18 @@ object SkillRegistry {
 
     try {
       val jarPathString = jarUri.toString().removePrefix("jar:").removePrefix("file:")
-      val jarFilePath = jarPathString.substringBeforeLast("!")
+      val jarFilePath = jarPathString.substringBeforeLast(delimiter = "!")
 
-      FileSystems.newFileSystem(Paths.get(jarFilePath), emptyMap<String, Nothing>()).use { fileSystem ->
+      FileSystems.newFileSystem(
+        Paths.get(jarFilePath), emptyMap<String, Nothing>()
+      ).use { fileSystem ->
         val pathInJar = fileSystem.getPath(packagePath)
         Files.walk(pathInJar).use { paths ->
-          paths.filter { it.toString().endsWith(".class") }
+          paths.filter { it.toString().endsWith(suffix = ".class") }
             .forEach { classFilePath ->
               val className = classFilePath.toString()
                 .removePrefix("/")
-                .replace('/', '.')
+                .replace(oldChar = '/', newChar = '.')
                 .removeSuffix(".class")
 
               loadConcreteClass(className)?.let { discoveredClasses.add(it) }
@@ -186,7 +188,7 @@ object SkillRegistry {
     val packageName = SKILL_PACKAGE
     val relativePath = baseDirectory.relativize(classFilePath).toString()
     val className = relativePath
-      .replace(File.separatorChar, '.')
+      .replace(oldChar = File.separatorChar, newChar = '.')
       .removeSuffix(".class")
 
     return if (className.isNotEmpty()) "$packageName.$className" else null

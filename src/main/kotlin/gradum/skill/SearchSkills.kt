@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-25 16:04:55 Changed by gwy
+ * SearchSkills.kt  2026-08-25 17:05:14 Changed by gwy
  */
 package gradum.skill
 
@@ -75,13 +75,13 @@ private data class SearchParams(
 )
 
 private data class GlobParams(
-  val pattern: String,
-  val globMatcher: PathMatcher,
-  val fallbackMatcher: PathMatcher?,
+  val limit: Int,
   val rootFile: File,
-  val resolvedPath: Path,
+  val pattern: String,
   val projectRoot: Path,
-  val limit: Int
+  val resolvedPath: Path,
+  val globMatcher: PathMatcher,
+  val fallbackMatcher: PathMatcher?
 )
 
 private sealed class Either<out T, out E> {
@@ -102,7 +102,7 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
     }
   }
 
-  val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
+  val resolved: ResolvedProjectPath = resolveProjectPath(filePath = relativePath, projectRoot)
   if (resolved.rejectionReason != null) {
     logger.debug("Search path rejected: {} ({})", relativePath, resolved.rejectionReason)
     return null
@@ -119,8 +119,8 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
   val rootFile = resolvedPath.toFile()
   if (!rootFile.exists()) {
     return makeFailure(
-      ErrorCode.FILE_NOT_FOUND,
-      buildXmlError(
+      code = ErrorCode.FILE_NOT_FOUND,
+      message = buildXmlError(
         code = "FILE_NOT_FOUND",
         message = "Search path does not exist: $resolvedPath",
         fixHint = "Verify the directory exists. Use explore_project to find the correct path."
@@ -129,8 +129,8 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
   }
   if (!rootFile.isDirectory) {
     return makeFailure(
-      ErrorCode.INVALID_PARAMETER,
-      buildXmlError(
+      code = ErrorCode.INVALID_PARAMETER,
+      message = buildXmlError(
         code = "INVALID_PARAMETER",
         message = "Search path is not a directory: $resolvedPath",
         fixHint = "The path must point to a directory, not a file."
@@ -146,9 +146,9 @@ private fun resolveAndValidatePath(
 ): Either<Pair<File, Path>, SkillResult> {
   val resolvedPath = resolveSearchPathImpl(context, relativePath)
     ?: return Either.Failure(
-      makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+      error = makeFailure(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Invalid search path.",
           fixHint = "Ensure the path is a valid directory path relative to the project root."
@@ -159,7 +159,7 @@ private fun resolveAndValidatePath(
   val dirError = validateSearchDir(resolvedPath)
   if (dirError != null) return Either.Failure(dirError)
 
-  return Either.Success(resolvedPath.toFile() to resolvedPath)
+  return Either.Success(value = resolvedPath.toFile() to resolvedPath)
 }
 
 private fun walkFiltered(
@@ -180,11 +180,11 @@ private fun walkFilteredImpl(
 
   for (entry in entries) {
     if (entry.isDirectory) {
-      if (entry.name in SKIPPED_DIRECTORY_NAMES || entry.name.startsWith(".")) continue
+      if (entry.name in SKIPPED_DIRECTORY_NAMES || entry.name.startsWith(prefix = ".")) continue
       walkFilteredImpl(entry, onFile)
     } else {
       if (entry.length() > MAX_FILE_SIZE) continue
-      val ext = entry.name.substringAfterLast('.', "").lowercase()
+      val ext = entry.name.substringAfterLast(delimiter = '.', missingDelimiterValue = "").lowercase()
       if (ext in BINARY_EXTENSIONS) continue
       if (ext in ARCHIVE_EXTENSIONS) continue
       if (ext in DOCUMENT_EXTENSIONS) continue
@@ -268,11 +268,11 @@ class GrepSkill : Skill() {
     }
 
     val includeMatcher = buildIncludeMatcher(params.includeFilter)
-    val files = collectFiles(params.rootFile, includeMatcher)
+    val files = collectFiles(root = params.rootFile, includeMatcher)
     if (files.isEmpty()) return buildEmptyResult(params)
 
     val results = searchFiles(files, params.regex, params.limit)
-    return buildSearchResult(params, results, files.size)
+    return buildSearchResult(params, results, filesSearched = files.size)
   }
 
   private fun prepareSearch(
@@ -281,9 +281,9 @@ class GrepSkill : Skill() {
     val patternStr = (arguments["pattern"] as? String)?.trim() ?: ""
     if (patternStr.length < MIN_PATTERN_LENGTH) {
       return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        error = makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Pattern must be at least $MIN_PATTERN_LENGTH characters long. Got ${patternStr.length}.",
             fixHint = "Provide a search pattern with at least $MIN_PATTERN_LENGTH characters."
@@ -296,12 +296,12 @@ class GrepSkill : Skill() {
     else emptySet()
 
     val compiledRegex: Regex = try {
-      Regex(patternStr, regexFlags)
+      Regex(patternStr, options = regexFlags)
     } catch (patternSyntaxException: PatternSyntaxException) {
       return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        error = makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Invalid regex pattern: ${patternSyntaxException.message}",
             fixHint = "Check the regex syntax. Use simple text for literal searches."
@@ -310,7 +310,7 @@ class GrepSkill : Skill() {
       )
     }
 
-    val pathResult = resolveAndValidatePath(context, arguments["path"] as? String)
+    val pathResult = resolveAndValidatePath(context, relativePath = arguments["path"] as? String)
     if (pathResult is Either.Failure) return pathResult
     val (rootFile, resolvedPath) = (pathResult as Either.Success).value
 
@@ -322,25 +322,25 @@ class GrepSkill : Skill() {
     }
 
     return Either.Success(
-      SearchParams(
+      value = SearchParams(
+        limit = limit,
+        rootFile = rootFile,
         pattern = patternStr,
         regex = compiledRegex,
-        rootFile = rootFile,
         resolvedPath = resolvedPath,
-        includeFilter = includeFilter,
-        limit = limit
+        includeFilter = includeFilter
       )
     )
   }
 
   private fun buildEmptyResult(params: SearchParams): SkillResult {
     return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
+      data = linkedMapOf(
         "total_matches" to 0,
+        "files_searched" to 0,
+        "pattern" to params.pattern,
         "matches" to emptyList<Map<String, Any>>(),
-        "files_searched" to 0
+        "search_path" to params.resolvedPath.toString()
       )
     )
   }
@@ -350,13 +350,13 @@ class GrepSkill : Skill() {
   ): SkillResult {
     val limitApplied = results.size >= params.limit
     return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_matches" to results.size,
+      data = linkedMapOf(
         "matches" to results,
+        "pattern" to params.pattern,
+        "total_matches" to results.size,
+        "limit_applied" to limitApplied,
         "files_searched" to filesSearched,
-        "limit_applied" to limitApplied
+        "search_path" to params.resolvedPath.toString()
       )
     )
   }
@@ -385,21 +385,22 @@ class GrepSkill : Skill() {
     val matchCount = AtomicInteger(0)
 
     runBlocking {
-      val semaphore = Semaphore(MAX_CONCURRENCY)
+      val semaphore = Semaphore(permits = MAX_CONCURRENCY)
       coroutineScope {
         for (file in files) {
           if (matchCount.get() >= limit) break
-          launch(Dispatchers.IO) {
+          launch(context = Dispatchers.IO) {
             semaphore.withPermit {
-              if (matchCount.get() >= limit) return@withPermit
-              searchFile(file, regex, limit, matchCount, searchMatches)
+              if (matchCount.get() >= limit)
+                return@withPermit
+              searchFile(file, regex, limit, matchCount, searchResults = searchMatches)
             }
           }
         }
       }
     }
 
-    return searchMatches.toList().take(limit)
+    return searchMatches.toList().take(n = limit)
   }
 
   private fun searchFile(
@@ -485,7 +486,7 @@ class GlobSkill : Skill() {
     }
 
     val matchedFiles = globSearch(
-      params.rootFile,
+      root = params.rootFile,
       params.projectRoot,
       params.globMatcher,
       params.fallbackMatcher,
@@ -494,7 +495,7 @@ class GlobSkill : Skill() {
     val limitApplied = matchedFiles.size >= params.limit
 
     return makeSuccess(
-      linkedMapOf(
+      data = linkedMapOf(
         "pattern" to params.pattern,
         "search_path" to params.resolvedPath.toString(),
         "total_files" to matchedFiles.size,
@@ -510,9 +511,9 @@ class GlobSkill : Skill() {
     val patternStr = (arguments["pattern"] as? String)?.trim() ?: ""
     if (patternStr.isBlank()) {
       return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        error = makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Pattern must not be empty.",
             fixHint = "Provide a glob pattern, e.g. '*.kt' or '**/*.test.*'."
@@ -527,9 +528,9 @@ class GlobSkill : Skill() {
       logger.debug("Invalid glob pattern '$patternStr': ${matcherException.message}", matcherException)
       null
     } ?: return Either.Failure(
-      makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+      error = makeFailure(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Invalid glob pattern: $patternStr",
           fixHint = "Use standard glob syntax: '*' matches any chars, '**' matches path segments, '?' matches one char."
@@ -537,7 +538,7 @@ class GlobSkill : Skill() {
       )
     )
 
-    val fallbackMatcher = if (patternStr.startsWith("**/")) {
+    val fallbackMatcher = if (patternStr.startsWith(prefix = "**/")) {
       val stripped = patternStr.removePrefix("**/")
       try {
         FileSystems.getDefault().getPathMatcher("glob:$stripped")
@@ -547,7 +548,7 @@ class GlobSkill : Skill() {
       }
     } else null
 
-    val pathResult = resolveAndValidatePath(context, arguments["path"] as? String)
+    val pathResult = resolveAndValidatePath(context, relativePath = arguments["path"] as? String)
     if (pathResult is Either.Failure) return pathResult
     val (rootFile, resolvedPath) = (pathResult as Either.Success).value
 
@@ -560,14 +561,14 @@ class GlobSkill : Skill() {
     }
 
     return Either.Success(
-      GlobParams(
-        pattern = patternStr,
-        globMatcher = globMatcher,
-        fallbackMatcher = fallbackMatcher,
+      value = GlobParams(
+        limit = limit,
         rootFile = rootFile,
-        resolvedPath = resolvedPath,
+        pattern = patternStr,
         projectRoot = projectRoot,
-        limit = limit
+        globMatcher = globMatcher,
+        resolvedPath = resolvedPath,
+        fallbackMatcher = fallbackMatcher
       )
     )
   }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-08-18 12:40:45 Changed by gwy
+ * PathResolver.kt  2026-08-25 17:08:55 Changed by gwy
  */
 
 package gradum.skill
@@ -155,79 +155,76 @@ fun resolveProjectPath(
   }
 
   if (normalizedRoot == null) {
-    // Relative path but no project root to resolve against — can't
-    // safely determine the final on-disk path, so reject rather
-    // than guess at CWD.
-    return rejectedPath(trimmed, "project root is not configured")
+    return rejectedPath(original = trimmed, reason = "project root is not configured")
   }
 
   val direct = Paths.get(normalizedRoot.toString(), trimmed).toAbsolutePath().normalize()
   if (File(direct.toString()).exists()) {
     return evaluate(
+      shifted = false,
       resolved = direct,
       original = trimmed,
-      shifted = false,
-      normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
       originalWasAbsolute = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject
     )
   }
 
   val projectBasename = normalizedRoot.fileName?.toString()
   if (projectBasename.isNullOrBlank()) {
     return evaluate(
+      shifted = false,
       resolved = direct,
       original = trimmed,
-      shifted = false,
-      normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
       originalWasAbsolute = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject
     )
   }
 
   val segments = trimmed.split('/', '\\')
   if (segments.firstOrNull() != projectBasename) {
     return evaluate(
-      resolved = direct,
-      original = trimmed,
       shifted = false,
+      original = trimmed,
+      resolved = direct,
+      originalWasAbsolute = false,
       normalizedRoot = normalizedRoot,
       requireWithinProject = requireWithinProject,
-      originalWasAbsolute = false,
     )
   }
 
-  val shiftedTrimmed = segments.drop(1).joinToString("/")
+  val shiftedTrimmed = segments.drop(n = 1).joinToString(separator = "/")
   if (shiftedTrimmed.isBlank()) {
     return evaluate(
+      shifted = false,
       resolved = direct,
       original = trimmed,
-      shifted = false,
+      originalWasAbsolute = false,
       normalizedRoot = normalizedRoot,
       requireWithinProject = requireWithinProject,
-      originalWasAbsolute = false,
     )
   }
 
   val shifted = Paths.get(normalizedRoot.toString(), shiftedTrimmed).toAbsolutePath().normalize()
   return if (File(shifted.toString()).exists()) {
     evaluate(
+      shifted = true,
       resolved = shifted,
       original = trimmed,
-      shifted = true,
-      normalizedRoot = normalizedRoot,
-      shiftedForm = shiftedTrimmed,
-      requireWithinProject = requireWithinProject,
       originalWasAbsolute = false,
+      shiftedForm = shiftedTrimmed,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject
     )
   } else {
     evaluate(
+      shifted = false,
       resolved = direct,
       original = trimmed,
-      shifted = false,
-      normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
       originalWasAbsolute = false,
+      normalizedRoot = normalizedRoot,
+      requireWithinProject = requireWithinProject
     )
   }
 }
@@ -252,30 +249,27 @@ private fun evaluate(
   original: String,
   shifted: Boolean,
   normalizedRoot: Path?,
-  requireWithinProject: Boolean,
   originalWasAbsolute: Boolean,
   shiftedForm: String? = null,
+  requireWithinProject: Boolean
 ): ResolvedProjectPath {
-  if (!requireWithinProject) {
+  if (!requireWithinProject)
     return ResolvedProjectPath(resolved, original, shifted, shiftedForm)
-  }
+
   val within: Boolean = isWithinProjectRoot(resolved, normalizedRoot) ||
     (originalWasAbsolute && isInSafePrefix(resolved))
   if (within) {
-    // A path that passes the *string* boundary check can still escape
-    // through a symlink (e.g. `proj/evil -> ~/.ssh`). Resolve the real
-    // on-disk target and require THAT to stay inside the project too.
     if (isResolvedThroughSymlinkOutside(resolved, normalizedRoot, originalWasAbsolute)) {
       return rejectedPath(
         original,
-        "resolved path '$resolved' traverses a symlink that points outside the project root"
+        reason = "resolved path '$resolved' traverses a symlink that points outside the project root"
       )
     }
     return ResolvedProjectPath(resolved, original, shifted, shiftedForm)
   }
   return rejectedPath(
     original,
-    "resolved path '$resolved' is outside the project root " +
+    reason = "resolved path '$resolved' is outside the project root " +
       "(${normalizedRoot ?: "<unset>"})"
   )
 }
@@ -316,9 +310,6 @@ private fun isResolvedThroughSymlinkOutside(
   val resolvedFile: File = resolved.toFile()
   return resolvedFile.exists() && try {
     val realPath: Path = resolved.toRealPath()
-    // The root may itself be reached through a symlink (e.g. /tmp →
-    // /private/tmp on macOS); compare real-to-real so we don't reject
-    // every in-project path just because the strings diverge.
     val realRoot: Path? = normalizedRoot?.takeIf { it.toFile().exists() }?.toRealPath()
     val realPrefixes: List<Path> = ProtectedPaths.safePathPrefixes.mapNotNull { prefix ->
       try {
@@ -327,9 +318,9 @@ private fun isResolvedThroughSymlinkOutside(
         null
       }
     }
-    val within: Boolean = isWithinProjectRoot(realPath, realRoot) ||
+    val within: Boolean = isWithinProjectRoot(resolved = realPath, normalizedRoot = realRoot) ||
       (originalWasAbsolute && realPrefixes.any { prefix ->
-        isWithinProjectRoot(realPath, prefix)
+        isWithinProjectRoot(resolved = realPath, normalizedRoot = prefix)
       })
     !within
   } catch (_: IOException) {
@@ -342,7 +333,9 @@ private fun isResolvedThroughSymlinkOutside(
 private fun isInSafePrefix(resolved: Path): Boolean {
   val resolvedString: String = resolved.toString()
   for (safePrefix in ProtectedPaths.safePathPrefixes) {
-    if (resolvedString == safePrefix || resolvedString.startsWith("$safePrefix/")) return true
+    if (resolvedString == safePrefix ||
+      resolvedString.startsWith(prefix = "$safePrefix/")
+    ) return true
   }
   return false
 }

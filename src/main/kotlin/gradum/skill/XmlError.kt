@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * XmlError.kt  2026-08-12 12:38:25 Changed by gwy
+ * XmlError.kt  2026-08-25 17:11:13 Changed by gwy
  */
 
 package gradum.skill
@@ -26,24 +26,24 @@ fun buildXmlError(
   code: String,
   message: String,
   fixHint: String,
-  searchPreview: List<String> = emptyList(),
-  appliedCount: Int? = null
+  appliedCount: Int? = null,
+  searchPreview: List<String> = emptyList()
 ): String {
   val xmlBuilder = StringBuilder()
-  xmlBuilder.appendLine("<Error>")
-  xmlBuilder.appendLine("  <Code>$code</Code>")
-  xmlBuilder.appendLine("  <Message>$message</Message>")
+  xmlBuilder.appendLine(value = "<Error>")
+  xmlBuilder.appendLine(value = "  <Code>$code</Code>")
+  xmlBuilder.appendLine(value = "  <Message>$message</Message>")
   if (searchPreview.isNotEmpty()) {
-    xmlBuilder.appendLine("  <SearchPreview>")
+    xmlBuilder.appendLine(value = "  <SearchPreview>")
     searchPreview.forEach { previewLine ->
-      xmlBuilder.appendLine("    <Line>${previewLine.trimEnd()}</Line>")
+      xmlBuilder.appendLine(value = "    <Line>${previewLine.trimEnd()}</Line>")
     }
-    xmlBuilder.appendLine("  </SearchPreview>")
+    xmlBuilder.appendLine(value = "  </SearchPreview>")
   }
   if (appliedCount != null && appliedCount > 0) {
-    xmlBuilder.appendLine("  <Partial>$appliedCount edit(s) applied before failure.</Partial>")
+    xmlBuilder.appendLine(value = "  <Partial>$appliedCount edit(s) applied before failure.</Partial>")
   }
-  xmlBuilder.appendLine("  <FixHint>$fixHint</FixHint>")
-  xmlBuilder.appendLine("</Error>")
+  xmlBuilder.appendLine(value = "  <FixHint>$fixHint</FixHint>")
+  xmlBuilder.appendLine(value = "</Error>")
   return xmlBuilder.toString().trimEnd()
 }
