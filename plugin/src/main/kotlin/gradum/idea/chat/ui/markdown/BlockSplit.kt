@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockSplit.kt  2026-08-24 21:56:54 Changed by gwy
+ * BlockSplit.kt  2026-08-26 00:09:56 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -16,8 +16,6 @@ private val blockSplitParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create(), LatexBlockExtension.create()))
   .build()
 
-/** Indent step (in columns) for child blocks inside a list item. */
-private const val LIST_CHILD_INDENT_COLUMNS: Int = 4
 
 /**
  * Re-serializes a CommonMark node back to its Markdown source. Top-level
@@ -52,7 +50,7 @@ internal fun serializeInlineChildren(containerNode: Node): String {
 internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
   if (plainText.isBlank()) return emptyList()
   val document: Document = blockSplitParser.parse(plainText) as Document
-  val children: NodeChildren = NodeChildren.of(document)
+  val children: NodeChildren = NodeChildren.of(parent = document)
 
   val blocks: List<Node> = buildList {
     if (children.first != null) add(children.first)
@@ -88,10 +86,10 @@ internal fun splitPlainAtBlocks(plainText: String): List<MarkdownSegment> {
  */
 private fun stripHtmlBlockTags(htmlBlock: HtmlBlock): String? {
   val resultBuilder: StringBuilder = StringBuilder()
-  val children: NodeChildren = NodeChildren.of(htmlBlock)
+  val children: NodeChildren = NodeChildren.of(parent = htmlBlock)
   val firstChild: Node? = children.first
-  if (firstChild != null) appendHtmlBlockChild(firstChild, resultBuilder)
-  for (childNode: Node in children.rest) appendHtmlBlockChild(childNode, resultBuilder)
+  if (firstChild != null) appendHtmlBlockChild(childNode = firstChild, output = resultBuilder)
+  for (childNode: Node in children.rest) appendHtmlBlockChild(childNode, output = resultBuilder)
   val text: String = resultBuilder.toString().trim()
   return text.ifEmpty { null }
 }
@@ -116,42 +114,35 @@ private fun serializeChildrenInto(containerNode: Node, output: StringBuilder) {
 
 internal fun serializeInto(currentNode: Node): String {
   val resultBuilder: StringBuilder = StringBuilder()
-  serializeInto(currentNode, resultBuilder)
+  serializeInto(currentNode, output = resultBuilder)
   return resultBuilder.toString()
 }
 
 private fun serializeInto(currentNode: Node, output: StringBuilder) {
   when (currentNode) {
-    // top-level container
-    is Document -> serializeChildrenInto(currentNode, output)
-
-    // block nodes
+    is Document -> serializeChildrenInto(containerNode = currentNode, output)
     is ThematicBreak -> output.append("---")
-    is Heading -> serializeHeadingInto(currentNode, output)
-    is BulletList -> serializeBulletListInto(currentNode, output)
-    is BlockQuote -> serializeBlockQuoteInto(currentNode, output)
-    is OrderedList -> serializeOrderedListInto(currentNode, output)
-    is FencedCodeBlock -> serializeFencedCodeBlockInto(currentNode, output)
-    is Paragraph -> serializeChildrenInto(currentNode, output)
-    is LatexBlock -> serializeLatexBlockInto(currentNode, output)
-
-    // nodes serialized as their raw literal text
+    is Heading -> serializeHeadingInto(heading = currentNode, output)
+    is BulletList -> serializeBulletListInto(bulletList = currentNode, output)
+    is BlockQuote -> serializeBlockQuoteInto(blockQuote = currentNode, output)
+    is OrderedList -> serializeOrderedListInto(orderedList = currentNode, output)
+    is FencedCodeBlock -> serializeFencedCodeBlockInto(codeBlock = currentNode, output)
+    is Paragraph -> serializeChildrenInto(containerNode = currentNode, output)
+    is LatexBlock -> serializeLatexBlockInto(latexBlock = currentNode, output)
     is HtmlBlock -> appendLiteral(currentNode, output)
     is IndentedCodeBlock -> appendLiteral(currentNode, output)
     is Text -> appendLiteral(currentNode, output)
-
-    // inline nodes
     is Code -> output.append('`').append(currentNode.literal.orEmpty()).append('`')
-    is Emphasis -> serializeWrapInlineInto("*", "*", currentNode, output)
-    is StrongEmphasis -> serializeWrapInlineInto("**", "**", currentNode, output)
-    is Link -> serializeLinkInto(currentNode, output)
-    is Image -> serializeImageInto(currentNode, output)
-    is Strikethrough -> serializeStrikethroughInto(currentNode, output)
+    is Emphasis -> serializeWrapInlineInto(openingMarker = "*", closingMarker = "*", containerNode = currentNode, output)
+    is StrongEmphasis -> serializeWrapInlineInto(openingMarker = "**", closingMarker = "**", containerNode = currentNode, output)
+    is Link -> serializeLinkInto(link = currentNode, output)
+    is Image -> serializeImageInto(image = currentNode, output)
+    is Strikethrough -> serializeStrikethroughInto(strikethroughNode = currentNode, output)
     is SoftLineBreak -> output.append('\n')
     is HardLineBreak -> output.append("\\\n")
     is HtmlInline -> Unit // strip raw markers from round-tripped markdown
 
-    else -> serializeChildrenInto(currentNode, output)
+    else -> serializeChildrenInto(containerNode = currentNode, output)
   }
 }
 
@@ -179,21 +170,21 @@ private fun serializeWrapInlineInto(
 
 private fun serializeStrikethroughInto(strikethroughNode: Strikethrough, output: StringBuilder) {
   output.append("~~")
-  serializeChildrenInto(strikethroughNode, output)
+  serializeChildrenInto(containerNode = strikethroughNode, output)
   output.append("~~")
 }
 
 private fun serializeHeadingInto(heading: Heading, output: StringBuilder) {
-  repeat(heading.level) { output.append('#') }
+  repeat(times = heading.level) { output.append('#') }
   output.append(' ')
-  serializeChildrenInto(heading, output)
+  serializeChildrenInto(containerNode = heading, output)
 }
 
 private fun serializeLinkLikeNode(
-  openingMarker: String,
+  title: String?,
   containerNode: Node,
   destination: String?,
-  title: String?,
+  openingMarker: String,
   output: StringBuilder,
 ) {
   output.append(openingMarker)
@@ -205,20 +196,30 @@ private fun serializeLinkLikeNode(
 }
 
 private fun serializeLinkInto(link: Link, output: StringBuilder) =
-  serializeLinkLikeNode("[", link, link.destination, link.title, output)
+  serializeLinkLikeNode(
+    link.title,
+    containerNode = link,
+    link.destination,
+    openingMarker = "[", output
+  )
 
 private fun serializeImageInto(image: Image, output: StringBuilder) =
-  serializeLinkLikeNode("![", image, image.destination, image.title, output)
+  serializeLinkLikeNode(
+    image.title,
+    containerNode = image,
+    image.destination,
+    openingMarker = "![", output
+  )
 
 private fun serializeBulletListInto(bulletList: BulletList, output: StringBuilder) {
-  val children: NodeChildren = NodeChildren.of(bulletList)
+  val children: NodeChildren = NodeChildren.of(parent = bulletList)
   val firstListItem: ListItem? = children.first as? ListItem
   if (firstListItem != null) {
     serializeListItemInto(firstListItem, listMarker = "- ", output)
     for (childNode in children.rest) {
       if (childNode is ListItem) {
         output.append('\n')
-        serializeListItemInto(childNode, listMarker = "- ", output)
+        serializeListItemInto(listItem = childNode, listMarker = "- ", output)
       }
     }
   }
@@ -226,8 +227,9 @@ private fun serializeBulletListInto(bulletList: BulletList, output: StringBuilde
 
 @Suppress("DEPRECATION")
 private fun serializeOrderedListInto(orderedList: OrderedList, output: StringBuilder) {
-  val children: NodeChildren = NodeChildren.of(orderedList)
+  val children: NodeChildren = NodeChildren.of(parent = orderedList)
   val firstListItem: ListItem? = children.first as? ListItem
+
   if (firstListItem != null) {
     val firstMarker = "${orderedList.startNumber}. "
     serializeListItemInto(firstListItem, listMarker = firstMarker, output)
@@ -236,7 +238,7 @@ private fun serializeOrderedListInto(orderedList: OrderedList, output: StringBui
     for (childNode in children.rest) {
       if (childNode is ListItem) {
         output.append('\n')
-        serializeListItemInto(childNode, listMarker = "$nextNumber. ", output)
+        serializeListItemInto(listItem = childNode, listMarker = "$nextNumber. ", output)
         nextNumber += 1
       }
     }
@@ -252,28 +254,28 @@ private fun serializeOrderedListInto(orderedList: OrderedList, output: StringBui
  * minimum is the CommonMark rule for list-item continuation.
  */
 private fun serializeListItemInto(listItem: ListItem, listMarker: String, output: StringBuilder) {
-  val children: NodeChildren = NodeChildren.of(listItem)
+  val children: NodeChildren = NodeChildren.of(parent = listItem)
   output.append(listMarker)
   val firstChildNode: Node? = children.first
-  if (firstChildNode != null) serializeInto(firstChildNode, output)
-  val indent: String = " ".repeat(LIST_CHILD_INDENT_COLUMNS)
+  if (firstChildNode != null) serializeInto(currentNode = firstChildNode, output)
+  val indent: String = " ".repeat(n = MarkdownStyle.Block.LIST_CHILD_INDENT_COLUMNS)
   for (childNode in children.rest) {
     output.append('\n')
-    output.append(indentEveryLine(serializeInto(childNode), indent))
+    output.append(indentEveryLine(content = serializeInto(currentNode = childNode), indent))
   }
 }
 
 private fun serializeBlockQuoteInto(blockQuote: BlockQuote, output: StringBuilder) {
-  val children: NodeChildren = NodeChildren.of(blockQuote)
+  val children: NodeChildren = NodeChildren.of(parent = blockQuote)
   val firstChildNode: Node? = children.first
   if (firstChildNode != null) {
     output.append("> ")
-    output.append(prefixEachLineExceptFirst(serializeInto(firstChildNode)))
+    output.append(prefixEachLineExceptFirst(content = serializeInto(currentNode = firstChildNode)))
   }
   for (childNode in children.rest) {
     output.append('\n')
     output.append("> ")
-    output.append(prefixEachLineExceptFirst(serializeInto(childNode)))
+    output.append(prefixEachLineExceptFirst(content = serializeInto(currentNode = childNode)))
   }
 }
 
@@ -305,7 +307,7 @@ private fun indentEveryLine(content: String, indent: String): String {
 
 /** Prefix every line of [content] except the first with `> `. */
 private fun prefixEachLineExceptFirst(content: String): String {
-  if (!content.contains('\n')) return content
+  if (!content.contains(char = '\n')) return content
   val lines: List<String> = content.split('\n')
 
   return lines.mapIndexed { lineNumber, line ->

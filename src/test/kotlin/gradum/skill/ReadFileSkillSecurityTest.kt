@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkillSecurityTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * ReadFileSkillSecurityTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 package gradum.skill
 
 import gradum.ErrorCode
-import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import org.junit.jupiter.api.AfterEach
@@ -59,7 +58,6 @@ class ReadFileSkillSecurityTest {
   private fun context(): SkillContext = SkillContext(
     toolMode = ToolMode.READ_ONLY,
     projectRoot = projectRoot.absolutePath,
-    provider = Provider.OLLAMA,
     modelName = "qwen2.5:7b"
   )
 
@@ -72,8 +70,8 @@ class ReadFileSkillSecurityTest {
     assertTrue("expected failure for absolute system path", result is SkillResult.Failure)
     result as SkillResult.Failure
     assertEquals(
-          ErrorCode.PERMISSION_DENIED.code,
-          result.code
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
     )
     assertTrue(
       "rejection message should not leak whether the file exists: ${result.message}",
@@ -90,8 +88,8 @@ class ReadFileSkillSecurityTest {
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
     assertEquals(
-          ErrorCode.PERMISSION_DENIED.code,
-          result.code
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
     )
   }
 
@@ -105,15 +103,14 @@ class ReadFileSkillSecurityTest {
         SkillContext(
           toolMode = ToolMode.READ_ONLY,
           projectRoot = trapRoot.absolutePath,
-          provider = Provider.OLLAMA,
           modelName = "qwen2.5:7b"
         )
       )
       assertTrue(result is SkillResult.Failure)
       result as SkillResult.Failure
       assertEquals(
-            ErrorCode.PERMISSION_DENIED.code,
-            result.code
+        ErrorCode.PERMISSION_DENIED.code,
+        result.code
       )
     } finally {
       trapRoot.deleteRecursively()
@@ -138,8 +135,8 @@ class ReadFileSkillSecurityTest {
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
     assertEquals(
-          ErrorCode.PERMISSION_DENIED.code,
-          result.code
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
     )
   }
 
@@ -150,15 +147,14 @@ class ReadFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.READ_ONLY,
         projectRoot = "",
-        provider = Provider.OLLAMA,
         modelName = "qwen2.5:7b"
       )
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
     assertEquals(
-          ErrorCode.PERMISSION_DENIED.code,
-          result.code
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
     )
   }
 

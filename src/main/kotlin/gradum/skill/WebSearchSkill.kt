@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-25 22:29:33 Changed by gwy
+ * WebSearchSkill.kt  2026-08-26 11:04:13 Changed by gwy
  */
 
 package gradum.skill
@@ -161,7 +161,7 @@ class WebSearchSkill : Skill() {
         )
       }
 
-      val results = responseJson["results"]?.jsonArray?.take(maxResults)?.mapNotNull { element ->
+      val results = responseJson["results"]?.jsonArray?.take(n = maxResults)?.mapNotNull { element ->
         val jsonObject = element.jsonObject
         val webUrl = jsonObject["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val faviconUrl: String = jsonObject["favicon"]?.jsonPrimitive?.contentOrNull.orEmpty()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-08-24 23:39:10 Changed by gwy
+ * CodeBlockRenderer.kt  2026-08-26 00:09:03 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -51,26 +51,19 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 
-internal val CodeBlockCornerRadius: RoundedCornerShape =
-  RoundedCornerShape(GradumSpacing.md)
-
-/** Top-only corner radius for the sticky toolbar / header overlays. */
-internal val StickySectionTopCorners: RoundedCornerShape =
-  RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp)
-
-private const val CODE_COLLAPSE_LIMIT: Int = 20
-private val CollapseStripPadding = GradumSpacing.sm
 
 @OptIn(ExperimentalJewelApi::class)
 class GradumCodeBlockRenderer(
   styling: MarkdownStyling,
   private val isSimplified: Boolean = false,
   private val onInsertAsFile: (code: String, language: String) -> Unit = { _, _ -> }
-) : DefaultMarkdownBlockRenderer(styling) {
+) : DefaultMarkdownBlockRenderer(rootStyling = styling) {
 
   @OptIn(ExperimentalJewelApi::class)
   @Composable
-  override fun RenderFencedCodeBlock(block: FencedCodeBlock, styling: MarkdownStyling.Code.Fenced, enabled: Boolean, modifier: Modifier) {
+  override fun RenderFencedCodeBlock(
+    block: FencedCodeBlock, styling: MarkdownStyling.Code.Fenced, enabled: Boolean, modifier: Modifier
+  ) {
     val language: String = block.language?.takeUnless {
       it.isBlank()
     } ?: DEFAULT_CODE_LANGUAGE
@@ -99,12 +92,12 @@ class GradumCodeBlockRenderer(
     }
 
     val containerModifier: Modifier = modifier
-      .clip(shape = CodeBlockCornerRadius)
+      .clip(shape = MarkdownStyle.CodeBlock.CORNER_RADIUS)
       .background(Color.Transparent)
       .then(other = if (styling.fillWidth) Modifier.fillMaxWidth() else Modifier)
 
     val lineCount: Int = block.content.count { it == '\n' } + 1
-    val isCollapsible: Boolean = lineCount > CODE_COLLAPSE_LIMIT
+    val isCollapsible: Boolean = lineCount > MarkdownStyle.CodeBlock.COLLAPSE_LIMIT
     var isSoftWrap: Boolean by remember { mutableStateOf(value = false) }
     var showLineNumbers: Boolean by remember { mutableStateOf(value = false) }
     var textLayout: TextLayoutResult? by remember { mutableStateOf(value = null) }
@@ -116,7 +109,7 @@ class GradumCodeBlockRenderer(
       if (lineHeight.value > 0f) {
         original.copy(
           lineHeight = TextUnit(
-            value = lineHeight.value / 0.85f,
+            value = lineHeight.value / MarkdownStyle.CodeBlock.LINE_HEIGHT_ADJUSTMENT,
             type = TextUnitType.Sp
           )
         )
@@ -139,7 +132,7 @@ class GradumCodeBlockRenderer(
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(StickySectionTopCorners)
+            .clip(shape = MarkdownStyle.CodeBlock.STICKY_SECTION_TOP_CORNERS)
             .background(Color.Transparent)
         ) {
           DisableSelection {
@@ -171,23 +164,24 @@ class GradumCodeBlockRenderer(
       Column(
         modifier = containerModifier
           .then(
-            other = if (enableSticky && sectionEntry != null) {
-              Modifier.onGloballyPositioned { coords ->
-                val topLeft: Offset = coords.localToWindow(Offset.Zero)
-                val bottomRight: Offset = coords.localToWindow(
-                  relativeToLocal = Offset(
-                    x = coords.size.width.toFloat(),
-                    y = coords.size.height.toFloat()
+            other =
+              if (enableSticky && sectionEntry != null) {
+                Modifier.onGloballyPositioned { coords ->
+                  val topLeft: Offset = coords.localToWindow(Offset.Zero)
+                  val bottomRight: Offset = coords.localToWindow(
+                    relativeToLocal = Offset(
+                      x = coords.size.width.toFloat(),
+                      y = coords.size.height.toFloat()
+                    )
                   )
-                )
-                stickyRegistry.updateBounds(
-                  sectionEntry, boundsInWindow = Rect(
-                    left = topLeft.x, topLeft.y,
-                    right = bottomRight.x, bottomRight.y
+                  stickyRegistry.updateBounds(
+                    sectionEntry, boundsInWindow = Rect(
+                      left = topLeft.x, topLeft.y,
+                      right = bottomRight.x, bottomRight.y
+                    )
                   )
-                )
-              }
-            } else Modifier)
+                }
+              } else Modifier)
       ) {
         DisableSelection {
           CodeBlockToolbar(
@@ -218,7 +212,7 @@ class GradumCodeBlockRenderer(
                     textStyle = codeTextStyle
                   )
                 }
-                val lineColor: Color = JewelTheme.globalColors.borders.disabled.copy(alpha = 0.5f)
+                val lineColor: Color = JewelTheme.globalColors.borders.disabled.copy(alpha = MarkdownStyle.CodeBlock.GUTTER_DIVIDER_ALPHA)
                 Box(
                   modifier = Modifier
                     .width(1.dp)
@@ -241,13 +235,13 @@ class GradumCodeBlockRenderer(
             if (isCollapsible) {
               DisableSelection {
                 val textColor: Color = JewelTheme.globalColors.text.info
-                val hiddenLinesCount: Int = lineCount - CODE_COLLAPSE_LIMIT
+                val hiddenLinesCount: Int = lineCount - MarkdownStyle.CodeBlock.COLLAPSE_LIMIT
 
                 Row(
                   modifier = Modifier
                     .fillMaxWidth()
                     .clickable { isCollapsed = !isCollapsed }
-                    .padding(vertical = CollapseStripPadding),
+                    .padding(vertical = MarkdownStyle.CodeBlock.COLLAPSE_STRIP_PADDING),
                   horizontalArrangement = Arrangement.Center,
                   verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -258,14 +252,15 @@ class GradumCodeBlockRenderer(
                       if (isCollapsed) AllIconsKeys.General.ChevronDown
                       else AllIconsKeys.General.ChevronUp
                   )
-                  Spacer(Modifier.width(CollapseStripPadding))
+                  Spacer(Modifier.width(MarkdownStyle.CodeBlock.COLLAPSE_STRIP_PADDING))
                   Text(
                     color = textColor,
-                    text = if (isCollapsed) {
-                      message("gradum.code.expand", hiddenLinesCount)
-                    } else {
-                      message("gradum.code.collapse", lineCount - CODE_COLLAPSE_LIMIT)
-                    }
+                    text =
+                      if (isCollapsed) {
+                        message("gradum.code.expand", hiddenLinesCount)
+                      } else {
+                        message("gradum.code.collapse", lineCount - MarkdownStyle.CodeBlock.COLLAPSE_LIMIT)
+                      }
                   )
                 }
               }
@@ -464,14 +459,14 @@ private fun CodeBlockToolbar(
 }
 
 private fun truncateAnnotatedString(annotated: AnnotatedString): AnnotatedString {
-  val collapseThreshold: Int = CODE_COLLAPSE_LIMIT - 1
+  val collapseThreshold: Int = MarkdownStyle.CodeBlock.COLLAPSE_LIMIT - 1
   val newlineIndices: List<Int> = annotated.text
     .withIndex()
     .filter { it.value == '\n' }
     .map { it.index }
 
   val truncateIndex: Int =
-    if (newlineIndices.size >= CODE_COLLAPSE_LIMIT)
+    if (newlineIndices.size >= MarkdownStyle.CodeBlock.COLLAPSE_LIMIT)
       newlineIndices[collapseThreshold]
     else annotated.text.length
 

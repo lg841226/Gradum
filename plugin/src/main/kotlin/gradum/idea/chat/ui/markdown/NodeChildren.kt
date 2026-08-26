@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * NodeChildren.kt  2026-08-24 22:37:56 Changed by gwy
+ * NodeChildren.kt  2026-08-26 12:32:58 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -26,14 +26,14 @@ internal class NodeChildren private constructor(
 
   companion object {
     val Empty: NodeChildren = NodeChildren(first = null, rest = emptyList())
-
     fun of(parent: Node): NodeChildren {
-      val allChildren: List<Node> = walkDirectChildren(parentNode = parent)
-      return if (allChildren.isEmpty())
-        Empty else
+      val childrenList = walkDirectChildren(parent)
+      return childrenList.firstOrNull()?.let { firstChild ->
         NodeChildren(
-          first = allChildren[0], rest = allChildren.drop(n = 1)
+          first = firstChild,
+          rest = childrenList.drop(n = 1)
         )
+      } ?: Empty
     }
 
     private fun walkDirectChildren(parentNode: Node): List<Node> {

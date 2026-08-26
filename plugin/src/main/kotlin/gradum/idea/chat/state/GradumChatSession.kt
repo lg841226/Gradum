@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-25 01:01:14 Changed by gwy
+ * GradumChatSession.kt  2026-08-26 01:05:38 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -79,7 +79,8 @@ class GradumChatSession {
       val appearance = AppearanceSettings.getInstance().snapshot
       if (appearance.rememberPermission) selectedPermission = appearance.lastPermission
       if (appearance.rememberContext) isExpanded = appearance.lastContextEnabled
-    } catch (_: Throwable) { /* no IntelliJ platform in unit tests */ }
+    } catch (_: Throwable) { /* no IntelliJ platform in unit tests */
+    }
   }
 
   val toolMode: String get() = selectedPermission
@@ -293,10 +294,11 @@ class GradumChatSession {
     if (!messages[userMessageIndex].isUserMessage) return
     val assistantMessageIndex: Int? = (userMessageIndex + 1 until messages.size)
       .firstOrNull { !messages[it].isUserMessage }
-    val messagesToRemove: Int = if (assistantMessageIndex != null)
-      assistantMessageIndex - userMessageIndex + 1
-    else 1
-    repeat(messagesToRemove) { messages.removeAt(userMessageIndex) }
+    val messagesToRemove: Int =
+      if (assistantMessageIndex != null)
+        assistantMessageIndex - userMessageIndex + 1
+      else 1
+    repeat(times = messagesToRemove) { messages.removeAt(userMessageIndex) }
     if (messages.isEmpty()) {
       clearSendState()
       hasSentMessage = false

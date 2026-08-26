@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailDiskCache.kt  2026-08-14 12:10:00 Changed by gwy
+ * ThumbnailDiskCache.kt  2026-08-25 23:14:30 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -11,9 +11,11 @@ import gradum.idea.PluginConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
+import java.nio.file.Files.readAllBytes
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.FileTime.fromMillis
 import java.security.MessageDigest
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -53,8 +55,8 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailDiskCache")
  * working network fetch fail.
  */
 internal class ThumbnailDiskCache(
-  private val maxBytes: Long = PluginConfig.THUMBNAIL_DISK_CACHE_MAX_BYTES,
   private val rootDirectory: Path = defaultRootDirectory(),
+  private val maxBytes: Long = PluginConfig.THUMBNAIL_DISK_CACHE_MAX_BYTES
 ) {
 
   companion object {
@@ -71,9 +73,6 @@ internal class ThumbnailDiskCache(
     try {
       Files.createDirectories(rootDirectory)
     } catch (initException: Exception) {
-      // We deliberately do not throw here. The cache becomes a
-      // no-op (read returns null, write swallows); the loader still
-      // works against the network.
       logger.warn(
         "Thumbnail disk cache directory '{}' could not be created: {}",
         rootDirectory, initException.message
@@ -90,22 +89,22 @@ internal class ThumbnailDiskCache(
   fun read(url: String): ByteArray? {
     val entryFile: Path = entryFile(url)
     if (!Files.exists(entryFile)) return null
+
     return try {
-      val bytes: ByteArray = Files.readAllBytes(entryFile)
-      // Touch mtime for LRU. setLastModifiedTime can fail on some
-      // filesystems (read-only mount, FAT, etc.) — we don't care
-      // enough to surface the error.
+      val bytes: ByteArray = readAllBytes(entryFile)
       try {
-        Files.setLastModifiedTime(entryFile, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis()))
+        Files.setLastModifiedTime(entryFile, fromMillis(System.currentTimeMillis()))
       } catch (touchException: Exception) {
         logger.debug("Could not touch mtime for {}: {}", entryFile, touchException.message)
       }
       bytes
     } catch (readException: Exception) {
       logger.warn("Thumbnail disk cache read failed for {}: {}", entryFile, readException.message)
-      // Delete the corrupt entry so the next read goes to network
-      // instead of looping on the same broken file.
-      try { Files.deleteIfExists(entryFile) } catch (_: Exception) { /* best effort */ }
+      try {
+        Files.deleteIfExists(entryFile)
+      } catch (_: Exception) {
+        /* best effort */
+      }
       null
     }
   }
@@ -121,12 +120,13 @@ internal class ThumbnailDiskCache(
     val entryFile: Path = entryFile(url)
     lock.withLock {
       try {
-        // Write to a temp file in the same directory then atomically
-        // rename. Avoids a torn read where another thread sees a
-        // half-written `entryFile`.
         val tempFile: Path = entryFile.resolveSibling("${entryFile.fileName}.tmp")
         Files.write(tempFile, bytes)
-        Files.move(tempFile, entryFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        Files.move(
+          tempFile,
+          entryFile,
+          StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE
+        )
         evictIfNeeded()
       } catch (writeException: Exception) {
         logger.warn("Thumbnail disk cache write failed for {}: {}", entryFile, writeException.message)
@@ -163,7 +163,11 @@ internal class ThumbnailDiskCache(
       try {
         Files.list(rootDirectory).use { stream ->
           for (file: Path in stream) {
-            try { Files.deleteIfExists(file) } catch (_: Exception) { /* best effort */ }
+            try {
+              Files.deleteIfExists(file)
+            } catch (_: Exception) {
+              /* best effort */
+            }
           }
         }
       } catch (clearException: Exception) {
@@ -180,34 +184,38 @@ internal class ThumbnailDiskCache(
    * URL set per IDE install).
    */
   private fun entryFile(url: String): Path {
-    val digest: ByteArray = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
-    val hex: String = digest.joinToString("") { "%02x".format(it) }.substring(0, HASH_HEX_LENGTH)
+    val digest: ByteArray = MessageDigest.getInstance("SHA-256")
+      .digest(url.toByteArray(Charsets.UTF_8))
+
+    val hex: String = digest.joinToString(separator = "") {
+      "%02x".format(it)
+    }.substring(0, HASH_HEX_LENGTH)
     return rootDirectory.resolve("$hex.img")
   }
 
   /**
    * Walk files in mtime-ascending order, deleting the oldest until
-   * the total size is at or under [maxBytes]. Best-effort: a delete
+   * the total size is at or under [maxBytes]. Best-effort: a deleted
    * that fails (file already gone, perms changed) is ignored.
    */
   private fun evictIfNeeded() {
     var currentSize: Long = sizeBytesNoLock()
     if (currentSize <= maxBytes) return
     try {
-      // Materialize to a list first — `Files.list(...)` returns a
-      // Java `Stream<Path>`, which doesn't expose Kotlin's
-      // `Iterable.sortedBy`. Converting to `List<Path>` here keeps
-      // the call site readable and lets us sort by mtime in one pass.
       val candidates: List<Path> = Files.list(rootDirectory).use { stream ->
         stream
           .filter { Files.isRegularFile(it) }
           .toList()
-          .sortedBy { runCatching { Files.getLastModifiedTime(it).toMillis() }.getOrDefault(0L) }
+          .sortedBy {
+            runCatching { Files.getLastModifiedTime(it).toMillis() }.getOrDefault(
+              defaultValue = 0L
+            )
+          }
       }
       for (file: Path in candidates) {
         if (currentSize <= maxBytes) break
-        val fileSize: Long = runCatching { Files.size(file) }.getOrDefault(0L)
-        if (runCatching { Files.deleteIfExists(file) }.getOrDefault(false)) {
+        val fileSize: Long = runCatching { Files.size(file) }.getOrDefault(defaultValue = 0L)
+        if (runCatching { Files.deleteIfExists(file) }.getOrDefault(defaultValue = false)) {
           currentSize -= fileSize
         }
       }
@@ -224,7 +232,9 @@ internal class ThumbnailDiskCache(
           if (Files.isRegularFile(file)) total += Files.size(file)
         }
       }
-    } catch (_: Exception) { /* best effort */ }
+    } catch (_: Exception) {
+      /* best effort */
+    }
     return total
   }
 }

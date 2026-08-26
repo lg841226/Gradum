@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailDiskCacheTest.kt  2026-08-25 13:21:36 Changed by gwy
+ * ThumbnailDiskCacheTest.kt  2026-08-25 23:14:30 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -31,7 +31,7 @@ class ThumbnailDiskCacheTest {
   @Before
   fun setUp() {
     root = Files.createTempDirectory("gradum-thumb-cache-test")
-    cache = ThumbnailDiskCache(maxBytes = 1024L * 1024, rootDirectory = root)
+    cache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 1024L * 1024)
   }
 
   @After
@@ -99,7 +99,7 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `eviction removes the oldest entry when the cache is full`() {
-    val tightCache = ThumbnailDiskCache(maxBytes = 100L, rootDirectory = root)
+    val tightCache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 100L)
     tightCache.clear()
     try {
       val payload = ByteArray(size = 40)
@@ -121,7 +121,7 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `reading an entry refreshes its mtime so LRU promotes it`() {
-    val tightCache = ThumbnailDiskCache(maxBytes = 120L, rootDirectory = root)
+    val tightCache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 120L)
     tightCache.clear()
     try {
       val payload = ByteArray(size = 40)

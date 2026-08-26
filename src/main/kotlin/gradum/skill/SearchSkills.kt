@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-25 17:05:14 Changed by gwy
+ * SearchSkills.kt  2026-08-26 11:20:58 Changed by gwy
  */
 package gradum.skill
 
@@ -26,13 +26,13 @@ import java.util.regex.PatternSyntaxException
 
 private val logger: Logger = LoggerFactory.getLogger("SearchSkills")
 
-private val MAX_CONCURRENCY: Int = GradumConfig.SEARCH_MAX_CONCURRENCY
-private val MAX_FILE_SIZE: Long = GradumConfig.SEARCH_MAX_FILE_SIZE
-private val MAX_MATCHES_DEFAULT: Int = GradumConfig.SEARCH_MAX_MATCHES_DEFAULT
-private val MAX_MATCHES_LIMIT: Int = GradumConfig.SEARCH_MAX_MATCHES_LIMIT
-private val MIN_PATTERN_LENGTH: Int = GradumConfig.SEARCH_MIN_PATTERN_LENGTH
-private val GLOB_MAX_RESULTS: Int = GradumConfig.GLOB_MAX_RESULTS
-private val GLOB_MAX_LIMIT: Int = GradumConfig.GLOB_MAX_LIMIT
+private const val MAX_CONCURRENCY: Int = GradumConfig.SEARCH_MAX_CONCURRENCY
+private const val MAX_FILE_SIZE: Long = GradumConfig.SEARCH_MAX_FILE_SIZE
+private const val MAX_MATCHES_DEFAULT: Int = GradumConfig.SEARCH_MAX_MATCHES_DEFAULT
+private const val MAX_MATCHES_LIMIT: Int = GradumConfig.SEARCH_MAX_MATCHES_LIMIT
+private const val MIN_PATTERN_LENGTH: Int = GradumConfig.SEARCH_MIN_PATTERN_LENGTH
+private const val GLOB_MAX_RESULTS: Int = GradumConfig.GLOB_MAX_RESULTS
+private const val GLOB_MAX_LIMIT: Int = GradumConfig.GLOB_MAX_LIMIT
 
 private val BINARY_EXTENSIONS: Set<String> = setOf(
   "class", "jar", "so", "dylib", "dll", "exe", "bin", "o", "a",
@@ -66,12 +66,12 @@ private val SKIPPED_DIRECTORY_NAMES: Set<String> = setOf(
 )
 
 private data class SearchParams(
-  val pattern: String,
+  val limit: Int,
   val regex: Regex,
+  val pattern: String,
   val rootFile: File,
   val resolvedPath: Path,
-  val includeFilter: String,
-  val limit: Int
+  val includeFilter: String
 )
 
 private data class GlobParams(
@@ -141,8 +141,7 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
 }
 
 private fun resolveAndValidatePath(
-  context: SkillContext,
-  relativePath: String?
+  context: SkillContext, relativePath: String?
 ): Either<Pair<File, Path>, SkillResult> {
   val resolvedPath = resolveSearchPathImpl(context, relativePath)
     ?: return Either.Failure(
@@ -162,15 +161,11 @@ private fun resolveAndValidatePath(
   return Either.Success(value = resolvedPath.toFile() to resolvedPath)
 }
 
-private fun walkFiltered(
-  root: File, onFile: (File) -> Unit
-) {
-  walkFilteredImpl(root, onFile)
+private fun walkFiltered(root: File, onFile: (File) -> Unit) {
+  walkFilteredImpl(dir = root, onFile)
 }
 
-private fun walkFilteredImpl(
-  dir: File, onFile: (File) -> Unit
-) {
+private fun walkFilteredImpl(dir: File, onFile: (File) -> Unit) {
   val entries = try {
     dir.listFiles()?.toList() ?: emptyList()
   } catch (securityIssueException: SecurityException) {
@@ -246,26 +241,29 @@ class GrepSkill : Skill() {
   }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val ignoreCase = if (context.isSimpleModel) {
-      false
-    } else {
-      val caseSensitive = when (val v = arguments["caseSensitive"]) {
-        is Boolean -> v
-        is String -> v.toBooleanStrictOrNull() ?: false
-        else -> false
+    val ignoreCase =
+      if (context.isSimpleModel) {
+        false
+      } else {
+        val caseSensitive =
+          when (val rawValue = arguments["caseSensitive"]) {
+            is Boolean -> rawValue
+            is String -> rawValue.toBooleanStrictOrNull() ?: false
+            else -> false
+          }
+        !caseSensitive
       }
-      !caseSensitive
-    }
     return executeInternal(arguments, context, ignoreCase)
   }
 
   private fun executeInternal(
     arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean,
   ): SkillResult {
-    val params = when (val result = prepareSearch(arguments, context, ignoreCase)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
+    val params =
+      when (val result = prepareSearch(arguments, context, ignoreCase)) {
+        is Either.Success -> result.value
+        is Either.Failure -> return result.error
+      }
 
     val includeMatcher = buildIncludeMatcher(params.includeFilter)
     val files = collectFiles(root = params.rootFile, includeMatcher)
@@ -292,41 +290,44 @@ class GrepSkill : Skill() {
       )
     }
 
-    val regexFlags: Set<RegexOption> = if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
-    else emptySet()
+    val regexFlags: Set<RegexOption> =
+      if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
+      else emptySet()
 
-    val compiledRegex: Regex = try {
-      Regex(patternStr, options = regexFlags)
-    } catch (patternSyntaxException: PatternSyntaxException) {
-      return Either.Failure(
-        error = makeFailure(
-          code = ErrorCode.INVALID_PARAMETER,
-          message = buildXmlError(
-            code = "INVALID_PARAMETER",
-            message = "Invalid regex pattern: ${patternSyntaxException.message}",
-            fixHint = "Check the regex syntax. Use simple text for literal searches."
+    val compiledRegex: Regex =
+      try {
+        Regex(patternStr, options = regexFlags)
+      } catch (patternSyntaxException: PatternSyntaxException) {
+        return Either.Failure(
+          error = makeFailure(
+            code = ErrorCode.INVALID_PARAMETER,
+            message = buildXmlError(
+              code = "INVALID_PARAMETER",
+              message = "Invalid regex pattern: ${patternSyntaxException.message}",
+              fixHint = "Check the regex syntax. Use simple text for literal searches."
+            )
           )
         )
-      )
-    }
+      }
 
     val pathResult = resolveAndValidatePath(context, relativePath = arguments["path"] as? String)
     if (pathResult is Either.Failure) return pathResult
     val (rootFile, resolvedPath) = (pathResult as Either.Success).value
 
     val includeFilter = (arguments["include"] as? String)?.trim() ?: ""
-    val limit = when (val v = arguments["limit"]) {
-      is Number -> v.toInt().coerceIn(1, MAX_MATCHES_LIMIT)
-      is String -> v.toIntOrNull()?.coerceIn(1, MAX_MATCHES_LIMIT) ?: MAX_MATCHES_DEFAULT
-      else -> MAX_MATCHES_DEFAULT
-    }
+    val limit =
+      when (val rawValue = arguments["limit"]) {
+        is Number -> rawValue.toInt().coerceIn(1, MAX_MATCHES_LIMIT)
+        is String -> rawValue.toIntOrNull()?.coerceIn(1, MAX_MATCHES_LIMIT) ?: MAX_MATCHES_DEFAULT
+        else -> MAX_MATCHES_DEFAULT
+      }
 
     return Either.Success(
       value = SearchParams(
         limit = limit,
-        rootFile = rootFile,
-        pattern = patternStr,
         regex = compiledRegex,
+        pattern = patternStr,
+        rootFile = rootFile,
         resolvedPath = resolvedPath,
         includeFilter = includeFilter
       )
@@ -387,8 +388,7 @@ class GrepSkill : Skill() {
           if (matchCount.get() >= limit) break
           launch(context = Dispatchers.IO) {
             semaphore.withPermit {
-              if (matchCount.get() >= limit)
-                return@withPermit
+              if (matchCount.get() >= limit) return@withPermit
               searchFile(file, regex, limit, matchCount, searchResults = searchMatches)
             }
           }
@@ -405,22 +405,21 @@ class GrepSkill : Skill() {
   ) {
     try {
       file.bufferedReader(Charsets.UTF_8).use { reader ->
-        var lineNumber = 0
-        reader.lineSequence().forEach { line ->
-          lineNumber++
-          if (matchCount.get() >= limit) return
-          if (regex.containsMatchIn(line)) {
-            if (matchCount.incrementAndGet() <= limit) {
-              searchResults.add(
-                linkedMapOf(
-                  "file" to file.absolutePath,
-                  "line" to lineNumber,
-                  "content" to line
-                )
+        reader.lineSequence()
+          .takeWhile { matchCount.get() < limit }
+          .mapIndexed { index, line -> index + 1 to line }
+          .filter { (_, line) -> regex.containsMatchIn(input = line) }
+          .take(n = limit - matchCount.get())
+          .forEach { (lineNumber, line) ->
+            searchResults.add(
+              linkedMapOf(
+                "file" to file.absolutePath,
+                "line" to lineNumber,
+                "content" to line
               )
-            }
+            )
+            matchCount.incrementAndGet()
           }
-        }
       }
     } catch (readException: Exception) {
       logger.debug("Failed to search ${file.path}: ${readException.message}", readException)
@@ -548,11 +547,12 @@ class GlobSkill : Skill() {
 
     val projectRoot = Paths.get(context.projectRoot).toAbsolutePath().normalize()
 
-    val limit = when (val v = arguments["limit"]) {
-      is Number -> v.toInt().coerceIn(1, GLOB_MAX_LIMIT)
-      is String -> v.toIntOrNull()?.coerceIn(1, GLOB_MAX_LIMIT) ?: GLOB_MAX_RESULTS
-      else -> GLOB_MAX_RESULTS
-    }
+    val limit =
+      when (val rawValue = arguments["limit"]) {
+        is Number -> rawValue.toInt().coerceIn(1, GLOB_MAX_LIMIT)
+        is String -> rawValue.toIntOrNull()?.coerceIn(1, GLOB_MAX_LIMIT) ?: GLOB_MAX_RESULTS
+        else -> GLOB_MAX_RESULTS
+      }
 
     return Either.Success(
       value = GlobParams(

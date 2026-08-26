@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatScreen.kt  2026-08-25 22:12:07 Changed by gwy
+ * ChatScreen.kt  2026-08-25 23:26:37 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -53,12 +53,11 @@ private val FootnoteScrollPadding: androidx.compose.ui.unit.Dp = GradumSpacing.x
  */
 @Composable
 fun ChatScreen(
-  state: ChatSessionState,
-  modifier: Modifier = Modifier
+  state: ChatSessionState, modifier: Modifier = Modifier
 ) {
-  var subChatActive by remember { mutableStateOf(false) }
-  var subChatTranscriptMarkdown by remember { mutableStateOf("") }
-  var subChatTitle by remember { mutableStateOf("") }
+  var subChatTitle by remember { mutableStateOf(value = "") }
+  var subChatActive by remember { mutableStateOf(value = false) }
+  var subChatTranscriptMarkdown by remember { mutableStateOf(value = "") }
 
   val onSubChatClick: (String, String, String) -> Unit = { transcriptMarkdown, _, title ->
     subChatTranscriptMarkdown = transcriptMarkdown
@@ -68,34 +67,34 @@ fun ChatScreen(
 
   val onBackToMainChat: () -> Unit = {
     subChatActive = false
-    subChatTranscriptMarkdown = ""
     subChatTitle = ""
+    subChatTranscriptMarkdown = ""
   }
 
   if (subChatActive) {
-    val elapsedSeconds = remember { mutableStateOf(0) }
-    LaunchedEffect(state.subAgentState.startTimestamp) {
+    val elapsedSeconds = remember { mutableStateOf(value = 0) }
+    LaunchedEffect(key1 = state.subAgentState.startTimestamp) {
       if (state.subAgentState.startTimestamp > 0L) {
         while (state.subAgentState.isActive) {
           elapsedSeconds.value =
             ((System.currentTimeMillis() - state.subAgentState.startTimestamp) / 1000).toInt()
-          delay(1_000L.milliseconds)
+          delay(duration = 1_000L.milliseconds)
         }
       }
     }
 
     SubChatView(
-      onBack = onBackToMainChat,
-      title = subChatTitle.ifBlank { state.subAgentState.title },
-      modelName = state.subAgentState.modelName,
-      userQuery = state.subAgentState.userQuery,
-      errorMessage = state.subAgentState.errorMessage,
       modifier = modifier,
+      onBack = onBackToMainChat,
+      toolCalls = state.subAgentState.toolCalls,
+      userQuery = state.subAgentState.userQuery,
+      modelName = state.subAgentState.modelName,
       hasCompleted = !state.subAgentState.isActive,
+      transcriptMarkdown = subChatTranscriptMarkdown,
+      errorMessage = state.subAgentState.errorMessage,
       wasInterrupted = state.subAgentState.wasInterrupted,
       subAgentResponse = state.subAgentState.streamingResponse,
-      transcriptMarkdown = subChatTranscriptMarkdown,
-      toolCalls = state.subAgentState.toolCalls
+      title = subChatTitle.ifBlank { state.subAgentState.title }
     )
     return
   }
@@ -103,36 +102,38 @@ fun ChatScreen(
   val density = LocalDensity.current
   val scrollState = rememberScrollState()
   val coroutineScope = rememberCoroutineScope()
-  val nearBottomThresholdPx: Float = with(density) { NearBottomThresholdDp.toPx() }
+  val nearBottomThresholdPx: Float = with(receiver = density) { NearBottomThresholdDp.toPx() }
 
-  val isNearBottom: Boolean by remember(scrollState) {
+  val isNearBottom: Boolean by remember(key1 = scrollState) {
     derivedStateOf {
       val maxValue: Int = scrollState.maxValue
       maxValue == 0 || maxValue - scrollState.value <= nearBottomThresholdPx
     }
   }
 
-  val isNearTop: Boolean by remember(scrollState) {
+  val isNearTop: Boolean by remember(key1 = scrollState) {
     derivedStateOf {
       scrollState.value <= nearBottomThresholdPx
     }
   }
 
-  var wasAtBottom by remember { mutableStateOf(true) }
-  LaunchedEffect(scrollState.value) {
+  var wasAtBottom by remember { mutableStateOf(value = true) }
+  LaunchedEffect(key1 = scrollState.value) {
     wasAtBottom = isNearBottom
   }
 
-  var lastSeenMessageCount by remember { mutableIntStateOf(state.messages.size) }
+  var lastSeenMessageCount by remember { mutableIntStateOf(value = state.messages.size) }
 
+  val messageLoadCount: Int = LocalMessageLoadCount.current
   val autoScrollToBottom: Boolean = LocalAutoScrollToBottom.current
   val messageLoadEnabled: Boolean = LocalMessageLoadEnabled.current
-  val messageLoadCount: Int = LocalMessageLoadCount.current
 
-  val displayMessages: List<ChatMessage> = remember(state.messages, messageLoadEnabled, messageLoadCount) {
-    if (messageLoadEnabled && state.messages.size > messageLoadCount) state.messages.takeLast(messageLoadCount)
-    else state.messages
-  }
+  val displayMessages: List<ChatMessage> =
+    remember(key1 = state.messages, key2 = messageLoadEnabled, key3 = messageLoadCount) {
+      if (messageLoadEnabled && state.messages.size > messageLoadCount)
+        state.messages.takeLast(n = messageLoadCount)
+      else state.messages
+    }
 
   val lastMessage: ChatMessage? = displayMessages.lastOrNull()
   val lastBlockCount: Int = lastMessage?.renderBlocks?.size ?: 0
@@ -142,8 +143,9 @@ fun ChatScreen(
     if (state.messages.size > lastSeenMessageCount) {
       val newMessages: List<ChatMessage> = state.messages.subList(lastSeenMessageCount, state.messages.size)
       lastSeenMessageCount = state.messages.size
+
       if (newMessages.any { it.isUserMessage }) {
-        withFrameNanos { }
+        withFrameNanos {}
         scrollState.animateScrollTo(scrollState.maxValue)
         return@LaunchedEffect
       }
@@ -229,10 +231,10 @@ fun ChatScreen(
                         logger.warn("Failed to open URL: $url", iOException)
                       }
                     },
-                    selectedPermission = state.selectedPermission,
-                    onOpenInEditor = state.onOpenInEditor,
                     onViewDiff = state.onViewDiff,
-                    onSubChatClick = onSubChatClick
+                    onSubChatClick = onSubChatClick,
+                    onOpenInEditor = state.onOpenInEditor,
+                    selectedPermission = state.selectedPermission
                   )
                 }
               }
@@ -243,34 +245,20 @@ fun ChatScreen(
 
       val enableStickySections: Boolean = LocalEnableStickySections.current
 
-      val activeSection = if (enableStickySections) {
-        stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
-          scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
-        }
-      } else null
-      if (enableStickySections) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-          stickyRegistry.entries.forEach { section: StickySectionEntry ->
-            val isActive: Boolean = section == activeSection
-            val remaining: Float = section.bottomInColumn - scrollState.value
-            val toolbarHeight: Float = section.toolbarHeight
-            val alpha: Float = if (isActive && toolbarHeight > 0f) {
-              val linear: Float = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
-              FastOutSlowInEasing.transform(fraction = linear)
-            } else if (isActive) 1f else 0f
-            if (alpha > 0f) {
-              Box(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .background(color = JewelTheme.globalColors.panelBackground)
-                  .onGloballyPositioned { section.toolbarHeight = it.size.height.toFloat() }
-                  .graphicsLayer { this.alpha = alpha }
-              ) {
-                section.toolbar()
-              }
-            }
+      val activeSection: StickySectionEntry? =
+        if (enableStickySections) {
+          stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
+            scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
           }
-        }
+        } else null
+
+      if (enableStickySections) {
+        StickyOverlay(
+          activeSection = activeSection,
+          sections = stickyRegistry.entries,
+          modifier = Modifier.fillMaxWidth(),
+          scrollOffset = scrollState.value.toFloat()
+        )
       }
 
       JumpToBottomButton(
@@ -302,4 +290,66 @@ fun ChatScreen(
       selectedPermission = state.selectedPermission
     )
   }
+}
+
+/**
+ * Renders sticky section toolbars that fade in/out as the user scrolls.
+ *
+ * Each [StickySectionEntry] registers its toolbar height via
+ * [onGloballyPositioned][androidx.compose.ui.layout.onGloballyPositioned];
+ * when the active section's remaining space shrinks below twice the toolbar
+ * height the toolbar starts fading out, producing a smooth collapse effect.
+ */
+@Composable
+private fun StickyOverlay(
+  scrollOffset: Float,
+  modifier: Modifier = Modifier,
+  sections: List<StickySectionEntry>,
+  activeSection: StickySectionEntry?
+) {
+  Box(modifier = modifier) {
+    for (section: StickySectionEntry in sections) {
+      val alpha: Float = sectionToolbarAlpha(
+        section = section,
+        scrollOffset = scrollOffset,
+        isActive = section == activeSection
+      )
+      if (alpha > 0f) {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(color = JewelTheme.globalColors.panelBackground)
+            .onGloballyPositioned { coords ->
+              section.toolbarHeight = coords.size.height.toFloat()
+            }
+            .graphicsLayer { this.alpha = alpha }
+        ) {
+          section.toolbar()
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Computes the alpha for a sticky section toolbar.
+ *
+ * - Inactive sections: `0f` (hidden).
+ * - Active section with a measured toolbar: linearly fade from `1f` to `0f`
+ *   as the remaining space shrinks from `toolbarHeight` to `0f`, eased
+ *   with [FastOutSlowInEasing].
+ * - Active section before first measurement (`toolbarHeight == 0`): fully
+ *   opaque so the toolbar is visible immediately.
+ */
+private fun sectionToolbarAlpha(
+  isActive: Boolean,
+  scrollOffset: Float,
+  section: StickySectionEntry
+): Float {
+  if (!isActive) return 0f
+  val toolbarHeight: Float = section.toolbarHeight
+  if (toolbarHeight <= 0f) return 1f
+  val remaining: Float = section.bottomInColumn - scrollOffset
+  val linear: Float = ((remaining - toolbarHeight) / (toolbarHeight * 0.5f)).coerceIn(0f, 1f)
+  return FastOutSlowInEasing.transform(fraction = linear)
 }

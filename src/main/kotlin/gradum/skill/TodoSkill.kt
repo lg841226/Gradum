@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-25 22:29:33 Changed by gwy
+ * TodoSkill.kt  2026-08-26 11:00:57 Changed by gwy
  */
 
 package gradum.skill
@@ -208,9 +208,10 @@ class TodoManager {
 
   fun getTaskReminder(): String? {
     val taskItems: List<String> = taskList ?: return null
+    val remainingCount: Int = taskItems.size - currentTaskIndex
+
     if (currentTaskIndex >= taskItems.size) return null
 
-    val remainingCount: Int = taskItems.size - currentTaskIndex
     return """
       You still have $remainingCount task(s) remaining.
       Current task: ${taskItems[currentTaskIndex]}.

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-25 18:07:24 Changed by gwy
+ * Table.kt  2026-08-26 12:30:26 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.settings.LocalEnableStickySections
@@ -111,13 +110,6 @@ fun MarkdownSegment.Table.isRenderable(): Boolean = rows.any { row ->
   row.any { it.isNotBlank() }
 }
 
-private const val MAX_TABLE_LINE_LENGTH: Int = 5_000
-
-private val minCellWidthDp: Dp = 75.dp
-private val maxCellWidthDp: Dp = 620.dp
-private val cellHorizontalPadding: Dp = 10.dp
-private val cellVerticalPadding: Dp = GradumSpacing.md
-private val scrollbarReservedSpace: Dp = GradumSpacing.md
 
 /**
  * Splits a Markdown string into alternating [MarkdownSegment.Plain] and
@@ -141,7 +133,7 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 
   fun flushPlain() {
     if (plainBuffer.isNotEmpty()) {
-      segments.add(MarkdownSegment.Plain(plainBuffer.toString()))
+      segments.add(MarkdownSegment.Plain(text = plainBuffer.toString()))
       plainBuffer.clear()
     }
   }
@@ -153,35 +145,35 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 
   while (lineIndex < lines.size) {
     val headerLine: String = lines[lineIndex]
-    val separatorLine: String? = lines.getOrNull(lineIndex + 1)
+    val separatorLine: String? = lines.getOrNull(index = lineIndex + 1)
     val headerIsLikely: Boolean = separatorLine != null
-      && headerLine.length <= MAX_TABLE_LINE_LENGTH
-      && separatorLine.length <= MAX_TABLE_LINE_LENGTH
-      && headerLine.contains('|')
-      && isTableSeparator(separatorLine)
+      && headerLine.length <= MarkdownStyle.Table.MAX_LINE_LENGTH
+      && separatorLine.length <= MarkdownStyle.Table.MAX_LINE_LENGTH
+      && headerLine.contains(char = '|')
+      && isTableSeparator(tableRow = separatorLine)
 
     if (headerIsLikely) {
       val headers: List<String> = parseTableRow(headerLine)
       val alignments: List<TextAlign> =
-        parseAlignments(separatorLine, headers.size)
-          ?: List(headers.size.coerceAtLeast(1)) { TextAlign.Start }
+        parseAlignments(separatorLine, expectedCount = headers.size)
+          ?: List(size = headers.size.coerceAtLeast(minimumValue = 1)) { TextAlign.Start }
 
       val bodyLines: MutableList<String> = mutableListOf()
       var bodyLineIndex: Int = lineIndex + 2
       while (bodyLineIndex < lines.size) {
         val currentLine: String = lines[bodyLineIndex]
         val trimmedCurrent: String = currentLine.trim()
-        if (trimmedCurrent.isEmpty() || !currentLine.contains('|')) break
+        if (trimmedCurrent.isEmpty() || !currentLine.contains(char = '|')) break
         bodyLines.add(currentLine).also { bodyLineIndex++ }
       }
 
       val bodyRows: List<List<String>> = bodyLines
-        .filter { it.length <= MAX_TABLE_LINE_LENGTH }
+        .filter { it.length <= MarkdownStyle.Table.MAX_LINE_LENGTH }
         .map { parseTableRow(it) }
         .map { row ->
           when {
             row.size < headers.size -> row + List(headers.size - row.size) { "" }
-            row.size > headers.size -> row.take(headers.size)
+            row.size > headers.size -> row.take(n = headers.size)
             else -> row
           }
         }
@@ -210,7 +202,7 @@ fun splitMarkdownAtTables(markdown: String): List<MarkdownSegment> {
 fun splitMarkdown(markdown: String): List<MarkdownSegment> =
   splitMarkdownAtTables(markdown).flatMap { segment: MarkdownSegment ->
     when (segment) {
-      is MarkdownSegment.Plain -> splitPlainAtBlocks(segment.text)
+      is MarkdownSegment.Plain -> splitPlainAtBlocks(plainText = segment.text)
       is MarkdownSegment.Table -> listOf(segment)
       is MarkdownSegment.NonProseBlock -> listOf(segment)
     }
@@ -223,9 +215,9 @@ fun splitMarkdown(markdown: String): List<MarkdownSegment> =
 private fun parseTableRow(line: String): List<String> {
   val trimmed: String = line.trim()
   val withoutLeading: String =
-    if (trimmed.startsWith("|")) trimmed.substring(1) else trimmed
+    if (trimmed.startsWith(prefix = "|")) trimmed.substring(startIndex = 1) else trimmed
   val withoutTrailing: String =
-    if (withoutLeading.endsWith("|") && !withoutLeading.endsWith("\\|"))
+    if (withoutLeading.endsWith(suffix = "|") && !withoutLeading.endsWith(suffix = "\\|"))
       withoutLeading.substring(0, withoutLeading.length - 1)
     else withoutLeading
 
@@ -258,9 +250,9 @@ private fun parseTableRow(line: String): List<String> {
 
 /** A separator row is a pipe row whose every cell is `---` / `:---` / `---:` / `:---:`. */
 private fun isTableSeparator(tableRow: String): Boolean {
-  if (!tableRow.contains('|')) return false
+  if (!tableRow.contains(char = '|')) return false
 
-  val cells: List<String> = parseTableRow(tableRow)
+  val cells: List<String> = parseTableRow(line = tableRow)
   return cells.all { cellContent ->
     val trimmedCellContent: String = cellContent.trim()
     trimmedCellContent.isNotEmpty() &&
@@ -275,11 +267,11 @@ private fun parseAlignments(line: String?, expectedCount: Int): List<TextAlign>?
   val cells: List<String> = parseTableRow(line)
   if (cells.size < expectedCount) return null
 
-  return List(expectedCount) { cellIndex ->
+  return List(size = expectedCount) { cellIndex ->
     val trimmedCell: String = cells[cellIndex].trim()
     when {
-      trimmedCell.startsWith(":") && trimmedCell.endsWith(":") -> TextAlign.Center
-      trimmedCell.endsWith(":") -> TextAlign.End
+      trimmedCell.startsWith(prefix = ":") && trimmedCell.endsWith(suffix = ":") -> TextAlign.Center
+      trimmedCell.endsWith(suffix = ":") -> TextAlign.End
       else -> TextAlign.Start
     }
   }
@@ -314,18 +306,22 @@ fun ScrollableTable(
   onUrlClick: (String) -> Unit = {}
 ) {
   val density: Density = LocalDensity.current
-  val horizontalPaddingPx: Int = with(density) { cellHorizontalPadding.roundToPx() }
-  val textMeasurer: TextMeasurer = rememberTextMeasurer()
+  val horizontalPaddingPx: Int = with(receiver = density) {
+    MarkdownStyle.Table.CELL_HORIZONTAL_PADDING.roundToPx()
+  }
+  val tableBackground = Color.Transparent
   val markdownStyling = rememberGradumMarkdownStyling()
+  val textMeasurer: TextMeasurer = rememberTextMeasurer()
   val baseStyle: TextStyle = markdownStyling.paragraph.inlinesStyling.textStyle
   val headerStyle: TextStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
-  val tableBackground = Color.Transparent
-  val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
   val renderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
+  val paragraphStyling: MarkdownStyling.Paragraph = rememberGradumMarkdownStyling().paragraph
 
-  val naturalColumnWidthsPx: IntArray = remember(table) {
-    val widths = IntArray(table.header.size.coerceAtLeast(1))
-    val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
+  val naturalColumnWidthsPx: IntArray = remember(key1 = table) {
+    val widths = IntArray(size = table.header.size.coerceAtLeast(minimumValue = 1))
+    val maxCellWidthPx: Int = with(receiver = density) {
+      MarkdownStyle.Table.MAX_CELL_WIDTH.roundToPx()
+    }
 
     fun measure(row: List<String>, style: TextStyle) {
       row.forEachIndexed { columnIndex, cell ->
@@ -334,13 +330,13 @@ fun ScrollableTable(
           maxLines = 1,
           style = style,
           softWrap = false,
-          text = AnnotatedString(cell)
-        ).size.width.coerceAtMost(maxCellWidthPx)
+          text = AnnotatedString(text = cell)
+        ).size.width.coerceAtMost(maximumValue = maxCellWidthPx)
         if (cellWidth > widths[columnIndex]) widths[columnIndex] = cellWidth
       }
     }
-    measure(table.header, headerStyle)
-    table.rows.forEach { measure(it, baseStyle) }
+    measure(row = table.header, headerStyle)
+    table.rows.forEach { measure(row = it, baseStyle) }
     widths
   }
 
@@ -348,12 +344,12 @@ fun ScrollableTable(
     modifier = modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.lg)
-      .clip(CodeBlockCornerRadius)
-      .background(tableBackground)
+      .clip(shape = MarkdownStyle.CodeBlock.CORNER_RADIUS)
+      .background(color = tableBackground)
   ) {
-    val containerWidthPx: Int = with(density) { maxWidth.roundToPx() }
-    val minCellWidthPx: Int = with(density) { minCellWidthDp.roundToPx() }
-    val maxCellWidthPx: Int = with(density) { maxCellWidthDp.roundToPx() }
+    val containerWidthPx: Int = with(receiver = density) { maxWidth.roundToPx() }
+    val minCellWidthPx: Int = with(receiver = density) { MarkdownStyle.Table.MIN_CELL_WIDTH.roundToPx() }
+    val maxCellWidthPx: Int = with(receiver = density) { MarkdownStyle.Table.MAX_CELL_WIDTH.roundToPx() }
     val finalColumnWidthsPx: IntArray = remember(
       naturalColumnWidthsPx, containerWidthPx, minCellWidthPx, maxCellWidthPx, horizontalPaddingPx
     ) {
@@ -369,43 +365,46 @@ fun ScrollableTable(
 
     val stickyRegistry: StickySectionRegistry = LocalStickySectionRegistry.current
     val enableSticky: Boolean = LocalEnableStickySections.current
-    val sectionEntry: StickySectionEntry? = if (isSimplified || !enableSticky) null else {
-      val sectionId: Any = remember { Any() }
-      val stickyHeaderProvider: @Composable () -> Unit = {
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .clip(StickySectionTopCorners)
-            .background(tableBackground)
-        ) {
-          DisableSelection {
-            Column {
-              TableToolbar(table = table)
-              Box(
-                modifier = Modifier
-                  .width(with(density) { containerWidthPx.toDp() })
-                  .horizontalScroll(scrollState)
-              ) {
-                TableHeaderRow(
-                  header = table.header,
-                  columnWidthsPx = finalColumnWidthsPx,
-                  alignments = table.alignments,
-                  density = density,
-                  horizontalPaddingPx = horizontalPaddingPx,
-                  onUrlClick = onUrlClick,
-                  renderer = renderer,
-                  paragraphStyling = paragraphStyling,
-                )
+    val sectionEntry: StickySectionEntry? =
+      if (isSimplified || !enableSticky) null
+      else {
+        val sectionId: Any = remember { Any() }
+        val stickyHeaderProvider:
+          @Composable () -> Unit = {
+          Box(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(shape = MarkdownStyle.CodeBlock.STICKY_SECTION_TOP_CORNERS)
+              .background(color = tableBackground)
+          ) {
+            DisableSelection {
+              Column {
+                TableToolbar(table = table)
+                Box(
+                  modifier = Modifier
+                    .width(with(receiver = density) { containerWidthPx.toDp() })
+                    .horizontalScroll(scrollState)
+                ) {
+                  TableHeaderRow(
+                    density = density,
+                    renderer = renderer,
+                    header = table.header,
+                    onUrlClick = onUrlClick,
+                    alignments = table.alignments,
+                    paragraphStyling = paragraphStyling,
+                    columnWidthsPx = finalColumnWidthsPx,
+                    horizontalPaddingPx = horizontalPaddingPx,
+                  )
+                }
               }
             }
           }
         }
+        remember { stickyRegistry.register(sectionId, toolbar = stickyHeaderProvider) }
       }
-      remember { stickyRegistry.register(sectionId, stickyHeaderProvider) }
-    }
 
     if (sectionEntry != null) {
-      DisposableEffect(sectionEntry) {
+      DisposableEffect(key1 = sectionEntry) {
         onDispose { stickyRegistry.unregister(sectionEntry) }
       }
     }
@@ -413,44 +412,49 @@ fun ScrollableTable(
     val sectionBoundsModifier: Modifier =
       if (sectionEntry != null) {
         Modifier.onGloballyPositioned { coordinates ->
-          val topLeft: Offset = coordinates.localToWindow(Offset.Zero)
+          val topLeft: Offset = coordinates.localToWindow(relativeToLocal = Offset.Zero)
           val bottomRight: Offset = coordinates.localToWindow(
-            Offset(
-              coordinates.size.width.toFloat(),
-              coordinates.size.height.toFloat()
+            relativeToLocal = Offset(
+              x = coordinates.size.width.toFloat(),
+              y = coordinates.size.height.toFloat()
             )
           )
           stickyRegistry.updateBounds(
             sectionEntry,
-            Rect(topLeft.x, topLeft.y, bottomRight.x, bottomRight.y)
+            boundsInWindow = Rect(
+              left = topLeft.x, topLeft.y,
+              right = bottomRight.x, bottomRight.y
+            )
           )
         }
       } else Modifier
 
     Column(modifier = Modifier.fillMaxWidth().then(sectionBoundsModifier)) {
-      if (!isSimplified) DisableSelection { TableToolbar(table = table) }
+      if (!isSimplified) DisableSelection {
+        TableToolbar(table = table)
+      }
       Box(modifier = Modifier.fillMaxWidth()) {
         Box(
           modifier = Modifier
-            .width(with(density) { containerWidthPx.toDp() })
-            .padding(bottom = scrollbarReservedSpace)
+            .width(with(receiver = density) { containerWidthPx.toDp() })
+            .padding(bottom = MarkdownStyle.Table.SCROLLBAR_RESERVED_SPACE)
             .horizontalScroll(scrollState)
         ) {
           Column {
             TableHeaderRow(
-              header = table.header,
-              columnWidthsPx = finalColumnWidthsPx,
-              alignments = table.alignments,
               density = density,
-              horizontalPaddingPx = horizontalPaddingPx,
-              onUrlClick = onUrlClick,
               renderer = renderer,
+              header = table.header,
+              onUrlClick = onUrlClick,
+              alignments = table.alignments,
               paragraphStyling = paragraphStyling,
+              columnWidthsPx = finalColumnWidthsPx,
+              horizontalPaddingPx = horizontalPaddingPx
             )
             val dividerColor = JewelTheme.globalColors.borders.normal
             val tableContentWidthPx = finalColumnWidthsPx.sum() +
               horizontalPaddingPx * 2 * finalColumnWidthsPx.size
-            val tableContentWidthDp = with(density) { tableContentWidthPx.toDp() }
+            val tableContentWidthDp = with(receiver = density) { tableContentWidthPx.toDp() }
             Box(
               modifier = Modifier
                 .height(1.dp)
@@ -464,19 +468,19 @@ fun ScrollableTable(
                     text = cell,
                     modifier = Modifier
                       .width(
-                        with(density) {
+                        with(receiver = density) {
                           (finalColumnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
                             .toDp()
                         }
                       )
                       .padding(
-                        horizontal = cellHorizontalPadding,
-                        vertical = cellVerticalPadding
+                        horizontal = MarkdownStyle.Table.CELL_HORIZONTAL_PADDING,
+                        vertical = MarkdownStyle.Table.CELL_VERTICAL_PADDING
                       ),
                     onUrlClick = onUrlClick,
+                    textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start,
                     blockRenderer = renderer,
-                    paragraphStyling = paragraphStyling,
-                    textAlign = table.alignments.getOrNull(columnIndex) ?: TextAlign.Start
+                    paragraphStyling = paragraphStyling
                   )
                 }
               }
@@ -526,20 +530,20 @@ private fun TableHeaderRow(
         text = cell,
         modifier = Modifier
           .width(
-            with(density) {
+            with(receiver = density) {
               (columnWidthsPx.getOrElse(columnIndex) { 0 } + horizontalPaddingPx * 2)
                 .toDp()
             }
           )
           .padding(
-            horizontal = cellHorizontalPadding,
-            vertical = cellVerticalPadding
+            horizontal = MarkdownStyle.Table.CELL_HORIZONTAL_PADDING,
+            vertical = MarkdownStyle.Table.CELL_VERTICAL_PADDING
           ),
-        onUrlClick = onUrlClick,
-        blockRenderer = renderer,
         fontWeight = FontWeight.SemiBold,
-        paragraphStyling = paragraphStyling,
-        textAlign = alignments.getOrNull(columnIndex) ?: TextAlign.Start
+        onUrlClick = onUrlClick,
+        textAlign = alignments.getOrNull(columnIndex) ?: TextAlign.Start,
+        blockRenderer = renderer,
+        paragraphStyling = paragraphStyling
       )
     }
   }
@@ -549,15 +553,19 @@ private fun TableHeaderRow(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TableToolbar(table: MarkdownSegment.Table) {
-  val cols = table.header.size
   val rows = table.rows.size
+  val cols = table.header.size
   val scope = rememberCoroutineScope()
-  var isCopied: Boolean by remember { mutableStateOf(false) }
-  val tableAsMarkdown: String = remember(table) { tableToMarkdownString(table) }
+  var isCopied: Boolean by remember { mutableStateOf(value = false) }
+  val tableAsMarkdown: String = remember(key1 = table) { tableToMarkdownString(table) }
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(start = GradumSpacing.md, end = GradumSpacing.sm, top = GradumSpacing.sm),
+      .padding(
+        start = GradumSpacing.md,
+        end = GradumSpacing.sm,
+        top = GradumSpacing.sm
+      ),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
@@ -576,8 +584,8 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
       )
       Text(
         text = "${cols}x${rows}",
-        fontFamily = JewelTheme.editorTextStyle.fontFamily,
         color = JewelTheme.globalColors.text.info,
+        fontFamily = JewelTheme.editorTextStyle.fontFamily
       )
     }
     Tooltip(tooltip = { Text(text = message("gradum.copy.table.tooltip")) }) {
@@ -593,7 +601,9 @@ private fun TableToolbar(table: MarkdownSegment.Table) {
       ) {
         Icon(
           contentDescription = message("gradum.copy.table"),
-          key = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy
+          key =
+            if (isCopied) AllIconsKeys.Actions.Checked
+            else AllIconsKeys.General.Copy
         )
       }
     }
@@ -615,6 +625,7 @@ private fun tableToMarkdownString(table: MarkdownSegment.Table): String {
     }
   val separatorRow: String =
     "| " + table.header.joinToString(separator = " | ", postfix = " |") { "---" }
+
   return buildString {
     append(joinRow(table.header))
     append('\n')
@@ -645,40 +656,40 @@ internal fun distributeTableWidth(
   val paddingPerColumn = horizontalPaddingPx * 2
   val columnCount = naturalColumnWidthsPx.size
 
-  val clamped = IntArray(columnCount) { index ->
+  val clampedWidths = IntArray(size = columnCount) { index ->
     naturalColumnWidthsPx[index]
       .coerceIn(minCellWidthPx, maxCellWidthPx)
   }
 
-  val naturalTotal = clamped.sum() + paddingPerColumn * columnCount
-  if (naturalTotal >= containerWidthPx) return clamped
+  val naturalTotal = clampedWidths.sum() + paddingPerColumn * columnCount
+  if (naturalTotal >= containerWidthPx) return clampedWidths
 
-  val scale = containerWidthPx.toFloat() / naturalTotal.toFloat()
-  val scaled = IntArray(columnCount) { index ->
-    (clamped[index] * scale).toInt().coerceAtMost(maxCellWidthPx)
+  val scaledWidths = containerWidthPx.toFloat() / naturalTotal.toFloat()
+  val scalingFactor = IntArray(size = columnCount) { index ->
+    (clampedWidths[index] * scaledWidths).toInt().coerceAtMost(maximumValue = maxCellWidthPx)
   }
 
-  val scaledTotal = scaled.sum() + paddingPerColumn * columnCount
+  val scaledTotal = scalingFactor.sum() + paddingPerColumn * columnCount
   val leftover = containerWidthPx - scaledTotal
   if (leftover != 0) {
     val lastIndex = columnCount - 1
-    if (scaled[lastIndex] < maxCellWidthPx) {
-      scaled[lastIndex] = (scaled[lastIndex] + leftover).coerceAtMost(maxCellWidthPx)
+    if (scalingFactor[lastIndex] < maxCellWidthPx) {
+      scalingFactor[lastIndex] = (scalingFactor[lastIndex] + leftover).coerceAtMost(maximumValue = maxCellWidthPx)
     } else {
       var remaining = leftover
-      for (i in (columnCount - 1) downTo 0) {
+      for (columnIndex in (columnCount - 1) downTo 0) {
         if (remaining == 0) break
-        val headroom = maxCellWidthPx - scaled[i]
+        val headroom = maxCellWidthPx - scalingFactor[columnIndex]
         if (headroom > 0) {
-          val give = headroom.coerceAtMost(remaining)
-          scaled[i] += give
-          remaining -= give
+          val pixelsToAdd = headroom.coerceAtMost(maximumValue = remaining)
+          scalingFactor[columnIndex] += pixelsToAdd
+          remaining -= pixelsToAdd
         }
       }
     }
   }
 
-  return scaled
+  return scalingFactor
 }
 
 /**
@@ -697,14 +708,15 @@ internal fun distributeTableWidth(
 fun SafeMarkdownText(
   text: String,
   modifier: Modifier = Modifier,
-  onUrlClick: (String) -> Unit = {},
   fontWeight: FontWeight? = null,
+  onUrlClick: (String) -> Unit = {},
   textAlign: TextAlign = TextAlign.Unspecified,
-  @Suppress("UNUSED_PARAMETER") processor: MarkdownProcessor = GradumMarkdownProcessor,
+  @Suppress("UNUSED_PARAMETER") processor:
+  MarkdownProcessor = GradumMarkdownProcessor,
   @Suppress("UNUSED_PARAMETER") blockRenderer: MarkdownBlockRenderer =
     LocalMarkdownBlockRenderer.current,
   @Suppress("UNUSED_PARAMETER") paragraphStyling: MarkdownStyling.Paragraph =
-    rememberGradumMarkdownStyling().paragraph,
+    rememberGradumMarkdownStyling().paragraph
 ) {
   if (text.isBlank()) {
     Text(
@@ -785,7 +797,7 @@ internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
 
   val headerCells: List<String> = firstHeadRow
     ?.childNodes()?.filterIsInstance<TableCell>()
-    ?.map { serializeInlineChildren(it) }
+    ?.map { serializeInlineChildren(containerNode = it) }
     ?: emptyList()
 
   val alignments: List<TextAlign> = firstHeadRow
@@ -803,7 +815,7 @@ internal fun TableBlock.toMarkdownSegmentTable(): MarkdownSegment.Table {
     ?.childNodes()?.filterIsInstance<TableRow>()
     ?.map { row ->
       row.childNodes().filterIsInstance<TableCell>()
-        .map { serializeInlineChildren(it) }
+        .map { serializeInlineChildren(containerNode = it) }
     }
     ?: emptyList()
 

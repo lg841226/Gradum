@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-24 14:42:39 Changed by gwy
+ * Agent.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -103,15 +103,15 @@ class Agent(
   private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
   private val toolExecutor: ToolExecutor = ToolExecutor(
     skillContext = SkillContext(
-      emitEvent = emitEvent,
       toolMode = configuration.toolMode,
+      projectRoot = configuration.projectRoot,
+      modelName = configuration.modelName,
       provider = configuration.provider,
       agentConfiguration = configuration,
-      modelName = configuration.modelName,
-      projectRoot = configuration.projectRoot,
+      conversationHistory = { conversationHistory.toList() },
+      emitEvent = emitEvent,
       registerChildSession = registerChildSession,
       unregisterChildSession = unregisterChildSession,
-      conversationHistory = { conversationHistory.toList() },
     ), sessionManager, configuration,
     conversationHistory,
     emitEvent = emitEvent

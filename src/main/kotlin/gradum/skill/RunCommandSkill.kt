@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-08-25 17:03:08 Changed by gwy
+ * RunCommandSkill.kt  2026-08-26 11:07:46 Changed by gwy
  */
 
 package gradum.skill
@@ -67,7 +67,7 @@ private fun captureDescendants(process: Process): List<ProcessHandle> {
  * ProcessBuilder does not expose `detached: true` (new process group), we
  * enumerate descendants via [ProcessHandle] and kill them individually.
  *
- * ⚠️ The caller must pass pre-enumerated [descendants] (captured before
+ * Note:️ The caller must pass pre-enumerated [descendants] (captured before
  * any signal was sent) to avoid the orphan race. Example:
  * ```
  * val descendants = captureDescendants(process)  // enumerate first
@@ -181,7 +181,8 @@ class RunCommandSkill : Skill() {
       processBuilder.redirectErrorStream(false)
       if (projectRoot.isNotBlank()) {
         val workingDirectory = File(projectRoot)
-        if (workingDirectory.isDirectory) processBuilder.directory(workingDirectory)
+        if (workingDirectory.isDirectory)
+          processBuilder.directory(workingDirectory)
       }
 
       val commandProcess: Process = processBuilder.start()
@@ -220,11 +221,10 @@ class RunCommandSkill : Skill() {
 
       // Detect whether either stream was truncated by checking for the
       // truncation marker appended by [readStreamOutput].
-      val truncatedMarker = "[output truncated at "
+      val truncatedMarker = "(output truncated at "
       val stdoutTruncated = truncatedMarker in stdoutText
       val stderrTruncated = truncatedMarker in stderrText
       val outputTruncated = stdoutTruncated || stderrTruncated
-
 
       val commandOutput: String = buildString {
         if (exitCode != 0) {
@@ -240,14 +240,14 @@ class RunCommandSkill : Skill() {
             append(stderrText)
           }
         }
-        if (isEmpty()) append("(no output — stdout and stderr were both empty)")
+        if (isEmpty()) append("(no output)")
       }
 
       if (useSimpleOutput) {
         makeSuccess {
           integer("exitCode", exitCode)
           string("command", commandText)
-          string("output", commandOutput.take(n = 2000))
+          string("output", commandOutput.take(n = 3000))
         }
       } else {
         makeSuccess {
@@ -277,14 +277,9 @@ class RunCommandSkill : Skill() {
       val logDirectory: Path = Path.of(skillContext.projectRoot, ".gradum", "run_cmd")
       logDirectory.toFile().mkdirs()
       val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
-
-      // Truly detach the child process so it survives the Java process
-      // and doesn't inherit stdin (which could block GUI apps waiting
-      // for input on the pipe).  nohup + /dev/null stdin + & is the
-      // standard Unix pattern for a fire-and-forget background process.
+      
       val processBuilder = ProcessBuilder(
-        "sh", "-c",
-        "nohup $commandText </dev/null >${logFile.absolutePath} 2>&1 &"
+        "sh", "-c", "nohup $commandText </dev/null >${logFile.absolutePath} 2>&1 &"
       )
 
       val detachedProcess: Process = processBuilder.start()
@@ -329,30 +324,30 @@ class RunCommandSkill : Skill() {
 
   private fun readStreamOutput(inputStream: InputStream, label: String): String {
     return try {
-      val builder = StringBuilder()
+      val outputBuilder = StringBuilder()
       BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { bufferedReader ->
-        val buffer = CharArray(size = 4096)
+        val charBuffer = CharArray(size = 4096)
         while (true) {
-          val read: Int = bufferedReader.read(buffer, 0, buffer.size)
-          if (read < 0) break
-          builder.appendRange(value = buffer, startIndex = 0, endIndex = read)
-          if (builder.length >= MAX_OUTPUT_CHARS) {
-            builder.append(
-              "\n[output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB — the full $label is not shown]"
-            )
-
-            while (bufferedReader.read(buffer, 0, buffer.size) >= 0) {
-              /* discard */
+          val charsRead: Int = bufferedReader.read(charBuffer, 0, charBuffer.size)
+          if (charsRead < 0) break
+          outputBuilder.appendRange(value = charBuffer, startIndex = 0, endIndex = charsRead)
+          if (outputBuilder.length >= MAX_OUTPUT_CHARS) {
+            outputBuilder.append(
+              "\n(output truncated at ${MAX_OUTPUT_CHARS / 1024} KiB, the full $label is not shown)"
+            ).also {
+              while (bufferedReader.read(charBuffer, 0, charBuffer.size) >= 0) {
+                // Discard remaining output
+              }
             }
+            logger.debug("Discarded remaining output for $label after truncation")
             break
           }
         }
       }
-      builder.toString()
+      outputBuilder.toString()
     } catch (streamReadException: Exception) {
       val reason: String = streamReadException.message
-        ?: streamReadException::class.simpleName
-        ?: "unknown I/O error"
+        ?: streamReadException::class.simpleName ?: "unknown I/O error"
       logger.warn("Failed to read $label stream: $reason", streamReadException)
       "(stream read failed for $label: $reason)"
     }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FaviconHostCache.kt  2026-08-25 22:11:55 Changed by gwy
+ * FaviconHostCache.kt  2026-08-26 00:13:50 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -111,7 +111,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
    */
   fun recordSuccess(host: String, url: String) {
     synchronized(lock) {
-      failedHosts.remove(host)
+      failedHosts.remove(element = host)
       winningUrls[host] = url
       evictIfNeeded()
     }

@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillCompactHistoryTest.kt  2026-08-25 19:47:50 Changed by gwy
+ * SkillCompactHistoryTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.utils.JsonUtil
@@ -56,10 +55,9 @@ class SkillCompactHistoryTest {
   }
 
   private fun testContext(): SkillContext = SkillContext(
+    toolMode = ToolMode.READ_ONLY,
     projectRoot = "/tmp",
-    modelName = "qwen2.5:7b",
-    provider = Provider.OLLAMA,
-    toolMode = ToolMode.READ_ONLY
+    modelName = "qwen2.5:7b"
   )
 
   private fun appendToolMessage(

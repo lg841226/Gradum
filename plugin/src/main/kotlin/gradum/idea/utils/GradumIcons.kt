@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumIcons.kt  2026-08-21 08:27:01 Changed by gwy
+ * GradumIcons.kt  2026-08-26 00:19:22 Changed by gwy
  */
 
 package gradum.idea.utils
@@ -39,7 +39,6 @@ object GradumIcons {
   val Save = PathIconKey("/icons/save/save.svg", GradumIcons::class.java)
   val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)
   val ScrollUp = PathIconKey("icons/scroll-up/scroll-up.svg", GradumIcons::class.java)
-
   val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)
   val ProviderAnthropic = PathIconKey("/icons/model-provider/anthropic.svg", GradumIcons::class.java)
   val ProviderDeepseek = PathIconKey("/icons/model-provider/deepseek.svg", GradumIcons::class.java)
@@ -51,7 +50,6 @@ object GradumIcons {
   val ProviderXai = PathIconKey("/icons/model-provider/xai.svg", GradumIcons::class.java)
   val ProviderXiaomi = PathIconKey("/icons/model-provider/xiaomi.svg", GradumIcons::class.java)
   val ProviderZhipuai = PathIconKey("/icons/model-provider/zhipuai.svg", GradumIcons::class.java)
-
   val ColorLogo = PathIconKey("/icons/logo/color_logo.svg", GradumIcons::class.java)
   val SoftWarp = PathIconKey("/icons/soft-wrap/softwrap.svg", GradumIcons::class.java)
   val CollapseAll = PathIconKey("/icons/collapse-all/collapse-all.svg", GradumIcons::class.java)
@@ -82,6 +80,8 @@ object GradumIcons {
 
   fun resolveModelIcon(modelName: String): IconKey? {
     val lower = modelName.lowercase()
-    return PROVIDER_KEYWORD_MAP.entries.firstOrNull { lower.contains(it.key) }?.value
+    return PROVIDER_KEYWORD_MAP.entries.firstOrNull {
+      lower.contains(other = it.key)
+    }?.value
   }
 }

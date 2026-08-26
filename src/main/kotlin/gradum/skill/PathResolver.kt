@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolver.kt  2026-08-25 22:55:50 Changed by gwy
+ * PathResolver.kt  2026-08-26 11:00:57 Changed by gwy
  */
 
 package gradum.skill
@@ -131,11 +131,10 @@ fun resolveProjectPath(
   filePath: String, projectRoot: String, requireWithinProject: Boolean = true
 ): ResolvedProjectPath {
   val trimmed = filePath.trim()
-
   val normalizedRoot: Path? = projectRootOrNull(projectRoot)
 
   if (trimmed.isBlank()) {
-    return rejectedPath(trimmed, "file path is blank")
+    return rejectedPath(original = trimmed, reason = "file path is blank")
   }
   if (Paths.get(trimmed).isAbsolute) {
     val absolute = Paths.get(trimmed).toAbsolutePath().normalize()
@@ -185,7 +184,7 @@ fun resolveProjectPath(
       resolved = direct,
       originalWasAbsolute = false,
       normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
+      requireWithinProject = requireWithinProject
     )
   }
 
@@ -197,7 +196,7 @@ fun resolveProjectPath(
       original = trimmed,
       originalWasAbsolute = false,
       normalizedRoot = normalizedRoot,
-      requireWithinProject = requireWithinProject,
+      requireWithinProject = requireWithinProject
     )
   }
 

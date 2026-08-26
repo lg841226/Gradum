@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkillTest.kt  2026-08-25 21:48:28 Changed by gwy
+ * DelegateSkillTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
@@ -101,7 +101,6 @@ class DelegateSkillTest {
     val context = SkillContext(
       toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
-      agentConfiguration = null,
       emitEvent = { _, _ -> }
     )
     val longTask = "a".repeat(n = GradumConfig.MIN_TASK_LENGTH)
@@ -123,8 +122,7 @@ class DelegateSkillTest {
     val context = SkillContext(
       toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
-      agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA),
-      emitEvent = null
+      agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA)
     )
     val longTask = "a".repeat(n = GradumConfig.MIN_TASK_LENGTH)
     val result = skill.execute(arguments = mapOf("task" to longTask), context)

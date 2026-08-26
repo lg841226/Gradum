@@ -2,12 +2,14 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-25 19:48:16 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-26 11:12:09 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.*
+import gradum.utils.JsonUtil.decodeMap
+import gradum.utils.JsonUtil.encodeMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -16,11 +18,11 @@ import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("ExploreProjectSkill")
 
-private val MINIMUM_DEPTH: Int = GradumConfig.EXPLORE_MIN_DEPTH
-private val MAXIMUM_DEPTH: Int = GradumConfig.EXPLORE_MAX_DEPTH
-private val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
-private val DEFAULT_LIMIT: Int = GradumConfig.EXPLORE_DEFAULT_LIMIT
-private val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = GradumConfig.EXPLORE_MAX_CHILDREN
+private const val MINIMUM_DEPTH: Int = GradumConfig.EXPLORE_MIN_DEPTH
+private const val MAXIMUM_DEPTH: Int = GradumConfig.EXPLORE_MAX_DEPTH
+private const val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
+private const val DEFAULT_LIMIT: Int = GradumConfig.EXPLORE_DEFAULT_LIMIT
+private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = GradumConfig.EXPLORE_MAX_CHILDREN
 
 /**
  * Scans a project directory tree and returns a flat categorized summary:
@@ -60,8 +62,8 @@ class ExploreProjectSkill : Skill() {
     conversationHistory: MutableList<Map<String, Any>>
   ) {
     if (ownMessageIndices.isEmpty()) return
-    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
-    val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
+    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(minimumValue = 0)
+    val dropEndIndex: Int = dropCount.coerceAtMost(maximumValue = ownMessageIndices.size)
     if (dropEndIndex == 0) return
     for (i in 0 until dropEndIndex) {
       val historyIndex: Int = ownMessageIndices[i]
@@ -75,7 +77,7 @@ class ExploreProjectSkill : Skill() {
   private fun compactMessageContent(message: Map<String, Any>): Map<String, Any> {
     val content: String = message["content"] as? String ?: return message
     val parsed: Map<String, Any?> = try {
-      gradum.utils.JsonUtil.decodeMap(content)
+      decodeMap(content)
     } catch (jsonParseException: Exception) {
       logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
       return message
@@ -98,7 +100,7 @@ class ExploreProjectSkill : Skill() {
       "code_files" to codeCount,
       "other_files" to otherCount
     )
-    val reencoded: String = gradum.utils.JsonUtil.encodeMap(compacted)
+    val reencoded: String = encodeMap(compacted)
     return message + ("content" to reencoded)
   }
 
@@ -206,7 +208,7 @@ class ExploreProjectSkill : Skill() {
 
     val scanResult = ScanResult(relativeRoot = resolvedPath)
     val visitedPaths: MutableSet<Path> = mutableSetOf(resolvedPath)
-    scanDirectory(requestedDepth, resolvedPath, scanResult, filterConfig, visitedPaths)
+    scanDirectory(remainingDepth = requestedDepth, targetDirectory = resolvedPath, scanResult, filterConfig, visitedPaths)
 
     val filteredConfigFiles = applyFilters(scanResult.configFiles, filterConfig)
     val filteredCodeFiles = applyCodeFilters(scanResult.codeFiles, filterConfig)
@@ -241,7 +243,7 @@ class ExploreProjectSkill : Skill() {
     filterConfig: FilterConfig,
     filteredCodeFiles: List<Map<String, Any>>,
     filteredOtherFiles: List<Map<String, Any>>,
-    filteredConfigFiles: List<Map<String, Any>>,
+    filteredConfigFiles: List<Map<String, Any>>
   ): SkillResult {
     if (useSimpleOutput) {
       val codeFileDetails: List<String> = filteredCodeFiles
@@ -274,12 +276,12 @@ class ExploreProjectSkill : Skill() {
       objectList("unreadable_paths", scanResult.failedPaths.sortedBy {
         (it["path"] as? String) ?: ""
       }.take(n = filterConfig.limit))
-      `object`("filter_applied") {
+      `object`(key = "filter_applied") {
         integer("limit", filterConfig.limit)
         string("sort_by", filterConfig.sortBy)
         string("exclude_pattern", excludePattern)
       }
-      `object`("result_count") {
+      `object`(key = "result_count") {
         integer("code_files", filteredCodeFiles.size)
         integer("other_files", filteredOtherFiles.size)
         integer("config_files", filteredConfigFiles.size)

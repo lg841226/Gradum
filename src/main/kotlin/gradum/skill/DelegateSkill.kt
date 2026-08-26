@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-25 17:03:08 Changed by gwy
+ * DelegateSkill.kt  2026-08-26 11:13:42 Changed by gwy
  */
 
 package gradum.skill
@@ -188,7 +188,7 @@ class DelegateSkill : Skill() {
 
     registerChild?.invoke(subAgentId, subAgent)
     try {
-      subAgent.executeTask(task)
+      subAgent.executeTask(userInput = task)
     } finally {
       unregisterChild?.invoke(subAgentId)
     }

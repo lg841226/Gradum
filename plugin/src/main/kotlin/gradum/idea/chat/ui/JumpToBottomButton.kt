@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * JumpToBottomButton.kt  2026-08-24 22:47:15 Changed by gwy
+ * JumpToBottomButton.kt  2026-08-26 00:15:18 Changed by gwy
  */
 
 package gradum.idea.chat.ui
@@ -89,8 +89,10 @@ fun JumpToBottomButton(
   onJumpToTop: () -> Unit = {},
   modifier: Modifier = Modifier
 ) {
-  var isAlternativeMode: Boolean by remember { mutableStateOf(false) }
-  val isVisible: Boolean = if (isAlternativeMode) !isAtTop else !isAtBottom
+  var isAlternativeMode: Boolean by remember { mutableStateOf(value = false) }
+  val isVisible: Boolean =
+    if (isAlternativeMode) !isAtTop
+    else !isAtBottom
   val textAlpha: Float = rememberTextRevealAlpha(isVisible)
   AltKeyModeEffect(isVisible) { isAlternativeMode = !isAlternativeMode }
   JumpToBottomPill(
@@ -132,7 +134,8 @@ private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
  */
 @Composable
 private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
-  var textVisible: Boolean by remember { mutableStateOf(false) }
+  var textVisible: Boolean by remember { mutableStateOf(value = false) }
+
   LaunchedEffect(key1 = isVisible) {
     if (isVisible) {
       textVisible = false
@@ -143,7 +146,9 @@ private fun rememberTextRevealAlpha(isVisible: Boolean): Float {
     }
   }
   return animateFloatAsState(
-    targetValue = if (textVisible) 1f else 0f,
+    targetValue =
+      if (textVisible) 1f
+      else 0f,
     animationSpec = tween(durationMillis = TEXT_REVEAL_DURATION_MS)
   ).value
 }
@@ -206,11 +211,11 @@ private fun PillBackground(modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .clip(PillShape)
-      .background(menuColors.background)
+      .background(color = menuColors.background)
       .border(
-        width = menuMetrics.borderWidth,
         shape = PillShape,
-        color = menuColors.border
+        color = menuColors.border,
+        width = menuMetrics.borderWidth
       )
   )
 }
@@ -235,7 +240,10 @@ private fun PillForeground(
       .clickable(
         interactionSource = interactionSource,
         indication = null,
-        onClick = { if (isAlternativeMode) onJumpToTop() else onClick() }
+        onClick = {
+          if (isAlternativeMode) onJumpToTop()
+          else onClick()
+        }
       )
       .pointerHoverIcon(PointerIcon.Default, overrideDescendants = true)
       .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -245,7 +253,9 @@ private fun PillForeground(
     Icon(
       contentDescription = null,
       modifier = Modifier.size(16.dp),
-      key = if (isAlternativeMode) GradumIcons.ScrollUp else GradumIcons.ScrollDown
+      key =
+        if (isAlternativeMode) GradumIcons.ScrollUp
+        else GradumIcons.ScrollDown
     )
     AnimatedContent(
       targetState = isAlternativeMode,
@@ -258,7 +268,11 @@ private fun PillForeground(
     ) { alternative: Boolean ->
       Text(
         style = JewelTheme.typography.regular,
-        text = message(key = if (alternative) "gradum.jump.to.top" else "gradum.jump.to.bottom")
+        text = message(
+          key =
+            if (alternative) "gradum.jump.to.top"
+            else "gradum.jump.to.bottom"
+        )
       )
     }
   }

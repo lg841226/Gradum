@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailUrlGuard.kt  2026-08-16 00:12:50 Changed by gwy
+ * ThumbnailUrlGuard.kt  2026-08-26 00:13:50 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -48,35 +48,37 @@ internal object ThumbnailUrlGuard {
     val uri: URI = try {
       URI(url)
     } catch (uriException: Exception) {
-      return Check.Unsafe("not a valid URI: ${uriException.message}")
+      return Check.Unsafe(reason = "not a valid URI: ${uriException.message}")
     }
 
     val scheme: String? = uri.scheme?.lowercase()
 
     if (scheme.isNullOrEmpty())
-      return Check.Unsafe("not a valid URI: missing or empty scheme")
+      return Check.Unsafe(reason = "not a valid URI: missing or empty scheme")
 
-    if (scheme != "https") return Check.Unsafe("scheme must be https, got '$scheme'")
+    if (scheme != "https")
+      return Check.Unsafe(reason = "scheme must be https, got '$scheme'")
 
     val rawHost: String = uri.host?.takeIf { it.isNotBlank() }
-      ?: return Check.Unsafe("missing host")
+      ?: return Check.Unsafe(reason = "missing host")
     val host: String = rawHost.trimStart('[').trimEnd(']')
-    if (host.isBlank()) return Check.Unsafe("missing host")
+    if (host.isBlank()) return Check.Unsafe(reason = "missing host")
 
     val addresses: Array<InetAddress> = try {
       InetAddress.getAllByName(host)
     } catch (dnsException: Exception) {
-      return Check.Unsafe("DNS resolution failed: ${dnsException.message}")
+      return Check.Unsafe(reason = "DNS resolution failed: ${dnsException.message}")
     }
-    if (addresses.isEmpty()) return Check.Unsafe("no DNS records for host '$host'")
+    if (addresses.isEmpty())
+      return Check.Unsafe(reason = "no DNS records for host '$host'")
 
     val blockedReason: String? = addresses.firstNotNullOfOrNull { address ->
       when (address) {
-        is Inet4Address if isPrivateV4(address.address) ->
-          "host resolves to private IPv4 ${formatV4(address.address)}"
+        is Inet4Address if isPrivateV4(bytes = address.address) ->
+          "host resolves to private IPv4 ${formatV4(bytes = address.address)}"
 
-        is Inet6Address if isPrivateV6(address.address) ->
-          "host resolves to private IPv6 ${formatV6(address.address)}"
+        is Inet6Address if isPrivateV6(bytes = address.address) ->
+          "host resolves to private IPv6 ${formatV6(bytes = address.address)}"
 
         else -> null
       }
@@ -121,29 +123,16 @@ internal object ThumbnailUrlGuard {
   private fun isPrivateV6(bytes: ByteArray): Boolean {
     if (bytes.size != 16) return false
 
-    // The checks below rely on `bytes[i] == 0` being true for the
-    // first 15 bytes of `::1`, which the `Byte` unsigned-style
-    // comparison handles correctly (the high bit is 0 for both
-    // signed 0 and the literal `0.toByte()`).
     val firstFifteenAreZero: Boolean = (0 until 15).all { bytes[it] == 0.toByte() }
 
-    // `::1` (loopback): first 15 bytes zero, last byte 1.
     if (firstFifteenAreZero && bytes[15] == 1.toByte()) return true
 
-    // `::` (unspecified): all 16 bytes zero. The previous
-    // implementation used `bytes.all { it == 0 }` for both this and
-    // the loopback check, which can never match `::1` because the
-    // last byte is 1, not 0 — a real bug we just hit.
     if (firstFifteenAreZero && bytes[15] == 0.toByte()) return true
 
-    // fe80::/10 (link-local).
     if (bytes[0] == 0xFE.toByte() && (bytes[1].toInt() and 0xC0) == 0x80) return true
 
-    // fc00::/7 (unique-local).
     if ((bytes[0].toInt() and 0xFE) == 0xFC) return true
 
-    // IPv4-mapped IPv6: ::ffff:a.b.c.d. Recurse through the IPv4
-    // check so a private IPv4 hidden in the suffix is caught.
     if (bytes[0] == 0.toByte() && bytes[1] == 0.toByte() &&
       bytes[2] == 0.toByte() && bytes[3] == 0.toByte() &&
       bytes[4] == 0.toByte() && bytes[5] == 0.toByte() &&
@@ -151,13 +140,13 @@ internal object ThumbnailUrlGuard {
       bytes[8] == 0.toByte() && bytes[9] == 0.toByte() &&
       bytes[10] == 0xFF.toByte() && bytes[11] == 0xFF.toByte()
     ) {
-      return isPrivateV4(byteArrayOf(bytes[12], bytes[13], bytes[14], bytes[15]))
+      return isPrivateV4(bytes = byteArrayOf(bytes[12], bytes[13], bytes[14], bytes[15]))
     }
     return false
   }
 
   private fun formatV4(bytes: ByteArray): String =
-    bytes.joinToString(".") { (it.toInt() and 0xFF).toString() }
+    bytes.joinToString(separator = ".") { (it.toInt() and 0xFF).toString() }
 
   private fun formatV6(bytes: ByteArray): String =
     Inet6Address.getByAddress(bytes).hostAddress.orEmpty()

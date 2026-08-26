@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-08-25 17:03:08 Changed by gwy
+ * ReadFileSkill.kt  2026-08-26 11:12:09 Changed by gwy
  */
 
 package gradum.skill
@@ -13,8 +13,8 @@ import java.io.FileNotFoundException
 import java.nio.file.Path
 import java.security.MessageDigest
 
-private val MAXIMUM_LINES: Int = GradumConfig.READ_MAX_LINES
-private val MAXIMUM_FILE_SIZE: Int = GradumConfig.READ_MAX_FILE_SIZE
+private const val MAXIMUM_LINES: Int = GradumConfig.READ_MAX_LINES
+private const val MAXIMUM_FILE_SIZE: Int = GradumConfig.READ_MAX_FILE_SIZE
 
 /**
  * Reads file content for the agent.
@@ -72,6 +72,7 @@ class ReadFileSkill : Skill() {
     val filePath: String = arguments["path"] as? String ?: ""
     val lineRange: String = (arguments["lineRange"] as? String ?: "")
       .ifBlank { arguments["line_range"] as? String ?: "" }
+
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = context.isSimpleModel
 
@@ -140,7 +141,9 @@ class ReadFileSkill : Skill() {
           context = mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
         )
 
-        val lines = targetFile.useLines { it.drop(range.start - 1).take(range.end - range.start + 1).toList() }
+        val lines = targetFile.useLines {
+          it.drop(n = range.start - 1).take(n = range.end - range.start + 1).toList()
+        }
         val actualEndLine = range.start + lines.size - 1
 
         Triple(range.start, actualEndLine, lines)
@@ -197,9 +200,7 @@ class ReadFileSkill : Skill() {
  * A validated, normalized `start..end` line range. Both bounds are
  * clamped to the document (start ≥ 1) and ordered so `start ≤ end`.
  */
-private data class LineRange(
-  val start: Int, val end: Int,
-)
+private data class LineRange(val start: Int, val end: Int)
 
 /**
  * Parses a `"start-end"` line-range string. Returns null when the format
@@ -212,10 +213,10 @@ private fun parseLineRange(rawValue: String): LineRange? {
   val rawStart = rangeParts[0].trim().toIntOrNull() ?: return null
   val rawEnd = rangeParts[1].trim().toIntOrNull() ?: return null
 
-  val actualStart = rawStart.coerceAtLeast(1)
-  val actualEnd = rawEnd.coerceAtMost(Int.MAX_VALUE)
+  val actualStart = rawStart.coerceAtLeast(minimumValue = 1)
+  val actualEnd = rawEnd.coerceAtMost(maximumValue = Int.MAX_VALUE)
   return LineRange(
     start = minOf(actualStart, b = actualEnd),
-    end = maxOf(actualStart, b = actualEnd),
+    end = maxOf(actualStart, b = actualEnd)
   )
 }

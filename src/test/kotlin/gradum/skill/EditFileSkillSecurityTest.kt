@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkillSecurityTest.kt  2026-08-25 14:13:18 Changed by gwy
+ * EditFileSkillSecurityTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 package gradum.skill
 
@@ -50,7 +50,6 @@ class EditFileSkillSecurityTest {
   private fun context(): SkillContext = SkillContext(
     toolMode = ToolMode.EDIT,
     projectRoot = projectRoot.absolutePath,
-    provider = Provider.OLLAMA,
     modelName = "qwen2.5:7b"
   )
 
@@ -119,8 +118,8 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
-        provider = Provider.OPENAI,
-        modelName = "gpt-4o"
+        modelName = "gpt-4o",
+        provider = Provider.OPENAI
       )
     )
     assertTrue(result is SkillResult.Failure)
@@ -143,8 +142,8 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
-        provider = Provider.OPENAI,
-        modelName = "gpt-4o"
+        modelName = "gpt-4o",
+        provider = Provider.OPENAI
       )
     )
     assertTrue(result is SkillResult.Failure)
@@ -166,7 +165,6 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = "",
-        provider = Provider.OLLAMA,
         modelName = "qwen2.5:7b"
       )
     )

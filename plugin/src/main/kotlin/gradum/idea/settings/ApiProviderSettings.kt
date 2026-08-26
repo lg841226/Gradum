@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-25 23:08:29 Changed by gwy
+ * ApiProviderSettings.kt  2026-08-25 23:09:15 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -491,7 +491,7 @@ private fun pushAllKindsToCoordinator(settings: ProviderSettings) {
   val snapshot: ProviderSettings.State = settings.snapshot
   ProviderKind.localKinds.forEach { kind -> pushKindToCoordinator(settings, kind) }
   ProviderKind.cloudKinds
-    .filter { snapshot.isEnabled(it) }
+    .filter { snapshot.isEnabled(kind = it) }
     .forEach { kind -> pushKindToCoordinator(settings, kind) }
 }
 

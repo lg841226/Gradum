@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumLatexTest.kt  2026-08-25 13:39:50 Changed by gwy
+ * GradumLatexTest.kt  2026-08-26 12:40:46 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -35,11 +35,11 @@ class GradumLatexTest {
   /** Render a single paragraph of inline text through the inline walker. */
   private fun inlineRender(text: String): InlineMarkdownRenderResult =
     parseInlineMarkdown(
+      linkColor = testLinkColor,
       plainText = text,
       fontSizeSp = testFontSizeSp,
-      codeColor = testTint,
-      linkColor = testLinkColor,
-      imageAltColor = testImageAltColor
+      imageAltColor = testImageAltColor,
+      codeColor = testTint
     )
 
   /**

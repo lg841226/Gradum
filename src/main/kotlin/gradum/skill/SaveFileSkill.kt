@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-08-25 17:08:55 Changed by gwy
+ * SaveFileSkill.kt  2026-08-26 11:00:57 Changed by gwy
  */
 
 package gradum.skill
@@ -17,7 +17,7 @@ import java.nio.file.Path
 
 private val logger: Logger = LoggerFactory.getLogger("SaveFileSkill")
 
-private val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
+private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 
 /**
  * Writes content to a file, creating parent directories as needed.
@@ -169,10 +169,8 @@ class SaveFileSkill : Skill() {
 
       targetFile.parentFile?.mkdirs()
 
-      if (writeMode == "append")
-        targetFile.appendText(fileContent, fileCharset)
-      else
-        targetFile.writeText(fileContent, fileCharset)
+      if (writeMode == "append") targetFile.appendText(fileContent, fileCharset)
+      else targetFile.writeText(fileContent, fileCharset)
 
       val bytesWritten: Long = targetFile.length()
 

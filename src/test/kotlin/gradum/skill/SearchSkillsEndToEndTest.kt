@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkillsEndToEndTest.kt  2026-08-25 21:48:28 Changed by gwy
+ * SearchSkillsEndToEndTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
@@ -81,10 +81,9 @@ class SearchSkillsEndToEndTest {
   }
 
   private fun simpleContext(): SkillContext = SkillContext(
-    modelName = "qwen2.5:7b",
-    provider = Provider.OLLAMA,
     toolMode = ToolMode.READ_ONLY,
-    projectRoot = projectRoot.absolutePath
+    projectRoot = projectRoot.absolutePath,
+    modelName = "qwen2.5:7b"
   )
 
   /**
@@ -95,10 +94,10 @@ class SearchSkillsEndToEndTest {
    * with a model that resolves to `SchemaVariant.FULL`.
    */
   private fun cloudContext(): SkillContext = SkillContext(
-    modelName = "gpt-4o",
-    provider = Provider.OPENAI,
     toolMode = ToolMode.READ_ONLY,
-    projectRoot = projectRoot.absolutePath
+    projectRoot = projectRoot.absolutePath,
+    modelName = "gpt-4o",
+    provider = Provider.OPENAI
   )
 
   @Test

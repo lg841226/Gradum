@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GrepSkillTest.kt  2026-08-25 18:28:49 Changed by gwy
+ * GrepSkillTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import java.io.File
@@ -68,7 +67,6 @@ class GrepSkillTest {
   private fun ctx(): SkillContext = SkillContext(
     toolMode = ToolMode.AGENT,
     projectRoot = projectRoot.absolutePath,
-    provider = Provider.OLLAMA,
     modelName = "gpt-4o",
   )
 

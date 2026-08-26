@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * BlockRenderer.kt  2026-08-24 23:08:14 Changed by gwy
+ * BlockRenderer.kt  2026-08-26 12:40:46 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -21,8 +21,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString.Range
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -52,17 +54,6 @@ internal val blockReparseParser: Parser = Parser.builder()
   .extensions(listOf(StrikethroughExtension.create(), LatexBlockExtension.create()))
   .build()
 
-private val orderedMarkerColumnMinWidth: Dp = 24.dp
-private val unorderedMarkerColumnMinWidth: Dp = 20.dp
-private val markerContentGap: Dp = GradumSpacing.sm
-private val nestedListIndentStep: Dp = GradumSpacing.xl
-private val listItemVerticalSpacing: Dp = GradumSpacing.md
-private val listOuterPadding: PaddingValues = PaddingValues(vertical = GradumSpacing.md)
-private val headingExtraPadding: PaddingValues =
-  PaddingValues(top = GradumSpacing.lg, bottom = GradumSpacing.sm)
-private val thematicBreakVerticalSpacing: Dp = GradumSpacing.lg
-private const val FALLBACK_FONT_SIZE_SP_NO_STYLE: Float = 13f
-private const val BODY_LINE_HEIGHT_MULTIPLIER: Float = 1.3f
 
 /** Default language label for code blocks without an explicit language tag. */
 internal const val DEFAULT_CODE_LANGUAGE: String = "plain text"
@@ -129,8 +120,8 @@ fun RenderBlockNode(
     is BlockQuote -> RenderBlockQuote(block, onUrlClick, isSimplified, thinkingMode)
     is IndentedCodeBlock -> RenderIndentedCodeBlock(block)
     is BulletList -> RenderBulletList(block, indentDepth, onUrlClick, isSimplified, thinkingMode)
-    is OrderedList -> RenderOrderedList(block, indentDepth, onUrlClick, isSimplified, thinkingMode)
-    is Paragraph -> RenderParagraphWithChips(block, onUrlClick)
+    is OrderedList -> RenderOrderedList(block, indentDepth, isSimplified, thinkingMode, onUrlClick)
+    is Paragraph -> RenderParagraphWithChips(paragraph = block, onUrlClick)
     is TableBlock -> ScrollableTable(
       table = block.toMarkdownSegmentTable(),
       modifier = Modifier.fillMaxWidth(),
@@ -166,23 +157,23 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
   }
 
   val parseOutcome: InlineMarkdownRenderResult =
-    rememberInlineMarkdownRenderFromNode(heading)
+    rememberInlineMarkdownRenderFromNode(parentNode = heading)
   RenderInlineRender(
     modifier = Modifier
       .fillMaxWidth()
       .padding(paddingValues = headingStyle.padding)
-      .padding(paddingValues = headingExtraPadding),
+      .padding(paddingValues = MarkdownStyle.Block.HEADING_EXTRA_PADDING),
     onUrlClick = onUrlClick,
     parseOutcome = parseOutcome,
     style = headingStyle.inlinesStyling.textStyle,
-    fallbackText = serializeInlineChildren(heading),
+    fallbackText = serializeInlineChildren(containerNode = heading),
   )
 }
 
 
 /**
  * Render an unordered list. Each item is its own [RenderListItem] row; the
- * marker column reserves [unorderedMarkerColumnMinWidth]. Nested bullet
+ * marker column reserves [MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH]. Nested bullet
  * lists recurse with `indentDepth + 1`. The visible start-padding is
  * "one step if nested, zero otherwise" — not `indentDepth × step` — so
  * deeply-nested lists stay aligned instead of stair-stepping off-screen.
@@ -197,14 +188,14 @@ private fun RenderBulletList(
   val unorderedList: MarkdownStyling.List.Unordered = styling.list.unordered
   val listItems: List<ListItem> = collectListItems(listNode = list)
   val bulletStyle: TextStyle = unorderedList.bulletStyle
-  val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
+  val startPadding: Dp = if (indentDepth > 0) MarkdownStyle.Block.NESTED_LIST_INDENT_STEP else 0.dp
 
   Column(
     modifier = Modifier
       .fillMaxWidth()
       .padding(start = startPadding)
-      .padding(paddingValues = listOuterPadding),
-    verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
+      .padding(paddingValues = MarkdownStyle.Block.LIST_OUTER_PADDING),
+    verticalArrangement = Arrangement.spacedBy(MarkdownStyle.Block.LIST_ITEM_VERTICAL_SPACING)
   ) {
     listItems.forEach { listItem: ListItem ->
       val taskMarker: TaskListMarker? = (listItem.firstChild as? Paragraph)?.let(block = ::extractTaskListMarker)
@@ -226,8 +217,8 @@ private fun RenderBulletList(
           prefixText = unorderedList.bullet.toString(),
           listStyle = ListItemStyle(
             prefixStyle = bulletStyle,
-            prefixContentGap = markerContentGap,
-            prefixColumnMinWidth = unorderedMarkerColumnMinWidth,
+            prefixContentGap = MarkdownStyle.Block.MARKER_CONTENT_GAP,
+            prefixColumnMinWidth = MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH,
             contentStyle = styling.paragraph.inlinesStyling.textStyle
           ),
           isSimplified = isSimplified,
@@ -241,7 +232,7 @@ private fun RenderBulletList(
 
 /**
  * Render an ordered list. `prefixColumnMinWidth` is pinned to
- * [orderedMarkerColumnMinWidth] (24 dp) so single-digit "1." / "2."
+ * [MarkdownStyle.Block.ORDERED_MARKER_MIN_WIDTH] (24 dp) so single-digit "1." / "2."
  * aren't clipped. Visible indent is a single step if nested.
  */
 @OptIn(ExperimentalJewelApi::class)
@@ -249,22 +240,22 @@ private fun RenderBulletList(
 private fun RenderOrderedList(
   list: OrderedList,
   indentDepth: Int = 0,
-  onUrlClick: (String) -> Unit = {},
   isSimplified: Boolean = false,
-  thinkingMode: Boolean = false
+  thinkingMode: Boolean = false,
+  onUrlClick: (String) -> Unit = {}
 ) {
   val styling: MarkdownStyling = rememberGradumMarkdownStyling()
-  val listItems: List<ListItem> = collectListItems(list)
+  val listItems: List<ListItem> = collectListItems(listNode = list)
   val orderedList: MarkdownStyling.List.Ordered = styling.list.ordered
   val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
-  val startPadding: Dp = if (indentDepth > 0) nestedListIndentStep else 0.dp
+  val startPadding: Dp = if (indentDepth > 0) MarkdownStyle.Block.NESTED_LIST_INDENT_STEP else 0.dp
 
   Column(
     modifier = Modifier
       .fillMaxWidth()
       .padding(start = startPadding)
-      .padding(listOuterPadding),
-    verticalArrangement = Arrangement.spacedBy(listItemVerticalSpacing)
+      .padding(paddingValues = MarkdownStyle.Block.LIST_OUTER_PADDING),
+    verticalArrangement = Arrangement.spacedBy(MarkdownStyle.Block.LIST_ITEM_VERTICAL_SPACING)
   ) {
     listItems.forEachIndexed { index: Int, listItem: ListItem ->
       @Suppress("DEPRECATION")
@@ -289,9 +280,9 @@ private fun RenderOrderedList(
           indentDepth = indentDepth,
           listStyle = ListItemStyle(
             contentStyle = contentStyle,
-            prefixContentGap = markerContentGap,
+            prefixContentGap = MarkdownStyle.Block.MARKER_CONTENT_GAP,
             prefixStyle = orderedList.numberStyle,
-            prefixColumnMinWidth = orderedMarkerColumnMinWidth
+            prefixColumnMinWidth = MarkdownStyle.Block.ORDERED_MARKER_MIN_WIDTH
           ),
           isSimplified = isSimplified,
           thinkingMode = thinkingMode
@@ -337,8 +328,6 @@ internal fun extractTaskListMarker(paragraph: Paragraph): TaskListMarker? {
 internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
   val firstText: Text = paragraph.firstChild as? Text ?: return null
   val literal: String = firstText.literal ?: return null
-  // Same "no trailing space when content is empty" quirk as in
-  // [extractTaskListMarker] — see comment there.
   val stripped: String = when {
     literal == "[ ]" -> ""
     literal.startsWith(prefix = "[ ] ") -> literal.removePrefix("[ ] ")
@@ -442,7 +431,10 @@ private fun RenderTaskListItemRow(
   val strippedParagraph: Paragraph = stripTaskListMarker(paragraph) ?: paragraph
   val parseOutcome: InlineMarkdownRenderResult =
     rememberInlineMarkdownRenderFromNode(parentNode = strippedParagraph)
-  Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.Top
+  ) {
     CheckboxRow(
       enabled = false,
       checked = isChecked,
@@ -481,8 +473,8 @@ private data class ListItemStyle(
 private fun RenderListItem(
   item: ListItem,
   prefixText: String,
-  listStyle: ListItemStyle,
   indentDepth: Int = 0,
+  listStyle: ListItemStyle,
   onUrlClick: (String) -> Unit,
   isSimplified: Boolean = false,
   thinkingMode: Boolean = false
@@ -615,7 +607,6 @@ private fun RenderBlockQuote(
   val indentStart: Dp = quotePadding.calculateStartPadding(LayoutDirection.Ltr)
   val children: NodeChildren = NodeChildren.of(parent = quote)
 
-
   Row(
     modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
     verticalAlignment = Alignment.CenterVertically
@@ -712,7 +703,7 @@ private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {
   val blockRenderer: MarkdownBlockRenderer = LocalMarkdownBlockRenderer.current
   val markdownStyling: MarkdownStyling = rememberGradumMarkdownStyling()
   val indentedStyling: MarkdownStyling.Code.Indented = markdownStyling.code.indented
-  val markdownBlock: MarkdownBlock.CodeBlock.IndentedCodeBlock = remember(block) {
+  val markdownBlock: MarkdownBlock.CodeBlock.IndentedCodeBlock = remember(key1 = block) {
     parseIndentedCodeBlock(block)
   }
   blockRenderer.RenderIndentedCodeBlock(
@@ -744,7 +735,7 @@ private fun parseIndentedCodeBlock(
     append('\n')
     rawLines.forEach { line: String -> append("    ").append(line).append('\n') }
   }
-  val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(indented)
+  val blocks: List<MarkdownBlock> = GradumMarkdownProcessor.processMarkdownDocument(rawMarkdown = indented)
   val first: MarkdownBlock = blocks.first()
   require(value = first is MarkdownBlock.CodeBlock.IndentedCodeBlock) {
     "Expected IndentedCodeBlock from re-parse, got ${first::class.simpleName}"
@@ -752,14 +743,17 @@ private fun parseIndentedCodeBlock(
   return first
 }
 
-/** Render `---` as a 1dp horizontal line. */
 @Composable
 private fun RenderThematicBreak() {
-  val lineColor: Color = JewelTheme.globalColors.text.info.copy(alpha = 0.3f)
+  val lineColor: Color = JewelTheme.globalColors.text.info.copy(
+    alpha = MarkdownStyle.InlineCode.CHIP_BORDER_ALPHA
+  )
   Box(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(vertical = thematicBreakVerticalSpacing)
+      .padding(
+        vertical = MarkdownStyle.Block.THEMATIC_BREAK_VERTICAL_SPACING
+      )
       .height(1.dp)
       .background(lineColor)
   )
@@ -811,20 +805,22 @@ fun RenderInlineTextWithChips(
 ) {
   if (text.isEmpty()) return
   val fontSizeSp: Float = inlineCodeFontSizeSp
-    ?: style.fontSize.value.let { if (it <= 0f) FALLBACK_FONT_SIZE_SP_NO_STYLE else it }
+    ?: style.fontSize.value.let {
+      if (it <= 0f) MarkdownStyle.FontFallback.BLOCK_SIZE_SP else it
+    }
   val textColor: Color = style.color.let { colorValue: Color ->
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val codeColor: Color = JewelTheme.globalColors.text.info
-  val imageAltColor: Color = textColor.copy(alpha = 0.6f)
-  val parseOutcome: InlineMarkdownRenderResult = remember(text) {
+  val imageAltColor: Color = textColor.copy(alpha = MarkdownStyle.Image.ALT_COLOR_ALPHA)
+  val parseOutcome: InlineMarkdownRenderResult = remember(key1 = text) {
     parseInlineMarkdown(
+      linkColor = linkColor,
       plainText = text,
       fontSizeSp = fontSizeSp,
-      linkColor = linkColor,
-      codeColor = codeColor,
       imageAltColor = imageAltColor,
+      codeColor = codeColor,
       editorFontFamily = editorFontFamily
     )
   }
@@ -853,7 +849,7 @@ private fun RenderInlineRender(
 ) {
   val resolvedStyle: TextStyle =
     if (style.lineHeight.value.isNaN() || style.lineHeight.value <= 0f)
-      style.copy(lineHeight = style.fontSize * BODY_LINE_HEIGHT_MULTIPLIER)
+      style.copy(lineHeight = style.fontSize * MarkdownStyle.Block.BODY_LINE_HEIGHT_MULTIPLIER)
     else style
 
   if (parseOutcome.render == null) {
@@ -884,8 +880,8 @@ private fun RenderInlineRender(
           }
           val density: Density = LocalDensity.current
           val badgeColor: Color = JewelTheme.globalColors.text.info
-          val backgroundColor: Color = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
-          val borderColor: Color = badgeColor.copy(alpha = 0.3f)
+          val backgroundColor: Color = badgeColor.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA)
+          val borderColor: Color = badgeColor.copy(alpha = MarkdownStyle.InlineCode.CHIP_BORDER_ALPHA)
           Text(
             style = resolvedStyle,
             text = segment.annotated,
@@ -896,12 +892,12 @@ private fun RenderInlineRender(
                 ?.takeIf { codeSpanAnnotations.isNotEmpty() }
                 ?.run {
                   drawInlineCodeChips(
-                    layoutResult = this,
                     density = density,
+                    layoutResult = this,
                     style = resolvedStyle,
-                    codeSpans = codeSpanAnnotations,
-                    backgroundColor = backgroundColor,
                     borderColor = borderColor,
+                    codeSpans = codeSpanAnnotations,
+                    backgroundColor = backgroundColor
                   )
                 }
               drawContent()
@@ -928,19 +924,19 @@ private fun RenderInlineRender(
  * drives the chip height via its line-height so all chips in the paragraph
  * render at a uniform height regardless of the glyphs they contain.
  */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawInlineCodeChips(
-  layoutResult: TextLayoutResult,
+private fun DrawScope.drawInlineCodeChips(
   density: Density,
   style: TextStyle,
-  codeSpans: List<androidx.compose.ui.text.AnnotatedString.Range<String>>,
-  backgroundColor: Color,
   borderColor: Color,
+  backgroundColor: Color,
+  codeSpans: List<Range<String>>,
+  layoutResult: TextLayoutResult
 ) {
   if (codeSpans.isEmpty()) return
 
-  val cornerRadiusPx: Float = INLINE_CODE_CORNER_RADIUS.toPx()
-  val chipHeightPx: Float = with(density) {
-    style.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER
+  val cornerRadiusPx: Float = MarkdownStyle.InlineCode.CORNER_RADIUS.toPx()
+  val chipHeightPx: Float = with(receiver = density) {
+    style.fontSize.toPx() * MarkdownStyle.InlineCode.CHIP_HEIGHT_MULTIPLIER
   }
 
   for ((_, start: Int, end: Int) in codeSpans) {
@@ -949,31 +945,31 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawInlineCodeChips
     val endLine: Int = layoutResult.getLineForOffset(end - 1)
 
     for (line: Int in startLine..endLine) {
-      val lineStart: Int = layoutResult.getLineStart(line)
-      val lineEnd: Int = layoutResult.getLineEnd(line)
+      val lineStart: Int = layoutResult.getLineStart(lineIndex = line)
+      val lineEnd: Int = layoutResult.getLineEnd(lineIndex = line)
       val segmentStart: Int = maxOf(a = start, b = lineStart)
       val segmentEnd: Int = minOf(a = end, b = lineEnd)
       if (segmentStart >= segmentEnd) continue
 
       val left: Float = layoutResult.getBoundingBox(offset = segmentStart).left
       val right: Float = layoutResult.getBoundingBox(offset = segmentEnd - 1).right
-      val baseline: Float = layoutResult.getLineBaseline(line)
-      val chipTop: Float = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
-      val chipOrigin: Offset = Offset(x = left, y = chipTop)
-      val chipSize: Size = Size(width = right - left, height = chipHeightPx)
+      val baseline: Float = layoutResult.getLineBaseline(lineIndex = line)
+      val chipTop: Float = baseline - chipHeightPx * MarkdownStyle.InlineCode.CHIP_BASELINE_RATIO
+      val chipOrigin = Offset(x = left, y = chipTop)
+      val chipSize = Size(width = right - left, height = chipHeightPx)
 
       drawRoundRect(
         color = backgroundColor,
         topLeft = chipOrigin,
         size = chipSize,
-        cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
+        cornerRadius = CornerRadius(cornerRadiusPx, y = cornerRadiusPx)
       )
       drawRoundRect(
         color = borderColor,
         topLeft = chipOrigin,
         size = chipSize,
-        cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
-        style = Stroke(width = 0.5.dp.toPx())
+        cornerRadius = CornerRadius(cornerRadiusPx, y = cornerRadiusPx),
+        style = Stroke(width = MarkdownStyle.InlineCode.CHIP_BORDER_WIDTH.toPx())
       )
     }
   }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-25 22:29:33 Changed by gwy
+ * EditFileSkill.kt  2026-08-26 11:00:57 Changed by gwy
  */
 
 package gradum.skill
@@ -345,8 +345,7 @@ class EditFileSkill : Skill() {
             currentContent,
             expectedBytes = originalBytes,
             appliedCount = appliedEdits.size
-          )
-            ?.let { return it }
+          )?.let { return it }
 
           val failureStep = when (matchResult.failedAtStep) {
             MatchStrategy.NONE -> "matching"
@@ -436,7 +435,6 @@ class EditFileSkill : Skill() {
     @Suppress("UNCHECKED_CAST")
     fun parseEdits(rawInput: Any?): List<Map<String, Any>> {
       if (rawInput is List<*>) return rawInput.filterIsInstance<Map<String, Any>>()
-
       if (rawInput is String && rawInput.isNotBlank()) {
         try {
           val jsonElement = jsonParser.parseToJsonElement(string = rawInput)
@@ -522,8 +520,7 @@ private fun findMatchesWithFallback(
  * between the file and search text do not cause false negatives.
  */
 private fun findMatchesByStrategy(
-  fileLines: List<String>, searchLines: List<String>,
-  comparator: (String, String) -> Boolean
+  fileLines: List<String>, searchLines: List<String>, comparator: (String, String) -> Boolean
 ): List<MatchResult> {
   val matchResults = mutableListOf<MatchResult>()
   val searchContent = searchLines.filter { it.isNotBlank() }
@@ -531,7 +528,6 @@ private fun findMatchesByStrategy(
 
   for (startIdx in fileLines.indices) {
     if (fileLines[startIdx].isBlank()) continue
-
     var fileIndex = startIdx
     var searchIndex = 0
 
@@ -546,7 +542,7 @@ private fun findMatchesByStrategy(
       } else break
     }
     if (searchIndex == searchContent.size)
-      matchResults.add(MatchResult(startIdx, fileIndex, MatchStrategy.EXACT))
+      matchResults.add(MatchResult(startIndex = startIdx, endIndex = fileIndex, strategy = MatchStrategy.EXACT))
   }
   return matchResults
 }
@@ -592,14 +588,14 @@ class FileMutation {
     return withLock(path) {
       val targetFile = path.toFile()
       if (!targetFile.exists())
-        return@withLock Result.failure(StaleContentError(path.toString()))
+        return@withLock Result.failure(exception = StaleContentError(path.toString()))
 
       val current = targetFile.readBytes()
-      if (!current.contentEquals(expected)) {
-        return@withLock Result.failure(StaleContentError(path.toString()))
+      if (!current.contentEquals(other = expected)) {
+        return@withLock Result.failure(exception = StaleContentError(path.toString()))
       }
       targetFile.writeText(content, Charsets.UTF_8)
-      Result.success(Unit)
+      Result.success(value = Unit)
     }
   }
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Styling.kt  2026-08-24 22:36:53 Changed by gwy
+ * Styling.kt  2026-08-26 00:09:56 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -48,24 +48,6 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorder
 
 private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
 private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
-
-/** Alpha for inline code chip background color. */
-internal const val INLINE_CODE_BACKGROUND_ALPHA: Float = 0.16f
-
-/** Corner radius for inline code chip. */
-internal val INLINE_CODE_CORNER_RADIUS: Dp = GradumSpacing.sm
-
-/** Horizontal padding for inline code chip. */
-internal val INLINE_CODE_PADDING_HORIZONTAL: Dp = GradumSpacing.sm
-
-/** Vertical padding for inline code chip. */
-internal val INLINE_CODE_PADDING_VERTICAL: Dp = GradumSpacing.xs
-
-/** Multiplier for inline code chip height (relative to fontSize). */
-internal const val INLINE_CODE_CHIP_HEIGHT_MULTIPLIER: Float = 1.2f
-
-/** Ratio of inline code chip height above the baseline. */
-internal const val INLINE_CODE_CHIP_BASELINE_RATIO: Float = 0.75f
 
 private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
 private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
@@ -217,14 +199,16 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
   val thinkingMode: Boolean = LocalThinkingMode.current
 
   val codeBlockTextStyle: TextStyle = editorTextStyle.copy(
-    fontSize = (if (codeBlockFontSize > 0f) codeBlockFontSize else bodyTextStyle.fontSize.value).sp
+    fontSize =
+      (if (codeBlockFontSize > 0f) codeBlockFontSize
+      else bodyTextStyle.fontSize.value).sp
   )
 
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = thinkingGray
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
     color = inlineTint,
-    background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA),
+    background = inlineTint.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA),
     lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
   )
 
@@ -243,10 +227,11 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     globalColors, editorTextStyle, linkStyle,
     inlineTint, paragraphTextStyle, thinkingMode, codeBlockTextStyle
   ) {
-    val chatLinkColors: LinkColors = if (thinkingMode)
-      linkStyle.colors.withContent(newContent = thinkingGray)
-    else
-      linkStyle.colors
+    val chatLinkColors: LinkColors =
+      if (thinkingMode)
+        linkStyle.colors.withContent(newContent = thinkingGray)
+      else
+        linkStyle.colors
 
     val paragraphInlines: InlinesStyling = gradumInlinesStyling(
       linkColors = chatLinkColors,
@@ -261,13 +246,15 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
         fontWeight = fontWeight,
         fontSize = headingFontSize,
         lineHeight = headingLineHeight,
-        fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+        fontStyle =
+          if (italic) FontStyle.Italic
+          else FontStyle.Normal
       )
     }
 
     fun headingInlines(textStyle: TextStyle): InlinesStyling {
       val headingInlineCode: SpanStyle = textStyle.toSpanStyle().copy(
-        background = inlineTint.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
+        background = inlineTint.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA)
       )
       return gradumInlinesStyling(
         textStyle = textStyle,
@@ -284,7 +271,9 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
     val h6Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 
     val numberStyle: TextStyle = paragraphTextStyle.copy(
-      color = if (thinkingMode) thinkingGray else globalColors.text.info,
+      color =
+        if (thinkingMode) thinkingGray
+        else globalColors.text.info,
       fontFamily = editorTextStyle.fontFamily
     )
 
@@ -294,8 +283,12 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       fontFamily = editorTextStyle.fontFamily
     )
 
-    val blockQuoteTextColor: Color = if (thinkingMode) thinkingGray else globalColors.text.normal
-    val blockQuoteLineColor: Color = if (thinkingMode) thinkingGray else badgeBlue.copy(alpha = 0.6f)
+    val blockQuoteTextColor: Color =
+      if (thinkingMode) thinkingGray
+      else globalColors.text.normal
+    val blockQuoteLineColor: Color =
+      if (thinkingMode) thinkingGray
+      else badgeBlue.copy(alpha = 0.6f)
     val blockQuote: MarkdownStyling.BlockQuote = MarkdownStyling.BlockQuote.createBlockQuote(
       padding = PaddingValues(
         start = GradumSpacing.md,
@@ -358,7 +351,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       ),
       blockQuote = blockQuote,
       list = MarkdownStyling.List.createListStyling(
-        listItemStyle,
+        baseTextStyle = listItemStyle,
         Ordered.createOrderedListStyling(
           numberStyle = numberStyle,
           padding = listItemPadding

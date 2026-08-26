@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-08-25 17:11:13 Changed by gwy
+ * SkillRegistry.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
@@ -63,7 +63,7 @@ object SkillRegistry {
     toolMode: ToolMode = ToolMode.AGENT,
     provider: Provider = Provider.OLLAMA
   ): List<Map<String, Any>> {
-    val schemaContext = SkillContext(toolMode, projectRoot = "", provider, modelName)
+    val schemaContext = SkillContext(toolMode, projectRoot = "", modelName, provider)
     return registeredSkills.values
       .filter { skill: Skill -> skill.allows(toolMode) }
       .map { skill: Skill -> skill.getSchema(schemaContext) }

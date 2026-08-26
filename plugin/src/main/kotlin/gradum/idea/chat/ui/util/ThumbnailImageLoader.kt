@@ -2,13 +2,13 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailImageLoader.kt  2026-08-17 08:55:38 Changed by gwy
+ * ThumbnailImageLoader.kt  2026-08-25 23:17:36 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
 import androidx.compose.ui.graphics.ImageBitmap
-import gradum.idea.PluginConfig
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import gradum.idea.PluginConfig
 import org.jetbrains.skia.Image
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -93,9 +93,6 @@ object ThumbnailImageLoader {
 
   private val diskCache: ThumbnailDiskCache = ThumbnailDiskCache()
 
-  // Synchronized LRU keyed by URL string. `accessOrder = true` so
-  // `get` moves the entry to the tail, which is what makes the
-  // LRU invariant "remove eldest" work.
   private val cache: MutableMap<String, ImageBitmap> =
     Collections.synchronizedMap(object : LinkedHashMap<String, ImageBitmap>(
       LRU_MAX_ENTRIES, /* loadFactor = */ 0.75f, /* accessOrder = */ true
@@ -105,10 +102,6 @@ object ThumbnailImageLoader {
       ): Boolean = size > LRU_MAX_ENTRIES
     })
 
-  // In-flight URL → CompletableFuture so duplicate concurrent requests
-  // share the same response. Plain ConcurrentHashMap is enough; the
-  // value object's happens-before guarantees come from the futures'
-  // internal synchronization.
   private val inFlight: MutableMap<String, CompletableFuture<ImageBitmap?>> =
     ConcurrentHashMap()
 
@@ -132,10 +125,6 @@ object ThumbnailImageLoader {
     cache[imageUrl]?.let { return it }
     return try {
       val futureResult: CompletableFuture<ImageBitmap?> = loadAsync(imageUrl)
-      // If the cache was populated while we waited, use it. Otherwise,
-      // honor the future — `join()` is safe because the future is
-      // already complete by the time `loadAsync` returns the same
-      // instance (the only writer is inside `loadAsync` itself).
       futureResult.get()
     } catch (_: InterruptedException) {
       Thread.currentThread().interrupt()
@@ -162,13 +151,8 @@ object ThumbnailImageLoader {
     if (imageUrl.isBlank()) return CompletableFuture.completedFuture(null)
     cache[imageUrl]?.let { return CompletableFuture.completedFuture(it) }
 
-    // Disk-cache hit. Synchronous read + decode; the bytes are local
-    // and Skia is microseconds, so we don't bother with the
-    // `CompletableFuture` dance. A decode failure here is treated as
-    // a miss — the network path will re-fetch and overwrite the bad
-    // entry on success.
     diskCache.read(imageUrl)?.let { diskBytes ->
-      decodeFromBytes(diskBytes)?.let { diskBitmap ->
+      decodeFromBytes(imageBytes = diskBytes)?.let { diskBitmap ->
         cache[imageUrl] = diskBitmap
         return CompletableFuture.completedFuture(diskBitmap)
       }
@@ -192,9 +176,7 @@ object ThumbnailImageLoader {
             newFuture.complete(fetchResult)
           }
 
-          else -> {
-            newFuture.complete(null)
-          }
+          else -> newFuture.complete(null)
         }
       }
     return newFuture
@@ -207,7 +189,7 @@ object ThumbnailImageLoader {
    */
   @Suppress("unused")
   fun evict(url: String) {
-    cache.remove(url)
+    cache.remove(key = url)
   }
 
   /** Clear the entire cache. Tests use this for isolation. */
@@ -228,10 +210,6 @@ object ThumbnailImageLoader {
    * `URL(String)` constructor is also deprecated.
    */
   private fun fetchAndDecode(url: String): ImageBitmap? {
-    // Reject hostile URLs before we touch the network. Doing the
-    // guard *here* (not in `loadProperties`/`loadAsync`) means a malicious
-    // search result can't even pin a poisoned entry in the in-flight
-    // map for other callers to await.
     when (val check: ThumbnailUrlGuard.Check = ThumbnailUrlGuard.check(url)) {
       is ThumbnailUrlGuard.Check.Unsafe -> {
         logger.warn("Thumbnail URL rejected: {} ({})", url, check.reason)
@@ -245,10 +223,6 @@ object ThumbnailImageLoader {
       connectTimeout = THUMBNAIL_HTTP_TIMEOUT_MS
       readTimeout = THUMBNAIL_HTTP_TIMEOUT_MS
       requestMethod = "GET"
-      // Don't follow redirects: a 30x is a fine way to land on an
-      // internal address that wasn't visible in the original URL.
-      // The few sites that 30x their favicon will simply show the
-      // gray placeholder — acceptable trade-off for the safety.
       instanceFollowRedirects = false
 
       setRequestProperty("User-Agent", "Gradum/0.9 (https://github.com/gradum/gradum)")
@@ -260,47 +234,36 @@ object ThumbnailImageLoader {
         logger.warn("Thumbnail HTTP {} for url={}", responseCode, url)
         return null
       }
-      // Content-Type check after the status check. We don't want to
-      // spend cycles reading a 50 MB HTML error page that just happens
-      // to set 200.
+
       val contentType: String? = connection.contentType
       if (contentType != null && !contentType.lowercase().startsWith("image/")) {
         logger.warn("Thumbnail non-image content-type '{}' for url={}", contentType, url)
         return null
       }
       val imageBytes: ByteArray = connection.inputStream.use { inputStream ->
-        // Read with a hard cap so a server that streams 4 GB of "image"
-        // bytes can't OOM the IDE.
-        val buffer = ByteArray(8 * 1024)
+        val buffer = ByteArray(size = 8 * 1024)
         val accumulator = ArrayList<ByteArray>(64)
         var totalRead = 0
         while (true) {
-          val read: Int = inputStream.read(buffer)
-          if (read == -1) break
-          totalRead += read
+          val bytesRead: Int = inputStream.read(buffer)
+          if (bytesRead == -1) break
+          totalRead += bytesRead
           if (totalRead > MAX_IMAGE_BYTES) {
             logger.warn("Thumbnail exceeded {} bytes for url={}", MAX_IMAGE_BYTES, url)
             return null
           }
-          accumulator.add(buffer.copyOf(read))
+          accumulator.add(buffer.copyOf(newSize = bytesRead))
         }
-        // Flatten. For our 512 KB cap, the per-chunk overhead is
-        // negligible compared to the win of not allocating a single
-        // huge ByteArray up front.
-        val flat = ByteArray(totalRead)
-        var offset = 0
+
+        val combinedImageData = ByteArray(size = totalRead)
+        var currentPosition = 0
         for (chunk: ByteArray in accumulator) {
-          System.arraycopy(chunk, 0, flat, offset, chunk.size)
-          offset += chunk.size
+          System.arraycopy(chunk, 0, combinedImageData, currentPosition, chunk.size)
+          currentPosition += chunk.size
         }
-        flat
+        combinedImageData
       }
       if (imageBytes.isEmpty()) return null
-      // Persist to disk *before* the decode attempt so a future
-      // request for the same URL doesn't re-fetch from the network.
-      // The cache is best-effort: a write failure is logged and
-      // swallowed inside `ThumbnailDiskCache`, so this call can't
-      // sink the decode.
       diskCache.write(url, imageBytes)
       decodeFromBytes(imageBytes)
     } catch (decodeException: Exception) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-08-25 21:22:54 Changed by gwy
+ * SkillContext.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
@@ -33,8 +33,8 @@ import gradum.agent.Agent
 data class SkillContext(
   val toolMode: ToolMode,
   val projectRoot: String,
-  val provider: Provider = Provider.OLLAMA,
   val modelName: String = "",
+  val provider: Provider = Provider.OLLAMA,
 
   /**
    * The full [AgentConfiguration] for the current session. Skills
@@ -68,8 +68,8 @@ data class SkillContext(
    * ID and the [Agent] instance so that [POST /stop] on the parent
    * session cascades to terminate the sub-agent.
    *
-   * Implementation is provided by [gradum.server.Routes] and
-   * scoped to the parent session's [SessionEntry].
+   * Implementation is provided by Routes and
+   * scoped to the parent session's SessionEntry.
    */
   val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
 
@@ -86,6 +86,5 @@ data class SkillContext(
    * local models). Single source of truth for the per-skill
    * `SchemaVariant.resolve(modelName) == SIMPLE` checks.
    */
-  val isSimpleModel: Boolean
-    get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
+  val isSimpleModel: Boolean get() = SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE
 }

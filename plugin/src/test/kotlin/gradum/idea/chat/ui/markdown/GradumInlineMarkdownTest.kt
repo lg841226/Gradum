@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumInlineMarkdownTest.kt  2026-08-22 15:13:38 Changed by gwy
+ * GradumInlineMarkdownTest.kt  2026-08-26 12:40:47 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -30,11 +30,11 @@ class GradumInlineMarkdownTest {
   /** Build a render for [text] with the standard test theme values. */
   private fun render(text: String): InlineMarkdownRenderResult =
     parseInlineMarkdown(
+      linkColor = testLinkColor,
       plainText = text,
       fontSizeSp = testFontSizeSp,
-      codeColor = testTint,
-      linkColor = testLinkColor,
       imageAltColor = testImageAltColor,
+      codeColor = testTint,
     )
 
   /**

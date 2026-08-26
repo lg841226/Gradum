@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdown.kt  2026-08-24 22:01:37 Changed by gwy
+ * GradumMarkdown.kt  2026-08-25 23:42:13 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -21,14 +21,18 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString.Range
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import gradum.idea.settings.LocalParagraphSpacing
 import gradum.idea.utils.GradumSpacing
@@ -41,10 +45,6 @@ import org.jetbrains.jewel.ui.component.ExternalLink
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.styling.LinkStyle
 
-private val SEGMENT_RISE_DP: Dp = 8.dp
-private const val SEGMENT_MAX_EXTRA_MS: Int = 400
-private const val SEGMENT_BASE_DURATION_MS: Int = 150
-private const val SEGMENT_EXTRA_PER_100DP_MS: Int = 50
 
 /**
  * DSL scope for configuring [GradumMarkdown] rendering.
@@ -123,7 +123,7 @@ fun GradumMarkdown(
 ) {
   val config = remember { GradumMarkdownScope() }
   builder(config)
-  GradumMarkdownContent(text, modifier, config)
+  GradumMarkdownContent(text, config, modifier)
 }
 
 /**
@@ -133,37 +133,39 @@ fun GradumMarkdown(
 @Composable
 internal fun GradumMarkdownContent(
   text: String,
-  modifier: Modifier = Modifier,
-  config: GradumMarkdownScope
+  config: GradumMarkdownScope,
+  modifier: Modifier = Modifier
 ) {
-  val segments = remember(text) { splitMarkdown(text) }
+  val segments = remember(key1 = text) { splitMarkdown(text) }
   val paragraphStyle = config.paragraphStyle ?: rememberGradumParagraphTextStyle()
-  val bodyTextStyle = if (config.fontFamily != null) {
-    paragraphStyle.copy(fontFamily = config.fontFamily)
-  } else {
-    paragraphStyle
-  }
+  val bodyTextStyle =
+    if (config.fontFamily != null) {
+      paragraphStyle.copy(fontFamily = config.fontFamily)
+    } else {
+      paragraphStyle
+    }
   val paragraphSpacing: Dp = LocalParagraphSpacing.current
 
-  val content = @Composable {
-    CompositionLocalProvider(
-      LocalThinkingMode provides config.thinkingMode,
-      LocalMarkdownBodyTextStyle provides bodyTextStyle
-    ) {
-      Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(paragraphSpacing)
+  val content =
+    @Composable {
+      CompositionLocalProvider(
+        LocalThinkingMode provides config.thinkingMode,
+        LocalMarkdownBodyTextStyle provides bodyTextStyle
       ) {
-        segments.forEach { segment ->
-          GradumMarkdownSegment(
-            config = config,
-            segment = segment,
-            paragraphStyle = bodyTextStyle,
-          )
+        Column(
+          modifier = modifier,
+          verticalArrangement = Arrangement.spacedBy(paragraphSpacing)
+        ) {
+          segments.forEach { segment ->
+            GradumMarkdownSegment(
+              config = config,
+              segment = segment,
+              paragraphStyle = bodyTextStyle
+            )
+          }
         }
       }
     }
-  }
 
   if (config.withSelection) {
     SelectionContainer { content() }
@@ -202,8 +204,8 @@ private fun GradumMarkdownSegment(
 @Composable
 private fun StaticGradumSegment(
   segment: MarkdownSegment,
-  config: GradumMarkdownScope,
   paragraphStyle: TextStyle,
+  config: GradumMarkdownScope,
 ) {
   when (segment) {
     is MarkdownSegment.Plain -> {
@@ -211,7 +213,7 @@ private fun StaticGradumSegment(
         plainText = segment.text,
         thinkingMode = config.thinkingMode
       )
-      val resolvedStyle = resolveParagraphStyle(paragraphStyle, config)
+      val resolvedStyle = resolveParagraphStyle(baseStyle = paragraphStyle, config)
       if (outcome.render != null) {
         val render: InlineMarkdownRender = outcome.render
         val gradumLinkStyle: LinkStyle = rememberGradumLinkStyle()
@@ -228,66 +230,38 @@ private fun StaticGradumSegment(
           segments.forEach { inlineSegment ->
             when (inlineSegment) {
               is InlineSegment.TextSegment -> {
-                val codeSpanAnnotations = remember(inlineSegment.annotated) {
+                val codeSpanAnnotations = remember(key1 = inlineSegment.annotated) {
                   inlineSegment.annotated.getStringAnnotations(
-                    INLINE_CODE_SPAN_TAG, 0, inlineSegment.annotated.length
+                    INLINE_CODE_SPAN_TAG, start = 0, end = inlineSegment.annotated.length
                   )
                 }
-                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(value = null) }
                 val density = LocalDensity.current
                 val badgeColor = JewelTheme.globalColors.text.info
-                val backgroundColor = badgeColor.copy(alpha = INLINE_CODE_BACKGROUND_ALPHA)
-                val borderColor = badgeColor.copy(alpha = 0.3f)
+                val backgroundColor = badgeColor.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA)
+                val borderColor = badgeColor.copy(alpha = MarkdownStyle.InlineCode.CHIP_BORDER_ALPHA)
                 Text(
                   style = resolvedStyle,
                   text = inlineSegment.annotated,
                   inlineContent = inlineSegment.inlineContent,
                   onTextLayout = { layoutResult -> textLayoutResult = layoutResult },
                   modifier = Modifier.drawWithContent {
-                    val layoutResult = textLayoutResult
-                    if (layoutResult != null && codeSpanAnnotations.isNotEmpty()) {
-                      val cornerRadiusPx = INLINE_CODE_CORNER_RADIUS.toPx()
-                      val chipHeightPx = with(density) { resolvedStyle.fontSize.toPx() * INLINE_CODE_CHIP_HEIGHT_MULTIPLIER }
-                      for (annotation in codeSpanAnnotations) {
-                        val start = annotation.start
-                        val end = annotation.end
-                        if (start >= end) continue
-                        val startLine = layoutResult.getLineForOffset(start)
-                        val endLine = layoutResult.getLineForOffset(end - 1)
-                        for (line in startLine..endLine) {
-                          val lineStart = layoutResult.getLineStart(line)
-                          val lineEnd = layoutResult.getLineEnd(line)
-                          val segmentStart = maxOf(start, lineStart)
-                          val segmentEnd = minOf(end, lineEnd)
-                          if (segmentStart >= segmentEnd) continue
-                          val left = layoutResult.getBoundingBox(segmentStart).left
-                          val right = layoutResult.getBoundingBox(segmentEnd - 1).right
-                          val baseline = layoutResult.getLineBaseline(line)
-                          val chipTop = baseline - chipHeightPx * INLINE_CODE_CHIP_BASELINE_RATIO
-                          drawRoundRect(
-                            color = backgroundColor,
-                            topLeft = Offset(left, chipTop),
-                            size = Size(right - left, chipHeightPx),
-                            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx)
-                          )
-                          drawRoundRect(
-                            color = borderColor,
-                            topLeft = Offset(left, chipTop),
-                            size = Size(right - left, chipHeightPx),
-                            cornerRadius = CornerRadius(cornerRadiusPx, cornerRadiusPx),
-                            style = Stroke(width = 0.5.dp.toPx())
-                          )
-                        }
-                      }
-                    }
+                    drawInlineCodeBackgrounds(
+                      density = density,
+                      borderColor = borderColor,
+                      backgroundColor = backgroundColor,
+                      fontSize = resolvedStyle.fontSize,
+                      textLayoutResult = textLayoutResult,
+                      codeSpanAnnotations = codeSpanAnnotations
+                    )
                     drawContent()
                   }
                 )
               }
 
               is InlineSegment.LinkSegment -> ExternalLink(
-                text = inlineSegment.text,
                 style = gradumLinkStyle,
+                text = inlineSegment.text,
                 textStyle = resolvedStyle,
                 onClick = { config.onUrlClick(inlineSegment.url) }
               )
@@ -317,8 +291,8 @@ private fun StaticGradumSegment(
 
     is MarkdownSegment.NonProseBlock -> {
       RenderNonProseBlock(
-        onUrlClick = config.onUrlClick,
         segment = segment,
+        onUrlClick = config.onUrlClick,
         isSimplified = config.isSimplified,
         thinkingMode = config.thinkingMode
       )
@@ -332,22 +306,32 @@ private fun StaticGradumSegment(
 @Composable
 private fun AnimatedGradumSegment(
   segment: MarkdownSegment,
-  config: GradumMarkdownScope,
   paragraphStyle: TextStyle,
+  config: GradumMarkdownScope
 ) {
   val density = LocalDensity.current
-  var contentHeightPx by remember { mutableIntStateOf(0) }
-  val measuredHeightDp = with(density) { contentHeightPx.toDp() }
+  var contentHeightPx by remember { mutableIntStateOf(value = 0) }
+  val measuredHeightDp = with(receiver = density) { contentHeightPx.toDp() }
 
-  val alpha = remember { Animatable(0f) }
-  val offsetY = remember { Animatable(SEGMENT_RISE_DP.value) }
+  val alpha = remember { Animatable(initialValue = 0f) }
+  val offsetY = remember { Animatable(initialValue = MarkdownStyle.SegmentAnimation.RISE_DP.value) }
 
-  LaunchedEffect(contentHeightPx) {
+  LaunchedEffect(key1 = contentHeightPx) {
     if (contentHeightPx == 0) return@LaunchedEffect
     val durationMs = animationDurationMs(segment, measuredHeightDp)
     val easing = animationEasing(segment)
-    launch { alpha.animateTo(1f, tween(durationMillis = durationMs, easing = easing)) }
-    launch { offsetY.animateTo(0f, tween(durationMillis = durationMs, easing = easing)) }
+    launch {
+      alpha.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = durationMs, easing = easing)
+      )
+    }
+    launch {
+      offsetY.animateTo(
+        targetValue = 0f,
+        animationSpec = tween(durationMillis = durationMs, easing = easing)
+      )
+    }
   }
 
   Box(
@@ -359,24 +343,25 @@ private fun AnimatedGradumSegment(
       }
   ) {
     StaticGradumSegment(
-      segment = segment,
       config = config,
-      paragraphStyle = paragraphStyle,
+      segment = segment,
+      paragraphStyle = paragraphStyle
     )
   }
 }
 
 private fun animationDurationMs(segment: MarkdownSegment, measuredHeightDp: Dp): Int {
-  val typeWeight = when (segment) {
-    is MarkdownSegment.Table -> 1.5f
-    is MarkdownSegment.NonProseBlock -> 1.2f
-    is MarkdownSegment.Plain -> 1.0f
-  }
-  val heightDp = measuredHeightDp.value.coerceAtLeast(0f)
-  val extra = (heightDp / 100f * SEGMENT_EXTRA_PER_100DP_MS * typeWeight)
+  val typeWeight =
+    when (segment) {
+      is MarkdownSegment.Table -> 1.5f
+      is MarkdownSegment.NonProseBlock -> 1.2f
+      is MarkdownSegment.Plain -> 1.0f
+    }
+  val heightDp = measuredHeightDp.value.coerceAtLeast(minimumValue = 0f)
+  val extra = (heightDp / 100f * MarkdownStyle.SegmentAnimation.EXTRA_PER_100DP_MS * typeWeight)
     .toInt()
-    .coerceAtMost(SEGMENT_MAX_EXTRA_MS)
-  return SEGMENT_BASE_DURATION_MS + extra
+    .coerceAtMost(maximumValue = MarkdownStyle.SegmentAnimation.MAX_EXTRA_MS)
+  return MarkdownStyle.SegmentAnimation.BASE_DURATION_MS + extra
 }
 
 private fun animationEasing(segment: MarkdownSegment): Easing = when (segment) {
@@ -388,11 +373,76 @@ private fun animationEasing(segment: MarkdownSegment): Easing = when (segment) {
  * Resolves the paragraph style with thinking-mode color override.
  */
 @Composable
-private fun resolveParagraphStyle(
-  baseStyle: TextStyle,
-  config: GradumMarkdownScope
-): TextStyle {
+private fun resolveParagraphStyle(baseStyle: TextStyle, config: GradumMarkdownScope): TextStyle {
   if (!config.thinkingMode) return baseStyle
   val thinkingColor: Color = LocalGlobalColors.current.text.info
   return baseStyle.copy(color = thinkingColor)
+}
+
+/**
+ * Draws background + border chips behind inline code spans.
+ *
+ * Extracted from the `drawWithContent` lambda so the rendering
+ * logic is readable and testable independently.
+ */
+private fun DrawScope.drawInlineCodeBackgrounds(
+  density: Density,
+  borderColor: Color,
+  fontSize: TextUnit,
+  backgroundColor: Color,
+  textLayoutResult: TextLayoutResult?,
+  codeSpanAnnotations: List<Range<String>>
+) {
+  val layoutResult = textLayoutResult ?: return
+  if (codeSpanAnnotations.isEmpty()) return
+
+  val cornerRadiusPx: Float = MarkdownStyle.InlineCode.CORNER_RADIUS.toPx()
+  val chipHeightPx: Float = with(receiver = density) {
+    fontSize.toPx() * MarkdownStyle.InlineCode.CHIP_HEIGHT_MULTIPLIER
+  }
+  val borderWidth: Float = MarkdownStyle.InlineCode.CHIP_BORDER_WIDTH.toPx()
+
+  for ((_, start, end) in codeSpanAnnotations) {
+    if (start >= end) continue
+    val startLine: Int = layoutResult.getLineForOffset(start)
+    val endLine: Int = layoutResult.getLineForOffset(end - 1)
+
+    for (lineIndex in startLine..endLine) {
+      val lineStartOffset = layoutResult.getLineStart(lineIndex)
+      val lineEndOffset = layoutResult.getLineEnd(lineIndex)
+
+      val segmentStartOffset = maxOf(a = start, b = lineStartOffset)
+      val segmentEndOffset = minOf(a = end, b = lineEndOffset)
+
+      if (segmentStartOffset >= segmentEndOffset) continue
+
+      val lineBaseline = layoutResult.getLineBaseline(lineIndex)
+      val leftX = layoutResult.getBoundingBox(segmentStartOffset).left
+      val rightX = layoutResult.getBoundingBox(offset = segmentEndOffset - 1).right
+      val chipTopY = lineBaseline - chipHeightPx * MarkdownStyle.InlineCode.CHIP_BASELINE_RATIO
+
+      val chipSize = Size(
+        width = rightX - leftX,
+        height = chipHeightPx
+      )
+      val chipCornerRadius = CornerRadius(
+        x = cornerRadiusPx,
+        y = cornerRadiusPx
+      )
+
+      drawRoundRect(
+        size = chipSize,
+        color = backgroundColor,
+        topLeft = Offset(leftX, chipTopY),
+        cornerRadius = chipCornerRadius
+      )
+      drawRoundRect(
+        size = chipSize,
+        color = borderColor,
+        topLeft = Offset(leftX, chipTopY),
+        cornerRadius = chipCornerRadius,
+        style = Stroke(width = borderWidth)
+      )
+    }
+  }
 }

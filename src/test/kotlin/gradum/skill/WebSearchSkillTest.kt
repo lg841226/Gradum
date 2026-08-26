@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkillTest.kt  2026-08-25 14:13:18 Changed by gwy
+ * WebSearchSkillTest.kt  2026-08-26 11:20:58 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import kotlin.test.Test
@@ -27,10 +26,9 @@ class WebSearchSkillTest {
     functionOf(schema)["parameters"] as Map<String, Any>
 
   private fun ctx() = SkillContext(
-    modelName = "qwen2.5:7b",
-    provider = Provider.OLLAMA,
-    projectRoot = System.getProperty("java.io.tmpdir"),
     toolMode = ToolMode.AGENT,
+    projectRoot = System.getProperty("java.io.tmpdir"),
+    modelName = "qwen2.5:7b",
   )
 
   @Test
