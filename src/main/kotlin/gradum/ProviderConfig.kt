@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfig.kt  2026-08-15 22:25:40 Changed by gwy
+ * ProviderConfig.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum
 

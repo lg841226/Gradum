@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelIdentity.kt  2026-08-25 21:52:32 Changed by gwy
+ * ModelIdentity.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum
@@ -80,6 +80,8 @@ data class ServerDef(
  */
 object ModelIdentity {
 
+  private val jsonParser: Json = Json { ignoreUnknownKeys = true }
+
   private const val MAX_SMALL_MODEL_PARAMETERS_B: Double = 32.0
 
   /**
@@ -128,7 +130,7 @@ object ModelIdentity {
     if (body.isBlank()) return emptyList()
 
     val responseJson: JsonObject = try {
-      Json { ignoreUnknownKeys = true }.parseToJsonElement(string = body).jsonObject
+      jsonParser.parseToJsonElement(string = body).jsonObject
     } catch (_: Exception) {
       return emptyList()
     }
@@ -243,14 +245,27 @@ object ModelIdentity {
    */
   private data class HttpProbe(val status: HttpStatusCode, val body: String, val latencyMs: Long)
 
-  private fun httpProbe(url: String, apiKey: String?): HttpProbe {
+  private fun httpProbe(url: String, apiKey: String?, method: String = "GET", body: String? = null): HttpProbe {
     val startedAt: Long = System.nanoTime()
     HttpClient().use { client ->
       val response = runBlocking {
-        client.get(urlString = url) {
-          timeout { requestTimeoutMillis = 5000 }
-          apiKey?.takeIf { it.isNotBlank() }?.let { key ->
-            header("Authorization", "Bearer $key")
+        when (method.uppercase()) {
+          "POST" -> client.post(urlString = url) {
+            timeout { requestTimeoutMillis = 5000 }
+            apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+              header("Authorization", "Bearer $key")
+            }
+            if (body != null) {
+              contentType(ContentType.Application.Json)
+              setBody(body)
+            }
+          }
+
+          else -> client.get(urlString = url) {
+            timeout { requestTimeoutMillis = 5000 }
+            apiKey?.takeIf { it.isNotBlank() }?.let { key ->
+              header("Authorization", "Bearer $key")
+            }
           }
         }
       }
@@ -384,7 +399,7 @@ object ModelIdentity {
       ServerDef(
         name = "LM Studio",
         baseUrl = "",
-        endpoint = "/v1/models",
+        endpoint = "/api/v0/models",
         providerType = Provider.OPENAI.wireType,
         configKey = "lmstudio"
       ),
@@ -443,13 +458,17 @@ object ModelIdentity {
       "OPENAI_API_KEY"
     )
 
-    private val jsonParser = Json { ignoreUnknownKeys = true }
-
     private sealed class ProbeResult {
       data class Ok(val models: List<ModelEntry>) : ProbeResult()
       data class HttpError(val status: HttpStatusCode) : ProbeResult()
       data object Unreachable : ProbeResult()
     }
+
+    /** Per-server snapshot used to detect state changes across probes. */
+    private data class ServerSnapshot(val name: String, val status: String, val modelCount: Int)
+
+    @Volatile
+    private var previousSnapshots: List<ServerSnapshot> = emptyList()
 
     fun probe(): List<ModelEntry> = HealthCache.getOrCompute { doProbe() }
 
@@ -512,40 +531,53 @@ object ModelIdentity {
         effective
       }
 
-      logger.info("Probing ${serversToProbe.size} server(s): " + serversToProbe.joinToString {
-        "${it.name}@${it.baseUrl}"
-      })
+      logger.info("Probing ${serversToProbe.size} server(s)")
 
+      val currentSnapshots = mutableListOf<ServerSnapshot>()
       val discovered = mutableListOf<ModelEntry>()
-      for (server in serversToProbe) {
-        logger.info("Probing ${server.name} at ${server.baseUrl}${server.endpoint}")
+      for ((index, server) in serversToProbe.withIndex()) {
+        val isLastServer = index == serversToProbe.lastIndex
+        val branchPrefix = if (isLastServer) "\u2514\u2500\u2500" else "\u251C\u2500\u2500"
         val probeStart: Long = System.nanoTime()
-        val result: ProbeResult = try {
-          probeServer(server)
-        } catch (any: Throwable) {
-          logger.error(
-            "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint} (after " +
-              "${(System.nanoTime() - probeStart) / 1_000_000} ms)", any
-          )
-          ProbeResult.Unreachable
-        }
-
-        val probeDurationMs: Long = (System.nanoTime() - probeStart) / 1_000_000
-        when (result) {
-          is ProbeResult.Ok -> {
-            logger.info(
-              "Discovered ${result.models.size} model(s) from ${server.name} at " +
-                "${server.baseUrl} in ${probeDurationMs}ms"
+        val result: ProbeResult =
+          try {
+            probeServer(server)
+          } catch (any: Throwable) {
+            logger.error(
+              "{} {} — {} ({}ms)", branchPrefix, server.name,
+              any.javaClass.simpleName, (System.nanoTime() - probeStart) / 1_000_000, any
             )
-            discovered.addAll(elements = result.models.map {
-              it.copy(available = true)
-            })
+            ProbeResult.Unreachable
           }
 
-          is ProbeResult.HttpError -> Unit
-          ProbeResult.Unreachable -> Unit
+        val probeDurationMs: Long = (System.nanoTime() - probeStart) / 1_000_000
+        val snapshot: ServerSnapshot =
+          when (result) {
+            is ProbeResult.Ok -> ServerSnapshot(server.name, status = "ok", modelCount = result.models.size)
+            is ProbeResult.HttpError -> ServerSnapshot(server.name, status = "http-${result.status.value}", modelCount = 0)
+            ProbeResult.Unreachable -> ServerSnapshot(server.name, status = "unreachable", modelCount = 0)
+          }
+        currentSnapshots.add(snapshot)
+
+        val previous = previousSnapshots.find { it.name == server.name }
+        val isChanged = previous == null || previous != snapshot
+
+        if (isChanged) {
+          when (result) {
+            is ProbeResult.Ok -> {
+              logger.info("$branchPrefix ${server.name} — ${result.models.size} model(s) in ${probeDurationMs}ms")
+              discovered.addAll(elements = result.models.map { it.copy(available = true) })
+            }
+
+            is ProbeResult.HttpError -> logger.warn("{} {} — HTTP {}", branchPrefix, server.name, result.status.value)
+            ProbeResult.Unreachable -> logger.warn("{} {} — unreachable", branchPrefix, server.name)
+          }
+        } else {
+          if (result is ProbeResult.Ok)
+            discovered.addAll(elements = result.models.map { it.copy(available = true) })
         }
       }
+      previousSnapshots = currentSnapshots
 
       val withHealth = runBlocking {
         coroutineScope {
@@ -565,41 +597,102 @@ object ModelIdentity {
     }
 
     private fun probeServer(server: ServerDef): ProbeResult {
-      val authPreview: String? = server.apiKey?.takeIf { it.isNotBlank() }?.let { it.take(n = 6) + "xxx" }
-      logger.info("probeServer entered: ${server.name} ${server.baseUrl}${server.endpoint} (apiKey=$authPreview)")
       return try {
         val probe: HttpProbe = httpProbe(url = resolveModelsEndpoint(server.baseUrl, server.endpoint), server.apiKey)
-        logger.info("probeServer got response: ${server.name} status=${probe.status.value}")
         if (probe.status != HttpStatusCode.OK) {
-          logger.warn(
-            "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
-              "HTTP ${probe.status.value} (${probe.status.description})"
-          )
           return ProbeResult.HttpError(probe.status)
         }
 
         val modelNames: List<String> = parseModelNamesFromBody(server.providerType, probe.body)
+        val visionModels: Set<String> = detectVisionModels(server = server, probeBody = probe.body, modelNames = modelNames)
 
         ProbeResult.Ok(models = modelNames.map {
           ModelEntry(
             modelName = it,
-            serverUrl = server.baseUrl,
             serverName = server.name,
-            server.providerType
+            serverUrl = server.baseUrl,
+            attachment = it in visionModels,
+            providerType = server.providerType
           )
         })
-      } catch (probeException: Exception) {
-        logger.warn(
-          "Skipping ${server.name} at ${server.baseUrl}${server.endpoint}: " +
-            "${probeException.javaClass.simpleName}: ${probeException.message}", probeException
-        )
+      } catch (_: Exception) {
         ProbeResult.Unreachable
       } catch (probeError: Throwable) {
-        logger.error(
-          "Uncaught throwable while probing ${server.name} at ${server.baseUrl}${server.endpoint}",
-          probeError
-        )
-        ProbeResult.Unreachable
+        throw probeError
+      }
+    }
+
+    /**
+     * Detects which models in [modelNames] support image inputs by
+     * querying the provider's own capability API. Returns the subset of
+     * model names that have vision capability.
+     *
+     * Detection strategy per provider:
+     * - **Ollama**: calls `/api/show` for each model in parallel and
+     *   checks the `capabilities` array for `"vision"`.
+     * - **LM Studio**: parses the already-fetched [probeBody] from the
+     *   `/api/v0/models` endpoint, looking for `type: "vlm"`.
+     * - **Other OpenAI-compatible**: returns empty set (no reliable
+     *   capability API).
+     */
+    private fun detectVisionModels(
+      server: ServerDef, probeBody: String, modelNames: List<String>
+    ): Set<String> {
+      if (modelNames.isEmpty()) return emptySet()
+
+      return when (server.providerType) {
+        Provider.OLLAMA.wireType -> detectOllamaVision(server.baseUrl, modelNames)
+        Provider.OPENAI.wireType -> detectLmStudioVision(probeBody, modelNames)
+        else -> emptySet()
+      }
+    }
+
+    /**
+     * Probes Ollama's `/api/show` for each model in parallel and returns
+     * the subset whose `capabilities` array includes `"vision"`.
+     */
+    private fun detectOllamaVision(baseUrl: String, modelNames: List<String>): Set<String> = runBlocking {
+      coroutineScope {
+        modelNames.map { name ->
+          async {
+            try {
+              val showProbe: HttpProbe = httpProbe(
+                url = "$baseUrl/api/show",
+                apiKey = null,
+                method = "POST",
+                body = """{"name":"$name"}"""
+              )
+              if (showProbe.status != HttpStatusCode.OK) return@async null
+
+              val json: JsonObject = jsonParser.parseToJsonElement(string = showProbe.body).jsonObject
+              val capabilities: JsonArray? = json["capabilities"]?.jsonArray
+
+              if (capabilities != null && capabilities.any { it.jsonPrimitive.content == "vision" }) name
+              else null
+            } catch (_: Exception) {
+              null
+            }
+          }
+        }.mapNotNull { it.await() }.toSet()
+      }
+    }
+
+    /**
+     * Parses the LM Studio `/api/v0/models` response body and returns
+     * model names whose `type` field equals `"vlm"` (Vision Language Model).
+     */
+    private fun detectLmStudioVision(probeBody: String, modelNames: List<String>): Set<String> {
+      if (probeBody.isBlank()) return emptySet()
+      return try {
+        val json: JsonObject = jsonParser.parseToJsonElement(string = probeBody).jsonObject
+        json["data"]?.jsonArray?.mapNotNull { element ->
+          val jsonObject: JsonObject = element.jsonObject
+          val modelId: String = jsonObject["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+          val modelType: String = jsonObject["type"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+          if (modelType == "vlm" && modelId in modelNames) modelId else null
+        }?.toSet() ?: emptySet()
+      } catch (_: Exception) {
+        emptySet()
       }
     }
 

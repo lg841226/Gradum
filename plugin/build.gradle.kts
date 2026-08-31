@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-08-21 12:36:13 Changed by gwy
+ * build.gradle.kts  2026-08-31 19:21:55 Changed by gwy
  */
 
 plugins {
@@ -16,7 +16,6 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "0.9.0"
 
 repositories {
   mavenCentral()
@@ -86,7 +85,7 @@ dependencies {
   // The five `extensions.*` JARs must also be `implementation` deps (not
   // `from(...)` entries of `composedJar`). The earlier `composedJar`
   // configuration only NESTED these JARs inside the final
-  // `plugin-0.9.0.jar`, and the IntelliJ Platform's classloader does not
+  // `plugin-0.9.2.jar`, and the IntelliJ Platform's classloader does not
   // look inside nested JARs for classes → `NoClassDefFoundError:
   // org/jetbrains/jewel/markdown/extensions/autolink/AutolinkProcessorExtension`
   // at first chat render. Adding them as plain `implementation(files(...))`
@@ -187,7 +186,7 @@ kotlin {
 intellijPlatform {
   pluginConfiguration {
     name = "Gradum"
-    version = "0.9.0"
+    version = "${project.version}"
     changeNotes = """
       <ul>
         <li>Markdown: add footnote syntax support and improve rendering</li>
@@ -256,3 +255,29 @@ tasks.named("detekt") { enabled = false }
 //tasks.named("check") {
 //  dependsOn("detekt")
 //}
+
+val generateBuildConfig = tasks.register("generateBuildConfig") {
+  val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
+  outputs.dir(outputDir)
+  doLast {
+    val file = outputDir.get().file("gradum/idea/BuildConfig.kt").asFile
+    file.parentFile.mkdirs()
+    file.writeText(
+      """
+      |package gradum.idea
+      |
+      |object BuildConfig {
+      |  const val version: String = "${project.version}"
+      |}
+      """.trimMargin()
+    )
+  }
+}
+
+kotlin.sourceSets.main {
+  kotlin.srcDir(generateBuildConfig.map { it.outputs.files.single() })
+}
+
+tasks.named("compileKotlin") {
+  dependsOn(generateBuildConfig)
+}

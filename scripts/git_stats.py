@@ -1,5 +1,7 @@
-#  Copyright (c) 2026 Gradum team, some rights reserved.
+#  Copyright (c) 2026 Gradum Authors
 #  For licensing terms and conditions, see the MIT LICENSE file.
+#
+#  git_stats.py  2026-08-31 19:21:55 Changed by gwy
 #
 #  git_stats.py  2026-08-16 22:00:45 Changed by gwy
 #
@@ -981,6 +983,7 @@ def compute_quality_periods(entries: List[Dict], unit: str, now: datetime,
     """Delegate to QualityModel.evaluate_period_batch()."""
     model = QualityModel(params)
     return model.evaluate_period_batch(entries, unit, now, overall_hero_score, repo=repo)
+
 
 def _load_config() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), "configs.jsonc")

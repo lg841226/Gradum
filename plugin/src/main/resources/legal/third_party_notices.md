@@ -2,7 +2,7 @@
 
 **Effective date:** 2026-08-19
 
-**Version:** 0.9.0
+**Version:** 0.9.2
 
 This document lists the third-party open-source software distributed with, or linked against by, Gradum (the
 "Software"), together with the applicable license terms. It is provided for compliance purposes and does not modify,

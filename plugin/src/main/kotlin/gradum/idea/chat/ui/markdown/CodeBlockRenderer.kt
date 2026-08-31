@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CodeBlockRenderer.kt  2026-08-26 00:09:03 Changed by gwy
+ * CodeBlockRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -49,7 +49,6 @@ import org.jetbrains.jewel.markdown.rendering.DefaultMarkdownBlockRenderer
 import org.jetbrains.jewel.markdown.rendering.MarkdownStyling
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
-
 
 
 @OptIn(ExperimentalJewelApi::class)

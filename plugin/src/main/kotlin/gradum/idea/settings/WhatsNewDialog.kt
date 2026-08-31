@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WhatsNewDialog.kt  2026-08-25 22:26:54 Changed by gwy
+ * WhatsNewDialog.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.settings
 
@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.intellij.ide.BrowserUtil
+import gradum.idea.BuildConfig
 import gradum.idea.chat.ui.markdown.GradumMarkdown
 import gradum.idea.chat.ui.markdown.LocalMarkdownBodyTextStyle
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
@@ -66,12 +67,10 @@ private const val DIALOG_WIDTH = 900
 private const val DIALOG_HEIGHT = 600
 private const val ANIMATION_DURATION_MS = 300
 
-const val pluginVersion = "0.9.2"
-
 internal fun showWhatsNewDialog() {
   val dialog: JDialog = JDialog().apply {
     isModal = true
-    title = message("gradum.whatsnew.title", pluginVersion)
+    title = message("gradum.whatsnew.title", BuildConfig.version)
     defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
     isResizable = false
     contentPane = JewelComposePanel {

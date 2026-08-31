@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallContent.kt  2026-08-12 12:38:25 Changed by gwy
+ * ToolCallContent.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.spi

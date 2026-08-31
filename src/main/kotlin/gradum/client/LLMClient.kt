@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-25 22:43:49 Changed by gwy
+ * LLMClient.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.client

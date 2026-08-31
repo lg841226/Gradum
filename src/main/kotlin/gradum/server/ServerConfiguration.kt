@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ServerConfiguration.kt  2026-08-14 22:29:50 Changed by gwy
+ * ServerConfiguration.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -26,8 +26,8 @@ package gradum.server
  * UI. The first non-blank value wins.
  */
 data class ServerConfiguration(
-  val hostAddress: String = DEFAULT_HOST_ADDRESS,
   val portNumber: Int = DEFAULT_PORT_NUMBER,
+  val hostAddress: String = DEFAULT_HOST_ADDRESS,
 
   /**
    * Server-wide fallback bearer token for hosted providers
@@ -70,13 +70,14 @@ data class ServerConfiguration(
      * [gradum.ModelIdentity.Discovery.baseKnownServers] so probe
      * and chat agree on the same key.
      */
-    private val API_KEY_ENV_CANDIDATES: List<String> = listOf(
-      "GRADUM_OPENAI_API_KEY",
-      "BIGMODEL_API_KEY",
-      "DEEPSEEK_API_KEY",
-      "MiniMax_API_KEY",
-      "OPENAI_API_KEY",
-    )
+    private val API_KEY_ENV_CANDIDATES: List<String> =
+      listOf(
+        "OPENAI_API_KEY",
+        "MiniMax_API_KEY",
+        "BIGMODEL_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "GRADUM_OPENAI_API_KEY"
+      )
 
     /**
      * Resolve the server-wide API key from environment variables.

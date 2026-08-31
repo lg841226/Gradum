@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-25 22:05:14 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -10,7 +10,10 @@
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -20,10 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
@@ -49,11 +49,8 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
-private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
-private const val RISE_DURATION_MS: Int = 300
 
 /**
  * Left-aligned assistant message bubble.
@@ -216,8 +213,7 @@ private fun ResponseBlock(
 fun ToolCallBlock(
   block: RenderBlock.ToolCall,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
-  onViewDiff:
-    (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
+  onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
 ) {
   if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
@@ -316,31 +312,18 @@ private fun TokenStatusRow(
       "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
     else
       sendingPhase.ifEmpty { "..." }
-  val density: Density = LocalDensity.current
+
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
   val verticalOffset = remember { Animatable(initialValue = 0f) }
   var displayText: String by remember { mutableStateOf(value = sendingPhase) }
   var previousText: String by remember { mutableStateOf(value = sendingPhase) }
-  val riseDistancePx: Float = with(receiver = density) { -RISE_DISTANCE_DP.toPx() }
 
   LaunchedEffect(key1 = sendingPhase, key2 = tokenText) {
     val newText: String = tokenText.ifEmpty { sendingPhase }
     if (newText != previousText) {
-      launch {
-        verticalOffset.animateTo(
-          targetValue = riseDistancePx,
-          animationSpec = tween(
-            easing = FastOutSlowInEasing,
-            durationMillis = RISE_DURATION_MS
-          ),
-        )
-      }
-      fadeAlpha.animateTo(
-        targetValue = 0f,
-        animationSpec = tween(durationMillis = PHASE_FADE_MS)
-      )
       displayText = newText
       previousText = newText
+      fadeAlpha.snapTo(targetValue = 0f)
       launch {
         verticalOffset.animateTo(
           targetValue = 0f,
@@ -420,7 +403,9 @@ private fun MessageActionsRow(
       ) {
         Icon(
           contentDescription = message("gradum.like"),
-          key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
+          key =
+            if (isSelectedLike) GradumIcons.LikeSelected
+            else GradumIcons.Like
         )
       }
       IconButton(
@@ -444,9 +429,9 @@ private fun MessageActionsRow(
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
   val isInterrupted: Boolean = block.code == ErrorCode.INTERRUPTED.code
-  if (isInterrupted) return
-
   val textErrorColor: Color = JewelTheme.globalColors.text.error
+
+  if (isInterrupted) return
 
   Row(
     verticalAlignment = Alignment.CenterVertically,

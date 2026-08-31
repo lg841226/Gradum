@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchedRendererTest.kt  2026-08-16 17:48:39 Changed by gwy
+ * SearchedRendererTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.chat.ui.chat.skill
 

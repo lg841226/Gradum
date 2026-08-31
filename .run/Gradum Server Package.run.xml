@@ -1,3 +1,10 @@
+<!--
+  ~ Copyright (c) 2026 Gradum Authors
+  ~ For licensing terms and conditions, see the MIT LICENSE file.
+  ~
+  ~ Gradum Server Package.run.xml  2026-08-31 19:21:55 Changed by gwy
+  -->
+
 <component name="ProjectRunConfigurationManager">
     <configuration default="false" name="Gradum Server Package" type="GradleRunConfiguration" factoryName="Gradle">
         <ExternalSystemSettings>

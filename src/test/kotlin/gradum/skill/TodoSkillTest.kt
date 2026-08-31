@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkillTest.kt  2026-08-19 12:00:00 Changed by gwy
+ * TodoSkillTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -28,20 +28,20 @@ class TodoSkillTest {
 
     assertTrue(result is SkillResult.Success)
     assertEquals(
-          3,
-          result.data["totalTasks"]
+      3,
+      result.data["totalTasks"]
     )
     assertEquals(
-          "a",
-          result.data["currentTask"]
+      "a",
+      result.data["currentTask"]
     )
     assertEquals(
-          0,
-          result.data["currentIndex"]
+      0,
+      result.data["currentIndex"]
     )
     assertEquals(
-          listOf("a", "b", "c"),
-          result.data["tasks"]
+      listOf("a", "b", "c"),
+      result.data["tasks"]
     )
   }
 
@@ -53,32 +53,32 @@ class TodoSkillTest {
     val first = manager.completeCurrentTask()
     assertTrue(first is SkillResult.Success)
     assertEquals(
-          false,
-          first.data["completed"]
+      false,
+      first.data["completed"]
     )
     assertEquals(
-          1,
-          first.data["currentIndex"]
+      1,
+      first.data["currentIndex"]
     )
     assertEquals(
-          "b",
-          first.data["currentTask"]
+      "b",
+      first.data["currentTask"]
     )
     assertEquals(
-          listOf("a", "b", "c"),
-          first.data["tasks"]
+      listOf("a", "b", "c"),
+      first.data["tasks"]
     )
 
     manager.completeCurrentTask()
     val last = manager.completeCurrentTask()
     assertTrue(last is SkillResult.Success)
     assertEquals(
-          true,
-          last.data["completed"]
+      true,
+      last.data["completed"]
     )
     assertEquals(
-          listOf("a", "b", "c"),
-          last.data["tasks"]
+      listOf("a", "b", "c"),
+      last.data["tasks"]
     )
   }
 
@@ -90,24 +90,24 @@ class TodoSkillTest {
     val result = manager.skipTask()
     assertTrue(result is SkillResult.Success)
     assertEquals(
-          true,
-          result.data["skipped"]
+      true,
+      result.data["skipped"]
     )
     assertEquals(
-          "a",
-          result.data["skippedTask"]
+      "a",
+      result.data["skippedTask"]
     )
     assertEquals(
-          1,
-          result.data["currentIndex"]
+      1,
+      result.data["currentIndex"]
     )
     assertEquals(
-          "b",
-          result.data["currentTask"]
+      "b",
+      result.data["currentTask"]
     )
     assertEquals(
-          listOf("a", "b", "c"),
-          result.data["tasks"]
+      listOf("a", "b", "c"),
+      result.data["tasks"]
     )
   }
 
@@ -117,13 +117,13 @@ class TodoSkillTest {
     manager.initializeTasks(listOf("a", "b"))
     manager.completeCurrentTask()
     assertEquals(
-          true,
-          manager.getTaskReminder() != null
+      true,
+      manager.getTaskReminder() != null
     )
     manager.completeCurrentTask()
     assertEquals(
-          null,
-          manager.getTaskReminder()
+      null,
+      manager.getTaskReminder()
     )
   }
 
@@ -133,8 +133,8 @@ class TodoSkillTest {
     manager.initializeTasks(listOf("a"))
     manager.resetTaskList()
     assertEquals(
-          null,
-          manager.getTaskReminder()
+      null,
+      manager.getTaskReminder()
     )
   }
 }

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * XmlError.kt  2026-08-26 11:51:00 Changed by gwy
+ * XmlError.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill

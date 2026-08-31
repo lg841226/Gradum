@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumNestedCodeBlockTest.kt  2026-07-17 23:16:24 Changed by gwy
+ * GradumNestedCodeBlockTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown

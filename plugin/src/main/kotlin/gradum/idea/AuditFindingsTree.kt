@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-25 22:13:25 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-25 01:50:11 Changed by gwy
  */
 
 @file:OptIn(
@@ -73,24 +73,23 @@ internal fun buildAuditFindingsTree(
   groupLimits: Map<AuditTreeItem, Int>
 ): Tree<AuditTreeItem> =
   buildTree {
-    val groupItems: List<AuditTreeItem> =
-      if (groupBySeverity) {
-        SEVERITY_ORDER.mapNotNull { level: String ->
-          val grouped = findings.filter {
-            it.level == level
-          }
-          if (grouped.isEmpty()) null
-          else AuditTreeItem.SeverityGroup(level, count = grouped.size)
+    val groupItems: List<AuditTreeItem> = if (groupBySeverity) {
+      SEVERITY_ORDER.mapNotNull { level: String ->
+        val grouped = findings.filter {
+          it.level == level
         }
-      } else {
-        AuditGroup.entries.mapNotNull { group: AuditGroup ->
-          val grouped = findings.filter {
-            auditGroupOf(it.code) == group
-          }
-          if (grouped.isEmpty()) null
-          else AuditTreeItem.Group(group, count = grouped.size)
-        }
+        if (grouped.isEmpty()) null
+        else AuditTreeItem.SeverityGroup(level, count = grouped.size)
       }
+    } else {
+      AuditGroup.entries.mapNotNull { group: AuditGroup ->
+        val grouped = findings.filter {
+          auditGroupOf(it.code) == group
+        }
+        if (grouped.isEmpty()) null
+        else AuditTreeItem.Group(group, count = grouped.size)
+      }
+    }
 
     fun TreeGeneratorScope<AuditTreeItem>.addGroupRows() {
       groupItems.forEach { groupItem ->
@@ -395,9 +394,7 @@ internal fun AuditFindingsTree(
               Text(
                 maxLines = 1,
                 style = regularStyle.copy(
-                  textDecoration =
-                    if (isReviewed) TextDecoration.LineThrough
-                    else null
+                  textDecoration = if (isReviewed) TextDecoration.LineThrough else null
                 ),
                 text = finding.formatBody(),
                 modifier = Modifier.weight(1f),

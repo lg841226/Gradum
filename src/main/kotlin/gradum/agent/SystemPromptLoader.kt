@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SystemPromptLoader.kt  2026-08-25 22:50:20 Changed by gwy
+ * SystemPromptLoader.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.agent
@@ -51,23 +51,26 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
       }
         ?: throw IllegalStateException("No system prompt found on classpath at $primaryPath")
     } catch (promptLoadException: Exception) {
-      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}", promptLoadException)
+      logger.warn("Could not load system prompt, reason: ${promptLoadException.message}")
       "You are a helpful AI assistant. You can't call any tool and report it"
     }
 
-    val modeSectionPath: String = when (configuration.toolMode) {
-      ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
-      ToolMode.EDIT -> "/prompts/modes/edit.xml"
-      ToolMode.AGENT -> "/prompts/modes/agent.xml"
-    }
-    val modeSection: String = try {
-      Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
-        stream.reader(Charsets.UTF_8).readText()
-      } ?: "You have no tools available in this session."
-    } catch (modeSectionException: Exception) {
-      logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}", modeSectionException)
-      "You have no tools available in this session."
-    }
+    val modeSectionPath: String =
+      when (configuration.toolMode) {
+        ToolMode.READ_ONLY -> "/prompts/modes/read_only.xml"
+        ToolMode.EDIT -> "/prompts/modes/edit.xml"
+        ToolMode.AGENT -> "/prompts/modes/agent.xml"
+      }
+
+    val modeSection: String =
+      try {
+        Agent::class.java.getResourceAsStream(modeSectionPath)?.use { stream ->
+          stream.reader(Charsets.UTF_8).readText()
+        } ?: "You have no tools available in this session."
+      } catch (modeSectionException: Exception) {
+        logger.warn("Could not load mode section $modeSectionPath: ${modeSectionException.message}")
+        "You have no tools available in this session."
+      }
 
     val osName: String = System.getProperty("os.name")
     val osVersion: String = System.getProperty("os.version")
@@ -109,17 +112,18 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
       val trimmedLine = currentLine.trim()
 
       when {
-        !insideConditional && trimmedLine.startsWith(prefix = "<!-- if ") && trimmedLine.endsWith(" -->") -> {
+        !insideConditional && trimmedLine.startsWith(prefix = "<!-- if ") && trimmedLine.endsWith(suffix = " -->") -> {
           val conditionName = trimmedLine
             .removePrefix("<!-- if ")
             .removeSuffix(" -->")
             .trim()
-          val conditionVariant = try {
-            SchemaVariant.valueOf(conditionName)
-          } catch (variantException: IllegalArgumentException) {
-            logger.debug("Unknown conditional variant '$conditionName': ${variantException.message}", variantException)
-            null
-          }
+          val conditionVariant =
+            try {
+              SchemaVariant.valueOf(conditionName)
+            } catch (variantException: IllegalArgumentException) {
+              logger.debug("Unknown conditional variant '$conditionName': ${variantException.message}", variantException)
+              null
+            }
           insideConditional = true
           skipUntilEndif = conditionVariant != schemaVariant
           lineIndex++
@@ -161,7 +165,7 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
         emptyList()
       }
     } catch (keywordLoadException: Exception) {
-      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}", keywordLoadException)
+      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}")
       emptyList()
     }
   }

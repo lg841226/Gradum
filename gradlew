@@ -1,10 +1,10 @@
 #!/bin/sh
 
 #
-# Copyright (c) 2026 Gradum team, some rights reserved.
+# Copyright (c) 2026 Gradum Authors
 # For licensing terms and conditions, see the MIT LICENSE file.
 #
-# gradlew  2026-07-14 21:27:13 Changed by gwy
+# gradlew  2026-08-31 19:21:55 Changed by gwy
 #
 
 ##############################################################################

@@ -1,8 +1,8 @@
 <!--
-  - Copyright (c) 2026 Gradum team, some rights reserved.
+  - Copyright (c) 2026 Gradum Authors
   - For licensing terms and conditions, see the MIT LICENSE file.
   -
-  - scroll-down.svg  2026-07-14 21:27:12 Changed by gwy
+  - scroll-down.svg  2026-08-31 19:21:55 Changed by gwy
   -->
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M1.5 3.5H5.5M1.5 8H5.5M1.5 12.5H14.5" stroke="#6C707E" stroke-linecap="round" stroke-linejoin="round"/>

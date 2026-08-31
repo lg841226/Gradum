@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SaveFileSkill.kt  2026-08-26 11:00:57 Changed by gwy
+ * SaveFileSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -106,7 +106,7 @@ class SaveFileSkill : Skill() {
     val fileCharset: Charset = try {
       Charsets.forName(encodingName)
     } catch (encodingException: Exception) {
-      logger.warn("Unsupported encoding '$encodingName': ${encodingException.message}", encodingException)
+      logger.warn("Unsupported encoding '$encodingName': ${encodingException.message}")
       return makeFailure(
         code = ErrorCode.INVALID_PARAMETER,
         message = buildXmlError(

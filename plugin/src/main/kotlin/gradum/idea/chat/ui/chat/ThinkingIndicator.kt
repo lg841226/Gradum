@@ -1,14 +1,15 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-25 23:00:17 Changed by gwy
+ * ThinkingIndicator.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -77,7 +78,7 @@ fun ThinkingIndicator(
       )
     }
 
-    if (isExpanded) {
+    AnimatedVisibility(visible = isExpanded) {
       Column {
         Spacer(modifier = Modifier.height(GradumSpacing.md))
 

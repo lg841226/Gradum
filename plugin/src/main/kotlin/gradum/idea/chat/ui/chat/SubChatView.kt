@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-25 23:00:17 Changed by gwy
+ * SubChatView.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -238,17 +238,25 @@ private fun SubChatStreamingContent(
     }
 
     if (!hasCompleted) {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = GradumSpacing.lg),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
-      ) {
-        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+      if (errorMessage.isNotBlank()) {
+        Spacer(Modifier.height(GradumSpacing.lg))
         SweepLightText(
-          text = message("gradum.subchat.working")
+          text = message("gradum.subchat.failed"),
+          enabled = false
         )
+      } else {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = GradumSpacing.lg),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        ) {
+          CircularProgressIndicator(modifier = Modifier.size(16.dp))
+          SweepLightText(
+            text = message("gradum.subchat.working")
+          )
+        }
       }
     } else if (wasInterrupted) {
       Spacer(Modifier.height(GradumSpacing.lg))

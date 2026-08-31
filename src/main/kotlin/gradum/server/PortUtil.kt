@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PortUtil.kt  2026-08-12 12:38:25 Changed by gwy
+ * PortUtil.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -19,21 +19,27 @@ private val logger: Logger = LoggerFactory.getLogger("PortUtil")
 fun isPortAvailable(checkPort: Int, hostAddress: String = ServerConfiguration.DEFAULT_HOST_ADDRESS): Boolean {
   return try {
     Socket().use { socket ->
-      socket.connect(InetSocketAddress(hostAddress, checkPort), TIME_OUT)
+      socket.connect(
+        InetSocketAddress(hostAddress, checkPort), TIME_OUT
+      )
       false
     }
   } catch (connectException: Exception) {
-    logger.warn("Could not connect to $checkPort - ${connectException.message}", connectException)
+    logger.warn("Could not connect to $checkPort - ${connectException.message}")
     true
   }
 }
 
-fun findAvailablePort(startPort: Int, maxAttempts: Int = 10, hostAddress: String = ServerConfiguration.DEFAULT_HOST_ADDRESS): Int? {
+fun findAvailablePort(
+  startPort: Int,
+  maxAttempts: Int = 10,
+  hostAddress: String = ServerConfiguration.DEFAULT_HOST_ADDRESS
+): Int? {
   for (port in startPort until startPort + maxAttempts) {
-    if (isPortAvailable(port, hostAddress)) {
+    if (isPortAvailable(checkPort = port, hostAddress)) {
       return port
     }
   }
-  logger.error("Could not find available port in range$startPort - ${startPort + maxAttempts}")
+  logger.error("Could not find available port in range$startPort ~ ${startPort + maxAttempts}")
   return null
 }

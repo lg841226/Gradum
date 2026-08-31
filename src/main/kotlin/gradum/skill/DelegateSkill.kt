@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-26 11:13:42 Changed by gwy
+ * DelegateSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -108,8 +108,16 @@ class DelegateSkill : Skill() {
     val unregisterChild: ((String) -> Unit)? = context.unregisterChildSession
 
     emitStartEvent(emitEvent, config.modelName, title, task)
-    val result: String = runSubAgent(subConfig, task, emitEvent, registerChild, unregisterChild)
-    return makeSuccess { string("result", result) }
+    return try {
+      val result: String = runSubAgent(subConfig, task, emitEvent, registerChild, unregisterChild)
+      makeSuccess { string("result", result) }
+    } catch (e: Exception) {
+      delegateLog.error("Sub-agent execution failed", e)
+      makeFailure(ErrorCode.CLIENT_ERROR, "Sub-agent failed: ${e.message}")
+    } catch (e: Error) {
+      delegateLog.error("Sub-agent critical error", e)
+      makeFailure(ErrorCode.CLIENT_ERROR, "Sub-agent critical error: ${e.message}")
+    }
   }
 
   /** Extracts the task string from arguments, or null if missing/too short/duplicate of user input. */
@@ -126,18 +134,10 @@ class DelegateSkill : Skill() {
       userMessage["role"] == "user"
     }?.get("content") as? String
 
-    delegateLog.info(
-      "History size={}, lastUserInput found={}", conversationHistory.size, lastUserInput != null
-    )
     lastUserInput?.let { input ->
       val taskTrim = task.trim()
       val inputTrim = input.trim()
-      val isIdentical: Boolean = taskTrim == inputTrim
-      delegateLog.info(
-        "Comparison: taskTrim length={}, inputTrim length={}, identical={}",
-        taskTrim.length, inputTrim.length, isIdentical
-      )
-      if (isIdentical) {
+      if (taskTrim == inputTrim) {
         delegateLog.info("Rejected: task identical to last user message")
         return null
       }
@@ -189,6 +189,24 @@ class DelegateSkill : Skill() {
     registerChild?.invoke(subAgentId, subAgent)
     try {
       subAgent.executeTask(userInput = task)
+    } catch (e: Exception) {
+      delegateLog.error("Sub-agent execution failed", e)
+      emitEvent(
+        "sub_agent:session_end", mapOf(
+          "result" to "Sub-agent execution failed: ${e.message}",
+          "conversation" to emptyList<Map<String, Any>>()
+        )
+      )
+      throw e
+    } catch (e: Error) {
+      delegateLog.error("Sub-agent critical error", e)
+      emitEvent(
+        "sub_agent:session_end", mapOf(
+          "result" to "Sub-agent critical error: ${e.message}",
+          "conversation" to emptyList<Map<String, Any>>()
+        )
+      )
+      throw e
     } finally {
       unregisterChild?.invoke(subAgentId)
     }

@@ -267,7 +267,7 @@ Plugin loads, compiles, opens the tool window, but crashes when **the first mess
 ### Root Cause
 
 The `composedJar` task was misconfigured earlier — it **nested** 5 Jewel Markdown extension jars inside the main jar
-(`plugin-0.9.0.jar`) instead of laying them flat:
+(`plugin-0.9.2.jar`) instead of laying them flat:
 
 ```kotlin
 tasks.named("composedJar", ComposedJarTask::class.java) {
@@ -275,7 +275,7 @@ tasks.named("composedJar", ComposedJarTask::class.java) {
 }
 ```
 
-Result: `plugin-0.9.0.jar` contains `intellij.platform.jewel.markdown.extensions.autolink.jar` as an embedded file, but
+Result: `plugin-0.9.2.jar` contains `intellij.platform.jewel.markdown.extensions.autolink.jar` as an embedded file, but
 **JVM classloader doesn't dig into nested jars**. The classes were there all along — the classloader just couldn't see
 them.
 
@@ -296,7 +296,7 @@ implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.ja
 
 ### Verification
 
-`unzip -l plugin-0.9.0.jar` no longer nests 5 extension jars;
+`unzip -l plugin-0.9.2.jar` no longer nests 5 extension jars;
 `ls .intellijPlatform/sandbox/plugin/IU-2026.2/plugins/plugin/lib/` shows 5 extension jars **flat at the top level**
 (not nested). Restart IDE → Markdown tables / links / GFM all work.
 
@@ -509,7 +509,7 @@ error**, not a recoverable coroutine exception. When the user reports seeing thi
    install the plugin ZIP for testing).
 3. Genuine classpath corruption (e.g. an old `kotlinx-coroutines-core-1.11.0.jar` left in `plugin/lib/` from an earlier
    attempt before we moved to `compileOnly`) — verify with
-   `unzip -l plugin/build/distributions/plugin-0.9.0.zip | grep -i coroutines`.
+   `unzip -l plugin/build/distributions/plugin-0.9.2.zip | grep -i coroutines`.
 
 ### Fix
 
@@ -544,7 +544,7 @@ fun stopModelPolling() {
 ### Verification
 
 After a fresh build, the plugin's bytecode (via
-`javap -p -c plugin-0.9.0.jar gradum.idea.chat.state.GradumChatSession`) should show:
+`javap -p -c plugin-0.9.2.jar gradum.idea.chat.state.GradumChatSession`) should show:
 
 ```
 16: new           #298   // class java/util/concurrent/CancellationException

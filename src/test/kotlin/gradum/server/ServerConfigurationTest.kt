@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ServerConfigurationTest.kt  2026-08-25 14:21:49 Changed by gwy
+ * ServerConfigurationTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -29,8 +29,8 @@ class ServerConfigurationTest {
   @Test
   fun `explicit host and port are preserved`() {
     val configuration = ServerConfiguration(
-      hostAddress = "127.0.0.1",
       portNumber = 9999,
+      hostAddress = "127.0.0.1",
     )
 
     assertEquals(
@@ -45,8 +45,8 @@ class ServerConfigurationTest {
 
   @Test
   fun `configuration equality compares host and port`() {
-    val first = ServerConfiguration(hostAddress = "0.0.0.0", portNumber = 7000)
-    val second = ServerConfiguration(hostAddress = "0.0.0.0", portNumber = 7000)
+    val first = ServerConfiguration(portNumber = 7000, hostAddress = "0.0.0.0")
+    val second = ServerConfiguration(portNumber = 7000, hostAddress = "0.0.0.0")
 
     assertEquals(
       first,

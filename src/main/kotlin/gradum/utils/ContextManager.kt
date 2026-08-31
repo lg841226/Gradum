@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-08-23 21:12:19 Changed by gwy
+ * ContextManager.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.utils
@@ -56,11 +56,8 @@ class ContextManager(private val outputDirectory: Path) {
     val contextFile: File = contextFilePath.toFile()
 
     if (!contextFile.exists()) {
-      logger.info("No context file at ${contextFilePath.toAbsolutePath()}")
       return emptyList()
     }
-
-    logger.info("Loading context (${contextFile.length()} bytes)")
 
     return try {
       val rawContent: String = contextFile.readText(Charsets.UTF_8)
@@ -69,8 +66,6 @@ class ContextManager(private val outputDirectory: Path) {
       val rawMessages: JsonArray = parsedJson["messages"]?.jsonArray ?: run {
         logger.warn("Context file has no 'messages' field"); return emptyList()
       }
-
-      logger.info("Found ${rawMessages.size} messages in context file")
 
       var decryptionFailures = 0
       val decryptedMessages: List<Map<String, Any>> = rawMessages.mapNotNull { element ->
@@ -82,15 +77,14 @@ class ContextManager(private val outputDirectory: Path) {
       }
       if (decryptionFailures > 0) {
         logger.warn(
-          "Dropped $decryptionFailures message(s) that failed to decrypt — " +
-            "they would have been fed to the LLM as base64 ciphertext otherwise"
+          "Dropped $decryptionFailures message(s) that failed to decrypt"
         )
       }
 
       logMessageStats(decryptedMessages); cachedMessages = decryptedMessages
       decryptedMessages
     } catch (loadException: Exception) {
-      logger.error("Failed to load context: ${loadException.message}", loadException)
+      logger.error("Failed to load context: ${loadException.javaClass.simpleName}: ${loadException.message}")
       emptyList()
     }
   }
@@ -99,11 +93,8 @@ class ContextManager(private val outputDirectory: Path) {
     outputDirectory.toFile().mkdirs()
     cachedMessages = null
 
-    logger.info("Saving context: ${messages.size} messages, model=$modelName")
-
     val cleanedMessages: List<Map<String, Any>> = cleanMessageHistory(messages)
-
-    logger.info("After cleanup: ${cleanedMessages.size} messages (dropped ${messages.size - cleanedMessages.size})")
+    val droppedCount: Int = messages.size - cleanedMessages.size
 
     val serializedMessages: List<Map<String, Any>> = cleanedMessages.map { message ->
       encryptMessageIfNeeded(message)
@@ -124,14 +115,17 @@ class ContextManager(private val outputDirectory: Path) {
           StandardCopyOption.ATOMIC_MOVE,
         )
       } catch (moveException: AtomicMoveNotSupportedException) {
-        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back", moveException)
+        logger.warn("ATOMIC_MOVE not supported on this filesystem; falling back: ${moveException.message}")
         Files.move(contextTempFilePath, contextFilePath, StandardCopyOption.REPLACE_EXISTING)
       }
       val writtenSize: Long = contextFilePath.toFile().length()
 
-      logger.info("Context saved: $writtenSize bytes, ${serializedMessages.size} messages encrypted"); true
+      logger.info(
+        "{}→{} messages (dropped {}, model={}), {} bytes encrypted",
+        messages.size, cleanedMessages.size, droppedCount, modelName, writtenSize
+      ); true
     } catch (saveException: Exception) {
-      logger.error("Failed to save context: ${saveException.message}", saveException); false
+      logger.error("Failed to save context: ${saveException.javaClass.simpleName}: ${saveException.message}"); false
     }
   }
 
@@ -213,15 +207,6 @@ class ContextManager(private val outputDirectory: Path) {
     val trimmedContent: String = content
 
     if (preservedCalls.isNotEmpty()) {
-      val droppedCallCount: Int = toolCalls.size - preservedCalls.size
-      if (droppedCallCount > 0) {
-        logger.info(
-          "Assistant message has $droppedCallCount tool call(s) trimmed " +
-            "(kept ${preservedCalls.size} of ${toolCalls.size} read_file / " +
-            "explore_project results); the model can still see the surviving " +
-            "tool_calls and their results, so the gap is inferable from history"
-        )
-      }
       cleanedMessages.add(
         mapOf(
           "role" to "assistant",
@@ -230,14 +215,6 @@ class ContextManager(private val outputDirectory: Path) {
         )
       )
     } else {
-      val droppedCount: Int = toolCalls.size - preservedCalls.size
-      if (droppedCount > 0) {
-        logger.info(
-          "Assistant message lost all $droppedCount tool call(s) during " +
-            "context cleanup (none were read_file / explore_project); the " +
-            "model can infer the gap from the missing tool result messages"
-        )
-      }
       cleanedMessages.add(
         mapOf("role" to "assistant", "content" to trimmedContent)
       )
@@ -300,7 +277,7 @@ class ContextManager(private val outputDirectory: Path) {
       message.remove("_encrypted")
       message
     } catch (decryptException: Exception) {
-      logger.warn("Failed to decrypt message: ${decryptException.message}", decryptException); null
+      logger.warn("Failed to decrypt message: ${decryptException.message}"); null
     }
   }
 
@@ -310,7 +287,7 @@ class ContextManager(private val outputDirectory: Path) {
       .groupingBy { it }
       .eachCount()
 
-    logger.info("Context loaded: ${messages.size} messages (roles: $roleCounts)")
+    logger.info("Context loaded: {} messages {}", messages.size, roleCounts)
   }
 
   private fun encryptMessageIfNeeded(message: Map<String, Any>): Map<String, Any> {

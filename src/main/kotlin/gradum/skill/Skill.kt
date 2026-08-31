@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-08-25 21:21:54 Changed by gwy
+ * Skill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill

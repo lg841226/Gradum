@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommitInfoPanel.kt  2026-08-25 02:00:11 Changed by gwy
+ * CommitInfoPanel.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)

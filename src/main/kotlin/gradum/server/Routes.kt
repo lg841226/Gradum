@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-24 14:42:39 Changed by gwy
+ * Routes.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -524,11 +524,6 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
-      val availableCount: Int = discoveredModels.count { it.available }
-      val filteredCount: Int = discoveredModels.size - availableCount
-      application.log.info(
-        "Discovered ${discoveredModels.size} models ($availableCount available, $filteredCount filtered)"
-      )
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
         mapOf(
           "name" to entry.modelName,

@@ -15,7 +15,7 @@
 | **Logging**        | Logback Classic 1.5.25                                                       |
 | **LLM Backend**    | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) + Zhipu BigModel (GLM) |
 | **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                            |
-| **Last Updated**   | 2026-08-12                                                                   |
+| **Last Updated**   | 2026-08-27                                                                   |
 
 ---
 
@@ -594,6 +594,7 @@ pie
     "tool_call": 15
     "guardrail": 1
     "mission_revoked": 1
+    "sub_agent:*": 3
     "error": 2
     "session_end": 1
 ```
@@ -607,6 +608,11 @@ pie
 | `mission_revoked`      | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                 |
 | `tool_call_start`     | A tool call started (before execution)            | `tool`, `alias`, `arguments`, `toolCallId`                                                |
 | `tool_call`            | A single tool call and its result             | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
+| `sub_agent:start`      | Sub-agent session started                     | `task`, `toolMode`, `sessionId`                                                           |
+| `sub_agent:response`   | Sub-agent LLM response chunk                  | `content`                                                                                 |
+| `sub_agent:tool_call`  | Sub-agent tool call and result                | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
+| `sub_agent:error`      | Sub-agent error                               | `code`, `message`, `sessionId`                                                            |
+| `sub_agent:session_end`| Sub-agent session ended                       | `sessionId`, `elapsedSeconds`, `result`, `error`                                          |
 | `error`                | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
 | `playback_start`       | Debug scenario started                        | `mode`, `scenario`, `steps`, `toolCalls`                                                  |
 | `tool_expect_mismatch` | Debug scenario assertion failure              | `tool`, `index`, `expectSuccess`, `actualSuccess`, `result`, `errorCode`, `errorMessage`  |
@@ -618,6 +624,9 @@ pie
 - `session_start` is always the first event after `conversationHistory`
 - `tool_call_start` is emitted before the blocking skill runs; its matching `tool_call` (same `toolCallId`) follows after execution
 - `tool_call` events are emitted in the order of the `tool_calls[]` returned by the LLM
+- `sub_agent:*` events are emitted by `DelegateSkill` during sub-agent execution, interleaved with the parent agent's `tool_call`/`response`/`error` events
+- `sub_agent:start` is always the first sub-agent event for a given session; `sub_agent:session_end` is always the last
+- `sub_agent:session_end` carries the `result` (on success) or `error` (on failure) from the sub-agent
 - `response` events (with token usage) are flushed as text accumulates during streaming
 - `session_end` is always the final event (with `aborted: true` when terminated by guardrail or `/stop`)
 - `mission_revoked` is always immediately followed by `session_end` (aborted), then stream end

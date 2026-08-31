@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-26 11:12:09 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -167,7 +167,7 @@ class ExploreProjectSkill : Skill() {
     val resolvedPath: Path = try {
       Paths.get(projectRoot).toAbsolutePath().normalize()
     } catch (pathException: Exception) {
-      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}", pathException)
+      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}")
       return makeFailure(
         code = ErrorCode.INVALID_PARAMETER,
         message = buildXmlError(
@@ -435,12 +435,12 @@ private fun scanDirectory(
     val reason: String = securityException.message
       ?: securityException::class.simpleName
       ?: "access denied"
-    logger.warn("SecurityException listing $targetDirectory: $reason", securityException)
+    logger.warn("SecurityException listing $targetDirectory: $reason")
 
     val relativePath: String = try {
       scanResult.relativeRoot.relativize(targetDirectory).toString()
     } catch (relativizeException: IllegalArgumentException) {
-      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message, relativizeException)
+      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message)
       targetDirectory.toString()
     }
     scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))

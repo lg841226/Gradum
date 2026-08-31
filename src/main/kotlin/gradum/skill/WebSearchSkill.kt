@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-26 11:04:13 Changed by gwy
+ * WebSearchSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -184,7 +184,7 @@ class WebSearchSkill : Skill() {
         objectList("results", results)
       }
     } catch (networkException: Exception) {
-      logger.error("Web search failed for query='{}': {}", query, networkException.message, networkException)
+      logger.error("Web search failed for query='{}': {}", query, networkException.message)
       makeFailure(
         code = "SEARCH_FAILED",
         message = buildXmlError(

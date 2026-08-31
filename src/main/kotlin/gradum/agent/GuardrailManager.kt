@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GuardrailManager.kt  2026-08-25 22:50:20 Changed by gwy
+ * GuardrailManager.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.agent

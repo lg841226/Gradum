@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-08-25 22:11:10 Changed by gwy
+ * AddContextPopup.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)

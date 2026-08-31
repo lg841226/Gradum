@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FaviconHostCache.kt  2026-08-26 00:13:50 Changed by gwy
+ * FaviconHostCache.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-08-26 11:20:58 Changed by gwy
+ * SkillRegistry.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -71,7 +71,6 @@ object SkillRegistry {
 
   private fun registerSkill(skillInstance: Skill) {
     registeredSkills[skillInstance.skillName] = skillInstance
-    logger.info("Registered skill: ${skillInstance.skillName} (${skillInstance.alias})")
   }
 
   private fun discoverSkills() {
@@ -86,14 +85,12 @@ object SkillRegistry {
           registerSkill(skillInstance)
         }
       } catch (instantiationException: Exception) {
-        logger.warn("Failed to instantiate skill class: ${skillClass.name}", instantiationException)
+        logger.warn("Failed to instantiate skill class: ${skillClass.name}")
       }
     }
 
     if (registeredSkills.isEmpty())
       logger.warn("No skills discovered via classpath scanning")
-    else
-      logger.info("Discovered ${registeredSkills.size} skills via classpath scanning")
   }
 
   private fun findClassesInPackage(): List<Class<*>> {

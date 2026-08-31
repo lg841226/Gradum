@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParser.kt  2026-08-25 22:52:36 Changed by gwy
+ * ToolCallScenarioParser.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.debug
@@ -190,7 +190,7 @@ object ToolCallScenarioParser {
         if (attribute.name == "nam" || attribute.name == "exp") continue
         put(
           ARGUMENT_ALIASES[attribute.name] ?: attribute.name,
-          parseArgumentValue(attribute.value)
+          parseArgumentValue(rawValue = attribute.value)
         )
       }
     }

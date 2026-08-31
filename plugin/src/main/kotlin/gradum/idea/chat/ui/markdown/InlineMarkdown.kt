@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * InlineMarkdown.kt  2026-08-26 12:51:12 Changed by gwy
+ * InlineMarkdown.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown

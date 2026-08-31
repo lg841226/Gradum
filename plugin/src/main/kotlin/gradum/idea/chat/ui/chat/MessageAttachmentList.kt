@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentList.kt  2026-08-25 23:00:17 Changed by gwy
+ * MessageAttachmentList.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -58,7 +58,10 @@ private fun AttachmentChip(attachment: AttachedContext) {
     modifier = Modifier
       .clip(shape = RoundedCornerShape(size = 4.dp))
       .background(color = JewelTheme.globalColors.borders.normal.copy(alpha = 0.8f))
-      .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+      .padding(
+        horizontal = GradumSpacing.md,
+        vertical = GradumSpacing.sm
+      )
       .clickable { /* open file in editor — wired by parent */ },
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DebugPlaybackEndToEndTest.kt  2026-08-25 14:34:39 Changed by gwy
+ * DebugPlaybackEndToEndTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server

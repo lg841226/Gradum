@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RunCommandSkill.kt  2026-08-26 11:07:46 Changed by gwy
+ * RunCommandSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -277,7 +277,7 @@ class RunCommandSkill : Skill() {
       val logDirectory: Path = Path.of(skillContext.projectRoot, ".gradum", "run_cmd")
       logDirectory.toFile().mkdirs()
       val logFile = File(logDirectory.toFile(), "${System.currentTimeMillis()}.log")
-      
+
       val processBuilder = ProcessBuilder(
         "sh", "-c", "nohup $commandText </dev/null >${logFile.absolutePath} 2>&1 &"
       )
@@ -348,7 +348,7 @@ class RunCommandSkill : Skill() {
     } catch (streamReadException: Exception) {
       val reason: String = streamReadException.message
         ?: streamReadException::class.simpleName ?: "unknown I/O error"
-      logger.warn("Failed to read $label stream: $reason", streamReadException)
+      logger.warn("Failed to read $label stream: $reason")
       "(stream read failed for $label: $reason)"
     }
   }
