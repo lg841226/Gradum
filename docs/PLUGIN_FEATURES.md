@@ -23,10 +23,10 @@ For the server-side protocol, the agent loop, and the Skill contract see
 |-------------------------------------|---------------------------------------------|
 | Kotlin source files (plugin module) | 116 main + 27 test                          |
 | Tool-window / chat UI components    | 2 tool windows (chat + Git analysis)        |
-| i18n keys                           | 773 (`en`) / 771 (`zh_CN`)                  |
+| i18n keys                           | 389 (`en`) / 384 (`zh_CN`)                  |
 | Icon resources                      | 103 SVGs + 1 TTF font (`GoogleSans.ttf`)    |
 | Project-level services              | 1 (`GradumChatSession`)                     |
-| HTTP endpoints consumed             | 4 (`/events`, `/models`, `/stop`, `/skills`), plus `/health` and `/provider/probe` |
+| HTTP endpoints consumed             | 5 (`/events`, `/models`, `/stop`, `/skills`, `/session/delete`), plus `/health` and `/provider/probe` |
 | Wire event types handled            | 4 main (`thinking` / `tool_call` / `response` / `error`) + 5 sub-agent (`sub_agent:start` / `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` / `sub_agent:session_end`) |
 
 The plugin is built on JetBrains Jewel + Compose for Desktop. Every visible string is localizable; every color is
@@ -726,9 +726,9 @@ roster appears without waiting for the next poll tick.
 
 ### 12.5 Error handling
 
-A typed `ErrorCode` enum is shared between the server and the plugin (16 codes, including `MODEL_TIMEOUT`,
-`TOOL_BLOCKED`, `READ_ONLY_VIOLATION`,
-`RATE_LIMITED`, etc.). The plugin maps codes to localized, user-friendly messages — never raw stack traces.
+A typed `ErrorCode` enum is shared between the server and the plugin (18 codes, including `INVALID_PARAMETER`,
+`TOOL_NOT_PERMITTED`, `FILE_TOO_LARGE`,
+`TIMEOUT`, etc.). The plugin maps codes to localized, user-friendly messages — never raw stack traces.
 
 Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/GradumApiClient.kt),
 [`ErrorCode.kt`](../plugin/src/main/kotlin/gradum/idea/chat/model/ErrorCode.kt),
@@ -744,7 +744,7 @@ bundle ships two locales:
 - **`en`** — `messages/GradumBundle.properties` (default).
 - **`zh_CN`** — `messages/GradumBundle_zh_CN.properties`.
 
-There are **251 keys** in the English file and **249 in the Chinese file**
+There are **389 keys** in the English file and **384 in the Chinese file**
 (lockstep — the few-key delta is transient mid-refactor noise). Both files are kept in lockstep — a key that exists in
 one must exist in the other; the bundle is hardened with two safety nets:
 
@@ -864,7 +864,7 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 | `chat/api/GradumApiClient.kt`              | HTTP client (`/events`, `/models`, `/stop`, `/health`, `/skills`, `/provider/probe`).                                                                |
 | `chat/input/ChatInputState.kt`             | `ChatInputState` + `ChatInputActions` data classes.                                                                                                                                                 |
 | `chat/model/ChatMessage.kt`                | `ChatEvent` / `RenderBlock` / `ChatMessage` model + `formatTimestamp`.                                                                                                                              |
-| `chat/model/ErrorCode.kt`                  | Shared 16-code error enum.                                                                                                                                                                          |
+| `chat/model/ErrorCode.kt`                  | Shared 18-code error enum.                                                                                                                                                                          |
 | `chat/model/ModelInfo.kt`                  | Wire shape for a single model from `/models`.                                                                                                                                                       |
 | `chat/state/GradumChatSession.kt`          | Project-level service, state owner, model poller.                                                                                                                                                   |
 | `chat/state/ChatMessageSender.kt`          | NDJSON event stream consumer: dispatches 4 main + 5 sub-agent wire events to UI model.                                                                                                              |

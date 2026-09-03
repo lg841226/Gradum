@@ -49,6 +49,7 @@ main.txt
 *.key
 *.pem
 gradum.properties
+/gradle.properties
 
 # Sensitive words (user-defined, do not commit)
 red_line_keywords.txt

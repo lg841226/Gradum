@@ -18,6 +18,7 @@ plugins {
 }
 
 group = "com.gradum"
+version = "0.9.2"
 
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")

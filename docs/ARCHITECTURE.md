@@ -86,7 +86,6 @@ injection.
 - [ ] Sandboxed execution environment (depends on the developer's local security policy)
 - [ ] Interactive UI confirmation dialogs
 - [ ] Plugin marketplace (skills are built directly into the codebase)
-- [x] Multimodal input (image attachments supported; video/audio not yet)
 
 ---
 
@@ -117,7 +116,7 @@ flowchart TB
     end
 
     subgraph DEBUG["Debug Layer"]
-        D1["ToolCallScenarioParser.kt<br/>(tls.xml → scripted tool calls)"]
+        D1["ToolCallScenarioParser.kt<br/>(workflow XML → scripted tool calls)"]
     end
 
     subgraph SKILLS["Skills Layer"]
@@ -849,7 +848,7 @@ flowchart TD
     R --> GM[GET /models]
     R --> PP[POST /provider/probe]
     R --> GS[GET /skills]
-    POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, promptVariant?, attachments?,<br/>toolCallXml?, config?}"]
+    POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, sessionId?, promptVariant?,<br/>attachments?, toolCallXml?, config?}"]
     P1 --> P2["Validate projectRoot: required,<br/>absolute, existing directory → else 400"]
     P2 --> P3["Build AgentConfiguration from config:<br/>provider, baseUrl, think, temperature, topP,<br/>numCtx, numPredict, timeout; model default =<br/>first available from ModelIdentity"]
     P3 --> P4["Create Channel(UNLIMITED)<br/>launch(Dispatchers.IO):<br/>Agent(config, emitEvent) → executeTask()<br/>NDJSON formatting + trySend"]
