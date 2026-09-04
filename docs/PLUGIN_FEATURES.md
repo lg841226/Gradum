@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ Copyright (c) 2026 Gradum Authors
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
   ~ PLUGIN_FEATURES.md  2026-07-14 07:46:00 Changed by gwy
