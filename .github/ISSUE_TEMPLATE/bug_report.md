@@ -14,7 +14,7 @@ Paste stack trace here
 ```
 
 ## IDE Version
-<!-- e.g., IntelliJ IDEA 2026.2 Build #IU-262.xxx -->
+<!-- e.g., IntelliJ IDEA 2026.2 Build #IU-262.xxx (leave blank if not applicable) -->
 
 ## Server-Side Version
 <!-- e.g., 2.1.0 (leave blank if not applicable) -->
