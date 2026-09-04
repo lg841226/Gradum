@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-13 21:07:46 Changed by gwy
+ * SearchSkills.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.skill
 
@@ -26,13 +26,13 @@ import java.util.regex.PatternSyntaxException
 
 private val logger: Logger = LoggerFactory.getLogger("SearchSkills")
 
-private const val MAX_CONCURRENCY: Int = 4
-private const val MAX_FILE_SIZE: Long = 2L * 1024 * 1024
-private const val MAX_MATCHES_DEFAULT: Int = 100
-private const val MAX_MATCHES_LIMIT: Int = 1000
-private const val MIN_PATTERN_LENGTH: Int = 3
-private const val GLOB_MAX_RESULTS: Int = 500
-private const val GLOB_MAX_LIMIT: Int = 2000
+private const val MAX_CONCURRENCY: Int = GradumConfig.SEARCH_MAX_CONCURRENCY
+private const val MAX_FILE_SIZE: Long = GradumConfig.SEARCH_MAX_FILE_SIZE
+private const val MAX_MATCHES_DEFAULT: Int = GradumConfig.SEARCH_MAX_MATCHES_DEFAULT
+private const val MAX_MATCHES_LIMIT: Int = GradumConfig.SEARCH_MAX_MATCHES_LIMIT
+private const val MIN_PATTERN_LENGTH: Int = GradumConfig.SEARCH_MIN_PATTERN_LENGTH
+private const val GLOB_MAX_RESULTS: Int = GradumConfig.GLOB_MAX_RESULTS
+private const val GLOB_MAX_LIMIT: Int = GradumConfig.GLOB_MAX_LIMIT
 
 private val BINARY_EXTENSIONS: Set<String> = setOf(
   "class", "jar", "so", "dylib", "dll", "exe", "bin", "o", "a",
@@ -66,22 +66,22 @@ private val SKIPPED_DIRECTORY_NAMES: Set<String> = setOf(
 )
 
 private data class SearchParams(
-  val pattern: String,
+  val limit: Int,
   val regex: Regex,
+  val pattern: String,
   val rootFile: File,
   val resolvedPath: Path,
-  val includeFilter: String,
-  val limit: Int
+  val includeFilter: String
 )
 
 private data class GlobParams(
-  val pattern: String,
-  val globMatcher: PathMatcher,
-  val fallbackMatcher: PathMatcher?,
+  val limit: Int,
   val rootFile: File,
-  val resolvedPath: Path,
+  val pattern: String,
   val projectRoot: Path,
-  val limit: Int
+  val resolvedPath: Path,
+  val globMatcher: PathMatcher,
+  val fallbackMatcher: PathMatcher?
 )
 
 private sealed class Either<out T, out E> {
@@ -102,11 +102,7 @@ private fun resolveSearchPathImpl(context: SkillContext, relativePath: String?):
     }
   }
 
-  val resolved: ResolvedProjectPath = resolveProjectPath(relativePath, projectRoot)
-  // Reject paths the resolver flagged as outside the project root.
-  // The LLM is untrusted, and search is read-only but still
-  // expensive when pointed at `/` or `/etc` — better to fail fast
-  // than enumerate the whole filesystem.
+  val resolved: ResolvedProjectPath = resolveProjectPath(filePath = relativePath, projectRoot)
   if (resolved.rejectionReason != null) {
     logger.debug("Search path rejected: {} ({})", relativePath, resolved.rejectionReason)
     return null
@@ -123,8 +119,8 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
   val rootFile = resolvedPath.toFile()
   if (!rootFile.exists()) {
     return makeFailure(
-      ErrorCode.FILE_NOT_FOUND,
-      buildXmlError(
+      code = ErrorCode.FILE_NOT_FOUND,
+      message = buildXmlError(
         code = "FILE_NOT_FOUND",
         message = "Search path does not exist: $resolvedPath",
         fixHint = "Verify the directory exists. Use explore_project to find the correct path."
@@ -133,8 +129,8 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
   }
   if (!rootFile.isDirectory) {
     return makeFailure(
-      ErrorCode.INVALID_PARAMETER,
-      buildXmlError(
+      code = ErrorCode.INVALID_PARAMETER,
+      message = buildXmlError(
         code = "INVALID_PARAMETER",
         message = "Search path is not a directory: $resolvedPath",
         fixHint = "The path must point to a directory, not a file."
@@ -145,14 +141,13 @@ private fun validateSearchDir(resolvedPath: Path): SkillResult? {
 }
 
 private fun resolveAndValidatePath(
-  context: SkillContext,
-  relativePath: String?
+  context: SkillContext, relativePath: String?
 ): Either<Pair<File, Path>, SkillResult> {
   val resolvedPath = resolveSearchPathImpl(context, relativePath)
     ?: return Either.Failure(
-      makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+      error = makeFailure(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Invalid search path.",
           fixHint = "Ensure the path is a valid directory path relative to the project root."
@@ -163,18 +158,14 @@ private fun resolveAndValidatePath(
   val dirError = validateSearchDir(resolvedPath)
   if (dirError != null) return Either.Failure(dirError)
 
-  return Either.Success(resolvedPath.toFile() to resolvedPath)
+  return Either.Success(value = resolvedPath.toFile() to resolvedPath)
 }
 
-private fun walkFiltered(
-  root: File, onFile: (File) -> Unit
-) {
-  walkFilteredImpl(root, onFile)
+private fun walkFiltered(root: File, onFile: (File) -> Unit) {
+  walkFilteredImpl(dir = root, onFile)
 }
 
-private fun walkFilteredImpl(
-  dir: File, onFile: (File) -> Unit
-) {
+private fun walkFilteredImpl(dir: File, onFile: (File) -> Unit) {
   val entries = try {
     dir.listFiles()?.toList() ?: emptyList()
   } catch (securityIssueException: SecurityException) {
@@ -184,11 +175,11 @@ private fun walkFilteredImpl(
 
   for (entry in entries) {
     if (entry.isDirectory) {
-      if (entry.name in SKIPPED_DIRECTORY_NAMES || entry.name.startsWith(".")) continue
+      if (entry.name in SKIPPED_DIRECTORY_NAMES || entry.name.startsWith(prefix = ".")) continue
       walkFilteredImpl(entry, onFile)
     } else {
       if (entry.length() > MAX_FILE_SIZE) continue
-      val ext = entry.name.substringAfterLast('.', "").lowercase()
+      val ext = entry.name.substringAfterLast(delimiter = '.', missingDelimiterValue = "").lowercase()
       if (ext in BINARY_EXTENSIONS) continue
       if (ext in ARCHIVE_EXTENSIONS) continue
       if (ext in DOCUMENT_EXTENSIONS) continue
@@ -219,87 +210,67 @@ class GrepSkill : Skill() {
 
   override val historyVolatileKeys: List<String> = listOf("matches")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("pattern"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Search file contents by pattern. Returns matching lines with file path and line number."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Text or regex pattern to search for."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory to search in. Relative to project root. Defaults to project root."
-    ),
-    "include" to mapOf(
-      "type" to "string",
-      "description" to "File filter, e.g. '*.txt'."
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "pattern",
+      description = "Text or regex pattern to search for.",
+      required = true,
     )
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Regular expression pattern to search for in file contents."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory path to search in. Relative to project root. Defaults to project root."
-    ),
-    "include" to mapOf(
-      "type" to "string",
-      "description" to "File glob pattern to filter which files to search, e.g. '*.kt' or '*.{kt,java}'."
-    ),
-    "limit" to mapOf(
-      "type" to "integer",
-      "description" to "Maximum number of matches to return. Defaults to 100.",
-      "minimum" to 1,
-      "maximum" to MAX_MATCHES_LIMIT
-    ),
-    "caseSensitive" to mapOf(
-      "type" to "boolean",
-      "description" to "Whether the search is case-sensitive. Defaults to false."
+    string(
+      name = "path",
+      description = "Directory to search in. Relative to project root. Defaults to project root.",
     )
-  )
+    string(
+      name = "include",
+      description = "File filter, e.g. '*.txt'.",
+    )
+    cloudOnly {
+      integer(
+        name = "limit",
+        description = "Maximum number of matches to return. Defaults to 100.",
+        constraints = IntConstraints(minimum = 1, maximum = MAX_MATCHES_LIMIT),
+      )
+      boolean(
+        name = "caseSensitive",
+        description = "Whether the search is case-sensitive. Defaults to false.",
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val ignoreCase = if (context.isSimpleModel) {
-      false
-    } else {
-      val caseSensitive = when (val v = arguments["caseSensitive"]) {
-        is Boolean -> v
-        is String -> v.toBooleanStrictOrNull() ?: false
-        else -> false
+    val ignoreCase =
+      if (context.isSimpleModel) {
+        false
+      } else {
+        val caseSensitive =
+          when (val rawValue = arguments["caseSensitive"]) {
+            is Boolean -> rawValue
+            is String -> rawValue.toBooleanStrictOrNull() ?: false
+            else -> false
+          }
+        !caseSensitive
       }
-      !caseSensitive
-    }
     return executeInternal(arguments, context, ignoreCase)
   }
 
   private fun executeInternal(
     arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean,
   ): SkillResult {
-    val params = when (val result = prepareSearch(arguments, context, ignoreCase)) {
-      is Either.Success -> result.value
-      is Either.Failure -> return result.error
-    }
+    val params =
+      when (val result = prepareSearch(arguments, context, ignoreCase)) {
+        is Either.Success -> result.value
+        is Either.Failure -> return result.error
+      }
 
     val includeMatcher = buildIncludeMatcher(params.includeFilter)
-    val files = collectFiles(params.rootFile, includeMatcher)
+    val files = collectFiles(root = params.rootFile, includeMatcher)
     if (files.isEmpty()) return buildEmptyResult(params)
 
     val results = searchFiles(files, params.regex, params.limit)
-    return buildSearchResult(params, results, files.size)
+    return buildSearchResult(params, results, filesSearched = files.size)
   }
 
   private fun prepareSearch(
@@ -308,9 +279,9 @@ class GrepSkill : Skill() {
     val patternStr = (arguments["pattern"] as? String)?.trim() ?: ""
     if (patternStr.length < MIN_PATTERN_LENGTH) {
       return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        error = makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Pattern must be at least $MIN_PATTERN_LENGTH characters long. Got ${patternStr.length}.",
             fixHint = "Provide a search pattern with at least $MIN_PATTERN_LENGTH characters."
@@ -319,73 +290,72 @@ class GrepSkill : Skill() {
       )
     }
 
-    val regexFlags: Set<RegexOption> = if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
-    else emptySet()
+    val regexFlags: Set<RegexOption> =
+      if (ignoreCase) setOf(RegexOption.IGNORE_CASE)
+      else emptySet()
 
-    val compiledRegex: Regex = try {
-      Regex(patternStr, regexFlags)
-    } catch (patternSyntaxException: PatternSyntaxException) {
-      return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
-            code = "INVALID_PARAMETER",
-            message = "Invalid regex pattern: ${patternSyntaxException.message}",
-            fixHint = "Check the regex syntax. Use simple text for literal searches."
+    val compiledRegex: Regex =
+      try {
+        Regex(patternStr, options = regexFlags)
+      } catch (patternSyntaxException: PatternSyntaxException) {
+        return Either.Failure(
+          error = makeFailure(
+            code = ErrorCode.INVALID_PARAMETER,
+            message = buildXmlError(
+              code = "INVALID_PARAMETER",
+              message = "Invalid regex pattern: ${patternSyntaxException.message}",
+              fixHint = "Check the regex syntax. Use simple text for literal searches."
+            )
           )
         )
-      )
-    }
+      }
 
-    val pathResult = resolveAndValidatePath(context, arguments["path"] as? String)
+    val pathResult = resolveAndValidatePath(context, relativePath = arguments["path"] as? String)
     if (pathResult is Either.Failure) return pathResult
     val (rootFile, resolvedPath) = (pathResult as Either.Success).value
 
     val includeFilter = (arguments["include"] as? String)?.trim() ?: ""
-    val limit = when (val v = arguments["limit"]) {
-      is Number -> v.toInt().coerceIn(1, MAX_MATCHES_LIMIT)
-      is String -> v.toIntOrNull()?.coerceIn(1, MAX_MATCHES_LIMIT) ?: MAX_MATCHES_DEFAULT
-      else -> MAX_MATCHES_DEFAULT
-    }
+    val limit =
+      when (val rawValue = arguments["limit"]) {
+        is Number -> rawValue.toInt().coerceIn(1, MAX_MATCHES_LIMIT)
+        is String -> rawValue.toIntOrNull()?.coerceIn(1, MAX_MATCHES_LIMIT) ?: MAX_MATCHES_DEFAULT
+        else -> MAX_MATCHES_DEFAULT
+      }
 
     return Either.Success(
-      SearchParams(
-        pattern = patternStr,
+      value = SearchParams(
+        limit = limit,
         regex = compiledRegex,
+        pattern = patternStr,
         rootFile = rootFile,
         resolvedPath = resolvedPath,
-        includeFilter = includeFilter,
-        limit = limit
+        includeFilter = includeFilter
       )
     )
   }
 
   private fun buildEmptyResult(params: SearchParams): SkillResult {
-    return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_matches" to 0,
-        "matches" to emptyList<Map<String, Any>>(),
-        "files_searched" to 0
-      )
-    )
+    return makeSuccess {
+      integer("total_matches", 0)
+      integer("files_searched", 0)
+      string("pattern", params.pattern)
+      objectList("matches", emptyList())
+      string("search_path", params.resolvedPath.toString())
+    }
   }
 
   private fun buildSearchResult(
     params: SearchParams, results: List<Map<String, Any>>, filesSearched: Int
   ): SkillResult {
     val limitApplied = results.size >= params.limit
-    return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_matches" to results.size,
-        "matches" to results,
-        "files_searched" to filesSearched,
-        "limit_applied" to limitApplied
-      )
-    )
+    return makeSuccess {
+      objectList("matches", results)
+      string("pattern", params.pattern)
+      integer("total_matches", results.size)
+      boolean("limit_applied", limitApplied)
+      integer("files_searched", filesSearched)
+      string("search_path", params.resolvedPath.toString())
+    }
   }
 
   private fun buildIncludeMatcher(includeFilter: String): PathMatcher? {
@@ -412,21 +382,21 @@ class GrepSkill : Skill() {
     val matchCount = AtomicInteger(0)
 
     runBlocking {
-      val semaphore = Semaphore(MAX_CONCURRENCY)
+      val semaphore = Semaphore(permits = MAX_CONCURRENCY)
       coroutineScope {
         for (file in files) {
           if (matchCount.get() >= limit) break
-          launch(Dispatchers.IO) {
+          launch(context = Dispatchers.IO) {
             semaphore.withPermit {
               if (matchCount.get() >= limit) return@withPermit
-              searchFile(file, regex, limit, matchCount, searchMatches)
+              searchFile(file, regex, limit, matchCount, searchResults = searchMatches)
             }
           }
         }
       }
     }
 
-    return searchMatches.toList().take(limit)
+    return searchMatches.toList().take(n = limit)
   }
 
   private fun searchFile(
@@ -435,22 +405,21 @@ class GrepSkill : Skill() {
   ) {
     try {
       file.bufferedReader(Charsets.UTF_8).use { reader ->
-        var lineNumber = 0
-        reader.lineSequence().forEach { line ->
-          lineNumber++
-          if (matchCount.get() >= limit) return
-          if (regex.containsMatchIn(line)) {
-            if (matchCount.incrementAndGet() <= limit) {
-              searchResults.add(
-                linkedMapOf(
-                  "file" to file.absolutePath,
-                  "line" to lineNumber,
-                  "content" to line
-                )
+        reader.lineSequence()
+          .takeWhile { matchCount.get() < limit }
+          .mapIndexed { index, line -> index + 1 to line }
+          .filter { (_, line) -> regex.containsMatchIn(input = line) }
+          .take(n = limit - matchCount.get())
+          .forEach { (lineNumber, line) ->
+            searchResults.add(
+              linkedMapOf(
+                "file" to file.absolutePath,
+                "line" to lineNumber,
+                "content" to line
               )
-            }
+            )
+            matchCount.incrementAndGet()
           }
-        }
       }
     } catch (readException: Exception) {
       logger.debug("Failed to search ${file.path}: ${readException.message}", readException)
@@ -479,46 +448,27 @@ class GlobSkill : Skill() {
 
   override val historyVolatileKeys: List<String> = listOf("files")
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("pattern"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Find files matching a glob pattern. Returns matching file paths."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Glob pattern, e.g. '*.kt', '**/*.test.*', 'src/**'."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory to search in. Relative to project root. Defaults to project root."
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "pattern",
+      description = "Glob pattern, e.g. '*.kt', '**/*.test.*', 'src/**'.",
+      required = true,
     )
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "pattern" to mapOf(
-      "type" to "string",
-      "description" to "Glob pattern to match files, e.g. '*.kt', '**/*.test.*', 'src/**/*.{kt,java}'."
-    ),
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Directory path to search in. Relative to project root. Defaults to project root."
-    ),
-    "limit" to mapOf(
-      "type" to "integer",
-      "description" to "Maximum number of files to return. Defaults to 500.",
-      "minimum" to 1,
-      "maximum" to GLOB_MAX_LIMIT
+    string(
+      name = "path",
+      description = "Directory to search in. Relative to project root. Defaults to project root.",
     )
-  )
+    cloudOnly {
+      integer(
+        name = "limit",
+        description = "Maximum number of files to return. Defaults to 500.",
+        constraints = IntConstraints(minimum = 1, maximum = GLOB_MAX_LIMIT),
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     return executeInternal(arguments, context)
@@ -531,7 +481,7 @@ class GlobSkill : Skill() {
     }
 
     val matchedFiles = globSearch(
-      params.rootFile,
+      root = params.rootFile,
       params.projectRoot,
       params.globMatcher,
       params.fallbackMatcher,
@@ -539,15 +489,13 @@ class GlobSkill : Skill() {
     )
     val limitApplied = matchedFiles.size >= params.limit
 
-    return makeSuccess(
-      linkedMapOf(
-        "pattern" to params.pattern,
-        "search_path" to params.resolvedPath.toString(),
-        "total_files" to matchedFiles.size,
-        "files" to matchedFiles,
-        "limit_applied" to limitApplied
-      )
-    )
+    return makeSuccess {
+      string("pattern", params.pattern)
+      string("search_path", params.resolvedPath.toString())
+      integer("total_files", matchedFiles.size)
+      stringList("files", matchedFiles)
+      boolean("limit_applied", limitApplied)
+    }
   }
 
   private fun prepareGlobSearch(
@@ -556,9 +504,9 @@ class GlobSkill : Skill() {
     val patternStr = (arguments["pattern"] as? String)?.trim() ?: ""
     if (patternStr.isBlank()) {
       return Either.Failure(
-        makeFailure(
-          ErrorCode.INVALID_PARAMETER,
-          buildXmlError(
+        error = makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Pattern must not be empty.",
             fixHint = "Provide a glob pattern, e.g. '*.kt' or '**/*.test.*'."
@@ -573,9 +521,9 @@ class GlobSkill : Skill() {
       logger.debug("Invalid glob pattern '$patternStr': ${matcherException.message}", matcherException)
       null
     } ?: return Either.Failure(
-      makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+      error = makeFailure(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Invalid glob pattern: $patternStr",
           fixHint = "Use standard glob syntax: '*' matches any chars, '**' matches path segments, '?' matches one char."
@@ -583,7 +531,7 @@ class GlobSkill : Skill() {
       )
     )
 
-    val fallbackMatcher = if (patternStr.startsWith("**/")) {
+    val fallbackMatcher = if (patternStr.startsWith(prefix = "**/")) {
       val stripped = patternStr.removePrefix("**/")
       try {
         FileSystems.getDefault().getPathMatcher("glob:$stripped")
@@ -593,27 +541,28 @@ class GlobSkill : Skill() {
       }
     } else null
 
-    val pathResult = resolveAndValidatePath(context, arguments["path"] as? String)
+    val pathResult = resolveAndValidatePath(context, relativePath = arguments["path"] as? String)
     if (pathResult is Either.Failure) return pathResult
     val (rootFile, resolvedPath) = (pathResult as Either.Success).value
 
     val projectRoot = Paths.get(context.projectRoot).toAbsolutePath().normalize()
 
-    val limit = when (val v = arguments["limit"]) {
-      is Number -> v.toInt().coerceIn(1, GLOB_MAX_LIMIT)
-      is String -> v.toIntOrNull()?.coerceIn(1, GLOB_MAX_LIMIT) ?: GLOB_MAX_RESULTS
-      else -> GLOB_MAX_RESULTS
-    }
+    val limit =
+      when (val rawValue = arguments["limit"]) {
+        is Number -> rawValue.toInt().coerceIn(1, GLOB_MAX_LIMIT)
+        is String -> rawValue.toIntOrNull()?.coerceIn(1, GLOB_MAX_LIMIT) ?: GLOB_MAX_RESULTS
+        else -> GLOB_MAX_RESULTS
+      }
 
     return Either.Success(
-      GlobParams(
-        pattern = patternStr,
-        globMatcher = globMatcher,
-        fallbackMatcher = fallbackMatcher,
+      value = GlobParams(
+        limit = limit,
         rootFile = rootFile,
-        resolvedPath = resolvedPath,
+        pattern = patternStr,
         projectRoot = projectRoot,
-        limit = limit
+        globMatcher = globMatcher,
+        resolvedPath = resolvedPath,
+        fallbackMatcher = fallbackMatcher
       )
     )
   }

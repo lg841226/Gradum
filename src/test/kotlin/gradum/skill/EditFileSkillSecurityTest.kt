@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkillSecurityTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * EditFileSkillSecurityTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.skill
 
@@ -50,7 +50,6 @@ class EditFileSkillSecurityTest {
   private fun context(): SkillContext = SkillContext(
     toolMode = ToolMode.EDIT,
     projectRoot = projectRoot.absolutePath,
-    provider = Provider.OLLAMA,
     modelName = "qwen2.5:7b"
   )
 
@@ -66,7 +65,10 @@ class EditFileSkillSecurityTest {
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
   }
 
   @Test
@@ -81,7 +83,10 @@ class EditFileSkillSecurityTest {
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
   }
 
   @Test
@@ -95,7 +100,10 @@ class EditFileSkillSecurityTest {
       context()
     )
     assertTrue("in-project edit should succeed: $result", result is SkillResult.Success)
-    assertEquals("new content\n", File(projectRoot, "editable.txt").readText())
+    assertEquals(
+      "new content\n",
+      File(projectRoot, "editable.txt").readText()
+    )
   }
 
   @Test
@@ -110,13 +118,16 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
-        provider = Provider.OPENAI,
-        modelName = "gpt-4o"
+        modelName = "gpt-4o",
+        provider = Provider.OPENAI
       )
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
   }
 
   @Test
@@ -131,13 +142,16 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = projectRoot.absolutePath,
-        provider = Provider.OPENAI,
-        modelName = "gpt-4o"
+        modelName = "gpt-4o",
+        provider = Provider.OPENAI
       )
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
   }
 
   @Test
@@ -151,12 +165,14 @@ class EditFileSkillSecurityTest {
       SkillContext(
         toolMode = ToolMode.EDIT,
         projectRoot = "",
-        provider = Provider.OLLAMA,
         modelName = "qwen2.5:7b"
       )
     )
     assertTrue(result is SkillResult.Failure)
     result as SkillResult.Failure
-    assertEquals(ErrorCode.PERMISSION_DENIED.code, result.code)
+    assertEquals(
+      ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
   }
 }

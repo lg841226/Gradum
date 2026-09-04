@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-08-16 22:35:04 Changed by gwy
+ * build.gradle.kts  2026-08-31 19:21:55 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -18,7 +18,33 @@ plugins {
 }
 
 group = "com.gradum"
-version = "0.9.0"
+version = "0.9.2"
+
+val generateBuildConfig = tasks.register("generateBuildConfig") {
+  val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
+  outputs.dir(outputDir)
+  doLast {
+    val file = outputDir.get().file("gradum/BuildConfig.kt").asFile
+    file.parentFile.mkdirs()
+    file.writeText(
+      """
+        |package gradum
+        |
+        |object BuildConfig {
+        |  const val version: String = "${project.version}"
+        |}
+      """.trimMargin()
+    )
+  }
+}
+
+kotlin.sourceSets.main {
+  kotlin.srcDir(generateBuildConfig.map { it.outputs.files.single() })
+}
+
+tasks.named("compileKotlin") {
+  dependsOn(generateBuildConfig)
+}
 
 application {
   mainClass.set("gradum.server.MainKt")

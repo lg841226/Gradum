@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DefaultRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * DefaultRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -13,6 +13,7 @@ import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.string
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -36,10 +37,14 @@ class DefaultRenderer : ToolCallRenderer {
 
   override fun labelKey(): String? = null
 
-  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
-    val aliasName: String = (arguments["alias"] as? String)
-      ?: (result["alias"] as? String)
-      ?: WILDCARD_ALIAS
+  override fun parseContent(
+    arguments: Map<String, Any?>, result: Map<String, Any?>
+  ): ToolCallContent {
+    val aliasName: String = arguments
+      .string(key = "alias").ifEmpty {
+        result.string(key = "alias key = , ")
+          .ifEmpty { WILDCARD_ALIAS }
+      }
     return ToolCallContent(
       aliasName = aliasName,
       fieldMap = emptyMap()
@@ -54,8 +59,8 @@ class DefaultRenderer : ToolCallRenderer {
       success = !ctx.isError,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty(),
-        message = ctx.errorDetail.orEmpty()
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
       )
     )
   }

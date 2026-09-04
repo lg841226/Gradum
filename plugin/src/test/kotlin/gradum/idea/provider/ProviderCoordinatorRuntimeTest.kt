@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderCoordinatorRuntimeTest.kt  2026-08-18 12:45:23 Changed by gwy
+ * ProviderCoordinatorRuntimeTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -49,108 +49,127 @@ class ProviderCoordinatorRuntimeTest {
     scope: CoroutineScope,
     onSucceeded: MutableList<ProviderKind> = mutableListOf(),
   ): ProviderCoordinator.ProviderRuntime = ProviderCoordinator.ProviderRuntime(
-    kind = ProviderKind.OLLAMA,
-    appScope = scope,
     probe = probe,
-    onProbeSucceeded = { onSucceeded.add(it) },
+    appScope = scope,
+    kind = ProviderKind.OLLAMA,
+    onProbeSucceeded = { onSucceeded.add(it) }
   )
 
   private fun testScope(): CoroutineScope =
-    CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    CoroutineScope(context = SupervisorJob() + Dispatchers.Default)
 
   @Test
   fun `reconfigure with invalid url marks Failed and never probes`() {
-    val probe = FakeProbe(listOf(ProviderStatus.Ok(5)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.Ok(latencyMs = 5)))
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
-      runtime.reconfigure("not a url", "key", pollIntervalMs = 100, autoDetect = true)
-      delay(150.milliseconds)
+      runtime.reconfigure(baseUrl = "not a url", apiKey = "key", pollIntervalMs = 100, autoDetect = true)
+      delay(duration = 150.milliseconds)
     }
 
-    assertEquals(ProviderStatus.Failed("URL is invalid"), runtime.status.value)
-    assertTrue("invalid URL must never reach the probe", probe.calls.isEmpty())
+    assertEquals(
+      ProviderStatus.Failed("URL is invalid"),
+      runtime.status.value
+    )
+    assertTrue(
+      "invalid URL must never reach the probe",
+      probe.calls.isEmpty()
+    )
     scope.cancel()
   }
 
   @Test
   fun `autoDetect true polls repeatedly until stopped`() {
-    val probe = FakeProbe(listOf(ProviderStatus.Ok(7)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.Ok(latencyMs = 7)))
     val scope: CoroutineScope = testScope()
     val successList: MutableList<ProviderKind> = mutableListOf()
     val runtime = runtime(probe, scope, onSucceeded = successList)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:11434", "key", pollIntervalMs = 30, autoDetect = true,
+        baseUrl = "http://localhost:11434", apiKey = "key", pollIntervalMs = 30, autoDetect = true
       )
-      delay(250.milliseconds)
+      delay(duration = 250.milliseconds)
     }
 
     assertTrue(
       "auto-detect poll loop must probe repeatedly, got ${probe.calls.size}",
-      probe.calls.size >= 4,
+      probe.calls.size >= 4
     )
-    assertEquals(ProviderStatus.Ok(7), runtime.status.value)
+    assertEquals(
+      ProviderStatus.Ok(latencyMs = 7),
+      runtime.status.value
+    )
     assertTrue(successList.contains(ProviderKind.OLLAMA))
     scope.cancel()
   }
 
   @Test
   fun `auth error short-circuits polling immediately`() {
-    val probe = FakeProbe(listOf(ProviderStatus.AuthError(12)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.AuthError(latencyMs = 12)))
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:11434", "wrong-key", pollIntervalMs = 20, autoDetect = true,
+        baseUrl = "http://localhost:11434", apiKey = "wrong-key", pollIntervalMs = 20, autoDetect = true
       )
-      delay(200.milliseconds)
+      delay(duration = 200.milliseconds)
     }
 
     assertEquals(
       "AuthError must stop the loop after the first probe",
-      1, probe.calls.size,
+      1,
+      probe.calls.size
     )
-    assertEquals(ProviderStatus.AuthError(12), runtime.status.value)
+    assertEquals(
+      ProviderStatus.AuthError(latencyMs = 12),
+      runtime.status.value
+    )
     scope.cancel()
   }
 
   @Test
   fun `autoDetect false with valid url probes exactly once`() {
-    val probe = FakeProbe(listOf(ProviderStatus.Ok(3)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.Ok(latencyMs = 3)))
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:1234", "key", pollIntervalMs = 1000, autoDetect = false,
+        baseUrl = "http://localhost:1234", apiKey = "key", pollIntervalMs = 1000, autoDetect = false
       )
-      delay(200.milliseconds)
+      delay(duration = 200.milliseconds)
     }
 
-    assertEquals(1, probe.calls.size)
-    assertEquals(ProviderStatus.Ok(3), runtime.status.value)
+    assertEquals(
+      1,
+      probe.calls.size
+    )
+    assertEquals(
+      ProviderStatus.Ok(latencyMs = 3),
+      runtime.status.value
+    )
     scope.cancel()
   }
 
   @Test
   fun `interval-only reconfigure restarts the poll loop`() {
-    val probe = FakeProbe(listOf(ProviderStatus.Ok(1)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.Ok(latencyMs = 1)))
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:11434", "key", pollIntervalMs = 1000, autoDetect = true,
+        baseUrl = "http://localhost:11434", apiKey = "key", pollIntervalMs = 1000, autoDetect = true
       )
-      delay(120.milliseconds)
+      delay(duration = 120.milliseconds)
       runtime.reconfigure(
-        "http://localhost:11434", "key", pollIntervalMs = 20, autoDetect = true,
+        baseUrl = "http://localhost:11434", apiKey = "key", pollIntervalMs = 20, autoDetect = true
       )
-      delay(120.milliseconds)
+      delay(duration = 120.milliseconds)
     }
 
     assertTrue(
@@ -162,56 +181,64 @@ class ProviderCoordinatorRuntimeTest {
 
   @Test
   fun `probeNow triggers a one-off probe under autoDetect false`() {
-    val probe = FakeProbe(listOf(ProviderStatus.Unreachable(9)))
+    val probe = FakeProbe(results = listOf(ProviderStatus.Unreachable(latencyMs = 9)))
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:11434", "key", pollIntervalMs = 1000, autoDetect = false,
+        baseUrl = "http://localhost:11434", apiKey = "key", pollIntervalMs = 1000, autoDetect = false
       )
-      // reconfigure() fires its single probe on appScope (async) — the
-      // probeNow below would otherwise race it and, when it wins, probe
-      // the stale empty config (which bails without calling the probe).
+
       withTimeout(2_000.milliseconds) {
-        while (probe.calls.isEmpty()) delay(5.milliseconds)
+        while (probe.calls.isEmpty()) delay(duration = 5.milliseconds)
       }
       runtime.probeNow()
       withTimeout(2_000.milliseconds) {
-        while (probe.calls.size < 2) delay(5.milliseconds)
+        while (probe.calls.size < 2) delay(duration = 5.milliseconds)
       }
     }
 
-    assertEquals(2, probe.calls.size)
-    assertEquals(ProviderStatus.Unreachable(9), runtime.status.value)
+    assertEquals(
+      2,
+      probe.calls.size
+    )
+    assertEquals(
+      ProviderStatus.Unreachable(latencyMs = 9),
+      runtime.status.value
+    )
     scope.cancel()
   }
 
   @Test
   fun `concurrent probes serialize through the probe mutex`() {
     val probe = FakeProbe(
-      results = listOf(ProviderStatus.Ok(4)),
-      onProbe = { delay(80.milliseconds) },
+      results = listOf(ProviderStatus.Ok(latencyMs = 4)),
+      onProbe = { delay(duration = 80.milliseconds) },
     )
     val scope: CoroutineScope = testScope()
     val runtime = runtime(probe, scope)
 
     runBlocking {
       runtime.reconfigure(
-        "http://localhost:11434", "key", pollIntervalMs = 1000, autoDetect = false,
+        baseUrl = "http://localhost:11434", apiKey = "key", pollIntervalMs = 1000, autoDetect = false
       )
       runtime.probeNow()
       runtime.probeNow()
       val started: Long = System.currentTimeMillis()
-      while (probe.calls.size < 3) delay(5.milliseconds)
+      while (probe.calls.size < 3) delay(duration = 5.milliseconds)
       val elapsed: Long = System.currentTimeMillis() - started
+
       assertTrue(
         "Expected serialized probes (~160ms), got ${elapsed}ms",
-        elapsed >= 150,
+        elapsed >= 150
       )
     }
 
-    assertEquals(3, probe.calls.size)
+    assertEquals(
+      3,
+      probe.calls.size
+    )
     scope.cancel()
   }
 }

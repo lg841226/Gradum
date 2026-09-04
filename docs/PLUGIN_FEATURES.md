@@ -1,5 +1,5 @@
 <!--
-  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ Copyright (c) 2026 Gradum Authors
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
   ~ PLUGIN_FEATURES.md  2026-07-14 07:46:00 Changed by gwy
@@ -21,13 +21,13 @@ For the server-side protocol, the agent loop, and the Skill contract see
 
 | Area                                | Count / Scope                               |
 |-------------------------------------|---------------------------------------------|
-| Kotlin source files (plugin module) | 80 main + 11 test                           |
+| Kotlin source files (plugin module) | 116 main + 27 test                          |
 | Tool-window / chat UI components    | 2 tool windows (chat + Git analysis)        |
-| i18n keys                           | 263 (`en`) / 261 (`zh_CN`)                  |
+| i18n keys                           | 389 (`en`) / 384 (`zh_CN`)                  |
 | Icon resources                      | 103 SVGs + 1 TTF font (`GoogleSans.ttf`)    |
 | Project-level services              | 1 (`GradumChatSession`)                     |
-| HTTP endpoints consumed             | 3 (`/events`, `/models`, `/stop`)           |
-| Wire event types handled            | 4 (thinking / tool_call / response / error) |
+| HTTP endpoints consumed             | 5 (`/events`, `/models`, `/stop`, `/skills`, `/session/delete`), plus `/health` and `/provider/probe` |
+| Wire event types handled            | 4 main (`thinking` / `tool_call` / `response` / `error`) + 5 sub-agent (`sub_agent:start` / `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` / `sub_agent:session_end`) |
 
 The plugin is built on JetBrains Jewel + Compose for Desktop. Every visible string is localizable; every color is
 theme-aware through `JewelTheme`; every icon is loaded from the plugin classpath at runtime.
@@ -131,20 +131,40 @@ Source: [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat
 [`MessageAttachmentList.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/MessageAttachmentList.kt),
 [`MessageCopyButton.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/MessageCopyButton.kt).
 
+### 4.3 `SubChatView` (sub-agent panel)
+
+- Renders an inline sub-agent chat panel when the main agent delegates a task to a sub-agent.
+- Two rendering paths: **runtime** (sub-agent is actively streaming — shows `toolCalls` + live response text) and
+  **history** (sub-agent has completed — renders a static transcript from `ChatTranscript.parseTranscript()`).
+- Handles 5 sub-agent wire events: `sub_agent:start` (opens the panel), `sub_agent:response` (appends to response text),
+  `sub_agent:tool_call` (appends to tool call list), `sub_agent:error` (shows failure state), and
+  `sub_agent:session_end` (closes the panel with final status).
+- Displays the actual task duration by reading `endTimestamp` from `delegateArgs` — avoids capturing rendering time.
+- On sub-agent failure, shows an error message instead of the "working" spinner.
+
+Source: [`SubChatView.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/SubChatView.kt),
+[`SubChatConversationContent.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/SubChatConversationContent.kt),
+[`ToolCallBlock.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/ToolCallBlock.kt).
+
 ---
 
 ## 5. Message event timeline
 
 ### 5.1 Wire events → UI blocks
 
-The server streams four `ChatEvent` subtypes as NDJSON. The client folds them into three `RenderBlock` kinds:
+The server streams multiple `ChatEvent` subtypes as NDJSON. The `ChatMessageSender` maps them to `RenderBlock` kinds for rendering, and dispatches sub-agent events to a separate `SubChatView`:
 
-| Wire event  | Render block           | Behaviour                                                             |
-|-------------|------------------------|-----------------------------------------------------------------------|
-| `thinking`  | `RenderBlock.Thinking` | Coalesced with the previous thinking block; concatenated as a string. |
-| `tool_call` | `RenderBlock.ToolCall` | Never coalesced (one block per invocation).                           |
-| `response`  | `RenderBlock.Response` | Coalesced with the previous response block; concatenated as a string. |
-| `error`     | `RenderBlock.Error`    | Never coalesced.                                                      |
+| Wire event              | Render block           | Behaviour                                                             |
+|-------------------------|------------------------|-----------------------------------------------------------------------|
+| `thinking`              | `RenderBlock.Thinking` | Coalesced with the previous thinking block; concatenated as a string. |
+| `tool_call`             | `RenderBlock.ToolCall` | Never coalesced (one block per invocation).                           |
+| `response`              | `RenderBlock.Response` | Coalesced with the previous response block; concatenated as a string. |
+| `error`                 | `RenderBlock.Error`    | Never coalesced.                                                      |
+| `sub_agent:start`       | `SubChatView`          | Opens a sub-agent chat panel inline.                                  |
+| `sub_agent:response`    | `SubChatView`          | Appended to the sub-agent's response text.                            |
+| `sub_agent:tool_call`   | `SubChatView`          | Appended to the sub-agent's tool call list.                           |
+| `sub_agent:error`       | `SubChatView`          | Shows error state in the sub-agent panel.                             |
+| `sub_agent:session_end` | `SubChatView`          | Closes the sub-agent panel with final status.                         |
 
 `ChatMessage.appendEvent` performs an O (1) update — it never re-iterates the existing list. `updateLastError` likewise
 does an O (1) `indexOfLast +
@@ -680,8 +700,9 @@ The response is decoded with `Json { ignoreUnknownKeys = true }`, so fields adde
 
 Sends a single user turn and consumes the streamed agent events as NDJSON. The parser is per-line resilient: a malformed
 line is logged at
-`warn` level and skipped, so a single bad event does not break the stream. The four event types mirror the `ChatEvent`
-subtypes in
+`warn` level and skipped, so a single bad event does not break the stream. The event types include the four main
+`ChatEvent` subtypes (thinking / tool_call / response / error) plus five sub-agent events (sub_agent:start /
+sub_agent:response / sub_agent:tool_call / sub_agent:error / sub_agent:session_end) — see
 [Section 5](#5-message-event-timeline).
 
 ### 12.3 `POST /stop`
@@ -705,9 +726,9 @@ roster appears without waiting for the next poll tick.
 
 ### 12.5 Error handling
 
-A typed `ErrorCode` enum is shared between the server and the plugin (16 codes, including `MODEL_TIMEOUT`,
-`TOOL_BLOCKED`, `READ_ONLY_VIOLATION`,
-`RATE_LIMITED`, etc.). The plugin maps codes to localized, user-friendly messages — never raw stack traces.
+A typed `ErrorCode` enum is shared between the server and the plugin (18 codes, including `INVALID_PARAMETER`,
+`TOOL_NOT_PERMITTED`, `FILE_TOO_LARGE`,
+`TIMEOUT`, etc.). The plugin maps codes to localized, user-friendly messages — never raw stack traces.
 
 Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/GradumApiClient.kt),
 [`ErrorCode.kt`](../plugin/src/main/kotlin/gradum/idea/chat/model/ErrorCode.kt),
@@ -723,7 +744,7 @@ bundle ships two locales:
 - **`en`** — `messages/GradumBundle.properties` (default).
 - **`zh_CN`** — `messages/GradumBundle_zh_CN.properties`.
 
-There are **251 keys** in the English file and **249 in the Chinese file**
+There are **389 keys** in the English file and **384 in the Chinese file**
 (lockstep — the few-key delta is transient mid-refactor noise). Both files are kept in lockstep — a key that exists in
 one must exist in the other; the bundle is hardened with two safety nets:
 
@@ -840,12 +861,13 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 | `utils/GradumBundle.kt`                    | i18n bundle with startup probe and per-key fallback.                                                                                                                                                |
 | `utils/GradumIcons.kt`                     | Icon registry + provider / model lookups.                                                                                                                                                           |
 | `utils/Spacing.kt`                         | `GradumSpacing` token object.                                                                                                                                                                       |
-| `chat/api/GradumApiClient.kt`              | HTTP client (`/events`, `/models`, `/stop`).                                                                                                                                                        |
+| `chat/api/GradumApiClient.kt`              | HTTP client (`/events`, `/models`, `/stop`, `/health`, `/skills`, `/provider/probe`).                                                                |
 | `chat/input/ChatInputState.kt`             | `ChatInputState` + `ChatInputActions` data classes.                                                                                                                                                 |
 | `chat/model/ChatMessage.kt`                | `ChatEvent` / `RenderBlock` / `ChatMessage` model + `formatTimestamp`.                                                                                                                              |
-| `chat/model/ErrorCode.kt`                  | Shared 16-code error enum.                                                                                                                                                                          |
+| `chat/model/ErrorCode.kt`                  | Shared 18-code error enum.                                                                                                                                                                          |
 | `chat/model/ModelInfo.kt`                  | Wire shape for a single model from `/models`.                                                                                                                                                       |
 | `chat/state/GradumChatSession.kt`          | Project-level service, state owner, model poller.                                                                                                                                                   |
+| `chat/state/ChatMessageSender.kt`          | NDJSON event stream consumer: dispatches 4 main + 5 sub-agent wire events to UI model.                                                                                                              |
 | `chat/ui/ChatScreen.kt`                    | Top-level chat screen composable.                                                                                                                                                                   |
 | `chat/ui/JumpToBottomButton.kt`            | Solid-background jump-to-bottom button with 0.5dp border (auto-shows when the list is scrolled away from the latest message).                                                                       |
 | `chat/ui/markdown/CodeBlockRenderer.kt`    | Markdown fenced code block renderer (Layer 1 of the pipeline): copy, soft-wrap, line numbers, insert-as-file, collapse >20 lines, sticky toolbar, indent guides.                                    |
@@ -860,6 +882,8 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 | `chat/ui/markdown/FootnoteRegistry.kt`     | Per-message footnote-label → definition-position registry with nearest-jump + flash.                                                                                                                |
 | `chat/ui/markdown/StickySection.kt`        | `StickySectionRegistry` tracking toolbar/header bounds in scroll-column space.                                                                                                                      |
 | `chat/ui/chat/AssistantChatBubble.kt`      | Assistant message bubble; the `ResponseBlock` here drives the layered Markdown pipeline.                                                                                                            |
+| `chat/ui/chat/SubChatView.kt`              | Sub-agent inline chat panel: two rendering paths (runtime streaming + history transcript), 5 wire event handlers, failure state.                                                                     |
+| `chat/ui/chat/SubChatConversationContent.kt`| Sub-agent conversation transcript renderer for history replay.                                                                                                                                      |
 | `chat/ui/chat/ChatMessageList.kt`          | Scrollable list + day-change separators.                                                                                                                                                            |
 | `chat/ui/chat/ErrorMessages.kt`            | Localised, code-driven error messages.                                                                                                                                                              |
 | `chat/ui/chat/MessageAttachmentList.kt`    | Collapsible attachment list inside the user bubble.                                                                                                                                                 |

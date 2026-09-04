@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistrySchemaTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * SkillRegistrySchemaTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -10,6 +10,7 @@ package gradum.skill
 import gradum.ToolMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -34,19 +35,33 @@ class SkillRegistrySchemaTest {
   @Test
   fun `agent mode exposes every registered skill`() {
     val names: List<String> = SkillRegistry.getSchemas().map { nameOf(it) }
-    assertEquals(EXPECTED_ALL, names.toSet(), "AGENT must expose every registered skill, got: $names")
+    assertEquals(
+      EXPECTED_ALL,
+      names.toSet(),
+      "AGENT must expose every registered skill, got: $names"
+    )
   }
 
   @Test
   fun `read-only mode exposes only inspection skills`() {
     val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.READ_ONLY).map { nameOf(it) }.toSet()
-    assertEquals(EXPECTED_READ_ONLY, names, "READ_ONLY must expose only inspection skills, got: $names")
+    assertEquals(
+      EXPECTED_READ_ONLY,
+      names,
+      "READ_ONLY must expose only inspection skills, got: $names"
+    )
   }
 
   @Test
-  fun `edit mode exposes write and task-planning skills`() {
+  fun `edit mode exposes write skills only, not task-planning`() {
     val names: Set<String> = SkillRegistry.getSchemas(toolMode = ToolMode.EDIT).map { nameOf(it) }.toSet()
-    assertEquals(EXPECTED_EDIT, names, "EDIT must expose write + task-planning skills, got: $names")
+    assertEquals(
+      EXPECTED_EDIT,
+      names,
+      "EDIT must expose write + read skills only, got: $names"
+    )
+    assertFalse("to_do" in names, "EDIT must not expose to_do, got: $names")
+    assertFalse("finish_to_do_item" in names, "EDIT must not expose finish_to_do_item, got: $names")
   }
 
   @Test
@@ -119,8 +134,6 @@ class SkillRegistrySchemaTest {
       "run_cmd",
       "edit_file",
       "save_file",
-      "to_do",
-      "finish_to_do_item",
       "delegate_task",
       "grep",
       "glob",

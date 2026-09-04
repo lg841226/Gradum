@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolModeGateTest.kt  2026-08-23 20:21:07 Changed by gwy
+ * ToolModeGateTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.agent
@@ -18,6 +18,8 @@ import gradum.client.ToolCallEntry
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.nio.file.Files
 import java.nio.file.Path
@@ -53,9 +55,9 @@ class ToolModeGateTest {
       functionName = "edit_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
-        "path" to JsonPrimitive("victim.txt"),
+        "path" to JsonPrimitive(value = "victim.txt"),
         "edits" to JsonPrimitive(
-          """[{"search": "original line one", "replace": "HACKED"}]"""
+          value = """[{"search": "original line one", "replace": "HACKED"}]"""
         ),
       ),
     )
@@ -67,31 +69,43 @@ class ToolModeGateTest {
     @Suppress("UNCHECKED_CAST")
     val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
     assertEquals(
-      ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"],
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      errorMap["code"],
       "edit_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
     )
-    assertEquals("READ_ONLY", errorMap["toolMode"])
+    assertEquals(
+      "READ_ONLY",
+      errorMap["toolMode"]
+    )
     assertTrue(
       ((errorMap["allowedModes"] as List<*>).contains("AGENT")),
       "Error should list the actually-allowed modes",
     )
 
-    assertEquals(originalContent, Files.readString(targetFile), "File must not be modified in READ_ONLY mode")
+    assertEquals(
+      originalContent,
+      Files.readString(targetFile),
+      "File must not be modified in READ_ONLY mode"
+    )
   }
 
   @Test
   fun `read-only mode rejects save_file call and does not touch the file`() {
     val targetFile: Path = tempProjectRoot.resolve("new-victim.txt")
-    assertFalse(Files.exists(targetFile), "Test precondition: file must not exist before save_file")
+    assertFalse(
+      Files.exists(targetFile),
+      "Test precondition: file must not exist before save_file"
+    )
 
     val toolCall = ToolCallEntry(
       functionName = "save_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
-        "path" to JsonPrimitive("new-victim.txt"),
-        "content" to JsonPrimitive("HACKED CONTENT"),
+        "path" to JsonPrimitive(value = "new-victim.txt"),
+        "content" to JsonPrimitive(value = "HACKED CONTENT"),
       ),
     )
+
     val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
 
     val toolCallEvent = events.firstOrNull { it.first == "tool_call" }
@@ -99,8 +113,14 @@ class ToolModeGateTest {
 
     @Suppress("UNCHECKED_CAST")
     val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-    assertFalse(Files.exists(targetFile), "save_file must not create the file in READ_ONLY mode")
+    assertEquals(
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      errorMap["code"]
+    )
+    assertFalse(
+      Files.exists(targetFile),
+      "save_file must not create the file in READ_ONLY mode"
+    )
   }
 
   @Test
@@ -109,7 +129,7 @@ class ToolModeGateTest {
       functionName = "to_do",
       callIdentifier = "call_1",
       functionArguments = mapOf(
-        "tasks" to JsonPrimitive("""["steal data"]"""),
+        "tasks" to JsonPrimitive(value = """["steal data"]"""),
       ),
     )
     val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
@@ -119,7 +139,10 @@ class ToolModeGateTest {
 
     @Suppress("UNCHECKED_CAST")
     val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
+    assertEquals(
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      errorMap["code"]
+    )
   }
 
   @Test
@@ -128,8 +151,8 @@ class ToolModeGateTest {
       functionName = "to_do",
       callIdentifier = "call_1",
       functionArguments = mapOf(
-        "tasks" to kotlinx.serialization.json.JsonArray(
-          listOf(JsonPrimitive("step 1"), JsonPrimitive("step 2")),
+        "tasks" to JsonArray(
+          content = listOf(JsonPrimitive(value = "step 1"), JsonPrimitive(value = "step 2")),
         ),
       ),
     )
@@ -140,8 +163,14 @@ class ToolModeGateTest {
 
     @Suppress("UNCHECKED_CAST")
     val errorMap = (toolCallEvent.second["result"] as Map<String, Any>)["error"] as Map<String, Any>
-    assertEquals(ErrorCode.TOOL_NOT_PERMITTED.name, errorMap["code"])
-    assertEquals("EDIT", errorMap["toolMode"])
+    assertEquals(
+      ErrorCode.TOOL_NOT_PERMITTED.name,
+      errorMap["code"]
+    )
+    assertEquals(
+      "EDIT",
+      errorMap["toolMode"]
+    )
   }
 
   @Test
@@ -153,13 +182,13 @@ class ToolModeGateTest {
       functionName = "edit_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
-        "path" to JsonPrimitive("legit.txt"),
-        "edits" to kotlinx.serialization.json.JsonArray(
-          listOf(
-            kotlinx.serialization.json.JsonObject(
-              mapOf(
-                "oldString" to JsonPrimitive("hello world"),
-                "newString" to JsonPrimitive("goodbye world"),
+        "path" to JsonPrimitive(value = "legit.txt"),
+        "edits" to JsonArray(
+          content = listOf(
+            JsonObject(
+              content = mapOf(
+                "oldString" to JsonPrimitive(value = "hello world"),
+                "newString" to JsonPrimitive(value = "goodbye world"),
               ),
             ),
           ),
@@ -192,9 +221,9 @@ class ToolModeGateTest {
     Files.writeString(targetFile, "inspect me\n")
 
     val toolCall = ToolCallEntry(
-      functionName = "read_file",
       callIdentifier = "call_1",
-      functionArguments = mapOf("path" to JsonPrimitive("observable.txt")),
+      functionName = "read_file",
+      functionArguments = mapOf("path" to JsonPrimitive(value = "observable.txt")),
     )
     val events = runAgentWithToolCall(toolCall, ToolMode.READ_ONLY)
 
@@ -215,14 +244,16 @@ class ToolModeGateTest {
    * one tool call followed by a no-op text chunk (so the agent loop
    * terminates), and return every event the agent emitted.
    */
-  private fun runAgentWithToolCall(
-    toolCall: ToolCallEntry,
-    toolMode: ToolMode
-  ): List<Pair<String, Map<String, Any>>> {
+  private fun runAgentWithToolCall(toolCall: ToolCallEntry, toolMode: ToolMode): List<Pair<String, Map<String, Any>>> {
     val events = mutableListOf<Pair<String, Map<String, Any>>>()
     val mockClient: LlmClient = mockk {
-      every { sendChat(any(), any()) } returns flowOf(
-        LLMResponseChunk.ToolCallBatch(listOf(toolCall)),
+      every {
+        sendChat(
+          messageHistory = any(),
+          toolDefinitions = any()
+        )
+      } returns flowOf(
+        LLMResponseChunk.ToolCallBatch(toolCalls = listOf(toolCall)),
         LLMResponseChunk.TextContent(""),
       )
       every { tokenUsage } returns TokenUsageSnapshot()
@@ -231,12 +262,12 @@ class ToolModeGateTest {
     val agent = Agent(
       llmClient = mockClient,
       configuration = AgentConfiguration(
-        provider = Provider.OPENAI,
         toolMode = toolMode,
-        projectRoot = tempProjectRoot.toString(),
+        provider = Provider.OPENAI,
+        projectRoot = tempProjectRoot.toString()
       ),
     ) { type, data -> events.add(type to data) }
-    agent.executeTask("test prompt")
+    agent.executeTask(userInput = "test prompt")
     return events
   }
 }

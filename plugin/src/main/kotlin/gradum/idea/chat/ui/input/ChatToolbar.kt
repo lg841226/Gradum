@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatToolbar.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatToolbar.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -36,14 +36,14 @@ fun ChatToolbar(
   selectedPermission: String = PermissionMode.READONLY,
   modifier: Modifier = Modifier
 ) {
-  val searchState = remember { TextFieldState() }
+  val searchState: TextFieldState = remember { TextFieldState() }
 
   val searchQuery: String = searchState.text.toString()
   val filteredFiles = if (searchQuery.isBlank()) {
     state.editorContext.allOpenFiles
   } else {
     state.editorContext.allOpenFiles.filter {
-      it.name.contains(searchQuery, ignoreCase = true)
+      it.name.contains(other = searchQuery, ignoreCase = true)
     }
   }
 
@@ -53,11 +53,13 @@ fun ChatToolbar(
     verticalAlignment = Alignment.CenterVertically
   ) {
     IconTooltipButton(
-      contentDescription = message("gradum.add"),
-      onClick = actions.onToggleAddMenu,
+      tooltip =
+        if (state.isAttachmentLimitReached) message("gradum.add.context.disabled")
+        else message("gradum.add.context"),
       iconKey = AllIconsKeys.Actions.Attach,
+      onClick = actions.onToggleAddMenu,
       enabled = !state.isAttachmentLimitReached,
-      tooltip = if (state.isAttachmentLimitReached) message("gradum.add.context.disabled") else message("gradum.add.context")
+      contentDescription = message("gradum.add")
     )
     if (state.showAddMenu) {
       AddContextPopup(
@@ -69,31 +71,31 @@ fun ChatToolbar(
     }
 
     PermissionSelector(
-      onDismiss = actions.onDismissMenu,
       onToggle = actions.onToggleMenu,
+      hasSentMessage = hasSentMessage,
+      onDismiss = actions.onDismissMenu,
+      isMenuVisible = state.isMenuVisible,
       onSelect = actions.onSelectPermission,
       selectedPermission = state.selectedPermission,
-      isMenuVisible = state.isMenuVisible,
-      hasSentMessage = hasSentMessage,
       isPermissionLocked = hasSentMessage && PermissionMode.isDebugMode(selectedPermission)
     )
 
     Spacer(modifier = Modifier.weight(1f))
 
     IconTooltipButton(
-      onClick = actions.onToggleExpanded,
-      enabled = state.editorContext.currentFile != null,
       tooltip = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context"),
       iconKey = if (state.isExpanded) AllIconsKeys.Actions.Share else AllIconsKeys.Actions.Unshare,
+      onClick = actions.onToggleExpanded,
+      enabled = state.editorContext.currentFile != null,
       contentDescription = if (state.isExpanded) message("gradum.hide.context") else message("gradum.show.context")
     )
 
     IconTooltipButton(
-      enabled = isTextNotEmpty,
       tooltip = message("gradum.clear"),
+      iconKey = AllIconsKeys.General.Delete,
       onClick = actions.onClearText,
-      contentDescription = message("gradum.delete"),
-      iconKey = AllIconsKeys.General.Delete
+      enabled = isTextNotEmpty,
+      contentDescription = message("gradum.delete")
     )
 
     Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
@@ -102,23 +104,23 @@ fun ChatToolbar(
         IconTooltipButton(
           tooltip = message("gradum.stop"),
           iconKey = AllIconsKeys.Run.Stop,
-          contentDescription = message("gradum.stop.response"),
-          onClick = actions.onStop
+          onClick = actions.onStop,
+          contentDescription = message("gradum.stop.response")
         )
       }
-      val hasModel = state.selectedModel != null
-      val isDebug = selectedPermission == PermissionMode.DEBUG
-      val canSend = isTextNotEmpty && !state.isPendingQueueFull && (hasModel || isDebug)
-      val sendTooltip = when {
+      val hasModel: Boolean = state.selectedModel != null
+      val isDebug: Boolean = selectedPermission == PermissionMode.DEBUG
+      val canSend: Boolean = isTextNotEmpty && !state.isPendingQueueFull && (hasModel || isDebug)
+      val sendTooltip: String = when {
         state.isSending && state.isPendingQueueFull -> message("gradum.send.queue.full")
         !hasModel && !isDebug -> message("gradum.send.no.model")
         else -> message("gradum.send")
       }
       IconTooltipButton(
-        enabled = canSend,
         tooltip = sendTooltip,
-        onClick = actions.onSend,
         iconKey = GradumIcons.Send,
+        onClick = actions.onSend,
+        enabled = canSend,
         contentDescription = message("gradum.send")
       )
     }

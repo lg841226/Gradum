@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum team, some rights reserved.
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AuditFindingsTree.kt  2026-08-17 08:55:38 Changed by gwy
+ * AuditFindingsTree.kt  2026-08-25 01:50:11 Changed by gwy
  */
 
 @file:OptIn(
@@ -55,9 +55,10 @@ private const val MAX_DISPLAY_COUNT = 9999
  * formatting and key selection stay in one place.
  */
 private fun findingCountPresentation(count: Int): Pair<String, String> {
-  val formatted = "%,d".format(Locale.ROOT, minOf(count, MAX_DISPLAY_COUNT))
-  val key = if (count == 1) "gradum.toolwindow.git.analysis.problem"
-  else "gradum.toolwindow.git.analysis.problems"
+  val formatted: String = "%,d".format(Locale.ROOT, minOf(a = count, b = MAX_DISPLAY_COUNT))
+  val key: String =
+    if (count == 1) "gradum.toolwindow.git.analysis.problem"
+    else "gradum.toolwindow.git.analysis.problems"
   return formatted to key
 }
 
@@ -73,44 +74,60 @@ internal fun buildAuditFindingsTree(
 ): Tree<AuditTreeItem> =
   buildTree {
     val groupItems: List<AuditTreeItem> = if (groupBySeverity) {
-      SEVERITY_ORDER.mapNotNull { level ->
-        val grouped = findings.filter { it.level == level }
-        if (grouped.isEmpty()) null else AuditTreeItem.SeverityGroup(level, grouped.size)
+      SEVERITY_ORDER.mapNotNull { level: String ->
+        val grouped = findings.filter {
+          it.level == level
+        }
+        if (grouped.isEmpty()) null
+        else AuditTreeItem.SeverityGroup(level, count = grouped.size)
       }
     } else {
-      AuditGroup.entries.mapNotNull { group ->
-        val grouped = findings.filter { auditGroupOf(it.code) == group }
-        if (grouped.isEmpty()) null else AuditTreeItem.Group(group, grouped.size)
+      AuditGroup.entries.mapNotNull { group: AuditGroup ->
+        val grouped = findings.filter {
+          auditGroupOf(it.code) == group
+        }
+        if (grouped.isEmpty()) null
+        else AuditTreeItem.Group(group, count = grouped.size)
       }
     }
 
     fun TreeGeneratorScope<AuditTreeItem>.addGroupRows() {
       groupItems.forEach { groupItem ->
-        val grouped = when (groupItem) {
-          is AuditTreeItem.Group -> findings.filter { auditGroupOf(it.code) == groupItem.group }
-          is AuditTreeItem.SeverityGroup -> findings.filter { it.level == groupItem.level }
-          is AuditTreeItem.Branch, is AuditTreeItem.Finding, is AuditTreeItem.LoadMore -> emptyList()
-        }
-        addNode(groupItem, groupItem) {
-          val sorted = grouped.sortedWith(compareBy { severityRank(it.level) })
-          val limit = groupLimits[groupItem] ?: DEFAULT_FINDING_LIMIT
-          sorted.take(limit).forEach { finding ->
-            val findingKey = AuditTreeItem.Finding(finding)
-            addLeaf(findingKey, findingKey)
+        val grouped =
+          when (groupItem) {
+            is AuditTreeItem.Group -> findings.filter {
+              auditGroupOf(it.code) == groupItem.group
+            }
+
+            is AuditTreeItem.SeverityGroup -> findings.filter {
+              it.level == groupItem.level
+            }
+
+            is AuditTreeItem.Branch,
+            is AuditTreeItem.Finding,
+            is AuditTreeItem.LoadMore -> emptyList()
           }
-          val remaining = sorted.size - limit
+        addNode(data = groupItem, id = groupItem) {
+          val sorted = grouped.sortedWith(comparator = compareBy { severityRank(it.level) })
+          val limit: Int = groupLimits[groupItem] ?: DEFAULT_FINDING_LIMIT
+
+          sorted.take(n = limit).forEach { finding: AuditFinding ->
+            val findingKey = AuditTreeItem.Finding(finding)
+            addLeaf(data = findingKey, id = findingKey)
+          }
+          val remaining: Int = sorted.size - limit
           if (remaining > 0) {
             val moreRow = AuditTreeItem.LoadMore(groupItem, remaining)
-            addLeaf(moreRow, moreRow)
+            addLeaf(data = moreRow, id = moreRow)
           }
         }
       }
     }
 
     val branchKey = branchName?.takeIf { it.isNotBlank() }
-      ?.let { AuditTreeItem.Branch(it, findings.size) }
+      ?.let { AuditTreeItem.Branch(name = it, count = findings.size) }
     if (branchKey == null) addGroupRows()
-    else addNode(branchKey, branchKey) { addGroupRows() }
+    else addNode(data = branchKey, id = branchKey) { addGroupRows() }
   }
 
 /**
@@ -145,14 +162,14 @@ internal fun AuditFindingsTree(
   val treeState = rememberTreeState()
   val regularStyle = JewelTheme.typography.regular
   val branchName = GradumGitAnalysisService.currentBranch
-  var groupLimits by remember { mutableStateOf<Map<AuditTreeItem, Int>>(emptyMap()) }
-  val branchKey = remember(branchName, findings) {
-    branchName?.takeIf { it.isNotBlank() }?.let { AuditTreeItem.Branch(it, findings.size) }
+  var groupLimits by remember { mutableStateOf<Map<AuditTreeItem, Int>>(value = emptyMap()) }
+  val branchKey = remember(key1 = branchName, key2 = findings) {
+    branchName?.takeIf { it.isNotBlank() }?.let { AuditTreeItem.Branch(name = it, count = findings.size) }
   }
   val problemTree = remember(findings, groupBySeverity, branchName, groupLimits) {
     buildAuditFindingsTree(findings, groupBySeverity, branchName, groupLimits)
   }
-  val groupKeys = remember(findings, groupBySeverity) {
+  val groupKeys = remember(key1 = findings, key2 = groupBySeverity) {
     val groupItems = if (groupBySeverity) {
       SEVERITY_ORDER.mapNotNull { level ->
         val count = findings.count { it.level == level }
@@ -167,7 +184,7 @@ internal fun AuditFindingsTree(
     groupItems.toSet()
   }
 
-  LaunchedEffect(isAllExpanded, groupKeys, branchKey) {
+  LaunchedEffect(key1 = isAllExpanded, key2 = groupKeys, key3 = branchKey) {
     treeState.openNodes =
       if (branchKey == null)
         if (isAllExpanded) groupKeys else emptySet()
@@ -317,15 +334,15 @@ internal fun AuditFindingsTree(
         is AuditTreeItem.Finding -> {
           val finding = item.finding
           val isReviewed = findingKey(finding) in reviewedFindings
-          var isHovered by remember { mutableStateOf(false) }
+          var isHovered by remember { mutableStateOf(value = false) }
           Tooltip(tooltip = {
             Text(text = "(${finding.code}) ${finding.formatBody()}")
           }) {
             Row(
               modifier = Modifier
                 .fillMaxWidth()
-                .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-                .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+                .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+                .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false }
                 .padding(
                   vertical = GradumSpacing.sm,
                   horizontal = GradumSpacing.sml
@@ -338,8 +355,8 @@ internal fun AuditFindingsTree(
                   Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml),
-                    modifier = Modifier.onPointerEvent(PointerEventType.Enter) { isHovered = true }
-                      .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+                    modifier = Modifier.onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+                      .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false }
                   ) {
                     Icon(
                       contentDescription = null,
@@ -348,11 +365,11 @@ internal fun AuditFindingsTree(
                     AnimatedVisibility(
                       visible = isHovered,
                       enter = expandHorizontally(
-                        expandFrom = Alignment.Start, animationSpec = tween(200)
-                      ) + fadeIn(animationSpec = tween(200)),
+                        expandFrom = Alignment.Start, animationSpec = tween(durationMillis = 200)
+                      ) + fadeIn(animationSpec = tween(durationMillis = 200)),
                       exit = shrinkHorizontally(
-                        shrinkTowards = Alignment.Start, animationSpec = tween(150)
-                      ) + fadeOut(animationSpec = tween(150))
+                        shrinkTowards = Alignment.Start, animationSpec = tween(durationMillis = 150)
+                      ) + fadeOut(animationSpec = tween(durationMillis = 150))
                     ) {
                       Text(
                         maxLines = 1,

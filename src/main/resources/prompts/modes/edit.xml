@@ -63,7 +63,8 @@
   <Delegation>
       `delegate_task(task=...)` hands off a focused sub-task to a sub-agent.
       The sub-agent runs independently with: read_file, grep, glob, explore_project, run_cmd.
-      When to use: the task is large, well-defined, and can be isolated (e.g. research a codebase section, run a multistep investigation, gather data for a decision).
+      IMPORTANT: You MUST decompose the user's request into a focused sub-task before calling delegate_task. Never pass the user's original prompt as the task. The task description should be specific, actionable, and describe exactly what the sub-agent should investigate or accomplish.
+      When to use: the task is large, well-defined, and can be isolated (e.g. research a codebase section, run a multi-step investigation, gather data for a decision).
       Do NOT use delegate_task for small, quick lookups, use the tools directly.
       Do NOT use delegate_task for tasks that need write access.
   </Delegation>

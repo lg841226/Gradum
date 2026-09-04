@@ -1,12 +1,13 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GrepRenderer.kt  2026-08-16 00:08:59 Changed by gwy
+ * GrepRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
 
+import androidx.compose.foundation.layout.Arrangement.spacedBy
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -14,9 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -37,8 +36,8 @@ class GrepRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val pattern: String = (arguments["pattern"] as? String).orEmpty()
-    val totalMatches: Int = (result["total_matches"] as? Number)?.toInt() ?: 0
+    val pattern: String = arguments.string(key = "pattern")
+    val totalMatches: Int = result.int(key = "total_matches")
 
     return ToolCallContent(
       aliasName = ALIAS,
@@ -61,9 +60,12 @@ class GrepRenderer : ToolCallRenderer {
     Row(
       modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(GradumSpacing.sml)
+      horizontalArrangement = spacedBy(GradumSpacing.sml)
     ) {
-      Icon(GradumIcons.Search, contentDescription = null)
+      Icon(
+        key = GradumIcons.Search,
+        contentDescription = null
+      )
       Text(
         color = textColor,
         style = bodyStyle,
@@ -82,7 +84,7 @@ class GrepRenderer : ToolCallRenderer {
         style = bodyStyle,
         color = disabledColor,
         overflow = TextOverflow.Ellipsis,
-        text = message(LABEL_KEY_DISPLAY, totalMatches)
+        text = message(key = LABEL_KEY_DISPLAY, totalMatches)
       )
     }
   }

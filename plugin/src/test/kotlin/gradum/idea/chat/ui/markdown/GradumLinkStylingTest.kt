@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumLinkStylingTest.kt  2026-07-31 15:54:30 Changed by gwy
+ * GradumLinkStylingTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -61,12 +61,30 @@ class GradumLinkStylingTest {
       inlineCodeStyle = inlineCodeStyle,
       linkColors = linkColors,
     )
-    assertEquals(SpanStyle(color = linkColors.content), styling.link)
-    assertEquals(SpanStyle(color = linkColors.contentDisabled), styling.linkDisabled)
-    assertEquals(SpanStyle(color = linkColors.contentFocused), styling.linkFocused)
-    assertEquals(SpanStyle(color = linkColors.contentHovered), styling.linkHovered)
-    assertEquals(SpanStyle(color = linkColors.contentPressed), styling.linkPressed)
-    assertEquals(SpanStyle(color = linkColors.contentVisited), styling.linkVisited)
+    assertEquals(
+      SpanStyle(color = linkColors.content),
+      styling.link
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentDisabled),
+      styling.linkDisabled
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentFocused),
+      styling.linkFocused
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentHovered),
+      styling.linkHovered
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentPressed),
+      styling.linkPressed
+    )
+    assertEquals(
+      SpanStyle(color = linkColors.contentVisited),
+      styling.linkVisited
+    )
   }
 
   @Test
@@ -103,7 +121,10 @@ class GradumLinkStylingTest {
       inlineCodeStyle = inlineCodeStyle,
       linkColors = linkColors,
     )
-    assertEquals(inlineCodeStyle, styling.inlineCode)
+    assertEquals(
+      inlineCodeStyle,
+      styling.inlineCode
+    )
   }
 
   @Test

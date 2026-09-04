@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkillTest.kt  2026-08-18 20:11:54 Changed by gwy
+ * ExploreProjectSkillTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -45,13 +45,12 @@ class ExploreProjectSkillTest {
       file.writeText(body)
     }
 
-    // Mimics a Maven layout: files live under a sub-module.
-    write("reading-notes/src/main/java/com/example/readingnotes/Main.java", "class Main {}\n")
-    write("reading-notes/src/main/java/com/example/readingnotes/Note.java", "class Note {}\n")
-    write("reading-notes/pom.xml", "<project/>\n")
-    write("README.md", "# readme\n")
-    // No extension → falls into other_files (md / txt are treated as code).
-    write("notes", "plain notes content\n")
+    // Mimics a Maven layout: files live under a submodule.
+    write(relative = "reading-notes/src/main/java/com/example/readingnotes/Main.java", body = "class Main {}\n")
+    write(relative = "reading-notes/src/main/java/com/example/readingnotes/Note.java", body = "class Note {}\n")
+    write(relative = "reading-notes/pom.xml", body = "<project/>\n")
+    write(relative = "README.md", body = "# readme\n")
+    write(relative = "notes", body = "plain notes content\n")
   }
 
   @AfterTest
@@ -65,11 +64,11 @@ class ExploreProjectSkillTest {
       projectRoot = projectRoot.absolutePath,
       modelName = "gpt-4o",
     )
-    return skill.execute(mapOf("depth" to 8), context)
+    return skill.execute(arguments = mapOf("depth" to 8), context)
   }
 
   private fun assertSuccess(result: SkillResult): Map<String, Any> {
-    val success: SkillResult.Success = assertIs<SkillResult.Success>(result)
+    val success: SkillResult.Success = assertIs<SkillResult.Success>(value = result)
     return success.data
   }
 
@@ -82,7 +81,7 @@ class ExploreProjectSkillTest {
   @Test
   fun `code files carry project-root-relative paths, not bare basenames`() {
     val payload: Map<String, Any> = assertSuccess(runSkill())
-    val codePaths: List<String> = pathsFor(payload["code_files"])
+    val codePaths: List<String> = pathsFor(listValue = payload["code_files"])
 
     assertTrue(
       codePaths.isNotEmpty(),
@@ -90,22 +89,19 @@ class ExploreProjectSkillTest {
     )
     codePaths.forEach { filePath ->
       assertFalse(
-        filePath.startsWith('/'),
+        filePath.startsWith(char = '/'),
         "code_files path '$filePath' must be project-relative, not absolute"
       )
     }
 
-    // The fixture's Main.java lives three directories deep — the path
-    // the incident log cared about. It must surface as a multi-segment
-    // path, not a bare basename.
-    val mainPath: String = codePaths.firstOrNull { it.endsWith("Main.java") }
+    val mainPath: String = codePaths.firstOrNull { it.endsWith(suffix = "Main.java") }
       ?: error("code_files must contain Main.java, got: $codePaths")
     assertTrue(
-      mainPath.contains('/'),
+      mainPath.contains(char = '/'),
       "Main.java path '$mainPath' must include its directory segments"
     )
     assertTrue(
-      mainPath.contains("reading-notes"),
+      mainPath.contains(other = "reading-notes"),
       "Main.java path '$mainPath' must include the 'reading-notes' module segment"
     )
   }
@@ -122,9 +118,12 @@ class ExploreProjectSkillTest {
     )
     configEntries.forEach { entry ->
       val path: String = entry["path"] as? String ?: ""
-      assertTrue(path.isNotBlank(), "config_files entry missing 'path': $entry")
       assertTrue(
-        path.contains('/') || !path.contains('.'),
+        path.isNotBlank(),
+        "config_files entry missing 'path': $entry"
+      )
+      assertTrue(
+        path.contains(char = '/') || !path.contains(char = '.'),
         "config_files path '$path' looks like a bare basename"
       )
     }

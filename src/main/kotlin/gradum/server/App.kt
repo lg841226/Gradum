@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * App.kt  2026-08-12 12:38:25 Changed by gwy
+ * App.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -23,9 +23,9 @@ typealias GradumServer = EmbeddedServer<NettyApplicationEngine, NettyApplication
 
 fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer {
   val server: GradumServer = embeddedServer(
-    Netty,
-    host = serverConfiguration.hostAddress,
-    port = serverConfiguration.portNumber
+    factory = Netty,
+    port = serverConfiguration.portNumber,
+    host = serverConfiguration.hostAddress
   ) { module(serverConfiguration) }
   return server
 }
@@ -35,7 +35,7 @@ fun createServerInstance(serverConfiguration: ServerConfiguration): GradumServer
  * application routes defined in [registerAllRoutes].
  */
 fun Application.module(serverConfiguration: ServerConfiguration) {
-  install(ContentNegotiation) {
+  install(plugin = ContentNegotiation) {
     json(Json {
       prettyPrint = false
       isLenient = true
@@ -44,7 +44,13 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
   }
 
   registerAllRoutes(serverConfiguration)
-  val skills = SkillRegistry.getAllSkills()
-  logger.info("Registered ${skills.size} skills: ${skills.joinToString { "${it.alias}(${it.skillName})" }}")
+  val skills = SkillRegistry.getAllSkills().toList()
+  if (skills.isNotEmpty()) {
+    logger.info("Available skills: ${skills.count()}")
+    skills.dropLast(n = 1).forEach { skill ->
+      logger.info("├── ${skill.alias}(${skill.skillName})")
+    }
+    logger.info("└── ${skills.last().alias}(${skills.last().skillName})")
+  }
   logger.info("Gradum Server starting on ${serverConfiguration.hostAddress}:${serverConfiguration.portNumber}")
 }

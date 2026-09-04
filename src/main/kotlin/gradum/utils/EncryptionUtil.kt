@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EncryptionUtil.kt  2026-08-12 12:38:25 Changed by gwy
+ * EncryptionUtil.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.utils
@@ -32,7 +32,9 @@ private val classLogger = Logger.getLogger("EncryptionUtil")
 
 private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
   val hmac: Mac = Mac.getInstance("HmacSHA256")
-  hmac.init(SecretKeySpec("gradum-key-derivation".toByteArray(Charsets.UTF_8), "HmacSHA256"))
+  hmac.init(
+    SecretKeySpec("gradum-key-derivation".toByteArray(Charsets.UTF_8), "HmacSHA256")
+  )
   val pseudorandomKey: ByteArray = hmac.doFinal(keySource)
 
   hmac.init(SecretKeySpec(pseudorandomKey, "HmacSHA256"))
@@ -100,8 +102,6 @@ private fun getKeySource(): ByteArray {
 }
 
 fun encryptMessageContent(plaintext: String): String {
-  classLogger.info("Encrypting message, plaintext length: ${plaintext.length} chars")
-
   val encryptionKey: ByteArray = getEncryptionKey()
   val authenticationKey: ByteArray = getAuthenticationKey()
   val nonce: ByteArray = ByteArray(NONCE_SIZE_BYTES).also { array ->
@@ -109,7 +109,6 @@ fun encryptMessageContent(plaintext: String): String {
   }
 
   val plaintextBytes: ByteArray = plaintext.toByteArray(Charsets.UTF_8)
-  classLogger.fine("Plaintext preview: $plaintext")
 
   val ciphertext: ByteArray = hmacCtrEncrypt(plaintextBytes, encryptionKey, nonce)
   val tokenBody: ByteArray = byteArrayOf(VERSION_BYTE) + nonce + ciphertext
@@ -117,15 +116,11 @@ fun encryptMessageContent(plaintext: String): String {
   val fullToken: ByteArray = tokenBody + authenticationTag
   val encodedResult = Base64.getEncoder().encodeToString(fullToken)
 
-  classLogger.info("Encryption complete, encrypted length: ${encodedResult.length} chars")
-
   return encodedResult
 }
 
 fun decryptMessageContent(encodedCiphertext: String): String {
   if (encodedCiphertext.isEmpty()) return ""
-
-  classLogger.info("Decrypting message, ciphertext length: ${encodedCiphertext.length} chars")
 
   try {
     val rawBytes: ByteArray = Base64.getDecoder().decode(encodedCiphertext)
@@ -155,7 +150,6 @@ fun decryptMessageContent(encodedCiphertext: String): String {
     val plaintextBytes: ByteArray = hmacCtrEncrypt(ciphertextBytes, encryptionKey, nonce)
 
     val decodedResult = plaintextBytes.toString(Charsets.UTF_8)
-    classLogger.info("Decryption complete, encrypted length: ${decodedResult.length} chars")
 
     return decodedResult
 

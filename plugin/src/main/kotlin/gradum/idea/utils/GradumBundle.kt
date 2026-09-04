@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBundle.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumBundle.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.utils
@@ -44,7 +44,9 @@ object GradumBundle : DynamicBundle(BUNDLE_NAME) {
    * key is obvious in the UI without breaking layout.
    */
   @JvmStatic
-  fun message(@PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any): String {
+  fun message(
+    @PropertyKey(resourceBundle = BUNDLE_NAME) key: String, vararg params: Any
+  ): String {
     return try {
       getMessage(key, *params)
     } catch (exception: MissingResourceException) {
@@ -54,9 +56,6 @@ object GradumBundle : DynamicBundle(BUNDLE_NAME) {
   }
 
   init {
-    // Probe one well-known key at object-init so a renamed/missing
-    // resource surfaces as a single clear log line at plugin startup
-    // instead of dozens of warnings later from the UI tree.
     try {
       getMessage(PROBE_KEY)
     } catch (exception: MissingResourceException) {

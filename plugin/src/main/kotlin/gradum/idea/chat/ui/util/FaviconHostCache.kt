@@ -1,10 +1,13 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * FaviconHostCache.kt  2026-08-14 Changed by gwy
+ * FaviconHostCache.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.chat.ui.util
+
+import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
+
 
 /**
  * Per-host "winning favicon URL" cache.
@@ -108,7 +111,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
    */
   fun recordSuccess(host: String, url: String) {
     synchronized(lock) {
-      failedHosts.remove(host)
+      failedHosts.remove(element = host)
       winningUrls[host] = url
       evictIfNeeded()
     }
@@ -140,16 +143,16 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
   private fun evictIfNeeded() {
     val totalSize: Int = winningUrls.size + failedHosts.size
     if (totalSize <= maxEntries) return
-    // Drop from whichever side is the larger contributor. Both maps
-    // use insertion order, so the eldest entry is `iterator().next()`.
+
     val toDrop: Int = totalSize - maxEntries
-    repeat(toDrop) {
+    repeat(times = toDrop) {
       if (failedHosts.size > winningUrls.size) {
-        failedHosts.iterator().next().let { failedHosts.remove(it) }
-      } else if (winningUrls.isNotEmpty()) {
-        val eldest: String = winningUrls.keys.iterator().next()
-        winningUrls.remove(eldest)
-      }
+        failedHosts.iterator().next().let { failedHosts.remove(element = it) }
+      } else
+        if (winningUrls.isNotEmpty()) {
+          val eldest: String = winningUrls.keys.iterator().next()
+          winningUrls.remove(key = eldest)
+        }
     }
   }
 

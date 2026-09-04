@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PathResolverTest.kt  2026-08-18 12:45:23 Changed by gwy
+ * PathResolverTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -41,7 +41,10 @@ class PathResolverTest {
   fun `direct relative path resolves as-is`() {
     val result = resolveProjectPath("src/demo.js", rootPath())
     assertFalse(result.shifted)
-    assertEquals("src/demo.js", result.original)
+    assertEquals(
+      "src/demo.js",
+      result.original
+    )
     assertNull(result.rejectionReason, "in-project relative path must not be rejected")
     assertEquals(
       Paths.get(rootPath(), "src/demo.js").toAbsolutePath().normalize(),
@@ -56,7 +59,10 @@ class PathResolverTest {
       rootPath()
     )
     assertTrue(result.shifted, "expected shift for first segment = projectRoot basename")
-    assertEquals("src/demo.js", result.shiftedForm)
+    assertEquals(
+      "src/demo.js",
+      result.shiftedForm
+    )
     assertNull(result.rejectionReason)
     assertEquals(
       Paths.get(rootPath(), "src/demo.js").toAbsolutePath().normalize(),
@@ -80,35 +86,44 @@ class PathResolverTest {
 
   @Test
   fun `first segment that does not match project basename is not shifted`() {
-    val result = resolveProjectPath("src/missing-but-other-js-exists.js", rootPath())
+    val result = resolveProjectPath(filePath = "src/missing-but-other-js-exists.js", projectRoot = rootPath())
     assertFalse(result.shifted)
-    assertEquals("src/missing-but-other-js-exists.js", result.original)
+    assertEquals(
+      "src/missing-but-other-js-exists.js",
+      result.original
+    )
     assertNull(result.rejectionReason)
   }
 
   @Test
   fun `path equal to projectRoot basename only is not shifted`() {
-    val result = resolveProjectPath(tempRoot.name, rootPath())
+    val result = resolveProjectPath(filePath = tempRoot.name, projectRoot = rootPath())
     assertFalse(result.shifted)
-    assertEquals(tempRoot.name, result.original)
+    assertEquals(
+      tempRoot.name,
+      result.original
+    )
     assertNull(result.rejectionReason)
   }
 
   @Test
   fun `absolute path inside project root is accepted`() {
     val absolute = Paths.get(rootPath(), "src/demo.js").toAbsolutePath().normalize()
-    val result = resolveProjectPath(absolute.toString(), rootPath())
+    val result = resolveProjectPath(filePath = absolute.toString(), projectRoot = rootPath())
     assertFalse(result.shifted)
     assertNull(result.rejectionReason, "absolute path inside project root must be accepted")
-    assertEquals(absolute, result.resolved)
+    assertEquals(
+      absolute,
+      result.resolved
+    )
   }
 
   @Test
   fun `absolute path outside project root is rejected with PERMISSION_DENIED reason`() {
-    val result = resolveProjectPath("/etc/passwd", rootPath())
+    val result = resolveProjectPath(filePath = "/etc/passwd", projectRoot = rootPath())
     assertNotNull(result.rejectionReason, "absolute system path must be rejected")
     assertTrue(
-      result.rejectionReason.contains("outside the project root"),
+      result.rejectionReason.contains(other = "outside the project root"),
       "rejection reason should explain the boundary violation: ${result.rejectionReason}"
     )
   }
@@ -116,8 +131,8 @@ class PathResolverTest {
   @Test
   fun `absolute path in home dot ssh is rejected`() {
     val result = resolveProjectPath(
-      "${System.getProperty("user.home")}/.ssh/id_rsa",
-      rootPath()
+      filePath = "${System.getProperty("user.home")}/.ssh/id_rsa",
+      projectRoot = rootPath()
     )
     assertNotNull(result.rejectionReason)
   }
@@ -128,8 +143,8 @@ class PathResolverTest {
     try {
       val evilRoot: File = Files.createTempDirectory(trapRoot.name + "-evil").toFile()
       val result = resolveProjectPath(
-        evilRoot.absolutePath,
-        trapRoot.absolutePath
+        filePath = evilRoot.absolutePath,
+        projectRoot = trapRoot.absolutePath
       )
       assertNotNull(
         result.rejectionReason,
@@ -143,13 +158,13 @@ class PathResolverTest {
 
   @Test
   fun `parent traversal is rejected`() {
-    val result = resolveProjectPath("../escaped.txt", rootPath())
+    val result = resolveProjectPath(filePath = "../escaped.txt", projectRoot = rootPath())
     assertNotNull(result.rejectionReason, "../ traversal must not escape the project root")
   }
 
   @Test
   fun `safe prefix tmp is allowed even outside project root`() {
-    val result = resolveProjectPath("/tmp/scratch.json", rootPath())
+    val result = resolveProjectPath(filePath = "/tmp/scratch.json", projectRoot = rootPath())
     assertNull(
       result.rejectionReason,
       "/tmp scratch paths should be allowed regardless of project root"
@@ -158,33 +173,33 @@ class PathResolverTest {
 
   @Test
   fun `blank filePath is rejected when project root is required`() {
-    val result = resolveProjectPath("", rootPath())
+    val result = resolveProjectPath(filePath = "", projectRoot = rootPath())
     assertNotNull(result.rejectionReason, "blank filePath must be rejected")
   }
 
   @Test
   fun `blank projectRoot rejects every path`() {
-    val result = resolveProjectPath("src/demo.js", "")
+    val result = resolveProjectPath(filePath = "src/demo.js", projectRoot = "")
     assertNotNull(result.rejectionReason)
   }
 
   @Test
   fun `requireWithinProject false opts out of the boundary check`() {
-    val result = resolveProjectPath("/etc/passwd", rootPath(), requireWithinProject = false)
+    val result = resolveProjectPath(filePath = "/etc/passwd", projectRoot = rootPath(), requireWithinProject = false)
     assertNull(result.rejectionReason)
   }
 
   @Test
   fun `whitespace-only projectRoot is rejected`() {
-    val result = resolveProjectPath("src/demo.js", "   ")
+    val result = resolveProjectPath(filePath = "src/demo.js", projectRoot = "   ")
     assertNotNull(result.rejectionReason, "whitespace-only projectRoot must be treated as unset")
   }
 
   @Test
   fun `trailing slash in input is tolerated`() {
     val result = resolveProjectPath(
-      "${tempRoot.name}/",
-      rootPath()
+      filePath = "${tempRoot.name}/",
+      projectRoot = rootPath()
     )
     assertFalse(result.shifted)
     assertNull(result.rejectionReason)
@@ -193,11 +208,14 @@ class PathResolverTest {
   @Test
   fun `nested shift candidate resolves to existing file`() {
     val result = resolveProjectPath(
-      "${tempRoot.name}/deep/nested/file.txt",
-      rootPath()
+      filePath = "${tempRoot.name}/deep/nested/file.txt",
+      projectRoot = rootPath()
     )
     assertTrue(result.shifted)
-    assertEquals("deep/nested/file.txt", result.shiftedForm)
+    assertEquals(
+      "deep/nested/file.txt",
+      result.shiftedForm
+    )
     assertNull(result.rejectionReason)
     assertEquals(
       Paths.get(rootPath(), "deep/nested/file.txt").toAbsolutePath().normalize(),
@@ -208,19 +226,20 @@ class PathResolverTest {
   @Test
   fun `back-slash separator is recognised on input`() {
     val result = resolveProjectPath(
-      "${tempRoot.name}\\src\\demo.js",
-      rootPath()
+      filePath = "${tempRoot.name}\\src\\demo.js",
+      projectRoot = rootPath()
     )
     assertTrue(result.shifted)
-    assertEquals("src/demo.js", result.shiftedForm)
+    assertEquals(
+      "src/demo.js",
+      result.shiftedForm
+    )
     assertNull(result.rejectionReason)
   }
 
   @Test
   fun `symlink escaping the project root is rejected`() {
-    // Create a real file OUTSIDE the project, then a symlink INSIDE the
-    // project pointing at it. The string-level boundary check passes
-    // (`proj/evil` starts with rootPath), but the on-disk target escapes.
+
     val outsideRoot: File = Files.createTempDirectory("gradum-path-outside").toFile()
     try {
       val secretFile = File(outsideRoot, "secret.txt")
@@ -228,7 +247,7 @@ class PathResolverTest {
       val link = File(tempRoot, "evil-link")
       Files.createSymbolicLink(link.toPath(), secretFile.toPath())
 
-      val result = resolveProjectPath("evil-link", rootPath())
+      val result = resolveProjectPath(filePath = "evil-link", projectRoot = rootPath())
       assertNotNull(
         result.rejectionReason,
         "project-internal symlink to an external file must be rejected"

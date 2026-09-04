@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-13 17:05:03 Changed by gwy
+ * WelcomeScreen.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -12,7 +12,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -25,11 +24,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.dp
-import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.input.ChatInputActions
-import gradum.idea.chat.input.ChatInputState
+import gradum.idea.chat.state.ChatSessionState
 import gradum.idea.chat.ui.input.ChatInputSection
-import gradum.idea.chat.ui.input.PermissionMode
+import gradum.idea.settings.WelcomeLayout
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -51,19 +48,7 @@ data class MergeModeCallbacks(
 )
 
 /**
- * Linear gradient for the welcome heading text. Anchored at
- * [GradumIcons.ColorLogo]'s `starGrad` `linearGradient`
- * (x1="100%" y1="0%" x2="0%" y2="100%"), which is translated to
- * Compose's [Offset] space: start at the top-right of the text
- * bounds, end at the bottom-left. That mirrors the logo's diagonal
- * sweep, so the heading reads as the same brand mark as the icon
- * next to it.
- *
- * The end color is nudged away from the logo's pure light blue
- * (`#7CB3FF`) toward a slightly deeper lavender-blue
- * (`#7B86E0`): keeps the gradient from washing out at the
- * light end and gives the heading a touch of purple so it doesn't
- * read as a flat sky-blue band against the white background.
+ * Linear gradient for the welcome heading text.
  */
 private val WelcomeGradient: Brush = Brush.linearGradient(
   end = Offset(0f, Float.POSITIVE_INFINITY),
@@ -78,52 +63,48 @@ private val WelcomeGradient: Brush = Brush.linearGradient(
  */
 @Composable
 fun WelcomeScreen(
-  inputState: ChatInputState,
-  textState: TextFieldState,
-  suggestionVariants: List<Int>,
+  state: ChatSessionState,
   modifier: Modifier = Modifier,
-  inputActions: ChatInputActions,
-  isMergeModeActive: Boolean = false,
-  sessions: List<SessionMeta> = emptyList(),
-  mergeSelectedIds: Set<String> = emptySet(),
-  selectedPermission: String = PermissionMode.READONLY,
-  welcomeLayout: gradum.idea.settings.WelcomeLayout = gradum.idea.settings.WelcomeLayout.QS4_RC2,
-  mergeCallbacks: MergeModeCallbacks = MergeModeCallbacks(
-    onStartMerge = {},
-    onCancelMerge = {},
-    onMergeSelected = {},
-    onDeleteSelected = {},
-    onClearMergeSelection = {},
-    onToggleMergeSelection = {},
-    onRenameSession = { _, _ -> },
-    onDeleteSession = {}
-  ),
-  onRefreshSuggestions: () -> Unit,
-  onOpenSession: (String) -> Unit = {}
+  welcomeLayout: WelcomeLayout = WelcomeLayout.QS4_RC2,
 ) {
   val titleFont = remember { Font("/font/GoogleSans.ttf") }
   val titleFontFamily = remember { FontFamily(titleFont) }
+
+  // Derive MergeModeCallbacks from ChatSessionState
+  val mergeCallbacks = remember(key1 = state) {
+    MergeModeCallbacks(
+      onStartMerge = state.onStartMerge,
+      onCancelMerge = state.onCancelMerge,
+      onMergeSelected = state.onMergeSelected,
+      onDeleteSelected = state.onDeleteSelected,
+      onClearMergeSelection = state.onClearMergeSelection,
+      onToggleMergeSelection = state.onToggleMergeSelection,
+      onRenameSession = state.onRenameSession,
+      onDeleteSession = state.onDeleteSession
+    )
+  }
+
   Box(
     modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
-    if (isMergeModeActive) {
+    if (state.isMergeModeActive) {
       ManageSessionsBoard(
-        sessions = sessions,
-        selectedIds = mergeSelectedIds,
         onMerge = mergeCallbacks.onMergeSelected,
+        onBack = mergeCallbacks.onCancelMerge,
+        selectedIds = state.mergeSelectedIds,
+        sessions = state.sessions.toList(),
         onClearSelection = mergeCallbacks.onClearMergeSelection,
         onDeleteSelected = mergeCallbacks.onDeleteSelected,
-        onBack = mergeCallbacks.onCancelMerge,
         onToggleSelection = mergeCallbacks.onToggleMergeSelection,
-        onRenameSession = mergeCallbacks.onRenameSession,
-        onDeleteSession = mergeCallbacks.onDeleteSession
+        onDeleteSession = mergeCallbacks.onDeleteSession,
+        onRenameSession = mergeCallbacks.onRenameSession
       )
     } else {
-      val isInputFocused: Boolean = inputState.isFocused
+      val isInputFocused: Boolean = state.inputState.isFocused
       Column(
         modifier = Modifier
-          .verticalScroll(rememberScrollState())
+          .verticalScroll(state = rememberScrollState())
           .widthIn(max = 600.dp),
         verticalArrangement = Arrangement.spacedBy(GradumSpacing.ml)
       ) {
@@ -151,38 +132,38 @@ fun WelcomeScreen(
           Spacer(modifier = Modifier.height(GradumSpacing.md))
         }
         ChatInputSection(
-          state = inputState,
-          textState = textState,
-          actions = inputActions,
-          selectedPermission = selectedPermission,
-          modifier = Modifier.widthIn(max = 600.dp)
+          state = state.inputState,
+          actions = state.inputActions,
+          textState = state.textState,
+          modifier = Modifier.widthIn(max = 600.dp),
+          selectedPermission = state.selectedPermission
         )
         AnimatedVisibility(
-          visible = !isInputFocused || sessions.isEmpty(),
-          exit = shrinkVertically(animationSpec = tween(200))
+          visible = !isInputFocused || state.sessions.isEmpty(),
+          exit = shrinkVertically(animationSpec = tween(durationMillis = 200))
         ) {
           if (welcomeLayout.quickStartCount > 0) {
             QuickStartSection(
-              textState = textState,
-              suggestionVariants = suggestionVariants,
-              onRefreshSuggestions = onRefreshSuggestions,
-              maxItems = welcomeLayout.quickStartCount
+              maxItems = welcomeLayout.quickStartCount,
+              textState = state.textState,
+              suggestionVariants = state.suggestionVariants,
+              onRefreshSuggestions = state.onRefreshSuggestions
             )
           }
         }
-        if (sessions.isNotEmpty()) {
+        if (state.sessions.isNotEmpty()) {
           RecentChatsSection(
-            sessions = sessions,
-            expanded = isInputFocused,
             maxDisplay = welcomeLayout.recentCount,
-            onStartMerge = mergeCallbacks.onStartMerge,
-            onOpenSession = onOpenSession,
-            onDeleteSession = mergeCallbacks.onDeleteSession
+            expanded = isInputFocused,
+            sessions = state.sessions.toList(),
+            onOpenSession = state.onOpenSession,
+            onDeleteSession = mergeCallbacks.onDeleteSession,
+            onStartMerge = mergeCallbacks.onStartMerge
           )
         }
       }
     }
-    if (!isMergeModeActive) {
+    if (!state.isMergeModeActive) {
       Row(
         modifier = Modifier
           .fillMaxWidth()

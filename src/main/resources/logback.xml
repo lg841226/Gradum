@@ -1,14 +1,20 @@
 <!--
-  ~ Copyright (c) 2026 Gradum team, some rights reserved.
+  ~ Copyright (c) 2026 Gradum Authors
   ~ For licensing terms and conditions, see the MIT LICENSE file.
   ~
-  ~ logback.xml  2026-08-12 12:38:25 Changed by gwy
+  ~ logback.xml  2026-08-31 19:21:55 Changed by gwy
   -->
 
 <configuration>
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+    <!-- Custom converters for Logcat-style output -->
+    <conversionRule conversionWord="gradumLevel" converterClass="gradum.logging.GradumLevelConverter"/>
+    <conversionRule conversionWord="gradumPort" converterClass="gradum.logging.GradumPortConverter"/>
+
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %gradumPort %gradumLevel %logger{0} %msg%n</pattern>
         </encoder>
     </appender>
 

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolCallScenarioParser.kt  2026-08-14 12:47:24 Changed by gwy
+ * ToolCallScenarioParser.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.debug
@@ -95,23 +95,22 @@ object ToolCallScenarioParser {
   /** Parses a raw scenario XML string into a [ToolCallScenario]. */
   fun parse(rawXml: String): ToolCallScenario {
     val documentBuilderFactory = DocumentBuilderFactory.newInstance()
-    // Best-effort hardening: the scenario is developer-authored, not remote,
-    // but disabling external DTDs makes a copy-pasted fragment safe anyway.
+
     try {
       documentBuilderFactory.setFeature(
         "http://apache.org/xml/features/nonvalidating/load-external-dtd", false
       )
     } catch (featureException: Exception) {
-      // Parser implementations without this feature just parse as-is.
       logger.debug("Parser does not support the anti-DTD feature, parsing without it", featureException)
     }
 
     val documentBuilder = documentBuilderFactory.newDocumentBuilder()
-    val document = try {
-      documentBuilder.parse(ByteArrayInputStream(rawXml.toByteArray(StandardCharsets.UTF_8)))
-    } catch (parseException: Exception) {
-      throw ToolCallScenarioParseException("Invalid scenario XML: ${parseException.message}", parseException)
-    }
+    val document =
+      try {
+        documentBuilder.parse(ByteArrayInputStream(rawXml.toByteArray(charset = StandardCharsets.UTF_8)))
+      } catch (parseException: Exception) {
+        throw ToolCallScenarioParseException("Invalid scenario XML: ${parseException.message}", parseException)
+      }
 
     val root = document.documentElement ?: throw ToolCallScenarioParseException("Scenario XML has no root element")
     if (root.tagName != "tls") {
@@ -125,7 +124,7 @@ object ToolCallScenarioParser {
     }
 
     val stepList = buildList {
-      for (child: Element in childElements(root)) {
+      for (child: Element in childElements(parent = root)) {
         when (child.tagName) {
           "t" -> add(parseToolElement(child))
           "tt" -> add(parseReplyElement(child))
@@ -150,14 +149,12 @@ object ToolCallScenarioParser {
   }
 
   private fun parseReplyElement(element: Element): ScenarioStep.AiReply {
-    // `msg="..."` is the compact form; `<tt>free text</tt>` and CDATA
-    // blocks fall back to the element's text content.
     val content: String = element.getAttribute("msg").trim().ifEmpty {
       element.textContent.orEmpty().trim()
     }
-    if (content.isEmpty()) {
+    if (content.isEmpty())
       throw ToolCallScenarioParseException("A <tt> element is missing the required msg=\"...\" attribute")
-    }
+
     return ScenarioStep.AiReply(content)
   }
 
@@ -168,19 +165,20 @@ object ToolCallScenarioParser {
 
     val argumentsMap: Map<String, JsonElement> = buildArgumentsMap(element)
     val expectRaw: String = element.getAttribute("exp").trim()
-    val expectSuccess: Boolean = when (expectRaw.lowercase()) {
-      "" -> true
-      "success" -> true
-      "error" -> false
-      else -> throw ToolCallScenarioParseException(
-        "Invalid exp=\"$expectRaw\" on tool <$functionName>; use \"success\" or \"error\""
-      )
-    }
+    val expectSuccess: Boolean =
+      when (expectRaw.lowercase()) {
+        "" -> true
+        "success" -> true
+        "error" -> false
+        else -> throw ToolCallScenarioParseException(
+          "Invalid exp=\"$expectRaw\" on tool <$functionName>; use \"success\" or \"error\""
+        )
+      }
 
     return ParsedToolCall(
       functionName = functionName,
       expectSuccess = expectSuccess,
-      functionArguments = argumentsMap,
+      functionArguments = argumentsMap
     )
   }
 
@@ -189,10 +187,10 @@ object ToolCallScenarioParser {
     return buildMap {
       for (attributeIndex in 0 until attributes.length) {
         val attribute = attributes.item(attributeIndex) as Attr
-        if (attribute.name == "nam" || attribute.name == "exp") continue // control attributes
+        if (attribute.name == "nam" || attribute.name == "exp") continue
         put(
           ARGUMENT_ALIASES[attribute.name] ?: attribute.name,
-          parseArgumentValue(attribute.value)
+          parseArgumentValue(rawValue = attribute.value)
         )
       }
     }
@@ -200,9 +198,10 @@ object ToolCallScenarioParser {
 
   private fun parseArgumentValue(rawValue: String): JsonElement {
     val trimmed: String = rawValue.trim()
-    if (trimmed.firstOrNull() !in ARRAY_OR_OBJECT_MARKERS) return JsonPrimitive(rawValue)
-    // Not valid JSON after all (e.g. `{name}`)? Keep it a plain string.
-    return runCatching { Json.parseToJsonElement(trimmed) }
+    if (trimmed.firstOrNull() !in ARRAY_OR_OBJECT_MARKERS)
+      return JsonPrimitive(rawValue)
+
+    return runCatching { Json.parseToJsonElement(string = trimmed) }
       .getOrElse { JsonPrimitive(rawValue) }
   }
 

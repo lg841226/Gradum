@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-23 20:21:41 Changed by gwy
+ * Agent.kt  2026-08-31 19:21:54 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -43,8 +43,8 @@ internal fun contextOutputDirectory(configuration: AgentConfiguration): Path {
   val projectRootPath: Path = Path.of(configuration.projectRoot)
   val isSafeSessionKey: Boolean = sessionKey.isNotEmpty() &&
     sessionKey != "." && sessionKey != ".." &&
-    !sessionKey.contains('/') && !sessionKey.contains('\\') &&
-    !sessionKey.startsWith("~")
+    !sessionKey.contains(char = '/') && !sessionKey.contains(char = '\\') &&
+    !sessionKey.startsWith(prefix = "~")
   return if (!isSafeSessionKey) {
     projectRootPath.resolve(".gradum")
   } else {
@@ -81,14 +81,20 @@ data class AttachmentPayload(
  */
 class Agent(
   private val configuration: AgentConfiguration,
-  private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit
+  private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
+  private val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
+  /**
+   * Paired with [registerChildSession]; called when a sub-agent completes
+   * or errors so the session hierarchy stays clean.
+   */
+  private val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
 ) {
   private val ollamaClient: OllamaClient = OllamaClient(configuration)
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
   private var activeClient: LlmClient
 
   private val contextManager: ContextManager = ContextManager(
-    contextOutputDirectory(configuration)
+    outputDirectory = contextOutputDirectory(configuration)
   )
 
   private val conversationHistory: ConversationHistory = ConversationHistory()
@@ -102,8 +108,10 @@ class Agent(
       agentConfiguration = configuration,
       modelName = configuration.modelName,
       projectRoot = configuration.projectRoot,
-      conversationHistory = conversationHistory.toList(),
+      conversationHistory = { conversationHistory.toList() },
       emitEvent = emitEvent,
+      registerChildSession = registerChildSession,
+      unregisterChildSession = unregisterChildSession,
     ), sessionManager, configuration,
     conversationHistory,
     emitEvent = emitEvent
@@ -142,11 +150,11 @@ class Agent(
     val contextLoaded: Boolean =
       if (loadPreviousContext) {
         val loadedMessages: List<Map<String, Any>> = contextManager.loadContext()
-        conversationHistory.addAll(loadedMessages)
+        conversationHistory.addAll(msgs = loadedMessages)
         loadedMessages.isNotEmpty()
       } else false
 
-    conversationHistory.addSystemMessage(promptLoader.load(configuration.taskDescription))
+    conversationHistory.addSystemMessage(content = promptLoader.load(configuration.taskDescription))
 
     for (skill: Skill in SkillRegistry.getAllSkills())
       skill.resetHistoryCount()
@@ -154,7 +162,8 @@ class Agent(
     getTodoManagerInstance().resetTaskList()
 
     emitEvent(
-      "session_start", mapOf(
+      "session_start",
+      mapOf(
         "contextLoaded" to contextLoaded,
         "model" to configuration.modelName,
         "version" to Version.GRADUM_VERSION,
@@ -163,12 +172,12 @@ class Agent(
       )
     )
 
-    conversationHistory.addUserMessage(userInput, attachments)
+    conversationHistory.addUserMessage(text = userInput, attachments)
 
     if (toolCallXml != null) {
       playToolCallScenario(toolCallXml)
       sessionManager.finish()
-      contextManager.saveContext(conversationHistory.toList(), configuration.modelName)
+      contextManager.saveContext(messages = conversationHistory.toList(), configuration.modelName)
       return
     }
 
@@ -187,7 +196,8 @@ class Agent(
 
       result.errorMessage?.let { error ->
         emitEvent(
-          "error", mapOf(
+          "error",
+          mapOf(
             "code" to ErrorCode.CLIENT_ERROR,
             "message" to error.trim(),
             "source" to "${configuration.provider.name.lowercase()}_client"
@@ -240,25 +250,33 @@ class Agent(
 
       if (result.toolCalls.isNullOrEmpty()) {
         result.responseText?.let { text ->
-          conversationHistory.addAssistantMessage(text, configuration.modelName, configuration.provider, null)
+          conversationHistory.addAssistantMessage(
+            content = text, configuration.modelName, configuration.provider, processedCalls = null
+          )
         }
         break
       }
 
-      val processedCalls: List<ProcessedToolCall> = toolExecutor.prepareToolCalls(result.toolCalls)
+      val processedCalls: List<ProcessedToolCall> = toolExecutor.prepareToolCalls(rawCalls = result.toolCalls)
       conversationHistory.addAssistantMessage(
-        result.responseText ?: "", configuration.modelName, configuration.provider, processedCalls
+        content = result.responseText ?: "",
+        configuration.modelName,
+        configuration.provider,
+        processedCalls
       )
 
       for ((index: Int, processedCall: ProcessedToolCall) in processedCalls.withIndex())
-        toolExecutor.executeSingleTool(processedCall, isLastToolCall = index == processedCalls.lastIndex)
+        toolExecutor.executeSingleTool(
+          processedCall,
+          isLastToolCall = index == processedCalls.lastIndex
+        )
 
       if (sessionManager.isAborted) break
     }
 
     if (configuration.taskDescription == null) {
       sessionManager.finish()
-      contextManager.saveContext(conversationHistory.toList(), configuration.modelName)
+      contextManager.saveContext(messages = conversationHistory.toList(), configuration.modelName)
     }
   }
 
@@ -292,7 +310,8 @@ class Agent(
       val snapshot: TokenUsageSnapshot = activeClient.tokenUsage
       if (content.isNotEmpty() || snapshot.totalTokens > 0) {
         emitEvent(
-          "response", mapOf(
+          "response",
+          mapOf(
             "content" to content,
             "promptTokens" to snapshot.promptTokens,
             "completionTokens" to snapshot.completionTokens,
@@ -303,7 +322,7 @@ class Agent(
     }
 
     val responseFlow: Flow<LLMResponseChunk> =
-      activeClient.sendChat(conversationHistory.toList(), toolSchemas)
+      activeClient.sendChat(messageHistory = conversationHistory.toList(), toolDefinitions = toolSchemas)
 
     // TODO(tech-debt): migrate this to a `suspend fun` so the Netty event loop is not
     // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
@@ -320,9 +339,12 @@ class Agent(
           is LLMResponseChunk.ReasoningContent -> {
             flushResponse()
             logger.info(
-              "Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(50).replace("\n", "\\n")}"
+              "Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(n = 50).replace("\n", "\\n")}"
             )
-            emitEvent("thinking", mapOf("content" to chunk.text))
+            emitEvent(
+              "thinking",
+              mapOf("content" to chunk.text)
+            )
           }
 
           is LLMResponseChunk.ToolCallBatch -> {
@@ -341,9 +363,9 @@ class Agent(
     flushResponse()
 
     return AgentTurnResult(
-      toolCalls = toolCallsResult,
       errorMessage = errorMessage,
-      responseText = contentParts.joinToString(""),
+      responseText = contentParts.joinToString(separator = ""),
+      toolCalls = toolCallsResult,
     )
   }
 
@@ -351,7 +373,9 @@ class Agent(
     responseText: String?, revokeReason: String, revokeDetails: Map<String, Any>
   ): Boolean {
     responseText?.let { text ->
-      conversationHistory.addAssistantMessage(text, configuration.modelName, configuration.provider, null)
+      conversationHistory.addAssistantMessage(
+        content = text, configuration.modelName, configuration.provider, processedCalls = null
+      )
     }
     sessionManager.emitRevoked(revokeReason, revokeDetails)
     val tokenUsage = mapOf(
@@ -372,24 +396,27 @@ class Agent(
    * `<projectRoot>/.gradum/recordings/<scenario>.json`.
    */
   private fun playToolCallScenario(toolCallXml: String): Unit {
-    val scenario: ToolCallScenario = try {
-      ToolCallScenarioParser.parse(toolCallXml)
-    } catch (scenarioException: ToolCallScenarioParseException) {
-      emitEvent(
-        "error", mapOf(
-          "code" to ErrorCode.INVALID_SCENARIO_XML.name,
-          "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
-          "source" to "debug_playback"
+    val scenario: ToolCallScenario =
+      try {
+        ToolCallScenarioParser.parse(rawXml = toolCallXml)
+      } catch (scenarioException: ToolCallScenarioParseException) {
+        emitEvent(
+          "error",
+          mapOf(
+            "code" to ErrorCode.INVALID_SCENARIO_XML.name,
+            "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
+            "source" to "debug_playback"
+          )
         )
-      )
-      return
-    }
+        return
+      }
 
     val scenarioName: String = scenario.scenarioName.ifBlank { "playback" }
     val toolCalls: List<ParsedToolCall> = scenario.toolCalls
 
     emitEvent(
-      "playback_start", mapOf(
+      "playback_start",
+      mapOf(
         "mode" to configuration.toolMode.name,
         "scenario" to scenarioName,
         "steps" to scenario.steps.size,
@@ -407,7 +434,8 @@ class Agent(
         is ScenarioStep.AiReply -> {
           if (step.content.isNotBlank()) {
             emitEvent(
-              "response", mapOf(
+              "response",
+              mapOf(
                 "content" to step.content,
                 "totalTokens" to 0,
                 "promptTokens" to 0,
@@ -424,7 +452,7 @@ class Agent(
             functionArguments = step.functionArguments,
             callIdentifier = "playback_${toolIndex + 1}"
           )
-          val processedCall: ProcessedToolCall = toolExecutor.prepareToolCalls(listOf(callEntry)).first()
+          val processedCall: ProcessedToolCall = toolExecutor.prepareToolCalls(rawCalls = listOf(callEntry)).first()
           val isLastToolCall: Boolean = recordings.size == toolCalls.lastIndex
 
           val executionResult: Map<String, Any> = toolExecutor.executeSingleTool(processedCall, isLastToolCall)
@@ -450,7 +478,8 @@ class Agent(
             @Suppress("UNCHECKED_CAST")
             val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
             emitEvent(
-              "tool_expect_mismatch", mapOf(
+              "tool_expect_mismatch",
+              mapOf(
                 "index" to (stepIndex + 1),
                 "tool" to step.functionName,
                 "result" to executionResult,
@@ -486,7 +515,8 @@ class Agent(
     savePlaybackRecording(scenarioName, recordingSummary)
 
     emitEvent(
-      "playback_end", mapOf(
+      "playback_end",
+      mapOf(
         "scenario" to scenarioName,
         "executedCalls" to recordings.size,
         "mismatchCount" to mismatches.size
@@ -498,20 +528,20 @@ class Agent(
     try {
       val recordingsDir: Path = Path.of(configuration.projectRoot, ".gradum", "recordings")
       Files.createDirectories(recordingsDir)
-      val safeName: String = scenarioName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+      val safeName: String = scenarioName.replace(Regex(pattern = "[^A-Za-z0-9._-]"), replacement = "_")
       val recordingFile: Path = recordingsDir.resolve(
         "${safeName}-${System.currentTimeMillis()}.json"
       )
-      Files.writeString(recordingFile, JsonUtil.encodeMap(summary, prettyPrint = true))
+      Files.writeString(recordingFile, JsonUtil.encodeMap(input = summary, prettyPrint = true))
       logger.info("Playback recording written to $recordingFile")
     } catch (recordingException: Exception) {
-      logger.error("Failed to write playback recording", recordingException)
+      logger.error("Failed to write playback recording: ${recordingException::class.simpleName}: ${recordingException.message}")
     }
   }
 
   private data class AgentTurnResult(
+    val errorMessage: String?,
     val responseText: String?,
-    val toolCalls: List<ToolCallEntry>?,
-    val errorMessage: String?
+    val toolCalls: List<ToolCallEntry>?
   )
 }

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -81,16 +81,16 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         val contentStyle: TextStyle = styling.paragraph.inlinesStyling.textStyle
         val groupingScope = rememberCoroutineScope()
         val focusRequester = remember { FocusRequester() }
-        var isAllExpanded by remember { mutableStateOf(true) }
-        var showCommitInfo by remember { mutableStateOf(false) }
-        var groupBySeverity by remember { mutableStateOf(false) }
-        var isGroupingTransition by remember { mutableStateOf(false) }
-        var reviewedFindings by remember { mutableStateOf(setOf<String>()) }
-        var selectedFinding by remember { mutableStateOf<AuditFinding?>(null) }
+        var isAllExpanded by remember { mutableStateOf(value = true) }
+        var showCommitInfo by remember { mutableStateOf(value = false) }
+        var groupBySeverity by remember { mutableStateOf(value = false) }
+        var isGroupingTransition by remember { mutableStateOf(value = false) }
+        var reviewedFindings by remember { mutableStateOf(value = setOf<String>()) }
+        var selectedFinding by remember { mutableStateOf<AuditFinding?>(value = null) }
 
-        DisposableEffect(project, toolWindow) {
+        DisposableEffect(key1 = project, key2 = toolWindow) {
           val connection = project.messageBus.connect()
-          connection.subscribe(ToolWindowManagerListener.TOPIC, object : ToolWindowManagerListener {
+          connection.subscribe(ToolWindowManagerListener.TOPIC, handler = object : ToolWindowManagerListener {
             override fun toolWindowShown(shownToolWindow: ToolWindow) {
               if (shownToolWindow.id != toolWindow.id) return
               ApplicationManager.getApplication().invokeLater {
@@ -109,7 +109,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
         ) {
           if (scanState != GradumGitAnalysisService.ScanState.IDLE) {
             val bannerDismissed = GradumGitAnalysisService.bannerDismissed
-            var bannerClosed by remember(scanState) { mutableStateOf(false) }
+            var bannerClosed by remember(key1 = scanState) { mutableStateOf(value = false) }
             val qualityBand = GradumGitAnalysisService.qualityBand
             Column(modifier = Modifier.fillMaxSize()) {
               if (qualityBand != null) {
@@ -130,9 +130,9 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                 AnimatedVisibility(
                   visible = !bannerDismissed && !bannerClosed,
                   enter = slideInVertically(
-                    animationSpec = tween(BANNER_ANIMATION_DURATION_MS),
+                    animationSpec = tween(durationMillis = BANNER_ANIMATION_DURATION_MS),
                     initialOffsetY = { -it }
-                  ) + fadeIn(animationSpec = tween(BANNER_ANIMATION_DURATION_MS))
+                  ) + fadeIn(animationSpec = tween(durationMillis = BANNER_ANIMATION_DURATION_MS))
                 ) {
                   GradumBanner(
                     text = bannerText,
@@ -155,7 +155,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                       Tooltip(tooltip = { Text(text = message("gradum.toolwindow.git.analysis.banner.close")) }) {
                         IconButton(onClick = { bannerClosed = true }) {
                           Icon(
-                            AllIconsKeys.General.Close,
+                            key = AllIconsKeys.General.Close,
                             contentDescription = message("gradum.toolwindow.git.analysis.banner.close"),
                             modifier = Modifier.size(16.dp)
                           )
@@ -173,8 +173,9 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                   onToggleReviewed = {
                     if (selectedFinding != null) {
                       val key = findingKey(selectedFinding!!)
-                      reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
-                      else reviewedFindings + key
+                      reviewedFindings =
+                        if (key in reviewedFindings) reviewedFindings - key
+                        else reviewedFindings + key
                     }
                   },
                   onToggleExpandAll = { isAllExpanded = !isAllExpanded },
@@ -182,19 +183,19 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                     if (!isGroupingTransition) {
                       isGroupingTransition = true
                       groupingScope.launch {
-                        delay(300.milliseconds)
+                        delay(duration = 300.milliseconds)
                         groupBySeverity = !groupBySeverity
                         isGroupingTransition = false
                       }
                     }
                   },
                   isAllExpanded = isAllExpanded,
-                  enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING,
                   groupBySeverity = groupBySeverity,
-                  isGroupingTransition = isGroupingTransition,
-                  reviewedFindings = reviewedFindings,
                   selectedFinding = selectedFinding,
-                  modifier = Modifier.fillMaxHeight()
+                  reviewedFindings = reviewedFindings,
+                  modifier = Modifier.fillMaxHeight(),
+                  isGroupingTransition = isGroupingTransition,
+                  enabled = scanState != GradumGitAnalysisService.ScanState.SCANNING
                 )
                 Box(modifier = Modifier.weight(1f)) {
                   when (scanState) {
@@ -244,8 +245,8 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                     }
 
                     GradumGitAnalysisService.ScanState.SUCCESS -> {
-                      var commitInfoWidth by remember { mutableStateOf(CommitInfoPanelWidth) }
-                      var pinnedFinding by remember { mutableStateOf<AuditFinding?>(null) }
+                      var commitInfoWidth by remember { mutableStateOf(value = CommitInfoPanelWidth) }
+                      var pinnedFinding by remember { mutableStateOf<AuditFinding?>(value = null) }
                       val displayFinding = pinnedFinding ?: selectedFinding
                       Row(modifier = Modifier.fillMaxSize()) {
                         AuditFindingsTree(
@@ -265,12 +266,15 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                             project = project,
                             isPinned = pinnedFinding != null,
                             onTogglePin = {
-                              pinnedFinding = if (pinnedFinding == null) displayFinding else null
+                              pinnedFinding =
+                                if (pinnedFinding == null) displayFinding
+                                else null
                             },
                             onToggleReviewed = {
                               val key = findingKey(displayFinding)
-                              reviewedFindings = if (key in reviewedFindings) reviewedFindings - key
-                              else reviewedFindings + key
+                              reviewedFindings =
+                                if (key in reviewedFindings) reviewedFindings - key
+                                else reviewedFindings + key
                             },
                             modifier = Modifier
                               .fillMaxHeight()

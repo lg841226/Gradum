@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderSettings.kt  2026-08-17 08:57:26 Changed by gwy
+ * ProviderSettings.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -120,21 +120,21 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     val next: State = current.value.copy()
     transform(next)
     current.value = next
-    if (persistToDisk) syncConfigFile(next)
+    if (persistToDisk) syncConfigFile(state = next)
   }
 
   fun resetToDefaults() {
     current.value = State()
-    syncConfigFile(current.value)
+    syncConfigFile(state = current.value)
   }
 
   private fun syncConfigFile(state: State) {
-    ProviderConfigFile.updateProviderConfig("ollama", state.ollamaBaseUrl, state.ollamaApiKey)
-    ProviderConfigFile.updateProviderConfig("lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)
-    ProviderKind.cloudKinds.forEach { kind ->
-      val (url, key) = state.configFor(kind)
+    ProviderConfigFile.updateProviderConfig(configKey = "ollama", state.ollamaBaseUrl, state.ollamaApiKey)
+    ProviderConfigFile.updateProviderConfig(configKey = "lmstudio", state.lmStudioBaseUrl, state.lmStudioApiKey)
+    ProviderKind.cloudKinds.forEach { kind: ProviderKind ->
+      val (url: String, key: String) = state.configFor(kind)
       if (state.isEnabled(kind)) {
-        ProviderConfigFile.updateProviderConfig(kind.configKey, url, key)
+        ProviderConfigFile.updateProviderConfig(kind.configKey, baseUrl = url, apiKey = key)
       } else {
         ProviderConfigFile.removeProviderConfig(kind.configKey)
       }

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PreviewText.kt  2026-08-12 12:38:25 Changed by gwy
+ * PreviewText.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -20,7 +20,7 @@ fun truncateToCodePoints(sourceText: String, maxCodePoints: Int = MAX_PREVIEW_CO
 
   val buffer = StringBuilder()
 
-  for ((index, codePoint) in sourceText.codePoints().toArray().withIndex()) {
+  for ((index: Int, codePoint: Int) in sourceText.codePoints().toArray().withIndex()) {
     if (index >= maxCodePoints) break
     buffer.appendCodePoint(codePoint)
   }

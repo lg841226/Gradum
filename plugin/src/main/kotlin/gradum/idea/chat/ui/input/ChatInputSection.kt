@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputSection.kt  2026-08-12 18:53:10 Changed by gwy
+ * ChatInputSection.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -28,9 +28,9 @@ fun ChatInputSection(
   state: ChatInputState,
   actions: ChatInputActions,
   textState: TextFieldState,
-  selectedPermission: String = PermissionMode.READONLY,
+  modifier: Modifier = Modifier,
   hasSentMessage: Boolean = false,
-  modifier: Modifier = Modifier
+  selectedPermission: String = PermissionMode.READONLY,
 ) {
   Column(
     modifier = modifier.widthIn(max = 680.dp),
@@ -40,7 +40,7 @@ fun ChatInputSection(
       actions = actions,
       textState = textState,
       hasSentMessage = hasSentMessage,
-      roundedCornerShape = RoundedCornerShape(6.dp),
+      roundedCornerShape = RoundedCornerShape(size = 6.dp),
       selectedPermission = selectedPermission
     )
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
@@ -49,9 +49,9 @@ fun ChatInputSection(
       models = state.models,
       pinnedModels = state.pinnedModels,
       thinkingLevel = state.thinkingLevel,
+      onRefreshModels = actions.onRefreshModels,
       onTogglePin = actions.onTogglePin,
       onSelectModel = actions.onSelectModel,
-      onRefreshModels = actions.onRefreshModels,
       onSelectThinkingLevel = actions.onSelectThinkingLevel
     )
   }

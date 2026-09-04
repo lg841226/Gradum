@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommandFilter.kt  2026-08-14 12:44:12 Changed by gwy
+ * CommandFilter.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.utils
@@ -25,9 +25,11 @@ private val blockedExecutables: Set<String> = setOf(
   "mkfs", "mkfs.ext2", "mkfs.ext3", "mkfs.ext4",
   "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
   "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
-  "shutdown", "reboot", "halt", "poweroff", "init",
-  "sudo", "su", "doas", "pkexec"
+  "shutdown", "reboot", "poweroff",
 )
+
+/** Prefixes that wrap a real command (e.g. `sudo reboot`). The filter skips past these. */
+private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pkexec")
 
 /**
  * System and home paths that destructive operations must never touch.
@@ -145,8 +147,6 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
   "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
   // network info (read-only)
   "ping", "nslookup", "dig", "host",
-  // network fetch (read-only reads)
-  "curl", "wget",
   // interpreters (read-only execution)
   "python3", "python",
   // path / env
@@ -175,64 +175,56 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
 fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): CommandVerdict {
   if (commandText.isBlank()) return CommandVerdict.Safe
 
-  val tokens: List<String> = commandText.trim().split(WHITESPACE_PATTERN)
+  val tokens: List<String> = commandText.trim().split(regex = WHITESPACE_PATTERN)
   if (tokens.isEmpty()) return CommandVerdict.Safe
 
   val executableName: String = Paths.get(tokens[0]).fileName.toString()
+  val prefixOffset: Int = if (executableName in PRIVILEGE_ESCALATORS && tokens.size > 1) 1 else 0
+  val effectiveName: String = Paths.get(tokens[prefixOffset]).fileName.toString()
 
-  if (executableName in blockedExecutables) {
-    return CommandVerdict.Blocked("executable:$executableName", "'$executableName' is not allowed")
+  if (effectiveName in blockedExecutables) {
+    return CommandVerdict.Blocked(
+      ruleName = "executable:$effectiveName",
+      description = "'$effectiveName' is not allowed"
+    )
   }
 
-  val baseVerdict: CommandVerdict = when (executableName) {
-    "dd" -> classifyDeviceWrite(tokens)
-    "rm" -> classifyRemoveOperation(tokens)
-    "chmod" -> classifyChmodOperation(tokens)
+  val baseVerdict: CommandVerdict = when (effectiveName) {
+    "dd" -> classifyDeviceWrite(commandTokens = tokens.drop(n = prefixOffset))
+    "rm" -> classifyRemoveOperation(commandTokens = tokens.drop(n = prefixOffset))
+    "chmod" -> classifyChmodOperation(commandTokens = tokens.drop(n = prefixOffset))
     else -> CommandVerdict.Safe
   }
   if (baseVerdict is CommandVerdict.Blocked) return baseVerdict
 
   if (toolMode == ToolMode.READ_ONLY) {
-    // Walk every subcommand separated by `|`, `||`, `&&`, `;` so a
-    // chained pipeline can't sneak a write past the head-only check
-    // above (e.g. `cat file | tee out`, `ls && touch foo`).
-    for (subcommand: String in commandText.split(SHELL_OPERATOR_PATTERN)) {
+    for (subcommand: String in commandText.split(regex = SHELL_OPERATOR_PATTERN)) {
       val trimmed: String = subcommand.trim()
       if (trimmed.isEmpty()) continue
-      val subTokens: List<String> = trimmed.split(WHITESPACE_PATTERN)
-      val subcommandExecutable: String = Paths.get(subTokens[0]).fileName.toString()
+      val subTokens: List<String> = trimmed.split(regex = WHITESPACE_PATTERN)
+      val subPrefixOffset: Int = if (subTokens[0] in PRIVILEGE_ESCALATORS && subTokens.size > 1) 1 else 0
+      val subcommandExecutable: String = Paths.get(subTokens[subPrefixOffset]).fileName.toString()
       if (subcommandExecutable !in readOnlyAllowedExecutables) {
         return CommandVerdict.Blocked(
-          "readonly:executable:$subcommandExecutable",
-          "Read-only mode: '$subcommandExecutable' is not in the read-only command set"
+          ruleName = "readonly:executable:$subcommandExecutable",
+          description = "Read-only mode: '$subcommandExecutable' is not in the read-only command set"
         )
       }
     }
-    // Catch shell-side write attempts that would slip past the
-    // executable whitelist: `echo hi > out.txt`, `cat in | tee out`,
-    // `ls > listing`. Only flag fd-to-file redirects; fd-to-fd
-    // redirections like `2>&1` are still allowed since they don't
-    // touch the filesystem.
     if (hasShellFileRedirect(commandText)) {
       return CommandVerdict.Blocked(
-        "readonly:shell-redirect",
-        "Read-only mode: output redirection is not allowed"
+        ruleName = "readonly:shell-redirect",
+        description = "Read-only mode: output redirection is not allowed"
       )
     }
 
-    // Command substitution / backticks let a whitelisted head token
-    // (echo, cat, grep…) execute arbitrary nested commands whose head
-    // is never checked — `echo $(rm -rf ./src)` is Safe by head-only
-    // analysis. Same for `find ... -exec`, which runs a nested command,
-    // and `xargs <cmd>` where the piped input becomes that command's
-    // arguments (e.g. `find . | xargs rm`).
-    if (COMMAND_SUBSTITUTION_PATTERN.containsMatchIn(commandText) ||
-      FIND_EXEC_PATTERN.containsMatchIn(commandText) ||
-      XARGS_HEAD_PATTERN.matches(commandText.trim())
+    if (COMMAND_SUBSTITUTION_PATTERN.containsMatchIn(input = commandText) ||
+      FIND_EXEC_PATTERN.containsMatchIn(input = commandText) ||
+      XARGS_HEAD_PATTERN.matches(input = commandText.trim())
     ) {
       return CommandVerdict.Blocked(
-        "readonly:nested-execution",
-        "Read-only mode: command substitution / nested execution is not allowed"
+        ruleName = "readonly:nested-execution",
+        description = "Read-only mode: command substitution / nested execution is not allowed"
       )
     }
   }
@@ -241,9 +233,9 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
 }
 
 /** Pipeline / chain operators that split a shell command into subcommands. */
-private val SHELL_OPERATOR_PATTERN: Regex = Regex("""[|;&]""")
+private val SHELL_OPERATOR_PATTERN: Regex = Regex(pattern = """[|;&]""")
 
-private val WHITESPACE_PATTERN: Regex = Regex("""\s+""")
+private val WHITESPACE_PATTERN: Regex = Regex(pattern = """\s+""")
 
 /**
  * True when commandText contains an output redirect to a file:
@@ -253,27 +245,27 @@ private val WHITESPACE_PATTERN: Regex = Regex("""\s+""")
  * `&>` where the `>` is followed by `&`, so read-only idioms like
  * `cmd 2>&1` still pass.
  */
-private val SHELL_REDIRECT_PATTERN: Regex = Regex(""">>?(?!&)""")
+private val SHELL_REDIRECT_PATTERN: Regex = Regex(pattern = """>>?(?!&)""")
 
 private fun hasShellFileRedirect(commandText: String): Boolean {
-  return SHELL_REDIRECT_PATTERN.containsMatchIn(commandText)
+  return SHELL_REDIRECT_PATTERN.containsMatchIn(input = commandText)
 }
 
 /** `$(...)` command substitution or backticks — nested executable whose head is unchecked. */
-private val COMMAND_SUBSTITUTION_PATTERN: Regex = Regex("""\$\(|`\S+""")
+private val COMMAND_SUBSTITUTION_PATTERN: Regex = Regex(pattern = """\$\(|`\S+""")
 
 /** `find ... -exec <cmd> ... \;` / `find ... -delete` — nested write. */
-private val FIND_EXEC_PATTERN: Regex = Regex("""\bfind\b.*\b-exec\b|\bfind\b.*\b-delete\b""")
+private val FIND_EXEC_PATTERN: Regex = Regex(pattern = """\bfind\b.*\b-exec\b|\bfind\b.*\b-delete\b""")
 
 /** `xargs <executable>` — piped input becomes that executable's args. */
-private val XARGS_HEAD_PATTERN: Regex = Regex("""^\s*xargs\b.*""")
+private val XARGS_HEAD_PATTERN: Regex = Regex(pattern = """^\s*xargs\b.*""")
 
 private fun classifyDeviceWrite(commandTokens: List<String>): CommandVerdict {
   for (token in commandTokens) {
-    if (token.startsWith("of=") && token.removePrefix("of=").startsWith("/dev/")) {
+    if (token.startsWith(prefix = "of=") && token.removePrefix("of=").startsWith(prefix = "/dev/")) {
       return CommandVerdict.Blocked(
-        "dd:deviceOutput",
-        "Writing to device '${token.removePrefix("of=")}' is not allowed",
+        ruleName = "dd:deviceOutput",
+        description = "Writing to device '${token.removePrefix("of=")}' is not allowed",
       )
     }
   }
@@ -284,7 +276,10 @@ private fun classifyRemoveOperation(commandTokens: List<String>): CommandVerdict
   val pathArguments: List<String> = extractPathArguments(commandTokens)
   for (targetPath in pathArguments) {
     if (isCriticalPath(targetPath)) {
-      return CommandVerdict.Blocked("rm:criticalPath", "Removing critical path '$targetPath' is not allowed")
+      return CommandVerdict.Blocked(
+        ruleName = "rm:criticalPath",
+        description = "Removing critical path '$targetPath' is not allowed"
+      )
     }
   }
 
@@ -309,7 +304,7 @@ private fun classifyChmodOperation(commandTokens: List<String>): CommandVerdict 
 }
 
 private fun extractPathArguments(commandTokens: List<String>): List<String> {
-  return commandTokens.drop(1).filter { token: String -> !token.startsWith("-") }
+  return commandTokens.drop(n = 1).filter { token: String -> !token.startsWith(prefix = "-") }
 }
 
 private fun isCriticalPath(targetPath: String): Boolean =

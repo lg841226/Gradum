@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MessageAttachmentList.kt  2026-08-12 12:38:25 Changed by gwy
+ * MessageAttachmentList.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -38,8 +38,7 @@ import org.jetbrains.jewel.ui.component.Text
  */
 @Composable
 fun MessageAttachmentList(
-  attachments: List<AttachedContext>,
-  modifier: Modifier = Modifier
+  attachments: List<AttachedContext>, modifier: Modifier = Modifier
 ) {
   if (attachments.isEmpty()) return
   FlowRow(
@@ -47,7 +46,9 @@ fun MessageAttachmentList(
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml, Alignment.End),
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
   ) {
-    attachments.forEach { attachment -> AttachmentChip(attachment = attachment) }
+    attachments.forEach { attachment: AttachedContext ->
+      AttachmentChip(attachment = attachment)
+    }
   }
 }
 
@@ -55,9 +56,12 @@ fun MessageAttachmentList(
 private fun AttachmentChip(attachment: AttachedContext) {
   Row(
     modifier = Modifier
-      .clip(RoundedCornerShape(4.dp))
+      .clip(shape = RoundedCornerShape(size = 4.dp))
       .background(color = JewelTheme.globalColors.borders.normal.copy(alpha = 0.8f))
-      .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+      .padding(
+        horizontal = GradumSpacing.md,
+        vertical = GradumSpacing.sm
+      )
       .clickable { /* open file in editor — wired by parent */ },
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailDiskCacheTest.kt  2026-08-14 12:55:39 Changed by gwy
+ * ThumbnailDiskCacheTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -31,7 +31,7 @@ class ThumbnailDiskCacheTest {
   @Before
   fun setUp() {
     root = Files.createTempDirectory("gradum-thumb-cache-test")
-    cache = ThumbnailDiskCache(maxBytes = 1024L * 1024, rootDirectory = root)
+    cache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 1024L * 1024)
   }
 
   @After
@@ -42,72 +42,78 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `read returns null for an unwritten URL`() {
-    assertNull(cache.read("https://example.com/favicon.ico"))
+    assertNull(cache.read(url = "https://example.com/favicon.ico"))
   }
 
   @Test
   fun `write then read returns the same bytes`() {
-    val url = "https://example.com/favicon.ico"
-    // PNG header. `0x89` exceeds `Byte.MAX_VALUE` (0x7F), so the
-    // high bit has to be applied via `.toByte()` rather than a bare
-    // hex literal — otherwise Kotlin refuses the implicit narrowing.
+    val urlString = "https://example.com/favicon.ico"
+
     val payload: ByteArray = byteArrayOf(
       0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
     )
-    cache.write(url, payload)
-    val restored = cache.read(url)
+    cache.write(urlString, bytes = payload)
+    val restored = cache.read(urlString)
+
     assertNotNull(restored)
-    assertArrayEquals(payload, restored)
+    assertArrayEquals(
+      payload,
+      restored
+    )
   }
 
   @Test
   fun `empty payload is not written`() {
-    cache.write("https://example.com/empty", ByteArray(0))
-    assertNull(cache.read("https://example.com/empty"))
+    cache.write(url = "https://example.com/empty", bytes = ByteArray(size = 0))
+    assertNull(cache.read(url = "https://example.com/empty"))
   }
 
   @Test
   fun `different URLs map to different files`() {
     val payloadA = "alpha".toByteArray()
     val payloadB = "beta".toByteArray()
-    cache.write("https://a.example/favicon.ico", payloadA)
-    cache.write("https://b.example/favicon.ico", payloadB)
-    assertArrayEquals(payloadA, cache.read("https://a.example/favicon.ico"))
-    assertArrayEquals(payloadB, cache.read("https://b.example/favicon.ico"))
+    cache.write(url = "https://a.example/favicon.ico", bytes = payloadA)
+    cache.write(url = "https://b.example/favicon.ico", bytes = payloadB)
+
+    assertArrayEquals(
+      payloadA,
+      cache.read(url = "https://a.example/favicon.ico")
+    )
+    assertArrayEquals(
+      payloadB,
+      cache.read(url = "https://b.example/favicon.ico")
+    )
   }
 
   @Test
   fun `writing the same URL twice overwrites the previous entry`() {
     val url = "https://example.com/favicon.ico"
-    cache.write(url, "old".toByteArray())
-    cache.write(url, "new".toByteArray())
-    assertArrayEquals("new".toByteArray(), cache.read(url))
+    cache.write(url, bytes = "old".toByteArray())
+    cache.write(url, bytes = "new".toByteArray())
+
+    assertArrayEquals(
+      "new".toByteArray(),
+      cache.read(url)
+    )
   }
 
   @Test
   fun `eviction removes the oldest entry when the cache is full`() {
-    // 100-byte cap, 40-byte payload → two entries fit (80 ≤ 100),
-    // three don't (120 > 100). That's the band the test exercises:
-    // write 3, expect the oldest to be evicted and the next two
-    // to survive. A bigger payload would force a second eviction
-    // and make the assertions below lie.
-    val tightCache = ThumbnailDiskCache(maxBytes = 100L, rootDirectory = root)
-    tightCache.clear() // start from a known state
+    val tightCache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 100L)
+    tightCache.clear()
     try {
-      val payload = ByteArray(40)
-      // Write 3 entries — after the third, the first (oldest by
-      // mtime) should be evicted.
-      tightCache.write("https://a/", payload)
+      val payload = ByteArray(size = 40)
+      tightCache.write(url = "https://a/", bytes = payload)
       Thread.sleep(20)
-      tightCache.write("https://b/", payload)
+      tightCache.write(url = "https://b/", bytes = payload)
       Thread.sleep(20)
-      tightCache.write("https://c/", payload)
-
-      // a/ was written first; should be gone.
-      assertNull("oldest entry must be evicted when over capacity", tightCache.read("https://a/"))
-      // b/ and c/ should still be there.
-      assertNotNull(tightCache.read("https://b/"))
-      assertNotNull(tightCache.read("https://c/"))
+      tightCache.write(url = "https://c/", bytes = payload)
+      assertNull(
+        "oldest entry must be evicted when over capacity",
+        tightCache.read(url = "https://a/")
+      )
+      assertNotNull(tightCache.read(url = "https://b/"))
+      assertNotNull(tightCache.read(url = "https://c/"))
     } finally {
       tightCache.clear()
     }
@@ -115,34 +121,30 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `reading an entry refreshes its mtime so LRU promotes it`() {
-    // 120-byte cap, 40-byte payload → three entries fit (120 ≤ 120),
-    // four don't. We need *all three* of {a, b, c} to coexist
-    // before touching a/, otherwise the "promotion" has no effect
-    // to demonstrate (a/ is already evicted by the third write).
-    val tightCache = ThumbnailDiskCache(maxBytes = 120L, rootDirectory = root)
+    val tightCache = ThumbnailDiskCache(rootDirectory = root, maxBytes = 120L)
     tightCache.clear()
     try {
-      val payload = ByteArray(40)
-      tightCache.write("https://a/", payload)
+      val payload = ByteArray(size = 40)
+      tightCache.write(url = "https://a/", bytes = payload)
       Thread.sleep(20)
-      tightCache.write("https://b/", payload)
+      tightCache.write(url = "https://b/", bytes = payload)
       Thread.sleep(20)
-      tightCache.write("https://c/", payload)
+      tightCache.write(url = "https://c/", bytes = payload)
 
 
-      assertNotNull(tightCache.read("https://a/"))
-      // Make sure the mtime moved into the future relative to b/.
+      assertNotNull(tightCache.read(url = "https://a/"))
       Thread.sleep(50)
-      assertNotNull(tightCache.read("https://a/"))
+      assertNotNull(tightCache.read(url = "https://a/"))
+      tightCache.write(url = "https://d/", bytes = payload)
 
-      // Now force eviction: write a fourth entry that pushes us
-      // over the cap.
-      tightCache.write("https://d/", payload)
-
-      // After eviction, the oldest of {a, b, c} should be gone.
-      // We promoted a/, so b/ is the LRU.
-      assertNotNull("recently-read entry should survive eviction", tightCache.read("https://a/"))
-      assertNull("unread stale entry should be evicted", tightCache.read("https://b/"))
+      assertNotNull(
+        "recently-read entry should survive eviction",
+        tightCache.read(url = "https://a/")
+      )
+      assertNull(
+        "unread stale entry should be evicted",
+        tightCache.read(url = "https://b/")
+      )
     } finally {
       tightCache.clear()
     }
@@ -150,52 +152,58 @@ class ThumbnailDiskCacheTest {
 
   @Test
   fun `clear removes every entry`() {
-    cache.write("https://a/", "x".toByteArray())
-    cache.write("https://b/", "y".toByteArray())
+    cache.write(url = "https://a/", bytes = "x".toByteArray())
+    cache.write(url = "https://b/", bytes = "y".toByteArray())
     cache.clear()
-    assertNull(cache.read("https://a/"))
-    assertNull(cache.read("https://b/"))
-    assertEquals(0L, cache.sizeBytes())
+    assertNull(cache.read(url = "https://a/"))
+    assertNull(cache.read(url = "https://b/"))
+    assertEquals(
+      0L,
+      cache.sizeBytes()
+    )
   }
 
   @Test
   fun `read survives a corrupt entry by deleting it`() {
     val url = "https://example.com/corrupt"
-    cache.write(url, "valid".toByteArray())
-    // Find the on-disk file and make it unreadable: replace it
-    // with an *empty* directory at the same path. `Files.readAllBytes`
-    // throws `FileSystemException` on a directory (rather than
-    // returning empty bytes), which is the branch the cache's
-    // catch-block is meant to recover from. Writing a few garbage
-    // bytes to the file would *not* trigger it — the OS happily
-    // reads 3 bytes back, the cache has no way to know they're
-    // not a valid image, and the next read just returns them.
+    cache.write(url, bytes = "valid".toByteArray())
     val files = Files.list(root).use { it.toList() }
-    assertEquals(1, files.size)
+
+    assertEquals(
+      1,
+      files.size
+    )
+
     Files.delete(files[0])
     Files.createDirectory(files[0])
-    // Read should return null and the bad entry should be cleaned up.
+
     assertNull(cache.read(url))
     assertTrue(Files.list(root).use { it.toList() }.isEmpty())
   }
 
   @Test
   fun `sizeBytes reflects the on-disk footprint after writes`() {
-    val payload = ByteArray(100)
-    cache.write("https://a/", payload)
-    cache.write("https://b/", payload)
+    val payload = ByteArray(size = 100)
+    cache.write(url = "https://a/", bytes = payload)
+    cache.write(url = "https://b/", bytes = payload)
     val size = cache.sizeBytes()
-    assertTrue("sizeBytes=$size should be at least 200 bytes", size >= 200)
+
+    assertTrue(
+      "sizeBytes=$size should be at least 200 bytes",
+      size >= 200
+    )
   }
 
   @Test
   fun `mtime touch does not break under read-heavy workloads`() {
-    // The read path calls setLastModifiedTime on every hit. Make
-    // sure 1000 reads of the same URL don't blow up.
     val url = "https://example.com/popular"
-    cache.write(url, "data".toByteArray())
-    repeat(1000) {
-      assertArrayEquals("data".toByteArray(), cache.read(url))
+    cache.write(url, bytes = "data".toByteArray())
+
+    repeat(times = 1000) {
+      assertArrayEquals(
+        "data".toByteArray(),
+        cache.read(url)
+      )
     }
   }
 }

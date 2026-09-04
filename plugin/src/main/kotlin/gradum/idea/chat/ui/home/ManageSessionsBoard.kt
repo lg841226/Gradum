@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ManageSessionsBoard.kt  2026-08-13 18:05:01 Changed by gwy
+ * ManageSessionsBoard.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -64,32 +64,32 @@ import java.time.ZoneId
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ManageSessionsBoard(
-  sessions: List<SessionMeta>,
-  selectedIds: Set<String>,
   onMerge: () -> Unit,
+  onBack: () -> Unit = {},
+  selectedIds: Set<String>,
+  sessions: List<SessionMeta>,
   onClearSelection: () -> Unit,
   onDeleteSelected: () -> Unit,
   modifier: Modifier = Modifier,
-  onBack: () -> Unit = {},
   onToggleSelection: (String) -> Unit,
+  onDeleteSession: (String) -> Unit = {},
   onRenameSession: (String, String) -> Unit,
-  onDeleteSession: (String) -> Unit = {}
 ) {
   val selectedCount: Int = selectedIds.size
   val searchState: TextFieldState = remember { TextFieldState() }
-  var exactMatch by remember { mutableStateOf(false) }
+  var exactMatch: Boolean by remember { mutableStateOf(value = false) }
   val searchQuery: String = searchState.text.toString().trim()
   val filteredSessions: List<SessionMeta> = sessions.filter {
     when {
       searchQuery.isBlank() -> true
       exactMatch -> it.title == searchQuery
-      else -> it.title.contains(searchQuery, ignoreCase = true)
+      else -> it.title.contains(other = searchQuery, ignoreCase = true)
     }
   }
-  var renamingSessionId by remember { mutableStateOf<String?>(null) }
-  val renamingTitle: TextFieldState = remember(renamingSessionId) {
+  var renamingSessionId by remember { mutableStateOf<String?>(value = null) }
+  val renamingTitle: TextFieldState = remember(key1 = renamingSessionId) {
     val session: SessionMeta? = sessions.find { it.sessionId == renamingSessionId }
-    TextFieldState(session?.title.orEmpty())
+    TextFieldState(initialText = session?.title.orEmpty())
   }
 
   Column(
@@ -173,7 +173,7 @@ fun ManageSessionsBoard(
               modifier = Modifier
                 .pointerHoverIcon(PointerIcon.Hand)
                 .clickable {
-                  searchState.edit { replace(0, length, "") }
+                  searchState.edit { replace(start = 0, end = length, text = "") }
                 }
             )
           }
@@ -188,10 +188,10 @@ fun ManageSessionsBoard(
       Column(
         modifier = Modifier
           .weight(1f)
-          .verticalScroll(rememberScrollState())
+          .verticalScroll(state = rememberScrollState())
       ) {
         var flatIndex = 0
-        groupedSessions.forEach { (groupLabel, groupSessions) ->
+        groupedSessions.forEach { (groupLabel: String, groupSessions) ->
           if (groupSessions.isNotEmpty()) {
             Text(
               text = groupLabel,
@@ -201,7 +201,7 @@ fun ManageSessionsBoard(
                 bottom = GradumSpacing.sm
               )
             )
-            groupSessions.forEach { session ->
+            groupSessions.forEach { session: SessionMeta ->
               ManageSessionRow(
                 session = session,
                 isSelected = session.sessionId in selectedIds,
@@ -209,7 +209,7 @@ fun ManageSessionsBoard(
                 renamingTitle = renamingTitle,
                 onToggle = { onToggleSelection(session.sessionId) },
                 onStartRename = { renamingSessionId = session.sessionId },
-                onCommitRename = { newTitle ->
+                onCommitRename = { newTitle: String ->
                   onRenameSession(session.sessionId, newTitle)
                   renamingSessionId = null
                 },
@@ -279,15 +279,15 @@ private fun ManageSessionRow(
   onCancelRename: () -> Unit,
   onCommitRename: (String) -> Unit
 ) {
-  var isHovered by remember { mutableStateOf(false) }
+  var isHovered: Boolean by remember { mutableStateOf(value = false) }
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
     modifier = Modifier
       .fillMaxWidth()
       .padding(vertical = GradumSpacing.sm)
-      .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-      .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+      .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+      .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false }
   ) {
     Checkbox(
       checked = isSelected,
@@ -298,10 +298,11 @@ private fun ManageSessionRow(
       verticalAlignment = Alignment.CenterVertically,
       modifier = Modifier
         .weight(1f)
-        .clip(RoundedCornerShape(6.dp))
+        .clip(shape = RoundedCornerShape(size = 6.dp))
         .background(
-          if (isHovered || isSelected) JewelTheme.globalColors.text.info
-            .copy(alpha = 0.08f) else Color.Transparent
+          color =
+            if (isHovered || isSelected) JewelTheme.globalColors.text.info.copy(alpha = 0.08f)
+            else Color.Transparent
         )
         .clickable(onClick = onToggle)
         .padding(
@@ -348,8 +349,8 @@ private fun ManageSessionRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
           .padding(start = GradumSpacing.sm)
-          .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-          .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+          .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
+          .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false }
       ) {
         if (isRenaming) {
           Tooltip(tooltip = { Text(text = message("gradum.manage.rename.confirm")) }) {
@@ -413,7 +414,7 @@ private fun groupSessionsByAge(
   val monthBucket = Bucket(message("gradum.manage.group.this.month"))
   val olderBucket = Bucket(message("gradum.manage.group.older"))
 
-  sessions.forEach { session ->
+  sessions.forEach { session: SessionMeta ->
     val createdDate: LocalDate = Instant.ofEpochMilli(session.createdAt)
       .atZone(zone).toLocalDate()
     when {
@@ -426,10 +427,10 @@ private fun groupSessionsByAge(
   }
 
   return listOf(
-    todayBucket.label to todayBucket.sessions,
-    yesterdayBucket.label to yesterdayBucket.sessions,
     weekBucket.label to weekBucket.sessions,
     monthBucket.label to monthBucket.sessions,
-    olderBucket.label to olderBucket.sessions
+    olderBucket.label to olderBucket.sessions,
+    todayBucket.label to todayBucket.sessions,
+    yesterdayBucket.label to yesterdayBucket.sessions
   )
 }

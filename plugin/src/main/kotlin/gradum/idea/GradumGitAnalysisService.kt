@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisService.kt  2026-08-12 12:38:25 Changed by gwy
+ * GradumGitAnalysisService.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea
 
@@ -30,6 +30,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.time.LocalDate
+import java.time.LocalDate.parse
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 /**
@@ -41,23 +45,23 @@ import java.util.*
  * localized message via [formatMessage].
  */
 data class AuditFinding(
-  val code: String,
-  val level: String,
-  val type: String,
-  val params: Map<String, Any?>,
-  val hash: String,
   val index: Int,
+  val code: String,
+  val type: String,
+  val hash: String,
   val date: String,
   val days: String,
-  val subject: String = "",
+  val level: String,
+  val body: String = "",
   val author: String = "",
-  val body: String = ""
+  val subject: String = "",
+  val params: Map<String, Any?>,
 ) {
   /**
    * Renders this finding in an MSVC-style diagnostic line, e.g.
    * `critical S1001: A single commit changed +500/-200 lines, exceeding the
    * threshold of 500`. The numeric params are formatted with the same
-   * precision the script's Python templates used.
+   * precision the script'store Python templates used.
    */
   fun formatMessage(): String = "$level $code: ${formatBody()}"
 
@@ -70,10 +74,10 @@ data class AuditFinding(
    */
   fun formatBody(): String {
     val args = AUDIT_PARAM_ORDER[code].orEmpty().map { spec ->
-      formatAuditParam(params[spec.name], spec.decimals)
+      formatAuditParam(value = params[spec.name], spec.decimals)
     }.toMutableList()
     if (code in AUDIT_HASH_WEAVED_CODES) args.add(hash)
-    return message("$AUDIT_MESSAGE_PREFIX$code", *args.toTypedArray())
+    return message(key = "$AUDIT_MESSAGE_PREFIX$code", *args.toTypedArray())
   }
 }
 
@@ -100,10 +104,10 @@ internal fun findingKey(f: AuditFinding) = "${f.code}|${f.hash}|${f.index}"
 
 /**
  * Opens the given commit hash on GitHub. Resolves the `origin` remote of
- * the project's git repository (`git remote get-url origin`) on a
+ * the project'store git repository (`git remote get-url origin`) on a
  * background thread, converts the URL into a browsable web link, and
  * opens it with [BrowserUtil.browse]. A short hash works on GitHub, so
- * [AuditFinding.hash] is used as-is. SSH forms (`git@github.com:o/r.git`)
+ * [hash] is used as-is. SSH forms (`git@github.com:o/r.git`)
  * and `https://github.com/o/r.git` both resolve.
  */
 internal fun openCommitOnGitHub(project: Project, hash: String) {
@@ -123,25 +127,32 @@ internal fun openCommitOnGitHub(project: Project, hash: String) {
     }.getOrNull().orEmpty()
     val webUrl = githubWebUrl(remoteUrl, hash)
     if (webUrl != null) {
-      ApplicationManager.getApplication().invokeLater { BrowserUtil.browse(webUrl) }
+      ApplicationManager.getApplication().invokeLater {
+        BrowserUtil.browse(webUrl)
+      }
     }
-  }.apply { isDaemon = true; name = "gradum-open-commit-on-github" }.start()
+  }.apply {
+    isDaemon = true
+    name = "gradum-open-commit-on-github"
+  }.start()
 }
 
 /** Converts a git remote URL + short hash into a GitHub commit URL, or null. */
 internal fun githubWebUrl(remoteUrl: String, hash: String): String? {
   val trimmed = remoteUrl.trim().removeSuffix(".git")
-  val hostPath = when {
-    trimmed.startsWith("git@") && trimmed.contains(':') ->
-      trimmed.removePrefix("git@").replaceFirst(':', '/')
+  val hostPath =
+    when {
+      trimmed.startsWith(prefix = "git@") && trimmed.contains(char = ':') ->
+        trimmed.removePrefix("git@").replaceFirst(':', '/')
 
-    trimmed.startsWith("https://github.com/") || trimmed.startsWith("http://github.com/") ->
-      trimmed.substringAfter("://")
+      trimmed.startsWith(prefix = "https://github.com/") || trimmed.startsWith(prefix = "http://github.com/") ->
+        trimmed.substringAfter(delimiter = "://")
 
-    else -> return null
-  }
+      else -> return null
+    }
   val (host, path) = hostPath.split('/', limit = 2).let {
-    if (it.size < 2) return null else it[0] to it[1]
+    if (it.size < 2) return null
+    else it[0] to it[1]
   }
   if (host != "github.com") return null
   return "https://github.com/$path/commit/$hash"
@@ -168,7 +179,7 @@ private fun dec(name: String, decimals: Int): AuditParamSpec = AuditParamSpec(na
 private class AuditParamOrderBuilder {
   private val entries = LinkedHashMap<String, List<AuditParamSpec>>()
 
-  fun s(code: String, vararg params: Any) {
+  fun store(code: String, vararg params: Any) {
     entries[code] = params.map { param ->
       when (param) {
         is String -> AuditParamSpec(param, 0)
@@ -189,39 +200,43 @@ private fun auditParamOrder(block: AuditParamOrderBuilder.() -> Unit): Map<Strin
  * match the Python format spec that used to produce the message (e.g. `:.1f`).
  */
 private val AUDIT_PARAM_ORDER: Map<String, List<AuditParamSpec>> = auditParamOrder {
-  s("S1001", "add", "dels", "threshold")
-  s("S1002", "ratio", "dels", "add")
-  s("S1003", str("author"), "total")
-  s("S1004", "lines", "pct")
-  s("S2001", "count", "lines", "start_idx", "end_idx")
-  s("S2002", "total", "count", "days")
-  s("S2003", "lines")
-  s("S2004", dec("ratio", 1), "total")
-  s("S2005", "avg", "threshold")
-  s("S2006", "n", dec("ratio", 1))
-  s("S2007", dec("cv", 3), dec("threshold", 2))
-  s("S2008", dec("avg", 1), "target")
-  s("S2009", dec("density", 1), "days")
-  s("S2010", "pct", "count", "total", str("coauthors"))
-  s("S2011", "n", "pct", "total")
-  s("S2012", "days", "half")
-  s("S2013", "count", str("agents"))
-  s("S3001", "lines", "core", "files")
-  s("S3002", "dels", "add", "ratio")
-  s("S3003", str("author"), str("pattern"))
-  s("S3004", "pct", "count", "total")
-  s("S3005", "count")
-  s("S3006", "total")
-  s("S3007", "count", "total", "pct", "limit")
-  s("S3008", "count", "total", "pct")
-  s("S4001", dec("ratio", 1))
-  s("S4002", "lines", "files")
+  store(code = "S1001", "add", "dels", "threshold")
+  store(code = "S1002", "ratio", "dels", "add")
+  store(code = "S1003", str("author"), "total")
+  store(code = "S1004", "lines", "pct")
+  store(code = "S2001", "count", "lines", "start_idx", "end_idx")
+  store(code = "S2002", "total", "count", "days")
+  store(code = "S2003", "lines")
+  store(code = "S2004", dec("ratio", 1), "total")
+  store(code = "S2005", "avg", "threshold")
+  store(code = "S2006", "n", dec("ratio", 1))
+  store(code = "S2007", dec("cv", 3), dec("threshold", 2))
+  store(code = "S2008", dec("avg", 1), "target")
+  store(code = "S2009", dec("density", 1), "days")
+  store(code = "S2010", "pct", "count", "total", str("coauthors"))
+  store(code = "S2011", "n", "pct", "total")
+  store(code = "S2012", "days", "half")
+  store(code = "S2013", "count", str("agents"))
+  store(code = "S3001", "lines", "core", "files")
+  store(code = "S3002", "dels", "add", "ratio")
+  store(code = "S3003", str("author"), str("pattern"))
+  store(code = "S3004", "pct", "count", "total")
+  store(code = "S3005", "count")
+  store(code = "S3006", "total")
+  store(code = "S3007", "count", "total", "pct", "limit")
+  store(code = "S3008", "count", "total", "pct")
+  store(code = "S4001", dec("ratio", 1))
+  store(code = "S4002", "lines", "files")
 }
 
 private fun formatAuditParam(value: Any?, decimals: Int?): String {
   if (value == null) return ""
   if (decimals == null) return value.toString()
-  return String.format(Locale.ROOT, "%.${decimals}f", value.toString().toDoubleOrNull() ?: 0.0)
+  return String.format(
+    Locale.ROOT,
+    format = "%.${decimals}f",
+    value.toString().toDoubleOrNull() ?: 0.0
+  )
 }
 
 /**
@@ -230,15 +245,15 @@ private fun formatAuditParam(value: Any?, decimals: Int?): String {
  * name is localized via [label].
  */
 internal enum class AuditGroup(val labelKey: String) {
-  SUSPECTED_AI_CODE("gradum.audit.group.suspected_ai_code"),
-  ENGINEERING_RISK_ISSUES("gradum.audit.group.engineering_risk_issues"),
-  TEAM_PROCESS_WATCH("gradum.audit.group.team_process_watch"),
-  OTHER("gradum.audit.group.other");
+  SUSPECTED_AI_CODE(labelKey = "gradum.audit.group.suspected_ai_code"),
+  ENGINEERING_RISK_ISSUES(labelKey = "gradum.audit.group.engineering_risk_issues"),
+  TEAM_PROCESS_WATCH(labelKey = "gradum.audit.group.team_process_watch"),
+  OTHER(labelKey = "gradum.audit.group.other");
 
   fun label(): String = message(labelKey)
 }
 
-/** Buckets a finding into one of the four [AuditGroup]s by its SXXXX code. */
+/** Buckets a finding into one of the four [AuditGroup]store by its SXXXX code. */
 internal fun auditGroupOf(code: String): AuditGroup = when (code) {
   "S2005", "S2006", "S2007", "S2008", "S2009", "S2010", "S2013" -> AuditGroup.SUSPECTED_AI_CODE
   "S1001", "S1002", "S1004", "S2001", "S2002", "S2003", "S2004",
@@ -267,7 +282,7 @@ internal fun severityRank(level: String): Int = when (level) {
  * 1. [ScanCommitsTask] walks every commit and forwards progress lines from
  *    the script to a [ProgressIndicator]. When the script emits the
  *    `scanned` marker it hands the remaining work to stage 2.
- * 2. [AnalyzeDataTask] keeps reading the script's stdout, now collecting the
+ * 2. [AnalyzeDataTask] keeps reading the script'store stdout, now collecting the
  *    SXXXX finding records and applying the project-wide audits, until the
  *    process exits.
  *
@@ -317,37 +332,37 @@ object GradumGitAnalysisService {
   private val log: Logger = Logger.getInstance(GradumGitAnalysisService::class.java)
 
 
-  var scanState by mutableStateOf(ScanState.IDLE)
+  var scanState by mutableStateOf(value = ScanState.IDLE)
     private set
 
-  var currentHash by mutableStateOf("")
+  var currentHash by mutableStateOf(value = "")
     private set
 
-  var currentCommit by mutableStateOf(0)
+  var currentCommit by mutableStateOf(value = 0)
     private set
 
-  var totalCommits by mutableStateOf(0)
+  var totalCommits by mutableStateOf(value = 0)
     private set
 
-  var lastErrorMessage by mutableStateOf<String?>(null)
+  var lastErrorMessage by mutableStateOf<String?>(value = null)
     private set
 
-  var auditFindings by mutableStateOf<List<AuditFinding>>(emptyList())
+  var auditFindings by mutableStateOf<List<AuditFinding>>(value = emptyList())
     private set
 
-  var overallLevel by mutableStateOf<String?>(null)
+  var overallLevel by mutableStateOf<String?>(value = null)
     private set
 
-  var qualityBand by mutableStateOf<String?>(null)
+  var qualityBand by mutableStateOf<String?>(value = null)
     private set
 
-  var currentBranch by mutableStateOf<String?>(null)
+  var currentBranch by mutableStateOf<String?>(value = null)
     private set
 
-  var scanCompletedAt by mutableStateOf(0L)
+  var scanCompletedAt by mutableStateOf(value = 0L)
     private set
 
-  var bannerDismissed by mutableStateOf(false)
+  var bannerDismissed by mutableStateOf(value = false)
 
   private var currentProcess: Process? = null
   private var analysisReader: BufferedReader? = null
@@ -467,7 +482,9 @@ object GradumGitAnalysisService {
    * resource cleanup is deferred so stage two can keep reading stdout.
    */
   private class ScanCommitsTask(
-    project: Project, private val analysisScript: File, private val projectRootPath: String
+    project: Project,
+    private val analysisScript: File,
+    private val projectRootPath: String
   ) : Task.Backgroundable(project, message("gradum.toolwindow.git.analysis.scan.title")) {
 
     override fun run(indicator: ProgressIndicator) {
@@ -575,7 +592,7 @@ object GradumGitAnalysisService {
         if (exitCode == 0) {
           scanCompletedAt = System.currentTimeMillis()
           scanState = ScanState.SUCCESS
-        } else handleFailure(exitCode, errorLogFile)
+        } else handleFailure(exitCode, errorFile = errorLogFile)
       } catch (exception: Exception) {
         log.warn("Gradum Git analysis failed: ", exception)
         lastErrorMessage = exception.message
@@ -601,18 +618,21 @@ object GradumGitAnalysisService {
   }
 
   private fun parseRecord(line: String): JsonObject? = try {
-    Json.parseToJsonElement(line).jsonObject
+    Json.parseToJsonElement(string = line).jsonObject
   } catch (exception: Exception) {
     log.warn("Failed to parse JSON output line: $line", exception)
     null
   }
 
   private fun isScannedRecord(record: JsonObject): Boolean =
-    record[FIELD_MESSAGE]?.jsonPrimitive?.contentOrNull?.equals(SCANNED_MESSAGE, ignoreCase = true) == true
+    record[FIELD_MESSAGE]
+      ?.jsonPrimitive
+      ?.contentOrNull
+      ?.equals(other = SCANNED_MESSAGE, ignoreCase = true) == true
 
   /** Routes one JSONL record to its handler: findings, progress, quality, or error. */
   private fun handleJsonRecord(record: JsonObject, indicator: ProgressIndicator) {
-    val auditFinding = parseAuditFinding(record)
+    val auditFinding = parseAuditFinding(jsonRecord = record)
     if (auditFinding != null) {
       auditFindings = auditFindings + auditFinding
       return
@@ -620,21 +640,23 @@ object GradumGitAnalysisService {
 
     val messageType = record[FIELD_MESSAGE]?.jsonPrimitive?.contentOrNull ?: return
 
-    if (messageType.equals(SCANNING_MESSAGE, ignoreCase = true)) {
+    if (messageType.equals(other = SCANNING_MESSAGE, ignoreCase = true)) {
       updateScanningProgress(record, indicator)
       return
     }
 
-    if (messageType.equals("analyzed", ignoreCase = true))
+    if (messageType.equals(other = "analyzed", ignoreCase = true))
       overallLevel = record["overall_level"]?.jsonPrimitive?.contentOrNull
 
-    if (messageType.equals("quality", ignoreCase = true))
+    if (messageType.equals(other = "quality", ignoreCase = true))
       qualityBand = record["band"]?.jsonPrimitive?.contentOrNull
 
     val errorCode = record[FIELD_ERROR]?.jsonPrimitive?.contentOrNull
     if (errorCode != null) {
-      lastErrorMessage = friendlyErrorMessage(errorCode, messageType)
-    } else if (record[FIELD_LEVEL]?.jsonPrimitive?.contentOrNull?.equals(LEVEL_ERROR, ignoreCase = true) == true) {
+      lastErrorMessage = friendlyErrorMessage(errorCode, fallback = messageType)
+    } else if (record[FIELD_LEVEL]?.jsonPrimitive?.contentOrNull
+        ?.equals(other = LEVEL_ERROR, ignoreCase = true) == true
+    ) {
       lastErrorMessage = messageType
       log.warn("Gradum Git analysis script error: $record")
     }
@@ -647,20 +669,23 @@ object GradumGitAnalysisService {
       code = findingCode,
       params = parseAuditParams(jsonRecord),
       index = jsonRecord[FIELD_INDEX]?.jsonPrimitive?.intOrNull ?: -1,
-      level = jsonRecord[FIELD_LEVEL]?.jsonPrimitive?.contentOrNull.orEmpty(),
       type = jsonRecord[FIELD_TYPE]?.jsonPrimitive?.contentOrNull.orEmpty(),
       hash = jsonRecord[FIELD_HASH]?.jsonPrimitive?.contentOrNull.orEmpty(),
       date = jsonRecord[FIELD_DATE]?.jsonPrimitive?.contentOrNull.orEmpty(),
       days = jsonRecord[FIELD_DAYS]?.jsonPrimitive?.contentOrNull.orEmpty(),
-      subject = jsonRecord[FIELD_SUBJECT]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      body = jsonRecord[FIELD_BODY]?.jsonPrimitive?.contentOrNull.orEmpty(),
+      level = jsonRecord[FIELD_LEVEL]?.jsonPrimitive?.contentOrNull.orEmpty(),
       author = jsonRecord[FIELD_AUTHOR]?.jsonPrimitive?.contentOrNull.orEmpty(),
-      body = jsonRecord[FIELD_BODY]?.jsonPrimitive?.contentOrNull.orEmpty()
+      subject = jsonRecord[FIELD_SUBJECT]?.jsonPrimitive?.contentOrNull.orEmpty()
     )
   }
 
   private fun parseAuditParams(jsonRecord: JsonObject): Map<String, Any?> {
-    val paramsElement = jsonRecord[FIELD_PARAMS] as? JsonObject ?: return emptyMap()
-    return paramsElement.mapValues { (_, value) -> parseParamValue(value) }
+    val paramsElement = jsonRecord[FIELD_PARAMS] as?
+      JsonObject ?: return emptyMap()
+    return paramsElement.mapValues { (_, value) ->
+      parseParamValue(element = value)
+    }
   }
 
   private fun parseParamValue(element: JsonElement): Any? = when (element) {
@@ -676,8 +701,8 @@ object GradumGitAnalysisService {
 
   /** Localizes a script error code, falling back to the raw script message. */
   private fun friendlyErrorMessage(errorCode: String, fallback: String): String {
-    val localized = message("$ERROR_CODE_PREFIX$errorCode")
-    return if (localized.isNotBlank() && !localized.startsWith("???"))
+    val localized = message(key = "$ERROR_CODE_PREFIX$errorCode")
+    return if (localized.isNotBlank() && !localized.startsWith(prefix = "???"))
       localized else fallback
   }
 
@@ -690,13 +715,16 @@ object GradumGitAnalysisService {
     totalCommits = totalCommitCount
     currentHash = commitHash
 
-    indicator.fraction = if (totalCommitCount > 0) currentCommitIndex.toDouble() / totalCommitCount else 0.0
+    indicator.fraction =
+      if (totalCommitCount > 0) currentCommitIndex.toDouble() / totalCommitCount
+      else 0.0
     indicator.text = message("gradum.toolwindow.git.analysis.progress", currentCommitIndex, totalCommitCount)
   }
 
   private fun handleFailure(exitCode: Int, errorFile: File?) {
     if (lastErrorMessage == null) {
-      lastErrorMessage = readErrorFile(errorFile) ?: "The analysis script exited with code $exitCode."
+      lastErrorMessage = readErrorFile(errorFile)
+        ?: "The analysis script exited with code $exitCode."
     }
     scanState = ScanState.FAILED
   }
@@ -709,9 +737,9 @@ object GradumGitAnalysisService {
   /** Resolves the script: project copy, then jar-adjacent copy, then the bundled resource. */
   private fun resolveScript(project: Project): File? {
     val jarPath = PathManager.getJarPathForClass(GradumGitAnalysisService::class.java) ?: ""
-    findScriptUpFrom(File(jarPath))
-    return findScriptUpFrom(project.basePath?.let { File(it) })
-      ?: findScriptUpFrom(File(jarPath)) ?: extractBundledScript()
+    findScriptUpFrom(startDirectory = File(jarPath))
+    return findScriptUpFrom(startDirectory = project.basePath?.let { File(it) })
+      ?: findScriptUpFrom(startDirectory = File(jarPath)) ?: extractBundledScript()
   }
 
   private fun findScriptUpFrom(startDirectory: File?): File? {
@@ -733,8 +761,8 @@ object GradumGitAnalysisService {
       val scriptPath: Path = tempRoot.resolve(SCRIPT_RELATIVE_PATH)
       val configPath: Path = tempRoot.resolve(CONFIG_RELATIVE_PATH)
 
-      copyResource("/$SCRIPT_RELATIVE_PATH", scriptPath)
-      copyResource("/$CONFIG_RELATIVE_PATH", configPath)
+      copyResource(resourcePath = "/$SCRIPT_RELATIVE_PATH", target = scriptPath)
+      copyResource(resourcePath = "/$CONFIG_RELATIVE_PATH", target = configPath)
 
       scriptPath.toFile().apply { setExecutable(true) }
     } catch (exception: Exception) {
@@ -762,8 +790,8 @@ internal fun severityLabel(level: String): String = when (level) {
 internal fun relativeTime(dateString: String): String {
   if (dateString.isBlank() || dateString == "-") return ""
   return try {
-    val date = java.time.LocalDate.parse(dateString, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-    val days = java.time.temporal.ChronoUnit.DAYS.between(date, java.time.LocalDate.now())
+    val date = parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE)
+    val days = ChronoUnit.DAYS.between(date, LocalDate.now())
     when {
       days <= 0 -> message("gradum.toolwindow.git.analysis.time.just.now")
       days == 1L -> message("gradum.toolwindow.git.analysis.time.day.ago")
@@ -801,7 +829,7 @@ internal fun scanCompletedAgo(millis: Long): String {
   }
 }
 
-/** Serializes a list of [AuditFinding]s into a JSON document. */
+/** Serializes a list of [AuditFinding]store into a JSON document. */
 internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
   val records = findings.map { finding ->
     buildJsonObject {
@@ -815,9 +843,9 @@ internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
       put("subject", finding.subject)
       put("author", finding.author)
       put("body", finding.body)
-      putJsonObject("params") {
+      putJsonObject(key = "params") {
         finding.params.forEach { (key, value) ->
-          put(key, value.toJsonElement())
+          put(key, element = value.toJsonElement())
         }
       }
       put("message", finding.formatMessage())
@@ -825,17 +853,18 @@ internal fun auditFindingsToJson(findings: List<AuditFinding>): String {
   }
   return buildJsonObject {
     put("totalCommits", GradumGitAnalysisService.totalCommits)
-    putJsonArray("findings") { records.forEach { add(it) } }
+    putJsonArray(key = "findings") { records.forEach { add(it) } }
   }.toString()
 }
 
 /** Converts an [AuditFinding] param value into a JSON element. */
-private fun Any?.toJsonElement(): JsonElement = when (this) {
-  null -> JsonNull
-  is String -> JsonPrimitive(this)
-  is Boolean -> JsonPrimitive(this)
-  is Int -> JsonPrimitive(this)
-  is Long -> JsonPrimitive(this)
-  is Double -> JsonPrimitive(this)
-  else -> JsonPrimitive(toString())
-}
+private fun Any?.toJsonElement(): JsonElement =
+  when (this) {
+    null -> JsonNull
+    is String -> JsonPrimitive(value = this)
+    is Boolean -> JsonPrimitive(value = this)
+    is Int -> JsonPrimitive(value = this)
+    is Long -> JsonPrimitive(value = this)
+    is Double -> JsonPrimitive(value = this)
+    else -> JsonPrimitive(value = toString())
+  }

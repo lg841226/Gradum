@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LatexBlockExtension.kt  2026-08-12 12:38:25 Changed by gwy
+ * LatexBlockExtension.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -10,6 +10,7 @@ package gradum.idea.chat.ui.markdown
 import org.commonmark.Extension
 import org.commonmark.node.Block
 import org.commonmark.node.CustomBlock
+import org.commonmark.node.Visitor
 import org.commonmark.parser.Parser
 import org.commonmark.parser.block.*
 
@@ -25,7 +26,7 @@ class LatexBlock : CustomBlock() {
   /** The raw LaTeX source between the `$$` markers. May contain newlines. */
   var formula: String = ""
 
-  override fun accept(visitor: org.commonmark.node.Visitor) {
+  override fun accept(visitor: Visitor) {
     visitor.visit(this)
   }
 }
@@ -55,19 +56,6 @@ class LatexBlockExtension private constructor() : Parser.ParserExtension {
   }
 }
 
-/**
- * Detects `$$` on its own line as the start of a LaTeX block and
- * reads until the next `$$` on its own line. Both markers are
- * stripped from the captured formula; the [LatexBlock] node
- * stores only the inner source.
- *
- * The opening line must be exactly `$$` (no trailing text, no
- * leading whitespace past the indent) — this matches the user's
- * plan rule "`$$` 必须独占行". A line like `$$ x^2 $$` does NOT
- * open a block; that is treated as plain prose (and the inline
- * `$x^2$` regex would still match the inner pair). This avoids
- * accidental matches against dollar amounts in chat.
- */
 internal class LatexBlockParser : AbstractBlockParser() {
 
   private val block: LatexBlock = LatexBlock()
@@ -105,15 +93,17 @@ internal class LatexBlockParser : AbstractBlockParser() {
     }
     val firstIndex = 0
     val lastIndex: Int = trimmedEdges.size - 1
-    val cleanedLines: List<String> = buildList(trimmedEdges.size) {
-      trimmedEdges.forEachIndexed { lineIndex, line ->
-        val normalized: String = when (lineIndex) {
-          firstIndex, lastIndex -> line.trim()
-          else -> line
+    val cleanedLines: List<String> =
+      buildList(capacity = trimmedEdges.size) {
+        trimmedEdges.forEachIndexed { lineIndex: Int, line: String ->
+          val normalized: String =
+            when (lineIndex) {
+              firstIndex, lastIndex -> line.trim()
+              else -> line
+            }
+          add(normalized)
         }
-        add(normalized)
       }
-    }
     block.formula = cleanedLines.joinToString(separator = "\n")
   }
 
@@ -123,22 +113,25 @@ internal class LatexBlockParser : AbstractBlockParser() {
    * already consumed the opening `$$`. Override to a no-op
    * so the opening line isn't double-added to [lines].
    */
-  override fun addLine(line: org.commonmark.parser.SourceLine) {
-    /* no-op — opening line was already consumed by tryStart */
-  }
+  override fun addLine(line: org.commonmark.parser.SourceLine) {}
 
   class Factory : AbstractBlockParserFactory() {
+
     override fun tryStart(
-      state: ParserState,
-      matchedBlockParser: MatchedBlockParser
+      state: ParserState, matchedBlockParser: MatchedBlockParser
     ): BlockStart? {
       val rawLine: String = state.line.content.toString()
       val trimmedLine: String = rawLine.trim()
-      if (trimmedLine == "$$") {
+      if (trimmedLine == "$$")
         return BlockStart.of(LatexBlockParser()).atIndex(state.index)
-      }
-      if (trimmedLine.startsWith("$$") && trimmedLine.endsWith("$$") && trimmedLine.length > 4) {
-        return BlockStart.of(SingleLineLatexBlockParser(trimmedLine)).atIndex(state.index)
+
+      if (trimmedLine.startsWith(prefix = "$$")
+        && trimmedLine.endsWith(suffix = "$$")
+        && trimmedLine.length > 4
+      ) {
+        return BlockStart.of(
+          SingleLineLatexBlockParser(formula = trimmedLine)
+        ).atIndex(state.index)
       }
       return null
     }
@@ -163,11 +156,9 @@ internal class SingleLineLatexBlockParser(private val formula: String) : Abstrac
 
   override fun tryContinue(state: ParserState): BlockContinue = BlockContinue.finished()
 
-  override fun closeBlock() { /* formula already set in init */
-  }
+  override fun closeBlock() {}
 
-  override fun addLine(line: org.commonmark.parser.SourceLine) { /* no-op */
-  }
+  override fun addLine(line: org.commonmark.parser.SourceLine) {}
 }
 
 /** Strip empty / whitespace-only lines from the start and end of a list. */

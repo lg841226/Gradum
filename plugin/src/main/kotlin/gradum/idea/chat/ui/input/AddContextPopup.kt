@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AddContextPopup.kt  2026-08-12 12:38:25 Changed by gwy
+ * AddContextPopup.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -50,7 +50,10 @@ fun AddContextPopup(
           .fillMaxWidth()
           .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
       ) {
-        Icon(key = GradumIcons.Search, contentDescription = message("gradum.add.popup.search"))
+        Icon(
+          key = GradumIcons.Search,
+          contentDescription = message("gradum.add.popup.search")
+        )
         Spacer(modifier = Modifier.width(GradumSpacing.md))
         TextField(
           state = searchState,
@@ -66,12 +69,15 @@ fun AddContextPopup(
 
     selectableItem(
       selected = false,
-      onClick = { state.editorContext.projectDir?.let(actions.onSelectFile) }
+      onClick = { state.editorContext.projectDir?.let(block = actions.onSelectFile) }
     ) {
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
+          .padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.xs
+          ),
         verticalAlignment = Alignment.CenterVertically
       ) {
         Icon(
@@ -83,23 +89,15 @@ fun AddContextPopup(
       }
     }
 
-    // Hidden when the active model is text-only (no vision =
-    // irrelevant option) and disabled when the per-message
-    // image cap is hit. The disabled dark background on
-    // `selectableItem(enabled = false)` reads as a visual
-    // glitch rather than a "you cannot do this" hint, which
-    // is why vision-unsupported is a visibility gate.
     val isVisionSupported: Boolean = state.isCurrentModelSupportsVision
     if (isVisionSupported) {
       val isLimitReached: Boolean = state.isAttachmentLimitReached
       val isUploadEnabled: Boolean = !isLimitReached
-      val tooltipText: String? = if (isLimitReached) {
-        message("gradum.image.limit.reached", MAX_ATTACHMENTS)
-      } else null
+      val tooltipText: String? =
+        if (isLimitReached) {
+          message("gradum.image.limit.reached", MAX_ATTACHMENTS)
+        } else null
 
-      // `JewelTheme.globalColors` is `@Composable`, so color
-      // resolution must live inside the `selectableItem`
-      // lambda rather than the (non-composable) popup scope.
       selectableItem(
         selected = false,
         enabled = isUploadEnabled,
@@ -132,7 +130,9 @@ fun AddContextPopup(
             )
           }
         }
-        if (tooltipText != null) Tooltip(tooltip = { Text(tooltipText) }) { row() } else row()
+        if (tooltipText != null) {
+          Tooltip(tooltip = { Text(tooltipText) }) { row() }
+        } else row()
       }
     }
 
@@ -142,7 +142,10 @@ fun AddContextPopup(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs)
+          .padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.xs
+          )
       ) {
         Text(
           text = message("gradum.add.popup.workspace"),
@@ -156,7 +159,10 @@ fun AddContextPopup(
         Text(
           text = message("gradum.add.popup.empty"),
           color = JewelTheme.globalColors.text.info,
-          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+          modifier = Modifier.padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.sm
+          )
         )
       }
     } else if (filteredFiles.isEmpty()) {
@@ -164,16 +170,22 @@ fun AddContextPopup(
         Text(
           text = message("gradum.add.popup.no.results"),
           color = JewelTheme.globalColors.text.info,
-          modifier = Modifier.padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.sm)
+          modifier = Modifier.padding(
+            horizontal = GradumSpacing.md,
+            vertical = GradumSpacing.sm
+          )
         )
       }
     } else {
-      filteredFiles.forEach { file ->
+      filteredFiles.forEach { file: VirtualFile ->
         selectableItem(
-          selected = file == state.editorContext.currentFile,
-          onClick = { actions.onSelectFile(file) }
+          onClick = { actions.onSelectFile(file) },
+          selected = file == state.editorContext.currentFile
         ) {
-          FileItem(file = file, isSelected = file == state.editorContext.currentFile)
+          FileItem(
+            file = file,
+            isSelected = file == state.editorContext.currentFile
+          )
         }
       }
     }

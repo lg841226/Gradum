@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommitInfoPanel.kt  2026-08-12 12:39:42 Changed by gwy
+ * CommitInfoPanel.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -134,8 +134,8 @@ internal fun CommitInfoPanel(
   val textColor = LocalGlobalColors.current.text.normal
   val scrollState = rememberScrollState()
   val scope = rememberCoroutineScope()
-  var isCopied by remember { mutableStateOf(false) }
-  var isTimeExpanded by remember { mutableStateOf(false) }
+  var isCopied by remember { mutableStateOf(value = false) }
+  var isTimeExpanded by remember { mutableStateOf(value = false) }
 
   val bodyTextStyle = JewelTheme.editorTextStyle.copy(
     fontSize = JewelTheme.editorTextStyle.fontSize - 1.sp
@@ -147,14 +147,14 @@ internal fun CommitInfoPanel(
       append(finding.body)
     }
   }
-  val timeAgo = relativeTime(finding.date)
+  val timeAgo = relativeTime(dateString = finding.date)
   Column(modifier = modifier) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
       modifier = Modifier
         .fillMaxWidth()
-        .padding(GradumSpacing.sml)
+        .padding(all = GradumSpacing.sml)
     ) {
       Tooltip(tooltip = { Text(text = message("gradum.toolwindow.git.analysis.action.open.github")) }) {
         IconButton(
@@ -221,15 +221,21 @@ internal fun CommitInfoPanel(
     }
     AnimatedVisibility(
       visible = isTimeExpanded && timeAgo.isNotBlank(),
-      enter = expandVertically(expandFrom = Alignment.Top, animationSpec = tween(300)) + fadeIn(animationSpec = tween(200)),
-      exit = shrinkVertically(shrinkTowards = Alignment.Top, animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+      enter = expandVertically(
+        expandFrom = Alignment.Top,
+        animationSpec = tween(durationMillis = 300)
+      ) + fadeIn(animationSpec = tween(durationMillis = 200)),
+      exit = shrinkVertically(
+        shrinkTowards = Alignment.Top,
+        animationSpec = tween(durationMillis = 200)
+      ) + fadeOut(animationSpec = tween(durationMillis = 150))
     ) {
       val hasExplicitAdd = finding.params.containsKey("add")
       val linesAdded = (finding.params["add"] as? Number)?.toInt()
         ?: if (!hasExplicitAdd) null
-        else (finding.params["lines"] as? Number)?.toInt()?.coerceAtLeast(0)
+        else (finding.params["lines"] as? Number)?.toInt()?.coerceAtLeast(minimumValue = 0)
       val linesRemoved = (finding.params["dels"] as? Number)?.toInt()
-        ?: if (!hasExplicitAdd) (finding.params["lines"] as? Number)?.toInt()?.coerceAtLeast(0)
+        ?: if (!hasExplicitAdd) (finding.params["lines"] as? Number)?.toInt()?.coerceAtLeast(minimumValue = 0)
         else null
       val commitDate = try {
         val date = LocalDate.parse(finding.date, DateTimeFormatter.ISO_LOCAL_DATE)
@@ -299,9 +305,9 @@ internal fun CommitInfoPanel(
         )
         if (finding.body.isNotBlank()) {
           Spacer(Modifier.height(GradumSpacing.md))
-          val bodySegments = remember(finding.body) { splitMarkdown(finding.body) }
+          val bodySegments = remember(key1 = finding.body) { splitMarkdown(finding.body) }
           CompositionLocalProvider(
-            LocalMarkdownBodyTextStyle provides bodyTextStyle.copy(color = textColor)
+            value = LocalMarkdownBodyTextStyle provides bodyTextStyle.copy(color = textColor)
           ) {
             Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
               bodySegments.forEach { segment ->

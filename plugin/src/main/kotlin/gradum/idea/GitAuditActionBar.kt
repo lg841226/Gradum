@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GitAuditActionBar.kt  2026-08-12 20:10:59 Changed by gwy
+ * GitAuditActionBar.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -51,9 +51,9 @@ internal fun GitAuditActionBar(
   }
   val previewEnabled = selectedFinding?.hasRealCommitHash() == true
   val scope = rememberCoroutineScope()
-  var isCopied by remember { mutableStateOf(false) }
+  var isCopied by remember { mutableStateOf(value = false) }
   val findings = GradumGitAnalysisService.auditFindings
-  val findingsJson = remember(findings, reviewedFindings) {
+  val findingsJson = remember(key1 = findings, key2 = reviewedFindings) {
     auditFindingsToJson(findings.filter { findingKey(it) !in reviewedFindings })
   }
   val groupingTooltip = if (groupBySeverity) {
@@ -71,33 +71,33 @@ internal fun GitAuditActionBar(
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.close"),
         iconKey = AllIconsKeys.General.Close,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
         onClick = onClose,
         enabled = enabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.close"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.refresh"),
         iconKey = AllIconsKeys.General.Refresh,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
         onClick = onRefresh,
         enabled = enabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.refresh"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.preview"),
         iconKey = AllIconsKeys.General.LayoutEditorPreview,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
         onClick = onTogglePreview,
         enabled = enabled && previewEnabled,
+        contentDescription = message("gradum.toolwindow.git.analysis.action.preview"),
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
         tooltip = currentTooltip,
         iconKey = if (isAllExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll,
-        contentDescription = currentTooltip,
         onClick = onToggleExpandAll,
         enabled = enabled,
+        contentDescription = currentTooltip,
         modifier = Modifier.iconButtonPadding()
       )
       Tooltip(tooltip = { Text(text = groupingTooltip) }) {
@@ -135,7 +135,6 @@ internal fun GitAuditActionBar(
       IconTooltipButton(
         tooltip = message("gradum.toolwindow.git.analysis.action.copy.json"),
         iconKey = if (isCopied) AllIconsKeys.Actions.Checked else AllIconsKeys.General.Copy,
-        contentDescription = message("gradum.toolwindow.git.analysis.action.copy.json"),
         onClick = {
           copyToClipboard(
             text = findingsJson,
@@ -145,6 +144,7 @@ internal fun GitAuditActionBar(
           )
         },
         enabled = enabled && findings.isNotEmpty(),
+        contentDescription = message("gradum.toolwindow.git.analysis.action.copy.json"),
         modifier = Modifier.iconButtonPadding()
       )
       Spacer(Modifier.height(GradumSpacing.sml))

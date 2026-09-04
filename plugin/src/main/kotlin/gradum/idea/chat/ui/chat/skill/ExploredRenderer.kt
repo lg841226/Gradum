@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploredRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * ExploredRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -10,9 +10,7 @@ package gradum.idea.chat.ui.chat.skill
 import androidx.compose.runtime.Composable
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -33,9 +31,9 @@ class ExploredRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val projectRoot: String = (arguments["projectRoot"] as? String)
-      ?: (arguments["project_root"] as? String) ?: ""
-    val scanDepth: Int = (result["depth"] as? Number)?.toInt() ?: 0
+    val projectRoot: String = arguments.string(key = "projectRoot")
+      .ifEmpty { arguments.string(key = "project_root") }
+    val scanDepth: Int = result.int(key = "depth")
     return ToolCallContent(
       aliasName = ALIAS,
       fieldMap = mapOf(
@@ -54,12 +52,12 @@ class ExploredRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Explore,
       success = !ctx.isError,
+      trailingText = displayText,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty(),
-        message = ctx.errorDetail.orEmpty()
-      ),
-      trailingText = displayText
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      )
     )
   }
 

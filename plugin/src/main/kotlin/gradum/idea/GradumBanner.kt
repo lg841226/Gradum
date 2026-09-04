@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumBanner.kt  2026-08-12 12:39:42 Changed by gwy
+ * GradumBanner.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea
@@ -72,15 +72,19 @@ internal fun GradumBanner(
     )
   )
 
-  val bannerShape = RoundedCornerShape(6.dp)
+  val bannerShape = RoundedCornerShape(size = 6.dp)
 
   Column(modifier = modifier.width(IntrinsicSize.Max)) {
     Row(
       modifier = Modifier
         .clip(bannerShape)
-        .border(1.dp, compactStyle.colors.border, bannerShape)
-        .background(compactStyle.colors.background)
-        .padding(compactStyle.metrics.padding),
+        .border(
+          width = 1.dp,
+          color = compactStyle.colors.border,
+          bannerShape
+        )
+        .background(color = compactStyle.colors.background)
+        .padding(paddingValues = compactStyle.metrics.padding),
       verticalAlignment = Alignment.CenterVertically
     ) {
       if (icon != null) {
@@ -104,7 +108,7 @@ internal fun GradumBanner(
         Spacer(Modifier.width(GradumSpacing.md))
         Row(
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md),
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.md)
         ) {
           linkContent?.invoke()
           iconContent?.invoke()

@@ -1,14 +1,15 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AppearanceProvider.kt  2026-08-20 11:12:00 Changed by gwy
+ * AppearanceProvider.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -89,8 +90,8 @@ val LocalWelcomeLayout = staticCompositionLocalOf { WelcomeLayout.QS4_RC2 }
  */
 @Composable
 fun ProvideAppearance(content: @Composable () -> Unit) {
-  val settings = androidx.compose.runtime.remember { AppearanceSettings.getInstance() }
-  val snapshot = settings.snapshot
+  val settings: AppearanceSettings = remember { AppearanceSettings.getInstance() }
+  val snapshot: AppearanceSettings.State = settings.snapshot
 
   val paragraphSpacing: Dp = when (snapshot.paragraphDensity) {
     ParagraphDensity.COMPACT -> 0.dp
@@ -101,21 +102,21 @@ fun ProvideAppearance(content: @Composable () -> Unit) {
 
   CompositionLocalProvider(
     LocalParagraphSpacing provides paragraphSpacing,
+    LocalGitEnabled provides snapshot.gitEnabled,
+    LocalAgentEnabled provides snapshot.agentEnabled,
     LocalParagraphFontSize provides paragraphFontSize,
     LocalShowTimestamp provides snapshot.showTimestamp,
     LocalShowModelName provides snapshot.showModelName,
     LocalWelcomeLayout provides snapshot.welcomeLayout,
     LocalShowCopyAction provides snapshot.showCopyAction,
     LocalShowRetryAction provides snapshot.showRetryAction,
+    LocalMessageLoadCount provides snapshot.messageLoadCount,
     LocalAutoScrollToBottom provides snapshot.autoScrollToBottom,
     LocalCodeBlockFontSize provides snapshot.codeBlockFontSizeSp,
+    LocalMessageLoadEnabled provides snapshot.messageLoadEnabled,
     LocalEnableStickySections provides snapshot.enableStickySections,
     LocalShowLikeDislikeAction provides snapshot.showLikeDislikeAction,
-    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault,
-    LocalMessageLoadEnabled provides snapshot.messageLoadEnabled,
-    LocalMessageLoadCount provides snapshot.messageLoadCount,
-    LocalAgentEnabled provides snapshot.agentEnabled,
-    LocalGitEnabled provides snapshot.gitEnabled
+    LocalCollapseThinkingByDefault provides snapshot.collapseThinkingByDefault
   ) {
     content()
   }

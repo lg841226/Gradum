@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderProbe.kt  2026-08-18 12:45:23 Changed by gwy
+ * ProviderProbe.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.idea.provider
 
+import gradum.idea.PluginConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -90,7 +91,7 @@ class ProviderProbe(
   }
 
   private companion object {
-    const val CONNECT_TIMEOUT_SECONDS: Long = 2
-    const val REQUEST_TIMEOUT_SECONDS: Long = 5
+    val CONNECT_TIMEOUT_SECONDS: Long = PluginConfig.PROBE_CONNECT_TIMEOUT.seconds
+    val REQUEST_TIMEOUT_SECONDS: Long = PluginConfig.PROBE_REQUEST_TIMEOUT.seconds
   }
 }

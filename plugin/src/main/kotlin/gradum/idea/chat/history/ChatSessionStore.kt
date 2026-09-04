@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-19 22:36:41 Changed by gwy
+ * ChatSessionStore.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -71,7 +71,7 @@ class ChatSessionStore(private val projectRoot: Path) {
       Files.createDirectories(sessionDirectory)
       val targetFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
       val content: String = ChatTranscript.generateTranscript(messages, sessionMeta)
-      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(1_000_000)}")
+      val tempFile: Path = sessionDirectory.resolve("$TRANSCRIPT_FILE.tmp-${System.nanoTime()}-${Random.nextInt(until = 1_000_000)}")
 
       Files.writeString(tempFile, content, Charsets.UTF_8)
       try {
@@ -117,7 +117,7 @@ class ChatSessionStore(private val projectRoot: Path) {
           val transcriptFile: Path = sessionDirectory.resolve(TRANSCRIPT_FILE)
           if (!Files.isRegularFile(transcriptFile)) return@forEach
           try {
-            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(readHeaderLines(transcriptFile))
+            val sessionMeta: SessionMeta = ChatTranscript.parseMeta(content = readHeaderLines(transcriptFile))
             if (sessionMeta.sessionId.isNotEmpty()) sessionList.add(sessionMeta)
           } catch (listException: Exception) {
             log.warn("Skipping unreadable session transcript at $transcriptFile", listException)
@@ -153,7 +153,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     val transcriptFile: Path = sessionDir(sessionId).resolve(TRANSCRIPT_FILE)
     if (!Files.isRegularFile(transcriptFile)) return null
     return try {
-      ChatTranscript.parseTranscript(readString(transcriptFile, Charsets.UTF_8))
+      ChatTranscript.parseTranscript(content = readString(transcriptFile, Charsets.UTF_8))
     } catch (loadException: Exception) {
       log.warn("Failed to loadProperties session $sessionId", loadException)
       null
@@ -175,8 +175,10 @@ class ChatSessionStore(private val projectRoot: Path) {
    */
   fun mergeSessions(sessionIds: List<String>, resultTitle: String): String? {
     val transcripts: List<ChatTranscript.ParsedTranscript> =
-      sessionIds.map { transcriptId -> loadSession(transcriptId) ?: return null }
-    val mergedMessages: List<ChatMessage> = interleaveMessages(transcripts.map { it.messages })
+      sessionIds.map { transcriptId: String ->
+        loadSession(sessionId = transcriptId) ?: return null
+      }
+    val mergedMessages: List<ChatMessage> = interleaveMessages(conversations = transcripts.map { it.messages })
     val newSessionId: String = nextSessionId()
     saveSession(
       SessionMeta(
@@ -202,7 +204,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     val trimmedTitle: String = newTitle.trim()
     if (trimmedTitle.isEmpty()) return false
     val transcript: ChatTranscript.ParsedTranscript = loadSession(sessionId) ?: return false
-    saveSession(transcript.sessionMeta.copy(title = trimmedTitle), transcript.messages)
+    saveSession(sessionMeta = transcript.sessionMeta.copy(title = trimmedTitle), transcript.messages)
     return true
   }
 
@@ -225,7 +227,9 @@ class ChatSessionStore(private val projectRoot: Path) {
     if (!Files.isDirectory(sessionDirectory)) return false
     return try {
       Files.walk(sessionDirectory).use { paths ->
-        paths.sorted(Comparator.reverseOrder()).forEach { Files.deleteIfExists(it) }
+        paths.sorted(Comparator.reverseOrder()).forEach {
+          Files.deleteIfExists(it)
+        }
       }
       log.info("Deleted session directory $sessionDirectory")
       true
@@ -248,7 +252,7 @@ class ChatSessionStore(private val projectRoot: Path) {
      * stays intact whenever timestamps tie.
      */
     fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =
-      conversations.flatten().sortedWith(compareBy { it.timestamp })
+      conversations.flatten().sortedWith(comparator = compareBy { it.timestamp })
 
     /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
     private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
@@ -266,7 +270,9 @@ class ChatSessionStore(private val projectRoot: Path) {
      */
     fun nextSessionId(): String {
       val timeStamp: String = LocalDateTime.now().format(SESSION_ID_FORMAT)
-      val suffixChars = CharArray(SUFFIX_CHARS) { HEX_CHARS[Random.nextInt(HEX_CHARS.size)] }
+      val suffixChars = CharArray(size = SUFFIX_CHARS) {
+        HEX_CHARS[Random.nextInt(until = HEX_CHARS.size)]
+      }
       return "$timeStamp-${String(suffixChars)}"
     }
   }

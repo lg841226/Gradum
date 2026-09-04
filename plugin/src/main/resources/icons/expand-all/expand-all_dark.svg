@@ -1,8 +1,8 @@
 <!--
-  - Copyright (c) 2026 Gradum team, some rights reserved.
+  - Copyright (c) 2026 Gradum Authors
   - For licensing terms and conditions, see the MIT LICENSE file.
   -
-  - expand-all_dark.svg  2026-07-14 21:27:12 Changed by gwy
+  - expand-all_dark.svg  2026-08-31 19:21:55 Changed by gwy
   -->
 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M4.5 5.5L8 2L11.5 5.5" stroke="#CED0D6" stroke-linecap="round" stroke-linejoin="round"/>

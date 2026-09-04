@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-08-23 21:12:19 Changed by gwy
+ * AssistantChatBubble.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -10,7 +10,10 @@
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -18,10 +21,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
@@ -40,17 +42,15 @@ import gradum.idea.settings.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-private val RISE_DISTANCE_DP: Dp = 24.dp
 private const val FADE_IN_MS: Int = 600
-private const val PHASE_FADE_MS: Int = 100
 private const val PHASE_FADE_IN_MS: Int = 300
-private const val RISE_DURATION_MS: Int = 300
 
 /**
  * Left-aligned assistant message bubble.
@@ -61,16 +61,16 @@ private const val RISE_DURATION_MS: Int = 300
 @Composable
 fun AssistantChatBubble(
   message: ChatMessage,
-  modifier: Modifier = Modifier,
   sendingPhase: String = "",
   onRetry: () -> Unit = {},
-  onUrlClick: (String) -> Unit = {},
   isLoading: Boolean = false,
   showActions: Boolean = true,
+  modifier: Modifier = Modifier,
   actionsEnabled: Boolean = true,
+  onUrlClick: (String) -> Unit = {},
   selectedPermission: String = PermissionMode.READONLY,
-  onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _, _, _ -> },
-  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
+  onOpenInEditor: (filePath: String, startLine: Int, endLine: Int) -> Unit = { _: String, _: Int, _: Int -> },
+  onViewDiff: (filePath: String, originalContent: String, modifiedContent: String) -> Unit = { _: String, _: String, _: String -> },
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
 ) {
   val renderBlocks = message.renderBlocks
@@ -96,27 +96,31 @@ fun AssistantChatBubble(
           Text(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            text = if (isDebugMode) {
-              message.modelName
-            } else {
-              formatModelName(message.modelName)
-            }
+            text =
+              if (isDebugMode) message.modelName
+              else formatModelName(raw = message.modelName)
           )
         }
         hasContentBefore = true
       }
 
-      renderBlocks.forEachIndexed { index, block ->
+      renderBlocks.forEachIndexed { index: Int, block: RenderBlock ->
         if (block is RenderBlock.ToolCall && block.pending &&
-          !(ToolCallRendererRegistry.find(block.alias)?.rendersWhilePending() ?: false)
+          !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false)
         ) return@forEachIndexed
-        if (hasContentBefore) Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        if (hasContentBefore) {
+          Spacer(modifier = Modifier.height(GradumSpacing.lg))
+        }
+
         hasContentBefore = true
+
         key(block.key(index)) {
           when (block) {
             is RenderBlock.Thinking -> {
-              val hasNonThinkingAfter = renderBlocks.drop(index + 1).any { it !is RenderBlock.Thinking }
-              ThinkingBlock(block, isLoading, onUrlClick, hasNonThinkingAfter)
+              val hasNonThinkingAfter: Boolean = renderBlocks
+                .drop(n = index + 1)
+                .any { it !is RenderBlock.Thinking }
+              ThinkingBlock(block, isLoading, onUrlClick, hasResponseAfter = hasNonThinkingAfter)
             }
 
             is RenderBlock.ToolCall -> ToolCallBlock(
@@ -140,7 +144,9 @@ fun AssistantChatBubble(
         TokenStatusRow(
           isLoading = isLoading,
           tokenCount = tokenCount,
-          sendingPhase = if (isLoading) sendingPhase else message("gradum.done")
+          sendingPhase =
+            if (isLoading) sendingPhase
+            else sendingPhase.takeIf { it.isNotBlank() } ?: message("gradum.done")
         )
       }
 
@@ -149,7 +155,7 @@ fun AssistantChatBubble(
         MessageActionsRow(
           onRetry = onRetry,
           message = message,
-          isLoading = isLoading,
+          isLoading = false,
           hasContent = hasContent,
           actionsEnabled = actionsEnabled,
           selectedPermission = selectedPermission
@@ -173,18 +179,17 @@ private fun ThinkingBlock(
   onUrlClick: (String) -> Unit, hasResponseAfter: Boolean = false
 ) {
   ThinkingIndicator(
+    onUrlClick = onUrlClick,
     thinking = block.content,
     isTaskComplete = !isLoading,
     startCollapsed = !isLoading && LocalCollapseThinkingByDefault.current,
     hasResponseAfter = hasResponseAfter,
-    onUrlClick = onUrlClick
   )
 }
 
 @Composable
 private fun ResponseBlock(
-  block: RenderBlock.Response,
-  onUrlClick: (String) -> Unit
+  block: RenderBlock.Response, onUrlClick: (String) -> Unit
 ) {
   GradumMarkdown(
     text = block.content,
@@ -208,73 +213,74 @@ private fun ResponseBlock(
 fun ToolCallBlock(
   block: RenderBlock.ToolCall,
   onOpenInEditor: (path: String, startLine: Int, endLine: Int) -> Unit,
-  onViewDiff:
-    (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
+  onViewDiff: (path: String, originalContent: String, modifiedContent: String) -> Unit = { _, _, _ -> },
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null
 ) {
-  // Delegate blocks are rendered even when pending (live countdown).
-  if (block.pending && !(ToolCallRendererRegistry.find(block.alias)?.rendersWhilePending() ?: false)) return
+  if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
+    return
 
-  val fadeAlpha = remember { Animatable(0f) }
-  LaunchedEffect(Unit) {
+  val fadeAlpha = remember { Animatable(initialValue = 0f) }
+  LaunchedEffect(key1 = Unit) {
     fadeAlpha.animateTo(
       targetValue = 1f,
       animationSpec = tween(durationMillis = FADE_IN_MS)
     )
   }
-  val animModifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
-  val clipboardScope = rememberCoroutineScope()
-  val renderer = ToolCallRendererRegistry.find(block.alias)
+  val clipboardScope: CoroutineScope = rememberCoroutineScope()
+  val renderer = ToolCallRendererRegistry.find(aliasName = block.alias)
+  val animModifier: Modifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
   if (renderer == null) {
     val fallbackToolDetails: String = if (!block.success) {
       formatToolDetails(
         alias = block.alias,
         result = block.result,
-        arguments = block.arguments,
         errorDetail = block.errorDetail,
-        errorMessage = block.errorMessage
+        errorMessage = block.errorMessage,
+        arguments = block.arguments
       )
     } else ""
     ToolCallCapsule(
       label = block.alias,
-      modifier = animModifier,
+      iconKey = AllIconsKeys.Nodes.Plugin,
       success = block.success,
+      modifier = animModifier,
       errorInfo = ToolCallErrorInfo(
         detail = block.errorDetail,
-        toolDetails = fallbackToolDetails,
-        message = block.errorMessage
-      ),
-      iconKey = AllIconsKeys.Nodes.Plugin
+        message = block.errorMessage,
+        toolDetails = fallbackToolDetails
+      )
     )
     return
   }
-  val delegateArgs: Map<String, Any> = if (block.alias == "Delegate") {
-    block.arguments + mapOf(
-      "pending" to block.pending,
-      "timeoutSeconds" to block.timeoutSeconds
-    )
-  } else block.arguments
+  val delegateArgs: Map<String, Any> =
+    if (block.alias == "Delegate") {
+      block.arguments + mapOf(
+        "pending" to block.pending,
+        "timeoutSeconds" to block.timeoutSeconds
+      )
+    } else block.arguments
   val content: ToolCallContent =
     renderer.parseContent(
       arguments = delegateArgs,
-      result = parseJsonResult(block.result)
+      result = parseJsonResult(serializedResult = block.result)
     )
-  val toolDetails: String? = if (!block.success) {
-    formatToolDetails(
-      alias = block.alias,
-      result = block.result,
-      arguments = block.arguments,
-      errorDetail = block.errorDetail,
-      errorMessage = block.errorMessage
-    )
-  } else null
+  val toolDetails: String? =
+    if (!block.success) {
+      formatToolDetails(
+        alias = block.alias,
+        result = block.result,
+        errorDetail = block.errorDetail,
+        errorMessage = block.errorMessage,
+        arguments = block.arguments
+      )
+    } else null
   val ctx =
     ToolCallRenderContext(
       project = null,
       isError = !block.success,
       toolDetails = toolDetails,
       errorDetail = block.errorDetail,
-      onCopy = { payload ->
+      onCopy = { payload: String ->
         copyToClipboard(
           onReset = {},
           onCopied = {},
@@ -292,7 +298,7 @@ fun ToolCallBlock(
       },
       onSubChatClick = onSubChatClick,
     )
-  Box(modifier = animModifier.horizontalScroll(rememberScrollState())) {
+  Box(modifier = animModifier.horizontalScroll(state = rememberScrollState())) {
     renderer.render(content, ctx)
   }
 }
@@ -301,33 +307,23 @@ fun ToolCallBlock(
 private fun TokenStatusRow(
   isLoading: Boolean, sendingPhase: String, tokenCount: Int = 0
 ) {
-  val tokenText = if (tokenCount > 0)
-    "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
-  else
-    sendingPhase.ifEmpty { "..." }
+  val tokenText: String =
+    if (tokenCount > 0)
+      "$sendingPhase & ${message("gradum.tokens.used", formatTokenCount(tokenCount))}"
+    else
+      sendingPhase.ifEmpty { "..." }
 
-  val density = LocalDensity.current
-  val fadeAlpha = remember { Animatable(1f) }
-  val verticalOffset = remember { Animatable(0f) }
-  var displayText by remember { mutableStateOf(sendingPhase) }
-  var previousText by remember { mutableStateOf(sendingPhase) }
-  val riseDistancePx: Float = with(density) { -RISE_DISTANCE_DP.toPx() }
+  val fadeAlpha = remember { Animatable(initialValue = 1f) }
+  val verticalOffset = remember { Animatable(initialValue = 0f) }
+  var displayText: String by remember { mutableStateOf(value = sendingPhase) }
+  var previousText: String by remember { mutableStateOf(value = sendingPhase) }
 
-  LaunchedEffect(sendingPhase, tokenText) {
-    val newText = tokenText.ifEmpty { sendingPhase }
+  LaunchedEffect(key1 = sendingPhase, key2 = tokenText) {
+    val newText: String = tokenText.ifEmpty { sendingPhase }
     if (newText != previousText) {
-      launch {
-        verticalOffset.animateTo(
-          targetValue = riseDistancePx,
-          animationSpec = tween(
-            easing = FastOutSlowInEasing,
-            durationMillis = RISE_DURATION_MS
-          ),
-        )
-      }
-      fadeAlpha.animateTo(0f, tween(durationMillis = PHASE_FADE_MS))
       displayText = newText
       previousText = newText
+      fadeAlpha.snapTo(targetValue = 0f)
       launch {
         verticalOffset.animateTo(
           targetValue = 0f,
@@ -348,9 +344,8 @@ private fun TokenStatusRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
   ) {
-    if (isLoading) {
-      CircularProgressIndicator(modifier = Modifier.size(16.dp))
-    }
+    if (isLoading) CircularProgressIndicator(modifier = Modifier.size(16.dp))
+
     SweepLightText(
       text = displayText,
       enabled = isLoading,
@@ -371,10 +366,10 @@ private fun MessageActionsRow(
   actionsEnabled: Boolean,
   selectedPermission: String = PermissionMode.READONLY
 ) {
-  val isDebug = selectedPermission == PermissionMode.DEBUG
-  var isCopied by remember { mutableStateOf(false) }
-  var isSelectedLike by remember { mutableStateOf(false) }
-  var isSelectedDislike by remember { mutableStateOf(false) }
+  val isDebug: Boolean = selectedPermission == PermissionMode.DEBUG
+  var isCopied: Boolean by remember { mutableStateOf(value = false) }
+  var isSelectedLike: Boolean by remember { mutableStateOf(value = false) }
+  var isSelectedDislike: Boolean by remember { mutableStateOf(value = false) }
 
   Row(horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
     if (LocalShowCopyAction.current) {
@@ -408,7 +403,9 @@ private fun MessageActionsRow(
       ) {
         Icon(
           contentDescription = message("gradum.like"),
-          key = if (isSelectedLike) GradumIcons.LikeSelected else GradumIcons.Like
+          key =
+            if (isSelectedLike) GradumIcons.LikeSelected
+            else GradumIcons.Like
         )
       }
       IconButton(
@@ -431,17 +428,17 @@ private fun MessageActionsRow(
 
 @Composable
 private fun ErrorBlock(block: RenderBlock.Error) {
-  val isInterrupted = block.code == ErrorCode.INTERRUPTED.code
-  if (isInterrupted) return
+  val isInterrupted: Boolean = block.code == ErrorCode.INTERRUPTED.code
+  val textErrorColor: Color = JewelTheme.globalColors.text.error
 
-  val textErrorColor = JewelTheme.globalColors.text.error
+  if (isInterrupted) return
 
   Row(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
     modifier = Modifier
       .fillMaxWidth()
-      .horizontalScroll(rememberScrollState())
+      .horizontalScroll(state = rememberScrollState())
   ) {
     Icon(
       contentDescription = null,

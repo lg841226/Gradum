@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LatexRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * LatexRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -27,20 +27,11 @@ import com.hrm.latex.renderer.Latex
 import com.hrm.latex.renderer.model.LatexConfig
 import com.hrm.latex.renderer.model.LatexTheme
 import com.hrm.latex.renderer.model.LatexThemeColors
+import org.jetbrains.jewel.foundation.GlobalColors
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 
-private const val BLOCK_LATEX_DEFAULT_FONT_SIZE_SP: Float = 14f
-
-// Vertical padding around block formulas. Compact for chat panel.
-private const val BLOCK_LATEX_VERTICAL_PADDING_DP: Float = 16f
-
-// Minimum inner content height the Box reserves for the formula.
-private const val BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP: Float = 12f
-private const val FALLBACK_TEXT_VERTICAL_PADDING_DP: Float = 2f
-private const val FALLBACK_FONT_SIZE_SP: Float = 13f
-private const val FALLBACK_FONT_WEIGHT: Int = 500
 
 /**
  * Render a block-level LaTeX formula (`$$…$$`). Centered, padded vertically.
@@ -51,7 +42,7 @@ private const val FALLBACK_FONT_WEIGHT: Int = 500
  * Sizing: outer `Box` is `fillMaxWidth`, inner `Latex` sizes to content (no fillMaxWidth).
  * Layout-shift defense: `heightIn(min=...)` reserves 44dp for the formula so the Box
  * stays stable on the first frame (library async-parses, first frame is 0×0).
- * Vertical padding: 48dp each side (see [BLOCK_LATEX_VERTICAL_PADDING_DP]).
+ * Vertical padding: 48dp each side (see [MarkdownStyle.BlockLatex.VERTICAL_PADDING_DP]).
  */
 @Composable
 fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
@@ -59,8 +50,12 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)
-      .padding(vertical = BLOCK_LATEX_VERTICAL_PADDING_DP.dp),
+      .heightIn(
+        min = MarkdownStyle.BlockLatex.MIN_CONTENT_HEIGHT_DP.dp + MarkdownStyle.BlockLatex.VERTICAL_PADDING_DP.dp * 2
+      )
+      .padding(
+        vertical = MarkdownStyle.BlockLatex.VERTICAL_PADDING_DP.dp
+      ),
     contentAlignment = Alignment.Center
   ) {
     if (renderState.shouldFallback) {
@@ -73,7 +68,9 @@ fun RenderLatexBlock(formula: String, modifier: Modifier = Modifier) {
       Latex(
         latex = formula,
         isDarkTheme = isSystemInDarkTheme(),
-        config = renderState.config.copy(fontSize = BLOCK_LATEX_DEFAULT_FONT_SIZE_SP.sp)
+        config = renderState.config.copy(
+          fontSize = MarkdownStyle.BlockLatex.DEFAULT_FONT_SIZE_SP.sp
+        )
       )
     }
   }
@@ -99,8 +96,8 @@ internal fun RenderInlineLatex(
   } else {
     Latex(
       latex = formula,
-      config = renderState.config.copy(fontSize = fontSizeSp.sp),
-      isDarkTheme = isSystemInDarkTheme()
+      isDarkTheme = isSystemInDarkTheme(),
+      config = renderState.config.copy(fontSize = fontSizeSp.sp)
     )
   }
 }
@@ -108,12 +105,12 @@ internal fun RenderInlineLatex(
 /** Cached per-formula render decisions. */
 @Composable
 private fun rememberLatexRenderState(formula: String): LatexRenderState {
-  val globalColors = LocalGlobalColors.current
+  val globalColors: GlobalColors = LocalGlobalColors.current
   val baseColor: Color = JewelTheme.contentColor
-  val config: LatexConfig = remember(formula, baseColor, globalColors) {
+  val config: LatexConfig = remember(key1 = formula, key2 = baseColor, key3 = globalColors) {
     buildAdaptiveLatexConfig(baseColor = baseColor)
   }
-  return remember(formula, config) {
+  return remember(key1 = formula, key2 = config) {
     LatexRenderState(
       config = config,
       shouldFallback = formula.isBlank()
@@ -148,21 +145,25 @@ private fun LatexFallbackText(
   isBlock: Boolean,
   modifier: Modifier = Modifier,
   fontFamily: FontFamily? = null,
-  fontSizeSp: Float = FALLBACK_FONT_SIZE_SP
+  fontSizeSp: Float = MarkdownStyle.FontFallback.BODY_SIZE_SP
 ) {
-  val globalColors = LocalGlobalColors.current
-  val wrapped: String = if (isBlock) "$$ ${formula.trim()} $$" else "$${formula}$"
+  val globalColors: GlobalColors = LocalGlobalColors.current
+  val wrapped: String =
+    if (isBlock) "$$ ${formula.trim()} $$"
+    else "$${formula}$"
 
   val fallbackStyle = TextStyle(
     fontFamily = fontFamily,
     fontSize = fontSizeSp.sp,
     fontStyle = FontStyle.Italic,
     color = globalColors.text.info,
-    fontWeight = FontWeight(FALLBACK_FONT_WEIGHT)
+    fontWeight = FontWeight(MarkdownStyle.FontFallback.WEIGHT)
   )
   Box(
     modifier = modifier
-      .padding(vertical = FALLBACK_TEXT_VERTICAL_PADDING_DP.dp)
+      .padding(
+        vertical = MarkdownStyle.BlockLatex.FALLBACK_TEXT_VERTICAL_PADDING_DP.dp
+      )
   ) {
     Text(
       text = wrapped,

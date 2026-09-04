@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderConfigStoreTest.kt  2026-08-16 16:14:21 Changed by gwy
+ * ProviderConfigStoreTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum
 
@@ -35,38 +35,72 @@ class ProviderConfigStoreTest {
   fun `load parses hand-written env file`() {
     File(tempDir, "provider.env").writeText(
       """
-            GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434
-            GRADUM_DEEPSEEK_API_KEY=sk-123
-            # comment line is fine
-            """.trimIndent()
+        GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434
+        GRADUM_DEEPSEEK_API_KEY=sk-123
+        # comment line is fine
+      """.trimIndent()
     )
 
     val props = ProviderConfigStore.load()
-    assertEquals("http://192.168.1.50:11434", props.getProperty("GRADUM_OLLAMA_BASE_URL"))
-    assertEquals("sk-123", props.getProperty("GRADUM_DEEPSEEK_API_KEY"))
+
+    assertEquals(
+      "http://192.168.1.50:11434",
+      props.getProperty("GRADUM_OLLAMA_BASE_URL")
+    )
+    assertEquals(
+      "sk-123",
+      props.getProperty("GRADUM_DEEPSEEK_API_KEY")
+    )
   }
 
   @Test
   fun `base url and api key keys are derived from configKey`() {
-    assertEquals("GRADUM_OLLAMA_BASE_URL", ProviderConfigStore.baseUrlKey("ollama"))
-    assertEquals("GRADUM_LMSTUDIO_API_KEY", ProviderConfigStore.apiKeyKey("lmstudio"))
-    assertEquals(null, ProviderConfigStore.baseUrlKey(null))
+    assertEquals(
+      "GRADUM_OLLAMA_BASE_URL",
+      ProviderConfigStore.baseUrlKey(configKey = "ollama")
+    )
+    assertEquals(
+      "GRADUM_LMSTUDIO_API_KEY",
+      ProviderConfigStore.apiKeyKey(configKey = "lmstudio")
+    )
+    assertEquals(
+      null,
+      ProviderConfigStore.baseUrlKey(configKey = null)
+    )
   }
 
   @Test
   fun `allow remote flag defaults to false and reads from env file`() {
-    assertEquals("GRADUM_LMSTUDIO_ALLOW_REMOTE", ProviderConfigStore.allowRemoteKey("lmstudio"))
-    assertEquals(false, ProviderConfigStore.isAllowRemote("lmstudio"))
+    assertEquals(
+      "GRADUM_LMSTUDIO_ALLOW_REMOTE",
+      ProviderConfigStore.allowRemoteKey(configKey = "lmstudio")
+    )
+    assertEquals(
+      false,
+      ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
+    )
 
     File(tempDir, "provider.env").writeText("GRADUM_LMSTUDIO_ALLOW_REMOTE=true")
-    assertEquals(true, ProviderConfigStore.isAllowRemote("lmstudio"))
+    assertEquals(
+      true,
+      ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
+    )
   }
 
   @Test
   fun `configKeyFor maps probe kinds`() {
-    assertEquals("ollama", ProviderConfigStore.configKeyFor("ollama"))
-    assertEquals("lmstudio", ProviderConfigStore.configKeyFor("lmstudio"))
-    assertEquals(null, ProviderConfigStore.configKeyFor("unknown"))
+    assertEquals(
+      "ollama",
+      ProviderConfigStore.configKeyFor(kind = "ollama")
+    )
+    assertEquals(
+      "lmstudio",
+      ProviderConfigStore.configKeyFor(kind = "lmstudio")
+    )
+    assertEquals(
+      null,
+      ProviderConfigStore.configKeyFor(kind = "unknown")
+    )
   }
 
   @Test
@@ -82,39 +116,72 @@ class ProviderConfigStoreTest {
   @Test
   fun `parseModelNamesFromBody extracts openai data ids`() {
     val body = """{"data":[{"id":"gpt-4o"},{"id":"deepseek-chat"},{"id":""}]}"""
-    val names = ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, body)
-    assertEquals(listOf("gpt-4o", "deepseek-chat"), names)
+    val names = ModelIdentity.parseModelNamesFromBody(providerType = Provider.OPENAI.wireType, body)
+    assertEquals(
+      listOf("gpt-4o", "deepseek-chat"),
+      names
+    )
   }
 
   @Test
   fun `parseModelNamesFromBody extracts ollama models`() {
     val body = """{"models":[{"name":"llama3"},{"name":"qwen2.5"}]}"""
-    val names = ModelIdentity.parseModelNamesFromBody(Provider.OLLAMA.wireType, body)
-    assertEquals(listOf("llama3", "qwen2.5"), names)
+    val names = ModelIdentity.parseModelNamesFromBody(providerType = Provider.OLLAMA.wireType, body)
+    assertEquals(
+      listOf("llama3", "qwen2.5"),
+      names
+    )
   }
 
   @Test
   fun `parseModelNamesFromBody rejects non model-list bodies`() {
-    assertEquals(emptyList(), ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, "not json"))
-    assertEquals(emptyList(), ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, "{}"))
-    assertEquals(emptyList(), ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, ""))
-    assertEquals(emptyList(), ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, """{"data":[]}"""))
-    assertEquals(emptyList(), ModelIdentity.parseModelNamesFromBody(Provider.OPENAI.wireType, """{"error":"boom"}"""))
+    assertEquals(
+      emptyList(),
+      ModelIdentity.parseModelNamesFromBody(
+        providerType = Provider.OPENAI.wireType, body = "not json"
+      )
+    )
+    assertEquals(
+      emptyList(),
+      ModelIdentity.parseModelNamesFromBody(
+        providerType = Provider.OPENAI.wireType, body = "{}"
+      )
+    )
+    assertEquals(
+      emptyList(),
+      ModelIdentity.parseModelNamesFromBody(
+        providerType = Provider.OPENAI.wireType, body = ""
+      )
+    )
+    assertEquals(
+      emptyList(),
+      ModelIdentity.parseModelNamesFromBody(
+        providerType = Provider.OPENAI.wireType,
+        body = """{"data":[]}"""
+      )
+    )
+    assertEquals(
+      emptyList(),
+      ModelIdentity.parseModelNamesFromBody(
+        providerType = Provider.OPENAI.wireType,
+        body = """{"error":"boom"}"""
+      )
+    )
   }
 
   @Test
   fun `resolveModelsEndpoint does not double the v1 segment`() {
     assertEquals(
       "http://192.168.1.5:1234/v1/models",
-      ModelIdentity.resolveModelsEndpoint("http://192.168.1.5:1234/v1", "/v1/models")
+      ModelIdentity.resolveModelsEndpoint(baseUrl = "http://192.168.1.5:1234/v1", endpoint = "/v1/models")
     )
     assertEquals(
       "http://192.168.1.5:1234/v1/models",
-      ModelIdentity.resolveModelsEndpoint("http://192.168.1.5:1234", "/v1/models")
+      ModelIdentity.resolveModelsEndpoint(baseUrl = "http://192.168.1.5:1234", endpoint = "/v1/models")
     )
     assertEquals(
       "http://192.168.1.5:1234/v1/v1/models",
-      ModelIdentity.resolveModelsEndpoint("http://192.168.1.5:1234/v1/v1", "/v1/models")
+      ModelIdentity.resolveModelsEndpoint(baseUrl = "http://192.168.1.5:1234/v1/v1", endpoint = "/v1/models")
     )
   }
 
@@ -125,8 +192,13 @@ class ProviderConfigStoreTest {
       baseUrl = "http://192.168.1.50:1234/v1832483294239482394",
       apiKey = null,
     )
-    assertEquals("failed", result.status)
-    assertTrue(result.error!!.contains("Malformed provider URL"))
+    assertEquals(
+      "failed",
+      result.status
+    )
+    assertTrue(
+      result.error!!.contains(other = "Malformed provider URL")
+    )
   }
 
   @Test
@@ -136,8 +208,11 @@ class ProviderConfigStoreTest {
       baseUrl = "http://localhost:11434/whatever/models",
       apiKey = null,
     )
-    assertEquals("failed", result.status)
-    assertTrue(result.error!!.contains("Malformed provider URL"))
+    assertEquals(
+      "failed",
+      result.status
+    )
+    assertTrue(result.error!!.contains(other = "Malformed provider URL"))
   }
 
   @Test
@@ -147,21 +222,25 @@ class ProviderConfigStoreTest {
       baseUrl = "http://192.168.1.50:1234",
       apiKey = null,
     )
-    assertEquals("failed", result.status)
-    assertTrue(result.error!!.contains("Remote provider connections are disabled"))
+    assertEquals(
+      "failed",
+      result.status
+    )
+    assertTrue(result.error!!.contains(other = "Remote provider connections are disabled"))
   }
 
   @Test
   fun `probeProvider allows remote lmstudio url when flag on`() {
     File(tempDir, "provider.env").writeText("GRADUM_LMSTUDIO_ALLOW_REMOTE=true")
     val result = ModelIdentity.probeProvider(
-      kind = "lmstudio",
-      baseUrl = "http://192.168.1.50:1234",
       apiKey = null,
+      kind = "lmstudio",
+      baseUrl = "http://192.168.1.50:1234"
     )
-    // Flag is on, so the guard passes: the result must be a real dial
-    // outcome, never the "disabled" short-circuit.
-    assertTrue(result.status != "failed" || !result.error!!.contains("Remote provider connections are disabled"))
+    assertTrue(
+      result.status != "failed"
+        || !result.error!!.contains(other = "Remote provider connections are disabled")
+    )
   }
 
   @Test
@@ -171,22 +250,28 @@ class ProviderConfigStoreTest {
       baseUrl = "http://localhost:1234",
       apiKey = null,
     )
-    assertTrue(result.status != "failed" || !result.error!!.contains("Remote provider connections are disabled"))
+    assertTrue(
+      result.status != "failed" ||
+        !result.error!!.contains(other = "Remote provider connections are disabled")
+    )
   }
 
   @Test
   fun `empty config probes no providers (no localhost fallback)`() {
-    // The env dir is empty, so no provider has a configured base URL.
-    // doProbe must skip every provider (returning no model entries)
-    // rather than falling back to probing the default localhost address.
     val entries = ModelIdentity.discoverModels()
-    assertTrue(entries.isEmpty(), "expected no model entries when config is empty")
+    assertTrue(
+      entries.isEmpty(),
+      "expected no model entries when config is empty"
+    )
   }
 
   @Test
   fun `fingerprint is stable for missing file and changes on edit`() {
     val missingFingerprint: String = ProviderConfigStore.fingerprint()
-    assertEquals("missing", missingFingerprint)
+    assertEquals(
+      "missing",
+      missingFingerprint
+    )
 
     val configFile = File(tempDir, "provider.env")
     configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://localhost:11434")
@@ -195,6 +280,9 @@ class ProviderConfigStoreTest {
 
     configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434")
     val second: String = ProviderConfigStore.fingerprint()
-    assertTrue(second != first, "fingerprint must change when the file content changes")
+    assertTrue(
+      second != first,
+      "fingerprint must change when the file content changes"
+    )
   }
 }

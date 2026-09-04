@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ServerRoutesTest.kt  2026-08-12 12:38:25 Changed by gwy
+ * ServerRoutesTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -19,45 +19,54 @@ import kotlin.test.assertTrue
 
 class ServerRoutesTest {
 
-    @Test
-    fun `GET health returns 200 with status and version`(): Unit = testApplication {
-        application { module(ServerConfiguration()) }
+  @Test
+  fun `GET health returns 200 with status and version`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
 
-        val response: HttpResponse = client.get("/health")
+    val response: HttpResponse = client.get("/health")
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body: String = response.bodyAsText()
+    assertEquals(
+      HttpStatusCode.OK,
+      response.status
+    )
+    val body: String = response.bodyAsText()
 
-        assertContains(body, "\"status\":\"healthy\"")
-        assertContains(body, "\"version\":\"${Version.GRADUM_VERSION}\"")
-        assertContains(body, "\"uptimeSeconds\"")
-        assertContains(body, "\"timestamp\"")
-    }
+    assertContains(body, "\"status\":\"healthy\"")
+    assertContains(body, "\"version\":\"${Version.GRADUM_VERSION}\"")
+    assertContains(body, "\"uptimeSeconds\"")
+    assertContains(body, "\"timestamp\"")
+  }
 
-    @Test
-    fun `GET skills returns 200 with non-empty skills array`(): Unit = testApplication {
-        application { module(ServerConfiguration()) }
+  @Test
+  fun `GET skills returns 200 with non-empty skills array`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
 
-        val response: HttpResponse = client.get("/skills")
+    val response: HttpResponse = client.get("/skills")
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body: String = response.bodyAsText()
+    assertEquals(
+      HttpStatusCode.OK,
+      response.status
+    )
+    val body: String = response.bodyAsText()
 
-        assertContains(body, "\"skills\"")
-        assertTrue(body.contains("read_file"), "skills should include read_file")
-        assertTrue(body.contains("edit_file"), "skills should include edit_file")
-        assertTrue(body.contains("save_file"), "skills should include save_file")
-    }
+    assertContains(body, "\"skills\"")
+    assertTrue(body.contains("read_file"), "skills should include read_file")
+    assertTrue(body.contains("edit_file"), "skills should include edit_file")
+    assertTrue(body.contains("save_file"), "skills should include save_file")
+  }
 
-    @Test
-    fun `GET models returns 200 with models array`(): Unit = testApplication {
-        application { module(ServerConfiguration()) }
+  @Test
+  fun `GET models returns 200 with models array`(): Unit = testApplication {
+    application { module(ServerConfiguration()) }
 
-        val response: HttpResponse = client.get("/models")
+    val response: HttpResponse = client.get("/models")
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body: String = response.bodyAsText()
+    assertEquals(
+      HttpStatusCode.OK,
+      response.status
+    )
+    val body: String = response.bodyAsText()
 
-        assertContains(body, "\"models\"")
-    }
+    assertContains(body, "\"models\"")
+  }
 }

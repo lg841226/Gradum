@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-18 12:45:23 Changed by gwy
+ * EditFileSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -47,61 +47,49 @@ class EditFileSkill : Skill() {
     return result.filterKeys { it != "originalContent" && it != "modifiedContent" }
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = listOf("path") + if (useSimpleSchema) listOf("oldString", "newString") else listOf("edits"),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new" +
       " text as newString. oldString must match exactly. You can only edit one location per call."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "File path relative to project root, e.g. 'src/main.py'."
-    ),
-    "oldString" to mapOf(
-      "type" to "string",
-      "description" to "Exact text to find. Include 2-3 lines of context for uniqueness. " +
-        "Must match file content including whitespace and indentation."
-    ),
-    "newString" to mapOf(
-      "type" to "string",
-      "description" to "Replacement text. Can be longer, shorter, or empty to delete."
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "path" to mapOf(
-      "type" to "string",
-      "description" to "Replace text in a file. Provide the exact text to find (oldString) " +
-        "and the replacement (newString).",
-    ),
-    "edits" to mapOf(
-      "type" to "array",
-      "description" to "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
-        " Edits are applied in order. You can batch multiple edits to the same file in one call.",
-      "items" to mapOf(
-        "type" to "object",
-        "properties" to mapOf(
-          "oldString" to mapOf(
-            "type" to "string",
-            "description" to "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
-          ),
-          "newString" to mapOf(
-            "type" to "string",
-            "description" to "You want replacement text. Can be empty to delete lines."
-          ),
-        ),
-        "required" to listOf("oldString", "newString"),
-      ),
-    ),
-  )
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "path",
+      description = "File path relative to project root, e.g. 'src/main.py'.",
+      required = true,
+    )
+    simpleOnly {
+      string(
+        name = "oldString",
+        description = "Exact text to find. Include 2-3 lines of context for uniqueness. " +
+          "Must match file content including whitespace and indentation.",
+        required = true,
+      )
+      string(
+        name = "newString",
+        description = "Replacement text. Can be longer, shorter, or empty to delete.",
+        required = true,
+      )
+    }
+    cloudOnly {
+      objectArray(
+        name = "edits",
+        description = "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
+          " Edits are applied in order. You can batch multiple edits to the same file in one call.",
+        required = true,
+        itemRequired = listOf("oldString", "newString"),
+        items = {
+          string(
+            name = "oldString",
+            description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
+          )
+          string(
+            name = "newString",
+            description = "You want replacement text. Can be empty to delete lines."
+          )
+        },
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val useSimpleSchema = context.isSimpleModel
@@ -116,8 +104,8 @@ class EditFileSkill : Skill() {
 
     if (filePath.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'path' parameter in edit_file call.",
           fixHint = "The 'path' parameter is required. Example: 'path': 'src/main.kt'"
@@ -126,7 +114,8 @@ class EditFileSkill : Skill() {
 
     if (oldString.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'oldString' parameter.",
           fixHint = "Provide the text to find in the 'oldString' parameter."
@@ -137,12 +126,13 @@ class EditFileSkill : Skill() {
     val resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
       return makeFailure(
-        ErrorCode.PERMISSION_DENIED, buildXmlError(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
           code = "PERMISSION_DENIED",
           message = "Path is outside the project root: ${resolved.rejectionReason}",
           fixHint = "Use a path relative to the project root."
         ),
-        mapOf("path" to filePath)
+        context = mapOf("path" to filePath)
       )
     }
     val targetFile: File = resolvedPath.toFile()
@@ -152,11 +142,13 @@ class EditFileSkill : Skill() {
       val decodeError: String? = validateUtf8(originalBytes)
       if (decodeError != null) {
         return makeFailure(
-          ErrorCode.IO_ERROR, buildXmlError(
+          code = ErrorCode.IO_ERROR,
+          message = buildXmlError(
             code = "NON_UTF8_FILE",
             message = decodeError,
             fixHint = "Gradum can only safely edit UTF-8 text files. Convert the file to UTF-8 first."
-          ), mapOf("path" to resolvedPath.toString())
+          ),
+          context = mapOf("path" to resolvedPath.toString())
         )
       }
       val originalContent = String(originalBytes, Charsets.UTF_8)
@@ -165,45 +157,48 @@ class EditFileSkill : Skill() {
       applySequentialEdits(resolvedPath, originalContent, originalBytes, singleEdit)
     } catch (_: FileNotFoundException) {
       makeFailure(
-        ErrorCode.FILE_NOT_FOUND, buildXmlError(
+        code = ErrorCode.FILE_NOT_FOUND,
+        message = buildXmlError(
           code = "FILE_NOT_FOUND",
           message = "Edit File not found: $filePath",
           fixHint = "Check the current file path. you could run_cmd to find the correct path."
-        ), mapOf("path" to resolvedPath.toString())
+        ), context = mapOf("path" to resolvedPath.toString())
       )
     } catch (editException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR, buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = editException.message ?: "Unknown error during edit.",
           fixHint = "Check file permissions and disk space. Stop editing."
-        ), mapOf("path" to resolvedPath.toString())
+        ), context = mapOf("path" to resolvedPath.toString())
       )
     }
   }
 
   private fun executeCloud(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val filePath: String = arguments["path"] as? String ?: ""
-
-    val rawEdits: List<Map<String, Any>> = try {
-      parseEdits(arguments["edits"])
-    } catch (parseException: Exception) {
-      val errorMessage = parseException.message ?: "unknown parse error"
-      return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
-          code = "INVALID_PARAMETER",
-          message = "Failed to parse 'edits' parameter: $errorMessage",
-          fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
-        ),
-        mapOf("path" to filePath)
-      )
-    }
+    val rawEdits: List<Map<String, Any>> =
+      try {
+        parseEdits(rawInput = arguments["edits"])
+      } catch (parseException: Exception) {
+        val errorMessage = parseException.message ?: "unknown parse error"
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Failed to parse 'edits' parameter: $errorMessage",
+            fixHint = "Provide 'edits' as a JSON array of {oldString, newString} objects, or as a JSON-encoded string of the same shape."
+          ),
+          context = mapOf("path" to filePath)
+        )
+      }
     val projectRoot: String = context.projectRoot
 
     if (filePath.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Missing 'path' parameter.",
           fixHint = "Provide a valid file path in the 'path' parameter."
@@ -212,7 +207,8 @@ class EditFileSkill : Skill() {
 
     if (rawEdits.isEmpty())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "No edits provided.",
           fixHint = "Provide at least one edit object with 'oldString' and 'newString' fields."
@@ -223,12 +219,13 @@ class EditFileSkill : Skill() {
     val resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
       return makeFailure(
-        ErrorCode.PERMISSION_DENIED, buildXmlError(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
           code = "PERMISSION_DENIED",
           message = "Path is outside the project root: ${resolved.rejectionReason}",
           fixHint = "Use a path relative to the project root."
         ),
-        mapOf("path" to filePath)
+        context = mapOf("path" to filePath)
       )
     }
     val targetFile: File = resolvedPath.toFile()
@@ -238,11 +235,12 @@ class EditFileSkill : Skill() {
       val decodeError: String? = validateUtf8(originalBytes)
       if (decodeError != null) {
         return makeFailure(
-          ErrorCode.IO_ERROR, buildXmlError(
+          code = ErrorCode.IO_ERROR,
+          message = buildXmlError(
             code = "NON_UTF8_FILE",
             message = decodeError,
             fixHint = "Gradum can only safely edit UTF-8 text files. Convert the file to UTF-8 first."
-          ), mapOf("path" to resolvedPath.toString())
+          ), context = mapOf("path" to resolvedPath.toString())
         )
       }
       val originalContent = String(originalBytes, Charsets.UTF_8)
@@ -257,29 +255,32 @@ class EditFileSkill : Skill() {
       val invalidEdit: EditOperation? = parsedEdits.firstOrNull { it.searchText.isBlank() }
       if (invalidEdit != null) {
         return makeFailure(
-          ErrorCode.INVALID_PARAMETER, buildXmlError(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
             code = "INVALID_PARAMETER",
             message = "Edit ${invalidEdit.editIndex + 1} has empty 'search' text.",
             fixHint = "Provide non-empty oldString text that matches the target code block in the file."
           )
         )
       }
-      applySequentialEdits(resolvedPath, originalContent, originalBytes, parsedEdits)
+      applySequentialEdits(resolvedPath, originalContent, originalBytes, editOperations = parsedEdits)
     } catch (_: FileNotFoundException) {
       makeFailure(
-        ErrorCode.FILE_NOT_FOUND, buildXmlError(
+        code = ErrorCode.FILE_NOT_FOUND,
+        message = buildXmlError(
           code = "FILE_NOT_FOUND",
           message = "File not found: $filePath",
           fixHint = "Check the file path. Use run_cmd tool to find the correct path."
-        ), mapOf("path" to resolvedPath.toString())
+        ), context = mapOf("path" to resolvedPath.toString())
       )
     } catch (editException: Exception) {
       makeFailure(
-        ErrorCode.IO_ERROR, buildXmlError(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
           code = "IO_ERROR",
           message = editException.message ?: "Unknown error during edit.",
           fixHint = "Check file permissions and disk space. Stop editing."
-        ), mapOf("path" to resolvedPath.toString())
+        ), context = mapOf("path" to resolvedPath.toString())
       )
     }
   }
@@ -302,18 +303,24 @@ class EditFileSkill : Skill() {
       when (val matchResult = findMatchesWithFallback(fileLines, searchLines)) {
         is FindResult.Found -> {
           if (matchResult.matches.size > 1) {
-            writeWithLock(fileMutation, resolvedPath, currentContent, originalBytes, appliedEdits.size)
+            writeWithLock(
+              fileMutation,
+              resolvedPath,
+              currentContent,
+              expectedBytes = originalBytes,
+              appliedCount = appliedEdits.size
+            )
               ?.let { return it }
 
             return makeFailure(
-              ErrorCode.MULTIPLE_MATCHES,
-              buildXmlError(
+              code = ErrorCode.MULTIPLE_MATCHES,
+              message = buildXmlError(
                 code = "MULTIPLE_MATCHES",
                 message = "Edit ${editOperation.editIndex + 1} found ${matchResult.matches.size} matches. Cannot determine which to replace.",
                 fixHint = "Add more surrounding context (function name, class declaration, comments) to make the match unique.",
                 appliedCount = appliedEdits.size
               ),
-              mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size)
+              context = mapOf("path" to resolvedPath.toString(), "appliedCount" to appliedEdits.size)
             )
           }
 
@@ -327,15 +334,18 @@ class EditFileSkill : Skill() {
 
           val newFileLines = fileLines.subList(0, bestMatch.startIndex) +
             replaceLines + fileLines.subList(bestMatch.endIndex, fileLines.size)
-          currentContent = newFileLines.joinToString("\n")
+          currentContent = newFileLines.joinToString(separator = "\n")
           appliedEdits.add(editOperation.editIndex)
         }
 
         is FindResult.NotFound -> {
           writeWithLock(
-            fileMutation, resolvedPath, currentContent, originalBytes, appliedEdits.size
-          )
-            ?.let { return it }
+            fileMutation,
+            resolvedPath,
+            currentContent,
+            expectedBytes = originalBytes,
+            appliedCount = appliedEdits.size
+          )?.let { return it }
 
           val failureStep = when (matchResult.failedAtStep) {
             MatchStrategy.NONE -> "matching"
@@ -344,14 +354,14 @@ class EditFileSkill : Skill() {
             MatchStrategy.NORMALIZED -> "normalized match"
           }
           return makeFailure(
-            ErrorCode.CODE_NOT_FOUND,
-            buildXmlError(
+            code = ErrorCode.CODE_NOT_FOUND,
+            message = buildXmlError(
               code = "CODE_NOT_FOUND",
               message = "Edit ${editOperation.editIndex + 1} failed at step: $failureStep. oldString text not found in file.",
               fixHint = "Check for whitespace differences or add more surrounding context (function name, class declaration," +
                 " comments) to make the match unique. If this fails after multiple attempts, inform the user and suggest manual editing.",
-              searchPreview = matchResult.searchPreview,
-              appliedCount = appliedEdits.size
+              appliedCount = appliedEdits.size,
+              searchPreview = matchResult.searchPreview
             ),
             mapOf(
               "path" to resolvedPath.toString(),
@@ -365,17 +375,17 @@ class EditFileSkill : Skill() {
     }
 
     if (currentContent.isBlank() && originalContent.isNotBlank()) {
-      writeWithLock(fileMutation, resolvedPath, originalContent, originalBytes)
+      writeWithLock(fileMutation, resolvedPath, originalContent, expectedBytes = originalBytes)
         ?.let { return it }
 
       return makeFailure(
-        ErrorCode.EMPTY_RESULT,
-        buildXmlError(
+        code = ErrorCode.EMPTY_RESULT,
+        message = buildXmlError(
           code = "EMPTY_RESULT",
           message = "Edit resulted in empty content.",
           fixHint = "The oldString block matched the entire file content. Add more context or check the file."
         ),
-        mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to resolvedPath.toString())
       )
     }
 
@@ -387,8 +397,8 @@ class EditFileSkill : Skill() {
       val error = writeResult.exceptionOrNull()
       return if (error is StaleContentError) {
         makeFailure(
-          ErrorCode.CONCURRENT_MODIFICATION,
-          buildXmlError(
+          code = ErrorCode.CONCURRENT_MODIFICATION,
+          message = buildXmlError(
             code = "CONCURRENT_MODIFICATION",
             message = "File was modified externally. Please read it again.",
             fixHint = "The file changed since you read it. Use read_file to get the latest content."
@@ -396,27 +406,25 @@ class EditFileSkill : Skill() {
         )
       } else {
         makeFailure(
-          ErrorCode.IO_ERROR,
-          buildXmlError(
+          code = ErrorCode.IO_ERROR,
+          message = buildXmlError(
             code = "IO_ERROR",
-            fixHint = "Check file permissions and disk space.",
-            message = error?.message ?: "Unknown error during write."
+            message = error?.message ?: "Unknown error during write.",
+            fixHint = "Check file permissions and disk space."
           )
         )
       }
     }
 
-    return makeSuccess(
-      mapOf(
-        "path" to resolvedPath.toString(),
-        "linesAdded" to linesAdded,
-        "linesRemoved" to linesRemoved,
-        "modifiedContent" to currentContent,
-        "editsApplied" to appliedEdits.size,
-        "totalEdits" to editOperations.size,
-        "originalContent" to originalContent
-      ),
-    )
+    return makeSuccess {
+      string("path", resolvedPath.toString())
+      integer("linesAdded", linesAdded)
+      integer("linesRemoved", linesRemoved)
+      string("modifiedContent", currentContent)
+      integer("editsApplied", appliedEdits.size)
+      integer("totalEdits", editOperations.size)
+      string("originalContent", originalContent)
+    }
   }
 
   private data class EditOperation(val searchText: String, val replaceText: String, val editIndex: Int)
@@ -427,10 +435,9 @@ class EditFileSkill : Skill() {
     @Suppress("UNCHECKED_CAST")
     fun parseEdits(rawInput: Any?): List<Map<String, Any>> {
       if (rawInput is List<*>) return rawInput.filterIsInstance<Map<String, Any>>()
-
       if (rawInput is String && rawInput.isNotBlank()) {
         try {
-          val jsonElement = jsonParser.parseToJsonElement(rawInput)
+          val jsonElement = jsonParser.parseToJsonElement(string = rawInput)
           if (jsonElement is JsonArray) {
             return jsonElement.mapNotNull { jsonItem ->
               if (jsonItem is JsonObject) {
@@ -466,37 +473,43 @@ private fun findMatchesWithFallback(
   fileLines: List<String>, searchLines: List<String>
 ): FindResult {
   if (searchLines.isEmpty()) return FindResult.NotFound(
-    MatchStrategy.NONE, emptyList()
+    failedAtStep = MatchStrategy.NONE, searchPreview = emptyList()
   )
 
   val searchNonBlank = searchLines.filter { it.isNotBlank() }
   if (searchNonBlank.isEmpty()) return FindResult.NotFound(
-    MatchStrategy.NONE, searchLines.take(3)
+    failedAtStep = MatchStrategy.NONE, searchPreview = searchLines.take(n = 3)
   )
 
   val fileNonBlankCount = fileLines.count { it.isNotBlank() }
   if (searchNonBlank.size > fileNonBlankCount) return FindResult.NotFound(
-    MatchStrategy.NONE, searchNonBlank.take(3)
+    failedAtStep = MatchStrategy.NONE, searchPreview = searchNonBlank.take(n = 3)
   )
 
-  val exactMatches = findMatchesByStrategy(fileLines, searchNonBlank) { fileLine, searchLine ->
+  val exactMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.trimEnd('\r', ' ') == searchLine.trimEnd('\r', ' ')
   }
   if (exactMatches.isNotEmpty()) return FindResult.Found(exactMatches)
 
-  val normalizedMatches = findMatchesByStrategy(fileLines, searchNonBlank) { fileLine, searchLine ->
+  val normalizedMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.trim() == searchLine.trim()
   }
   if (normalizedMatches.isNotEmpty()) return FindResult.Found(normalizedMatches)
 
-  val strippedMatches = findMatchesByStrategy(fileLines, searchNonBlank) { fileLine, searchLine ->
+  val strippedMatches = findMatchesByStrategy(
+    fileLines, searchLines = searchNonBlank
+  ) { fileLine, searchLine ->
     fileLine.filterNot { it.isWhitespace() } == searchLine.filterNot { it.isWhitespace() }
   }
   if (strippedMatches.isNotEmpty()) return FindResult.Found(strippedMatches)
 
   return FindResult.NotFound(
     failedAtStep = MatchStrategy.STRIPPED,
-    searchPreview = searchNonBlank.take(3)
+    searchPreview = searchNonBlank.take(n = 3)
   )
 }
 
@@ -507,8 +520,7 @@ private fun findMatchesWithFallback(
  * between the file and search text do not cause false negatives.
  */
 private fun findMatchesByStrategy(
-  fileLines: List<String>, searchLines: List<String>,
-  comparator: (String, String) -> Boolean
+  fileLines: List<String>, searchLines: List<String>, comparator: (String, String) -> Boolean
 ): List<MatchResult> {
   val matchResults = mutableListOf<MatchResult>()
   val searchContent = searchLines.filter { it.isNotBlank() }
@@ -516,7 +528,6 @@ private fun findMatchesByStrategy(
 
   for (startIdx in fileLines.indices) {
     if (fileLines[startIdx].isBlank()) continue
-
     var fileIndex = startIdx
     var searchIndex = 0
 
@@ -531,7 +542,7 @@ private fun findMatchesByStrategy(
       } else break
     }
     if (searchIndex == searchContent.size)
-      matchResults.add(MatchResult(startIdx, fileIndex, MatchStrategy.EXACT))
+      matchResults.add(MatchResult(startIndex = startIdx, endIndex = fileIndex, strategy = MatchStrategy.EXACT))
   }
   return matchResults
 }
@@ -577,35 +588,33 @@ class FileMutation {
     return withLock(path) {
       val targetFile = path.toFile()
       if (!targetFile.exists())
-        return@withLock Result.failure(StaleContentError(path.toString()))
+        return@withLock Result.failure(exception = StaleContentError(path.toString()))
 
       val current = targetFile.readBytes()
-      if (!current.contentEquals(expected)) {
-        return@withLock Result.failure(StaleContentError(path.toString()))
+      if (!current.contentEquals(other = expected)) {
+        return@withLock Result.failure(exception = StaleContentError(path.toString()))
       }
       targetFile.writeText(content, Charsets.UTF_8)
-      Result.success(Unit)
+      Result.success(value = Unit)
     }
   }
 
   suspend fun writeTextPreservingBom(path: Path, content: String, expected: ByteArray?): Result<Unit> {
     return withLock(path) {
       val targetFile = path.toFile()
-      val (cleanContent, newHasBom) = splitBom(content)
+      val (cleanContent, newHasBom) = splitBom(text = content)
       val current = if (targetFile.exists()) targetFile.readBytes() else null
-      // TOCTOU guard: if the caller read the file earlier, require the
-      // on-disk bytes to still match before overwriting — otherwise an
-      // external edit would be silently clobbered.
-      if (current == null) return@withLock Result.failure(StaleContentError(path.toString()))
-      if (expected != null && !current.contentEquals(expected)) {
-        return@withLock Result.failure(StaleContentError(path.toString()))
+
+      if (current == null) return@withLock Result.failure(exception = StaleContentError(path.toString()))
+      if (expected != null && !current.contentEquals(other = expected)) {
+        return@withLock Result.failure(exception = StaleContentError(path.toString()))
       }
-      val currentHasBom = hasUtf8Bom(current)
-      val finalContent = joinBom(cleanContent, currentHasBom || newHasBom)
+      val currentHasBom = hasUtf8Bom(bytes = current)
+      val finalContent = joinBom(text = cleanContent, currentHasBom || newHasBom)
 
       targetFile.writeText(finalContent, Charsets.UTF_8)
       targetFile.setLastModified(System.currentTimeMillis())
-      Result.success(Unit)
+      Result.success(value = Unit)
     }
   }
 
@@ -622,7 +631,7 @@ class FileMutation {
     }
 
     private fun splitBom(text: String): Pair<String, Boolean> {
-      val stripped = text.replace(Regex("^\\uFEFF+"), "")
+      val stripped = text.replace(Regex(pattern = "^\\uFEFF+"), replacement = "")
       return stripped to (stripped.length != text.length)
     }
   }
@@ -639,8 +648,8 @@ private fun writeWithLock(
   }
   if (result.isFailure && result.exceptionOrNull() is StaleContentError) {
     return makeFailure(
-      ErrorCode.CONCURRENT_MODIFICATION,
-      buildXmlError(
+      code = ErrorCode.CONCURRENT_MODIFICATION,
+      message = buildXmlError(
         code = "CONCURRENT_MODIFICATION",
         message = "File was modified externally. Please read it again.",
         fixHint = "The file changed since you read it. Use read_file to get the latest content.",

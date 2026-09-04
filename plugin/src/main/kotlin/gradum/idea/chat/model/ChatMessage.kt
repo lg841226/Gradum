@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-08-23 21:12:19 Changed by gwy
+ * ChatMessage.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -110,8 +110,8 @@ data class ChatMessage(
 
           is ChatEvent.ToolCall -> {
             if (contentBuilder.isNotEmpty()) contentBuilder.append("\n\n")
-            val argumentString = if (event.info.arguments.isNotEmpty()) {
-              event.info.arguments.entries.joinToString(", ") {
+            val argumentString: String = if (event.info.arguments.isNotEmpty()) {
+              event.info.arguments.entries.joinToString(separator = ", ") {
                 "${it.key}=${it.value}"
               }
             } else ""
@@ -155,18 +155,18 @@ data class ChatMessage(
     val newEvents: List<ChatEvent> = when (event) {
       is ChatEvent.ToolCall -> appendToolCallEvent(event)
       is ChatEvent.Response -> {
-        val last = events.lastOrNull()
+        val last: ChatEvent? = events.lastOrNull()
         if (last is ChatEvent.Response) {
-          events.dropLast(1) + ChatEvent.Response(last.content + event.content)
+          events.dropLast(n = 1) + ChatEvent.Response(last.content + event.content)
         } else {
           events + event
         }
       }
 
       is ChatEvent.Thinking -> {
-        val last = events.lastOrNull()
+        val last: ChatEvent? = events.lastOrNull()
         if (last is ChatEvent.Thinking) {
-          events.dropLast(1) + ChatEvent.Thinking(last.content + event.content)
+          events.dropLast(n = 1) + ChatEvent.Thinking(last.content + event.content)
         } else {
           events + event
         }
@@ -176,24 +176,26 @@ data class ChatMessage(
     }
     val newRenderBlocks = when (event) {
       is ChatEvent.Response -> {
-        val last = renderBlocks.lastOrNull()
+        val last: RenderBlock? = renderBlocks.lastOrNull()
         if (last is RenderBlock.Response)
-          renderBlocks.dropLast(1) + RenderBlock.Response(last.content + event.content)
+          renderBlocks.dropLast(n = 1) + RenderBlock.Response(last.content + event.content)
         else
           renderBlocks + RenderBlock.Response(event.content)
       }
 
       is ChatEvent.Thinking -> {
-        val last = renderBlocks.lastOrNull()
+        val last: RenderBlock? = renderBlocks.lastOrNull()
         if (last is RenderBlock.Thinking)
-          renderBlocks.dropLast(1) + RenderBlock.Thinking(last.content + event.content)
+          renderBlocks.dropLast(n = 1) + RenderBlock.Thinking(last.content + event.content)
         else
           renderBlocks + RenderBlock.Thinking(event.content)
       }
 
-      is ChatEvent.ToolCall -> appendToolCall(event)
+      is ChatEvent.ToolCall ->
+        appendToolCall(event)
 
-      is ChatEvent.Error -> renderBlocks + RenderBlock.Error(event.message, event.code)
+      is ChatEvent.Error ->
+        renderBlocks + RenderBlock.Error(event.message, event.code)
     }
     return copy(
       events = newEvents,
@@ -211,7 +213,7 @@ data class ChatMessage(
    */
   private fun appendToolCallEvent(event: ChatEvent.ToolCall): List<ChatEvent> {
     if (event.info.toolCallId.isNotBlank()) {
-      val existingIdx = events.indexOfLast {
+      val existingIdx: Int = events.indexOfLast {
         it is ChatEvent.ToolCall && it.info.toolCallId == event.info.toolCallId
       }
       if (existingIdx >= 0) {
@@ -241,16 +243,16 @@ data class ChatMessage(
       alias = info.alias,
       result = info.result,
       success = info.success,
+      pending = info.pending,
       arguments = info.arguments,
+      toolCallId = info.toolCallId,
       errorDetail = info.errorDetail,
       errorMessage = info.errorMessage,
-      toolCallId = info.toolCallId,
-      pending = info.pending,
       timeoutSeconds = info.timeoutSeconds
     )
 
     if (info.toolCallId.isNotBlank()) {
-      val existingIdx = renderBlocks.indexOfLast {
+      val existingIdx: Int = renderBlocks.indexOfLast {
         it is RenderBlock.ToolCall && it.toolCallId == info.toolCallId
       }
       if (existingIdx >= 0) {
@@ -269,26 +271,36 @@ data class ChatMessage(
    * @return The updated message, or `this` if no failed ToolCall was found.
    */
   fun updateLastError(friendlyMessage: String, errorDetail: String): ChatMessage {
-    val lastFailedIdx = events.indexOfLast {
+    val lastFailedIdx: Int = events.indexOfLast {
       it is ChatEvent.ToolCall && !it.info.success
     }
     if (lastFailedIdx < 0) return this
 
-    val oldInfo = (events[lastFailedIdx] as ChatEvent.ToolCall).info
+    val oldInfo: ToolCallInfo = (events[lastFailedIdx] as ChatEvent.ToolCall).info
     val updatedEvent = ChatEvent.ToolCall(
-      oldInfo.copy(errorMessage = friendlyMessage, errorDetail = errorDetail)
+      info = oldInfo.copy(errorMessage = friendlyMessage, errorDetail = errorDetail)
     )
-    val newEvents = events.toMutableList().apply { set(lastFailedIdx, updatedEvent) }
 
-    val lastFailedBlockIdx = renderBlocks.indexOfLast { it is RenderBlock.ToolCall && !it.success }
-    val newRenderBlocks = if (lastFailedBlockIdx >= 0) {
-      val existingBlock = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
-      renderBlocks.toMutableList().apply {
-        set(lastFailedBlockIdx, existingBlock.copy(errorMessage = friendlyMessage, errorDetail = errorDetail))
-      }
-    } else {
-      renderBlocks
+    val newEvents = events.toMutableList().apply {
+      set(lastFailedIdx, updatedEvent)
     }
+
+    val lastFailedBlockIdx: Int = renderBlocks.indexOfLast {
+      it is RenderBlock.ToolCall && !it.success
+    }
+    val newRenderBlocks =
+      if (lastFailedBlockIdx >= 0) {
+        val existingBlock = renderBlocks[lastFailedBlockIdx] as RenderBlock.ToolCall
+        renderBlocks.toMutableList().apply {
+          set(
+            lastFailedBlockIdx, existingBlock.copy(
+              errorMessage = friendlyMessage, errorDetail = errorDetail
+            )
+          )
+        }
+      } else {
+        renderBlocks
+      }
 
     return copy(events = newEvents, renderBlocks = newRenderBlocks)
   }
@@ -310,15 +322,16 @@ fun formatTimestamp(timestamp: Long): String {
   val diffDays: Long = TimeUnit.MILLISECONDS.toDays(diffMillis)
 
   return when {
-    isSameDay(now, messageTime) -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
-    isYesterday(now, messageTime) -> {
+    isSameDay(cal1 = now, cal2 = messageTime) ->
+      SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+    isYesterday(now, target = messageTime) -> {
       val time: String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
       "${message("gradum.timestamp.yesterday")} $time"
     }
 
     now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat(
-      "MMM d",
-      Locale.getDefault()
+      "MMM d", Locale.getDefault()
     ).format(Date(timestamp))
 
     else -> "$diffDays ${message("gradum.timestamp.days.ago")}"
@@ -331,6 +344,8 @@ private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
 }
 
 private fun isYesterday(now: Calendar, target: Calendar): Boolean {
-  val yesterday: Calendar = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
-  return isSameDay(yesterday, target)
+  val yesterday: Calendar = (now.clone() as Calendar).apply {
+    add(Calendar.DAY_OF_YEAR, -1)
+  }
+  return isSameDay(cal1 = yesterday, cal2 = target)
 }

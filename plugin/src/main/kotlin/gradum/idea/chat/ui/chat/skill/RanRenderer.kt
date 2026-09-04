@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * RanRenderer.kt  2026-08-12 12:38:25 Changed by gwy
+ * RanRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -11,10 +11,7 @@ import androidx.compose.runtime.Composable
 import gradum.idea.chat.ui.chat.skill.internal.OpenInEditorButton
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallAction
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
-import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
+import gradum.idea.chat.ui.chat.skill.spi.*
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
@@ -40,8 +37,8 @@ class RanRenderer : ToolCallRenderer {
   override fun parseContent(
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
-    val shellCommand: String = (arguments["command"] as? String).orEmpty()
-    val reasonText: String = (arguments["reason"] as? String).orEmpty()
+    val shellCommand: String = arguments.string(key = "command")
+    val reasonText: String = arguments.string(key = "reason")
     val actionList: MutableList<ToolCallAction> = mutableListOf()
     if (shellCommand.isNotBlank()) actionList.add(ToolCallAction.CopyToClipboard(payload = shellCommand))
 
@@ -63,11 +60,6 @@ class RanRenderer : ToolCallRenderer {
       label = message(LABEL_KEY),
       iconKey = GradumIcons.Ran,
       success = !ctx.isError,
-      errorInfo = ToolCallErrorInfo(
-        detail = ctx.errorDetail.orEmpty(),
-        toolDetails = ctx.toolDetails.orEmpty(),
-        message = ctx.errorDetail.orEmpty()
-      ),
       trailingText = reasonText,
       trailingIcon = {
         OpenInEditorButton(
@@ -76,7 +68,12 @@ class RanRenderer : ToolCallRenderer {
             ctx.onOpenInEditor?.invoke(shellCommand, 0, 0)
           }
         )
-      }
+      },
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      )
     )
   }
 

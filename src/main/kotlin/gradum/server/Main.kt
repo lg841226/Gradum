@@ -1,25 +1,27 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-08-14 22:29:44 Changed by gwy
+ * Main.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
 
+import gradum.BuildConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
 fun main(arguments: Array<String>) {
+  printStartupBanner()
   val parsedArguments: ServerArguments = parseArguments(arguments)
 
   val resolvedPort: Int = if (parsedArguments.autoDetectPort) {
-    val detectedPort: Int? = findAvailablePort(parsedArguments.portNumber)
+    val detectedPort: Int? = findAvailablePort(startPort = parsedArguments.portNumber)
 
-    checkNotNull(detectedPort) {
-      "No available port in range ${parsedArguments.portNumber} - " +
+    checkNotNull(value = detectedPort) {
+      "No available port in range ${parsedArguments.portNumber} ~ " +
         "${parsedArguments.portNumber + 10}; aborting server start"
     }
 
@@ -28,21 +30,27 @@ fun main(arguments: Array<String>) {
   } else
     parsedArguments.portNumber
 
+  // Publish resolved port to logging converter
+  System.setProperty("gradum.server.port", resolvedPort.toString())
+
   val resolvedApiKey: String? = parsedArguments.apiKey
     ?.trim()?.takeIf { it.isNotEmpty() } ?: ServerConfiguration.resolveDefaultApiKeyFromEnv()
   if (resolvedApiKey != null) {
-    val keyPreview: String = resolvedApiKey.take(6) + "XXX" + resolvedApiKey.takeLast(4)
-    logger.info("Hosted providers will use API key $keyPreview (source: ${apiKeySourceLabel(parsedArguments.apiKey)})")
+    val keyPreview: String = resolvedApiKey.take(n = 4) + "···" + resolvedApiKey.takeLast(n = 4)
+    logger.info(
+      "Hosted providers will use API key $keyPreview (src: " +
+        "${apiKeySourceLabel(argumentValue = parsedArguments.apiKey)})"
+    )
   } else {
     logger.info(
-      "No hosted-provider API key resolved; Zhipu BigModel / DeepSeek / MiniMax probes " +
+      "No hosted-provider API key resolved, Zhipu BigModel / DeepSeek / MiniMax probes " +
         "will be skipped at startup"
     )
   }
 
   val serverConfiguration = ServerConfiguration(
-    hostAddress = parsedArguments.hostAddress,
     portNumber = resolvedPort,
+    hostAddress = parsedArguments.hostAddress,
     defaultApiKey = resolvedApiKey,
   )
 
@@ -60,10 +68,10 @@ private fun apiKeySourceLabel(argumentValue: String?): String =
   if (argumentValue.isNullOrBlank()) "environment" else "--api-key argument"
 
 private data class ServerArguments(
-  val hostAddress: String,
   val portNumber: Int,
-  val autoDetectPort: Boolean,
+  val hostAddress: String,
   val apiKey: String? = null,
+  val autoDetectPort: Boolean
 )
 
 private fun parseArguments(arguments: Array<String>): ServerArguments {
@@ -86,10 +94,10 @@ private fun parseArguments(arguments: Array<String>): ServerArguments {
   }
 
   return ServerArguments(
-    hostAddress = hostAddress,
-    portNumber = portNumber,
-    autoDetectPort = autoDetectPort,
     apiKey = apiKey,
+    portNumber = portNumber,
+    hostAddress = hostAddress,
+    autoDetectPort = autoDetectPort
   )
 }
 
@@ -115,14 +123,50 @@ private fun printUsage() {
         |  --help                 Show this help message
         |
         |HTTP Endpoints:
-        |  POST /events   Execute agent, returns NDJSON stream
-        |  POST /stop     Stop current agent task
-        |  GET  /health   Liveness probe
-        |  GET  /models   List available models
-        |  GET  /skills   List registered skills
+        |  POST /events          Execute agent, returns NDJSON stream
+        |  POST /stop            Stop current agent task
+        |  POST /session/delete  Delete session
+        |  POST /provider/probe  Probe provider connectivity
+        |  GET  /health          Liveness probe
+        |  GET  /models          List available models
+        |  GET  /skills          List registered skills
         |
         |Note: projectRoot is sent by the plugin on every /events request.
         |      It is not a server-side configuration.
     """.trimMargin()
   )
+}
+
+private fun printStartupBanner() {
+  val workDir = abbreviatePath(System.getProperty("user.dir") ?: "?")
+
+  println(
+    """
+      |
+      |
+      |   ██████╗ ██████╗  █████╗ ██████╗ ██╗   ██╗███╗   ███╗
+      |  ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║   ██║████╗ ████║
+      |  ██║  ███╗██████╔╝███████║██║  ██║██║   ██║██╔████╔██║
+      |  ██║   ██║██╔══██╗██╔══██║██║  ██║██║   ██║██║╚██╔╝██║
+      |  ╚██████╔╝██║  ██║██║  ██║██████╔╝╚██████╔╝██║ ╚═╝ ██║
+      |   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
+      |
+      |  Copyright (c) 2026 Gradum team, software version ${BuildConfig.version}
+      |
+      |  (Working Directory $workDir)
+      |
+    """.trimMargin()
+  )
+}
+
+private fun abbreviatePath(path: String): String {
+  val homeDirectory = System.getProperty("user.home") ?: return path
+  if (!path.startsWith(prefix = homeDirectory)) return path
+
+  val relativePath = path.removePrefix(homeDirectory).trimStart('/')
+  val pathSegments = relativePath.split("/")
+
+  return if (pathSegments.size >= 2)
+    "~/${pathSegments.takeLast(n = 2).joinToString(separator = "/")}"
+  else "~/$relativePath"
 }

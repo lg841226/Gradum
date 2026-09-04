@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateRenderer.kt  2026-08-23 21:14:12 Changed by gwy
+ * DelegateRenderer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
+import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
@@ -42,8 +43,8 @@ class DelegateRenderer : ToolCallRenderer {
     arguments: Map<String, Any?>, result: Map<String, Any?>
   ): ToolCallContent {
     return ToolCallContent(
-      fieldMap = arguments,
-      aliasName = ALIAS
+      aliasName = ALIAS,
+      fieldMap = arguments
     )
   }
 
@@ -51,7 +52,7 @@ class DelegateRenderer : ToolCallRenderer {
 
   override fun rendersWhilePending(): Boolean = true
 
-  override fun labelKey(): String? = "gradum.tool.delegate"
+  override fun labelKey(): String = "gradum.tool.delegate"
 
   companion object {
     const val ALIAS: String = "Delegate"
@@ -63,13 +64,15 @@ class DelegateRenderer : ToolCallRenderer {
     val isPending: Boolean = content.fieldMap["pending"] as? Boolean ?: true
     val transcriptMarkdown: String = content.fieldMap["transcriptMarkdown"] as? String ?: ""
     val startTimestamp: Long = (content.fieldMap["startTimestamp"] as? Number)?.toLong() ?: 0L
-    val endTimestamp: Long? = if (isPending) null else (content.fieldMap["endTimestamp"] as? Number)?.toLong()
+    val endTimestamp: Long? =
+      if (isPending) null
+      else (content.fieldMap["endTimestamp"] as? Number)?.toLong()
 
-    var currentTimeMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(isPending) {
+    var currentTimeMillis by remember { mutableStateOf(value = System.currentTimeMillis()) }
+    LaunchedEffect(key1 = isPending) {
       if (isPending) {
         while (true) {
-          delay(1000L.milliseconds)
+          delay(duration = 1000L.milliseconds)
           currentTimeMillis = System.currentTimeMillis()
         }
       }
@@ -86,10 +89,19 @@ class DelegateRenderer : ToolCallRenderer {
 
     ToolCallCapsule(
       label = message("gradum.tool.delegate"),
-      success = !isPending,
+      iconKey =
+        if (isPending) AllIconsKeys.Nodes.Services
+        else AllIconsKeys.Actions.Checked,
+      success = !isPending && !ctx.isError,
+      errorInfo = ToolCallErrorInfo(
+        detail = ctx.errorDetail.orEmpty(),
+        message = ctx.errorDetail.orEmpty(),
+        toolDetails = ctx.toolDetails.orEmpty()
+      ),
       trailingText = title,
-      iconKey = if (isPending) AllIconsKeys.Nodes.Services else AllIconsKeys.Actions.Checked,
-      modifier = Modifier.clickable { ctx.onSubChatClick?.invoke(transcriptMarkdown, "", title) },
+      modifier = Modifier.clickable {
+        ctx.onSubChatClick?.invoke(transcriptMarkdown, "", title)
+      },
       trailingIcon = {
         if (durationText.isNotBlank()) {
           Text(

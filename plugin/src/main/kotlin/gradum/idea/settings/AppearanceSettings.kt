@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AppearanceSettings.kt  2026-08-20 11:21:57 Changed by gwy
+ * AppearanceSettings.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -29,12 +29,12 @@ enum class ParagraphDensity(val storageKey: String) {
  * Welcome screen layout: how many quick-start suggestions vs recent chats.
  */
 enum class WelcomeLayout(val storageKey: String, val quickStartCount: Int, val recentCount: Int) {
-  QS0_RC6("qs0_rc6", 0, 6),
-  QS1_RC5("qs1_rc5", 1, 5),
-  QS2_RC4("qs2_rc4", 2, 4),
-  QS3_RC3("qs3_rc3", 3, 3),
-  QS4_RC2("qs4_rc2", 4, 2),
-  QS5_RC1("qs5_rc1", 5, 1);
+  QS0_RC6(storageKey = "qs0_rc6", quickStartCount = 0, recentCount = 6),
+  QS1_RC5(storageKey = "qs1_rc5", quickStartCount = 1, recentCount = 5),
+  QS2_RC4(storageKey = "qs2_rc4", quickStartCount = 2, recentCount = 4),
+  QS3_RC3(storageKey = "qs3_rc3", quickStartCount = 3, recentCount = 3),
+  QS4_RC2(storageKey = "qs4_rc2", quickStartCount = 4, recentCount = 2),
+  QS5_RC1(storageKey = "qs5_rc1", quickStartCount = 5, recentCount = 1);
 }
 
 /** Bounds for the configurable assistant body font size, in sp. */
@@ -70,7 +70,7 @@ const val DEFAULT_MESSAGE_LOAD_COUNT: Int = 100
  */
 @State(
   name = "GradumAppearanceSettings",
-  storages = [Storage("gradum.xml")]
+  storages = [Storage(value = "gradum.xml")]
 )
 
 @Service(Service.Level.APP)

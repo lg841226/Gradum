@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-19 17:24:33 Changed by gwy
+ * WebSearchSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -47,28 +47,23 @@ class WebSearchSkill : Skill() {
     }
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimple = context?.isSimpleModel == true
-    return buildFunctionSchema(
-      description = if (useSimple) "Search the web for information" else description,
-      properties = mapOf(
-        "query" to mapOf(
-          "type" to "string",
-          "description" to "Search query"
-        ),
-        "max_results" to mapOf(
-          "type" to "integer",
-          "description" to "Max results (1-10, default 5)",
-          "minimum" to 1,
-          "maximum" to 10
-        ),
-        "search_depth" to mapOf(
-          "type" to "string",
-          "description" to "Search depth: basic (fast) or advanced (thorough). Default basic.",
-          "enum" to listOf("basic", "advanced")
-        )
-      ),
-      required = listOf("query"),
+  override val simpleDescription: String = "Search the web for information"
+
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "query",
+      description = "Search query",
+      required = true,
+    )
+    integer(
+      name = "max_results",
+      description = "Max results (1-10, default 5)",
+      constraints = IntConstraints(minimum = 1, maximum = 10),
+    )
+    string(
+      name = "search_depth",
+      description = "Search depth: basic (fast) or advanced (thorough). Default basic.",
+      enumValues = listOf("basic", "advanced"),
     )
   }
 
@@ -76,16 +71,16 @@ class WebSearchSkill : Skill() {
     val query = (arguments["query"] as? String)?.trim()
     if (query.isNullOrBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER", message = "Query must not be empty.",
           fixHint = "Provide a search query, e.g. 'Kotlin coroutines best practices'."
         )
       )
     if (query.length > 5000)
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER", message = "Query too long (max 5000 chars).",
           fixHint = "Shorten the query."
         )
@@ -103,16 +98,14 @@ class WebSearchSkill : Skill() {
     val apiKey = System.getenv("TAVILY_API_KEY")
     if (apiKey.isNullOrBlank())
       return makeFailure(
-        "SEARCH_FAILED",
-        buildXmlError(
-          code = "SEARCH_FAILED", message = "Web search API key not configured.",
+        code = "SEARCH_FAILED",
+        message = buildXmlError(
+          code = "SEARCH_FAILED",
+          message = "Web search API key not configured.",
           fixHint = "Configure the web search API key and try again."
         )
       )
 
-    // `include_favicon` is a UI-rendering concern, not a search behavior
-    // concern — the LLM doesn't need to know it exists. Hardcoded so a
-    // tool-call argument can't accidentally disable favicons.
     return try {
       val requestBody = buildJsonObject {
         put("query", query)
@@ -135,17 +128,19 @@ class WebSearchSkill : Skill() {
 
       if (response.status == HttpStatusCode.TooManyRequests)
         return makeFailure(
-          "SEARCH_FAILED",
-          buildXmlError(
-            code = "SEARCH_FAILED", message = "Tavily rate limit exceeded (HTTP 429).",
+          code = "SEARCH_FAILED",
+          message = buildXmlError(
+            code = "SEARCH_FAILED",
+            message = "Tavily rate limit exceeded (HTTP 429).",
             fixHint = "Wait a moment and try again."
           )
         )
       if (response.status.value >= 500)
         return makeFailure(
-          "SEARCH_FAILED",
-          buildXmlError(
-            code = "SEARCH_FAILED", message = "Tavily server error (HTTP ${response.status.value}).",
+          code = "SEARCH_FAILED",
+          message = buildXmlError(
+            code = "SEARCH_FAILED",
+            message = "Tavily server error (HTTP ${response.status.value}).",
             fixHint = "The service is temporarily down. Try again later."
           )
         )
@@ -154,48 +149,47 @@ class WebSearchSkill : Skill() {
       logger.debug("Tavily response status={} bodyLength={}", response.status, bodyText.length)
 
       val responseJson = try {
-        jsonParser.parseToJsonElement(bodyText).jsonObject
+        jsonParser.parseToJsonElement(string = bodyText).jsonObject
       } catch (parseException: Exception) {
         logger.error("Failed to parse Tavily response: {}", parseException.message)
         return makeFailure(
-          "SEARCH_FAILED",
-          buildXmlError(
+          code = "SEARCH_FAILED",
+          message = buildXmlError(
             code = "SEARCH_FAILED", message = "Invalid response from Tavily API.",
             fixHint = "The API returned unexpected data. Try again."
           )
         )
       }
 
-      val results = responseJson["results"]?.jsonArray?.take(maxResults)?.mapNotNull { element ->
+      val results = responseJson["results"]?.jsonArray?.take(n = maxResults)?.mapNotNull { element ->
         val jsonObject = element.jsonObject
-        val webTitle = jsonObject["title"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-        val content = jsonObject["content"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
         val webUrl = jsonObject["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val faviconUrl: String = jsonObject["favicon"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val webTitle = jsonObject["title"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val content = jsonObject["content"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
         linkedMapOf(
           "url" to webUrl,
           "title" to webTitle,
           "snippet" to content,
-          "faviconUrl" to faviconUrl,
+          "faviconUrl" to faviconUrl
         )
       } ?: emptyList()
 
       logger.info("Got {} results for query='{}'", results.size, query)
 
-      makeSuccess(
-        linkedMapOf(
-          "query" to query,
-          "max_results" to maxResults,
-          "search_depth" to searchDepth,
-          "results" to results
-        )
-      )
+      makeSuccess {
+        string("query", query)
+        integer("max_results", maxResults)
+        string("search_depth", searchDepth)
+        objectList("results", results)
+      }
     } catch (networkException: Exception) {
-      logger.error("Web search failed for query='{}': {}", query, networkException.message, networkException)
+      logger.error("Web search failed for query='{}': {}", query, networkException.message)
       makeFailure(
-        "SEARCH_FAILED",
-        buildXmlError(
-          code = "SEARCH_FAILED", message = "Web search failed: ${networkException.message}",
+        code = "SEARCH_FAILED",
+        message = buildXmlError(
+          code = "SEARCH_FAILED",
+          message = "Web search failed: ${networkException.message}",
           fixHint = "Check your API key and network connection."
         )
       )

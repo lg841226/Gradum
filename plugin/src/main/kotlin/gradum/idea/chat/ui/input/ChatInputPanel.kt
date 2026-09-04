@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatInputPanel.kt  2026-08-12 12:38:25 Changed by gwy
+ * ChatInputPanel.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -112,14 +112,13 @@ fun ChatInputPanel(
             CircularProgressIndicator(modifier = Modifier.size(16.dp))
             SweepLightText(
               text = preview,
-              enabled = true,
               modifier = Modifier.weight(1f)
             )
             IconTooltipButton(
               tooltip = message("gradum.remove"),
               iconKey = AllIconsKeys.Actions.Close,
-              contentDescription = message("gradum.remove"),
               onClick = { actions.onRemovePending(pending) },
+              contentDescription = message("gradum.remove"),
               modifier = Modifier.size(18.dp)
             )
           }

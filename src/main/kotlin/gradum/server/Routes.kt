@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-23 13:44:58 Changed by gwy
+ * Routes.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.server
@@ -39,6 +39,12 @@ private val logger: Logger = LoggerFactory.getLogger("GradumServerRoutes")
 
 /** Cap on buffered NDJSON events per session before the producer drops. */
 private const val EVENTS_CHANNEL_CAPACITY: Int = 2048
+
+private data class SessionEntry(
+  val agent: Agent,
+  val parentSessionId: String? = null,
+  val childSessionIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+)
 
 @Serializable
 data class ProviderProbeRequest(
@@ -236,7 +242,7 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
  */
 fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = ServerConfiguration()) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
-  val activeSessions: ConcurrentHashMap<String, Agent> = ConcurrentHashMap()
+  val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
 
   routing {
     post("/events") {
@@ -301,19 +307,43 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
         chatCompletionsPath = configOverrides.chatCompletionsPath
           ?: inferChatCompletionsPath(resolvedBaseUrl),
         toolMode = resolvedToolMode,
+        sessionId = resolvedSessionId,
+        projectRoot = projectRootPath.toString(),
+        topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
         enableThinking = configOverrides.think ?: AgentConfiguration.DEFAULT_ENABLE_THINKING,
-        topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
-        temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
-        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
+        temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
-        projectRoot = projectRootPath.toString(),
-        sessionId = resolvedSessionId,
+        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
       )
 
       launch(Dispatchers.IO) {
         try {
+          // Sub-agent registration/unregistration callbacks scoped to this
+          // session's parent-child hierarchy. See [SessionEntry].
+          val registerChildSession: (String, Agent) -> Unit = { childId: String, childAgent: Agent ->
+            val childEntry = SessionEntry(
+              agent = childAgent,
+              parentSessionId = sessionId
+            )
+            activeSessions[childId] = childEntry
+            activeSessions.computeIfPresent(sessionId) { _: String, parentEntry: SessionEntry ->
+              parentEntry.childSessionIds.add(childId)
+              parentEntry
+            }
+            logger.info("Registered sub-agent $childId under parent $sessionId")
+          }
+          val unregisterChildSession: (String) -> Unit = { childId: String ->
+            activeSessions.remove(childId)?.let {
+              activeSessions.computeIfPresent(sessionId) { _: String, parentEntry: SessionEntry ->
+                parentEntry.childSessionIds.remove(childId)
+                parentEntry
+              }
+              logger.info("Unregistered sub-agent $childId")
+            }
+          }
+
           val agentInstance = Agent(
             configuration = agentConfiguration,
             emitEvent = { eventType: String, data: Map<String, Any> ->
@@ -333,9 +363,11 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
                 )
               }
             },
+            registerChildSession = registerChildSession,
+            unregisterChildSession = unregisterChildSession,
           )
 
-          activeSessions[sessionId] = agentInstance
+          activeSessions[sessionId] = SessionEntry(agent = agentInstance)
           agentInstance.executeTask(
             userInput = requestBody.message,
             toolCallXml = requestBody.toolCallXml,
@@ -370,19 +402,49 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
     post("/stop") {
       val requestBody = call.receive<StopRequestBody>()
       val sessionId = requestBody.sessionId
-      val targetAgent = activeSessions.remove(sessionId)
+      val targetEntry = activeSessions.remove(sessionId)
 
-      if (targetAgent != null) {
-        targetAgent.abort()
+      if (targetEntry != null) {
+        // Cascade abort to all descendant sessions (sub-agents).
+        // Collect recursively so that deeply nested sub-agents are also
+        // terminated, not just the immediate children.
+        val agentsToStop: MutableList<Agent> = mutableListOf(targetEntry.agent)
+        val childIdsToRemove: MutableList<String> = mutableListOf()
+
+        fun collectDescendants(entry: SessionEntry) {
+          for (childId: String in entry.childSessionIds.toSet()) {
+            val childEntry: SessionEntry? = activeSessions.remove(childId)
+            if (childEntry != null) {
+              agentsToStop.add(childEntry.agent)
+              childIdsToRemove.add(childId)
+              collectDescendants(childEntry)
+            }
+          }
+        }
+        collectDescendants(targetEntry)
+
+        // Remove child references from the parent entry (already removed
+        // from activeSessions, but keep the hierarchy clean).
+        targetEntry.childSessionIds.removeAll(childIdsToRemove.toSet())
+
+        for (agent: Agent in agentsToStop)
+          agent.abort()
+
         call.respondText(
-          text = JsonUtil.encodeMap(mapOf("status" to "stopped", "sessionId" to sessionId)),
+          text = JsonUtil.encodeMap(
+            mapOf(
+              "status" to "stopped",
+              "sessionId" to sessionId,
+              "cascaded" to agentsToStop.size - 1
+            )
+          ),
           contentType = ContentType.Application.Json
         )
       } else {
         call.respondText(
-          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionId)),
           status = HttpStatusCode.NotFound,
-          contentType = ContentType.Application.Json
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionId))
         )
       }
     }
@@ -462,11 +524,6 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
 
     get("/models") {
       val discoveredModels: List<ModelEntry> = ModelIdentity.discoverModels()
-      val availableCount: Int = discoveredModels.count { it.available }
-      val filteredCount: Int = discoveredModels.size - availableCount
-      application.log.info(
-        "Discovered ${discoveredModels.size} models ($availableCount available, $filteredCount filtered)"
-      )
       val modelToJson: (ModelEntry) -> Map<String, Any?> = { entry: ModelEntry ->
         mapOf(
           "name" to entry.modelName,

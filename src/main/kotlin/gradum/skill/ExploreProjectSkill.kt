@@ -1,13 +1,15 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExploreProjectSkill.kt  2026-08-23 21:12:19 Changed by gwy
+ * ExploreProjectSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.*
+import gradum.utils.JsonUtil.decodeMap
+import gradum.utils.JsonUtil.encodeMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -16,11 +18,11 @@ import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("ExploreProjectSkill")
 
-private const val MINIMUM_DEPTH: Int = 5
-private const val MAXIMUM_DEPTH: Int = 14
-private const val DEFAULT_DEPTH: Int = 8
-private const val DEFAULT_LIMIT: Int = 500
-private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = 2048
+private const val MINIMUM_DEPTH: Int = GradumConfig.EXPLORE_MIN_DEPTH
+private const val MAXIMUM_DEPTH: Int = GradumConfig.EXPLORE_MAX_DEPTH
+private const val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
+private const val DEFAULT_LIMIT: Int = GradumConfig.EXPLORE_DEFAULT_LIMIT
+private const val MAXIMUM_CHILDREN_PER_DIRECTORY: Int = GradumConfig.EXPLORE_MAX_CHILDREN
 
 /**
  * Scans a project directory tree and returns a flat categorized summary:
@@ -55,13 +57,13 @@ class ExploreProjectSkill : Skill() {
    * to decide what to read next.
    */
   override fun compactHistory(
-    conversationHistory: MutableList<Map<String, Any>>,
+    callCount: Int,
     ownMessageIndices: List<Int>,
-    callCount: Int
+    conversationHistory: MutableList<Map<String, Any>>
   ) {
     if (ownMessageIndices.isEmpty()) return
-    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(0)
-    val dropEndIndex: Int = dropCount.coerceAtMost(ownMessageIndices.size)
+    val dropCount: Int = (ownMessageIndices.size + 1 - historyKeepCount).coerceAtLeast(minimumValue = 0)
+    val dropEndIndex: Int = dropCount.coerceAtMost(maximumValue = ownMessageIndices.size)
     if (dropEndIndex == 0) return
     for (i in 0 until dropEndIndex) {
       val historyIndex: Int = ownMessageIndices[i]
@@ -75,9 +77,8 @@ class ExploreProjectSkill : Skill() {
   private fun compactMessageContent(message: Map<String, Any>): Map<String, Any> {
     val content: String = message["content"] as? String ?: return message
     val parsed: Map<String, Any?> = try {
-      gradum.utils.JsonUtil.decodeMap(content)
+      decodeMap(content)
     } catch (jsonParseException: Exception) {
-      // Not a JSON object (plain string, error marker, etc.) — leave alone.
       logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
       return message
     }
@@ -99,54 +100,33 @@ class ExploreProjectSkill : Skill() {
       "code_files" to codeCount,
       "other_files" to otherCount
     )
-    val reencoded: String = gradum.utils.JsonUtil.encodeMap(compacted)
+    val reencoded: String = encodeMap(compacted)
     return message + ("content" to reencoded)
   }
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val useSimpleSchema = context?.isSimpleModel == true
-
-    return buildFunctionSchema(
-      description = if (useSimpleSchema) localDescription() else description,
-      properties = if (useSimpleSchema) localProperties() else cloudProperties(),
-      required = emptyList(),
-    )
-  }
-
-  private fun localDescription(): String =
+  override val simpleDescription: String =
     "Scan project directory tree and return file summary (config, code with line counts, other files)." +
       " Use depth to control recursion depth."
 
-  private fun localProperties(): Map<String, Any> = mapOf(
-    "depth" to mapOf(
-      "type" to "integer",
-      "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
-        "depth=$MINIMUM_DEPTH lists immediate children only.",
-      "minimum" to MINIMUM_DEPTH,
-      "maximum" to MAXIMUM_DEPTH,
-      "default" to DEFAULT_DEPTH,
-    ),
-  )
-
-  private fun cloudProperties(): Map<String, Any> = mapOf(
-    "depth" to mapOf(
-      "type" to "integer",
-      "description" to "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    integer(
+      name = "depth",
+      description = "Recursion depth ($MINIMUM_DEPTH..$MAXIMUM_DEPTH, default=$DEFAULT_DEPTH). " +
         "depth=$MINIMUM_DEPTH lists immediate children only. Values below $MINIMUM_DEPTH are forced to $DEFAULT_DEPTH.",
-      "minimum" to MINIMUM_DEPTH,
-      "maximum" to MAXIMUM_DEPTH,
-      "default" to DEFAULT_DEPTH,
-    ),
-    "exclude" to mapOf(
-      "type" to "string",
-      "description" to "Glob patterns to exclude, comma-separated (e.g. '*.test.*,**/node_modules/**')",
-    ),
-    "sort_by" to mapOf(
-      "type" to "string",
-      "description" to "Sort results by: 'name', 'lines', 'size' (default='name')",
-      "enum" to listOf("name", "lines", "size"),
-    ),
-  )
+      constraints = IntConstraints(default = DEFAULT_DEPTH, minimum = MINIMUM_DEPTH, maximum = MAXIMUM_DEPTH),
+    )
+    cloudOnly {
+      string(
+        name = "exclude",
+        description = "Glob patterns to exclude, comma-separated (e.g. '*.test.*,**/node_modules/**')",
+      )
+      string(
+        name = "sort_by",
+        description = "Sort results by: 'name', 'lines', 'size' (default='name')",
+        enumValues = listOf("name", "lines", "size"),
+      )
+    }
+  }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val projectRoot: String = context.projectRoot
@@ -158,19 +138,26 @@ class ExploreProjectSkill : Skill() {
       else -> DEFAULT_DEPTH
     }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
 
-    val excludePattern: String = (arguments["exclude"] as? String
-      ?: arguments["exclude_pattern"] as? String ?: "").lowercase()
+    val excludePattern: String = (
+      arguments["exclude"] as? String ?: arguments["exclude_pattern"] as? String ?: ""
+      ).lowercase()
+
     val sortBy: String = (arguments["sort_by"] as? String ?: "name").lowercase()
     val limit: Int = DEFAULT_LIMIT
 
-    val excludePatterns: List<String> = if (excludePattern.isBlank()) emptyList()
-    else excludePattern.split(",").map { it.trim() }.filter { it.isNotBlank() }
-    val excludeMatchers: List<ExcludeMatcher> = excludePatterns.map { compileExcludePattern(it) }
+    val excludePatterns: List<String> =
+      if (excludePattern.isBlank()) emptyList()
+      else excludePattern.split(",").map {
+        it.trim()
+      }.filter { it.isNotBlank() }
+    val excludeMatchers: List<ExcludeMatcher> = excludePatterns.map {
+      compileExcludePattern(it)
+    }
 
     if (projectRoot.isBlank())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Server has no project root configured for this session.",
           fixHint = "Ensure the project root is set in the IDE settings or server configuration."
@@ -180,10 +167,10 @@ class ExploreProjectSkill : Skill() {
     val resolvedPath: Path = try {
       Paths.get(projectRoot).toAbsolutePath().normalize()
     } catch (pathException: Exception) {
-      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}", pathException)
+      logger.warn("Invalid project root path '$projectRoot': ${pathException.message}")
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Invalid project root path: $projectRoot",
           fixHint = "Check that the project root path is valid and accessible."
@@ -194,59 +181,56 @@ class ExploreProjectSkill : Skill() {
     val rootFile: File = resolvedPath.toFile()
     if (!rootFile.exists())
       return makeFailure(
-        ErrorCode.FILE_NOT_FOUND,
-        buildXmlError(
+        code = ErrorCode.FILE_NOT_FOUND,
+        message = buildXmlError(
           code = "FILE_NOT_FOUND",
           message = "project_root does not exist: $resolvedPath",
           fixHint = "Verify the project directory exists. Use explore_project to find the correct path."
         ),
-        mapOf("project_root" to resolvedPath.toString())
+        context = mapOf("project_root" to resolvedPath.toString())
       )
     if (!rootFile.isDirectory)
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER,
-        buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "project_root is not a directory: $resolvedPath",
           fixHint = "The path must point to a directory, not a file."
         ),
-        mapOf("project_root" to resolvedPath.toString())
+        context = mapOf("project_root" to resolvedPath.toString())
       )
 
     val filterConfig = FilterConfig(
-      excludeMatchers = excludeMatchers,
+      limit = limit,
       sortBy = sortBy,
-      limit = limit
+      excludeMatchers = excludeMatchers
     )
 
     val scanResult = ScanResult(relativeRoot = resolvedPath)
     val visitedPaths: MutableSet<Path> = mutableSetOf(resolvedPath)
-    scanDirectory(resolvedPath, requestedDepth, visitedPaths, scanResult, filterConfig)
+    scanDirectory(remainingDepth = requestedDepth, targetDirectory = resolvedPath, scanResult, filterConfig, visitedPaths)
 
     val filteredConfigFiles = applyFilters(scanResult.configFiles, filterConfig)
     val filteredCodeFiles = applyCodeFilters(scanResult.codeFiles, filterConfig)
     val filteredOtherFiles = applyFilters(scanResult.otherFiles, filterConfig)
 
-    // Normalize config / other lists to {path, lines} shape so the three
-    // file lists share a single shape with code_files. Clients then don't
-    // need a per-list branch when deciding what to pass to read_file.
     val normalizedConfigFiles: List<Map<String, Any>> = filteredConfigFiles
-      .sorted().take(filterConfig.limit)
+      .sorted().take(n = filterConfig.limit)
       .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
     val normalizedOtherFiles: List<Map<String, Any>> = filteredOtherFiles
-      .sorted().take(filterConfig.limit)
+      .sorted().take(n = filterConfig.limit)
       .map { filePath: String -> linkedMapOf<String, Any>("path" to filePath, "lines" to 0) }
 
     return buildOutput(
-      resolvedPath = resolvedPath,
-      requestedDepth = requestedDepth,
       scanResult = scanResult,
-      filteredConfigFiles = normalizedConfigFiles,
+      resolvedPath = resolvedPath,
+      filterConfig = filterConfig,
+      excludePattern = excludePattern,
+      requestedDepth = requestedDepth,
+      useSimpleOutput = useSimpleOutput,
       filteredCodeFiles = filteredCodeFiles,
       filteredOtherFiles = normalizedOtherFiles,
-      excludePattern = excludePattern,
-      filterConfig = filterConfig,
-      useSimpleOutput = useSimpleOutput,
+      filteredConfigFiles = normalizedConfigFiles
     )
   }
 
@@ -254,79 +238,73 @@ class ExploreProjectSkill : Skill() {
     resolvedPath: Path,
     requestedDepth: Int,
     scanResult: ScanResult,
-    filteredConfigFiles: List<Map<String, Any>>,
+    excludePattern: String,
+    useSimpleOutput: Boolean,
+    filterConfig: FilterConfig,
     filteredCodeFiles: List<Map<String, Any>>,
     filteredOtherFiles: List<Map<String, Any>>,
-    excludePattern: String,
-    filterConfig: FilterConfig,
-    useSimpleOutput: Boolean,
+    filteredConfigFiles: List<Map<String, Any>>
   ): SkillResult {
     if (useSimpleOutput) {
       val codeFileDetails: List<String> = filteredCodeFiles
         .sortedBy { (it["path"] as? String) ?: "" }
         .map { entry -> "${entry["path"]}:${entry["lines"]}" }
 
-      return makeSuccess(
-        linkedMapOf(
-          "project_root" to resolvedPath.toString(),
-          "depth" to requestedDepth,
-          "total_size" to formatSize(scanResult.totalSize),
-          "config_files" to filteredConfigFiles.size,
-          "code_files" to filteredCodeFiles.size,
-          "other_files" to filteredOtherFiles.size,
-          "code_file_details" to codeFileDetails.take(filterConfig.limit),
-          "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" },
-        )
-      )
+      return makeSuccess {
+        integer("depth", requestedDepth)
+        integer("code_files", filteredCodeFiles.size)
+        integer("other_files", filteredOtherFiles.size)
+        string("project_root", resolvedPath.toString())
+        integer("config_files", filteredConfigFiles.size)
+        string("total_size", formatSize(sizeInBytes = scanResult.totalSize))
+        set("code_file_details", codeFileDetails.take(n = filterConfig.limit))
+        objectList("unreadable_paths", scanResult.failedPaths.sortedBy {
+          (it["path"] as? String) ?: ""
+        })
+      }
     }
 
-    return makeSuccess(
-      linkedMapOf(
-        "project_root" to resolvedPath.toString(),
-        "depth" to requestedDepth,
-        "total_size" to formatSize(scanResult.totalSize),
-        "config_files" to filteredConfigFiles,
-        "code_files" to filteredCodeFiles.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
-        "other_files" to filteredOtherFiles,
-        "unreadable_paths" to scanResult.failedPaths.sortedBy { (it["path"] as? String) ?: "" }.take(filterConfig.limit),
-        "filter_applied" to linkedMapOf(
-          "exclude_pattern" to excludePattern,
-          "sort_by" to filterConfig.sortBy,
-          "limit" to filterConfig.limit,
-        ),
-        "result_count" to linkedMapOf(
-          "config_files" to filteredConfigFiles.size,
-          "code_files" to filteredCodeFiles.size,
-          "other_files" to filteredOtherFiles.size,
-          "unreadable_paths" to scanResult.failedPaths.size,
-        )
-      )
-    )
+    return makeSuccess {
+      integer("depth", requestedDepth)
+      string("project_root", resolvedPath.toString())
+      string("total_size", formatSize(sizeInBytes = scanResult.totalSize))
+      objectList("config_files", filteredConfigFiles)
+      objectList("code_files", filteredCodeFiles.sortedBy {
+        (it["path"] as? String) ?: ""
+      }.take(n = filterConfig.limit))
+      objectList("other_files", filteredOtherFiles)
+      objectList("unreadable_paths", scanResult.failedPaths.sortedBy {
+        (it["path"] as? String) ?: ""
+      }.take(n = filterConfig.limit))
+      `object`(key = "filter_applied") {
+        integer("limit", filterConfig.limit)
+        string("sort_by", filterConfig.sortBy)
+        string("exclude_pattern", excludePattern)
+      }
+      `object`(key = "result_count") {
+        integer("code_files", filteredCodeFiles.size)
+        integer("other_files", filteredOtherFiles.size)
+        integer("config_files", filteredConfigFiles.size)
+        integer("unreadable_paths", scanResult.failedPaths.size)
+      }
+    }
   }
 }
 
 private val truncatedDirectoryNames: Set<String> = setOf(
-  // VCS
   ".git", ".svn", ".hg",
-  // JVM / Gradle / Maven / IntelliJ
   ".gradle", "build", "out", ".idea", "target", "bin", "obj",
   ".kotlin", "cmake-build-debug", "cmake-build-release", "DerivedData",
-  // Node / JS / TS
   "node_modules", ".next", ".nuxt", "dist", ".turbo", ".parcel-cache",
-  // Python
   "__pycache__", ".venv", "venv", "env", ".eggs", ".pytest_cache",
   ".mypy_cache", ".ruff_cache", ".tox",
-  // Go / PHP / Ruby
   "vendor", ".bundle",
-  // iOS / macOS
   "Pods", ".build",
-  // Misc build / cache
   ".terraform", ".dart_tool", ".serverless", ".expo", ".vercel",
   "coverage", ".nyc_output"
 )
 
 private val configFiles: Set<String> = setOf(
-  // Build tools
   "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
   "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts",
   "gradle.properties", "gradlew", "gradlew.bat",
@@ -336,7 +314,6 @@ private val configFiles: Set<String> = setOf(
   "go.mod", "go.sum",
   "Gemfile", "Gemfile.lock",
   "composer.json", "composer.lock",
-  // Config files
   "tsconfig.json", "tsconfig.base.json",
   ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintrc.yml",
   ".prettierrc", ".prettierrc.json", ".prettierrc.js",
@@ -348,11 +325,8 @@ private val configFiles: Set<String> = setOf(
   "docker-compose.yml", "docker-compose.yaml", "docker-compose.override.yml",
   "Dockerfile", "Dockerfile.dev", "Dockerfile.prod",
   ".env", ".env.example", ".env.local", ".env.development", ".env.production",
-  // VCS
   ".gitignore", ".gitattributes", ".gitmodules",
-  // IDE
   "*.iml", ".editorconfig",
-  // Misc
   "LICENSE", "LICENSE.txt", "LICENSE.md", "LICENCE", "LICENCE.txt",
   "CHANGELOG.md", "CHANGELOG.txt", "CHANGES.md",
   "CONTRIBUTING.md", "CONTRIBUTING.txt",
@@ -360,44 +334,36 @@ private val configFiles: Set<String> = setOf(
 )
 
 private val codeExtensions: Set<String> = setOf(
-  // JVM
   "kt", "kts", "java", "scala", "groovy",
-  // JS / TS
   "js", "jsx", "ts", "tsx", "mjs", "cjs",
-  // Python
   "py", "pyw",
-  // Systems
   "c", "cpp", "cc", "cxx", "h", "hpp", "hxx",
   "rs", "go", "swift", "m", "mm",
-  // Web
   "html", "htm", "css", "scss", "sass", "less", "vue", "svelte",
-  // Shell
   "sh", "bash", "zsh", "fish", "ps1", "bat", "cmd",
-  // Data / Config (still code)
   "sql", "graphql", "gql", "proto", "thrift",
   "yaml", "yml", "toml", "xml", "json", "json5",
   "rb", "php", "pl", "pm", "r", "R", "lua", "dart", "ex", "exs", "erl",
-  // Other
   "md", "txt", "rst", "adoc"
 )
 
 private fun shouldTruncate(entryName: String): Boolean {
-  if (entryName.startsWith(".")) return true
+  if (entryName.startsWith(prefix = ".")) return true
+  if (entryName.endsWith(suffix = ".iml")) return true
   if (entryName in truncatedDirectoryNames) return true
-  if (entryName.endsWith(".egg-info")) return true
-  if (entryName.endsWith(".iml")) return true
+  if (entryName.endsWith(suffix = ".egg-info")) return true
   return false
 }
 
 private fun isConfigFile(entryName: String): Boolean {
   if (entryName in configFiles) return true
-  if (entryName.endsWith(".iml")) return true
-  if (entryName.startsWith(".env")) return true
+  if (entryName.endsWith(suffix = ".iml")) return true
+  if (entryName.startsWith(prefix = ".env")) return true
   return false
 }
 
 private fun isCodeFile(entryName: String): Boolean {
-  val fileExtension = entryName.substringAfterLast('.', "")
+  val fileExtension = entryName.substringAfterLast(delimiter = '.', missingDelimiterValue = "")
   return fileExtension in codeExtensions
 }
 
@@ -423,17 +389,17 @@ private fun formatSize(sizeInBytes: Long): String {
 
 private data class ScanResult(
   val relativeRoot: Path,
+  var totalSize: Long = 0,
+  val otherFiles: MutableList<String> = mutableListOf(),
   val configFiles: MutableList<String> = mutableListOf(),
   val codeFiles: MutableList<Map<String, Any>> = mutableListOf(),
-  val otherFiles: MutableList<String> = mutableListOf(),
-  val failedPaths: MutableList<Map<String, Any>> = mutableListOf(),
-  var totalSize: Long = 0
+  val failedPaths: MutableList<Map<String, Any>> = mutableListOf()
 )
 
 private data class FilterConfig(
-  val excludeMatchers: List<ExcludeMatcher>,
+  val limit: Int,
   val sortBy: String,
-  val limit: Int
+  val excludeMatchers: List<ExcludeMatcher>
 )
 
 private data class ExcludeMatcher(
@@ -449,17 +415,17 @@ private fun compileExcludePattern(pattern: String): ExcludeMatcher {
     .replace("*", "[^/]*")
     .replace("?", "[^/]")
   return ExcludeMatcher(
-    regex = Regex("^$regexPattern$"),
+    regex = Regex(pattern = "^$regexPattern$"),
     containsLiteral = pattern.replace("**/", "").replace("**", "")
   )
 }
 
 private fun scanDirectory(
-  targetDirectory: Path,
   remainingDepth: Int,
-  visitedPaths: MutableSet<Path>,
+  targetDirectory: Path,
   scanResult: ScanResult,
-  filterConfig: FilterConfig
+  filterConfig: FilterConfig,
+  visitedPaths: MutableSet<Path>
 ) {
   if (remainingDepth <= 0) return
 
@@ -469,11 +435,12 @@ private fun scanDirectory(
     val reason: String = securityException.message
       ?: securityException::class.simpleName
       ?: "access denied"
-    logger.warn("SecurityException listing $targetDirectory: $reason", securityException)
+    logger.warn("SecurityException listing $targetDirectory: $reason")
+
     val relativePath: String = try {
       scanResult.relativeRoot.relativize(targetDirectory).toString()
     } catch (relativizeException: IllegalArgumentException) {
-      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message, relativizeException)
+      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message)
       targetDirectory.toString()
     }
     scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
@@ -481,22 +448,22 @@ private fun scanDirectory(
   }
 
   val sortedEntries: List<File> = directoryEntries
-    .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+    .sortedWith(comparator = compareBy({ !it.isDirectory }, { it.name.lowercase() }))
 
   val limitedEntries: List<File> = if (sortedEntries.size > MAXIMUM_CHILDREN_PER_DIRECTORY) {
-    sortedEntries.take(MAXIMUM_CHILDREN_PER_DIRECTORY)
+    sortedEntries.take(n = MAXIMUM_CHILDREN_PER_DIRECTORY)
   } else sortedEntries
 
   for (directoryEntry in limitedEntries) {
     if (directoryEntry.isDirectory) {
-      if (shouldTruncate(directoryEntry.name)) continue
+      if (shouldTruncate(entryName = directoryEntry.name)) continue
 
       val childPath: Path = directoryEntry.toPath()
       val normalizedChild: Path = childPath.toAbsolutePath().normalize()
 
       if (!visitedPaths.add(normalizedChild)) continue
 
-      scanDirectory(childPath, remainingDepth - 1, visitedPaths, scanResult, filterConfig)
+      scanDirectory(remainingDepth - 1, targetDirectory = childPath, scanResult, filterConfig, visitedPaths)
     } else {
       if (filterConfig.excludeMatchers.isNotEmpty()) {
         val relativePath = scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
@@ -509,16 +476,19 @@ private fun scanDirectory(
         val candidate: String = try {
           scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
         } catch (relativizeException: IllegalArgumentException) {
-          logger.debug("Failed to relativize {} against root: {}", directoryEntry, relativizeException.message, relativizeException)
+          logger.debug(
+            "Failed to relativize {} against root: {}",
+            directoryEntry, relativizeException.message, relativizeException
+          )
           targetDirectory.relativize(directoryEntry.toPath()).toString()
         }
         candidate.ifBlank { directoryEntry.name }
       }
 
       when {
-        isConfigFile(directoryEntry.name) -> scanResult.configFiles.add(relativePath)
-        isCodeFile(directoryEntry.name) -> {
-          val lineCount = countLines(directoryEntry)
+        isConfigFile(entryName = directoryEntry.name) -> scanResult.configFiles.add(relativePath)
+        isCodeFile(entryName = directoryEntry.name) -> {
+          val lineCount = countLines(targetFile = directoryEntry)
           scanResult.codeFiles.add(linkedMapOf("path" to relativePath, "lines" to lineCount))
         }
 
@@ -530,7 +500,7 @@ private fun scanDirectory(
 
 private fun matchesExcludePattern(relativePath: String, matchers: List<ExcludeMatcher>): Boolean {
   for ((regex, containsLiteral) in matchers) {
-    if (regex.matches(relativePath) ||
+    if (regex.matches(input = relativePath) ||
       relativePath.contains(containsLiteral)
     ) return true
   }
@@ -541,7 +511,9 @@ private fun applyFilters(files: List<String>, config: FilterConfig): List<String
   var filtered = files
 
   if (config.excludeMatchers.isNotEmpty())
-    filtered = filtered.filter { !matchesExcludePattern(it, config.excludeMatchers) }
+    filtered = filtered.filter {
+      !matchesExcludePattern(relativePath = it, config.excludeMatchers)
+    }
 
   return filtered
 }
@@ -552,7 +524,7 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
   if (config.excludeMatchers.isNotEmpty()) {
     filtered = filtered.filter { fileInfo ->
       val path = fileInfo["path"] as? String ?: ""
-      !matchesExcludePattern(path, config.excludeMatchers)
+      !matchesExcludePattern(relativePath = path, config.excludeMatchers)
     }
   }
 

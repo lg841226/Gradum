@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-08-14 22:29:50 Changed by gwy
+ * AgentConfiguration.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum
@@ -164,12 +164,12 @@ data class AgentConfiguration(
 ) {
   companion object {
 
-    const val DEFAULT_TOP_P: Double = 0.9
-    const val DEFAULT_TEMPERATURE: Double = 0.7
-    const val DEFAULT_TIMEOUT_SECONDS: Int = 3000
-    const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = 2048 * 12
+    const val DEFAULT_TOP_P: Double = GradumConfig.DEFAULT_TOP_P
+    const val DEFAULT_TEMPERATURE: Double = GradumConfig.DEFAULT_TEMPERATURE
+    const val DEFAULT_TIMEOUT_SECONDS: Int = GradumConfig.AGENT_TIMEOUT_SECONDS
+    const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = GradumConfig.DEFAULT_MAX_TOKENS
     const val DEFAULT_ENABLE_THINKING: Boolean = false
-    const val DEFAULT_OLLAMA_BASE_URL: String = "http://localhost:11434"
+    const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
 
     /**
      * Default chat-completions path. Matches the OpenAI / DeepSeek /
@@ -177,13 +177,13 @@ data class AgentConfiguration(
      * the version (e.g. Zhipu BigModel `api/coding/paas/v4`) override
      * this via the `config.chatCompletionsPath` plugin field.
      */
-    const val DEFAULT_CHAT_COMPLETIONS_PATH: String = "/v1/chat/completions"
+    const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
 
     /**
      * Default context window size (num_ctx) used by the Ollama backend
      * and as the fallback when the client does not supply a `numCtx`
-     * value.  The canonical source of truth is here.
+     * value.  The canonical source of truth is [GradumConfig].
      */
-    const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = 8192
+    const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
   }
 }

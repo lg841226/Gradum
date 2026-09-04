@@ -1,40 +1,42 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * CommonCapsule.kt  2026-08-23 21:12:19 Changed by gwy
+ * CommonCapsule.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill.internal
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import gradum.idea.PluginConfig
 import gradum.idea.chat.ui.chat.copyToClipboard
+import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.foundation.theme.LocalColorPalette
 import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.PopupMenu
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private val REASON_MAX_WIDTH_DP: Dp = 200.dp
-private const val TOOL_DETAILS_RESULT_MAX_CHARS = 1000
+private const val TOOL_DETAILS_RESULT_MAX_CHARS = PluginConfig.TOOL_DETAILS_RESULT_MAX_CHARS
 
 /** Error metadata for a failed tool call capsule. */
 data class ToolCallErrorInfo(
   val detail: String = "",
+  val message: String = "",
   val toolDetails: String = "",
-  val message: String = ""
 )
 
 /**
@@ -45,7 +47,7 @@ data class ToolCallErrorInfo(
  * Edited, Read, Saved, Explored, Planned, Completed, Default) and
  * tests depend on this composable.
  *
- * Error display — when [success] is `false` and [errorInfo.message] is
+ * Error display — when [success] is `false` and [message] is
  * non-blank, the trailing status icon (`Status.FailedInProgress`)
  * becomes clickable and opens a minimal `PopupMenu` with a single
  * `selectableItem`:
@@ -67,19 +69,18 @@ internal fun ToolCallCapsule(
   label: String,
   iconKey: IconKey,
   success: Boolean,
-  errorInfo: ToolCallErrorInfo = ToolCallErrorInfo(),
   trailingText: String = "",
   modifier: Modifier = Modifier,
-  trailingIcon: @Composable RowScope.() -> Unit = {}
+  trailingIcon: @Composable RowScope.() -> Unit = {},
+  errorInfo: ToolCallErrorInfo = ToolCallErrorInfo(),
 ) {
-  val textColor = JewelTheme.globalColors.text.normal
   val infoColor = JewelTheme.globalColors.text.info
+  val textColor = JewelTheme.globalColors.text.normal
   val clipboardScope = rememberCoroutineScope()
   val bodyStyle = rememberGradumParagraphTextStyle()
-  val hasError = !success && errorInfo.message.isNotBlank()
-  var isCopied by remember { mutableStateOf(false) }
-  var showErrorPopup by remember { mutableStateOf(false) }
   val copyPayload: String = errorInfo.toolDetails.ifBlank { errorInfo.detail }
+  val hasError = !success && copyPayload.isNotBlank()
+  var isCopied by remember { mutableStateOf(value = false) }
 
   Row(
     modifier = modifier.fillMaxWidth(),
@@ -108,65 +109,36 @@ internal fun ToolCallCapsule(
     trailingIcon()
 
     if (hasError) {
-      Icon(
-        contentDescription = message("gradum.tool.error.open"),
-        key = AllIconsKeys.Status.FailedInProgress,
-        modifier = Modifier.clickable { showErrorPopup = true }
+      IconTooltipButton(
+        tooltip =
+          if (isCopied) message(key = "gradum.error.copied")
+          else message(key = "gradum.tool.copy.details"),
+        iconKey =
+          if (isCopied) AllIconsKeys.Actions.Checked
+          else AllIconsKeys.General.Copy,
+        onClick = {
+          if (!isCopied && copyPayload.isNotBlank()) {
+            copyToClipboard(
+              text = copyPayload,
+              scope = clipboardScope,
+              onCopied = { isCopied = true },
+              onReset = { isCopied = false }
+            )
+          }
+        },
+        enabled = copyPayload.isNotBlank(),
+        contentDescription = ""
       )
-    }
-  }
-
-  if (hasError && showErrorPopup) {
-    PopupMenu(
-      onDismissRequest = { showErrorPopup = false; true },
-      horizontalAlignment = Alignment.Start
-    ) {
-      if (copyPayload.isNotBlank()) {
-        selectableItem(
-          selected = false,
-          onClick = {
-            showErrorPopup = false
-            if (!isCopied) {
-              copyToClipboard(
-                scope = clipboardScope,
-                text = copyPayload,
-                onCopied = { isCopied = true },
-                onReset = { isCopied = false }
-              )
-            }
-          }
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = GradumSpacing.md, vertical = GradumSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-          ) {
-            Icon(
-              contentDescription = null,
-              key = AllIconsKeys.General.Copy,
-              modifier = Modifier.size(16.dp)
-            )
-            Text(
-              text = if (isCopied) message("gradum.error.copied")
-              else message("gradum.tool.copy.details")
-            )
-          }
-        }
-      }
     }
   }
 }
 
 @Composable
-internal fun toolCallErrorColor(): androidx.compose.ui.graphics.Color =
-  JewelTheme.globalColors.text.error
+internal fun toolCallErrorColor(): Color = JewelTheme.globalColors.text.error
 
 @Composable
-internal fun linesAddedColor(): androidx.compose.ui.graphics.Color =
-  org.jetbrains.jewel.foundation.theme.LocalColorPalette.current.greenOrNull(5)
-    ?: JewelTheme.globalColors.text.info
+internal fun linesAddedColor(): Color = LocalColorPalette.current.greenOrNull(index = 5)
+  ?: JewelTheme.globalColors.text.info
 
 /**
  * Format a tool call's full debug info as a human-readable,
@@ -195,33 +167,31 @@ internal fun linesAddedColor(): androidx.compose.ui.graphics.Color =
  */
 internal fun formatToolDetails(
   alias: String,
-  arguments: Map<String, Any?>,
   result: String,
+  errorDetail: String,
   errorMessage: String,
-  errorDetail: String
+  arguments: Map<String, Any?>
 ): String {
-  val sb = StringBuilder()
-  sb.append("Tool: ").appendLine(alias)
+  val stringBuilder = StringBuilder()
+  stringBuilder.append("Tool: ").appendLine(value = alias)
   if (arguments.isNotEmpty()) {
-    sb.appendLine("Arguments:")
-    for ((key, value) in arguments) {
-      sb.append("  ").append(key).append(": ").appendLine(value)
-    }
+    stringBuilder.appendLine(value = "Arguments:")
+    for ((key, value) in arguments)
+      stringBuilder.append("  ").append(key).append(": ").appendLine(value)
   }
   if (result.isNotBlank()) {
     val truncated: String = if (result.length > TOOL_DETAILS_RESULT_MAX_CHARS) {
-      result.take(TOOL_DETAILS_RESULT_MAX_CHARS) + "... (truncated)"
+      result.take(n = TOOL_DETAILS_RESULT_MAX_CHARS) + "... (truncated)"
     } else result
-    sb.append("Result: ").appendLine(truncated)
+    stringBuilder.append("Result: ").appendLine(value = truncated)
   }
-  if (errorMessage.isNotBlank()) {
-    sb.append("Error: ").appendLine(errorMessage)
-  }
+  if (errorMessage.isNotBlank())
+    stringBuilder.append("Error: ").appendLine(value = errorMessage)
   if (errorDetail.isNotBlank()) {
-    sb.appendLine("Detail:")
-    sb.appendLine(errorDetail)
+    stringBuilder.appendLine(value = "Detail:")
+    stringBuilder.appendLine(value = errorDetail)
   }
-  return sb.toString().trimEnd()
+  return stringBuilder.toString().trimEnd()
 }
 
 /**

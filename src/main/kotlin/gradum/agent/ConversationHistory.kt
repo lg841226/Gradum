@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ConversationHistory.kt  2026-08-23 20:21:07 Changed by gwy
+ * ConversationHistory.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.agent
@@ -37,7 +37,7 @@ class ConversationHistory {
   fun toList(): List<Map<String, Any>> = messages.toList()
 
   fun addAll(msgs: List<Map<String, Any>>) {
-    messages.addAll(msgs)
+    messages.addAll(elements = msgs)
   }
 
   val systemPrompt: Map<String, Any>?
@@ -52,7 +52,11 @@ class ConversationHistory {
   }
 
   fun addSystemMessage(content: String) {
-    messages.add(0, mapOf("role" to "system", "content" to content))
+    messages.add(
+      index = 0, element = mapOf(
+        "role" to "system", "content" to content
+      )
+    )
   }
 
   fun addUserMessage(text: String, attachments: List<AttachmentPayload>) {
@@ -84,44 +88,50 @@ class ConversationHistory {
     content: String,
     modelName: String,
     provider: Provider,
-    processedCalls: List<ProcessedToolCall>?,
+    processedCalls: List<ProcessedToolCall>?
   ) {
-    val assistantMessage = if (!processedCalls.isNullOrEmpty()) {
-      val toolCallsList = if (provider == Provider.OPENAI) {
-        processedCalls.map { call ->
-          mapOf(
-            "id" to call.callIdentifier,
-            "type" to "function",
-            "function" to mapOf(
-              "name" to call.callData.functionName,
-              "arguments" to Json.encodeToString(
-                serializer<Map<String, JsonElement>>(),
-                call.callData.functionArguments
+    val assistantMessage =
+      if (!processedCalls.isNullOrEmpty()) {
+        val toolCallsList =
+          if (provider == Provider.OPENAI) {
+            processedCalls.map { call ->
+              mapOf(
+                "id" to call.callIdentifier,
+                "type" to "function",
+                "function" to mapOf(
+                  "name" to call.callData.functionName,
+                  "arguments" to Json.encodeToString(
+                    serializer<Map<String, JsonElement>>(),
+                    value = call.callData.functionArguments
+                  )
+                )
               )
-            )
-          )
-        }
+            }
+          } else {
+            processedCalls.map { call ->
+              mapOf(
+                "function" to mapOf(
+                  "name" to call.callData.functionName,
+                  "arguments" to call.callData.functionArguments.entries.associate {
+                    it.key to JsonUtil.fromJsonElement(it.value)
+                  }
+                )
+              )
+            }
+          }
+        mapOf(
+          "role" to "assistant",
+          "content" to content,
+          "modelName" to modelName,
+          "tool_calls" to toolCallsList
+        )
       } else {
-        processedCalls.map { call ->
-          mapOf(
-            "function" to mapOf(
-              "name" to call.callData.functionName,
-              "arguments" to call.callData.functionArguments.entries.associate {
-                it.key to JsonUtil.fromJsonElement(it.value)
-              }
-            )
-          )
-        }
+        mapOf(
+          "content" to content,
+          "role" to "assistant",
+          "modelName" to modelName
+        )
       }
-      mapOf(
-        "role" to "assistant",
-        "content" to content,
-        "modelName" to modelName,
-        "tool_calls" to toolCallsList
-      )
-    } else {
-      mapOf("role" to "assistant", "content" to content, "modelName" to modelName)
-    }
     messages.add(assistantMessage)
   }
 
@@ -144,7 +154,7 @@ class ConversationHistory {
     if (nonSystem.size <= maxMessages) return
 
     val preSize = nonSystem.size
-    val keepFromEnd = takeLastTurns(nonSystem, maxMessages)
+    val keepFromEnd = takeLastTurns(messages = nonSystem, maxTurns = maxMessages)
     if (keepFromEnd.size in (maxMessages + 1)..<preSize) {
       logger.warn(
         "Cannot fit conversation in $maxMessages messages " +
@@ -155,7 +165,7 @@ class ConversationHistory {
 
     messages.clear()
     if (systemMsg != null) messages.add(systemMsg)
-    messages.addAll(keepFromEnd)
+    messages.addAll(elements = keepFromEnd)
   }
 
   /**
@@ -173,7 +183,7 @@ class ConversationHistory {
   fun recordAndCompact(
     skillInstance: Skill?, currentResult: Map<String, Any>, ownMessageIndices: List<Int>
   ): Map<String, Any> {
-    return skillInstance?.recordAndCompactHistory(currentResult, messages, ownMessageIndices)
+    return skillInstance?.recordAndCompactHistory(ownMessageIndices, currentResult, messages)
       ?: currentResult
   }
 }

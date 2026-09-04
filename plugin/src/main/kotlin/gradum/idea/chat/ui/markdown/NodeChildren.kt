@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * NodeChildren.kt  2026-08-12 12:38:25 Changed by gwy
+ * NodeChildren.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -18,18 +18,22 @@ import org.commonmark.node.Node
  * those two groups via named properties reads better than
  * `.firstOrNull()` / `.drop(1)` and is impossible to misuse as raw indices.
  */
-internal class NodeChildren private constructor(val first: Node?, val rest: List<Node>) {
+internal class NodeChildren private constructor(
+  val first: Node?, val rest: List<Node>
+) {
   val isEmpty: Boolean get() = first == null
   val isNotEmpty: Boolean get() = first != null
 
   companion object {
     val Empty: NodeChildren = NodeChildren(first = null, rest = emptyList())
-
     fun of(parent: Node): NodeChildren {
-      val allChildren: List<Node> = walkDirectChildren(parent)
-      return if (allChildren.isEmpty())
-        Empty else
-        NodeChildren(first = allChildren[0], rest = allChildren.drop(1))
+      val childrenList = walkDirectChildren(parent)
+      return childrenList.firstOrNull()?.let { firstChild ->
+        NodeChildren(
+          first = firstChild,
+          rest = childrenList.drop(n = 1)
+        )
+      } ?: Empty
     }
 
     private fun walkDirectChildren(parentNode: Node): List<Node> {

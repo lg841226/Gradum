@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatterTest.kt  2026-08-16 16:52:39 Changed by gwy
+ * ModelNameFormatterTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -25,22 +25,34 @@ class ModelNameFormatterTest {
 
   @Test
   fun `formatModelName returns bare family name for Ollama colon-tagged name`() {
-    assertEquals("Qwen 2.5 Coder", formatModelName("qwen2.5-coder:7b"))
+    assertEquals(
+      "Qwen 2.5 Coder",
+      formatModelName("qwen2.5-coder:7b")
+    )
   }
 
   @Test
   fun `formatModelName drops HF org prefix in LM Studio names`() {
-    assertEquals("Qwen 2.5", formatModelName("lmstudio-community/qwen2.5-7b"))
+    assertEquals(
+      "Qwen 2.5",
+      formatModelName("lmstudio-community/qwen2.5-7b")
+    )
   }
 
   @Test
   fun `formatModelName handles simple colon-tagged Qwen`() {
-    assertEquals("Qwen 2.5", formatModelName("qwen2.5:7b"))
+    assertEquals(
+      "Qwen 2.5",
+      formatModelName("qwen2.5:7b")
+    )
   }
 
   @Test
   fun `formatModelName title-cases PascalCase slash input`() {
-    assertEquals("DeepSeek V3", formatModelName("DeepSeek-V3"))
+    assertEquals(
+      "DeepSeek V3",
+      formatModelName("DeepSeek-V3")
+    )
   }
 
   @Test
@@ -56,20 +68,36 @@ class ModelNameFormatterTest {
       "chatglm3-6b" to "ChatGLM 3"
     )
     for ((input, expected) in cases)
-      assertEquals("input=$input", expected, formatModelName(input))
+      assertEquals(
+        "input=$input",
+        expected,
+        formatModelName(input)
+      )
   }
 
   @Test
   fun `parseModelName detects Zhipu provider for GLM and ChatGLM`() {
-    assertEquals("Zhipu AI", parseModelName("glm-4-9b-chat").provider)
-    assertEquals("Zhipu AI", parseModelName("chatglm-6b").provider)
+    assertEquals(
+      "Zhipu AI",
+      parseModelName("glm-4-9b-chat").provider
+    )
+    assertEquals(
+      "Zhipu AI",
+      parseModelName("chatglm-6b").provider
+    )
   }
 
   @Test
   fun `parseModelName extracts 9B size from glm-4-9b`() {
     val parsed: FormattedModelName = parseModelName("glm-4-9b-chat")
-    assertEquals("9B", parsed.parameterSize)
-    assertEquals("GLM 4", parsed.displayName)
+    assertEquals(
+      "9B",
+      parsed.parameterSize
+    )
+    assertEquals(
+      "GLM 4",
+      parsed.displayName
+    )
   }
 
 
@@ -83,17 +111,27 @@ class ModelNameFormatterTest {
       "mistral7b:latest" to "Mistral 7B"
     )
     for ((input, expected) in cases)
-      assertEquals("input=$input", expected, formatModelName(input))
+      assertEquals(
+        "input=$input",
+        expected,
+        formatModelName(input)
+      )
   }
 
   @Test
   fun `formatModelName normalizes MiniMax family`() {
-    assertEquals("MiniMax M2", formatModelName("MiniMax-M2"))
+    assertEquals(
+      "MiniMax M2",
+      formatModelName("MiniMax-M2")
+    )
   }
 
   @Test
   fun `formatModelName falls back to title-case for unknown families`() {
-    assertEquals("Unsupported Xyz", formatModelName("unsupported-xyz:70b"))
+    assertEquals(
+      "Unsupported Xyz",
+      formatModelName("unsupported-xyz:70b")
+    )
   }
 
   @Test
@@ -106,7 +144,11 @@ class ModelNameFormatterTest {
       "qwq:32b" to "QwQ"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -119,7 +161,11 @@ class ModelNameFormatterTest {
       "codellama:13b" to "CodeLlama"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -132,7 +178,11 @@ class ModelNameFormatterTest {
       "deepseek-coder-v2:16b" to "DeepSeek Coder V2"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -145,7 +195,11 @@ class ModelNameFormatterTest {
       "gemini-2.5-flash" to "Gemini 2.5 Flash"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -160,7 +214,11 @@ class ModelNameFormatterTest {
       "pixtral-large" to "Pixtral Large"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -172,7 +230,11 @@ class ModelNameFormatterTest {
       "phi-4-mini" to "Phi 4 Mini"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -187,7 +249,11 @@ class ModelNameFormatterTest {
       "claude-opus-4" to "Claude Opus 4"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -205,7 +271,11 @@ class ModelNameFormatterTest {
       "gpt-oss-120b" to "ChatGPT 4"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -219,7 +289,11 @@ class ModelNameFormatterTest {
       "o4-mini" to "o4 Mini"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
@@ -233,46 +307,73 @@ class ModelNameFormatterTest {
       "grok-4" to "Grok 4"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).displayName)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).displayName
+      )
     }
   }
 
 
   @Test
   fun `parseModelName extracts simple integer sizes`() {
-    assertEquals("7B", parseModelName("qwen2.5-7b").parameterSize)
-    assertEquals("70B", parseModelName("llama-3-70b").parameterSize)
-    assertEquals("405B", parseModelName("llama-3-405b").parameterSize)
+    assertEquals(
+      "7B",
+      parseModelName("qwen2.5-7b").parameterSize
+    )
+    assertEquals(
+      "70B",
+      parseModelName("llama-3-70b").parameterSize
+    )
+    assertEquals(
+      "405B",
+      parseModelName("llama-3-405b").parameterSize
+    )
   }
 
   @Test
   fun `parseModelName extracts decimal sizes`() {
-    assertEquals("0.5B", parseModelName("qwen2.5-0.5b").parameterSize)
-    assertEquals("1.5B", parseModelName("phi-1.5b").parameterSize)
-    // 2.7B would need an explicit `b` suffix to be recognized as
-    // a parameter count; `minimax-m2.7` is a model name
-    // (M2.7 generation), not a size. The size regex requires the
-    // trailing `b`/`m` unit.
+    assertEquals(
+      "0.5B",
+      parseModelName("qwen2.5-0.5b").parameterSize
+    )
+    assertEquals(
+      "1.5B",
+      parseModelName("phi-1.5b").parameterSize
+    )
     assertNull(parseModelName("minimax-m2.7").parameterSize)
-    assertEquals("2.7B", parseModelName("minimax-m2.7b").parameterSize)
+    assertEquals(
+      "2.7B",
+      parseModelName("minimax-m2.7b").parameterSize
+    )
   }
 
   @Test
   fun `parseModelName extracts MoE sizes with lowercase x`() {
     val result: FormattedModelName = parseModelName("mixtral-8x7b-instruct")
-    assertEquals("8x7B", result.parameterSize)
+    assertEquals(
+      "8x7B",
+      result.parameterSize
+    )
   }
 
   @Test
   fun `parseModelName canonicalizes MoE with uppercase X to lowercase x`() {
     val result: FormattedModelName = parseModelName("mixtral-8X7B")
-    assertEquals("8x7B", result.parameterSize)
+    assertEquals(
+      "8x7B",
+      result.parameterSize
+    )
   }
 
   @Test
   fun `parseModelName canonicalizes MoE with uppercase B to uppercase B`() {
     val result: FormattedModelName = parseModelName("mixtral-8x7b")
-    assertEquals("8x7B", result.parameterSize)
+    assertEquals(
+      "8x7B",
+      result.parameterSize
+    )
   }
 
   @Test
@@ -285,14 +386,23 @@ class ModelNameFormatterTest {
   @Test
   fun `parseModelName extracts size from afterColon tag`() {
     val result: FormattedModelName = parseModelName("qwen2.5-coder:7b")
-    assertEquals("7B", result.parameterSize)
+    assertEquals(
+      "7B",
+      result.parameterSize
+    )
   }
 
   @Test
   fun `parseModelName extracts size from combined afterColon-with-quant`() {
     val result: FormattedModelName = parseModelName("qwen2.5-coder:7b-q4_k_m")
-    assertEquals("7B", result.parameterSize)
-    assertEquals("Q4_K_M", result.quant)
+    assertEquals(
+      "7B",
+      result.parameterSize
+    )
+    assertEquals(
+      "Q4_K_M",
+      result.quant
+    )
   }
 
   @Test
@@ -305,7 +415,11 @@ class ModelNameFormatterTest {
       "llama-3-8b-q4_1" to "Q4_1"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).quant)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).quant
+      )
     }
   }
 
@@ -317,30 +431,52 @@ class ModelNameFormatterTest {
       "qwen2.5-7b-exl2" to "EXL2"
     )
     cases.forEach { (input, expected) ->
-      assertEquals("Failed for $input", expected, parseModelName(input).quant)
+      assertEquals(
+        "Failed for $input",
+        expected,
+        parseModelName(input).quant
+      )
     }
   }
 
   @Test
   fun `parseModelName extracts precision tokens`() {
-    assertEquals("FP16", parseModelName("llama-3-8b-fp16").quant)
-    assertEquals("BF16", parseModelName("llama-3-8b-bf16").quant)
-    assertEquals("INT4", parseModelName("qwen2.5-7b-int4").quant)
-    assertEquals("INT8", parseModelName("qwen2.5-7b-int8").quant)
+    assertEquals(
+      "FP16",
+      parseModelName("llama-3-8b-fp16").quant
+    )
+    assertEquals(
+      "BF16",
+      parseModelName("llama-3-8b-bf16").quant
+    )
+    assertEquals(
+      "INT4",
+      parseModelName("qwen2.5-7b-int4").quant
+    )
+    assertEquals(
+      "INT8",
+      parseModelName("qwen2.5-7b-int8").quant
+    )
   }
 
   @Test
   fun `parseModelName extracts file-format quant from HF-style name`() {
     val result: FormattedModelName =
       parseModelName("TheBloke/Llama-2-7B-Chat-GGUF")
-    assertEquals("GGUF", result.quant)
+    assertEquals(
+      "GGUF",
+      result.quant
+    )
   }
 
   @Test
   fun `parseModelName prefers long-form GGUF over bare Q4`() {
     val result: FormattedModelName =
       parseModelName("qwen2.5-7b-instruct-q4_k_m")
-    assertEquals("Q4_K_M", result.quant)
+    assertEquals(
+      "Q4_K_M",
+      result.quant
+    )
   }
 
   @Test
@@ -351,19 +487,34 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName strips 8-digit YYYYMMDD date suffix`() {
-    assertEquals("Claude 3.5 Sonnet", parseModelName("claude-3-5-sonnet-20241022").displayName)
-    assertEquals("Claude 3 Opus", parseModelName("claude-3-opus-20240229").displayName)
+    assertEquals(
+      "Claude 3.5 Sonnet",
+      parseModelName("claude-3-5-sonnet-20241022").displayName
+    )
+    assertEquals(
+      "Claude 3 Opus",
+      parseModelName("claude-3-opus-20240229").displayName
+    )
   }
 
   @Test
   fun `parseModelName strips ISO YYYY-MM-DD date suffix`() {
-    assertEquals("GPT-4o", parseModelName("gpt-4o-2024-08-06").displayName)
-    assertEquals("Claude Sonnet 4", parseModelName("claude-sonnet-4-20250514").displayName)
+    assertEquals(
+      "GPT-4o",
+      parseModelName("gpt-4o-2024-08-06").displayName
+    )
+    assertEquals(
+      "Claude Sonnet 4",
+      parseModelName("claude-sonnet-4-20250514").displayName
+    )
   }
 
   @Test
   fun `parseModelName preserves model version v-tags`() {
-    assertEquals("Mistral", parseModelName("mistral-7b-instruct-v0.2").displayName)
+    assertEquals(
+      "Mistral",
+      parseModelName("mistral-7b-instruct-v0.2").displayName
+    )
   }
 
   @Test
@@ -371,24 +522,42 @@ class ModelNameFormatterTest {
     // `claude-3-5-sonnet` has `3` and `5` as model generations.
     // These must not be stripped as versions.
     val result: FormattedModelName = parseModelName("claude-3-5-sonnet")
-    assertEquals("Claude 3.5 Sonnet", result.displayName)
+    assertEquals(
+      "Claude 3.5 Sonnet",
+      result.displayName
+    )
   }
 
   @Test
   fun `parseModelName drops LM Studio HF org prefix`() {
     val result: FormattedModelName =
       parseModelName("lmstudio-community/qwen2.5-7b")
-    assertEquals("Qwen 2.5", result.displayName)
-    assertEquals("7B", result.parameterSize)
+    assertEquals(
+      "Qwen 2.5",
+      result.displayName
+    )
+    assertEquals(
+      "7B",
+      result.parameterSize
+    )
   }
 
   @Test
   fun `parseModelName drops TheBloke HF org prefix`() {
     val result: FormattedModelName =
       parseModelName("TheBloke/Llama-2-7B-Chat-GGUF")
-    assertEquals("Llama 2", result.displayName)
-    assertEquals("7B", result.parameterSize)
-    assertEquals("GGUF", result.quant)
+    assertEquals(
+      "Llama 2",
+      result.displayName
+    )
+    assertEquals(
+      "7B",
+      result.parameterSize
+    )
+    assertEquals(
+      "GGUF",
+      result.quant
+    )
   }
 
   @Test
@@ -398,29 +567,44 @@ class ModelNameFormatterTest {
     // last slash.
     val result: FormattedModelName =
       parseModelName("a/b/c/mistral-7b-instruct")
-    assertEquals("Mistral", result.displayName)
+    assertEquals(
+      "Mistral",
+      result.displayName
+    )
   }
 
   @Test
   fun `parseModelName strips instruct suffix from family key`() {
-    assertEquals("Qwen 2.5", parseModelName("qwen2.5-7b-instruct").displayName)
+    assertEquals(
+      "Qwen 2.5",
+      parseModelName("qwen2.5-7b-instruct").displayName
+    )
   }
 
   @Test
   fun `parseModelName strips chat suffix from family key`() {
-    assertEquals("Llama 2", parseModelName("Llama-2-7B-Chat").displayName)
+    assertEquals(
+      "Llama 2",
+      parseModelName("Llama-2-7B-Chat").displayName
+    )
   }
 
   @Test
   fun `parseModelName strips base suffix from family key`() {
-    assertEquals("Llama 2", parseModelName("Llama-2-7B-Base").displayName)
+    assertEquals(
+      "Llama 2",
+      parseModelName("Llama-2-7B-Base").displayName
+    )
   }
 
   @Test
   fun `parseModelName strips multiple stacked variant suffixes`() {
     val result: FormattedModelName =
       parseModelName("mistral-7b-instruct-v0.2")
-    assertEquals("Mistral", result.displayName)
+    assertEquals(
+      "Mistral",
+      result.displayName
+    )
   }
 
   @Test
@@ -441,53 +625,110 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName detects Anthropic provider from Claude family`() {
-    assertEquals("Anthropic", parseModelName("claude-3.5-sonnet").provider)
-    assertEquals("Anthropic", parseModelName("claude-3-opus-20240229").provider)
+    assertEquals(
+      "Anthropic",
+      parseModelName("claude-3.5-sonnet").provider
+    )
+    assertEquals(
+      "Anthropic",
+      parseModelName("claude-3-opus-20240229").provider
+    )
   }
 
   @Test
   fun `parseModelName detects OpenAI provider from GPT family`() {
-    assertEquals("OpenAI", parseModelName("gpt-4o").provider)
-    assertEquals("OpenAI", parseModelName("gpt-4.1-nano").provider)
-    assertEquals("OpenAI", parseModelName("o1-preview").provider)
+    assertEquals(
+      "OpenAI",
+      parseModelName("gpt-4o").provider
+    )
+    assertEquals(
+      "OpenAI",
+      parseModelName("gpt-4.1-nano").provider
+    )
+    assertEquals(
+      "OpenAI",
+      parseModelName("o1-preview").provider
+    )
   }
 
   @Test
   fun `parseModelName detects OpenAI provider from gpt-oss`() {
-    assertEquals("OpenAI", parseModelName("gpt-oss-120b").provider)
+    assertEquals(
+      "OpenAI",
+      parseModelName("gpt-oss-120b").provider
+    )
   }
 
   @Test
   fun `parseModelName detects Google provider from Gemini and Gemma`() {
-    assertEquals("Google", parseModelName("gemini-1.5-pro").provider)
-    assertEquals("Google", parseModelName("gemma3:9b").provider)
-    assertEquals("Google", parseModelName("codegemma:7b").provider)
+    assertEquals(
+      "Google",
+      parseModelName("gemini-1.5-pro").provider
+    )
+    assertEquals(
+      "Google",
+      parseModelName("gemma3:9b").provider
+    )
+    assertEquals(
+      "Google",
+      parseModelName("codegemma:7b").provider
+    )
   }
 
   @Test
   fun `parseModelName detects Alibaba provider from Qwen family`() {
-    assertEquals("Alibaba", parseModelName("qwen2.5-coder:7b").provider)
-    assertEquals("Alibaba", parseModelName("qwq:32b").provider)
+    assertEquals(
+      "Alibaba",
+      parseModelName("qwen2.5-coder:7b").provider
+    )
+    assertEquals(
+      "Alibaba",
+      parseModelName("qwq:32b").provider
+    )
   }
 
   @Test
   fun `parseModelName detects Meta provider from Llama family`() {
-    assertEquals("Meta", parseModelName("llama3.1:8b").provider)
-    assertEquals("Meta", parseModelName("codellama:13b").provider)
+    assertEquals(
+      "Meta",
+      parseModelName("llama3.1:8b").provider
+    )
+    assertEquals(
+      "Meta",
+      parseModelName("codellama:13b").provider
+    )
   }
 
   @Test
   fun `parseModelName detects Mistral AI provider with specific keyword first`() {
-    assertEquals("Mistral AI", parseModelName("codestral:22b").provider)
-    assertEquals("Mistral AI", parseModelName("pixtral-large").provider)
-    assertEquals("Mistral AI", parseModelName("mixtral:8x7b").provider)
-    assertEquals("Mistral AI", parseModelName("mistral:7b").provider)
+    assertEquals(
+      "Mistral AI",
+      parseModelName("codestral:22b").provider
+    )
+    assertEquals(
+      "Mistral AI",
+      parseModelName("pixtral-large").provider
+    )
+    assertEquals(
+      "Mistral AI",
+      parseModelName("mixtral:8x7b").provider
+    )
+    assertEquals(
+      "Mistral AI",
+      parseModelName("mistral:7b").provider
+    )
   }
 
   @Test
   fun `parseModelName detects Cohere provider for Command family`() {
-    assertEquals("Cohere", parseModelName("command-r-plus").provider)
-    assertEquals("Cohere", parseModelName("command-r").provider)
+    assertEquals(
+      "Cohere",
+      parseModelName("command-r-plus").provider
+    )
+    assertEquals(
+      "Cohere",
+      parseModelName("command-r").provider
+    )
   }
 
   @Test
@@ -505,72 +746,117 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName marks unknown models as not in catalog`() {
-    assertEquals(false, parseModelName("totally-unknown-model:7b").isFromCatalog)
+    assertEquals(
+      false,
+      parseModelName("totally-unknown-model:7b").isFromCatalog
+    )
   }
 
 
   @Test
   fun `parseModelName preserves raw name verbatim`() {
     val raw = "lmstudio-community/qwen2.5-coder:7b-q4_k_m"
-    assertEquals(raw, parseModelName(raw).rawName)
+    assertEquals(
+      raw,
+      parseModelName(raw).rawName
+    )
   }
 
   @Test
   fun `parseModelName trims whitespace from raw name`() {
     val result: FormattedModelName = parseModelName("  qwen2.5-coder:7b  ")
-    assertEquals("qwen2.5-coder:7b", result.rawName)
+    assertEquals(
+      "qwen2.5-coder:7b",
+      result.rawName
+    )
   }
 
 
   @Test
   fun `parseModelName fuzzy-lookup falls back from phi-3-mini-4k to phi-3-mini`() {
     val result: FormattedModelName = parseModelName("phi-3-mini-4k")
-    assertEquals("Phi 3 Mini", result.displayName)
+    assertEquals(
+      "Phi 3 Mini",
+      result.displayName
+    )
   }
 
   @Test
   fun `parseModelName fuzzy-lookup tries no-dash form for llama-3`() {
     val result: FormattedModelName = parseModelName("llama-3-8b-instruct")
-    assertEquals("Llama 3", result.displayName)
+    assertEquals(
+      "Llama 3",
+      result.displayName
+    )
   }
 
 
   @Test
   fun `parseModelName title-cases unknown model for fallback display`() {
-    assertEquals("Unknown Model", parseModelName("unknown-model:7b").displayName)
-    assertEquals("My Unrecognized Model", parseModelName("my-unrecognized-model:7b").displayName)
+    assertEquals(
+      "Unknown Model",
+      parseModelName("unknown-model:7b").displayName
+    )
+    assertEquals(
+      "My Unrecognized Model",
+      parseModelName("my-unrecognized-model:7b").displayName
+    )
   }
 
   @Test
   fun `parseModelName still extracts size and quant for unknown models`() {
     val result: FormattedModelName = parseModelName("unknown-model:70b-q4_k_m")
-    assertEquals("Unknown Model", result.displayName)
-    assertEquals("70B", result.parameterSize)
-    assertEquals("Q4_K_M", result.quant)
+    assertEquals(
+      "Unknown Model",
+      result.displayName
+    )
+    assertEquals(
+      "70B",
+      result.parameterSize
+    )
+    assertEquals(
+      "Q4_K_M",
+      result.quant
+    )
   }
 
 
   @Test
   fun `parseModelName handles empty string gracefully`() {
     val result: FormattedModelName = parseModelName("")
-    assertEquals("", result.displayName)
+    assertEquals(
+      "",
+      result.displayName
+    )
     assertNull(result.parameterSize)
     assertNull(result.quant)
     assertNull(result.provider)
-    assertEquals(false, result.isFromCatalog)
-    assertEquals("", result.rawName)
+    assertEquals(
+      false,
+      result.isFromCatalog
+    )
+    assertEquals(
+      "",
+      result.rawName
+    )
   }
 
   @Test
   fun `parseModelName handles whitespace-only string`() {
     val result: FormattedModelName = parseModelName("   ")
-    assertEquals("", result.rawName)
+    assertEquals(
+      "",
+      result.rawName
+    )
   }
 
   @Test
   fun `parseModelName handles model name with only a size`() {
     val result: FormattedModelName = parseModelName("7b")
-    assertEquals("7B", result.parameterSize)
+    assertEquals(
+      "7B",
+      result.parameterSize
+    )
   }
 
   @Test
@@ -581,14 +867,23 @@ class ModelNameFormatterTest {
 
   @Test
   fun `parseModelName is case-insensitive for family lookup`() {
-    assertEquals("Qwen 2.5", parseModelName("QWEN2.5-7B").displayName)
-    assertEquals("Mistral", parseModelName("MISTRAL-7B-INSTRUCT").displayName)
+    assertEquals(
+      "Qwen 2.5",
+      parseModelName("QWEN2.5-7B").displayName
+    )
+    assertEquals(
+      "Mistral",
+      parseModelName("MISTRAL-7B-INSTRUCT").displayName
+    )
   }
 
   @Test
   fun `parseModelName handles colon with no tag content`() {
     val result: FormattedModelName = parseModelName("qwen2.5-coder:")
-    assertEquals("Qwen 2.5 Coder", result.displayName)
+    assertEquals(
+      "Qwen 2.5 Coder",
+      result.displayName
+    )
     assertNull(result.parameterSize)
   }
 }

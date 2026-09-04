@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-23 21:19:51 Changed by gwy
+ * SubChatView.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -35,10 +35,7 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
-import org.jetbrains.jewel.ui.component.Icon
-import org.jetbrains.jewel.ui.component.IconButton
-import org.jetbrains.jewel.ui.component.Text
-import org.jetbrains.jewel.ui.component.Tooltip
+import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
@@ -66,22 +63,23 @@ fun SubChatView(
   userQuery: String = "",
   errorMessage: String = "",
   modifier: Modifier = Modifier,
+  hasCompleted: Boolean = false,
+  wasInterrupted: Boolean = false,
   subAgentResponse: String = "",
   transcriptMarkdown: String = "",
-  toolCalls: List<ToolCallInfo> = emptyList(),
-  hasCompleted: Boolean = false
+  toolCalls: List<ToolCallInfo> = emptyList()
 ) {
-  val historyMessages: List<ChatMessage> = remember(transcriptMarkdown) {
+  val historyMessages: List<ChatMessage> = remember(key1 = transcriptMarkdown) {
     if (transcriptMarkdown.isNotBlank()) {
       try {
-        ChatTranscript.parseTranscript(transcriptMarkdown).messages
+        ChatTranscript.parseTranscript(content = transcriptMarkdown).messages
       } catch (parseException: Exception) {
         logger.warn("Failed to parse sub-agent transcript", parseException)
         emptyList()
       }
     } else emptyList()
   }
-  val scrollState = rememberScrollState()
+  val scrollState: ScrollState = rememberScrollState()
 
   Column(
     modifier = modifier.fillMaxSize(),
@@ -96,39 +94,44 @@ fun SubChatView(
       BackButton(onBack = onBack)
       if (title.isNotBlank()) {
         Spacer(Modifier.weight(1f))
-
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
         ) {
           if (hasCompleted) {
-            Icon(
-              contentDescription = null,
-              key = AllIconsKeys.Actions.Checked
-            )
+            if (wasInterrupted) {
+              Icon(
+                contentDescription = null,
+                key = AllIconsKeys.General.Close
+              )
+            } else {
+              Icon(
+                contentDescription = null,
+                key = AllIconsKeys.Actions.Checked
+              )
+            }
           }
-          val truncatedTitle =
-            if (title.length > 30) title.take(30) + "…"
+          val truncatedTitle: String =
+            if (title.length > 30) title.take(n = 30) + "…"
             else title
-          val showTooltip = title.length > 30
-          val titleContent = @Composable {
-            Text(
-              maxLines = 1,
-              text = truncatedTitle,
-              overflow = TextOverflow.Ellipsis,
-              style = rememberGradumParagraphTextStyle().copy(
-                fontWeight = FontWeight.Medium
-              ),
-              modifier = Modifier.padding(end = GradumSpacing.sml)
-            )
-          }
+          val showTooltip: Boolean = title.length > 30
+          val titleContent =
+            @Composable {
+              Text(
+                maxLines = 1,
+                text = truncatedTitle,
+                overflow = TextOverflow.Ellipsis,
+                style = rememberGradumParagraphTextStyle().copy(
+                  fontWeight = FontWeight.Medium
+                ),
+                modifier = Modifier.padding(end = GradumSpacing.sml)
+              )
+            }
           if (showTooltip) {
             Tooltip(
               modifier = Modifier,
               tooltip = { Text(text = title) }
-            ) {
-              titleContent()
-            }
+            ) { titleContent() }
           } else titleContent()
         }
       }
@@ -141,17 +144,19 @@ fun SubChatView(
     ) {
       if (historyMessages.isNotEmpty()) {
         SubChatConversationContent(
-          messages = historyMessages,
-          scrollState = scrollState
+          scrollState = scrollState,
+          messages = historyMessages
         )
       } else {
         SubChatStreamingContent(
           modelName = modelName,
           userQuery = userQuery,
-          errorMessage = errorMessage,
-          subAgentResponse = subAgentResponse,
+          toolCalls = toolCalls,
           scrollState = scrollState,
-          toolCalls = toolCalls
+          errorMessage = errorMessage,
+          hasCompleted = hasCompleted,
+          wasInterrupted = wasInterrupted,
+          subAgentResponse = subAgentResponse
         )
       }
     }
@@ -183,6 +188,8 @@ private fun SubChatStreamingContent(
   modelName: String,
   userQuery: String,
   errorMessage: String,
+  hasCompleted: Boolean,
+  wasInterrupted: Boolean,
   subAgentResponse: String,
   scrollState: ScrollState,
   toolCalls: List<ToolCallInfo>
@@ -202,12 +209,12 @@ private fun SubChatStreamingContent(
 
     ModelNameHeader(modelName = modelName)
 
-    toolCalls.forEachIndexed { index, toolCall ->
+    toolCalls.forEachIndexed { index: Int, toolCall: ToolCallInfo ->
       ToolCallBlock(
         onSubChatClick = null,
         block = toolCall.toRenderBlock(),
-        onViewDiff = { _, _, _ -> },
-        onOpenInEditor = { _, _, _ -> },
+        onOpenInEditor = { _: String, _: Int, _: Int -> },
+        onViewDiff = { _: String, _: String, _: String -> },
       )
       if (index < toolCalls.lastIndex || subAgentResponse.isNotBlank())
         Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -223,13 +230,46 @@ private fun SubChatStreamingContent(
     }
 
     if (subAgentResponse.isNotBlank()) {
-      GradumMarkdown(
-        text = subAgentResponse, modifier = Modifier
-      ) {
+      GradumMarkdown(text = subAgentResponse, modifier = Modifier) {
         isSimplified = true
         withSelection = true
         animationEnabled = false
       }
+    }
+
+    if (!hasCompleted) {
+      if (errorMessage.isNotBlank()) {
+        Spacer(Modifier.height(GradumSpacing.lg))
+        SweepLightText(
+          text = message("gradum.subchat.failed"),
+          enabled = false
+        )
+      } else {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = GradumSpacing.lg),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm)
+        ) {
+          CircularProgressIndicator(modifier = Modifier.size(16.dp))
+          SweepLightText(
+            text = message("gradum.subchat.working")
+          )
+        }
+      }
+    } else if (wasInterrupted) {
+      Spacer(Modifier.height(GradumSpacing.lg))
+      SweepLightText(
+        text = message("gradum.subchat.interrupted"),
+        enabled = false
+      )
+    } else {
+      Spacer(Modifier.height(GradumSpacing.lg))
+      SweepLightText(
+        text = message("gradum.subchat.done"),
+        enabled = false
+      )
     }
     Spacer(Modifier.height(GradumSpacing.xxl))
   }
@@ -250,7 +290,7 @@ private fun ModelNameHeader(modelName: String) {
       Text(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        text = formatModelName(modelName)
+        text = formatModelName(raw = modelName)
       )
     }
     Spacer(modifier = Modifier.height(GradumSpacing.lg))
@@ -265,7 +305,7 @@ private fun SubChatConversationContent(
     modifier = Modifier
       .verticalScroll(scrollState)
   ) {
-    messages.forEachIndexed { index, message ->
+    messages.forEachIndexed { index: Int, message: ChatMessage ->
       val shouldShowTimestamp: Boolean = index == 0 ||
         formatTimestamp(message.timestamp) !=
         formatTimestamp(messages.getOrNull(index - 1)?.timestamp ?: 0L)
@@ -286,10 +326,7 @@ private fun SubChatConversationContent(
       } else {
         AssistantChatBubble(
           message = message,
-          showActions = false,
-          onSubChatClick = null,
-          onViewDiff = { _, _, _ -> },
-          onOpenInEditor = { _, _, _ -> }
+          showActions = false
         )
       }
     }

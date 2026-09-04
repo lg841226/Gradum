@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSessionStateTest.kt  2026-08-18 12:45:23 Changed by gwy
+ * GradumChatSessionStateTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -27,11 +27,20 @@ class GradumChatSessionStateTest {
   @Test
   fun `thinking level setter is idempotent and clamps through the setter`() {
     val session = GradumChatSession()
-    assertEquals(ThinkingLevel.MEDIUM, session.thinkingLevel)
+    assertEquals(
+      ThinkingLevel.MEDIUM,
+      session.thinkingLevel
+    )
     session.setThinkingLevel(ThinkingLevel.HIGH)
-    assertEquals(ThinkingLevel.HIGH, session.thinkingLevel)
+    assertEquals(
+      ThinkingLevel.HIGH,
+      session.thinkingLevel
+    )
     session.setThinkingLevel(ThinkingLevel.HIGH)
-    assertEquals(ThinkingLevel.HIGH, session.thinkingLevel)
+    assertEquals(
+      ThinkingLevel.HIGH,
+      session.thinkingLevel
+    )
   }
 
   @Test
@@ -57,11 +66,17 @@ class GradumChatSessionStateTest {
     val session = GradumChatSession()
     session.enterMergeMode()
     assertTrue(session.isMergeModeActive)
-    session.toggleMergeSelection("s1")
-    session.toggleMergeSelection("s2")
-    assertEquals(setOf("s1", "s2"), session.mergeSelection.toSet())
-    session.toggleMergeSelection("s1")
-    assertEquals(listOf("s2"), session.mergeSelection.toList())
+    session.toggleMergeSelection(sessionId = "s1")
+    session.toggleMergeSelection(sessionId = "s2")
+    assertEquals(
+      setOf("s1", "s2"),
+      session.mergeSelection.toSet()
+    )
+    session.toggleMergeSelection(sessionId = "s1")
+    assertEquals(
+      listOf("s2"),
+      session.mergeSelection.toList()
+    )
     session.exitMergeMode()
     assertFalse(session.isMergeModeActive)
     assertTrue(session.mergeSelection.isEmpty())
@@ -70,9 +85,15 @@ class GradumChatSessionStateTest {
   @Test
   fun `toolMode mirrors selectedPermission`() {
     val session = GradumChatSession()
-    assertEquals("read_only", session.toolMode)
+    assertEquals(
+      "read_only",
+      session.toolMode
+    )
     session.selectedPermission = "agent"
-    assertEquals("agent", session.toolMode)
+    assertEquals(
+      "agent",
+      session.toolMode
+    )
   }
 
   @Test
@@ -82,13 +103,15 @@ class GradumChatSessionStateTest {
       focusedFilePath = "/project/src/Main.kt",
       openFiles = emptyList(),
     )
-    assertEquals("look at <Context path=\"/project/src/Main.kt\"/> please" to true, result)
+    assertEquals(
+      "look at <Context path=\"/project/src/Main.kt\"/> please" to true,
+      result
+    )
   }
 
   @Test
   fun `inline tags resolve file reference to matching open file`() {
     val openFile: VirtualFile = mockk()
-    // Mock the VirtualFile contract used by resolveInlineTags.
     io.mockk.every { openFile.name } returns "Main.kt"
     io.mockk.every { openFile.path } returns "/project/src/Main.kt"
 
@@ -97,7 +120,10 @@ class GradumChatSessionStateTest {
       focusedFilePath = "",
       openFiles = listOf(openFile),
     )
-    assertEquals("check <Attachments paths=\"/project/src/Main.kt\"/>" to true, result)
+    assertEquals(
+      "check <Attachments paths=\"/project/src/Main.kt\"/>" to true,
+      result
+    )
   }
 
   @Test
@@ -107,7 +133,10 @@ class GradumChatSessionStateTest {
       focusedFilePath = "/project/src/Main.kt",
       openFiles = emptyList(),
     )
-    assertEquals("no tags here" to false, result)
+    assertEquals(
+      "no tags here" to false,
+      result
+    )
   }
 
   @Test
@@ -118,6 +147,9 @@ class GradumChatSessionStateTest {
       openFiles = emptyList(),
     )
     // Unmatched reference is left as-is, untouched.
-    assertEquals("open @file:Missing.kt" to false, result)
+    assertEquals(
+      "open @file:Missing.kt" to false,
+      result
+    )
   }
 }

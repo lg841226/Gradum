@@ -1,13 +1,14 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-22 14:23:23 Changed by gwy
+ * LLMClient.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.client
 
 import gradum.AgentConfiguration
+import gradum.GradumConfig
 import gradum.Provider
 import gradum.utils.JsonUtil
 import io.ktor.client.*
@@ -17,6 +18,8 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -35,7 +38,7 @@ private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 /** Shared across clients to reuse connections instead of building a client per turn. */
 private val sharedHttpClient: HttpClient = HttpClient {
   install(HttpTimeout) {
-    requestTimeoutMillis = 600_000L
+    requestTimeoutMillis = GradumConfig.LLM_REQUEST_TIMEOUT_MS
   }
 }
 
@@ -73,12 +76,12 @@ internal data class ProviderHints(
     val Default: ProviderHints = ProviderHints()
 
     fun forBaseUrl(baseUrl: String): ProviderHints = when {
-      baseUrl.contains("api.deepseek.com", ignoreCase = true) -> ProviderHints(
+      baseUrl.contains(other = "api.deepseek.com", ignoreCase = true) -> ProviderHints(
         reasoningDeltaField = "reasoning_content",
         thinkingFieldValue = mapOf("type" to "enabled")
       )
 
-      baseUrl.contains("api.minimaxi.com", ignoreCase = true) -> ProviderHints(
+      baseUrl.contains(other = "api.minimaxi.com", ignoreCase = true) -> ProviderHints(
         reasoningDeltaField = "reasoning_content",
         maxTokensFieldName = "max_completion_tokens",
         thinkingFieldValue = mapOf("type" to "adaptive")
@@ -182,7 +185,6 @@ private fun projectToOllama(parts: List<Map<String, Any>>): Map<String, Any> {
       "image" -> {
         (contentPart["data"] as? String)?.let { imageDataList.add(it) }
       }
-      // Non-text/image parts dropped at wire boundary
     }
   }
 
@@ -244,17 +246,17 @@ class OllamaClient(
     val shouldThink: Boolean = configuration.enableThinking
 
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, Provider.OLLAMA)
+      projectHistoryForBackend(messageHistory, target = Provider.OLLAMA)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
       "model" to configuration.modelName,
       "messages" to projectedHistory,
       "stream" to true,
       "options" to mapOf(
-        "temperature" to configuration.temperatureValue,
         "top_p" to configuration.topPValue,
         "num_ctx" to configuration.contextWindowSize,
-        "num_predict" to configuration.maxTokensToGenerate,
+        "temperature" to configuration.temperatureValue,
+        "num_predict" to configuration.maxTokensToGenerate
       ),
     )
 
@@ -267,13 +269,16 @@ class OllamaClient(
       try {
         val flowCollector = this
         var succeeded = false
-        httpClient.preparePost(requestUrl) {
+        httpClient.preparePost(urlString = requestUrl) {
           contentType(ContentType.Application.Json)
-          setBody(JsonUtil.encodeMap(requestPayload))
+          setBody(JsonUtil.encodeMap(input = requestPayload))
         }.execute { httpResponse ->
           if (httpResponse.status.value !in 200..299) {
-            flowCollector.emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
+            flowCollector.emit(
+              value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse))
+            )
             lastError = null
+            succeeded = true
             return@execute
           }
 
@@ -283,39 +288,41 @@ class OllamaClient(
             val rawLine: String = responseChannel.readUTF8Line() ?: break
             if (rawLine.isBlank()) continue
 
-            val eventData: JsonObject = jsonParser.parseToJsonElement(rawLine).jsonObject
+            val eventData: JsonObject = jsonParser.parseToJsonElement(string = rawLine).jsonObject
 
             eventData["message"]?.jsonObject?.let { messageObject ->
-              val reasoningContent: String = messageObject.optString("thinking")
+              val reasoningContent: String = messageObject.optString(key = "thinking")
 
               if (reasoningContent.isNotEmpty())
-                flowCollector.emit(LLMResponseChunk.ReasoningContent(reasoningContent))
+                flowCollector.emit(value = LLMResponseChunk.ReasoningContent(text = reasoningContent))
 
               messageObject["tool_calls"]?.jsonArray?.let { toolCallsArray ->
                 val parsedCalls: List<ToolCallEntry> = toolCallsArray.map { element ->
                   val callObject: JsonObject = element.jsonObject
-                  val functionObject: JsonObject = callObject.optObject("function")
+                  val functionObject: JsonObject = callObject.optObject(key = "function")
                   ToolCallEntry(
-                    functionName = functionObject.optString("name"),
-                    callIdentifier = callObject.optString("id"),
+                    callIdentifier = callObject.optString(key = "id"),
+                    functionName = functionObject.optString(key = "name"),
                     functionArguments = functionObject["arguments"]?.jsonObject?.toMap() ?: emptyMap(),
                   )
                 }
 
-                flowCollector.emit(LLMResponseChunk.ToolCallBatch(parsedCalls))
+                flowCollector.emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = parsedCalls))
               }
 
-              val messageContent: String = messageObject.optString("content")
+              val messageContent: String = messageObject.optString(key = "content")
               if (messageContent.isNotEmpty()) {
                 emittedAnyChunk = true
-                flowCollector.emit(LLMResponseChunk.TextContent(messageContent))
+                flowCollector.emit(value = LLMResponseChunk.TextContent(messageContent))
               }
             }
 
-            val serverErrorMessage: String = eventData.optString("error")
+            val serverErrorMessage: String = eventData.optString(key = "error")
             if (serverErrorMessage.isNotBlank()) {
               emittedAnyChunk = true
-              flowCollector.emit(LLMResponseChunk.ErrorMessage(serverErrorMessage))
+              flowCollector.emit(
+                value = LLMResponseChunk.ErrorMessage(description = serverErrorMessage)
+              )
             }
 
             tokenUsage = recordTokenUsage(
@@ -330,25 +337,25 @@ class OllamaClient(
         }
         if (succeeded) break
       } catch (httpClientException: Exception) {
-        if (httpClientException is kotlinx.coroutines.CancellationException) throw httpClientException
+        if (httpClientException is CancellationException) throw httpClientException
         if (emittedAnyChunk) throw httpClientException
         lastError = httpClientException
         if (attemptIndex < 2 && isTransientError(httpClientException)) {
           val delayMs: Long = 5_000L * (1L shl attemptIndex)
-          delay(delayMs.milliseconds)
+          delay(duration = delayMs.milliseconds)
         } else break
       }
     }
 
     lastError?.let { error ->
       emit(
-        LLMResponseChunk.ErrorMessage(
-          formatLlmError(
-            error,
+        value = LLMResponseChunk.ErrorMessage(
+          description = formatLlmError(
             configuration.baseUrl,
-            "Ollama server",
-            "Make sure Ollama is running.",
-            configuration.timeoutSeconds
+            serverName = "Ollama server",
+            runningHint = "Make sure Ollama is running.",
+            configuration.timeoutSeconds,
+            exception = error
           )
         )
       )
@@ -385,31 +392,29 @@ class OpenAICompatibleClient(
 
     val base = configuration.baseUrl.trimEnd('/')
     val path = configuration.chatCompletionsPath.trimStart('/')
-    val requestUrl = if (base.endsWith("/v1") && path.startsWith("v1/")) {
-      base.removeSuffix("/v1") + "/" + path
-    } else {
-      "$base/$path"
-    }
+    val requestUrl =
+      if (base.endsWith(suffix = "/v1") && path.startsWith(prefix = "v1/")) {
+        base.removeSuffix("/v1") + "/" + path
+      } else {
+        "$base/$path"
+      }
     val hints: ProviderHints = ProviderHints.forBaseUrl(configuration.baseUrl)
 
     val projectedHistory: List<Map<String, Any>> =
-      projectHistoryForBackend(messageHistory, Provider.OPENAI)
+      projectHistoryForBackend(messageHistory, target = Provider.OPENAI)
 
     val requestPayload: MutableMap<String, Any> = mutableMapOf(
-      "model" to configuration.modelName,
-      "messages" to projectedHistory,
       "stream" to true,
-      "temperature" to configuration.temperatureValue,
+      "messages" to projectedHistory,
       "top_p" to configuration.topPValue,
-      hints.maxTokensFieldName to configuration.maxTokensToGenerate,
+      "model" to configuration.modelName,
+      "temperature" to configuration.temperatureValue,
+      hints.maxTokensFieldName to configuration.maxTokensToGenerate
     )
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
 
-    // Native thinking: only when the user opted in AND this provider
-    // has a native field. Otherwise, we fall back to the system
-    // prompt's "Think first, then act" instruction alone, which is
-    // always present and applies to every model.
+
     if (configuration.enableThinking && hints.thinkingFieldValue != null) {
       requestPayload["thinking"] = hints.thinkingFieldValue
     }
@@ -419,23 +424,17 @@ class OpenAICompatibleClient(
 
     for (attemptIndex in 0..2) {
       try {
-        val httpResponse: HttpResponse = httpClient.post(requestUrl) {
+        val httpResponse: HttpResponse = httpClient.post(urlString = requestUrl) {
           contentType(ContentType.Application.Json)
-          setBody(JsonUtil.encodeMap(requestPayload))
-          // Bearer auth — only when an apiKey is configured. Local Ollama
-          // rejects unknown auth headers, so we must not send one in that case.
+          setBody(JsonUtil.encodeMap(input = requestPayload))
+
           configuration.apiKey?.takeIf { it.isNotBlank() }?.let { key ->
             header("Authorization", "Bearer $key")
           }
         }
 
-        // Providers answer 4xx/5xx with a JSON error body, NOT an SSE
-        // stream. Without this guard the body would be parsed as SSE:
-        // every line fails the "data: " prefix check, no `[DONE]` is ever
-        // seen, and the loop falls through to the misleading
-        // "Response interrupted, the model may have run out of memory."
         if (httpResponse.status.value !in 200..299) {
-          emit(LLMResponseChunk.ErrorMessage(extractApiError(httpResponse)))
+          emit(value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse)))
           lastError = null
           break
         }
@@ -443,40 +442,31 @@ class OpenAICompatibleClient(
         val streamedChunks: Flow<LLMResponseChunk> = parseServerSentEvents(httpResponse, hints)
         streamedChunks.collect { chunk ->
           emittedAnyChunk = true
-          emit(chunk)
+          emit(value = chunk)
         }
 
         lastError = null; break
 
       } catch (httpClientException: Exception) {
-        // Cancellation is not a failure: it must propagate so callers
-        // (e.g. the agent's /stop) can actually stop the stream.
-        if (httpClientException is kotlinx.coroutines.CancellationException) throw httpClientException
-
-        // A stream that already emitted content cannot be re-run: the
-        // agent has already appended that text / queued those tool calls
-        // for execution. Retrying would duplicate the reply. Only retry
-        // when the failure happened before the first event (e.g. the
-        // POST itself or the connection opening).
+        if (httpClientException is CancellationException) throw httpClientException
         if (emittedAnyChunk) throw httpClientException
 
         lastError = httpClientException
         if (isTransientError(httpClientException) && attemptIndex < 2)
-          delay((5_000L * 2.0.pow(attemptIndex.toDouble())).toLong().milliseconds)
-        else
-          break
+          delay(duration = (5_000L * 2.0.pow(x = attemptIndex.toDouble())).toLong().milliseconds)
+        else break
       }
     }
 
     lastError?.let { error ->
       emit(
-        LLMResponseChunk.ErrorMessage(
-          formatLlmError(
-            error,
-            "server",
-            configuration.baseUrl,
-            "Make sure the server is running.",
-            configuration.timeoutSeconds
+        value = LLMResponseChunk.ErrorMessage(
+          description = formatLlmError(
+            baseUrl = "server",
+            serverName = configuration.baseUrl,
+            runningHint = "Make sure the server is running.",
+            configuration.timeoutSeconds,
+            exception = error
           )
         )
       )
@@ -495,40 +485,32 @@ class OpenAICompatibleClient(
       val rawLine: String = responseChannel.readUTF8Line() ?: break
       if (rawLine.isBlank()) continue
 
-      // SSE spec makes the space after "data:" optional — some
-      // OpenAI-compatible servers emit `data:{...}`. Requiring the
-      // space would silently drop every event from those servers.
-      val eventBody: String = if (rawLine.startsWith("data:")) {
-        rawLine.removePrefix("data:").trimStart()
-      } else continue
+      val eventBody: String =
+        if (rawLine.startsWith(prefix = "data:")) {
+          rawLine.removePrefix("data:").trimStart()
+        } else continue
 
-      // OpenAI SSE stream-end signal: all OpenAI-compatible servers send `data: [DONE]` at stream end
       if (eventBody.trim() == "[DONE]") {
-        streamCompleted = true; break
+        streamCompleted = true
+        break
       }
 
-      val parsedPayload: JsonObject = try {
-        jsonParser.parseToJsonElement(eventBody).jsonObject
-      } catch (jsonParseException: Exception) {
-        logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
-        continue
-      }
+      val parsedPayload: JsonObject =
+        try {
+          jsonParser.parseToJsonElement(string = eventBody).jsonObject
+        } catch (jsonParseException: Exception) {
+          logger.debug("Skipping malformed SSE event: ${jsonParseException.message}", jsonParseException)
+          continue
+        }
 
       val firstChoice: JsonObject = parsedPayload["choices"]
         ?.jsonArray?.firstOrNull()?.jsonObject ?: continue
 
       val deltaFields: JsonObject = firstChoice["delta"]?.jsonObject ?: continue
-      val contentDelta: String = deltaFields.optString("content")
+      val contentDelta: String = deltaFields.optString(key = "content")
 
-      // NOT `isNotBlank()`: streaming deltas often carry pure-whitespace
-      // chunks (e.g. a bare "\n" that separates Markdown paragraphs, a
-      // blank line inside a code block, or trailing spaces for a hard
-      // break). `isNotBlank()` silently drops those, corrupting Markdown
-      // in a way that is invisible to any renderer fed the final text.
-      // `isNotEmpty()` keeps every delta while still skipping the
-      // missing-key case (optString returns "").
       if (contentDelta.isNotEmpty())
-        emit(LLMResponseChunk.TextContent(contentDelta))
+        emit(value = LLMResponseChunk.TextContent(contentDelta))
 
       /**
        * Native reasoning surface: DeepSeek and MiniMax both emit
@@ -538,56 +520,62 @@ class OpenAICompatibleClient(
        * backend's existing `message.thinking` path.
        */
       hints.reasoningDeltaField?.let { fieldName ->
-        val reasoningDelta: String = deltaFields.optString(fieldName)
+        val reasoningDelta: String = deltaFields.optString(key = fieldName)
         if (reasoningDelta.isNotEmpty())
-          emit(LLMResponseChunk.ReasoningContent(reasoningDelta))
+          emit(value = LLMResponseChunk.ReasoningContent(text = reasoningDelta))
       }
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
-        accumulateCallDeltas(toolCallsArray, accumulatedCalls)
+        accumulateCallDeltas(toolCallsArray, accumulator = accumulatedCalls)
       }
 
       parsedPayload["usage"]?.jsonObject?.let { usageStats ->
-        tokenUsage = recordTokenUsage(usageStats, "prompt_tokens", "completion_tokens", tokenUsage)
+        tokenUsage = recordTokenUsage(
+          usageStats,
+          currentUsage = tokenUsage,
+          promptField = "prompt_tokens",
+          completionField = "completion_tokens",
+        )
       }
     }
 
     if (accumulatedCalls.isNotEmpty()) {
-      val finalCalls: List<ToolCallEntry> = buildCompletedCalls(accumulatedCalls)
-      emit(LLMResponseChunk.ToolCallBatch(finalCalls))
+      val finalCalls: List<ToolCallEntry> = buildCompletedCalls(accumulator = accumulatedCalls)
+      emit(value = LLMResponseChunk.ToolCallBatch(toolCalls = finalCalls))
     }
 
     if (!streamCompleted) {
-      emit(LLMResponseChunk.ErrorMessage("Response interrupted, the model may have run out of memory. Try reducing the context length in your model settings."))
+      emit(
+        value = LLMResponseChunk.ErrorMessage(
+          description = "Response interrupted, the model may have run out of memory. Try reducing the context length in your model settings."
+        )
+      )
     }
   }
 
   private fun accumulateCallDeltas(toolCallsArray: JsonArray, accumulator: MutableMap<Int, MutableMap<String, Any>>) {
     for (toolCallElement in toolCallsArray) {
       val toolCallObject: JsonObject = toolCallElement.jsonObject
-      // Some providers (DeepSeek, certain proxies) emit each tool call as
-      // a single complete chunk with NO `index` field. optInt("index") then
-      // returns 0 for every chunk and two calls collapse into slot 0,
-      // merging their ids/names/arguments into one corrupt entry. When the
-      // field is genuinely absent, assign the next sequential slot instead.
-      val callIndex: Int = if (toolCallObject.containsKey("index")) {
-        toolCallObject.optInt("index")
-      } else {
-        (accumulator.keys.maxOrNull() ?: -1) + 1
-      }
 
-      val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(callIndex) {
+      val callIndex: Int =
+        if (toolCallObject.containsKey("index")) {
+          toolCallObject.optInt(key = "index")
+        } else {
+          (accumulator.keys.maxOrNull() ?: -1) + 1
+        }
+
+      val storedEntry: MutableMap<String, Any> = accumulator.getOrPut(key = callIndex) {
         mutableMapOf("identifier" to "", "functionName" to "", "argumentsBuffer" to StringBuilder())
       }
 
-      val newId: String = toolCallObject.optString("id")
+      val newId: String = toolCallObject.optString(key = "id")
       if (newId.isNotBlank()) storedEntry["identifier"] = newId
 
       toolCallObject["function"]?.jsonObject?.let { functionDelta ->
-        val nameDelta: String = functionDelta.optString("name")
+        val nameDelta: String = functionDelta.optString(key = "name")
         if (nameDelta.isNotBlank()) storedEntry["functionName"] = nameDelta
 
-        val argumentDelta: String = functionDelta.optString("arguments")
+        val argumentDelta: String = functionDelta.optString(key = "arguments")
         if (argumentDelta.isNotBlank()) {
           val argumentsBuffer: StringBuilder = storedEntry["argumentsBuffer"] as? StringBuilder
             ?: StringBuilder().also { storedEntry["argumentsBuffer"] = it }
@@ -600,14 +588,18 @@ class OpenAICompatibleClient(
   private fun buildCompletedCalls(accumulator: MutableMap<Int, MutableMap<String, Any>>): List<ToolCallEntry> {
     return accumulator.entries.sortedBy { entry -> entry.key }.map { entry ->
       val callData: MutableMap<String, Any> = entry.value
-      val argumentsBuffer: StringBuilder = callData["argumentsBuffer"] as? StringBuilder ?: StringBuilder()
+      val argumentsBuffer: StringBuilder = callData["argumentsBuffer"]
+        as? StringBuilder ?: StringBuilder()
       val argumentsText: String = argumentsBuffer.toString()
-      val parsedArguments: Map<String, JsonElement> = if (argumentsText.isBlank()) emptyMap() else try {
-        jsonParser.parseToJsonElement(argumentsText).jsonObject.toMap()
-      } catch (jsonParseException: Exception) {
-        logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
-        emptyMap()
-      }
+
+      val parsedArguments: Map<String, JsonElement> =
+        if (argumentsText.isBlank()) emptyMap()
+        else try {
+          jsonParser.parseToJsonElement(string = argumentsText).jsonObject.toMap()
+        } catch (jsonParseException: Exception) {
+          logger.debug("Failed to parse tool-call arguments: ${jsonParseException.message}", jsonParseException)
+          emptyMap()
+        }
 
       ToolCallEntry(
         functionName = callData["functionName"] as? String ?: "",
@@ -619,7 +611,7 @@ class OpenAICompatibleClient(
 }
 
 private fun isTransientError(exception: Exception): Boolean = exception is IOException
-  || exception is kotlinx.coroutines.TimeoutCancellationException
+  || exception is TimeoutCancellationException
 
 /**
  * Pulls the human-readable message out of a non-2xx API response.
@@ -632,16 +624,17 @@ private fun isTransientError(exception: Exception): Boolean = exception is IOExc
  */
 private suspend fun extractApiError(httpResponse: HttpResponse): String {
   val statusLine = "HTTP ${httpResponse.status.value} ${httpResponse.status.description}"
-  val bodyText: String = try {
-    httpResponse.bodyAsText()
-  } catch (_: Exception) {
-    return statusLine
-  }
+  val bodyText: String =
+    try {
+      httpResponse.bodyAsText()
+    } catch (_: Exception) {
+      return statusLine
+    }
   val errorText: String? = try {
-    val parsed: JsonObject = jsonParser.parseToJsonElement(bodyText).jsonObject
+    val parsed: JsonObject = jsonParser.parseToJsonElement(string = bodyText).jsonObject
     parsed["error"]?.let { errorElement ->
-      errorElement.jsonObject?.optString("message")
-        ?.takeIf { it.isNotBlank() }
+      errorElement.jsonObject.optString(key = "message")
+        .takeIf { it.isNotBlank() }
         ?: errorElement.jsonPrimitive.contentOrNull
     }
   } catch (_: Exception) {
@@ -656,16 +649,21 @@ private suspend fun extractApiError(httpResponse: HttpResponse): String {
  * "is it running?" hint.
  */
 private fun formatLlmError(
-  exception: Exception, baseUrl: String, serverName: String, runningHint: String, timeoutSeconds: Int
-): String = when (exception) {
-  is kotlinx.coroutines.TimeoutCancellationException ->
-    "Request timed out after $timeoutSeconds seconds. The server is taking too long to respond."
+  baseUrl: String,
+  serverName: String,
+  runningHint: String,
+  timeoutSeconds: Int,
+  exception: Exception
+): String =
+  when (exception) {
+    is TimeoutCancellationException ->
+      "Request timed out after $timeoutSeconds seconds. The server is taking too long to respond."
 
-  is IOException ->
-    "Could not connect to $serverName at $baseUrl. $runningHint Details: ${exception.message}"
+    is IOException ->
+      "Could not connect to $serverName at $baseUrl. $runningHint Details: ${exception.message}"
 
-  else -> "Unexpected error - ${exception.message}"
-}
+    else -> "Unexpected error - ${exception.message}"
+  }
 
 /**
  * Common token-usage accumulator shared by every [LlmClient] implementation.
@@ -677,8 +675,8 @@ private fun formatLlmError(
 private fun recordTokenUsage(
   usageStats: JsonObject, promptField: String, completionField: String, currentUsage: TokenUsageSnapshot
 ): TokenUsageSnapshot {
-  val promptTokens: Int = usageStats.optInt(promptField)
-  val completionTokens: Int = usageStats.optInt(completionField)
+  val promptTokens: Int = usageStats.optInt(key = promptField)
+  val completionTokens: Int = usageStats.optInt(key = completionField)
 
   if (promptTokens <= 0 && completionTokens <= 0) return currentUsage
 

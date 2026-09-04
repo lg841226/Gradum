@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * TodoSkill.kt  2026-08-23 21:35:57 Changed by gwy
+ * TodoSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.skill
@@ -25,26 +25,19 @@ class TodoSkill : Skill() {
   override val description: String = "Initialize a task list"
 
   /**
-   * Available in AGENT and EDIT modes. EDIT mode permits task planning
-   * and tracking (project discovery and structured edits both benefit
-   * from a task list). READ_ONLY still excludes it since to_do imply
-   * that the agent will mutate the project.
+   * Available in AGENT mode only. Task planning drives the agent's
+   * step-by-step execution; EDIT and READ_ONLY exclude it because the
+   * to_do / finish_to_do_item pair implies an active agent workflow.
    */
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+    gradum.ToolMode.AGENT
   )
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return buildFunctionSchema(
-      description = description,
-      properties = mapOf(
-        "tasks" to mapOf(
-          "type" to "array",
-          "items" to mapOf("type" to "string"),
-          "description" to "List of tasks to complete",
-        ),
-      ),
-      required = listOf("tasks"),
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    stringArray(
+      name = "tasks",
+      description = "List of tasks to complete",
+      required = true,
     )
   }
 
@@ -53,14 +46,15 @@ class TodoSkill : Skill() {
 
     if (rawTasks.isEmpty())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Tasks list cannot be empty.",
           fixHint = "Provide at least one task description in the 'tasks' parameter."
         )
       )
 
-    return sharedTodoManager.initializeTasks(rawTasks)
+    return sharedTodoManager.initializeTasks(taskDescriptions = rawTasks)
   }
 }
 
@@ -76,30 +70,27 @@ class CompletePlanSkill : Skill() {
   override val description: String = "Manage tasks: mark as completed or skip without completing tasks"
 
   /**
-   * Available in AGENT and EDIT modes, matching [TodoSkill].
-   * READ_ONLY still excludes it since finishing tasks implies the
-   * agent can mutate the project.
+   * Available in AGENT mode only, matching [TodoSkill]. EDIT and
+   * READ_ONLY exclude it since finishing tasks implies the active
+   * agent workflow that owns the task list.
    */
   override val allowedToolModes: Set<gradum.ToolMode> = setOf(
-    gradum.ToolMode.AGENT, gradum.ToolMode.EDIT
+    gradum.ToolMode.AGENT
   )
 
-  override fun getSchema(context: SkillContext?): Map<String, Any> {
-    return buildFunctionSchema(
-      description = description,
-      properties = mapOf(
-        "task" to mapOf("type" to "string", "description" to "Task that was completed"),
-        "count" to mapOf(
-          "type" to "integer",
-          "description" to "Number of tasks to complete/skip at once (default 1)",
-        ),
-        "action" to mapOf(
-          "type" to "string",
-          "description" to "'complete' (default) marks tasks done; 'skip' advances without completing",
-          "enum" to listOf("complete", "skip")
-        ),
-      ),
-      required = emptyList(),
+  override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+      name = "task",
+      description = "Task that was completed"
+    )
+    integer(
+      name = "count",
+      description = "Number of tasks to complete/skip at once (default 1)",
+    )
+    string(
+      name = "action",
+      description = "'complete' (default) marks tasks done; 'skip' advances without completing",
+      enumValues = listOf("complete", "skip"),
     )
   }
 
@@ -126,13 +117,15 @@ class TodoManager {
   private var currentTaskIndex: Int = 0
 
   fun resetTaskList() {
-    taskList = null; currentTaskIndex = 0
+    taskList = null
+    currentTaskIndex = 0
   }
 
   fun initializeTasks(taskDescriptions: List<String>): SkillResult {
     if (taskDescriptions.isEmpty())
       return makeFailure(
-        ErrorCode.INVALID_PARAMETER, buildXmlError(
+        code = ErrorCode.INVALID_PARAMETER,
+        message = buildXmlError(
           code = "INVALID_PARAMETER",
           message = "Task list cannot be empty.",
           fixHint = "Provide at least one task description in the 'tasks' parameter."
@@ -141,20 +134,19 @@ class TodoManager {
 
     taskList = taskDescriptions; currentTaskIndex = 0
 
-    return makeSuccess(
-      mapOf(
-        "totalTasks" to taskDescriptions.size,
-        "currentTask" to taskDescriptions[0],
-        "currentIndex" to 0,
-        "tasks" to taskDescriptions,
-      )
-    )
+    return makeSuccess {
+      integer("currentIndex", 0)
+      stringList("tasks", taskDescriptions)
+      integer("totalTasks", taskDescriptions.size)
+      string("currentTask", taskDescriptions[0])
+    }
   }
 
   fun completeCurrentTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
-        ErrorCode.NOT_INITIALIZED, buildXmlError(
+        code = ErrorCode.NOT_INITIALIZED,
+        message = buildXmlError(
           code = "NOT_INITIALIZED",
           message = "To-do list not initialized.",
           fixHint = "Call to_do first to initialize the task list."
@@ -165,25 +157,21 @@ class TodoManager {
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
     if (allDone) {
-      return makeSuccess(
-        mapOf(
-          "completed" to true,
-          "totalTasks" to taskItems.size,
-          "tasks" to taskItems,
-          "message" to "All tasks completed"
-        ),
-      )
+      return makeSuccess {
+        boolean("completed", true)
+        integer("totalTasks", taskItems.size)
+        stringList("tasks", taskItems)
+        string("message", "All tasks completed")
+      }
     }
 
-    return makeSuccess(
-      mapOf(
-        "completed" to false,
-        "totalTasks" to taskItems.size,
-        "tasks" to taskItems,
-        "currentTask" to taskItems[currentTaskIndex],
-        "currentIndex" to currentTaskIndex
-      ),
-    )
+    return makeSuccess {
+      boolean("completed", false)
+      integer("totalTasks", taskItems.size)
+      stringList("tasks", taskItems)
+      string("currentTask", taskItems[currentTaskIndex])
+      integer("currentIndex", currentTaskIndex)
+    }
   }
 
   /**
@@ -192,41 +180,43 @@ class TodoManager {
   fun skipTask(count: Int = 1): SkillResult {
     val taskItems: List<String> =
       taskList ?: return makeFailure(
-        ErrorCode.NOT_INITIALIZED, buildXmlError(
+        code = ErrorCode.NOT_INITIALIZED,
+        message = buildXmlError(
           code = "NOT_INITIALIZED",
           message = "To-do list not initialized.",
           fixHint = "Call to_do first to initialize the task list."
         )
       )
 
-    val skippedTask: String = if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex] else ""
+    val skippedTask: String =
+      if (currentTaskIndex < taskItems.size) taskItems[currentTaskIndex]
+      else ""
     currentTaskIndex += count
 
     val allDone: Boolean = currentTaskIndex >= taskItems.size
 
-    return makeSuccess(
-      mapOf(
-        "skipped" to true,
-        "skippedTask" to skippedTask,
-        "completed" to allDone,
-        "totalTasks" to taskItems.size,
-        "tasks" to taskItems,
-        "currentTask" to if (allDone) "" else taskItems[currentTaskIndex],
-        "currentIndex" to currentTaskIndex
-      )
-    )
+    return makeSuccess {
+      boolean("skipped", true)
+      stringList("tasks", taskItems)
+      boolean("completed", allDone)
+      string("skippedTask", skippedTask)
+      integer("totalTasks", taskItems.size)
+      integer("currentIndex", currentTaskIndex)
+      string("currentTask", if (allDone) "" else taskItems[currentTaskIndex])
+    }
   }
 
   fun getTaskReminder(): String? {
     val taskItems: List<String> = taskList ?: return null
+    val remainingCount: Int = taskItems.size - currentTaskIndex
+
     if (currentTaskIndex >= taskItems.size) return null
 
-    val remainingCount: Int = taskItems.size - currentTaskIndex
     return """
-            You still have $remainingCount task(s) remaining.
-            Current task: ${taskItems[currentTaskIndex]}.
-            Complete them using finish_to_do_item, or ask the user for guidance.
-        """.trimIndent()
+      You still have $remainingCount task(s) remaining.
+      Current task: ${taskItems[currentTaskIndex]}.
+      Complete them using finish_to_do_item, or ask the user for guidance.
+    """.trimIndent()
   }
 }
 

@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-20 14:52:10 Changed by gwy
+ * ApiProviderRow.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import gradum.idea.PluginConfig
 import gradum.idea.provider.ProviderCoordinator
 import gradum.idea.provider.ProviderKind
 import gradum.idea.provider.ProviderStatus
@@ -29,17 +30,18 @@ import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.*
+import org.jetbrains.jewel.ui.icon.IntelliJIconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import kotlin.time.Duration.Companion.milliseconds
 
 private val MASK_TRANSFORMATION: OutputTransformation = OutputTransformation {
-  if (length > 0) replace(0, length, "•".repeat(length))
+  if (length > 0) replace(start = 0, end = length, text = "•".repeat(n = length))
 }
 
 private const val LABEL_WIDTH_DP = 68
 private const val URL_FIELD_WIDTH_DP = 400
-private const val INPUT_DEBOUNCE_MS: Long = 500
 private const val MAX_ERROR_PREVIEW_CHARS = 120
+private val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
 
 /**
  * Settings row for a single model provider.
@@ -63,24 +65,33 @@ private const val MAX_ERROR_PREVIEW_CHARS = 120
 @Composable
 fun ApiProviderRow(
   kind: ProviderKind,
-  baseUrlState: TextFieldState,
+  showTitle: Boolean = true,
   apiKeyState: TextFieldState,
+  baseUrlState: TextFieldState,
   onUrlChange: (String) -> Unit,
   onApiKeyChange: (String) -> Unit,
   extraToggle: ExtraToggle? = null,
-  onExtraToggleChange: ((Boolean) -> Unit)? = null,
-  showTitle: Boolean = true,
+  onExtraToggleChange: ((Boolean) -> Unit)? = null
 ) {
   val status: ProviderStatus by ProviderCoordinator.statusFlow(kind).collectAsState()
   val isTesting: Boolean by ProviderCoordinator.isTestingFlow(kind).collectAsState()
   val isUrlValid: Boolean = isValidBaseUrl(baseUrlState.text.toString(), kind)
 
   Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
-    if (showTitle) Text(text = message(kind.displayKey), fontWeight = FontWeight.SemiBold)
-    UrlField(kind = kind, state = baseUrlState, isUrlValid = isUrlValid, onUrlChange = onUrlChange)
+    if (showTitle)
+      Text(
+        text = message(kind.displayKey),
+        fontWeight = FontWeight.SemiBold
+      )
+    UrlField(
+      kind = kind,
+      state = baseUrlState,
+      isUrlValid = isUrlValid,
+      onUrlChange = onUrlChange
+    )
     ApiKeyField(
       state = apiKeyState,
-      onApiKeyChange = onApiKeyChange,
+      onApiKeyChange = onApiKeyChange
     )
     if (extraToggle != null && onExtraToggleChange != null) {
       SettingCheckboxRow(
@@ -109,38 +120,43 @@ private fun UrlField(
   Row(verticalAlignment = Alignment.CenterVertically) {
     Text(
       text = message("gradum.settings.provider.url"),
-      modifier = Modifier.width(LABEL_WIDTH_DP.dp),
+      modifier = Modifier.width(LABEL_WIDTH_DP.dp)
     )
     TextField(
       state = state,
       textStyle = JewelTheme.editorTextStyle,
       modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
-      placeholder = { Text(message(urlPlaceholderKey(kind))) },
-      outline = if (isUrlValid) Outline.None else Outline.Error
+      outline =
+        if (isUrlValid) Outline.None
+        else Outline.Error,
+      placeholder = {
+        Text(message(key = urlPlaceholderKey(kind)))
+      }
     )
   }
   LaunchedEffect(state.text) {
-    delay(INPUT_DEBOUNCE_MS.milliseconds)
+    delay(duration = INPUT_DEBOUNCE_MS.milliseconds)
     onUrlChange(state.text.toString())
   }
 }
 
 @Composable
 private fun ApiKeyField(
-  state: TextFieldState,
-  onApiKeyChange: (String) -> Unit,
+  state: TextFieldState, onApiKeyChange: (String) -> Unit
 ) {
   var isKeyVisible: Boolean by remember { mutableStateOf(false) }
   Row(verticalAlignment = Alignment.CenterVertically) {
     Text(
       text = message("gradum.settings.provider.apikey"),
-      modifier = Modifier.width(LABEL_WIDTH_DP.dp),
+      modifier = Modifier.width(LABEL_WIDTH_DP.dp)
     )
     TextField(
       state = state,
-      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
       textStyle = JewelTheme.editorTextStyle,
-      outputTransformation = if (isKeyVisible) null else MASK_TRANSFORMATION,
+      modifier = Modifier.width(URL_FIELD_WIDTH_DP.dp),
+      outputTransformation =
+        if (isKeyVisible) null
+        else MASK_TRANSFORMATION,
       trailingIcon = {
         Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -150,27 +166,36 @@ private fun ApiKeyField(
             tooltip = {
               Text(
                 text = message(
-                  if (isKeyVisible) "gradum.settings.provider.apikey.hide"
-                  else "gradum.settings.provider.apikey.show"
+                  key =
+                    if (isKeyVisible) "gradum.settings.provider.apikey.hide"
+                    else "gradum.settings.provider.apikey.show"
                 )
               )
             }
           ) {
             Icon(
-              key = if (isKeyVisible) AllIconsKeys.Actions.Show
-              else AllIconsKeys.Actions.Unshare,
+              key =
+                if (isKeyVisible) AllIconsKeys.Actions.Show
+                else AllIconsKeys.Actions.Unshare,
               contentDescription = message(
-                if (isKeyVisible) "gradum.settings.provider.apikey.hide"
-                else "gradum.settings.provider.apikey.show"
+                key =
+                  if (isKeyVisible) "gradum.settings.provider.apikey.hide"
+                  else "gradum.settings.provider.apikey.show"
               ),
-              modifier = Modifier.clickable { isKeyVisible = !isKeyVisible },
+              modifier = Modifier.clickable {
+                isKeyVisible = !isKeyVisible
+              },
             )
           }
           Tooltip(tooltip = { Text(text = message("gradum.settings.provider.apikey.clear")) }) {
             Icon(
               key = AllIconsKeys.General.Delete,
               contentDescription = message("gradum.settings.provider.apikey.clear"),
-              modifier = Modifier.clickable { state.edit { replace(0, length, "") } },
+              modifier = Modifier.clickable {
+                state.edit {
+                  replace(start = 0, end = length, text = "")
+                }
+              },
             )
           }
         }
@@ -178,7 +203,7 @@ private fun ApiKeyField(
     )
   }
   LaunchedEffect(state.text) {
-    delay(INPUT_DEBOUNCE_MS.milliseconds)
+    delay(duration = INPUT_DEBOUNCE_MS.milliseconds)
     onApiKeyChange(state.text.toString())
   }
 }
@@ -186,9 +211,9 @@ private fun ApiKeyField(
 @Composable
 private fun ActionRow(
   isTesting: Boolean,
-  isActionEnabled: Boolean,
   status: ProviderStatus,
   onProbeNow: () -> Unit,
+  isActionEnabled: Boolean
 ) {
   Row(verticalAlignment = Alignment.CenterVertically) {
     OutlinedButton(enabled = !isTesting && isActionEnabled, onClick = onProbeNow) {
@@ -207,23 +232,32 @@ private fun ActionRow(
 /** Renders an icon + localized text pair; hides itself for transient states. */
 @Composable
 private fun StatusBadge(status: ProviderStatus) {
-  val (icon, text) = when (status) {
-    is ProviderStatus.Ok -> AllIconsKeys.General.GreenCheckmark to message("gradum.settings.provider.status.ok", status.latencyMs)
-    is ProviderStatus.Unreachable -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
-    is ProviderStatus.AuthError -> AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
-    is ProviderStatus.Failed -> {
-      val key = if (status.message.contains("remote", ignoreCase = true)
-        && status.message.contains("disabled", ignoreCase = true)
-      )
-        "gradum.settings.provider.status.remotedisabled"
-      else "gradum.settings.provider.status.failed"
-      AllIconsKeys.Vcs.Ignore_file to message(key) + if (status.message.isBlank()) "" else " (${
-        status.message.take(MAX_ERROR_PREVIEW_CHARS)
-      })"
-    }
+  val (icon: IntelliJIconKey, text: String) =
+    when (status) {
+      is ProviderStatus.Ok ->
+        AllIconsKeys.General.GreenCheckmark to message("gradum.settings.provider.status.ok", status.latencyMs)
 
-    ProviderStatus.Untested, ProviderStatus.Testing -> return
-  }
+      is ProviderStatus.Unreachable ->
+        AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.unreachable")
+
+      is ProviderStatus.AuthError ->
+        AllIconsKeys.Vcs.Ignore_file to message("gradum.settings.provider.status.autherror")
+
+      is ProviderStatus.Failed -> {
+        val key: String =
+          if (status.message.contains(other = "remote", ignoreCase = true)
+            && status.message.contains(other = "disabled", ignoreCase = true)
+          )
+            "gradum.settings.provider.status.remotedisabled"
+          else "gradum.settings.provider.status.failed"
+        AllIconsKeys.Vcs.Ignore_file to message(key) +
+          if (status.message.isBlank()) "" else " (${
+            status.message.take(n = MAX_ERROR_PREVIEW_CHARS)
+          })"
+      }
+
+      ProviderStatus.Untested, ProviderStatus.Testing -> return
+    }
   Row(verticalAlignment = Alignment.CenterVertically) {
     Icon(key = icon, contentDescription = null)
     Spacer(Modifier.width(GradumSpacing.sm))

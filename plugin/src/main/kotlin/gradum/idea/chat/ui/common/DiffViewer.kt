@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2026 Gradum team, some rights reserved.
+ * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DiffViewer.kt  2026-08-12 12:38:25 Changed by gwy
+ * DiffViewer.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
 package gradum.idea.chat.ui.common
@@ -52,10 +52,10 @@ object DiffViewer {
    * non-project window.
    */
   fun showFileDiff(
-    project: Project?,
     path: String,
+    project: Project?,
     originalContent: String,
-    modifiedContent: String,
+    modifiedContent: String
   ) {
     log.debug(
       "showFileDiff invoked: project=${project?.name ?: "<null>"}, " +
@@ -69,16 +69,17 @@ object DiffViewer {
       val leftTitle: String = GradumBundle.message("gradum.tool.diff.original")
       val rightTitle: String = GradumBundle.message("gradum.tool.diff.modified")
 
-      val fileName: String = path.substringAfterLast('/').ifBlank { "diff" }
+      val fileName: String = path.substringAfterLast(delimiter = '/').ifBlank { "diff" }
       val virtualFile: VirtualFile? = resolveVirtualFile(project, path)
-      val resolvedType: ResolvedType = if (virtualFile != null) {
-        ResolvedType.FromVirtualFile(virtualFile)
-      } else {
-        val inferred: FileType = FileTypeRegistry.getInstance().getFileTypeByFileName(fileName)
-        if (inferred is PlainTextFileType) ResolvedType.PlainTextFallback else ResolvedType.FromFileType(
-          inferred
-        )
-      }
+      val resolvedType: ResolvedType =
+        if (virtualFile != null) {
+          ResolvedType.FromVirtualFile(virtualFile)
+        } else {
+          val inferred: FileType = FileTypeRegistry.getInstance().getFileTypeByFileName(fileName)
+          if (inferred is PlainTextFileType)
+            ResolvedType.PlainTextFallback
+          else ResolvedType.FromFileType(inferred)
+        }
 
       val leftContent: DiffContent
       val rightContent: DiffContent
@@ -110,7 +111,9 @@ object DiffViewer {
           "right=${rightContent.javaClass.simpleName}(${modifiedContent.length} chars)"
       )
 
-      val request = SimpleDiffRequest(title, leftContent, rightContent, leftTitle, rightTitle)
+      val request = SimpleDiffRequest(
+        title, leftContent, rightContent, leftTitle, rightTitle
+      )
 
       log.debug("Dispatching DiffManager.showDiff with DiffDialogHints.MODAL")
       DiffManager.getInstance().showDiff(project, request, DiffDialogHints.MODAL)
@@ -148,7 +151,7 @@ object DiffViewer {
    */
   private fun resolveVirtualFile(project: Project?, path: String): VirtualFile? {
     if (path.isBlank()) return null
-    val localFileSystem = LocalFileSystem.getInstance()
+    val localFileSystem: LocalFileSystem = LocalFileSystem.getInstance()
 
     runCatching { localFileSystem.findFileByPath(path) }
       .getOrNull()?.let { return it }
