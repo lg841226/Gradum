@@ -1,6 +1,6 @@
 # Gradum Skill Development Guide
 
-This document explains how to develop new skills (Skill) for Gradum.
+How to develop new skills for Gradum
 
 ---
 
@@ -302,7 +302,7 @@ makeFailure(
 )
 ```
 
-The Agent flattens `SkillResult` into the following shape before writing to the conversation history and NDJSON:
+The Agent flattens `SkillResult` into this shape before writing to the conversation history and NDJSON:
 
 ```mermaid
 flowchart LR
@@ -378,7 +378,7 @@ override fun getSchema(): Map<String, Any> {
 }
 ```
 
-The `description` field is the primary mechanism for guiding the LLM to use the tool correctly. It should include:
+The `description` field is the primary mechanism for guiding the LLM to use the tool correctly. Include:
 
 - When to use the skill
 - Limitations and constraints
@@ -582,7 +582,7 @@ class YourSkill : Skill() {
 
 For more granular control, you can override `prepareHistoryResult` directly instead.
 
-Refer to `ReadFileSkill` for a real-world example.
+See `ReadFileSkill` for a real-world example.
 
 ---
 
@@ -740,7 +740,7 @@ private val sharedTodoManager: TodoManager = TodoManager()
 fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 ```
 
-- Do not use mutable state inside a `companion object` — the pattern above is clearer.
+- Don't use mutable state inside a `companion object` — the pattern above is clearer.
 
 ---
 
@@ -1045,7 +1045,7 @@ History is encrypted using custom **HMAC-CTR + HMAC-SHA256**:
 ### 12.4 Agent-Side Truncation
 
 Before each LLM turn, `Agent.truncateHistory()` trims to 20 messages + system prompt, preserving the most recent
-messages. This prevents local LLMs from being overwhelmed.
+messages. That keeps local LLMs from getting overwhelmed.
 
 ---
 
@@ -1102,7 +1102,7 @@ Follow `docs/CODING_STANDARDS_KOTLIN.md`:
 
 ## 15. SchemaVariant API Reference
 
-Gradum adapts tool schemas and prompt content based on model capability. This section documents the API for plugin
+Gradum adapts tool schemas and prompt content based on model capability. Here's the API reference for plugin
 developers.
 
 ### 15.1 `SchemaVariant` Enum
@@ -1298,9 +1298,9 @@ responsible for turning a server-side `tool_call` event into the row the user se
 localized label, its body, and the action buttons (`Open in editor`,
 `View diff`, `Copy`, etc.) it offers.
 
-This is the same mechanism the built-in `RanRenderer`, `EditedRenderer`,
+The built-in `RanRenderer`, `EditedRenderer`,
 `ReadRenderer`, `SavedRenderer`, `ExploredRenderer`, `PlannedRenderer`,
-`CompletedRenderer`, and the wildcard `DefaultRenderer` use. Each renderer is a single file at
+`CompletedRenderer`, and the wildcard `DefaultRenderer` all use the same mechanism. Each renderer is a single file at
 `chat/ui/chat/skill/<Alias>Renderer.kt` and is registered in
 [
 `ToolCallRendererRegistry`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)

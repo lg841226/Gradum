@@ -68,7 +68,7 @@ injection.
    boundary. Security-critical enforcement behaviors are implemented inside skills (especially the `classifyCommand`
    pre-check in `RunCommandSkill`), not in the prompt.
 5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult` — `Success(Map)` or
-   `Failure(code, message, context?)`. The agent main loop does not need branch-by-skill type handling.
+   `Failure(code, message, context?)`. The agent main loop doesn't need branch-by-skill type handling.
 6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to "
    directly block."
 
@@ -93,7 +93,7 @@ injection.
 
 ### 2.1 Module Layer Architecture
 
-Gradum is composed of the following six collaborating layers. The diagram shows the dependency direction (top layers
+Gradum has six collaborating layers. The diagram shows the dependency direction (top layers
 depend on bottom layers):
 
 ```mermaid
@@ -157,7 +157,7 @@ flowchart TB
 
 ### 2.2 Module Dependency Invariants
 
-The following invariants are core architectural constraints:
+These invariants are core architectural constraints:
 
 ```mermaid
 flowchart LR
@@ -542,7 +542,7 @@ flowchart TD
 
 ### 2.6 NDJSON Event Stream
 
-Each event is one line of JSON. The following sequence diagram shows the complete event lifecycle:
+Each event is one line of JSON. The sequence diagram below shows the complete event lifecycle:
 
 ```mermaid
 sequenceDiagram
@@ -631,7 +631,7 @@ pie
 - `mission_revoked` is always immediately followed by `session_end` (aborted), then stream end
 - `guardrail` events are emitted **per violation** before the final `mission_revoked` (if multiple violations)
 - `playback_start` → `tool_call` / `response` / `tool_expect_mismatch` → `playback_end` is the debug scenario lifecycle
-- `emitEvent` is fire-and-forget: an HTTP client disconnect does not affect Agent execution
+- `emitEvent` is fire-and-forget: an HTTP client disconnect doesn't affect Agent execution
 
 #### `tool_call.result` Fields by Skill
 
@@ -765,7 +765,7 @@ flowchart TD
   `MessageDigest.isEqual()`, throw `SecurityException` on mismatch
 - **Version byte check**: If `token[0] != 0x81`, reject decryption
 
-This ensures:
+The scheme guarantees:
 
 1. Context files cannot be tampered with offline (HMAC tag verification)
 2. Context content cannot be read offline (XOR encryption stream)
@@ -957,7 +957,7 @@ stateDiagram-v2
 
 ### 3.2 CommandFilter: Command Safety Filter
 
-This is Gradum's most critical security component.
+Gradum's most critical security component.
 
 ```mermaid
 flowchart TD
@@ -1032,7 +1032,7 @@ flowchart TD
 `git` is deliberately **absent** from the whitelist: its write subcommands (commit, push, checkout, reset, clean, stash)
 are easy to reach and hard to enumerate, so a Read-only session skips git entirely instead of trying to filter
 subcommands. In read-only mode every subcommand of the pipeline (split on `|;&`) is whitelisted independently and shell
-file redirects (`echo hi > out.txt`) are blocked, so `cat in | tee out` or `ls && touch foo` cannot smuggle a write past
+file redirects (`echo hi > out.txt`) are blocked, so `cat in | tee out` or `ls && touch foo` can't smuggle a write past
 the head-only check.
 
 **Call locations** (two enforcement points, both delegate to `classifyCommand`):
@@ -1059,11 +1059,11 @@ if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
 
 **Limitations**:
 
-- Only checks the command's static structure, does not simulate execution. For example `rm $(cat foo)` can only
+- Only checks the command's static structure, doesn't simulate execution. E.g., `rm $(cat foo)` can only
   intercept `rm` itself.
-- Does not perform alias expansion (shell aliases are determined by the runtime shell and cannot be statically
+- Doesn't perform alias expansion (shell aliases are determined by the runtime shell and can't be statically
   predicted).
-- Does not perform environment variable expansion.
+- Doesn't perform environment variable expansion.
 - Relies on the user providing the correct shell invocation path.
 - Does not intercept dangerous operations inside high-level languages like Python/Node (but these typically don't go
   through `run_cmd`).
@@ -1108,7 +1108,7 @@ flowchart TD
 - Long-running servers (e.g. a dev server)
 - Any operation that doesn't need to wait for stdout to finish
 
-**Note**: Output from detached processes is written to a log file, and the Agent will not read or analyze them further.
+Output from detached processes is written to a log file, and the Agent won't read or analyze them further.
 
 ### 3.4 LLM Client Retry and Streaming Logic
 
@@ -1207,7 +1207,7 @@ stateDiagram-v2
 call (returns `TOOL_NOT_PERMITTED`).
 
 The Agent calls `getTodoManagerInstance().getTaskReminder()` after **every tool call** in `executeTask()`, and if not
-null, appends it to the tail of the tool result message. This ensures that the model does not "forget" the original task
+null, appends it to the tail of the tool result message. That way the model doesn't "forget" the original task
 plan during long task flows.
 
 ### 3.6 XmlError: Shared Error Format
@@ -1236,7 +1236,7 @@ fun buildXmlError(
 ```
 
 **Used by all skills** (ReadFileSkill, EditFileSkill, SaveFileSkill, RunCommandSkill, ExploreProjectSkill, TodoSkill).
-This replaces per-skill XML string construction and ensures consistent error messages across the system.
+It replaces per-skill XML string construction and gives every skill the same error format.
 
 ---
 
@@ -1344,7 +1344,7 @@ abstract class Skill {
 
 ### 4.1a Adaptive Pruning
 
-This is a context-preservation strategy that keeps **only the N most recent** executions of a skill fully intact in
+Adaptive pruning keeps **only the N most recent** executions of a skill fully intact in
 conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two
 properties on `Skill`:
 
@@ -1375,7 +1375,7 @@ LLM context window without losing the structural metadata (path, exit code, matc
 | `RunCommandSkill` | 2                | `output`               | Command output may be very large; old results are rarely referenced           |
 
 The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is
-trimmed. This is transparent to both the UI and the skill implementations — `prepareHistoryResult` is called
+trimmed. The UI and the skill implementations never notice — `prepareHistoryResult` is called
 automatically in `Agent.kt` after `skill.execute()` returns.
 
 **SkillResult sealed class** (`SkillResult.kt`):
@@ -1711,10 +1711,10 @@ gantt
 - Text + image attachments supported; no audio input
 - Skill registry discovers the `gradum.skill` package reflectively (directory + JAR scanning); adding a skill only
   requires a concrete `Skill` subclass with a no-argument constructor on the classpath — there is no registration file
-  to maintain, and hot plugin loading in the IDE sense is not supported
-- Session context persistence only encrypts user/assistant messages, tool messages are not encrypted (for audit
+  to maintain, and hot plugin loading in the IDE sense isn't supported
+- Session context persistence only encrypts user/assistant messages, tool messages aren't encrypted (for audit
   convenience)
-- ContextManager does not support multi-device synchronization
+- ContextManager doesn't support multi-device synchronization
 - Search skills (`grep` / `glob`) only support basic regex/glob matching, no semantic search
 
 ### 7.2 Possible Future Work
@@ -2035,7 +2035,7 @@ correction. Full protocol + S-code catalog: see
 
 ### 8.7 Git audit internals
 
-This section documents the implementation details of the Git analysis subsystem: script resolution, the JSONL wire
+Here are the implementation details of the Git analysis subsystem: script resolution, the JSONL wire
 protocol, the audit code catalog, and the quality band formula.
 
 #### 8.7.1 Script resolution (`resolveScript`)
@@ -2121,7 +2121,7 @@ raw weighted factors with a confidence factor `1 − 1/(√n+1)` and a small per
 
 The permission model and session-scoped project context are the two pillars that hold the whole "tools can only act on
 the project the IDE has open, and only under the tier the user picked" invariant. They are wired through one data
-class — `SkillContext` — and one interface field — `Skill.allowedToolModes`. This section documents the end-to-end
+class — `SkillContext` — and one interface field — `Skill.allowedToolModes`. Here's the end-to-end
 contract.
 
 ### 9.1 The Three Tiers (`ToolMode`)

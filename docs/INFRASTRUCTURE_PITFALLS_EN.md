@@ -185,7 +185,7 @@ However! `bundledModule(...)` is **only** a **compile-time** mechanism of the In
 provides descriptors to the Gradle resolver so `compileKotlin` can find classes. At runtime, IDE module loading **still
 only checks** plugin.xml `<depends>`.
 
-> This is why the error in this section is "plugin compiles fine, but classes not found at runtime."
+> This is why the error here is "plugin compiles fine, but classes not found at runtime."
 
 ### Fix
 
@@ -1117,7 +1117,7 @@ class GradumConfigurable : Configurable, Configurable.NoScroll {
   size), so `fillMaxWidth()` / `fillMaxSize()` get a finite max constraint and the `0×0 → Int.MAX_VALUE → 32766` cascade
   never starts.
 
-This is the only piece of the fix that matters. The other two options below are obsolete once you add `NoScroll`.
+Only one piece of the fix matters — the other two options below are obsolete once you add `NoScroll`.
 
 ---
 
