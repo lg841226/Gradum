@@ -134,7 +134,7 @@ private fun SettingsPanel(
   val versionSummary: String = remember {
     buildString {
       appendLine(message("gradum.settings.devtools") + " 2026.0730.383-beta")
-      appendLine(value = "Gradum Agent (0.9.2.3293)")
+      appendLine(value = "Gradum Agent (1.0.0-experimental)")
       append("Gradum Git Analysis (1.1.0.2388)")
     }
   }
@@ -226,7 +226,7 @@ private fun SettingsPanel(
       Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
         SettingCheckboxRow(
           enabled = true,
-          label = "Gradum Agent (0.9.2.3293)",
+          label = "Gradum Agent (1.0.0-experimental)",
           checked = appearanceDraft.value.agentEnabled,
           onCheckedChange = { checked: Boolean ->
             appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)

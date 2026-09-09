@@ -18,7 +18,7 @@ plugins {
 }
 
 group = "com.gradum"
-version = "0.9.2"
+version = "1.0.0-experimental"
 
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
@@ -248,7 +248,8 @@ tasks.register("serverPackage", Exec::class.java) {
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
   }
 
-  val jpackageVersion: String = project.version.toString().replaceFirst(Regex("^0\\."), "1.")
+  val jpackageVersion: String =
+    project.version.toString().replaceFirst(Regex("[-].*$"), "")
 
   commandLine(
     jpackageBin,
