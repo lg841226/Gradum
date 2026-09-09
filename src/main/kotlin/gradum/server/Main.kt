@@ -151,7 +151,7 @@ private fun printStartupBanner() {
       |  ╚██████╔╝██║  ██║██║  ██║██████╔╝╚██████╔╝██║ ╚═╝ ██║
       |   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
       |
-      |  Copyright (c) 2026 Gradum team, software version ${BuildConfig.version}
+      |  Copyright (c) 2026 Gradum Authors, software version ${BuildConfig.version}
       |
       |  (Working Directory $workDir)
       |

@@ -98,4 +98,4 @@ published by JetBrains s.r.o. for the corresponding upstream projects.
 
 ## 5. Contact
 
-Questions regarding these notices should be directed to the Gradum team via the project repository.
+Questions regarding these notices should be directed to the Gradum authors via the project repository.
