@@ -16,6 +16,7 @@ plugins {
 }
 
 group = "com.gradum.idea"
+version = "1.0.0-experimental"
 
 repositories {
   mavenCentral()

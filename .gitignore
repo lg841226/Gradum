@@ -44,6 +44,9 @@ test.txt
 # Local scratch (e.g. the Jewel README used as reference while working on the plugin)
 main.txt
 
+# Internal DSL spec + roadmap for the un-shipped AWF feature; not shown to contributors
+docs/AWF_ROADMAP.md
+
 # Secrets / sensitive config
 *.secret
 *.key
