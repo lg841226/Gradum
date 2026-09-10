@@ -40,6 +40,7 @@ import com.hrm.latex.renderer.measure.rememberLatexMeasurer
 import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
+import gradum.idea.settings.LocalParagraphFontSize
 import gradum.idea.utils.GradumIcons
 import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
@@ -1106,6 +1107,10 @@ private fun resolveImageAltColor(): Color {
 /** Editor font size in sp; falls back when the theme's `fontSize` is unspecified. */
 @Composable
 private fun resolveEditorFontSizeSp(): Float {
+  val paragraphFontSizeValue: Float = LocalParagraphFontSize.current.value
+  if (paragraphFontSizeValue > 0f) {
+    return paragraphFontSizeValue
+  }
   val editorStyle: TextStyle = JewelTheme.editorTextStyle
   val fontSize: androidx.compose.ui.unit.TextUnit = editorStyle.fontSize
   return when {

@@ -18,6 +18,10 @@ plugins {
 group = "com.gradum.idea"
 version = "1.0.0-experimental"
 
+// Bundled Git Analysis script version, kept in lock-step with
+// `scripts/git_stats_log/git_stats.py`'s `__version__`. Bump both together.
+val gitStatsVersion: String = "1.1.0"
+
 repositories {
   mavenCentral()
   maven("https://maven.aliyun.com/repository/google")
@@ -269,6 +273,8 @@ val generateBuildConfig = tasks.register("generateBuildConfig") {
       |
       |object BuildConfig {
       |  const val version: String = "${project.version}"
+      |  const val gitStatsVersion: String = "${gitStatsVersion}"
+      |  const val buildTimeMillis: Long = ${System.currentTimeMillis()}
       |}
       """.trimMargin()
     )

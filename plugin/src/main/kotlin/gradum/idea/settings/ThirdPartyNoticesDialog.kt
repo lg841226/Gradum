@@ -68,16 +68,29 @@ private const val THIRD_PARTY_DIALOG_MAX_HEIGHT = 1000
 // Inner content max width — keeps text readable when dialog is wide
 private const val THIRD_PARTY_CONTENT_MAX_WIDTH = 540
 
-internal fun showThirdPartyNoticesDialog() {
+internal fun showThirdPartyNoticesDialog() =
+  showLegalDocumentDialog(
+    resourcePath = "/legal/third_party_notices.md",
+    titleKey = "gradum.settings.oss.dialog.title"
+  )
+
+/** Opens the bundled data security and privacy statement in a modal dialog. */
+internal fun showDataSecurityDialog() =
+  showLegalDocumentDialog(
+    resourcePath = "/legal/data_security.md",
+    titleKey = "gradum.toolwindow.git.analysis.data.security.dialog.title"
+  )
+
+private fun showLegalDocumentDialog(resourcePath: String, titleKey: String) {
   val dialog: JDialog = JDialog().apply {
     isModal = true
-    title = message("gradum.settings.oss.dialog.title")
+    title = message(titleKey)
     defaultCloseOperation = WindowConstants.DISPOSE_ON_CLOSE
     isResizable = true
     minimumSize = Dimension(THIRD_PARTY_DIALOG_MIN_WIDTH, THIRD_PARTY_DIALOG_MIN_HEIGHT)
     maximumSize = Dimension(THIRD_PARTY_DIALOG_MAX_WIDTH, THIRD_PARTY_DIALOG_MAX_HEIGHT)
     contentPane = JewelComposePanel {
-      ThirdPartyNoticesContent()
+      LegalDocumentContent(resourcePath = resourcePath)
     }
     setSize(THIRD_PARTY_DIALOG_WIDTH, THIRD_PARTY_DIALOG_HEIGHT)
     setLocationRelativeTo(null)
@@ -86,13 +99,13 @@ internal fun showThirdPartyNoticesDialog() {
 }
 
 @Composable
-private fun ThirdPartyNoticesContent() {
+private fun LegalDocumentContent(resourcePath: String) {
   ProvideAppearance {
     val baseFontSize: TextUnit = LocalParagraphFontSize.current
     CompositionLocalProvider(
       LocalParagraphFontSize provides baseFontSize.value.sp
     ) {
-      ThirdPartyNoticesContentInner()
+      LegalDocumentContentInner(resourcePath = resourcePath)
     }
   }
 }
@@ -100,11 +113,11 @@ private fun ThirdPartyNoticesContent() {
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
 @Composable
-private fun ThirdPartyNoticesContentInner() {
-  val markdownText: String = remember {
+private fun LegalDocumentContentInner(resourcePath: String) {
+  val markdownText: String = remember(resourcePath) {
     runCatching {
       object {}::class.java
-        .getResourceAsStream("/legal/third_party_notices.md")
+        .getResourceAsStream(resourcePath)
         ?.use { it.reader().readText() }
         ?: ""
     }.getOrDefault("")
@@ -123,9 +136,7 @@ private fun ThirdPartyNoticesContentInner() {
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .focusTarget()
       .padding(all = GradumSpacing.xxl)
-      .focusRequester(focusRequester)
   ) {
     Column(
       modifier = Modifier
@@ -157,6 +168,8 @@ private fun ThirdPartyNoticesContentInner() {
             modifier = Modifier
               .fillMaxWidth()
               .verticalScroll(scrollState)
+              .focusTarget()
+              .focusRequester(focusRequester)
               .onGloballyPositioned { coordinates: LayoutCoordinates ->
                 stickyRegistry.columnOriginInWindow = coordinates.localToWindow(relativeToLocal = Offset.Zero)
               }

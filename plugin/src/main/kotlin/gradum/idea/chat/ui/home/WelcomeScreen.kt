@@ -7,9 +7,6 @@
 
 package gradum.idea.chat.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -101,7 +98,6 @@ fun WelcomeScreen(
         onRenameSession = mergeCallbacks.onRenameSession
       )
     } else {
-      val isInputFocused: Boolean = state.inputState.isFocused
       Column(
         modifier = Modifier
           .verticalScroll(state = rememberScrollState())
@@ -138,23 +134,17 @@ fun WelcomeScreen(
           modifier = Modifier.widthIn(max = 600.dp),
           selectedPermission = state.selectedPermission
         )
-        AnimatedVisibility(
-          visible = !isInputFocused || state.sessions.isEmpty(),
-          exit = shrinkVertically(animationSpec = tween(durationMillis = 200))
-        ) {
-          if (welcomeLayout.quickStartCount > 0) {
-            QuickStartSection(
-              maxItems = welcomeLayout.quickStartCount,
-              textState = state.textState,
-              suggestionVariants = state.suggestionVariants,
-              onRefreshSuggestions = state.onRefreshSuggestions
-            )
-          }
+        if (welcomeLayout.quickStartCount > 0) {
+          QuickStartSection(
+            maxItems = welcomeLayout.quickStartCount,
+            textState = state.textState,
+            suggestionVariants = state.suggestionVariants,
+            onRefreshSuggestions = state.onRefreshSuggestions
+          )
         }
         if (state.sessions.isNotEmpty()) {
           RecentChatsSection(
             maxDisplay = welcomeLayout.recentCount,
-            expanded = isInputFocused,
             sessions = state.sessions.toList(),
             onOpenSession = state.onOpenSession,
             onDeleteSession = mergeCallbacks.onDeleteSession,

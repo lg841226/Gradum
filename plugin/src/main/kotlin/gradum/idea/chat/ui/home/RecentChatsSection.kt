@@ -52,15 +52,12 @@ import org.jetbrains.jewel.ui.typography
 @Composable
 fun RecentChatsSection(
   maxDisplay: Int = 2,
-  expanded: Boolean = false,
   sessions: List<SessionMeta>,
   modifier: Modifier = Modifier,
   onOpenSession: (String) -> Unit,
   onDeleteSession: (String) -> Unit,
   onStartMerge: (() -> Unit)? = null
 ) {
-  val displayCount: Int = if (expanded) maxDisplay + 2 else maxDisplay
-
   Column(modifier = modifier) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
@@ -80,7 +77,7 @@ fun RecentChatsSection(
       }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.sml))
-    sessions.take(n = displayCount).forEach { session ->
+    sessions.take(n = maxDisplay).forEach { session ->
       RecentSessionRow(
         session = session,
         onOpenSession = onOpenSession,

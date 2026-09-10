@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumGitAnalysisToolWindowFactory.kt  2026-08-31 19:21:55 Changed by gwy
+ * GradumGitAnalysisToolWindowFactory.kt  2026-09-10 13:47:12 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
@@ -25,15 +25,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.PathManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
+import gradum.idea.settings.showDataSecurityDialog
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
@@ -47,14 +44,9 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
 import kotlin.time.Duration.Companion.milliseconds
 
 private const val BANNER_ANIMATION_DURATION_MS = 300
-private const val LEGAL_STATEMENT_RESOURCE = "/legal/data_security.txt"
 
 /**
  * Factory for creating the Gradum Git Analysis tool window.
@@ -329,7 +321,7 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
                     key = AllIconsKeys.Toolwindows.ToolWindowCoverage
                   )
                   ExternalLink(
-                    onClick = { openDataSecurityAndPrivacy(project) },
+                    onClick = { showDataSecurityDialog() },
                     text = message("gradum.toolwindow.git.analysis.data.security")
                   )
                 }
@@ -342,59 +334,9 @@ class GradumGitAnalysisToolWindowFactory : ToolWindowFactory {
   }
 }
 
-/**
- * Opens the bundled data security and privacy statement in an editor tab.
- *
- * The statement ships with the plugin as the `legal/data_security.txt`
- * classpath resource, so the wording is versioned and reviewed together with
- * the plugin build. On first click the resource is materialized to a stable
- * path under the platform temp directory:
- * `<temp>/gradum/legal/data_security.txt`.
- *
- * Because the target path is deterministic, a repeated click while the tab is
- * already open jumps to the existing editor instead of opening a second tab:
- * [FileEditorManager.openFile] reuses the already registered editor for the
- * same [VirtualFile] and simply brings it to the front.
- *
- * The bundled text is bilingual (English block on top, Chinese block at the
- * bottom), written in a neutral, statute-like tone without decorative
- * separators. The last lines carry the GitHub repository link.
- */
-private fun openDataSecurityAndPrivacy(project: Project) {
-  val statementPath: Path? = try {
-    val targetDir = Paths.get(PathManager.getTempDir().toString(), "gradum", "legal")
-    Files.createDirectories(targetDir)
-    val target = targetDir.resolve("data_security.txt")
-    GradumGitAnalysisToolWindowFactory::class.java.getResourceAsStream(LEGAL_STATEMENT_RESOURCE)
-      ?.use { inputStream ->
-        Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING)
-      }
-    target
-  } catch (_: Exception) {
-    null
-  }
-
-  if (statementPath == null) return
-
-  val virtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(statementPath.toFile())
-  if (virtualFile != null) {
-    ApplicationManager.getApplication().invokeLater {
-      FileEditorManager.getInstance(project).openFile(virtualFile, true)
-    }
-  }
-}
-
-/**
- * Renders the `-` markdown list as plain Compose rows, matching the chat's
- * unordered-list style from `BlockRenderer`: a `•` bullet in
- * `globalColors.text.info`, a 20 dp right-aligned marker column with an
- * `sm` gap, and `md` vertical spacing between items.
- */
 @Composable
 private fun GitAuditFeatureList(bullet: Char, bulletStyle: TextStyle, contentStyle: TextStyle) {
-  Column(
-    verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
-  ) {
+  Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)) {
     listOf(
       message("gradum.toolwindow.git.analysis.feature.0"),
       message("gradum.toolwindow.git.analysis.feature.1"),

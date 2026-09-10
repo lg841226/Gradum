@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.options.Configurable
+import gradum.idea.BuildConfig
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.provider.ProviderConfigFile
 import gradum.idea.provider.ProviderSettings
@@ -133,9 +134,9 @@ private fun SettingsPanel(
   val copyScope: CoroutineScope = rememberCoroutineScope()
   val versionSummary: String = remember {
     buildString {
-      appendLine(message("gradum.settings.devtools") + " 2026.0730.383-beta")
-      appendLine(value = "Gradum Agent (1.0.0-experimental)")
-      append("Gradum Git Analysis (1.1.0.2388)")
+      appendLine(message("gradum.settings.devtools"))
+      appendLine(value = "Gradum Agent (${BuildConfig.version})")
+      append("Gradum Git Analysis (${BuildConfig.gitStatsVersion})")
     }
   }
   val onCopyVersions: () -> Unit = {
@@ -177,6 +178,11 @@ private fun SettingsPanel(
           .clickable { parentComponent?.let { showWhatsNewDialog() } }
       )
       Spacer(Modifier.width(GradumSpacing.lg))
+      val builtAtText: String = remember {
+        val pattern: String = message("gradum.settings.devtools.builtAt.pattern")
+        val formatter = java.time.format.DateTimeFormatter.ofPattern(pattern)
+        formatter.format(java.time.Instant.ofEpochMilli(BuildConfig.buildTimeMillis).atZone(java.time.ZoneId.systemDefault()))
+      }
       Column(
         verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs),
         modifier = Modifier.weight(1f)
@@ -186,7 +192,7 @@ private fun SettingsPanel(
           fontWeight = FontWeight.SemiBold
         )
         Text(
-          text = "2026.0730.383-beta",
+          text = message("gradum.settings.devtools.builtAt", builtAtText),
           color = JewelTheme.globalColors.text.info
         )
       }
@@ -226,7 +232,7 @@ private fun SettingsPanel(
       Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
         SettingCheckboxRow(
           enabled = true,
-          label = "Gradum Agent (1.0.0-experimental)",
+          label = "Gradum Agent (${BuildConfig.version})",
           checked = appearanceDraft.value.agentEnabled,
           onCheckedChange = { checked: Boolean ->
             appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)
@@ -234,7 +240,7 @@ private fun SettingsPanel(
         )
         SettingCheckboxRow(
           enabled = true,
-          label = "Gradum Git Analysis (1.1.0.2388)",
+          label = "Gradum Git Analysis (${BuildConfig.gitStatsVersion})",
           checked = appearanceDraft.value.gitEnabled,
           onCheckedChange = { checked: Boolean ->
             appearanceDraft.value = appearanceDraft.value.copy(gitEnabled = checked)
