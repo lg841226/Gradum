@@ -42,7 +42,7 @@ class GradumLevelConverter : ClassicConverter() {
   companion object {
     private const val ANSI_RESET = "\u001B[0m"
     private const val FG_BLACK = "\u001B[30m"
-    private const val FG_WHITE = "\u001B[37m"
+    private const val FG_WHITE = "\u001B[97m"
     private const val BG_GRAY = "\u001B[100m"
     private const val BG_BLUE = "\u001B[104m"
     private const val BG_GREEN = "\u001B[102m"
