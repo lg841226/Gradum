@@ -257,10 +257,6 @@ val gradumSkipDetektGate: String =
 
 tasks.named("detekt") { enabled = false }
 
-//tasks.named("check") {
-//  dependsOn("detekt")
-//}
-
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
   outputs.dir(outputDir)

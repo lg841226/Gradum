@@ -111,12 +111,9 @@ class DelegateSkill : Skill() {
     return try {
       val result: String = runSubAgent(subConfig, task, emitEvent, registerChild, unregisterChild)
       makeSuccess { string("result", result) }
-    } catch (e: Exception) {
-      delegateLog.error("Sub-agent execution failed", e)
-      makeFailure(ErrorCode.CLIENT_ERROR, "Sub-agent failed: ${e.message}")
-    } catch (e: Error) {
-      delegateLog.error("Sub-agent critical error", e)
-      makeFailure(ErrorCode.CLIENT_ERROR, "Sub-agent critical error: ${e.message}")
+    } catch (exception: Exception) {
+      delegateLog.error("Sub-agent execution failed", exception)
+      makeFailure(ErrorCode.CLIENT_ERROR, "Sub-agent failed: ${exception.message}")
     }
   }
 
@@ -189,24 +186,24 @@ class DelegateSkill : Skill() {
     registerChild?.invoke(subAgentId, subAgent)
     try {
       subAgent.executeTask(userInput = task)
-    } catch (e: Exception) {
-      delegateLog.error("Sub-agent execution failed", e)
+    } catch (exception: Exception) {
+      delegateLog.error("Sub-agent execution failed", exception)
       emitEvent(
         "sub_agent:session_end", mapOf(
-          "result" to "Sub-agent execution failed: ${e.message}",
+          "result" to "Sub-agent execution failed: ${exception.message}",
           "conversation" to emptyList<Map<String, Any>>()
         )
       )
-      throw e
-    } catch (e: Error) {
-      delegateLog.error("Sub-agent critical error", e)
+      throw exception
+    } catch (exception: Error) {
+      delegateLog.error("Sub-agent critical error", exception)
       emitEvent(
         "sub_agent:session_end", mapOf(
-          "result" to "Sub-agent critical error: ${e.message}",
+          "result" to "Sub-agent critical error: ${exception.message}",
           "conversation" to emptyList<Map<String, Any>>()
         )
       )
-      throw e
+      throw exception
     } finally {
       unregisterChild?.invoke(subAgentId)
     }

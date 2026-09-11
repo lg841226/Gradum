@@ -21,6 +21,10 @@ import org.slf4j.LoggerFactory
 private val logger: Logger = LoggerFactory.getLogger("WebSearchSkill")
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
 
+private const val MAX_QUERY_LENGTH: Int = 5000
+private const val MAX_RESULTS: Int = 10
+private const val DEFAULT_RESULTS: Int = 5
+
 /**
  * Searches the web via Tavily Search API.
  * Requires the web-search API key to be configured.
@@ -77,7 +81,7 @@ class WebSearchSkill : Skill() {
           fixHint = "Provide a search query, e.g. 'Kotlin coroutines best practices'."
         )
       )
-    if (query.length > 5000)
+    if (query.length > MAX_QUERY_LENGTH)
       return makeFailure(
         code = ErrorCode.INVALID_PARAMETER,
         message = buildXmlError(
@@ -87,9 +91,9 @@ class WebSearchSkill : Skill() {
       )
 
     val maxResults = when (val value = arguments["max_results"]) {
-      is Number -> value.toInt().coerceIn(1, 10)
-      is String -> value.toIntOrNull()?.coerceIn(1, 10) ?: 5
-      else -> 5
+      is Number -> value.toInt().coerceIn(1, MAX_RESULTS)
+      is String -> value.toIntOrNull()?.coerceIn(1, MAX_RESULTS) ?: DEFAULT_RESULTS
+      else -> DEFAULT_RESULTS
     }
 
     val searchDepth = (arguments["search_depth"] as? String)?.trim()?.lowercase()

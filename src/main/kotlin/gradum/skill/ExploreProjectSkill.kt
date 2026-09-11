@@ -18,6 +18,10 @@ import java.nio.file.Paths
 
 private val logger: Logger = LoggerFactory.getLogger("ExploreProjectSkill")
 
+private const val BYTES_PER_KILOBYTE: Long = 1024L
+private const val BYTES_PER_MEGABYTE: Long = 1024L * 1024L
+private const val BYTES_PER_GIGABYTE: Long = 1024L * 1024L * 1024L
+
 private const val MINIMUM_DEPTH: Int = GradumConfig.EXPLORE_MIN_DEPTH
 private const val MAXIMUM_DEPTH: Int = GradumConfig.EXPLORE_MAX_DEPTH
 private const val DEFAULT_DEPTH: Int = GradumConfig.EXPLORE_DEFAULT_DEPTH
@@ -380,10 +384,10 @@ private fun countLines(targetFile: File): Int {
 
 private fun formatSize(sizeInBytes: Long): String {
   return when {
-    sizeInBytes < 1024 -> "$sizeInBytes B"
-    sizeInBytes < 1024 * 1024 -> String.format("%.1f KB", sizeInBytes / 1024.0)
-    sizeInBytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", sizeInBytes / (1024.0 * 1024))
-    else -> String.format("%.1f GB", sizeInBytes / (1024.0 * 1024 * 1024))
+    sizeInBytes < BYTES_PER_KILOBYTE -> "$sizeInBytes B"
+    sizeInBytes < BYTES_PER_MEGABYTE -> String.format("%.1f KB", sizeInBytes / BYTES_PER_KILOBYTE.toDouble())
+    sizeInBytes < BYTES_PER_GIGABYTE -> String.format("%.1f MB", sizeInBytes / BYTES_PER_MEGABYTE.toDouble())
+    else -> String.format("%.1f GB", sizeInBytes / BYTES_PER_GIGABYTE.toDouble())
   }
 }
 

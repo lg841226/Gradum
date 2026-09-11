@@ -225,22 +225,13 @@ class ToolExecutor(
           "error" to mapOf("code" to result.code, "message" to result.message)
         )
       }
-    } catch (e: Exception) {
-      logger.error("Skill execution failed: ${e.message}", e)
+    } catch (exception: Exception) {
+      logger.error("Skill execution failed: ${exception.message}", exception)
       mapOf(
         "success" to false,
         "error" to mapOf(
           "code" to "INTERNAL_ERROR",
-          "message" to "Skill execution failed: ${e.message}"
-        )
-      )
-    } catch (e: Error) {
-      logger.error("Critical error in skill execution: ${e.message}", e)
-      mapOf(
-        "success" to false,
-        "error" to mapOf(
-          "code" to "INTERNAL_ERROR",
-          "message" to "Critical error: ${e.message}"
+          "message" to "Skill execution failed: ${exception.message}"
         )
       )
     }

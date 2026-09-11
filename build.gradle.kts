@@ -171,7 +171,15 @@ detekt {
 val gradumSkipDetektGate: String =
   (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
 
-tasks.named("detekt") { enabled = false }
+if (gradumSkipDetektGate.isBlank()) {
+  tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    dependsOn("detekt")
+  }
+}
+
+tasks.named("check") {
+  dependsOn("detekt")
+}
 
 kotlin {
   jvmToolchain(21)
