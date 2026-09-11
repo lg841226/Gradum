@@ -37,14 +37,18 @@ Grab the latest server build from the
 
 - `gradum@1.0.0-experimental.jar`: cross-platform fat jar (requires Java 21)
 - `gradum-server-macos-arm64-experimental.zip`: self-contained macOS app (Apple Silicon; includes its own JRE, so no
-  Java install needed)
+  Java install needed). Double-clicking it opens a Terminal window that streams the server logs.
 
 ```bash
 ./gradlew build
 java -jar gradum@1.0.0-experimental.jar
 ```
 
-Run `--help` from the server to see every command-line option and endpoint.
+On first start the server writes a user-editable config to `~/.gradum/settings.json` (and its companion
+`~/.gradum/settings.schema.json` for editor autocompletion). All startup parameters are read from that file: bind
+host/port, auto-detected port, default API-key file, and the LLM defaults. The old
+`--host/--port/--auto-port/--api-key` flags were removed. `java -jar gradum@1.0.0-experimental.jar --help` still prints
+the configuration overview and HTTP endpoint list.
 
 ### Option B: install the IntelliJ IDEA plugin
 
