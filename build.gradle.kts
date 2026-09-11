@@ -18,7 +18,11 @@ plugins {
 }
 
 group = "com.gradum"
-version = "1.0.0-experimental"
+// Overridable so CI can stamp every artifact from a release tag, e.g.
+// `-Pgradum.version=1.1.0`. jar name, BuildConfig, and the jpackage app-version
+// all read `project.version`, so they follow the tag automatically. The default
+// is the dev milestone used for local builds.
+version = providers.gradleProperty("gradum.version").getOrElse("1.0.0-experimental")
 
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
