@@ -453,12 +453,14 @@ private fun rememberChatSessionState(
       val messagesToRemove: Int = assistantMessageIndex - userMessageIndex + 1
       repeat(times = messagesToRemove) { session.messages.removeAt(userMessageIndex) }
 
+      val nextMessageId: String = java.util.UUID.randomUUID().toString()
       session.messages.add(
         userMessageIndex,
         element = ChatMessage(
           role = "user",
           content = userMessage.content,
-          attachments = userMessage.attachments
+          attachments = userMessage.attachments,
+          messageId = nextMessageId
         )
       )
       session.messages.add(
@@ -478,7 +480,7 @@ private fun rememberChatSessionState(
         val contextPath: String =
           if (session.isExpanded && !anyReplaced) focusedPath
           else ""
-        session.sendMessage(userMessage = resolvedText, userMessage.attachments, contextPath)
+        session.sendMessage(userMessage = resolvedText, userMessage.attachments, contextPath, messageId = nextMessageId)
       }
     }
   }
@@ -567,11 +569,13 @@ private fun rememberChatSessionState(
           val providerName: String = session.selectedModel?.provider ?: ""
           val serverLabel: String = session.selectedModel?.serverName ?: ""
           val attachedList = session.attachedFiles.toList()
+          val sendMessageId: String = java.util.UUID.randomUUID().toString()
           session.messages.add(
             ChatMessage(
               role = "user",
               content = rawText,
-              attachments = attachedList
+              attachments = attachedList,
+              messageId = sendMessageId
             )
           )
           session.messages.add(
@@ -590,7 +594,7 @@ private fun rememberChatSessionState(
             val contextPath: String =
               if (session.isExpanded && !anyReplaced) focusedPath
               else ""
-            session.sendMessage(userMessage = resolvedText, attachments = attachedList, contextPath)
+            session.sendMessage(userMessage = resolvedText, attachments = attachedList, contextPath, messageId = sendMessageId)
           }
         }
         session.textState.edit { delete(0, length) }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ContextManager.kt  2026-08-31 19:21:55 Changed by gwy
+ * ContextManager.kt  2026-09-11 15:02:59 Changed by gwy
  */
 
 package gradum.utils
@@ -121,11 +121,40 @@ class ContextManager(private val outputDirectory: Path) {
       val writtenSize: Long = contextFilePath.toFile().length()
 
       logger.info(
-        "{}→{} messages (dropped {}, model={}), {} bytes encrypted",
+        "{} to {} messages (dropped {}, model={}), {} bytes encrypted",
         messages.size, cleanedMessages.size, droppedCount, modelName, writtenSize
       ); true
     } catch (saveException: Exception) {
       logger.error("Failed to save context: ${saveException.javaClass.simpleName}: ${saveException.message}"); false
+    }
+  }
+
+  /**
+   * Rewinds the persisted context to just before the message identified by
+   * [messageId]: that message and everything after it is dropped, so a
+   * withdrawn user turn (and its tool calls / assistant reply) leaves no
+   * trace in the resumed context. Returns `true` only when the id was found
+   * and the file was rewritten; `false` when the target is absent (no change).
+   */
+  fun rewindTo(messageId: String): Boolean {
+    if (messageId.isBlank()) return false
+    val messages: List<Map<String, Any>> = loadContext()
+    val targetIndex: Int = messages.indexOfFirst { it["id"] == messageId }
+    if (targetIndex < 0) return false
+    return saveContext(messages.subList(0, targetIndex), modelName = modelName())
+  }
+
+  /** Reads the `model` field from the context header (blank when absent/unreadable). */
+  private fun modelName(): String {
+    val contextFile: File = contextFilePath.toFile()
+    if (!contextFile.exists()) return ""
+    return try {
+      val parsedJson: JsonObject =
+        jsonFormatter.parseToJsonElement(contextFile.readText(Charsets.UTF_8)).jsonObject
+      parsedJson["model"]?.jsonPrimitive?.contentOrNull ?: ""
+    } catch (readException: Exception) {
+      logger.warn("Failed to read model field: ${readException.message}")
+      ""
     }
   }
 
@@ -156,7 +185,13 @@ class ContextManager(private val outputDirectory: Path) {
         // would wipe it. And don't trim(): trailing newlines are
         // meaningful when this history is re-sent to the model.
         else -> cleanedMessages.add(
-          mapOf("role" to role, "content" to (rawContent ?: ""))
+          buildMap {
+            put("role", role)
+            put("content", rawContent ?: "")
+            // Preserve the plugin-generated message id so a "rewind"
+            // (withdraw) can locate this exact message in context.json.
+            message["id"]?.let { put("id", it) }
+          }
         )
       }
     }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-08-31 19:21:54 Changed by gwy
+ * Agent.kt  2026-09-11 14:38:08 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -141,6 +141,7 @@ class Agent(
     userInput: String,
     toolCallXml: String? = null,
     loadPreviousContext: Boolean = false,
+    messageId: String? = null,
     attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
     sessionManager.reset()
@@ -172,7 +173,7 @@ class Agent(
       )
     )
 
-    conversationHistory.addUserMessage(text = userInput, attachments)
+    conversationHistory.addUserMessage(text = userInput, attachments, messageId = messageId)
 
     if (toolCallXml != null) {
       playToolCallScenario(toolCallXml)
@@ -338,9 +339,6 @@ class Agent(
 
           is LLMResponseChunk.ReasoningContent -> {
             flushResponse()
-            logger.info(
-              "Thinking chunk: len=${chunk.text.length}, preview=${chunk.text.take(n = 50).replace("\n", "\\n")}"
-            )
             emitEvent(
               "thinking",
               mapOf("content" to chunk.text)

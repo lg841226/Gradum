@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
+import java.util.UUID
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -292,6 +293,9 @@ class GradumChatSession {
   fun deleteMessage(userMessageIndex: Int) {
     if (userMessageIndex !in messages.indices) return
     if (!messages[userMessageIndex].isUserMessage) return
+    val withdrawn: ChatMessage = messages[userMessageIndex]
+    val withdrawnContent: String = withdrawn.content
+    val messageId: String = withdrawn.messageId
     val assistantMessageIndex: Int? = (userMessageIndex + 1 until messages.size)
       .firstOrNull { !messages[it].isUserMessage }
     val messagesToRemove: Int =
@@ -303,6 +307,19 @@ class GradumChatSession {
       clearSendState()
       hasSentMessage = false
       clearConversationState()
+    }
+    // Refill the withdrawn text back into the input so the user can re-edit
+    // and re-send; it is prepended so any freshly typed draft is preserved.
+    // Done after the empty-conversation branch above because
+    // clearConversationState() resets the text state.
+    if (withdrawnContent.isNotBlank()) {
+      textState.edit { replace(start = 0, end = 0, withdrawnContent) }
+    }
+    // Truncate the server-side context to match the local withdrawal.
+    val sessionKey: String? = activeSessionId
+    val projectRoot: String? = project?.basePath
+    if (sessionKey != null && projectRoot != null && messageId.isNotBlank()) {
+      scope?.launch { apiClient.rewindSession(projectRoot, sessionKey, messageId) }
     }
     saveCurrentSession()
   }
@@ -324,11 +341,13 @@ class GradumChatSession {
       val displayName: String = selectedModel?.name ?: ""
       val providerName: String = selectedModel?.provider ?: ""
       val serverLabel: String = selectedModel?.serverName ?: ""
+      val messageId: String = UUID.randomUUID().toString()
       messages.add(
         ChatMessage(
           role = "user",
           content = next.content,
-          attachments = next.attachments
+          attachments = next.attachments,
+          messageId = messageId
         )
       )
       messages.add(
@@ -347,7 +366,8 @@ class GradumChatSession {
         sendMessage(
           userMessage = next.content,
           next.attachments,
-          contextPath = ""
+          contextPath = "",
+          messageId = messageId
         )
       }
     }

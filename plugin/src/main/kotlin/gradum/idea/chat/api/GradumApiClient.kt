@@ -74,7 +74,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
     val projectRoot: String? = null,
     val imageAttachments: List<ApiImageAttachment> = emptyList(),
     val toolCallXml: String? = null,
-    val sessionId: String? = null
+    val sessionId: String? = null,
+    /**
+     * Plugin-generated message id forwarded to the server. The server stamps
+     * it onto the user message it stores in `context.json`, keeping the
+     * plugin transcript and the server context referencing the same message.
+     */
+    val messageId: String? = null
   )
 
   /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
@@ -133,6 +139,39 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
     response.body()
   }
+
+  /**
+   * Rewinds a session's server-side context to just before the message
+   * identified by [messageId], dropping that message and everything after it.
+   * Mirrors the plugin's local withdrawal so the persisted `context.json` and
+   * the on-screen transcript stay aligned.
+   *
+   * @return `true` when the server truncated the context, `false` when the
+   *   message id was not found or the request failed.
+   */
+  suspend fun rewindSession(projectRoot: String, sessionId: String, messageId: String): Boolean =
+    withContext(Dispatchers.IO) {
+      val requestBody: JsonObject = buildJsonObject {
+        put("projectRoot", projectRoot)
+        put("sessionId", sessionId)
+        put("messageId", messageId)
+      }
+
+      val request: HttpRequest = HttpRequest.newBuilder()
+        .uri(URI.create("$baseUrl/session/rewind"))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+        .build()
+
+      try {
+        val response: HttpResponse<String> =
+          client.send(request, HttpResponse.BodyHandlers.ofString())
+        response.statusCode() == 200
+      } catch (rewindException: Exception) {
+        log.warn("Failed to rewind session $sessionId on server", rewindException)
+        false
+      }
+    }
 
   /**
    * Deletes a session's entire directory on the server (transcript cascade
@@ -200,6 +239,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
 
       if (request.toolMode != null) put("toolMode", request.toolMode)
       if (request.sessionId != null) put("sessionId", request.sessionId)
+      if (request.messageId != null) put("messageId", request.messageId)
       if (request.toolCallXml != null) put("toolCallXml", request.toolCallXml)
       if (request.projectRoot != null) put("projectRoot", request.projectRoot)
       if (request.promptVariant != null) put("promptVariant", request.promptVariant)

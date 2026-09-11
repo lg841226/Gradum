@@ -39,7 +39,7 @@ internal data class ModelsListResponse(
 
 internal suspend fun GradumChatSession.sendMessage(
   userMessage: String, attachments: List<AttachedContext> = emptyList(),
-  contextPath: String = "", toolCallXml: String? = null
+  contextPath: String = "", toolCallXml: String? = null, messageId: String? = null
 ) {
   var wasCancelled = false
   var receivedSessionEnd = false
@@ -181,7 +181,8 @@ internal suspend fun GradumChatSession.sendMessage(
         projectRoot = project?.basePath,
         imageAttachments = imageAttachments,
         toolCallXml = toolCallXml,
-        sessionId = activeSessionId
+        sessionId = activeSessionId,
+        messageId = messageId
       )
     ).catch { exception: Throwable ->
       if (exception is CancellationException) {

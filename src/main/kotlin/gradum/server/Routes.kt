@@ -12,6 +12,7 @@ import gradum.Version
 import gradum.agent.Agent
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
+import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import io.ktor.http.*
 import io.ktor.http.content.*
@@ -69,6 +70,13 @@ data class EventsRequestBody(
   val model: String? = null,
   val toolMode: String? = null,
   val sessionId: String? = null,
+  /**
+   * Plugin-generated identifier for this user message, stamped onto the
+   * message the server stores in `context.json` (field `id`). The plugin
+   * uses the same value to locate the message when withdrawing, keeping the
+   * two ends' histories aligned.
+   */
+  val messageId: String? = null,
   val loadContext: Boolean = true,
   val promptVariant: String? = null,
   val config: Map<String, String>? = null,
@@ -148,6 +156,14 @@ data class StopRequestBody(
 data class DeleteSessionRequestBody(
   val projectRoot: String,
   val sessionId: String
+)
+
+
+@Serializable
+data class RewindSessionRequestBody(
+  val projectRoot: String,
+  val sessionId: String,
+  val messageId: String
 )
 
 /**
@@ -372,6 +388,7 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
             userInput = requestBody.message,
             toolCallXml = requestBody.toolCallXml,
             loadPreviousContext = requestBody.loadContext,
+            messageId = requestBody.messageId,
             attachments = requestBody.attachments.map { attachment ->
               gradum.agent.AttachmentPayload(
                 type = attachment.type,
@@ -503,6 +520,76 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
       call.respondText(
         contentType = ContentType.Application.Json,
         text = JsonUtil.encodeMap(mapOf("status" to resultStatus, "sessionId" to sessionKey)),
+      )
+    }
+
+    post("/session/rewind") {
+      val requestBody = call.receive<RewindSessionRequestBody>()
+      val rawProjectRoot: String = requestBody.projectRoot
+      if (rawProjectRoot.isBlank()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "projectRoot is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val sessionKey: String = requestBody.sessionId.trim()
+      if (sessionKey.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val messageId: String = requestBody.messageId.trim()
+      if (messageId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "messageId is required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      // Strict-child guard reused from POST /session/delete: a bare `startsWith`
+      // check would let `sessionId="."` normalize to the sessions root itself
+      // and truncate every session's context on a single request.
+      val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
+      val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
+      val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
+      if (sessionKey == "." || sessionKey == ".." || !sessionDir.startsWith(sessionsRoot) ||
+        sessionDir.parent != sessionsRoot
+      ) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "invalid sessionId")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      if (!sessionDir.toFile().exists()) {
+        call.respondText(
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionKey)),
+        )
+        return@post
+      }
+
+      val rewinded: Boolean = ContextManager(sessionDir).rewindTo(messageId)
+      call.respondText(
+        status = if (rewinded) HttpStatusCode.OK else HttpStatusCode.NotFound,
+        contentType = ContentType.Application.Json,
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "status" to if (rewinded) "rewound" else "message_not_found",
+            "sessionId" to sessionKey,
+            "messageId" to messageId
+          )
+        ),
       )
     }
 

@@ -34,12 +34,12 @@ import kotlinx.serialization.json.*
  * <!-- gradum-session id="..." title="..." createdAt="..." updatedAt="..." model="..." -->
  *
  * ## user
- * <!-- gradum-msg role="user" timestamp="..." -->
+ * <!-- gradum-msg role="user" id="..." timestamp="..." -->
  * <!-- gradum-attachment name="..." path="..." -->
  * <user message text, verbatim>
  *
  * ## assistant
- * <!-- gradum-msg role="assistant" timestamp="..." model="..." provider="..." server="..." promptTokens=".." completionTokens=".." totalTokens=".." -->
+ * <!-- gradum-msg role="assistant" id="..." timestamp="..." model="..." provider="..." server="..." promptTokens=".." completionTokens=".." totalTokens=".." -->
  * <!-- gradum-thinking -->
  * <thinking text, verbatim>
  * <!-- gradum-toolcall name="..." alias="..." id="..." success="true" errorMessage=".." errorDetail=".." -->
@@ -232,6 +232,7 @@ object ChatTranscript {
     var workingTokens: TokenUsage?
     var blockType: String? = null
     var workingRole: String? = null
+    var workingMessageId = ""
     var workingMessage: ChatMessage? = null
     var pendingToolCall: ToolCallInfo? = null
     val blockLines: MutableList<String> = mutableListOf()
@@ -298,11 +299,13 @@ object ChatTranscript {
             role = "user",
             content = pendingUserContent,
             attachments = workingAttachments.toList(),
+            messageId = workingMessageId,
             timestamp = workingTimestamp
           )
         )
       }
       workingRole = null
+      workingMessageId = ""
       workingTimestamp = 0L
       workingModel = ""
       workingProvider = ""
@@ -333,6 +336,7 @@ object ChatTranscript {
           val attributeMap: Map<String, String> = parseAttributes(marker = line)
           val messageRole: String = attributeMap["role"].orEmpty()
           workingRole = messageRole
+          workingMessageId = attributeMap["id"].orEmpty()
           workingModel = attributeMap["model"].orEmpty()
           workingServer = attributeMap["server"].orEmpty()
           workingProvider = attributeMap["provider"].orEmpty()
@@ -350,6 +354,7 @@ object ChatTranscript {
             workingMessage = ChatMessage(
               content = "",
               role = "assistant",
+              messageId = workingMessageId,
               modelName = workingModel,
               provider = workingProvider,
               serverName = workingServer,
@@ -417,6 +422,9 @@ object ChatTranscript {
     val markerBuilder: StringBuilder = StringBuilder()
     markerBuilder.append("<!-- gradum-msg role=\"").append(role)
       .append("\" timestamp=\"").append(message.timestamp).append('"')
+    if (message.messageId.isNotBlank()) {
+      markerBuilder.append(" id=\"").append(escapeValue(message.messageId)).append('"')
+    }
     if (role == "assistant") {
       markerBuilder.append(" model=\"").append(escapeValue(message.modelName)).append('"')
         .append(" provider=\"").append(escapeValue(message.provider)).append('"')

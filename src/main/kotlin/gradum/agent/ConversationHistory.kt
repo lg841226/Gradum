@@ -59,9 +59,13 @@ class ConversationHistory {
     )
   }
 
-  fun addUserMessage(text: String, attachments: List<AttachmentPayload>) {
+  fun addUserMessage(text: String, attachments: List<AttachmentPayload>, messageId: String? = null) {
     if (attachments.isEmpty()) {
-      messages.add(mapOf("role" to "user", "content" to text))
+      if (messageId.isNullOrBlank()) {
+        messages.add(mapOf("role" to "user", "content" to text))
+      } else {
+        messages.add(mapOf("id" to messageId, "role" to "user", "content" to text))
+      }
       return
     }
     val parts = mutableListOf<Map<String, Any>>(
@@ -81,7 +85,11 @@ class ConversationHistory {
         )
       )
     }
-    messages.add(mapOf("role" to "user", "content" to parts))
+    if (messageId.isNullOrBlank()) {
+      messages.add(mapOf("role" to "user", "content" to parts))
+    } else {
+      messages.add(mapOf("id" to messageId, "role" to "user", "content" to parts))
+    }
   }
 
   fun addAssistantMessage(
