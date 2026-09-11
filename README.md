@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
   <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>
-  <img src="https://img.shields.io/badge/Release-v1.0.0--experimental-6f42c1?style=flat" alt="v1.0.0-experimental"/>
+  <img src="https://img.shields.io/badge/Release-v1.0.1--experimental-6f42c1?style=flat" alt="v1.0.1-experimental"/>
   <img src="https://github.com/lg841226/Gradum/actions/workflows/ci.yml/badge.svg" alt="CI build"/>
 </p>
 
@@ -35,19 +35,19 @@
 Grab the latest server build from the
 [Releases](https://github.com/lg841226/Gradum/releases/latest) page:
 
-- `gradum@1.0.0-experimental.jar`: cross-platform fat jar (requires Java 21)
+- `gradum@1.0.1-experimental.jar`: cross-platform fat jar (requires Java 21)
 - `gradum-server-macos-arm64-experimental.zip`: self-contained macOS app (Apple Silicon; includes its own JRE, so no
   Java install needed). Double-clicking it opens a Terminal window that streams the server logs.
 
 ```bash
 ./gradlew build
-java -jar gradum@1.0.0-experimental.jar
+java -jar gradum@1.0.1-experimental.jar
 ```
 
 On first start the server writes a user-editable config to `~/.gradum/settings.json` (and its companion
 `~/.gradum/settings.schema.json` for editor autocompletion). All startup parameters are read from that file: bind
 host/port, auto-detected port, default API-key file, and the LLM defaults. The old
-`--host/--port/--auto-port/--api-key` flags were removed. `java -jar gradum@1.0.0-experimental.jar --help` still prints
+`--host/--port/--auto-port/--api-key` flags were removed. `java -jar gradum@1.0.1-experimental.jar --help` still prints
 the configuration overview and HTTP endpoint list.
 
 ### Option B: install the IntelliJ IDEA plugin
@@ -148,4 +148,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-1.0.0-experimental
+1.0.1-experimental
