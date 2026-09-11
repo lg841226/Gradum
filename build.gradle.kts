@@ -212,6 +212,42 @@ private fun selfContainedServerExecutable(appName: String, destDir: File): File 
   }
 }
 
+/**
+ * On macOS, replaces the jpackage launcher with a bash launcher that opens a
+ * fresh Terminal window to run the real Java server. Double-clicking the .app
+ * would otherwise start a headless process whose logs go nowhere; the wrapper
+ * keeps the logs visible in an actual terminal.
+ *
+ * The jpackage-built binary is renamed to `<name>Bin` and left untouched; the
+ * wrapper keeps the original `<name>` (which `CFBundleExecutable` points at),
+ * so LaunchServices still finds it.
+ */
+private fun wrapMacAppForTerminalLaunch(launcher: File) {
+  val realBinary: File = File(launcher.parentFile, "${launcher.name}Bin")
+  if (!realBinary.exists()) launcher.renameTo(realBinary)
+  // The jpackage launcher loads <Contents>/app/<launcherName>.cfg and derives
+  // that name from its own path, so the renamed binary needs the config renamed
+  // too, otherwise startup fails with "No such file or directory".
+  val appDirectory: File = File(launcher.parentFile.parentFile, "app")
+  val oldConfig: File = File(appDirectory, "${launcher.name}.cfg")
+  val newConfig: File = File(appDirectory, "${realBinary.name}.cfg")
+  if (oldConfig.isFile && !newConfig.exists()) oldConfig.renameTo(newConfig)
+  val script: String =
+    "#!/bin/bash\n" +
+      "# Launch the Java server inside a fresh Terminal window so logs are visible.\n" +
+      "self_dir=\"\$(CDPATH= cd -- \"\$(dirname -- \"\$0\")\" && pwd)\"\n" +
+      "/usr/bin/osascript <<GRADUM_APPLESCRIPT\n" +
+      "set serverPath to \"\$self_dir/${launcher.name}Bin\"\n" +
+      "tell application \"Terminal\"\n" +
+      "  do script (quoted form of serverPath)\n" +
+      "  activate\n" +
+      "end tell\n" +
+      "GRADUM_APPLESCRIPT\n"
+  launcher.writeText(script)
+  launcher.setExecutable(true, false)
+  logger.lifecycle("Wrapped ${launcher.name} to launch ${realBinary.name} inside Terminal on double-click")
+}
+
 private fun waitForServerHealth(baseUrl: String, timeoutSeconds: Long) {
   val deadline: Long = System.currentTimeMillis() + timeoutSeconds * 1000
   while (System.currentTimeMillis() < deadline) {
@@ -280,6 +316,9 @@ tasks.register("serverPackage", Exec::class.java) {
     val executable: File = selfContainedServerExecutable(appName, destDir)
     logger.lifecycle("Self-contained server executable: ${executable.absolutePath}")
     logger.lifecycle("Run it on a machine WITHOUT Java installed; it carries its own JVM.")
+    if (System.getProperty("os.name").lowercase().contains("mac")) {
+      wrapMacAppForTerminalLaunch(executable)
+    }
   }
 }
 
@@ -297,7 +336,6 @@ tasks.register("dev") {
       javaBin,
       "-Xmx2048m", "-Xms512m",
       "-jar", serverFatJarFile.absolutePath,
-      "--port", "8765",
     )
       .also { processBuilder ->
         if (gradumOpenAiApiKey.isNotBlank()) {
