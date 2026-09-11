@@ -122,10 +122,10 @@ object ServerSettingsStore {
     if (rawPort != null) {
       when (val parsedPort: Int? = integerValue(rawPort)) {
         null ->
-          issues += ValidationIssue("server.port", Severity.ERROR, "expected an integer between ${PORT_RANGE.first} and ${PORT_RANGE.last}; got ${describe(rawPort)}")
+          issues += ValidationIssue("server.port", Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got ${describe(rawPort)}")
 
         !in PORT_RANGE ->
-          issues += ValidationIssue("server.port", Severity.ERROR, "expected an integer between ${PORT_RANGE.first} and ${PORT_RANGE.last}; got $parsedPort")
+          issues += ValidationIssue("server.port", Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got $parsedPort")
 
         else -> port = parsedPort
       }
@@ -178,14 +178,11 @@ object ServerSettingsStore {
 
     logIssues(issues)
     if (issues.isEmpty()) {
-      logger.info("Settings loaded from $configFile (host=$host, port=$port)")
+      logger.info("Settings OK (host=$host, port=$port)")
     } else {
       val errorCount: Int = issues.count { it.level == Severity.ERROR }
       val warnCount: Int = issues.count { it.level == Severity.WARN }
-      logger.info(
-        "Settings loaded from $configFile with $errorCount error(s), $warnCount warning(s); " +
-          "falling back to host=$host port=$port"
-      )
+      logger.info("Settings fallback ($errorCount error, $warnCount warning); host=$host port=$port")
     }
 
     return ServerSettings(
@@ -235,11 +232,11 @@ object ServerSettingsStore {
 
   private fun logIssues(issues: List<ValidationIssue>) {
     if (issues.isEmpty()) return
-    val rootLine = "\u250c\u2500 Invalid gradum.settings"
+    val rootLine = "\u250c\u2500 Invalid gradum.settings (fix ~/.gradum/settings.json)"
     if (issues.any { it.level == Severity.ERROR }) logger.error(rootLine) else logger.warn(rootLine)
     issues.forEachIndexed { index, issue ->
       val connector = if (index == issues.lastIndex) "\u2514\u2500" else "\u251c\u2500"
-      val line = "$connector '${issue.key}': ${issue.reason}. Fix settings.json and restart to apply the corrected value."
+      val line = "$connector ${issue.key}: ${issue.reason}"
       when (issue.level) {
         Severity.ERROR -> logger.error(line)
         Severity.WARN -> logger.warn(line)

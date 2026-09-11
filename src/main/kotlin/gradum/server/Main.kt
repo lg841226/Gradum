@@ -8,6 +8,7 @@
 package gradum.server
 
 import gradum.BuildConfig
+import java.net.BindException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -49,10 +50,7 @@ fun main(arguments: Array<String>) {
       "Hosted providers will use API key $keyPreview (src: ${apiKeySourceLabel(settings)})"
     )
   } else {
-    logger.info(
-      "No hosted-provider API key resolved, Zhipu BigModel / DeepSeek / MiniMax probes " +
-        "will be skipped at startup"
-    )
+    logger.info("No hosted-provider API key; Zhipu / DeepSeek / MiniMax probes skipped")
   }
 
   val serverConfiguration = ServerConfiguration(
@@ -71,7 +69,14 @@ fun main(arguments: Array<String>) {
     logger.info("Gradum Server has been shut down successfully")
   })
 
-  server.start(wait = true)
+  try {
+    server.start(wait = true)
+  } catch (bindException: BindException) {
+    logger.error(
+      "Port ${resolvedPort} on ${settings.host} is already in use (${bindException.message}). " +
+        "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."
+    )
+  }
 }
 
 private fun apiKeySourceLabel(settings: ServerSettings): String =
