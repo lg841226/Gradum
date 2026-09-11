@@ -10,7 +10,8 @@ package gradum.utils
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
-import java.util.logging.Logger
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -28,7 +29,7 @@ private var cachedEncryptionKey: ByteArray? = null
 @Volatile
 private var cachedAuthenticationKey: ByteArray? = null
 
-private val classLogger = Logger.getLogger("EncryptionUtil")
+private val classLogger: Logger = LoggerFactory.getLogger("EncryptionUtil")
 
 private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
   val hmac: Mac = Mac.getInstance("HmacSHA256")
@@ -92,7 +93,7 @@ private fun computeHmac(hmacKey: ByteArray, data: ByteArray): ByteArray {
 private fun getKeySource(): ByteArray {
   val environmentKey: String? = System.getenv("GRADUM_CONTEXT_KEY")
   if (environmentKey.isNullOrEmpty()) {
-    classLogger.warning(
+    classLogger.warn(
       "GRADUM_CONTEXT_KEY is not set — falling back to the built-in key source. " +
         "Persisted context is still decryptable by anyone with this binary; set " +
         "GRADUM_CONTEXT_KEY (a stable secret) before writing sensitive context."
@@ -154,7 +155,7 @@ fun decryptMessageContent(encodedCiphertext: String): String {
     return decodedResult
 
   } catch (decryptException: Exception) {
-    classLogger.severe("Decryption failed: ${decryptException.message}")
+    classLogger.error("Decryption failed: ${decryptException.message}")
     throw decryptException
   }
 }
