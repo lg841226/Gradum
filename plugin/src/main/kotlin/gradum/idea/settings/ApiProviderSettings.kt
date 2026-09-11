@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-09-11 10:42:04 Changed by gwy
+ * ApiProviderSettings.kt  2026-09-11 14:23:48 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -377,10 +377,6 @@ private fun CloudTab(
   }
 }
 
-/**
- * Trailing "+" chip that opens the add-provider menu. Disabled (and
- * non-interactive) when every cloud provider is already added.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CloudAddIcon(enabled: Boolean, onClick: () -> Unit) {
