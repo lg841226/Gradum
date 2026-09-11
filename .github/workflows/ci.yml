@@ -22,7 +22,12 @@ jobs:
 
       # org.gradle.java.home in gradle.properties points at a local dev JDK path
       # that only exists on the author's machine, so we override it on CI with
-      # the JDK provisioned above. Only the server (root) project is exercised
-      # so the IntelliJ plugin module, which targets JDK 25, is left untouched.
+      # the JDK provisioned above.
+      #
+      # The `:` prefixes pin `detekt` and `test` to the server (root) project.
+      # Without them Gradle projects the task name across every subproject, so
+      # `:plugin` would also be built — and it depends on IntelliJ SDK artifacts
+      # resolved from an aliyun mirror that is unreliable on CI and targets
+      # JDK 25. Keeping the prefix means the plugin module is never touched.
       - name: Detekt and tests
-        run: ./gradlew detekt test --console=plain -Dorg.gradle.java.home="$JAVA_HOME"
+        run: ./gradlew :detekt :test --console=plain -Dorg.gradle.java.home="$JAVA_HOME"
