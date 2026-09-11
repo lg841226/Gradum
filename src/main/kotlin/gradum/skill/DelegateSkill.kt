@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-09-11 10:42:04 Changed by gwy
+ * DelegateSkill.kt  2026-09-11 14:59:56 Changed by gwy
  */
 
 package gradum.skill
@@ -61,6 +61,7 @@ class DelegateSkill : Skill() {
 
   companion object {
     private const val MIN_TASK_LENGTH: Int = GradumConfig.MIN_TASK_LENGTH
+    private const val TASK_PREVIEW_LENGTH: Int = 80
   }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
@@ -78,10 +79,12 @@ class DelegateSkill : Skill() {
       )
     val title: String = arguments["title"] as? String ?: ""
 
-    delegateLog.info(
-      "Validation passed: taskLength={}, title='{}', taskFirst80='{}'",
-      task.length, title, task.take(n = 80).replace('\n', ' ')
-    )
+    val taskPreview: String = task.take(n = TASK_PREVIEW_LENGTH).replace('\n', ' ')
+
+    delegateLog.info("\u250c\u2500 delegate_task")
+    delegateLog.info("\u2502  taskLength : {}", task.length)
+    delegateLog.info("\u2502  title      : '{}'", title)
+    delegateLog.info("\u2514\u2500  first80    : '{}'", taskPreview)
 
     val config: AgentConfiguration = context.agentConfiguration
       ?: return makeFailure(
