@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
   <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>
   <img src="https://img.shields.io/badge/Release-v1.0.0--experimental-6f42c1?style=flat" alt="v1.0.0-experimental"/>
-  <img src="https://img.shields.io/badge/Platform-JVM%2021%2B%20%C2%B7%20macOS-lightgrey?style=flat" alt="JVM 21+ / macOS"/>
+  <img src="https://github.com/lg841226/Gradum/actions/workflows/ci.yml/badge.svg" alt="CI build"/>
 </p>
 
 <p align="center">

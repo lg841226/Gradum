@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # org.gradle.java.home in gradle.properties points at a local dev JDK path
+      # that only exists on the author's machine, so we override it on CI with
+      # the JDK provisioned above. Only the server (root) project is exercised
+      # so the IntelliJ plugin module, which targets JDK 25, is left untouched.
+      - name: Detekt and tests
+        run: ./gradlew detekt test --console=plain -Dorg.gradle.java.home="$JAVA_HOME"
