@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillRegistry.kt  2026-08-31 19:21:55 Changed by gwy
+ * SkillRegistry.kt  2026-09-11 14:39:23 Changed by gwy
  */
 
 package gradum.skill
@@ -66,7 +66,24 @@ object SkillRegistry {
     val schemaContext = SkillContext(toolMode, projectRoot = "", modelName, provider)
     return registeredSkills.values
       .filter { skill: Skill -> skill.allows(toolMode) }
-      .map { skill: Skill -> skill.getSchema(schemaContext) }
+      .map { skill: Skill -> annotateToolAvailability(skill.getSchema(schemaContext), skill) }
+  }
+
+  /**
+   * Appends an explicit [Skill.allowedToolModes] note to a skill's
+   * function description so readers never mistake a skill for being
+   * globally available. Display-only: the runtime gate stays in
+   * [Skill.allows] and the [filter] above; this only annotates what the
+   * LLM and humans see.
+   */
+  private fun annotateToolAvailability(schema: Map<String, Any>, skillInstance: Skill): Map<String, Any> {
+    val functionBlock: Map<String, Any> = schema["function"] as? Map<String, Any> ?: return schema
+    val existingDescription: String = functionBlock["description"] as? String ?: return schema
+
+    val availabilityText: String = skillInstance.allowedToolModes.joinToString(", ") { mode -> mode.name }
+    val annotatedDescription: String = "$existingDescription Tool availability: $availabilityText"
+    val annotatedFunction: Map<String, Any> = functionBlock + ("description" to annotatedDescription)
+    return schema + ("function" to annotatedFunction)
   }
 
   private fun registerSkill(skillInstance: Skill) {
