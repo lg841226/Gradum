@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolExecutor.kt  2026-08-31 19:21:55 Changed by gwy
+ * ToolExecutor.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 package gradum.agent
@@ -343,12 +343,6 @@ class ToolExecutor(
     val durationMs: Long = (System.nanoTime() - startedAt) / 1_000_000
     val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
     val paramPart: String = buildParamDisplay(functionName, arguments, executionResult, callSuccess)
-    val errorPart: String = if (!callSuccess) {
-      @Suppress("UNCHECKED_CAST")
-      val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
-      val errorCode: String = (errorInfo["code"] ?: "UNKNOWN").toString()
-      " — failed [$errorCode]"
-    } else ""
 
     logger.info("{}{} ({}ms)", functionName, paramPart, durationMs)
 

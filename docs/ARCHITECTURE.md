@@ -23,7 +23,7 @@
 
 Gradum is a local-first AI code assistant that exposes carefully designed filesystem tools and shell execution
 interfaces to a local language model through LLM Function Calling. Its goal is to complete the full engineering task
-loop—"Read → Plan → Edit → Test → Run"—within the local code repository.
+loop, "Read → Plan → Edit → Test → Run", within the local code repository.
 
 Unlike cloud-hosted AI assistants, Gradum's design is centered on **deterministic tool behavior**, **observable
 execution**, and **defensive prompt injection protection**. Because the agent runs on the developer's local machine with
@@ -62,12 +62,12 @@ injection.
 2. **Observable by default**: Every state transition emits a structured NDJSON event, enabling log replay, debug
    tracing, and downstream UI rendering without internal state coupling.
 3. **Tools as code**: Each skill is a Kotlin implementation of the `Skill` abstract class, centrally registered by
-   `SkillRegistry`. No DSLs, no plugin manifests, no remote registries—the skill surface is simply the project source
+   `SkillRegistry`. No DSLs, no plugin manifests, no remote registries, the skill surface is simply the project source
    directory.
 4. **Security at the skill layer**: The system prompt only provides guidance and must not be trusted as a security
    boundary. Security-critical enforcement behaviors are implemented inside skills (especially the `classifyCommand`
    pre-check in `RunCommandSkill`), not in the prompt.
-5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult` — `Success(Map)` or
+5. **Symmetric result handling**: Each skill returns a uniformly shaped `SkillResult`, `Success(Map)` or
    `Failure(code, message, context?)`. The agent main loop doesn't need branch-by-skill type handling.
 6. **No silent confirmation**: In environments without a UI confirmation, "requires confirmation" is equivalent to "
    directly block."
@@ -289,7 +289,7 @@ src/main/resources/
     └── context.json               # Server · this session's model context
 ```
 
-**Session path rule (server and plugin MUST agree — see `docs/CHAT_HISTORY_PLAN.md §1`):**
+**Session path rule (server and plugin MUST agree, see `docs/CHAT_HISTORY_PLAN.md §1`):**
 
 ```
 sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
@@ -488,7 +488,7 @@ flowchart TD
 
 2. **Main Loop** (`while true`):
     - Call `processLlmTurn(toolSchemas)`, which returns `AgentTurnResult(responseText, toolCalls, errorMessage)`
-    - Collect streaming chunks from activeClient (determined by `providerName` — Ollama or OpenAI):
+    - Collect streaming chunks from activeClient (determined by `providerName`, Ollama or OpenAI):
         - `TextContent` → accumulate into responseBuffer
         - `ReasoningContent` → accumulate as thinking, **immediately emit a `thinking` event** (if there is content)
         - `ToolCallBatch` → save as `toolCalls: List<ToolCallEntry>`
@@ -508,7 +508,7 @@ flowchart TD
     - `prepareToolCalls(rawCalls)`: allocate `call_N` sequences for items without call_id
     - Append the assistant message (including `tool_calls[]` or function list)
     - **FOR each processedCall**:
-        - **Tool-runaway guard**: `checkToolRunaway(name, args)` — if the same call signature repeats ≥
+        - **Tool-runaway guard**: `checkToolRunaway(name, args)`, if the same call signature repeats ≥
           `maxRepeatedToolCalls` (default 5), emit `mission_revoked` (`tool_runaway`) and abort the session.
         - **Read-only re-check**: under `READ_ONLY`, `run_cmd` commands are re-classified against the read-only
           executable whitelist; blocked commands emit a `COMMAND_BLOCKED` tool error.
@@ -532,7 +532,7 @@ flowchart TD
 3. **Session End**:
     - Emit `session_end`: `{version, elapsedSeconds, model, tokenUsage}` (with `aborted: true` when terminated by
       guardrail or the `/stop` route)
-    - `contextManager.saveContext(history, model)` — **skipped** when `aborted: true` (revoked sessions leave no trace)
+    - `contextManager.saveContext(history, model)`: **skipped** when `aborted: true` (revoked sessions leave no trace)
         - Filter system/empty-assistant messages and collapse tool messages (keeping only `read_file` /
           `explore_project`
           tool calls and their results)
@@ -687,7 +687,7 @@ flowchart TB
 
 `ContextManager(outputDirectory)` maintains an encrypted conversation history file in
 `<projectRoot>/.gradum/context.json`. The output directory is constructed per `Agent` from the validated
-`configuration.projectRoot` — never the server's CWD, so a server launched from a developer workspace writes into the
+`configuration.projectRoot`, never the server's CWD, so a server launched from a developer workspace writes into the
 user's open project.
 
 #### Context Save and Load Flow
@@ -755,10 +755,10 @@ flowchart TD
 - **Key derivation**: Based on the `GRADUM_CONTEXT_KEY` environment variable or built-in key source; derive two
   independent keys for the two different purposes "encrypt" and "authenticate" using HMAC-SHA256
 - **Encrypted token format** (by byte):
-    - `[0]` — version byte (0x81, for future algorithm upgrade detection)
-    - `[1..16]` — random nonce (generated by `SecureRandom`)
-    - `[17..N]` — ciphertext (same length as plaintext)
-    - `[N+1..N+32]` — HMAC-SHA256 authentication tag (covers version+nonce+ciphertext)
+    - `[0]`: version byte (0x81, for future algorithm upgrade detection)
+    - `[1..16]`: random nonce (generated by `SecureRandom`)
+    - `[17..N]`: ciphertext (same length as plaintext)
+    - `[N+1..N+32]`: HMAC-SHA256 authentication tag (covers version+nonce+ciphertext)
 - **CTR mode implementation** (`hmacCtrEncrypt`):
     - Process plaintext in 32-byte blocks
     - For each block i, compute `HMAC(encryptionKey, nonce || counter_bytes)` → 32-byte keystream block
@@ -772,11 +772,11 @@ The scheme guarantees:
 1. Context files cannot be tampered with offline (HMAC tag verification)
 2. Context content cannot be read offline (XOR encryption stream)
 3. Algorithm can be upgraded (version byte)
-4. Zero external encryption library dependencies — entirely based on the Java standard library `javax.crypto.Mac`
+4. Zero external encryption library dependencies, entirely based on the Java standard library `javax.crypto.Mac`
 
 ### 2.9 Model Identity: Discovery, Probing, and Capability
 
-All model lifecycle concerns live in a single authority — `ModelIdentity.kt` — split into the private `Discovery` inner
+All model lifecycle concerns live in a single authority, `ModelIdentity.kt`, split into the private `Discovery` inner
 object plus the capability inference used for schema variant resolution.
 
 ```mermaid
@@ -812,7 +812,7 @@ flowchart TD
   Results are cached by `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
 - **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from the provider settings file.
   `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
-  cache is dropped and the next `/models` call re-probes the providers — so a URL edit surfaces in the model list within
+  cache is dropped and the next `/models` call re-probes the providers, so a URL edit surfaces in the model list within
   one poll cycle instead of waiting out the 60s TTL.
 - **Ollama cloud availability**: models whose name contains `"cloud"` (case-insensitive) get a live
   `POST /api/chat` probe (`num_predict=1`) and are marked `available=false` with an `UnavailableReason`
@@ -1203,7 +1203,7 @@ stateDiagram-v2
 - `resetTaskList()` → re-arm the manager for a fresh session.
 
 **Two skills, one manager**: TodoSkill (`to_do`, alias `Planned`) initializes the list; CompletePlanSkill
-(`finish_to_do_item`, alias `Completed`) maps its `action` argument — `complete` (default) → `completeCurrentTask()`,
+(`finish_to_do_item`, alias `Completed`) maps its `action` argument, `complete` (default) → `completeCurrentTask()`,
 `skip` → `skipTask()`. Both skills expose `allowedToolModes = {AGENT}` only, and both are deliberately hidden in EDIT
 (no task planning) and READ_ONLY (no project mutation), enforced at runtime by the mode gate even against a hallucinated
 call (returns `TOOL_NOT_PERMITTED`).
@@ -1350,8 +1350,8 @@ Adaptive pruning keeps **only the N most recent** executions of a skill fully in
 conversation history, while stripping volatile payload keys from older entries. The technique is embodied by two
 properties on `Skill`:
 
-- `historyKeepCount: Int` — how many recent results retain full data (default `Int.MAX_VALUE`, meaning no pruning)
-- `historyVolatileKeys: List<String>` — which keys to remove from results that exceed the keep count
+- `historyKeepCount: Int`: how many recent results retain full data (default `Int.MAX_VALUE`, meaning no pruning)
+- `historyVolatileKeys: List<String>`: which keys to remove from results that exceed the keep count
 
 When `execute()` is called, `prepareHistoryResult()` increments an internal call counter. Results whose call index ≤
 `historyKeepCount` are returned as-is; older ones have every key in `historyVolatileKeys` filtered out:
@@ -1377,7 +1377,7 @@ LLM context window without losing the structural metadata (path, exit code, matc
 | `RunCommandSkill` | 2                | `output`               | Command output may be very large; old results are rarely referenced           |
 
 The full volatile data is still emitted in the NDJSON `tool_call` event for the frontend; only conversation history is
-trimmed. The UI and the skill implementations never notice — `prepareHistoryResult` is called
+trimmed. The UI and the skill implementations never notice. `prepareHistoryResult` is called
 automatically in `Agent.kt` after `skill.execute()` returns.
 
 **SkillResult sealed class** (`SkillResult.kt`):
@@ -1585,9 +1585,9 @@ some-sensitive-phrase
 When a session is revoked:
 
 1. The last assistant message is appended to history (for audit consistency)
-2. `emitEvent("mission_revoked", {reason, details})` is fired — the client MUST erase all trace of this conversation
+2. `emitEvent("mission_revoked", {reason, details})` is fired. The client MUST erase all trace of this conversation
 3. `emitEvent("session_end", {..., aborted: true})` terminates the session
-4. `contextManager.saveContext()` is **NOT called** — no persistence, no trace
+4. `contextManager.saveContext()` is **NOT called**, no persistence, no trace
 
 ---
 
@@ -1712,7 +1712,7 @@ gantt
 - No sandboxed execution environment
 - Text + image attachments supported; no audio input
 - Skill registry discovers the `gradum.skill` package reflectively (directory + JAR scanning); adding a skill only
-  requires a concrete `Skill` subclass with a no-argument constructor on the classpath — there is no registration file
+  requires a concrete `Skill` subclass with a no-argument constructor on the classpath, there is no registration file
   to maintain, and hot plugin loading in the IDE sense isn't supported
 - Session context persistence only encrypts user/assistant messages, tool messages aren't encrypted (for audit
   convenience)
@@ -1796,7 +1796,7 @@ flowchart TB
 
 The `plugin` module is a separate IntelliJ IDEA plugin that provides a Compose-based chat UI in a right-side tool window
 and a self-contained Git-analysis tool window in a bottom tool window. The chat communicates with the standalone Gradum
-server over HTTP at runtime — there is **no compile-time dependency** between the plugin and the server module. The
+server over HTTP at runtime. There is **no compile-time dependency** between the plugin and the server module. The
 Git-analysis tool window (see [§8.6](#86-git-analysis-tool-window-subsystem)) is independent of the server.
 
 ### 8.2 Module Dependencies
@@ -1845,7 +1845,7 @@ plugin (IntelliJ Plugin)
 - `GradumApiClient` sends user messages to the server's `/events` endpoint
 - Server returns NDJSON event stream (thinking, tool_call, llm_response, session_end)
 - `POST /stop?sessionId=...` (or `{sessionId}` in the body) aborts the active session server-side, which the client uses
-  to cancel an in-flight stream — alongside the `AbortController`-style client-side cancellation
+  to cancel an in-flight stream, alongside the `AbortController`-style client-side cancellation
 - `GET /models`, `GET /health`, and `GET /skills` support model polling, server liveness checks, and capability
   discovery
 - `POST /provider/probe` is the settings-page connectivity check: the plugin forwards `{kind, baseUrl, apiKey}` to the
@@ -1972,7 +1972,7 @@ gradum.idea/
 > text into tables / blocks / plain segments via
 > `BlockSplit.splitMarkdownAtBlocks`; for each `Plain` segment it then
 > attempts the custom CommonMark inline parser in `InlineMarkdown` (using `commonmark-java` from Jewel's
-> `intellij.platform.jewel.markdown.core` — zero new dependency);
+> `intellij.platform.jewel.markdown.core`, zero new dependency);
 > segments that contain lists / headings / blockquotes / fenced code,
 > or that fail to parse, fall through to Jewel's native `Markdown(...)`.
 > Fenced code blocks reach the `CodeBlockRenderer` either way.
@@ -1992,7 +1992,7 @@ gradum.idea/
 
 ### 8.6 Git Analysis Tool Window Subsystem
 
-Since July 2026 (service commits `65c5441`, `76de538`) the plugin ships a second tool window — **Gradum Git** (bottom) —
+Since July 2026 (service commits `65c5441`, `76de538`) the plugin ships a second tool window, **Gradum Git** (bottom),
 that audits the project's Git history and renders SXXXX findings plus a project quality band. It is entirely separate
 from the chat: it does **not** talk to the Gradum server, has zero chat dependencies, and runs a bundled pure-stdlib
 Python script against the local repository.
@@ -2055,8 +2055,8 @@ The script is launched with `--jsonl` (cwd = project root). It walks every commi
 records in order:
 
 1. `INFO` header (`message`, `version`), `start` (`repo`, `branches`, `since`).
-2. One `scanning commit` record per commit — `current`, `total`, `hash` (drives the determinate progress bar).
-3. `scanned` — `commits`, `repo`, `elapsed_ms`, `branch` (drives the phase-two hand-off and the tree's branch row).
+2. One `scanning commit` record per commit, `current`, `total`, `hash` (drives the determinate progress bar).
+3. `scanned`, `commits`, `repo`, `elapsed_ms`, `branch` (drives the phase-two hand-off and the tree's branch row).
 4. When `enableQualityAnalysis` is set: `Analyze Quality`, `Audit Deletions`, `analyzed` (`commits`, `problems`,
    `deletion_percent`, `overall_level`), `quality` (`band`, `score`, `factor_recency`, `factor_ai`, `factor_deletion`,
    `factor_scale`, `factor_hero`), one **S-finding record** per finding, and per-period `period` records.
@@ -2123,7 +2123,7 @@ raw weighted factors with a confidence factor `1 − 1/(√n+1)` and a small per
 
 The permission model and session-scoped project context are the two pillars that hold the whole "tools can only act on
 the project the IDE has open, and only under the tier the user picked" invariant. They are wired through one data
-class — `SkillContext` — and one interface field — `Skill.allowedToolModes`. Here's the end-to-end
+class, `SkillContext`, and one interface field, `Skill.allowedToolModes`. Here's the end-to-end
 contract.
 
 ### 9.1 The Three Tiers (`ToolMode`)
@@ -2148,15 +2148,15 @@ enum class ToolMode {
 `"read_only"` all parse) and then through a small legacy `ALIASES` map: `"write"` → `AGENT` and
 `"single_step"` → `EDIT`, which older plugin builds that predate the rename continue to send unchanged.
 
-The tier is a **client choice** — the IDE never infers it from the provider, because Ollama runs both 7B laptops and 70B
+The tier is a **client choice**, the IDE never infers it from the provider, because Ollama runs both 7B laptops and 70B
 cloud models, and the same backend deserves different surfaces depending on what the user is doing. The plugin's
 `PermissionSelector` writes the wire-format string into the `/events` request body (`selectedPermission`, held in
 `GradumChatSession`); `Routes` parses it via `ToolMode.fromStringOrDefault(it)`. Two different defaults apply:
 
-- **Plugin (client)**: `GradumChatSession.selectedPermission` starts at `READ_ONLY` — the user who has not actively
+- **Plugin (client)**: `GradumChatSession.selectedPermission` starts at `READ_ONLY`, the user who has not actively
   opted into write access physically cannot mutate the project, even if the LLM hallucinates an `edit_file` call.
 - **Server fallback**: when the client omits `toolMode` entirely, `Routes` falls back to `ToolMode.AGENT` (the
-  reachability invariant — no tool silently disappears because of a missing field).
+  reachability invariant, no tool silently disappears because of a missing field).
 
 ### 9.2 Per-Skill `allowedToolModes` (single source of truth)
 
@@ -2188,10 +2188,10 @@ which makes a future regression impossible without breaking
 
 ### 9.3 The Three Layers of Defense
 
-1. **Schema filter** (LLM-side). The LLM only sees tools it is allowed to call. Removes the easy-path bypass — the model
+1. **Schema filter** (LLM-side). The LLM only sees tools it is allowed to call. Removes the easy-path bypass. The model
    has to work to call a forbidden tool.
 2. **Runtime mode gate** (Agent-side). `Agent.executeSingleTool` checks
-   `configuration.toolMode in skillInstance.allowedToolModes` before dispatch. Defeats LLM hallucination — the model may
+   `configuration.toolMode in skillInstance.allowedToolModes` before dispatch. Defeats LLM hallucination. The model may
    have seen `edit_file` in training data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
 3. **Command re-classification** (Read-only `run_cmd` only). The `READ_ONLY`
    mode still exposes `run_cmd`, because `cat`/`ls`/`grep` are essential for inspection. The agent re-runs
@@ -2201,7 +2201,7 @@ which makes a future regression impossible without breaking
    (See [§3.2](#32-commandfilter-command-safety-filter) for the full filter and `CommandFilterTest` for the 6 pinned
    cases.)
 
-### 9.4 `SkillContext` — per-session state handed to every Skill
+### 9.4 `SkillContext`: per-session state handed to every Skill
 
 `SkillContext` is the single per-session data class the agent constructs once and passes to every `Skill.execute` call:
 
@@ -2216,16 +2216,16 @@ data class SkillContext(
 
 Four properties, all of which used to be either process-globals or invisible:
 
-- **`toolMode`** — the active tier. Skills can read it for mode-aware behavior (e.g. `RunCommandSkill` places detached
+- **`toolMode`**: the active tier. Skills can read it for mode-aware behavior (e.g. `RunCommandSkill` places detached
   logs under `<projectRoot>/.gradum/run_cmd` and `CommandFilter` blocks unsafe commands outright in `READ_ONLY`). The
   gate is still the agent's, not the skill's; this is informational.
-- **`projectRoot`** — the absolute, validated path to the project the IDE has open. The plugin is the single source of
+- **`projectRoot`**: the absolute, validated path to the project the IDE has open. The plugin is the single source of
   truth: `Project.basePath` → HTTP request body → `AgentConfiguration.projectRoot` → `SkillContext.projectRoot`. The
   server has no other way to learn which project is open.
-- **`provider`** — which LLM backend is driving this session (e.g. `OLLAMA`,
+- **`provider`**: which LLM backend is driving this session (e.g. `OLLAMA`,
   `OPENAI`, `ANTHROPIC`). Used by provider-aware skills and by the agent to fill the `{{SCHEMA_VARIANT}}` template
   variable.
-- **`modelName`** — the model name string (e.g. `"qwen2.5:14b"`, `"gpt-4o"`). Used by `SchemaVariant.resolve()` to infer
+- **`modelName`**: the model name string (e.g. `"qwen2.5:14b"`, `"gpt-4o"`). Used by `SchemaVariant.resolve()` to infer
   model capability and choose appropriate tool schemas.
 
 `SkillContext` replaces the legacy `ProjectPaths.setProjectRoot` process-global and gives Skills a way to read
@@ -2271,7 +2271,7 @@ abstract class Skill {
 ```
 
 A skill that mutates the project MUST exclude `READ_ONLY`. A skill that multistep plans MUST exclude `EDIT`. Anything
-else (pure inspection like `read_file`/`explore_project`/`run_cmd`) leaves the default — every tier is allowed.
+else (pure inspection like `read_file`/`explore_project`/`run_cmd`) leaves the default. Every tier is allowed.
 
 The `Skill.execute` signature requires `context: SkillContext`. Skills that need the project root read
 `context.projectRoot`; the previous behavior of reading `arguments["projectRoot"]` is gone (the agent still injects it

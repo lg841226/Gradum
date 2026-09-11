@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderRow.kt  2026-08-31 19:21:55 Changed by gwy
+ * ApiProviderRow.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -41,7 +41,7 @@ private val MASK_TRANSFORMATION: OutputTransformation = OutputTransformation {
 private const val LABEL_WIDTH_DP = 68
 private const val URL_FIELD_WIDTH_DP = 400
 private const val MAX_ERROR_PREVIEW_CHARS = 120
-private val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
+private const val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
 
 /**
  * Settings row for a single model provider.

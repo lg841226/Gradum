@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-08-31 19:21:55 Changed by gwy
+ * build.gradle.kts  2026-09-11 10:42:04 Changed by gwy
  */
 
 plugins {
@@ -269,7 +269,7 @@ val generateBuildConfig = tasks.register("generateBuildConfig") {
       |
       |object BuildConfig {
       |  const val version: String = "${project.version}"
-      |  const val gitStatsVersion: String = "${gitStatsVersion}"
+      |  const val gitStatsVersion: String = "$gitStatsVersion"
       |  const val buildTimeMillis: Long = ${System.currentTimeMillis()}
       |}
       """.trimMargin()

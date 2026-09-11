@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumMarkdown.kt  2026-08-31 19:21:55 Changed by gwy
+ * GradumMarkdown.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 @file:OptIn(ExperimentalJewelApi::class)
@@ -33,7 +33,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.dp
 import gradum.idea.settings.LocalParagraphSpacing
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.launch

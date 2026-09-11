@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelSelectorBar.kt  2026-08-31 19:21:55 Changed by gwy
+ * ModelSelectorBar.kt  2026-09-11 10:42:33 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -264,7 +264,7 @@ private fun resolveSelectorText(selectedModel: ModelInfo?): String = when {
 }
 
 /** Caps a model display name at [MAX_MODEL_NAME_CHARS] characters for narrow selectors. */
-private val MAX_MODEL_NAME_CHARS: Int = PluginConfig.MAX_MODEL_NAME_CHARS
+private const val MAX_MODEL_NAME_CHARS: Int = PluginConfig.MAX_MODEL_NAME_CHARS
 
 private fun clipModelName(name: String): String {
   val trimmed: String = name.trim()

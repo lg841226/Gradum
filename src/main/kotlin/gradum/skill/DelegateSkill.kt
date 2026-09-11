@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkill.kt  2026-08-31 19:21:55 Changed by gwy
+ * DelegateSkill.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 package gradum.skill
@@ -60,7 +60,7 @@ class DelegateSkill : Skill() {
   }
 
   companion object {
-    private val MIN_TASK_LENGTH: Int = GradumConfig.MIN_TASK_LENGTH
+    private const val MIN_TASK_LENGTH: Int = GradumConfig.MIN_TASK_LENGTH
   }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {

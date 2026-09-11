@@ -52,17 +52,17 @@ endorsement, affiliation, or sponsorship by the project or its maintainers.
 2. Use the **Bug Report** template when creating a new issue.
 3. Include the following information:
 
-   * Plugin error stack trace (if applicable)
+    * Plugin error stack trace (if applicable)
 
-   * IDE version (e.g., IntelliJ IDEA 2026.2 Build #IU-262.xxx)
+    * IDE version (e.g., IntelliJ IDEA 2026.2 Build #IU-262.xxx)
 
-   * Server-side version (if applicable, leave blank if not running a custom server)
+    * Server-side version (if applicable, leave blank if not running a custom server)
 
-   * Steps to reproduce the issue
+    * Steps to reproduce the issue
 
-   * Expected vs actual behavior
+    * Expected vs actual behavior
 
-   * Screenshots or logs if helpful
+    * Screenshots or logs if helpful
 
 ## Feature Requests and Discussions
 
@@ -76,7 +76,7 @@ For other questions or discussions, use GitHub Issues or email the maintainers.
 ### Prerequisites
 
 | Requirement   | Version                                  |
-| ------------- | ---------------------------------------- |
+|---------------|------------------------------------------|
 | JDK           | 25 (recommended) or 21+                  |
 | IntelliJ IDEA | 2026.2 (IU-262.x) for plugin development |
 | Gradle        | 8.x (via wrapper, `./gradlew`)           |
@@ -139,8 +139,6 @@ All Kotlin code must follow the conventions in:
 * [CODING\_STANDARDS\_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md) — Kotlin conventions, file headers,
   naming, and structure.
 
-* [CONVENTIONS.md](docs/CONVENTIONS.md) — UI-specific conventions for the IntelliJ plugin.
-
 Key points:
 
 * No single-letter variable names (except loop indices `i`, `j`, `k`).
@@ -166,7 +164,7 @@ Key points:
 ### What Gets Merged
 
 | Change Type                                             | Required Approval       |
-| ------------------------------------------------------- | ----------------------- |
+|---------------------------------------------------------|-------------------------|
 | Bug fixes, tests, documentation improvements            | 1 maintainer            |
 | New features, architectural changes, public API changes | Project lead (`@gwy15`) |
 
@@ -177,7 +175,7 @@ dependencies, will be closed without detailed review.
 
 Contributions that use AI-assisted coding tools (GitHub Copilot, Cursor, ChatGPT, etc.) must:
 
-1. **Declare it in the PR description** — state which tool(s) were used and how.
+1. **Declare it in the PR description** — state which tool (s) were used and how.
 2. **Confirm manual review of every line** — the contributor is responsible for all code,
    regardless of how it was generated.
 
@@ -186,8 +184,8 @@ as PRs. Real security findings must be reported via GitHub Security Advisories.
 
 ## Governance (BDFL)
 
-This project operates under a **Benevolent Dictator for Life (BDFL)** model. The project lead
-(`@gwy15`) has final authority over all decisions, including but not limited to:
+This project operates under a **Benevolent Dictator for Life (BDFL)** model. The project lead (`@gwy15`) has final
+authority over all decisions, including but not limited to:
 
 * Architectural decisions (module boundaries, public APIs, dependency selection)
 

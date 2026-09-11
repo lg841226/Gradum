@@ -81,7 +81,7 @@ val str: String = arguments["name"] as? String ?: ""
 ### 2.3 Two-Word Minimum for Variable Names
 
 Every local variable, property, parameter, and function name must contain **at least two English words** (camelCase).
-Single-word or single-letter names are forbidden — they are not self-documenting and cost the next reader a context
+Single-word or single-letter names are forbidden. They are not self-documenting and cost the next reader a context
 switch.
 
 **Correct:**
@@ -117,7 +117,7 @@ catch (e: IOException) { ... }         // 'e' / 'ex' are forbidden
 ### 2.4 Boolean Variables Require a Predicate Prefix
 
 Boolean properties, locals, parameters, and function names must begin with a predicate: `is`, `has`, `can`, `should`,
-`will`, `must`, or `need`. Bare adjectives or verbs (`enabled`, `valid`, `ok`, `active`) are forbidden — they don't read
+`will`, `must`, or `need`. Bare adjectives or verbs (`enabled`, `valid`, `ok`, `active`) are forbidden. They don't read
 as questions.
 
 **Correct:**
@@ -237,11 +237,11 @@ when (val result: SkillResult = skill.execute(arguments, skillContext)) {
 Tool failure payloads are routed to **two distinct audiences**, and they must be kept separate. Conflating them leaks
 stack traces into the chat or strips the technical detail the LLM needs to self-correct.
 
-- **LLM-visible (`errorMessage`** **/** **`errorDetail`)** — the technical cause the model reads to decide its next action.
+- **LLM-visible (`errorMessage`** **/** **`errorDetail`)**: the technical cause the model reads to decide its next action.
   Includes exception class, the failing line / argument, the raw reason string. Goes into the tool result body the LLM
   will see on the next turn.
 
-- **User-visible** — the *short* localized message shown in the IDE toast / popup / status bar. Always goes through
+- **User-visible**: the *short* localized message shown in the IDE toast / popup / status bar. Always goes through
   `GradumBundle.message`
   (see `plugin/src/main/resources/messages/`). Never contains stack traces, raw class names, or file paths the user did
   not open.
@@ -257,7 +257,7 @@ val userMessage: String = "ReadFile failed: ${ioException.message}"
 
 The boundary layer (e.g. `AssistantChatBubble.ToolCallBlock`,
 `formatToolDetails`) is the **only** place where these two are joined into the rendered chat bubble. Domain code never
-composes a "user-facing error string" — it always returns both halves, and the renderer picks.
+composes a "user-facing error string". It always returns both halves, and the renderer picks.
 
 ***
 
@@ -351,7 +351,7 @@ if (blockedExecutables.contains(executable)) {
 }
 ```
 
-`else` placement — both branches must use the same form:
+`else` placement. Both branches must use the same form:
 
 ```kotlin
 // correct - both single-line
@@ -567,9 +567,9 @@ val friendlyDiagnostics: List<Map<String, Any?>> = items
 ## 15. Explicit Type Annotations
 
 **Public API surface requires full type annotations.** Function signatures (parameters and return types), public and
-internal properties, and data-class fields must always declare their type explicitly — never rely on inference there.
+internal properties, and data-class fields must always declare their type explicitly. Never rely on inference there.
 
-**Local variables may omit the annotation when the type is obvious from the right-hand side** — i.e. a constructor call,
+**Local variables may omit the annotation when the type is obvious from the right-hand side**, i.e. a constructor call,
 a literal, or a direct same-line conversion:
 
 ```kotlin
@@ -600,7 +600,7 @@ rule).
 
 ## 16. File Organization
 
-Organize files from highest to lowest level of abstraction — the reader sees the high-level flow first, then the
+Organize files from highest to lowest level of abstraction. The reader sees the high-level flow first, then the
 details:
 
 ```kotlin
@@ -654,7 +654,7 @@ override fun execute(arguments: Map<String, Any>): SkillResult {
 ## 18. Adding New Skills
 
 Skills are discovered automatically at init time by `SkillRegistry` scanning the **`gradum.skill`** **package** on the
-classpath (reflection over directory and JAR resources). There is no registration file to maintain — `ServiceLoader` /
+classpath (reflection over directory and JAR resources). There is no registration file to maintain. `ServiceLoader` /
 `META-INF/services` is **not** used.
 
 ### 1. Create the Skill Class
@@ -711,7 +711,7 @@ class MyNewSkill : Skill() {
 - Override `allowedToolModes` and `mutatesProject` to declare the ToolMode tiers the skill may run under (see
   `docs/ARCHITECTURE.md` §9)
 
-- `execute(arguments, context: SkillContext)` and `getSchema(context: SkillContext?)` — not the legacy no-context
+- `execute(arguments, context: SkillContext)` and `getSchema(context: SkillContext?)`: not the legacy no-context
   signatures
 
 - Follow all coding standards in this document
@@ -738,7 +738,7 @@ Use Gradle:
 ## 20. Try-Catch
 
 In important error handling locations, **always** add logging in `catch` blocks. The exception variable **must** be
-named after the exception type — never the generic `e` / `ex` / `exception` / `throwable`. The name itself documents the
+named after the exception type, never the generic `e` / `ex` / `exception` / `throwable`. The name itself documents the
 failure mode at the call site.
 
 ```kotlin
@@ -814,7 +814,7 @@ try {
 ```
 
 **Rule 3: Error/exception object names must be at least two words long.** The catch-pattern variable and any variable
-that holds an error payload follow §2.3 — name it after the failure mode or the type, never a bare single token.
+that holds an error payload follow §2.3. Name it after the failure mode or the type, never a bare single token.
 
 ```kotlin
 // correct - two-word names
@@ -871,13 +871,13 @@ A single class exposes **at most 20 public methods / properties** (detekt
 
 When a class grows beyond 20 public surface members, the cause is almost always one of:
 
-- **Mixed responsibilities** — extract a `FooFormatter` / `FooValidator`
+- **Mixed responsibilities**: extract a `FooFormatter` / `FooValidator`
   collaborator.
 
-- **Wide parameter lists** — group related parameters into a
+- **Wide parameter lists**: group related parameters into a
   `FooRequest` data class.
 
-- **`object`** **used as a namespace** — promote to a top-level file with private internal helpers.
+- **`object`** **used as a namespace**: promote to a top-level file with private internal helpers.
 
 Lint-enforced by detekt `TooManyFunctions`. A class that legitimately needs more (e.g. a sealed-class hierarchy of 30
 narrow `when` cases)
@@ -891,7 +891,7 @@ The rules in this document are enforced automatically by **detekt**
 (via the `detekt-formatting` plugin), running in `gradlew detekt` and
 `gradlew check`. Configured by `config/detekt/detekt.yml`.
 
-- **detekt (core)** — naming (`BooleanPropertyNaming` /
+- **detekt (core)**: naming (`BooleanPropertyNaming` /
   `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`), complexity (cyclomatic / nested depth / function
   count via
   `TooManyFunctions`), error-handling antipatterns (`SwallowedException` / `TooGenericExceptionCaught` /
@@ -899,7 +899,7 @@ The rules in this document are enforced automatically by **detekt**
   `UnusedImports`), comments (`UndocumentedPublicClass` /
   `UndocumentedPublicFunction`).
 
-- **detekt-formatting** — formatting subset equivalent to ktlint standard rules: indent, import order, line length,
+- **detekt-formatting**: formatting subset equivalent to ktlint standard rules: indent, import order, line length,
   brace placement on single-line `if` / `for` / `while` (we disable the
   `BracesOnIfStatements` rule, see §9), trailing comma, etc.
 

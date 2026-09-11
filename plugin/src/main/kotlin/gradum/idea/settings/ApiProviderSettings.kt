@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-08-31 19:21:55 Changed by gwy
+ * ApiProviderSettings.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -38,8 +38,8 @@ import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 private const val API_FIELD_WIDTH_DP = 56
-private val MIN_POLL_INTERVAL_SECONDS = PluginConfig.MIN_POLL_INTERVAL_SECONDS
-private val MAX_POLL_INTERVAL_SECONDS = PluginConfig.MAX_POLL_INTERVAL_SECONDS
+private const val MIN_POLL_INTERVAL_SECONDS = PluginConfig.MIN_POLL_INTERVAL_SECONDS
+private const val MAX_POLL_INTERVAL_SECONDS = PluginConfig.MAX_POLL_INTERVAL_SECONDS
 
 /**
  * Settings page section that owns both provider rows.

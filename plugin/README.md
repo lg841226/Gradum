@@ -30,7 +30,7 @@ The plugin adds the following to IntelliJ IDEA:
 
 | Requirement | Version |
 |-------------|---------|
-| Gradum Server | 0.9.2 (this repo) |
+| Gradum Server | 1.0.0-experimental (this repo) |
 | IntelliJ IDEA | 2026.2 (IU-262.x) |
 | JDK | 21+ (IDE runtime) |
 | Gradle | 8.x (via wrapper) |

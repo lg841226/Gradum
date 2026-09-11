@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThumbnailImageLoader.kt  2026-08-31 19:21:55 Changed by gwy
+ * ThumbnailImageLoader.kt  2026-09-11 10:42:04 Changed by gwy
  */
 package gradum.idea.chat.ui.util
 
@@ -27,7 +27,7 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailImageLoader")
  * the whole row feel laggy. 3 s matches JetBrains' own URL handler
  * default for image previews in the IDE.
  */
-private val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOUT_MS
+private const val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOUT_MS
 
 /**
  * Hard upper bound on the in-memory LRU. 64 entries is more than
@@ -35,7 +35,7 @@ private val THUMBNAIL_HTTP_TIMEOUT_MS: Int = PluginConfig.THUMBNAIL_TIMEOUT_MS
  * returns more than 10 items) and keeps the cache from leaking
  * across very long sessions.
  */
-private val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
+private const val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
 
 /**
  * Hard cap on the bytes we will read from any single response. Real
@@ -45,7 +45,7 @@ private val LRU_MAX_ENTRIES: Int = PluginConfig.THUMBNAIL_LRU_MAX_ENTRIES
  * someone using this channel to exfiltrate data into the cache. We
  * abort the read and discard the response in that case.
  */
-private val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
+private const val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
 
 /**
  * In-house loader for thumbnail images used in tool-call result rows.

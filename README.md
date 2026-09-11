@@ -1,84 +1,88 @@
-# Gradum
+<h2 align="center">Gradum</h2>
 
-A lightweight Kotlin Agent Framework for building LLM-powered tools with function calling.
+> [!WARNING]
+> **Gradum is currently experimental.** This project is evolving rapidly, and while we do test it along the way, there
+> will be rough edges. You may run into bugs that don't yet have an obvious explanation, behavior or configuration that
+> changes without prior notice, or features that are still incomplete. Treat it as a work in progress. If something
+> surprises you, please open an issue and tell us what you saw; every report helps us smooth things out. For now only
+> macOS (Apple Silicon) is packaged as a ready-to-run app; the cross-platform jar runs anywhere Java 21 is available.
 
-## What is Gradum?
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
+  <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>
+  <img src="https://img.shields.io/badge/Release-v1.0.0--experimental-6f42c1?style=flat" alt="v1.0.0-experimental"/>
+  <img src="https://img.shields.io/badge/Platform-JVM%2021%2B%20%C2%B7%20macOS-lightgrey?style=flat" alt="JVM 21+ / macOS"/>
+</p>
 
-Gradum provides a pluggable skill system, streaming NDJSON events, and encrypted context persistence — everything you
-need to build agents that interact with the local filesystem and shell.
+<p align="center">
+  <b>Gradum</b> is a lightweight Kotlin agent framework for building LLM-powered tools with function calling. Hook up
+  Ollama, Zhipu BigModel (GLM), DeepSeek, MiniMax, or any OpenAI-compatible endpoint, and get streaming, tool-calling
+  agents that read and edit files, explore your project, and run shell commands. It ships with a full-featured
+  <b>IntelliJ IDEA plugin</b>.
+</p>
 
-```kotlin
-// Add a skill in minutes
-class MySkill : Skill() {
-    override val skillName = "my_tool"
-    override val description = "Does something useful"
-    override val alias = "MyTool"
+## Screenshots
 
-    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-        return makeSuccess(mapOf("result" to "done"))
-    }
-}
+<div align="center">
+  <img src="docs/screenshots/Dark.png" alt="Gradum in IntelliJ IDEA (dark)" width="49%"/>
+  <img src="docs/screenshots/Light.png" alt="Gradum in IntelliJ IDEA (light)" width="49%"/>
+</div>
+
+## Getting Started
+
+### Option A: run the server
+
+Grab the latest server build from the
+[Releases](https://github.com/lg841226/Gradum/releases/latest) page:
+
+- `gradum@1.0.0-experimental.jar`: cross-platform fat jar (requires Java 21)
+- `gradum-server-macos-arm64-experimental.zip`: self-contained macOS app (Apple Silicon; includes its own JRE, so no
+  Java install needed)
+
+```bash
+./gradlew build
+java -jar gradum@1.0.0-experimental.jar
 ```
+
+Run `--help` from the server to see every command-line option and endpoint.
+
+### Option B: install the IntelliJ IDEA plugin
+
+```bash
+./gradlew :plugin:buildPlugin
+```
+
+Install the output `plugin/build/distributions/gradum-*.zip` via
+`Settings > Plugins > Install Plugin from Disk`, then point the plugin at a running Gradum server.
 
 ## Features
 
-- **Skill system**: Pluggable tool architecture — add capabilities by implementing a `Skill` class
-- **Multi-provider LLM**: Ollama, LM Studio, vLLM, LocalAI, Zhipu BigModel (GLM), DeepSeek, MiniMax, and any
+- **Skill system**: pluggable tool architecture, add capabilities by implementing a `Skill`
+- **Multi-provider LLM**: Ollama, LM Studio, vLLM, LocalAI, Zhipu BigModel, DeepSeek, MiniMax, and any
   OpenAI-compatible endpoint
 - **Streaming events**: NDJSON event stream for real-time UI integration
-- **Context persistence**: Encrypted conversation history (HMAC-CTR + HMAC-SHA256), resumes across runs
-- **Command safety filter**: Structural shell command classification before execution
-- **Edit modes**: Sequential (apply one-by-one) and atomic (all-or-nothing rollback)
-- **Detached processes**: Background execution for GUIs or long-running servers
+- **Encrypted context**: conversation history persisted with HMAC-CTR + HMAC-SHA256, resumes across runs
+- **Command safety filter**: structural shell command classification before execution
+- **Edit modes**: sequential (apply one-by-one) and atomic (all-or-nothing rollback)
+- **Detached processes**: background execution for GUIs or long-running servers
 - **HTTP API**: RESTful endpoints for IDE and web UI integration
 
-## Quick Start
+## IntelliJ IDEA Plugin
 
-```bash
-# Build
-./gradlew build
+A production-quality IntelliJ plugin built with Gradum: not just a demo, but a showcase of the framework's
+capabilities. It's built with Kotlin and the Jetpack Compose-based Jewel UI toolkit, and runs entirely locally, with no
+cloud dependencies.
 
-# Run server (default port 8765)
-java -jar build/libs/gradum@0.9.2.jar
-
-# Or with custom options
-java -jar build/libs/gradum@0.9.2.jar --port 9000 --model qwen2.5-coder:7b --think
-```
-
-### Command-Line Options
-
-| Argument         | Description                               | Default Value            |
-|------------------|-------------------------------------------|--------------------------|
-| `--host`         | Bind address                              | `localhost`              |
-| `--port`         | Port number                               | `8765`                   |
-| `--auto-port`    | Automatically find an available port      | off                      |
-| `--model`        | Default model name                        | no                       |
-| `--think`        | Enable thinking mode                      | off                      |
-| `--provider`     | LLM provider (`ollama` or `openai`)       | `ollama`                 |
-| `--base-url`     | LLM provider base URL                     | `http://localhost:11434` |
-| `--project-root` | Default project root for /events requests | no                       |
-
-## HTTP API
-
-| Endpoint          | Method | Description                   |
-|-------------------|--------|-------------------------------|
-| `/events`         | POST   | Execute agent, returns NDJSON |
-| `/health`         | GET    | Health check                  |
-| `/models`         | GET    | List available models         |
-| `/skills`         | GET    | List available skills         |
-| `/stop`           | POST   | Stop current agent task       |
-| `/session/delete` | POST   | Delete a persisted session    |
-
-```bash
-# Example: Execute an agent task
-curl -X POST http://localhost:8765/events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Read and analyze src/main.kt",
-    "model": "qwen3.5:9b",
-    "projectRoot": "/path/to/your/project"
-  }'
-```
+- **Chat panel**: watch the agent think, search, and edit in real time
+- **Model selector**: auto-discovers local and cloud providers and switches between them instantly
+- **Tool call indicators**: see every tool invocation as it happens; click failures for friendly errors and copyable details
+- **Context toggle**: send your current editor file to the agent with one click
+- **File & image attachments**: up to 10 items in a unified attachment area
+- **Streaming responses**: thinking blocks, tool calls, and final answers render as they stream
+- **Rich Markdown**: tables, code blocks (copy / soft-wrap / line numbers / collapse), task lists, footnotes, LaTeX
+- **Dark/Light themes**: integrated with IntelliJ's theme system via Jewel
+- **Git analysis**: a bottom tool window audits local Git history, surfaces risk findings by theme or severity, and
+  computes a project quality band
 
 ## Built-in Skills
 
@@ -97,200 +101,35 @@ curl -X POST http://localhost:8765/events \
 
 ## LLM Backend Setup
 
-### Web Search (Tavily API)
-
-The `search_web` skill uses the [Tavily Search API](https://tavily.com) for web search. To enable it:
-
-1. Register a free account at [tavily.com](https://tavily.com)
-2. Get your API key from the dashboard
-3. Set the environment variable:
+The `search_web` skill uses the [Tavily Search API](https://tavily.com); set `TAVILY_API_KEY` to enable it
+(the free tier includes 1,000 calls/month). Every other skill works without any key.
 
 ```bash
-export TAVILY_API_KEY="tvly-dev-..."
+# Ollama (local)
+export OLLAMA_HOST=http://localhost:11434
+
+# Zhipu BigModel (GLM)
+export ZHIPU_API_KEY="your-key-here"
+
+# DeepSeek
+export DEEPSEEK_API_KEY="your-key-here"
+
+# MiniMax
+export MINIMAX_API_KEY="your-key-here"
 ```
 
-The free tier includes 1,000 API calls per month. Without this key, the `search_web` skill will return an error
-when invoked, but all other skills work normally.
+## Security
 
-### Ollama
-
-```bash
-ollama pull qwen2.5-coder:7b
-ollama serve  # default http://localhost:11434
-```
-
-### LM Studio / vLLM / LocalAI
-
-Any server supporting the OpenAI-compatible `chat/completions` endpoint works.
-
-```bash
-java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url http://localhost:1234
-```
-
-### Zhipu BigModel (GLM)
-
-Cloud-hosted GLM models via Zhipu AI. Requires an API key.
-
-```bash
-export ZHIPU_API_KEY="your-api-key-here"
-java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://open.bigmodel.cn/api/coding/paas/v4
-```
-
-Supported models: GLM-4, GLM-4-Flash, GLM-4-Air, GLM-4-Long, and more.
-
-### DeepSeek
-
-Cloud-hosted DeepSeek models. Requires an API key.
-
-```bash
-export DEEPSEEK_API_KEY="your-api-key-here"
-java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://api.deepseek.com/v1
-```
-
-Supported models: DeepSeek-V3, DeepSeek-R1, DeepSeek-Chat, and more.
-
-### MiniMax
-
-Cloud-hosted MiniMax models. Requires an API key.
-
-```bash
-export MINIMAX_API_KEY="your-api-key-here"
-java -jar build/libs/gradum@0.9.2.jar --provider openai --base-url https://api.minimaxi.com/v1
-```
-
-Supported models: MiniMax-Text-01, and more.
-
-Model auto-discovery scans ports: 11434 (Ollama), 1234 (LM Studio), 8000 (vLLM), 8080 (LocalAI), plus cloud providers
-(Zhipu BigModel, DeepSeek, MiniMax).
-
----
-
-## Project Architecture
-
-### Technology Stack
-
-| Layer         | Technology                                        |
-|---------------|---------------------------------------------------|
-| Language      | Kotlin 2.3.0 (JVM 21)                             |
-| HTTP Server   | Ktor 3.0.3 + Netty                                |
-| Serialization | kotlinx-serialization-json 1.7.3                  |
-| Coroutines    | kotlinx-coroutines 1.9.0                          |
-| Encryption    | Java Security API + HMAC-SHA256 (custom HMAC-CTR) |
-
-### System Overview
-
-```mermaid
-flowchart TB
-    User(User / IDE) -->|HTTP POST /events| Server[Ktor HTTP Server]
-    Server -->|creates| Agent[Agent: Main Loop]
-    Agent -->|conversation history| LLM[LLM Backend]
-    Agent -->|dispatches tool calls| SkillReg[Skill Registry]
-    LLM -->|streaming NDJSON| Agent
-
-    subgraph Providers[LLM Providers]
-        P1[Ollama]
-        P2[LM Studio]
-        P3[vLLM]
-        P4[LocalAI]
-        P5[Zhipu BigModel]
-    end
-
-    subgraph Skills[Pluggable Skills]
-        S1[ReadFile]
-        S2[EditFile]
-        S3[SaveFile]
-        S4[RunCommand]
-        S5[ExploreProject]
-        S6[Todo]
-        S7[CompletePlan]
-        S8[WebSearch]
-    end
-
-    subgraph Utilities
-        CF[CommandFilter]
-        CTX[ContextManager]
-        TODO[TodoManager]
-    end
-
-    SkillReg --> Skills
-    S4 -->|pre - check| CF
-    Agent -->|save/load| CTX
-    Agent -->|reminders| TODO
-    Skills -->|read/write| Files[Local Filesystem]
-    S4 -->|execute| Shell[Local Shell]
-    Agent -->|emits events| Stream[NDJSON Event Stream]
-    Stream -->|HTTP chunked| User
-```
-
-### NDJSON Event Stream
-
-Each line is one JSON event:
-
-```jsonl
-{"type": "session_start", "timestamp": "...", "data": {"model": "qwen2.5-coder:7b"}}
-{"type": "thinking", "timestamp": "...", "data": {"content": "Analyzing..."}}
-{"type": "tool_call", "timestamp": "...", "data": {"tool": "read_file", "success": true}}
-{"type": "llm_response", "timestamp": "...", "data": {"content": "Done."}}
-{"type": "session_end", "timestamp": "...", "data": {"elapsedSeconds": 15}}
-```
-
-### Security
-
-Command safety filter blocks dangerous operations:
-
-- Executables: `sudo`, `su`, `mkfs`, `dd`, `reboot`, `shutdown`
-- Protected paths: `/etc`, `/usr`, `~/.ssh`, `~/.kube`, etc.
-- Safe path: `/tmp` always allowed
-
----
-
-## IntelliJ IDEA Plugin
-
-A full-featured IntelliJ IDEA plugin built with Gradum. This isn't just a demo — it's a production-quality integration
-that showcases the framework's capabilities.
-
-### Plugin Features
-
-- **Chat panel**: Send messages and watch the agent think, search, and edit in real-time
-- **Model selector**: Auto-discovers local LLM providers (Ollama, LM Studio, vLLM, LocalAI) and cloud providers
-  (Zhipu BigModel, DeepSeek, MiniMax) — switch between them instantly
-- **Tool call indicators**: Visual status for every tool invocation — see what the agent is doing as it happens
-- **Error handling**: Click failed tool calls to see friendly error messages, copy details for debugging
-- **Context toggle**: Eye icon sends your current editor file to the agent automatically
-- **File & image attachments**: Attach multiple files or images from the project, with a unified limit of 10 items
-- **Streaming responses**: Real-time rendering of thinking blocks, tool calls, and the final response
-- **Rich Markdown rendering**: Tables, code blocks (with copy / soft-wrap / line numbers / collapse), links, task lists,
-  footnotes, and inline & block LaTeX
-- **Dark/Light themes**: Fully integrated with IntelliJ's theme system using Jewel components
-- **Git analysis**: Bottom tool window that audits the project's Git history, surfaces SXXXX risk findings grouped by
-  theme or severity, computes a project quality band, and lets you review individual commits — all local via a bundled
-  Python scan script
-
-The plugin is built with Kotlin and the Jetpack Compose-based Jewel UI toolkit. It runs entirely locally — no cloud
-dependencies.
-
-### Build Plugin
-
-```bash
-./gradlew :plugin:buildPlugin
-```
-
-Output: `plugin/build/distributions/gradum-*.zip`
-
-Install via `Settings > Plugins > Install Plugin from Disk`.
-
----
+A command safety filter blocks dangerous executables (`sudo`, `su`, `dd`, `reboot`, …) and protected paths
+(`/etc`, `/usr`, `~/.ssh`, …) before anything runs; `/tmp` is always allowed.
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) — system design, data flow, modules
-- [Plugin Features](docs/PLUGIN_FEATURES.md) — detailed feature index: chat, Markdown pipeline, git analysis, i18n,
-  icons
-- [Coding Standards](docs/CODING_STANDARDS_KOTLIN.md) — Kotlin conventions
-- [Skill Development](docs/PLUGIN_DEVELOPMENT.md) — creating custom skills
-- [UI Conventions](docs/CONVENTIONS.md) — IntelliJ plugin patterns
-- [Infrastructure Pitfalls](docs/INFRASTRUCTURE_PITFALLS_EN.md) — Jewel / Compose / Classloader integration traps, API
-  pitfalls, and engineering lessons
+- [Architecture](docs/ARCHITECTURE.md): system design, data flow, modules
+- [Plugin Features](docs/PLUGIN_FEATURES.md): detailed feature index: chat, Markdown pipeline, git analysis, i18n, icons
+- [Coding Standards](docs/CODING_STANDARDS_KOTLIN.md): Kotlin conventions
+- [Skill Development](docs/PLUGIN_DEVELOPMENT.md): creating custom skills
+- [Infrastructure Pitfalls](docs/INFRASTRUCTURE_PITFALLS_EN.md): Jewel / Compose / Classloader integration traps
 
 ## Contributing
 
@@ -305,4 +144,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-0.9.2
+1.0.0-experimental

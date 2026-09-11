@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatTranscript.kt  2026-09-11 10:43:31 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -78,7 +78,7 @@ import kotlinx.serialization.json.*
 object ChatTranscript {
 
   /** Max characters kept for a session's title (derived from first user message). */
-  val MAX_TITLE_LENGTH: Int = PluginConfig.MAX_TITLE_LENGTH
+  const val MAX_TITLE_LENGTH: Int = PluginConfig.MAX_TITLE_LENGTH
 
   private const val HEADER_V1: String = "<!-- gradum-transcript v1 -->"
   private const val SESSION_PREFIX: String = "<!-- gradum-session"

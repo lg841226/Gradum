@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AppearanceSettings.kt  2026-08-31 19:21:55 Changed by gwy
+ * AppearanceSettings.kt  2026-09-11 10:42:04 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -53,7 +53,6 @@ const val DEFAULT_CODE_BLOCK_FONT_SIZE_SP: Float = 13f
 /** Bounds for the auto-cleanup session age, in days. */
 const val MIN_AUTO_CLEANUP_DAYS: Int = 30
 const val MAX_AUTO_CLEANUP_DAYS: Int = 365
-const val DEFAULT_AUTO_CLEANUP_DAYS: Int = 30
 
 /** Bounds for the message load count per session. */
 const val MIN_MESSAGE_LOAD_COUNT: Int = 20

@@ -7,7 +7,7 @@
 
 # Gradum Plugin Features
 
-Every user-facing feature of the Gradum IntelliJ IDEA plugin (`plugin/` module) is covered here — the chat tool-window,
+Every user-facing feature of the Gradum IntelliJ IDEA plugin (`plugin/` module) is covered here, the chat tool-window,
 its composing UI surfaces, and the cross-cutting infrastructure that holds them together.
 
 For the server-side protocol, the agent loop, and the Skill contract see
@@ -37,11 +37,11 @@ theme-aware through `JewelTheme`; every icon is loaded from the plugin classpath
 
 The plugin registers two IntelliJ tool windows:
 
-- **Chat tool window** — `id` `Gradum`, anchored to the **right sidebar**, factory
+- **Chat tool window**: `id` `Gradum`, anchored to the **right sidebar**, factory
   `gradum.idea.GradumToolWindowFactory`, icon `icons/logo/logo.svg`. Hosts a Compose tab via `addComposeTab` and seeds
   the chat session from the project-level `GradumChatSession` service. A `New Chat` title-bar action resets the session
   and resets the tab display name to the localized welcome string.
-- **Git analysis tool window** — `id` `Gradum Git`, anchored to the **bottom** (next to the Problems panel), factory
+- **Git analysis tool window**: `id` `Gradum Git`, anchored to the **bottom** (next to the Problems panel), factory
   `gradum.idea.GradumGitAnalysisToolWindowFactory`. On first open it shows a home screen describing the audit ("Audit
   your Git commits with Gradum"); clicking **Begin Analysis** launches the git-history audit. See
   [Section 19](#19-git-analysis-tool-window) for the full feature walkthrough.
@@ -69,19 +69,19 @@ Source: [`GradumToolWindowFactory.kt`](../plugin/src/main/kotlin/gradum/idea/Gra
 
 The first surface the user sees when the tool window opens against an empty session.
 
-- **Layout** — outer `Box` with `contentAlignment = Center`; inner `Column`
+- **Layout**: outer `Box` with `contentAlignment = Center`; inner `Column`
   capped at `max width = 600.dp` with `start padding = 6.dp` so the header, the input area, and the quick-start section
   all share one vertical line.
-- **Rotating greeting** — a `SweepLightText` composable renders a typewriter effect across a hand-curated list of
+- **Rotating greeting**: a `SweepLightText` composable renders a typewriter effect across a hand-curated list of
   welcome messages (anti-repetition logic guarantees the same greeting is never shown twice in a row).
-- **Quick-start** — three categories with five variants each (chat, question, text); a fresh `Random.nextInt(5)` is
+- **Quick-start**: three categories with five variants each (chat, question, text); a fresh `Random.nextInt(5)` is
   drawn for each category at every open, then frozen for the session. The code category was removed to reduce clutter.
-- **Focus behavior** — when the input field gains focus and sessions exist, the quick-start section collapses with a
+- **Focus behavior**: when the input field gains focus and sessions exist, the quick-start section collapses with a
   `shrinkVertically` animation. When no sessions exist, the quick-start remains visible regardless of focus state.
-- **Recent sessions** — below the quick-start, the `RecentChatsSection` shows the most recently updated saved sessions
+- **Recent sessions**: below the quick-start, the `RecentChatsSection` shows the most recently updated saved sessions
   (2 by default; expands to 4 when the input is focused and quick-start is collapsed). Each row shows the session title
   (or formatted timestamp if untitled), a leading chat icon, and a hover-revealed delete button with animation.
-- **Merge mode** — a gear button on the recent-sessions header enters merge mode, replacing the welcome screen with the
+- **Merge mode**: a gear button on the recent-sessions header enters merge mode, replacing the welcome screen with the
   `ManageSessionsBoard` (see [Section 20](#20-session-management)).
 
 Source: [`WelcomeScreen.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/home/WelcomeScreen.kt),
@@ -119,10 +119,10 @@ Every visible message is one of two bubbles, both anchored to the right edge for
 
 ### 4.2 `AssistantChatBubble`
 
-- Renders an event timeline — `Thinking`, `ToolCall`, `Response`, `Error` — in arrival order.
+- Renders an event timeline, `Thinking`, `ToolCall`, `Response`, `Error`, in arrival order.
 - Each event is a `RenderBlock`; consecutive events of the same type are coalesced into a single block so Compose can
   reuse composables without rebuilding the list (see [Section 5](#5-message-event-timeline)).
-- A `MessageTimestamp` sits in the bubble footer and formats the timestamp based on how recent the message is —
+- A `MessageTimestamp` sits in the bubble footer and formats the timestamp based on how recent the message is,
   see [Section 5.4](#54-message-timestamp).
 
 Source: [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/UserChatBubble.kt),
@@ -133,12 +133,12 @@ Source: [`UserChatBubble.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat
 ### 4.3 `SubChatView` (sub-agent panel)
 
 - Renders an inline sub-agent chat panel when the main agent delegates a task to a sub-agent.
-- Two rendering paths: **runtime** (sub-agent is actively streaming — shows `toolCalls` + live response text) and
-  **history** (sub-agent has completed — renders a static transcript from `ChatTranscript.parseTranscript()`).
+- Two rendering paths: **runtime** (sub-agent is actively streaming, shows `toolCalls` + live response text) and
+  **history** (sub-agent has completed, renders a static transcript from `ChatTranscript.parseTranscript()`).
 - Handles 5 sub-agent wire events: `sub_agent:start` (opens the panel), `sub_agent:response` (appends to response text),
   `sub_agent:tool_call` (appends to tool call list), `sub_agent:error` (shows failure state), and
   `sub_agent:session_end` (closes the panel with final status).
-- Displays the actual task duration by reading `endTimestamp` from `delegateArgs` — avoids capturing rendering time.
+- Displays the actual task duration by reading `endTimestamp` from `delegateArgs`, avoids capturing rendering time.
 - On sub-agent failure, shows an error message instead of the "working" spinner.
 
 Source: [`SubChatView.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/SubChatView.kt),
@@ -166,7 +166,7 @@ rendering, and dispatches sub-agent events to a separate `SubChatView`:
 | `sub_agent:error`       | `SubChatView`          | Shows error state in the sub-agent panel.                             |
 | `sub_agent:session_end` | `SubChatView`          | Closes the sub-agent panel with final status.                         |
 
-`ChatMessage.appendEvent` performs an O (1) update — it never re-iterates the existing list. `updateLastError` likewise
+`ChatMessage.appendEvent` performs an O (1) update. It never re-iterates the existing list. `updateLastError` likewise
 does an O (1) `indexOfLast +
 set` to patch a failed tool call's error message after the fact.
 
@@ -196,7 +196,7 @@ A renderer is responsible for:
   show in the body and which `ToolCallAction`s to expose (e.g. `OpenInEditor`,
   `CopyToClipboard`).
 
-Adding a new tool call UI is a **plain Kotlin registration** — one line in the registry, no plugin.xml change. The chat
+Adding a new tool call UI is a **plain Kotlin registration**, one line in the registry, no plugin.xml change. The chat
 panel consults
 [
 `ToolCallRendererRegistry.RENDERERS`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
@@ -216,7 +216,7 @@ The Platform's `ExtensionPointName` lookup path has several practical drawbacks 
 - The `<extensionPoint>` element must be a direct child of
   `<idea-plugin>`, which is fragile to refactors and easy to break with a copy / paste of an `<extensions>` block.
 - EP resolution goes through the IDE's `Extensions` area, which throws
-  `IllegalArgumentException: Missing extension point` at the first chat render if anything is misconfigured — a
+  `IllegalArgumentException: Missing extension point` at the first chat render if anything is misconfigured, a
   non-recoverable runtime crash that takes down the entire chat panel.
 - The EP can't be defined per-alias in a way that's easy to discover: a developer has to read the EP interface + the
   Gradum source to learn the convention.
@@ -256,26 +256,26 @@ See
 
 ### 5.3 Streaming indicators
 
-- **`ThinkingIndicator`** — collapsible reasoning block that renders the LLM's accumulated thinking as Markdown in a
+- **`ThinkingIndicator`**: collapsible reasoning block that renders the LLM's accumulated thinking as Markdown in a
   muted-gray palette. Header row shows a "思考" label with a chevron; clicking toggles expand/collapse.
   **Auto-collapses** when `isTaskComplete` (loading done) or `hasResponseAfter` (a response block follows). Fenced code
   blocks and GFM tables inside the thinking text are rendered in simplified mode (`isSimplified = true`)
   without copy/insert-as-file toolbars. Uses `AnimatedVisibility` for expand/collapse transitions.
-- **`AnimatedSegment`** — per-segment fade-in + vertical rise animation on response blocks. Duration varies by segment
+- **`AnimatedSegment`**: per-segment fade-in + vertical rise animation on response blocks. Duration varies by segment
   type (Table 1.5×, NonProseBlock 1.2×, Plain 1.0×) with height-based extra duration capped at `SEGMENT_MAX_EXTRA_MS`.
   Newly completed segments animate; previously rendered segments remain static.
-- **`ToolCallIndicator`** — a one-line alias + status icon shown beneath the active tool call (e.g. "Ran read_file");
+- **`ToolCallIndicator`**: a one-line alias + status icon shown beneath the active tool call (e.g. "Ran read_file");
   lives inside the per-skill renderers under `chat/ui/chat/skill/`.
-- **`SweepLightText`** — the typewriter + shimmer effect used both on the welcome screen and on streaming response text.
+- **`SweepLightText`**: the typewriter + shimmer effect used both on the welcome screen and on streaming response text.
 
 ### 5.4 Message timestamp
 
 `formatTimestamp` is locale-aware (`Locale.getDefault()`) and produces:
 
-- **Today** — `HH:mm` (e.g. `14:30`).
-- **Yesterday** — `Yesterday HH:mm` (localized).
-- **This year** — `MMM d` (e.g. `Jun 15`).
-- **Older** — `N days ago` (localized).
+- **Today**: `HH:mm` (e.g. `14:30`).
+- **Yesterday**: `Yesterday HH:mm` (localized).
+- **This year**: `MMM d` (e.g. `Jun 15`).
+- **Older**: `N days ago` (localized).
 
 The message list only renders a date separator when the day changes between consecutive messages; everything else gets a
 per-message inline timestamp.
@@ -292,7 +292,7 @@ rows are in the per-skill renderers under [
 ## 6. Markdown rendering
 
 Markdown in the chat goes through a **layered pipeline** rather than a single
-`Markdown(...)` call, because the JetBrains Jewel `Markdown(...)` composable does not expose an `inlineContent` slot —
+`Markdown(...)` call, because the JetBrains Jewel `Markdown(...)` composable does not expose an `inlineContent` slot,
 and a chat message that mixes **prose with inline code** is the most common case. Each layer handles one job; layers
 fall through to one another when their preconditions fail.
 
@@ -323,7 +323,7 @@ fall through to one another when their preconditions fail.
    └────────────────────────────────────────────────────────────┘
 ```
 
-### 6.1 Layer 1 — Fenced code blocks (`GradumCodeBlockRenderer`)
+### 6.1 Layer 1: Fenced code blocks (`GradumCodeBlockRenderer`)
 
 A Jewel `MarkdownBlockRenderer` that wraps every fenced code block with a copy button + the IDE's syntax highlighter
 (resolved through the Jewel bridge to whatever language services the host project has loaded). This layer is registered
@@ -334,34 +334,34 @@ Source file: [
 
 Since the 2026-07-30 hardening passes, the code-block surface is far richer than a plain "code + copy":
 
-- **Collapse for long blocks** — any block over `CODE_COLLAPSE_LIMIT = 20`
+- **Collapse for long blocks**: any block over `CODE_COLLAPSE_LIMIT = 20`
   lines starts collapsed (the first 19 lines + a strip bar). The strip bar reads `gradum.code.expand` /
   `gradum.code.collapse` with a chevron and the hidden-line count; clicking it toggles with a 200 ms
   `animateContentSize`.
-- **Line numbers** — an optional `LineNumberColumn` renders source line numbers aligned with the measured
+- **Line numbers**: an optional `LineNumberColumn` renders source line numbers aligned with the measured
   `TextLayoutResult`, separated by a 1 dp vertical divider. Wrap-around lines (a source line broken by soft wrap)
   share the same number. Toggled from the toolbar, only when the block is collapsible.
-- **Soft wrap / horizontal scroll** — `ContainerOrScrollable` chooses a
+- **Soft wrap / horizontal scroll**: `ContainerOrScrollable` chooses a
   `HorizontalScrollContainer`(+bar) when soft wrap is off, or a plain `Box`
   when it's on. Toggled from the toolbar.
-- **Insert as file** — a toolbar action hands the raw code + language to
+- **Insert as file**: a toolbar action hands the raw code + language to
   `onInsertAsFile`, which creates a new editor file from the snippet.
-- **Sticky toolbar** — the toolbar registers itself in
+- **Sticky toolbar**: the toolbar registers itself in
   `LocalStickySectionRegistry` (see §6.5) and is re-rendered by the scroll owner as a floating header while the block
   scrolls out of view.
-- **Indent guides** — for blocks with more than 20 lines, per-level vertical segments are drawn via `drawWithContent` on
+- **Indent guides**: for blocks with more than 20 lines, per-level vertical segments are drawn via `drawWithContent` on
   the code `Text` at each indentation depth, so nested code keeps its visual structure. The guides use the
   disabled-border color at 50% alpha.
-- **Selection hygiene** — the toolbar, line-number column, and collapse strip are wrapped in `DisableSelection` so only
+- **Selection hygiene**: the toolbar, line-number column, and collapse strip are wrapped in `DisableSelection` so only
   the code itself is selectable.
 
-### 6.2 Layer 2 — GFM tables (`Table.kt`)
+### 6.2 Layer 2: GFM tables (`Table.kt`)
 
 GFM tables are **pulled out of the raw Markdown BEFORE** the rest is handed to `Markdown(...)`. Tables are rendered as
 plain Compose inside a horizontally-scrollable `Box` (`ScrollableTable` composable inside
 `chat/ui/markdown/Table.kt`), which gives a wide table its own horizontal scrollbar without also scrolling the
 surrounding prose. Trying to wrap the whole `Markdown(...)` in `Box.horizontalScroll(...)` instead had the side effect
-of making long inline code / URLs horizontally scrollable too — undesirable in a chat panel.
+of making long inline code / URLs horizontally scrollable too, undesirable in a chat panel.
 `splitMarkdownAtBlocks(text)` is the pure function that returns `List<MarkdownSegment>` (defined in `BlockSplit.kt`).
 
 Since 2026-07-31 the table also registers **a sticky header row**: while the table scrolls out of view, the scroll owner
@@ -370,10 +370,10 @@ re-renders the header (
 with the section's top-only rounded corners on top of the message column.
 
 When a table fails to parse (`isRenderable() == false`), the chat bubble substitutes
-`TableParseFailurePlaceholder()` — an error-style row matching `ErrorBlock`: a `FailedInProgress` status icon, red error
+`TableParseFailurePlaceholder()`, an error-style row matching `ErrorBlock`: a `FailedInProgress` status icon, red error
 text from `gradum.markdown.table.parse.failed`, `editorTextStyle`, and a horizontal scroll container.
 
-### 6.3 Layer 3 — Inline Markdown hijack (`InlineMarkdown.kt`)
+### 6.3 Layer 3: Inline Markdown hijack (`InlineMarkdown.kt`)
 
 The layer the LLM sees most. For every `MarkdownSegment.Plain`
 we attempt a custom inline parse:
@@ -383,7 +383,7 @@ we attempt a custom inline parse:
    reparses the segment and returns a `Document` AST.
 2. We walk the AST. If the segment contains a list, heading, blockquote, fenced code block, `LinkReferenceDefinition`,
    or anything other than plain `Paragraph` blocks, the layer **bails out** and returns `null`
-   — the caller then falls through to Jewel's native `Markdown(...)`. Lists in chat are rare; re-implementing list /
+   The caller then falls through to Jewel's native `Markdown(...)`. Lists in chat are rare; re-implementing list /
    heading / blockquote rendering is not worth it.
 3. For accepted segments, we build:
     - one `AnnotatedString` with `SpanStyle` overlays (bold, italic, link)
@@ -403,7 +403,7 @@ we attempt a custom inline parse:
 - The v1 attempt to bypass `Markdown(...)` for any paragraph containing backticks lost **bold / italic / links** for the
   rest of the paragraph AND the chip rendered empty because the chip's internal `Text` inherited the editor style's
   `lineHeight` (1.5x) and got clipped to ~0 visible pixels. v2 takes the segment wholesale and walks the CommonMark AST
-  ourselves — no `Markdown(...)` involved, so no styling escape hatches fire.
+  ourselves, no `Markdown(...)` involved, so no styling escape hatches fire.
 
 **Chip visual spec** (`InlineCodeChip` inside `InlineMarkdown.kt`):
 
@@ -412,14 +412,14 @@ we attempt a custom inline parse:
   `tint.copy(alpha = 0.30f)`.
 - Padding `horizontal = 4.dp, vertical = 2.dp`.
 - Font: same family as the editor text; weight `Medium`; **explicit
-  `lineHeight = fontSizeSp.sp`** (1.0x — fixes the v1 zero-pixel bug).
+  `lineHeight = fontSizeSp.sp`** (1.0x, fixes the v1 zero-pixel bug).
 - `maxLines = 1`, `softWrap = false`.
 
 **Bail-out conditions** (return `null` → caller uses `Markdown(...)`):
 
 - Blank input.
 - Input contains any non-`Paragraph` block (list, heading, blockquote, fenced code, `LinkReferenceDefinition`).
-- `commonmark` throws (defensive — `commonmark` is robust, but a bug in the AST walker or chip rendering should not take
+- `commonmark` throws (defensive, `commonmark` is robust, but a bug in the AST walker or chip rendering should not take
   down the entire chat bubble).
 - All 49 unit tests in `GradumInlineMarkdownTest.kt` pin these conditions (bail-out, plain, bold-italic, code, link,
   mixed, multi-para, escape, soft break, defensive).
@@ -429,16 +429,16 @@ we attempt a custom inline parse:
 Before any layer runs, the raw response text goes through
 `splitMarkdownAtBlocks(text)` in `chat/ui/markdown/BlockSplit.kt`. Beside GFM tables it also recognizes:
 
-- **Block LaTeX** — `$$` markers on their own lines wrap a formula (`LatexBlock`); the block is serialized back into the
+- **Block LaTeX**: `$$` markers on their own lines wrap a formula (`LatexBlock`); the block is serialized back into the
   prose stream so the formula survives table/plain splitting, then rendered by
   `LatexRenderer.kt` (centered, padded vertically).
-- **Task lists** — `BlockRenderer.kt` parses `- [ ]` / `- [x]` markers via
-  `extractTaskListMarker` and renders `TaskListItem` composables with themed checkboxes (`enabled = false` — task lists
+- **Task lists**: `BlockRenderer.kt` parses `- [ ]` / `- [x]` markers via
+  `extractTaskListMarker` and renders `TaskListItem` composables with themed checkboxes (`enabled = false`, task lists
   in chat messages are read-only display).
-- **Footnote definitions** — `[^label]: …` blocks are collected into a
+- **Footnote definitions**: `[^label]: …` blocks are collected into a
   `FootnoteRegistry` (see §6.6) so reference chips can jump to them.
 
-### 6.5 Layer 4 — Native `Markdown(...)` (the fallback)
+### 6.5 Layer 4: Native `Markdown(...)` (the fallback)
 
 When a `Plain` segment bails out of `InlineMarkdown.kt`, the caller hands it to `Markdown(markdown = segment.text, modifier = …,
 onUrlClick = …)`. This is the original Jewel path: it renders everything from headings to nested lists to thematic
@@ -447,14 +447,14 @@ breaks. It also reaches back into Layer 1 to pick up the `GradumCodeBlockRendere
 **New inline features ride inside `rememberInlineMarkdownRender` itself**
 (not the native fallback), so they are available even for plain paragraphs:
 
-- **Inline LaTeX** — `$…$`, `$$…$$` (block-scoped when alone on a line), and `\(…\)` forms are recognized *before*
+- **Inline LaTeX**: `$…$`, `$$…$$` (block-scoped when alone on a line), and `\(…\)` forms are recognized *before*
   CommonMark parsing (`InlineMarkdown.kt`). `\(…\)`, `$…$`, and `$$…$$` formulas are replaced with Private-Use-Area
   placeholder markers so CommonMark's backslash-escape / emphasis rules can't mangle them; the placeholder width is
   measured live with `LatexMeasurerState` (falling back to a character-width estimate), and the chip renders via the
   `com.hrm.latex`-based `LatexRenderer`. Cached per formula text; distinct PUA ranges for the `\(` / `$` forms.
-- **Footnotes** — `[^label]` reference chips look up their label's definition position in the `FootnoteRegistry` and ask
+- **Footnotes**: `[^label]` reference chips look up their label's definition position in the `FootnoteRegistry` and ask
   the scroll owner to animate to it; the definition chip flashes on arrival.
-- **Clickable links** — bare URLs and `<https://…>` autolinks are detected before CommonMark and rendered as annotated
+- **Clickable links**: bare URLs and `<https://…>` autolinks are detected before CommonMark and rendered as annotated
   clickable spans.
 
 ### 6.6 Styling + sticky sections (`Styling.kt`, `StickySection.kt`, `FootnoteRegistry.kt`)
@@ -466,7 +466,7 @@ breaks. It also reaches back into Layer 1 to pick up the `GradumCodeBlockRendere
   (provided via `LocalStickySectionRegistry`) lets the message column track each code block toolbar and table header's
   window bounds (`topInColumn` /
   `bottomInColumn`). While content scrolls, the scroll owner re-renders the topmost *active* toolbar/header over the
-  column — powers the sticky code toolbar and the sticky table header. Fading: the fade zone starts at 1.5
+  column, powers the sticky code toolbar and the sticky table header. Fading: the fade zone starts at 1.5
   header-heights and completes at 1.0 header-heights.
 - **Footnotes** (`FootnoteRegistry.kt`): per-message registry mapping footnote labels to definition positions; positions
   are read live from the scrollable column, shortest-path jump picks the nearest definition, and
@@ -521,7 +521,7 @@ ChatInputSection               (top-level section, only mounted in chat screen)
 
 The state for this whole tree is a `ChatInputState` snapshot; the callbacks form a `ChatInputActions` data class.
 `ChatInputState` is recomposed via
-`mutableStateOf` on the session — never as a `mutableStateListOf` — to keep Compose's snapshot model predictable.
+`mutableStateOf` on the session, never as a `mutableStateListOf`, to keep Compose's snapshot model predictable.
 
 Source: [`ChatInputSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ChatInputSection.kt),
 [`ChatInputPanel.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/input/ChatInputPanel.kt),
@@ -535,11 +535,11 @@ Source: [`ChatInputSection.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/in
 
 The model selector is a `SelectorButton` (icon + label + chevron) that opens a `PopupMenu` with two sections:
 
-1. **Pinned** — only when the user has pinned at least one model.
-2. **All models** — everything else, minus pinned entries.
+1. **Pinned**: only when the user has pinned at least one model.
+2. **All models**: everything else, minus pinned entries.
 
 When no model is selected yet (or the previous selection disappeared from the roster), the plugin defaults to the first
-entry in the list — `applyModelList` picks `models.first()` so the user always has a working model. Once a model is
+entry in the list, `applyModelList` picks `models.first()` so the user always has a working model. Once a model is
 chosen, the selection stays stable across polls unless that entry disappears.
 
 ### 8.1 Provider icons
@@ -591,9 +591,9 @@ Source: [`ModelSelectorBar.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/in
 
 A dropdown that controls the active `ToolMode`:
 
-- **`READ_ONLY`** — `explore_project`, `read_file`, `run_cmd`. No `edit_file`, no `save_file`, no `to_do`.
-- **`SINGLE_STEP`** — everything in read-only plus `to_do`.
-- **`WRITE`** — every Skill is exposed.
+- **`READ_ONLY`**: `explore_project`, `read_file`, `run_cmd`. No `edit_file`, no `save_file`, no `to_do`.
+- **`SINGLE_STEP`**: everything in read-only plus `to_do`.
+- **`WRITE`**: every Skill is exposed.
 
 The default for a new session is `READ_ONLY`; the user promotes to
 `SINGLE_STEP` or `WRITE` from the dropdown once they understand what each mode unlocks.
@@ -612,15 +612,15 @@ Source: [`PermissionSelector.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/
 
 The user can attach files and folders to a message. The bar lives between the toolbar and the text field.
 
-- **Maximum count** — `MAX_ATTACHMENTS = 10`. Files, images, and text attachments all share the same pool. The add
+- **Maximum count**: `MAX_ATTACHMENTS = 10`. Files, images, and text attachments all share the same pool. The add
   button is disabled (with a tooltip explaining why) once the limit is reached.
-- **Add surface** — `AddContextPopup` exposes file pickers for both files and directories. Adding a directory walks it
+- **Add surface**: `AddContextPopup` exposes file pickers for both files and directories. Adding a directory walks it
   and freezes the result at send time so subsequent edits in the IDE don't affect the in-flight message.
-- **Remove** — every file chip has a remove button; deletion is non-destructive (the file on disk is untouched).
-- **Long-paste detection** — any text longer than 200 characters pasted into the input is automatically lifted out as a
+- **Remove**: every file chip has a remove button; deletion is non-destructive (the file on disk is untouched).
+- **Long-paste detection**: any text longer than 200 characters pasted into the input is automatically lifted out as a
   `text/plain` attachment and removed from the input. The detection uses a reactive diff against the `textState`
   subscription rather than a `KeyEvent` interceptor, so it works equally well for paste, drag-and-drop, and IME input.
-- **Collapsible** — the attachment list is collapsible with an animated visibility toggle so a full bar of five files
+- **Collapsible**: the attachment list is collapsible with an animated visibility toggle so a full bar of five files
   does not crowd the input on small tool windows.
 
 Source: [`AttachmentBar.kt`](../plugin/src/main/kotlin/gradum/idea/chat/ui/input/AttachmentBar.kt),
@@ -702,7 +702,7 @@ Sends a single user turn and consumes the streamed agent events as NDJSON. The p
 line is logged at
 `warn` level and skipped, so a single bad event does not break the stream. The event types include the four main
 `ChatEvent` subtypes (thinking / tool_call / response / error) plus five sub-agent events (sub_agent:start / sub_agent:
-response / sub_agent:tool_call / sub_agent:error / sub_agent:session_end) — see
+response / sub_agent:tool_call / sub_agent:error / sub_agent:session_end), see
 [Section 5](#5-message-event-timeline).
 
 ### 12.3 `POST /stop`
@@ -728,7 +728,7 @@ roster appears without waiting for the next poll tick.
 
 A typed `ErrorCode` enum is shared between the server and the plugin (18 codes, including `INVALID_PARAMETER`,
 `TOOL_NOT_PERMITTED`, `FILE_TOO_LARGE`,
-`TIMEOUT`, etc.). The plugin maps codes to localized, user-friendly messages — never raw stack traces.
+`TIMEOUT`, etc.). The plugin maps codes to localized, user-friendly messages, never raw stack traces.
 
 Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/GradumApiClient.kt),
 [`ErrorCode.kt`](../plugin/src/main/kotlin/gradum/idea/chat/model/ErrorCode.kt),
@@ -741,16 +741,16 @@ Source: [`GradumApiClient.kt`](../plugin/src/main/kotlin/gradum/idea/chat/api/Gr
 Every user-visible string in the plugin is loaded through `GradumBundle`, which extends IntelliJ's `DynamicBundle`. The
 bundle ships two locales:
 
-- **`en`** — `messages/GradumBundle.properties` (default).
-- **`zh_CN`** — `messages/GradumBundle_zh_CN.properties`.
+- **`en`**: `messages/GradumBundle.properties` (default).
+- **`zh_CN`**: `messages/GradumBundle_zh_CN.properties`.
 
 The English file has **389 keys**, the Chinese file has **384**
-(lockstep — the few-key delta is transient mid-refactor noise). Both files are kept in lockstep — a key that exists in
+(lockstep, the few-key delta is transient mid-refactor noise). Both files are kept in lockstep. A key that exists in
 one must exist in the other; the bundle is hardened with two safety nets:
 
-1. **Startup probe** — the `init` block of `GradumBundle` looks up a sentinel key (e.g. `gradum.toolwindow.welcome`) to
+1. **Startup probe**: the `init` block of `GradumBundle` looks up a sentinel key (e.g. `gradum.toolwindow.welcome`) to
    confirm the active locale's resource is on the classpath.
-2. **Per-key fallback** — `GradumBundle.message(key, ...)` catches
+2. **Per-key fallback**: `GradumBundle.message(key, ...)` catches
    `MissingResourceException` and returns `???<key>???` so a missing key is obvious in the UI without breaking layout.
 
 The Chinese copy is not a direct translation; it is curated for cultural relevance (Chinese proverbs, regional phrasing)
@@ -767,14 +767,14 @@ Source: [`GradumBundle.kt`](../plugin/src/main/kotlin/gradum/idea/utils/GradumBu
 The plugin ships **103 SVG icons + one TTF font** (`GoogleSans.ttf`) under
 `plugin/src/main/resources/icons/`, organized by purpose:
 
-- `auto/`, `build/`, `cloud/`, `local/` — model-mode indicators.
-- `cmd/`, `edit/`, `explore/`, `web/`, `file-type/`, `save/`, `send/`, `search/`, `tools/` — tool affordances.
-- `feat/chat/`, `feat/code/`, `feat/question/`, `feat/text/` — quick-start tiles.
-- `file-type/` — language-typed file glyphs (Kotlin, Python, TypeScript, JSX, PHP, …).
-- `model-provider/` — brand logos for 11 providers, each with a light/dark pair for IDE theme parity.
+- `auto/`, `build/`, `cloud/`, `local/`: model-mode indicators.
+- `cmd/`, `edit/`, `explore/`, `web/`, `file-type/`, `save/`, `send/`, `search/`, `tools/`: tool affordances.
+- `feat/chat/`, `feat/code/`, `feat/question/`, `feat/text/`: quick-start tiles.
+- `file-type/`: language-typed file glyphs (Kotlin, Python, TypeScript, JSX, PHP, …).
+- `model-provider/`: brand logos for 11 providers, each with a light/dark pair for IDE theme parity.
 - `like/`, `like-selected/`, `dislike/`, `dislike-selected/`, `scroll-up/`, `scroll-down/`,
   `expand-all/`, `collapse-all/`, `soft-wrap/`, `numbered-list/`, `table/`, `markdown/`,
-  `image/`, `warning/`, `vison/`, `logo/` — UI affordances.
+  `image/`, `warning/`, `vison/`, `logo/`: UI affordances.
 
 Every icon has a light/dark pair (suffix `_dark`) so it tracks the IDE theme. `GradumIcons` is the single source of
 truth for icon lookups; UI code never hard-codes an icon path.
@@ -788,10 +788,10 @@ Source: [`GradumIcons.kt`](../plugin/src/main/kotlin/gradum/idea/utils/GradumIco
 
 The plugin reads three things out of the host IDE:
 
-- **Current selection** — `EditorContext` snapshots the user's text selection in the focused editor at the moment a chat
+- **Current selection**: `EditorContext` snapshots the user's text selection in the focused editor at the moment a chat
   message is sent, so the LLM can quote it back.
-- **Open file path** — the active file's path is added to the conversation as an implicit attachment.
-- **Pending messages** — `PendingMessage` is the data class that snapshots one user message (text + frozen attachments)
+- **Open file path**: the active file's path is added to the conversation as an implicit attachment.
+- **Pending messages**: `PendingMessage` is the data class that snapshots one user message (text + frozen attachments)
   while it is queued. The queue itself lives on `GradumChatSession.pendingMessages` and is capped at
   `MAX_PENDING_MESSAGES = 2`. When the streaming turn finishes, the next pending message is dispatched automatically.
 
@@ -802,22 +802,22 @@ Source: [`EditorContext.kt`](../plugin/src/main/kotlin/gradum/idea/editor/Editor
 
 ## 16. Styling conventions
 
-- **Theme** — every composable pulls from `JewelTheme` (`globalColors`,
+- **Theme**: every composable pulls from `JewelTheme` (`globalColors`,
   `typography`, `editorColors`). No hard-coded hex colors; no
   `Color.Red` / `Color.Blue` literals.
-- **Spacing** — all paddings, gaps, and margins come from `GradumSpacing`
+- **Spacing**: all paddings, gaps, and margins come from `GradumSpacing`
   in `Spacing.kt`. Popup items use
   `Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp)`; section headers use `vertical = 4.dp`;
   icon-to-text gaps use
   `Spacer(Modifier.width(6.dp))`. This is the canonical spacing rule for any new popup or menu in the plugin.
-- **Icon-to-tooltip semantics** — pin and unpin, share and unshare, and similar toggle pairs use a state-based icon: the
+- **Icon-to-tooltip semantics**: pin and unpin, share and unshare, and similar toggle pairs use a state-based icon: the
   icon for the *active*
   state is the "selected" or "filled" variant, the icon for the *inactive*
   state is the "outline" variant. Tooltips mirror the icon's meaning, not the underlying state.
-- **Text composables** — every `Text` uses the named `text =` parameter (not positional). This is enforced project-wide
+- **Text composables**: every `Text` uses the named `text =` parameter (not positional). This is enforced project-wide
   and lints clean.
-- **Single-line `if`** — `if (cond) doThing()` without braces is the default; only wrap when the body is non-trivial.
-- **Wildcard imports** — the project allows wildcard imports for the four Compose-for-Desktop key packages
+- **Single-line `if`**: `if (cond) doThing()` without braces is the default; only wrap when the body is non-trivial.
+- **Wildcard imports**: the project allows wildcard imports for the four Compose-for-Desktop key packages
   (`androidx.compose.foundation.layout.*`,
   `org.jetbrains.jewel.ui.component.*`, `androidx.compose.foundation.*`,
   `androidx.compose.runtime.*`); everything else uses explicit imports.
@@ -831,16 +831,16 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 
 ## 17. Accessibility & UX guarantees
 
-- **Disabled state tooltips** — every disabled control has a tooltip explaining *why* it is disabled (e.g. "Maximum of
+- **Disabled state tooltips**: every disabled control has a tooltip explaining *why* it is disabled (e.g. "Maximum of
   10 attachments" on the add button when the limit is reached). No silent greying-out.
-- **Consistent chat patterns** — user and assistant bubbles, message timestamps, copy buttons, and error states share
+- **Consistent chat patterns**: user and assistant bubbles, message timestamps, copy buttons, and error states share
   one visual layout across the welcome screen, the chat list, and any future surface (the rule is documented in
   `CONVENTIONS.md`).
-- **Date separators** — the chat list inserts a separator only when the day changes between consecutive messages;
+- **Date separators**: the chat list inserts a separator only when the day changes between consecutive messages;
   per-message timestamps use the four-tier format described in [Section 5.4](#54-message-timestamp).
-- **Typewriter welcome** — the welcome screen uses an anti-repetition rotating greeting so the user does not see the
+- **Typewriter welcome**: the welcome screen uses an anti-repetition rotating greeting so the user does not see the
   same line twice in a row within a session.
-- **Streaming animation** — `SweepLightText` is reused for both the welcome greeting and the live response stream, so
+- **Streaming animation**: `SweepLightText` is reused for both the welcome greeting and the live response stream, so
   the user gets one visual language for "text that is arriving".
 
 ---
@@ -874,7 +874,7 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 | `chat/ui/markdown/InlineMarkdown.kt`         | Custom CommonMark inline parser + chip renderer + inline LaTeX + footnotes (Layer 3 of the pipeline).                                                                                               |
 | `chat/ui/markdown/Styling.kt`                | Markdown styling config from `JewelTheme` + `rememberGradumParagraphTextStyle()`.                                                                                                                   |
 | `chat/ui/markdown/Table.kt`                  | GFM table parser + `ScrollableTable` Compose + sticky header (Layer 2 of the pipeline).                                                                                                             |
-| `chat/ui/markdown/BlockSplit.kt`             | `splitMarkdownAtBlocks` — splits raw text into tables / blocks / plain segments; LaTeX block round-trip.                                                                                            |
+| `chat/ui/markdown/BlockSplit.kt`             | `splitMarkdownAtBlocks`: splits raw text into tables / blocks / plain segments; LaTeX block round-trip.                                                                                            |
 | `chat/ui/markdown/BlockRenderer.kt`          | Custom block renderer: headings, blockquotes, paragraphs, task-list items (`RenderTaskListItem`).                                                                                                   |
 | `chat/ui/markdown/NodeChildren.kt`           | Shared children helpers for the block renderer.                                                                                                                                                     |
 | `chat/ui/markdown/LatexBlockExtension.kt`    | CommonMark block parser for `$$` LaTeX blocks (`LatexBlock`).                                                                                                                                       |
@@ -938,7 +938,7 @@ Source: [`Spacing.kt`](../plugin/src/main/kotlin/gradum/idea/utils/Spacing.kt),
 
 ## 19. Git analysis tool window
 
-Since July 2026 the plugin ships a second, self-contained tool window — the **Git analysis** ("Audit") panel — that
+Since July 2026 the plugin ships a second, self-contained tool window, the **Git analysis** ("Audit") panel, that
 audits the project's Git history and surfaces SXXXX findings and a project quality band. It is the largest feature added
 after the chat panel and runs its own lifecycle end-to-end: script resolution → two-phase scan → live finding tree →
 commit-details panel → summary banner.
@@ -947,8 +947,8 @@ commit-details panel → summary banner.
 
 When no scan has run (or after **Close Report** / **Back to Home**), the tool window shows a centered home column:
 
-- **Title** — "Audit your Git commits with Gradum" with the color logo.
-- **Feature list** — three bullet points describing the audit (identify risk patterns across history, estimate a health
+- **Title**: "Audit your Git commits with Gradum" with the color logo.
+- **Feature list**: three bullet points describing the audit (identify risk patterns across history, estimate a health
   score, see results in-place). Rendered by `GitAuditFeatureList` with the chat's unordered-list styling.
 - **Begin Analysis** (`DefaultButton`) starts the scan.
 - **View full edition** (`ExternalLink`) placeholder link.
@@ -973,7 +973,7 @@ State is exposed as Compose `mutableStateOf` fields (`scanState`,
 (localized "not a git repo" message), then snapshots the pre-scan state (`restoreStateBeforeScan`) so a canceled scan
 never leaves stale findings behind.
 
-**Two-phase progress** — the scan runs in two background tasks: a determinate phase that tracks per-commit progress,
+**Two-phase progress**, the scan runs in two background tasks: a determinate phase that tracks per-commit progress,
 then an indeterminate phase that collects project-wide findings. Script stdout is JSONL (one JSON object per line);
 stderr is redirected to a temp file read only on failure.
 
@@ -988,18 +988,18 @@ stderr is redirected to a temp file read only on failure.
 After a successful scan the main area is a Jewel `LazyTree` of
 `AuditTreeItem` nodes:
 
-- **Branch row** — when `currentBranch` is available a top-level row (VCS branch icon + bold branch name + `N Problems`)
+- **Branch row**: when `currentBranch` is available a top-level row (VCS branch icon + bold branch name + `N Problems`)
   wraps the groups below it. The wrapper expands automatically on scan completion.
-- **Grouping toggle** — findings bucket into **four audit groups**
+- **Grouping toggle**: findings bucket into **four audit groups**
   (`Suspected LLM Involvement`, `Potential Code Engineering Risks`, `Team
   Process Observation`, `Other`) or, with **Group by Severity**, into severity rows (Very High / High / Watch /
   Information). The toggle is an eye icon in the action bar with a spinner during the 300 ms transition.
-- **Finding rows** — one per SXXXX finding: severity icon + localized body (e.g.
+- **Finding rows**: one per SXXXX finding: severity icon + localized body (e.g.
   `S1001: A single commit changed +500/-200 lines...`). Hovering shows the full `(SXXXX) <body>` tooltip. Findings with
   a real commit hash are clickable.
-- **Load-more** — each group shows at most `DEFAULT_FINDING_LIMIT = 50`
+- **Load-more**: each group shows at most `DEFAULT_FINDING_LIMIT = 50`
   findings; a "Continue expanding N more issues" row appends the next batch (added 2026-08-08).
-- **Review marking** — toggling the bookmark action strikes the finding through with a line-through and swaps the icon
+- **Review marking**: toggling the bookmark action strikes the finding through with a line-through and swaps the icon
   to the outline variant; a hover-expanding orange "Reviewed" label appears. The reviewed set is tracked per finding via
   `findingKey = "<code>|<hash>|<index>"`.
 
@@ -1026,14 +1026,14 @@ A vertical rail of `IconTooltipButton`s with i18n tooltips:
 
 Selecting a finding with a real commit hash (`hasRealCommitHash()`) and enabling the preview shows the right-hand panel:
 
-- **Header actions** — Open on GitHub (`openCommitOnGitHub` resolves the
+- **Header actions**: Open on GitHub (`openCommitOnGitHub` resolves the
   `origin` remote and browses `https://github.com/<path>/commit/<hash>`; SSH and HTTPS forms both work), copy
   subject+body, pin/unpin (so the panel keeps showing one finding while others are selected), and mark reviewed.
-- **Time bar** — collapsible row with author, relative date (`just now` / `N days ago`), and diff stats `+N`/`-N` (green
+- **Time bar**: collapsible row with author, relative date (`just now` / `N days ago`), and diff stats `+N`/`-N` (green
   additions, red deletions).
-- **Body** — subject in the editor font (bold), followed by the full commit body rendered through the chat's Markdown
+- **Body**: subject in the editor font (bold), followed by the full commit body rendered through the chat's Markdown
   pipeline (inline chips, tables, code blocks all work).
-- **Resize handle** — a `CommitInfoPanelResizeHandle` drags the panel width between `320.dp` and `500.dp` (default 320),
+- **Resize handle**: a `CommitInfoPanelResizeHandle` drags the panel width between `320.dp` and `500.dp` (default 320),
   implemented with a raw pointer loop so the start width is captured at pointer-down.
 
 ### 19.6 Success banner (`GradumBanner`)
@@ -1046,7 +1046,7 @@ carries a green success icon, a **Don't show again** dismiss link (persists via
 
 `GradumBanner` is a reusable component based on Jewel's
 `DefaultBannerStyle` with three severities (`Success` / `Warning` / `Error`)
-and configurable icon, link, and close-content slots — it is deliberately independent of the git-analysis feature and
+and configurable icon, link, and close-content slots. It is deliberately independent of the git-analysis feature and
 can be reused elsewhere.
 
 ### 19.7 Audit findings and quality scoring
@@ -1110,20 +1110,20 @@ Source: [`ChatSessionStore.kt`](../plugin/src/main/kotlin/gradum/idea/chat/histo
 
 `GradumChatSession` (project-level service) owns the active session and exposes:
 
-- `currentSessionId` — the currently loaded session.
-- `currentSessionTitle` — the display title; persisted to disk on save.
-- `sessions: SnapshotStateList<SessionMeta>` — live list of all saved sessions.
-- `mergeSelection: SnapshotStateList<String>` — IDs selected for merge/delete in the management board.
-- `isMergeModeActive` — whether the management board is visible.
+- `currentSessionId`: the currently loaded session.
+- `currentSessionTitle`: the display title; persisted to disk on save.
+- `sessions: SnapshotStateList<SessionMeta>`: live list of all saved sessions.
+- `mergeSelection: SnapshotStateList<String>`: IDs selected for merge/delete in the management board.
+- `isMergeModeActive`: whether the management board is visible.
 
 Key methods:
 
-- `switchSession(sessionId)` — saves the current session, loads the target.
-- `saveCurrentSession()` — persists the current message list under `currentSessionTitle`.
-- `reset()` — clears messages, enters merge mode if needed, generates a new session.
-- `enterMergeMode()` / `exitMergeMode()` — toggles the management board.
-- `mergeSelectedSessions()` — performs the N-way merge and refreshes the list.
-- `deleteSessions(ids)` — batch-deletes multiple sessions.
+- `switchSession(sessionId)`: saves the current session, loads the target.
+- `saveCurrentSession()`: persists the current message list under `currentSessionTitle`.
+- `reset()`: clears messages, enters merge mode if needed, generates a new session.
+- `enterMergeMode()` / `exitMergeMode()`: toggles the management board.
+- `mergeSelectedSessions()`: performs the N-way merge and refreshes the list.
+- `deleteSessions(ids)`: batch-deletes multiple sessions.
 
 Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/state/GradumChatSession.kt).
 
@@ -1131,8 +1131,8 @@ Source: [`GradumChatSession.kt`](../plugin/src/main/kotlin/gradum/idea/chat/stat
 
 The welcome screen shows recent sessions via `RecentChatsSection`:
 
-- **Default view** — 2 most recently updated sessions are shown.
-- **Expanded view** — when the input field is focused and the quick-start section collapses, 4 sessions are shown.
+- **Default view**: 2 most recently updated sessions are shown.
+- **Expanded view**: when the input field is focused and the quick-start section collapses, 4 sessions are shown.
 - Each row displays the session title (or formatted timestamp if blank), a leading chat icon, and a hover-revealed
   delete button with `fadeIn + scaleIn` animation.
 - Clicking a row opens the session; the delete icon removes it from disk and the list.
@@ -1146,12 +1146,12 @@ When the user clicks the gear button, the welcome screen is replaced by a full-s
 
 #### Layout
 
-- **Max width** — 600dp, centered horizontally; internal elements are left-aligned.
-- **Title bar** — "Manage sessions" (h4) with a gray "Selected N" indicator when items are checked.
-- **Search bar** — a Jewel `TextField` with a leading search icon, an exact-match toggle (`MatchCase` icon), and a
+- **Max width**: 600dp, centered horizontally; internal elements are left-aligned.
+- **Title bar**: "Manage sessions" (h4) with a gray "Selected N" indicator when items are checked.
+- **Search bar**: a Jewel `TextField` with a leading search icon, an exact-match toggle (`MatchCase` icon), and a
   "No matching sessions" empty state with a link-style "Clear search" button (link color from `JewelTheme.linkStyle`,
   hand cursor on hover).
-- **Empty state** — when no sessions exist at all, the board shows "No sessions yet" with a "Back to main" link that
+- **Empty state**: when no sessions exist at all, the board shows "No sessions yet" with a "Back to main" link that
   exits merge mode.
 
 #### Session list with grouping
@@ -1173,23 +1173,23 @@ function `groupSessionsByAge` uses `java.time.Instant` and `ZoneId.systemDefault
 
 Every row has a leading `Checkbox` (outside the clickable area) and an inner clickable region:
 
-- **Click** — toggles the selection (does NOT open the session).
-- **Hover** — highlights the row background and reveals two icon buttons with `fadeIn + scaleIn(0.6f)` animation:
-    - `Actions.Edit` — starts inline rename mode.
-    - `General.Delete` — deletes the session.
-- **Rename mode** — the title text is replaced by an undecorated `TextField` pre-filled with the current title. Two
+- **Click**: toggles the selection (does NOT open the session).
+- **Hover**: highlights the row background and reveals two icon buttons with `fadeIn + scaleIn(0.6f)` animation:
+    - `Actions.Edit`: starts inline rename mode.
+    - `General.Delete`: deletes the session.
+- **Rename mode**: the title text is replaced by an undecorated `TextField` pre-filled with the current title. Two
   buttons appear:
-    - `Actions.Checked` — confirms the rename (calls `onRenameSession`).
-    - `General.Close` — cancels the rename.
+    - `Actions.Checked`: confirms the rename (calls `onRenameSession`).
+    - `General.Close`: cancels the rename.
     - No Enter/Escape keyboard shortcuts are wired.
 
 #### Inline toolbar
 
 After the last selected row, an inline toolbar appears (only when `selectedCount >= MIN_MERGE_SESSIONS`, which is 2):
 
-- `Vcs.Merge` icon button — merges all selected sessions into one.
-- `General.Delete` icon button — deletes all selected sessions.
-- `General.Close` icon button (right-aligned) — clears the selection (does NOT exit merge mode).
+- `Vcs.Merge` icon button: merges all selected sessions into one.
+- `General.Delete` icon button: deletes all selected sessions.
+- `General.Close` icon button (right-aligned): clears the selection (does NOT exit merge mode).
 
 Each button has a Tooltip with the corresponding i18n key.
 
