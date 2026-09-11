@@ -157,7 +157,7 @@ Key points:
    wasted effort on rejected PRs.
 2. **Create a feature branch** from `main` (or the latest release branch).
 3. **Follow the PR template** when submitting.
-4. **Ensure CI passes** — all tests must pass and code quality checks must be clean.
+4. **Ensure CI passes**: all tests must pass and code quality checks must be clean.
 5. **Update documentation** if your change affects public APIs, configuration, or build process.
 6. **Request review** from the maintainers.
 
