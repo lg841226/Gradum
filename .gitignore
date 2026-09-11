@@ -52,7 +52,9 @@ docs/AWF_ROADMAP.md
 *.key
 *.pem
 gradum.properties
-/gradle.properties
+
+# IntelliJ run configurations (may embed machine-local env vars / paths)
+.run/
 
 # Sensitive words (user-defined, do not commit)
 red_line_keywords.txt
