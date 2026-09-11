@@ -305,10 +305,14 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
         else requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
 
       val resolvedBaseUrl: String =
-        configOverrides.baseUrl ?: AgentConfiguration.DEFAULT_OLLAMA_BASE_URL
+        configOverrides.baseUrl ?: serverConfiguration.defaultBaseUrl
+
+      val serverDefaultModel: String? =
+        serverConfiguration.defaultModelName.trim().takeIf { it.isNotEmpty() }
 
       val agentConfiguration = AgentConfiguration(
         modelName = requestBody.model
+          ?: serverDefaultModel
           ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
           ?: "",
         provider = resolvedProvider,
@@ -327,7 +331,7 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
         projectRoot = projectRootPath.toString(),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-        enableThinking = configOverrides.think ?: AgentConfiguration.DEFAULT_ENABLE_THINKING,
+        enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,

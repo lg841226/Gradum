@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gradum.dev/schemas/settings.schema.json",
+  "title": "Gradum Server Configuration",
+  "description": "Configuration file for the Gradum embedded HTTP server (~/.gradum/settings.json)",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema location for editor autocompletion"
+    },
+    "server": {
+      "type": "object",
+      "title": "Server Binding Configuration",
+      "description": "Network binding settings for the HTTP server",
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Host address to bind (use '0.0.0.0' to listen on all interfaces)",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "integer",
+          "description": "Port number to bind",
+          "default": 8765,
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "autoDetectPort": {
+          "type": "boolean",
+          "description": "Automatically find an available port starting from 'port'",
+          "default": false
+        },
+        "apiKeyFile": {
+          "type": ["string", "null"],
+          "description": "Absolute path to a plain-text file listing the default API key for hosted providers (keeps the secret out of this file). Only the first non-blank line is used; must not be a relative path or '~' shorthand.",
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    },
+    "llm": {
+      "type": "object",
+      "title": "Default LLM Configuration",
+      "description": "Server-wide defaults used when the plugin request doesn't specify them",
+      "properties": {
+        "baseUrl": {
+          "type": "string",
+          "description": "Default base URL for the LLM provider",
+          "default": "http://localhost:11434"
+        },
+        "model": {
+          "type": "string",
+          "description": "Default model name to use (empty string = use first discovered available model)",
+          "default": ""
+        },
+        "think": {
+          "type": "boolean",
+          "description": "Enable thinking mode by default",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": []
+    }
+  },
+  "additionalProperties": false
+}

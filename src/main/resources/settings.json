@@ -1,0 +1,14 @@
+{
+  "$schema": "./settings.schema.json",
+  "server": {
+    "host": "localhost",
+    "port": 8765,
+    "autoDetectPort": false,
+    "apiKeyFile": null
+  },
+  "llm": {
+    "baseUrl": "http://localhost:11434",
+    "model": "",
+    "think": false
+  }
+}

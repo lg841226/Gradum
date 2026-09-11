@@ -49,6 +49,26 @@ data class ServerConfiguration(
    * wrong vendor's key attached to a request.
    */
   val defaultApiKey: String? = null,
+
+  /**
+   * Server-wide default LLM base URL. Applied when a `/events` request does
+   * not supply its own `baseUrl`. Mirrors
+   * `AgentConfiguration.DEFAULT_OLLAMA_BASE_URL`.
+   */
+  val defaultBaseUrl: String = DEFAULT_BASE_URL,
+
+  /**
+   * Server-wide default model name. Applied when a `/events` request does
+   * not specify a model; an empty value keeps the existing "first discovered
+   * available model" behavior.
+   */
+  val defaultModelName: String = "",
+
+  /**
+   * Server-wide default thinking toggle. Applied when a `/events` request
+   * does not specify it. Mirrors `AgentConfiguration.DEFAULT_ENABLE_THINKING`.
+   */
+  val defaultThinkEnabled: Boolean = false,
 ) {
   companion object {
     /** Default bind host; the single source of truth. */
@@ -56,6 +76,9 @@ data class ServerConfiguration(
 
     /** Default bind port; the single source of truth. */
     const val DEFAULT_PORT_NUMBER: Int = 8765
+
+    /** Default LLM base URL; mirrors AgentConfiguration.DEFAULT_OLLAMA_BASE_URL. */
+    const val DEFAULT_BASE_URL: String = "http://localhost:11434"
 
     /**
      * Env-var lookup order for the server-wide fallback API key.
