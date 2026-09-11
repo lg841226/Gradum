@@ -9,6 +9,7 @@ package gradum.skill
 
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.test.*
 
@@ -139,9 +140,17 @@ class PathResolverTest {
 
   @Test
   fun `prefix collision is rejected - proj-evil is not inside proj`() {
-    val trapRoot: File = Files.createTempDirectory("gradum").toFile()
+    // The resolver deliberately treats absolute `/tmp` paths as safe scratch
+    // space, and `Files.createTempDirectory(...)` targets the system temp dir:
+    // that is `/tmp` on Linux but `/var/folders/.../T` on macOS. Building the
+    // project root and its evil sibling in the *working directory* — which is
+    // never a safe prefix — keeps the boundary check identical on every OS.
+    val scratch: Path = Files.createTempDirectory(
+      Paths.get(System.getProperty("user.dir")), "gradum-resolver-"
+    )
     try {
-      val evilRoot: File = Files.createTempDirectory(trapRoot.name + "-evil").toFile()
+      val trapRoot: File = Files.createTempDirectory(scratch, "proj").toFile()
+      val evilRoot: File = Files.createTempDirectory(scratch, trapRoot.name + "-evil").toFile()
       val result = resolveProjectPath(
         filePath = evilRoot.absolutePath,
         projectRoot = trapRoot.absolutePath
@@ -152,7 +161,7 @@ class PathResolverTest {
           "not silently accepted as inside the project"
       )
     } finally {
-      trapRoot.deleteRecursively()
+      scratch.toFile().deleteRecursively()
     }
   }
 

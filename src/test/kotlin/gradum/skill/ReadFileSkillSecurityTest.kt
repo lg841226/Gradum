@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.DefaultAsserter.assertTrue
 import kotlin.test.Test
 
@@ -95,9 +96,16 @@ class ReadFileSkillSecurityTest {
 
   @Test
   fun `read_file rejects sibling directory with shared prefix`() {
-    val trapRoot: File = Files.createTempDirectory("gradum").toFile()
+    // Resolver/CommandFilter treat absolute `/tmp` paths as safe scratch space,
+    // and `java.io.tmpdir` is `/tmp` on Linux but `/var/folders/.../T` on macOS.
+    // Building the project root and its evil sibling in the *working directory*
+    // (never a safe prefix) exercises the boundary check identically on every OS.
+    val scratch: Path = Files.createTempDirectory(
+      Path.of(System.getProperty("user.dir")), "gradum-read-security-scratch-"
+    )
     try {
-      val evilRoot: File = Files.createTempDirectory(trapRoot.name + "-evil").toFile()
+      val trapRoot: File = Files.createTempDirectory(scratch, "proj").toFile()
+      val evilRoot: File = Files.createTempDirectory(scratch, trapRoot.name + "-evil").toFile()
       val result = skill.execute(
         mapOf("path" to evilRoot.absolutePath),
         SkillContext(
@@ -113,7 +121,7 @@ class ReadFileSkillSecurityTest {
         result.code
       )
     } finally {
-      trapRoot.deleteRecursively()
+      scratch.toFile().deleteRecursively()
     }
   }
 
