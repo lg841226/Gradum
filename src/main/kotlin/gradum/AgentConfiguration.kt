@@ -128,7 +128,6 @@ data class AgentConfiguration(
 
   val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
 
-  val maxRedLineHits: Int = 3,
   val maxRepeatedResponses: Int = 3,
   val maxRepeatedToolCalls: Int = 5,
   val maxTokensToGenerate: Int = DEFAULT_MAX_TOKENS_TO_GENERATE,

@@ -45,7 +45,7 @@ class SessionManager(
     val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
 
     emitEvent(
-      "session_end", mapOf(
+      GradumEventType.SESSION_END.wireName, mapOf(
         "version" to Version.GRADUM_VERSION,
         "elapsedSeconds" to elapsedSeconds,
         "model" to configuration.modelName,
@@ -60,7 +60,7 @@ class SessionManager(
     if (!isAborted) {
       val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
       emitEvent(
-        "session_end", mapOf(
+        GradumEventType.SESSION_END.wireName, mapOf(
           "version" to Version.GRADUM_VERSION,
           "elapsedSeconds" to elapsedSeconds,
           "model" to configuration.modelName,
@@ -72,7 +72,7 @@ class SessionManager(
   /** Emits a `mission_revoked` event. */
   fun emitRevoked(reason: String, details: Map<String, Any>) {
     emitEvent(
-      "mission_revoked", mapOf(
+      GradumEventType.MISSION_REVOKED.wireName, mapOf(
         "reason" to reason,
         "details" to details,
       )
@@ -87,7 +87,7 @@ class SessionManager(
     guardrailDetails: Map<String, Any>
   ) {
     emitEvent(
-      "guardrail",
+      GradumEventType.GUARDRAIL.wireName,
       mapOf(
         "type" to type,
         "hitCount" to hitCount,

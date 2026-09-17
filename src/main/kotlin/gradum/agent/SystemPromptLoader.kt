@@ -150,23 +150,4 @@ class SystemPromptLoader(private val configuration: AgentConfiguration) {
 
     return outputBuffer.toString().trimEnd()
   }
-
-  /**
-   * Loads red-line keywords from the classpath resource
-   * `/red_line_keywords.txt`.
-   */
-  fun loadRedLineKeywords(): List<String> {
-    return try {
-      Agent::class.java.getResourceAsStream("/red_line_keywords.txt")?.use { stream ->
-        stream.reader(Charsets.UTF_8).readLines().map { it.trim() }
-          .filter { it.isNotBlank() && !it.startsWith(prefix = "#") }
-      } ?: run {
-        logger.info("red_line_keywords.txt not found on classpath, red line detection disabled")
-        emptyList()
-      }
-    } catch (keywordLoadException: Exception) {
-      logger.warn("Failed to load red_line_keywords.txt: ${keywordLoadException.message}")
-      emptyList()
-    }
-  }
 }

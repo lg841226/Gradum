@@ -26,7 +26,7 @@ private const val INDENT_PROPERTY = "{http://xml.apache.org/xslt}indent-amount"
  * All AI-facing error messages MUST use this format.
  * XML tags use PascalCase naming convention.
  *
- * The payload is assembled through the [XmlBuilder] DSL, then serialized
+ * The payload is assembled through the [buildXml] DSL, then serialized
  * with an indenting transformer so every text node is escaped automatically
  * (no handwritten mixed-indent concatenation).
  *
@@ -46,25 +46,45 @@ fun buildXmlError(
   appliedCount: Int? = null,
   searchPreview: List<String> = emptyList()
 ): String {
-  val builder = XmlBuilder()
-  builder.error(
-    code = code,
-    message = message,
-    fixHint = fixHint,
-    appliedCount = appliedCount,
-    searchPreview = searchPreview
-  )
-  return builder.toString()
+  return buildXml {
+    element(tagName = "Error") {
+      element(tagName = "Code") { text(content = code) }
+      element(tagName = "Message") { text(content = message) }
+      searchPreviewElement(searchPreview)
+      if (appliedCount != null && appliedCount > 0) {
+        element(tagName = "Partial") {
+          text(content = "$appliedCount edit(s) applied before failure.")
+        }
+      }
+      element(tagName = "FixHint") { text(content = fixHint) }
+    }
+  }
 }
 
 /**
- * Minimal `element {}` / `text` DSL over the JDK DOM API. Nesting is
- * tracked by an active-element stack; [toString] serializes the whole tree
- * with uniform indentation and automatic escaping.
+ * Generic XML builder DSL over the JDK DOM API.
+ *
+ * Nesting is tracked by an active-element stack; [buildXml] serializes the
+ * whole tree with uniform indentation and automatic escaping. Use [element]
+ * to enter a tag, [attribute] to set a property on the current element, and
+ * [text] to append an escaped text node. Every text node is escaped
+ * automatically, so callers never hand-write indentation or escapes.
+ *
+ * Example:
+ * ```kotlin
+ * val xml = buildXml {
+ *   element("Root") {
+ *     attribute("version", "2")
+ *     element("Item") { text("hello") }
+ *   }
+ * }
+ * ```
  */
-internal class XmlBuilder {
+class XmlBuilder internal constructor() {
   private val document: Document = newEmptyDocument()
   private val activeElements: ArrayDeque<Element> = ArrayDeque()
+
+  /** Enters a child [tagName], runs [init] against it, then closes it. */
   fun element(tagName: String, init: XmlBuilder.() -> Unit) {
     val childElement: Element = document.createElement(tagName)
     val parentElement: Element? = activeElements.lastOrNull()
@@ -78,6 +98,12 @@ internal class XmlBuilder {
     activeElements.removeLast()
   }
 
+  /** Sets an attribute on the currently open element. */
+  fun attribute(name: String, value: String) {
+    activeElements.lastOrNull()?.setAttribute(name, value)
+  }
+
+  /** Appends an escaped text node to the currently open element. */
   fun text(content: String) {
     activeElements.lastOrNull()?.appendChild(
       document.createTextNode(content)
@@ -89,24 +115,13 @@ internal class XmlBuilder {
   }
 }
 
-private fun XmlBuilder.error(
-  code: String,
-  message: String,
-  fixHint: String,
-  appliedCount: Int?,
-  searchPreview: List<String>
-) {
-  element(tagName = "Error") {
-    element(tagName = "Code") { text(content = code) }
-    element(tagName = "Message") { text(content = message) }
-    searchPreviewElement(searchPreview)
-    if (appliedCount != null && appliedCount > 0) {
-      element(tagName = "Partial") {
-        text(content = "$appliedCount edit(s) applied before failure.")
-      }
-    }
-    element(tagName = "FixHint") { text(content = fixHint) }
-  }
+/**
+ * Entry point for the [XmlBuilder] DSL. Returns the serialized XML string.
+ */
+fun buildXml(block: XmlBuilder.() -> Unit): String {
+  val builder = XmlBuilder()
+  builder.block()
+  return builder.toString()
 }
 
 private fun XmlBuilder.searchPreviewElement(searchPreview: List<String>) {

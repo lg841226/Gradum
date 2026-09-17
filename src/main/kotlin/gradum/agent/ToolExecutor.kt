@@ -265,7 +265,7 @@ class ToolExecutor(
   ) {
     if (skillInstance?.manageOwnEventStream == true) return
     emitEvent(
-      "tool_call_start",
+      GradumEventType.TOOL_CALL_START.wireName,
       mapOf(
         "alias" to toolAlias,
         "tool" to functionName,
@@ -298,7 +298,7 @@ class ToolExecutor(
 
     if (!skipEvent) {
       emitEvent(
-        "tool_call",
+        GradumEventType.TOOL_CALL.wireName,
         mapOf(
           "tool" to functionName,
           "alias" to toolAlias,
@@ -313,7 +313,7 @@ class ToolExecutor(
         @Suppress("UNCHECKED_CAST")
         val errorInfo: Map<String, Any> = executionResult["error"] as? Map<String, Any> ?: emptyMap()
         emitEvent(
-          "error",
+          GradumEventType.ERROR.wireName,
           mapOf(
             "tool" to functionName,
             "toolCallId" to processedCall.callIdentifier,

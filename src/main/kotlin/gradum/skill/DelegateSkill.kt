@@ -8,7 +8,7 @@
 package gradum.skill
 
 import gradum.*
-import gradum.agent.Agent
+import gradum.agent.*
 import org.slf4j.LoggerFactory
 import java.util.*
 
@@ -162,7 +162,7 @@ class DelegateSkill : Skill() {
     task: String
   ) {
     emitEvent(
-      "sub_agent:start", mapOf(
+      GradumEventType.SUB_AGENT_START.wireName, mapOf(
         "timeoutSeconds" to subAgentTimeoutSeconds,
         "task" to task,
         "title" to title,
@@ -180,7 +180,7 @@ class DelegateSkill : Skill() {
     val subAgent = Agent(
       configuration = config,
       emitEvent = { type: String, data: Map<String, Any> ->
-        emitEvent("sub_agent:$type", data)
+        emitEvent(SUB_AGENT_EVENT_PREFIX + type, data)
       },
       registerChildSession = registerChild,
       unregisterChildSession = unregisterChild,
@@ -192,7 +192,7 @@ class DelegateSkill : Skill() {
     } catch (exception: Exception) {
       delegateLog.error("Sub-agent execution failed", exception)
       emitEvent(
-        "sub_agent:session_end", mapOf(
+        GradumEventType.SUB_AGENT_SESSION_END.wireName, mapOf(
           "result" to "Sub-agent execution failed: ${exception.message}",
           "conversation" to emptyList<Map<String, Any>>()
         )
@@ -201,7 +201,7 @@ class DelegateSkill : Skill() {
     } catch (exception: Error) {
       delegateLog.error("Sub-agent critical error", exception)
       emitEvent(
-        "sub_agent:session_end", mapOf(
+        GradumEventType.SUB_AGENT_SESSION_END.wireName, mapOf(
           "result" to "Sub-agent critical error: ${exception.message}",
           "conversation" to emptyList<Map<String, Any>>()
         )
@@ -222,7 +222,7 @@ class DelegateSkill : Skill() {
     val conversationHistory: List<Map<String, Any>> = subAgent.getConversationHistory()
 
     emitEvent(
-      "sub_agent:session_end", mapOf(
+      GradumEventType.SUB_AGENT_SESSION_END.wireName, mapOf(
         "result" to result,
         "conversation" to conversationHistory
       )

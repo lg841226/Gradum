@@ -15,7 +15,6 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex(pattern = "(?<=[.!?])\\s+")
  * Detects guardrail violations during an agent session.
  *
  * Responsibilities:
- * - Red-line keyword detection (content safety keywords).
  * - Repeated/abnormal response detection (repetitive loops).
  * - Tool-runaway detection (identical call signatures).
  *
@@ -24,50 +23,11 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex(pattern = "(?<=[.!?])\\s+")
  */
 class GuardrailManager(private val configuration: AgentConfiguration) {
 
-  private var redLineKeywords: List<String> = emptyList()
-  private var redLineKeywordsLowercase: List<String> = emptyList()
-  private val redLineHitKeywords: MutableList<String> = mutableListOf()
-  private var redLineHitCounter: Int = 0
   private val repeatedResponseTracker: MutableList<String> = mutableListOf()
 
   /** Resets all guardrail counters for a new execution. */
   fun reset() {
-    redLineHitCounter = 0
-    redLineHitKeywords.clear()
     repeatedResponseTracker.clear()
-  }
-
-  /** Initializes the red-line keyword list. */
-  fun initializeRedLineKeywords(keywords: List<String>) {
-    redLineKeywords = keywords
-    redLineKeywordsLowercase = keywords.map { it.lowercase() }
-  }
-
-  /** Returns the current red-line hit count. */
-  val redLineHitCount: Int get() = redLineHitCounter
-
-  /** Returns the matched red-line keywords. */
-  val matchedRedLineKeywords: List<String> get() = redLineHitKeywords.toList()
-
-  /**
-   * Checks [text] against the red-line keyword list. Returns the
-   * matched keywords (empty if none).
-   */
-  fun checkRedLineKeywords(text: String?): List<String> {
-    if (text.isNullOrBlank() || redLineKeywords.isEmpty()) {
-      return emptyList()
-    }
-    val lowercasedText: String = text.lowercase()
-    return redLineKeywords.filterIndexed { index: Int, _: String ->
-      lowercasedText.contains(other = redLineKeywordsLowercase[index])
-    }
-  }
-
-  /** Records a red-line hit and returns the updated hit count. */
-  fun recordRedLineHit(matched: List<String>): Int {
-    redLineHitCounter++
-    redLineHitKeywords.addAll(elements = matched)
-    return redLineHitCounter
   }
 
   /**

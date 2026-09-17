@@ -124,17 +124,14 @@ class Agent(
       Provider.OPENAI -> openAiClient
       Provider.OLLAMA -> ollamaClient
     }
-    guardrailManager.initializeRedLineKeywords(promptLoader.loadRedLineKeywords())
   }
 
   internal constructor(
     llmClient: LlmClient,
     configuration: AgentConfiguration,
-    redLineKeywords: List<String> = emptyList(),
     emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
   ) : this(configuration, emitEvent) {
     activeClient = llmClient
-    guardrailManager.initializeRedLineKeywords(redLineKeywords)
   }
 
   fun executeTask(
@@ -163,7 +160,7 @@ class Agent(
     getTodoManagerInstance().resetTaskList()
 
     emitEvent(
-      "session_start",
+      GradumEventType.SESSION_START.wireName,
       mapOf(
         "contextLoaded" to contextLoaded,
         "model" to configuration.modelName,
@@ -197,36 +194,13 @@ class Agent(
 
       result.errorMessage?.let { error ->
         emitEvent(
-          "error",
+          GradumEventType.ERROR.wireName,
           mapOf(
             "code" to ErrorCode.CLIENT_ERROR,
             "message" to error.trim(),
             "source" to "${configuration.provider.name.lowercase()}_client"
           )
         )
-      }
-
-      val matchedRedLineKeywords: List<String> = guardrailManager.checkRedLineKeywords(result.responseText)
-      if (matchedRedLineKeywords.isNotEmpty()) {
-        guardrailManager.recordRedLineHit(matchedRedLineKeywords)
-        sessionManager.recordGuardrail(
-          type = "red_line_hit",
-          hitCount = guardrailManager.redLineHitCount,
-          maxAllowed = configuration.maxRedLineHits,
-          guardrailDetails = mapOf("keywords" to matchedRedLineKeywords),
-        )
-        if (guardrailManager.redLineHitCount >= configuration.maxRedLineHits &&
-          handleGuardrailExceeded(
-            responseText = result.responseText,
-            revokeReason = "red_line_violation",
-            revokeDetails = mapOf(
-              "hitCount" to guardrailManager.redLineHitCount,
-              "keywords" to guardrailManager.matchedRedLineKeywords,
-            ),
-          )
-        ) {
-          break
-        }
       }
 
       if (guardrailManager.trackRepeatedResponse(result.responseText)) {
@@ -311,7 +285,7 @@ class Agent(
       val snapshot: TokenUsageSnapshot = activeClient.tokenUsage
       if (content.isNotEmpty() || snapshot.totalTokens > 0) {
         emitEvent(
-          "response",
+          GradumEventType.RESPONSE.wireName,
           mapOf(
             "content" to content,
             "promptTokens" to snapshot.promptTokens,
@@ -340,7 +314,7 @@ class Agent(
           is LLMResponseChunk.ReasoningContent -> {
             flushResponse()
             emitEvent(
-              "thinking",
+              GradumEventType.THINKING.wireName,
               mapOf("content" to chunk.text)
             )
           }
@@ -399,7 +373,7 @@ class Agent(
         ToolCallScenarioParser.parse(rawXml = toolCallXml)
       } catch (scenarioException: ToolCallScenarioParseException) {
         emitEvent(
-          "error",
+          GradumEventType.ERROR.wireName,
           mapOf(
             "code" to ErrorCode.INVALID_SCENARIO_XML.name,
             "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
@@ -413,7 +387,7 @@ class Agent(
     val toolCalls: List<ParsedToolCall> = scenario.toolCalls
 
     emitEvent(
-      "playback_start",
+      GradumEventType.PLAYBACK_START.wireName,
       mapOf(
         "mode" to configuration.toolMode.name,
         "scenario" to scenarioName,
@@ -432,7 +406,7 @@ class Agent(
         is ScenarioStep.AiReply -> {
           if (step.content.isNotBlank()) {
             emitEvent(
-              "response",
+              GradumEventType.RESPONSE.wireName,
               mapOf(
                 "content" to step.content,
                 "totalTokens" to 0,
@@ -513,7 +487,7 @@ class Agent(
     savePlaybackRecording(scenarioName, recordingSummary)
 
     emitEvent(
-      "playback_end",
+      GradumEventType.PLAYBACK_END.wireName,
       mapOf(
         "scenario" to scenarioName,
         "executedCalls" to recordings.size,
