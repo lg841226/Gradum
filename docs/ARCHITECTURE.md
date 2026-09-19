@@ -269,7 +269,6 @@ src/main/java/gradum/Version.java     # GRADUM_VERSION constant
 
 src/main/resources/
 ├── logback.xml                    # Logback logging configuration (Console + per-module levels)
-├── red_line_keywords.txt          # Red line keywords (user-local, gitignored)
 ├── META-INF/services/             # Reserved (empty); skills are discovered by classpath scan
 └── prompts/                       # System and mode prompts, loaded from classpath at runtime
     ├── system/
@@ -423,13 +422,8 @@ flowchart TD
     CHUNK_STREAM --> TOOL["ToolCallBatch → save as toolCalls List"]
     CHUNK_STREAM --> ERR_MSG["ErrorMessage → emit error event"]
     CHUNK_STREAM --> RESP["emit response event<br/>{content + token usage}"]
-    TOOL --> GUARDRAIL["Guardrail Checks<br/>redLineKeywords?<br/>repetitive_loop?<br/>tool_runaway?"]
-    GUARDRAIL --> REDLINE{Red line keyword hit?}
-    REDLINE -- No --> REPLOOP{Repetitive response?}
-    REDLINE -- Yes --> REDLINE_COUNT["increment redLineHitCounter<br/>emit guardrail event"]
-    REDLINE_COUNT --> REDLINE_CHECK{"hits >= maxRedLineHits?"}
-    REDLINE_CHECK -- No --> REPLOOP
-    REDLINE_CHECK -- Yes --> REDLINE_REVOKE["append assistant message<br/>emitEvent mission_revoked (red_line_violation)<br/>emitEvent session_end (aborted)<br/>BREAK loop"]
+    TOOL --> GUARDRAIL["Guardrail Checks<br/>repetitive_loop?<br/>tool_runaway?"]
+    GUARDRAIL --> REPLOOP{Repetitive response?}
     REPLOOP -- No --> DECISION{"toolCalls present and non-empty?"}
     REPLOOP -- Yes --> REP_COUNT["add to repeatedResponseTracker<br/>emit guardrail event"]
     REP_COUNT --> REP_CHECK{"count >= maxRepeatedResponses?"}
@@ -495,9 +489,6 @@ flowchart TD
         - `ErrorMessage` → emit an `error` event
         - On flush, emit a `response` event `{content, promptTokens, completionTokens, totalTokens}`
     - **Guardrail checks** are evaluated against `responseText` before processing tool calls:
-        - **Red line keyword check**: If the response contains any configured `redLineKeywords`, increment
-          `redLineHitCounter`. When the counter reaches `maxRedLineHits` (default 3), append the assistant message, emit
-          `mission_revoked` (reason: `red_line_violation`), emit `session_end` with `aborted: true`, and **BREAK**.
         - **Repetitive response check**: If the response is an exact duplicate of the previous turn or contains
           repetitious sentences (same sentence ≥3 times), it is added to `repeatedResponseTracker`. When the tracker
           reaches `maxRepeatedResponses` (default 3), append the assistant message, emit `mission_revoked` (reason:
@@ -598,13 +589,21 @@ pie
     "session_end": 1
 ```
 
+Wire names are centralized in `gradum.agent.GradumEventType` (`enum class GradumEventType(val wireName: String)`):
+`session_start` / `session_end` / `response` / `thinking` / `error` / `tool_call` / `tool_call_start` /
+`mission_revoked` / `guardrail` / `playback_start` / `playback_end` / `sub_agent:start` / `sub_agent:session_end`.
+The dynamic `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` events are named via the constant
+`SUB_AGENT_EVENT_PREFIX = "sub_agent:"`. Call sites reference one of these (`wireName`) instead of raw string literals,
+so a renamed event fails to compile at every call site at once rather than silently desyncing the server from whatever
+consumes the stream.
+
 | `type`                  | Description                                   | Typical `data` fields                                                                     |
 |-------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------|
 | `session_start`         | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                           |
 | `thinking`              | LLM thinking content (if thinking is enabled) | `content`                                                                                 |
 | `response`              | LLM text output with token usage              | `content`, `promptTokens`, `completionTokens`, `totalTokens`                              |
-| `guardrail`             | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response / red_line_hit), `hitCount`, `maxAllowed` + per-type details    |
-| `mission_revoked`       | Session revoked (conversation must be erased) | `reason` (red_line_violation / repetitive_loop / tool_runaway), `details`                 |
+| `guardrail`             | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response), `hitCount`, `maxAllowed` + per-type details                   |
+| `mission_revoked`       | Session revoked (conversation must be erased) | `reason` (repetitive_loop / tool_runaway), `details`                                      |
 | `tool_call_start`       | A tool call started (before execution)        | `tool`, `alias`, `arguments`, `toolCallId`                                                |
 | `tool_call`             | A single tool call and its result             | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
 | `sub_agent:start`       | Sub-agent session started                     | `task`, `toolMode`, `sessionId`                                                           |
@@ -834,8 +833,11 @@ flowchart TD
 - `createServerInstance(config)`: Call `embeddedServer(Netty, host, port) { module(config) }` to create a Ktor
   application
 - `Application.module(config)`: Call `registerAllRoutes()`
-- `main(args)`: Parse CLI arguments, optionally call `findAvailablePort()` to probe available ports when `--auto-port`
-  is specified
+- `main(args)`: Load all startup parameters from `~/.gradum/settings.json` (`ServerSettings` / `ServerSettingsStore`),
+  the single source of truth — the old `--host/--port/--auto-port/--api-key` CLI flags have been removed (only
+  `--help` remains). On first start `releaseDefaultsIfMissing()` copies the bundled `settings.json` +
+  `settings.schema.json` (editor autocompletion) into `~/.gradum/`. `host`/`port` bind the Netty server;
+  `autoDetectPort` calls `findAvailablePort()`; the API key resolves from `apiKeyFile`, falling back to env.
 - Add JVM shutdown hook to call `server.stop(grace = 3000)`
 
 #### Routes.kt
@@ -1515,68 +1517,37 @@ flowchart TD
 ### 5.3 Guardrail System
 
 The Guardrail System protects against anomalous model behavior by monitoring the LLM's text output across turns. It
-consists of two independent detectors that share a common termination pathway via `mission_revoked`.
+consists of a single detector — repetitive responses — that reaches the common termination pathway via `mission_revoked`.
+(The former Red Line keyword detector has been removed; only repetitive-response detection remains.)
 
 ```mermaid
 flowchart TB
-    subgraph RED_LINE["Red Line Keyword Detector"]
-        RL1["checkRedLineKeywords(text)<br/>case-insensitive substring match"]
-        RL1 --> RL2{"Any keyword hit?"}
-        RL2 -->|No| SKIP_RL
-        RL2 -->|Yes| RL3["redLineHitCounter++<br/>emit guardrail(red_line_hit)"]
-        RL3 --> RL4{"counter >= maxRedLineHits?"}
-        RL4 -->|No| SKIP_RL
-        RL4 -->|Yes| RL5["mission_revoked(red_line_violation)"]
-    end
-
     subgraph REPEAT["Repetitive Response Detector"]
         RT1["Detect:<br/>1. Exact duplicate of previous turn<br/>2. Same sentence ≥3 times in one response"]
         RT1 --> RT2{"Anomalous?"}
         RT2 -->|No| RT3["repeatedResponseTracker.clear()"]
-        RT2 -->|Yes| RT4["add to tracker<br/>emit guardrail(red_line_hit)"]
+        RT2 -->|Yes| RT4["add to tracker<br/>emit guardrail(repeated_response)"]
         RT4 --> RT5{"tracker >= maxRepeatedResponses?"}
         RT5 -->|No| SKIP_RP
         RT5 -->|Yes| RT6["mission_revoked(repetitive_loop)"]
     end
 
-    RL5 --> ABORT["abortSession()<br/>emit session_end (aborted)<br/>NO context save"]
-    RT6 --> ABORT
-    SKIP_RL --> CONTINUE["Continue processing tool calls"]
-    SKIP_RP --> CONTINUE
-    style RED_LINE fill: #f4c1c1
+    RT6 --> ABORT["abortSession()<br/>emit session_end (aborted)<br/>NO context save"]
+    SKIP_RP --> CONTINUE["Continue processing tool calls"]
     style REPEAT fill: #f4e1c1
     style ABORT fill: #f4c1c1
 ```
-
-#### Red Line Keywords File
-
-Red line keywords are **not** part of `AgentConfiguration`. Instead, they are loaded from
-`src/main/resources/red_line_keywords.txt` at runtime:
-
-```
-# One keyword per line. Lines starting with # are ignored.
-# Matching is case-insensitive substring.
-forbidden-topic
-some-sensitive-phrase
-```
-
-- File location: `src/main/resources/red_line_keywords.txt`
-- Template: `src/main/resources/red_line_keywords.txt.example` (git-tracked)
-- Actual file is **gitignored** (user-local sensitive config)
-- If the file is missing or empty, red line detection is silently disabled
 
 #### Configuration (`AgentConfiguration.kt`)
 
 | Field                  | Type  | Default | Description                                      |
 |------------------------|-------|---------|--------------------------------------------------|
-| `maxRedLineHits`       | `Int` | `3`     | Number of red line hits before revocation        |
 | `maxRepeatedResponses` | `Int` | `3`     | Number of repetitive responses before revocation |
 
 #### Revocation Reasons
 
 | Reason               | Trigger                                                      | Response                             |
 |----------------------|--------------------------------------------------------------|--------------------------------------|
-| `red_line_violation` | Model output contains configured red line keywords ≥ N times | Mission revoked, conversation erased |
 | `repetitive_loop`    | Model repeats the same output ≥ N times                      | Mission revoked, conversation erased |
 | `tool_runaway`       | Reserved for future use (tool call loop detection)           | Mission revoked, conversation erased |
 
@@ -1628,7 +1599,6 @@ mindmap
       Defense: Stateful task tracking
     Model Misbehavior
       Model outputs prohibited content
-      Defense: Red line keyword detection
       Defense: Automated session revocation
     Model Stuck
       Model enters repetitive output loop
@@ -2388,6 +2358,26 @@ flowchart LR
 | `ToolMode.fromStringOrDefault` parses wire format correctly          | `AgentConfigurationTest`  | 7     |
 | `READ_ONLY` `run_cmd` blocked by CommandFilter (whitelist)           | `CommandFilterTest`       | 6     |
 
+### 9.10 Mode Persona Prompts
+
+Each tier maps to a dedicated persona prompt under `src/main/resources/prompts/modes/`, selected by the active
+`ToolMode` and injected as the `{{MODE}}` section of the system prompt (see §2.5). Permission is personality: choosing a
+tier chooses **who the model is**, not merely which tools it may call.
+
+| Mode        | File               | Persona               | Focus                                                                 |
+|-------------|--------------------|-----------------------|-----------------------------------------------------------------------|
+| `READ_ONLY` | `read_only.xml`    | Solutions architect   | Produces a decision and a plan, never a diff; diagnoses root causes and hands the write to an implementer mode |
+| `EDIT`      | `edit.xml`         | Surgical implementer  | Minimal, compiling, zero-touch edits; no adjacent refactoring, then reports what changed |
+| `AGENT`     | `agent.xml`        | Full authority        | Plans and executes end-to-end (optionally via `plan.md` + `to_do`)    |
+
+Each prompt is an XML document (`<Identity>` / `<HowYouWork>` / `<ReportFormat>` / `<Constraints>` /
+`<ToolConstraints>`), deliberately **deduplicated**: tool signatures and the allowed-tool list are left to the
+function-calling schema (the prompts say so explicitly), and shared edit semantics and error codes (`ErrorCodes`,
+`CODE_NOT_FOUND`, `MULTIPLE_MATCHES`, `FILE_NOT_FOUND`…) live in the Skill descriptions rather than repeating the model.
+The prompts also avoid dense arrow/slash notation to stay minimal. Each persona therefore carries only the cross-tool
+rules — how to scope work, when to ask, how to report — reinforcing that the tool gate (§9.2) and the persona prompt
+are two faces of the same tier choice.
+
 ---
 
 ## 10. Glossary
@@ -2412,8 +2402,7 @@ flowchart LR
 | **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                                                                                                 |
 | **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)                                                                             |
 | **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                                                                                   |
-| **Red Line Keywords**    | Configurable list of forbidden substrings loaded from `red_line_keywords.txt`; when detected in model output, triggers session revocation                                                                   |
-| **Guardrail**            | Output monitoring system that detects anomalous model behavior (red line keywords, repetitive loops) and can terminate the session                                                                          |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (repetitive loops) and can terminate the session                                                                                            |
 | **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                                                                                                |
 | **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                                                                                             |
 | **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                                                                                 |

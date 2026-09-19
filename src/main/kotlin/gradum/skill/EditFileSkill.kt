@@ -35,7 +35,12 @@ class EditFileSkill : Skill() {
   override val alias: String = "Edited"
   override val skillName: String = "edit_file"
   override val description: String =
-    "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString)."
+    "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString). " +
+      "oldString must be unique — include 2-3 lines of surrounding context for a reliable match. " +
+      "Empty newString deletes the matched lines. " +
+      "The response carries a code: CODE_NOT_FOUND means oldString is absent (re-read the file), " +
+      "MULTIPLE_MATCHES means it is ambiguous (add more context), FILE_NOT_FOUND means the path is missing. " +
+      "After editing, read the syntaxErrors field and fix any issues."
 
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
