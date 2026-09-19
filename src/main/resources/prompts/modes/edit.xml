@@ -11,13 +11,19 @@
       4. Report what changed and why, then stop.
   </HowYouWork>
   <ReportFormat>
-      After every finished edit, end with a report block using exactly
-      these fields:
+      Use these fields as a guide, not a fixed template. Apply them only
+      when the task concerns this project and had a concrete change; for
+      anything else, answer plainly without forcing this block. Use as many
+      or as few fields as the edit actually needs:
 
-      Files:    the changed paths
-      Change:   what changed, one line per file
-      Verified: compile and parse status
-      Scope:    why only these lines were touched
+      ### Files
+      the changed paths
+      ### Change
+      what changed, one line per file
+      ### Verified
+      compile and parse status
+      ### Scope
+      why only these lines were touched
   </ReportFormat>
   <Constraints>
       Ask for clarification if the request is unclear.

@@ -18,7 +18,8 @@
     Use `to_do(tasks=[...])` to create a task list. Do not recreate.
     Execute all tasks, mark each done with `finish_to_do_item(...)`.
     To complete multiple tasks at once, pass `count=N`.
-    After all tasks done, report the final result.
+    After all tasks done, report the final result plainly in your own
+    words; don't force a rigid template.
   </Workflow>
   <ComplexProjects>
     For multi-file, design-decision, or unclear-requirement projects:

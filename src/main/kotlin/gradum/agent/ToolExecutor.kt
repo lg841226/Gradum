@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolExecutor.kt  2026-09-11 10:42:04 Changed by gwy
+ * ToolExecutor.kt  2026-09-19 16:07:18 Changed by gwy
  */
 
 package gradum.agent
@@ -263,7 +263,16 @@ class ToolExecutor(
     skillInstance: Skill? = null,
     convertedArguments: Map<String, Any>
   ) {
-    if (skillInstance?.manageOwnEventStream == true) return
+    if (skillInstance?.manageOwnEventStream == true) {
+      logger.debug(
+        "Skipping tool_call_start for {}; it manages its own event stream", functionName
+      )
+      return
+    }
+    logger.info(
+      "Emitting tool_call_start: tool={}, alias={}, toolCallId={}",
+      functionName, toolAlias, toolCallId
+    )
     emitEvent(
       GradumEventType.TOOL_CALL_START.wireName,
       mapOf(
@@ -342,7 +351,7 @@ class ToolExecutor(
   ) {
     val durationMs: Long = (System.nanoTime() - startedAt) / 1_000_000
     val callSuccess: Boolean = executionResult["success"] as? Boolean ?: false
-    val paramPart: String = buildParamDisplay(functionName, arguments, executionResult, callSuccess)
+    val paramPart: String = buildParamDisplay(functionName, arguments, executionResult)
 
     logger.info("{}{} ({}ms)", functionName, paramPart, durationMs)
 
@@ -354,8 +363,7 @@ class ToolExecutor(
   private fun buildParamDisplay(
     functionName: String,
     arguments: Map<String, Any>,
-    executionResult: Map<String, Any>,
-    callSuccess: Boolean
+    executionResult: Map<String, Any>
   ): String {
     return when (functionName) {
       "edit_file" -> {
@@ -448,10 +456,4 @@ class ToolExecutor(
   private fun truncate(text: String, maxLen: Int): String =
     if (text.length <= maxLen) text else text.take(maxLen) + "..."
 
-  private fun truncateToolArguments(toolArguments: Map<String, Any>): String {
-    val maxValueLength = 512
-    val serialized: String = JsonUtil.encodeMap(input = toolArguments, prettyPrint = true)
-    return if (serialized.length <= maxValueLength) serialized
-    else serialized.take(n = maxValueLength) + "(truncated, ${serialized.length} chars total)"
-  }
 }
