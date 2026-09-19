@@ -24,11 +24,14 @@
 ## Screenshots
 
 <div align="center">
-  <img src="docs/screenshots/Dark.png" alt="Gradum in IntelliJ IDEA (dark)" width="49%"/>
-  <img src="docs/screenshots/Light.png" alt="Gradum in IntelliJ IDEA (light)" width="49%"/>
+  <img src="docs/screenshots/Dark.png" alt="Gradum in IntelliJ IDEA (dark)" width="50%"/>
+  <img src="docs/screenshots/Light.png" alt="Gradum in IntelliJ IDEA (light)" width="50%"/>
 </div>
 
 ## Getting Started
+
+To build from source you need a JDK 21 or newer. Gradum does not pin a JDK path in the repo; Gradle simply uses the
+JDK from your `JAVA_HOME` or the Gradle JVM you select in your IDE. CI provisions the JDK itself via `setup-java`.
 
 ### Option A: run the server
 
@@ -37,7 +40,7 @@ Grab the latest server build from the
 
 - `gradum@1.0.1-experimental.jar`: cross-platform fat jar (requires Java 21)
 - `gradum-server-macos-arm64-experimental.zip`: self-contained macOS app (Apple Silicon; includes its own JRE, so no
-  Java install needed). Double-clicking it opens a Terminal window that streams the server logs.
+  Java installation needed). Double-clicking it opens a Terminal window that streams the server logs.
 
 ```bash
 ./gradlew build
@@ -79,7 +82,8 @@ cloud dependencies.
 
 - **Chat panel**: watch the agent think, search, and edit in real time
 - **Model selector**: auto-discovers local and cloud providers and switches between them instantly
-- **Tool call indicators**: see every tool invocation as it happens; click failures for friendly errors and copyable details
+- **Tool call indicators**: see every tool invocation as it happens; click failures for friendly errors and copyable
+  details
 - **Context toggle**: send your current editor file to the agent with one click
 - **File & image attachments**: up to 10 items in a unified attachment area
 - **Streaming responses**: thinking blocks, tool calls, and final answers render as they stream
@@ -105,8 +109,8 @@ cloud dependencies.
 
 ## LLM Backend Setup
 
-The `search_web` skill uses the [Tavily Search API](https://tavily.com); set `TAVILY_API_KEY` to enable it
-(the free tier includes 1,000 calls/month). Every other skill works without any key.
+The `search_web` skill uses the [Tavily Search API](https://tavily.com); set `TAVILY_API_KEY` to enable it (the free
+tier includes 1,000 calls/month). Every other skill works without any key.
 
 ```bash
 # Ollama (local)
@@ -124,8 +128,8 @@ export MINIMAX_API_KEY="your-key-here"
 
 ## Security
 
-A command safety filter blocks dangerous executables (`sudo`, `su`, `dd`, `reboot`, …) and protected paths
-(`/etc`, `/usr`, `~/.ssh`, …) before anything runs; `/tmp` is always allowed.
+A command safety filter blocks dangerous executables (`sudo`, `su`, `dd`, `reboot`, …) and protected paths (`/etc`,
+`/usr`, `~/.ssh`, …) before anything runs; `/tmp` is always allowed.
 
 ## Documentation
 

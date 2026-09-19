@@ -1,4 +1,4 @@
-# Third-Party Notices — Gradum
+# Third-Party Notices for Gradum
 
 **Effective date:** 2026-08-19
 

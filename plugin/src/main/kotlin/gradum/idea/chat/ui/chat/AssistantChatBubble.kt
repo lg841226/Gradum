@@ -11,8 +11,6 @@
 package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
@@ -43,13 +41,11 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
 
-private const val FADE_IN_MS: Int = 600
 private const val PHASE_FADE_IN_MS: Int = 300
 
 /**
@@ -219,16 +215,8 @@ fun ToolCallBlock(
   if (block.pending && !(ToolCallRendererRegistry.find(aliasName = block.alias)?.rendersWhilePending() ?: false))
     return
 
-  val fadeAlpha = remember { Animatable(initialValue = 0f) }
-  LaunchedEffect(key1 = Unit) {
-    fadeAlpha.animateTo(
-      targetValue = 1f,
-      animationSpec = tween(durationMillis = FADE_IN_MS)
-    )
-  }
   val clipboardScope: CoroutineScope = rememberCoroutineScope()
   val renderer = ToolCallRendererRegistry.find(aliasName = block.alias)
-  val animModifier: Modifier = Modifier.graphicsLayer { this.alpha = fadeAlpha.value }
   if (renderer == null) {
     val fallbackToolDetails: String = if (!block.success) {
       formatToolDetails(
@@ -243,7 +231,6 @@ fun ToolCallBlock(
       label = block.alias,
       iconKey = AllIconsKeys.Nodes.Plugin,
       success = block.success,
-      modifier = animModifier,
       errorInfo = ToolCallErrorInfo(
         detail = block.errorDetail,
         message = block.errorMessage,
@@ -298,7 +285,7 @@ fun ToolCallBlock(
       },
       onSubChatClick = onSubChatClick,
     )
-  Box(modifier = animModifier.horizontalScroll(state = rememberScrollState())) {
+  Box(modifier = Modifier.horizontalScroll(state = rememberScrollState())) {
     renderer.render(content, ctx)
   }
 }
@@ -314,7 +301,6 @@ private fun TokenStatusRow(
       sendingPhase.ifEmpty { "..." }
 
   val fadeAlpha = remember { Animatable(initialValue = 1f) }
-  val verticalOffset = remember { Animatable(initialValue = 0f) }
   var displayText: String by remember { mutableStateOf(value = sendingPhase) }
   var previousText: String by remember { mutableStateOf(value = sendingPhase) }
 
@@ -324,15 +310,6 @@ private fun TokenStatusRow(
       displayText = newText
       previousText = newText
       fadeAlpha.snapTo(targetValue = 0f)
-      launch {
-        verticalOffset.animateTo(
-          targetValue = 0f,
-          animationSpec = spring(
-            stiffness = Spring.StiffnessMediumLow,
-            dampingRatio = Spring.DampingRatioMediumBouncy
-          ),
-        )
-      }
       fadeAlpha.animateTo(
         targetValue = 1f,
         animationSpec = tween(durationMillis = PHASE_FADE_IN_MS)
@@ -351,7 +328,6 @@ private fun TokenStatusRow(
       enabled = isLoading,
       modifier = Modifier.graphicsLayer {
         this.alpha = fadeAlpha.value
-        translationY = verticalOffset.value
       }
     )
   }

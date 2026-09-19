@@ -10,6 +10,9 @@ package gradum.idea.chat.model
 import gradum.idea.editor.AttachedContext
 import gradum.idea.utils.GradumBundle.message
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -337,9 +340,13 @@ fun formatTimestamp(timestamp: Long): String {
       "${message("gradum.timestamp.yesterday")} $time"
     }
 
-    now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> SimpleDateFormat(
-      "MMM d", Locale.getDefault()
-    ).format(Date(timestamp))
+    now.get(Calendar.YEAR) == messageTime.get(Calendar.YEAR) -> DateTimeFormatter
+      .ofPattern(message("gradum.timestamp.monthDay"), Locale.ROOT)
+      .format(
+        Instant.ofEpochMilli(timestamp)
+          .atZone(ZoneId.systemDefault())
+          .toLocalDate()
+      )
 
     else -> "$diffDays ${message("gradum.timestamp.days.ago")}"
   }

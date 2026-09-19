@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WelcomeScreen.kt  2026-08-31 19:21:55 Changed by gwy
+ * WelcomeScreen.kt  2026-09-19 17:11:20 Changed by gwy
  */
 
 package gradum.idea.chat.ui.home
@@ -95,7 +95,8 @@ fun WelcomeScreen(
         onDeleteSelected = mergeCallbacks.onDeleteSelected,
         onToggleSelection = mergeCallbacks.onToggleMergeSelection,
         onDeleteSession = mergeCallbacks.onDeleteSession,
-        onRenameSession = mergeCallbacks.onRenameSession
+        onRenameSession = mergeCallbacks.onRenameSession,
+        onOpenSession = state.onOpenSession
       )
     } else {
       Column(
@@ -144,11 +145,11 @@ fun WelcomeScreen(
         }
         if (state.sessions.isNotEmpty()) {
           RecentChatsSection(
-            maxDisplay = welcomeLayout.recentCount,
             sessions = state.sessions.toList(),
             onOpenSession = state.onOpenSession,
-            onDeleteSession = mergeCallbacks.onDeleteSession,
-            onStartMerge = mergeCallbacks.onStartMerge
+            maxDisplay = welcomeLayout.recentCount,
+            onStartMerge = mergeCallbacks.onStartMerge,
+            onDeleteSession = mergeCallbacks.onDeleteSession
           )
         }
       }

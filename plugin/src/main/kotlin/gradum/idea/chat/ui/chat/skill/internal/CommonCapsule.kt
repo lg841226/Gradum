@@ -48,21 +48,15 @@ data class ToolCallErrorInfo(
  * tests depend on this composable.
  *
  * Error display — when [success] is `false` and [message] is
- * non-blank, the trailing status icon (`Status.FailedInProgress`)
- * becomes clickable and opens a minimal `PopupMenu` with a single
- * `selectableItem`:
- *
- *   [error icon]  Copy details / Copied
- *
- * "Copy details" copies errorInfo.toolDetails to the clipboard, defaulting
- * to errorInfo.detail when no richer info is available. toolDetails
- * is built by [formatToolDetails] in `ToolCallBlock` from the
- * underlying `RenderBlock.ToolCall` (alias + arguments + result +
- * error message + error detail) so the user can paste a full debug
- * snapshot without us hand-curating per-renderer error strings.
- * The error message itself is NOT shown in the popup — keep the
- * popup to one clickable row so it reads as a single "copy this
- * failure" action.
+ * non-blank, a trailing `Status.FailedInProgress` failure icon is
+ * rendered as a clickable button. Clicking it copies
+ * errorInfo.toolDetails to the clipboard (defaulting to
+ * errorInfo.detail when no richer info is available); once copied the
+ * icon swaps to `Actions.Checked` until it resets. toolDetails is
+ * built by [formatToolDetails] in `ToolCallBlock` from the underlying
+ * `RenderBlock.ToolCall` (alias + arguments + result + error message
+ * + error detail) so the user can paste a full debug snapshot without
+ * us hand-curating per-renderer error strings.
  */
 @Composable
 internal fun ToolCallCapsule(
@@ -115,7 +109,7 @@ internal fun ToolCallCapsule(
           else message(key = "gradum.tool.copy.details"),
         iconKey =
           if (isCopied) AllIconsKeys.Actions.Checked
-          else AllIconsKeys.General.Copy,
+          else AllIconsKeys.Status.FailedInProgress,
         onClick = {
           if (!isCopied && copyPayload.isNotBlank()) {
             copyToClipboard(

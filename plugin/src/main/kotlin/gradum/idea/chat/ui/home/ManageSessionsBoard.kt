@@ -74,6 +74,7 @@ fun ManageSessionsBoard(
   onToggleSelection: (String) -> Unit,
   onDeleteSession: (String) -> Unit = {},
   onRenameSession: (String, String) -> Unit,
+  onOpenSession: (String) -> Unit = {},
 ) {
   val selectedCount: Int = selectedIds.size
   val searchState: TextFieldState = remember { TextFieldState() }
@@ -214,7 +215,8 @@ fun ManageSessionsBoard(
                   renamingSessionId = null
                 },
                 onCancelRename = { renamingSessionId = null },
-                onDelete = { onDeleteSession(session.sessionId) }
+                onDelete = { onDeleteSession(session.sessionId) },
+                onOpenSession = { onOpenSession(session.sessionId) }
               )
               if (flatIndex == lastSelectedIndex &&
                 selectedCount >= GradumChatSession.MIN_MERGE_SESSIONS
@@ -277,7 +279,8 @@ private fun ManageSessionRow(
   onDelete: () -> Unit,
   onStartRename: () -> Unit,
   onCancelRename: () -> Unit,
-  onCommitRename: (String) -> Unit
+  onCommitRename: (String) -> Unit,
+  onOpenSession: () -> Unit
 ) {
   var isHovered: Boolean by remember { mutableStateOf(value = false) }
 
@@ -372,6 +375,14 @@ private fun ManageSessionRow(
             }
           }
         } else {
+          Tooltip(tooltip = { Text(text = message("gradum.manage.open")) }) {
+            IconButton(onClick = onOpenSession) {
+              Icon(
+                key = AllIconsKeys.Actions.MoveToWindow,
+                contentDescription = message("gradum.manage.open")
+              )
+            }
+          }
           Tooltip(tooltip = { Text(text = message("gradum.manage.rename")) }) {
             IconButton(onClick = onStartRename) {
               Icon(

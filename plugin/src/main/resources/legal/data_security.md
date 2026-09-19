@@ -35,8 +35,8 @@ proprietary source code and development metadata at all times.
 The Plugin operates strictly on an "opt-in" and "action-triggered"
 basis. The Plugin does not perform any background scanning, passive
 monitoring, or automatic data collection. The reading of a
-repository's commit history — the only data operation performed by the
-Plugin — is initiated solely and deliberately by the User through a
+repository's commit history, the only data operation performed by the
+Plugin, is initiated solely and deliberately by the User through a
 specific UI command or keyboard shortcut. This action is never
 automated, scheduled, or performed without the User's clear and
 unambiguous affirmative consent at the moment of execution. The commit
