@@ -8,6 +8,9 @@
 pluginManagement {
   repositories {
     mavenCentral()
+    // Fallback mirror of Maven Central (aggregates central + jcenter) for
+    // networks that cannot reach repo.maven.apache.org directly.
+    maven("https://maven.aliyun.com/repository/public")
     gradlePluginPortal()
   }
 }

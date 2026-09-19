@@ -24,6 +24,8 @@ val gitStatsVersion: String = "1.1.0"
 
 repositories {
   mavenCentral()
+  // Fallback mirror of Maven Central for networks without direct access.
+  maven("https://maven.aliyun.com/repository/public")
   maven("https://maven.aliyun.com/repository/google")
   intellijPlatform {
     defaultRepositories()
