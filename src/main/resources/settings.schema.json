@@ -63,6 +63,54 @@
       },
       "additionalProperties": false,
       "required": []
+    },
+    "commandFilter": {
+      "type": "object",
+      "title": "Command Filter Rules",
+      "description": "Configures the command safety filter (dangerous blacklist, read-only whitelist, protected paths). Each field present replaces its built-in default wholesale; absent fields keep the default. The filtering logic itself (shell-operator regexes, dd/rm/chmod analysis) is not configurable.",
+      "properties": {
+        "blockedExecutables": {
+          "type": "array",
+          "description": "Always-on blacklist of dangerous executables that may never run (independent of permission mode).",
+          "items": { "type": "string" }
+        },
+        "readOnlyAllowedExecutables": {
+          "type": "array",
+          "description": "Whitelist of executables allowed while in READ_ONLY mode. Mutating commands (rm, mv, git commit, output redirection, etc.) stay blocked.",
+          "items": { "type": "string" }
+        },
+        "protectedPaths": {
+          "type": "object",
+          "title": "Protected Paths",
+          "description": "Filesystem paths that destructive operations (rm, recursive chmod, file writes) must never touch.",
+          "properties": {
+            "systemPrefixes": {
+              "type": "array",
+              "description": "System root prefixes that are always protected.",
+              "items": { "type": "string" }
+            },
+            "protectedHomeSubdirectories": {
+              "type": "array",
+              "description": "Home subdirectories that are always protected (secrets, credentials).",
+              "items": { "type": "string" }
+            },
+            "safePathPrefixes": {
+              "type": "array",
+              "description": "Scratch directories LLM-driven file ops are always allowed to touch regardless of project root.",
+              "items": { "type": "string" }
+            },
+            "exactProtectedPaths": {
+              "type": "array",
+              "description": "Bare paths that are always protected (e.g. '/', '/dev').",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false,
+          "required": []
+        }
+      },
+      "additionalProperties": false,
+      "required": []
     }
   },
   "additionalProperties": false

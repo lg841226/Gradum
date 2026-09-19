@@ -2,15 +2,16 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-08-31 19:21:55 Changed by gwy
+ * Main.kt  2026-09-19 16:08:06 Changed by gwy
  */
 
 package gradum.server
 
 import gradum.BuildConfig
-import java.net.BindException
+import gradum.utils.CommandFilterRuntime
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.net.BindException
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
@@ -24,6 +25,10 @@ fun main(arguments: Array<String>) {
   // Ensure a user-editable settings file + its autocompletion schema exist.
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
+
+  // Apply the user's command filter rules (dangerous blacklist, read-only
+  // whitelist, protected paths) read from settings.json before any skill runs.
+  CommandFilterRuntime.config = settings.commandFilter
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)
@@ -73,7 +78,7 @@ fun main(arguments: Array<String>) {
     server.start(wait = true)
   } catch (bindException: BindException) {
     logger.error(
-      "Port ${resolvedPort} on ${settings.host} is already in use (${bindException.message}). " +
+      "Port $resolvedPort on ${settings.host} is already in use (${bindException.message}). " +
         "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."
     )
   }

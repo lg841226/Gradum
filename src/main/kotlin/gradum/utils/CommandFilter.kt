@@ -8,6 +8,7 @@
 package gradum.utils
 
 import gradum.ToolMode
+import kotlin.jvm.Volatile
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Paths
@@ -21,12 +22,104 @@ sealed class CommandVerdict {
   data class Blocked(val ruleName: String, val description: String) : CommandVerdict()
 }
 
-private val blockedExecutables: Set<String> = setOf(
-  "mkfs", "mkfs.ext2", "mkfs.ext3", "mkfs.ext4",
-  "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
-  "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
-  "shutdown", "reboot", "poweroff",
+/** User-configurable lists of protected filesystem paths (see [CommandFilterConfig]). */
+data class ProtectedPathsConfig(
+  /** System roots that destructive operations must never touch. */
+  val systemPrefixes: List<String>,
+  /** Home subdirectories that destructive operations must never touch. */
+  val protectedHomeSubdirectories: List<String>,
+  /** Directories LLM-driven file ops are always allowed to touch. */
+  val safePathPrefixes: List<String>,
+  /** Bare paths that are always protected (e.g. `/dev`). */
+  val exactProtectedPaths: List<String>,
 )
+
+/**
+ * Fully-resolved command filter settings.
+ *
+ * [DEFAULT] mirrors the historical hardcoded lists. Any field present under
+ * the `commandFilter` key of `~/.gradum/settings.json` replaces the matching
+ * DEFAULT field wholesale; absent fields keep the DEFAULT. Only the *data*
+ * (command / path lists) is configurable — the filtering logic (shell-operator
+ * regexes, dd/rm/chmod analysis) stays in code on purpose.
+ */
+data class CommandFilterConfig(
+  /** Always-on dangerous executables blacklist (independent of [ToolMode]). */
+  val blockedExecutables: Set<String>,
+  /**
+   * Whitelist of executables allowed while [ToolMode.READ_ONLY] is active.
+   * Anything mutating the filesystem / network / process state is deliberately
+   * absent; `git` is excluded too since its write subcommands are easy to reach
+   * and hard to enumerate exhaustively.
+   */
+  val readOnlyAllowedExecutables: Set<String>,
+  /** Paths that destructive operations must never touch. */
+  val protectedPaths: ProtectedPathsConfig,
+) {
+
+  companion object {
+
+    val DEFAULT: CommandFilterConfig = CommandFilterConfig(
+      blockedExecutables = setOf(
+        "mkfs", "mkfs.ext2", "mkfs.ext3", "mkfs.ext4",
+        "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
+        "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
+        "shutdown", "reboot", "poweroff",
+      ),
+      readOnlyAllowedExecutables = setOf(
+        // directory listing
+        "ls", "tree", "pwd", "dir",
+        // file content
+        "cat", "head", "tail", "less", "more", "bat",
+        "nl", "od", "hexdump", "xxd", "strings",
+        // search / text
+        "grep", "rg", "ag", "ack", "find", "wc",
+        "sort", "uniq", "cut", "tr", "awk", "diff", "cmp", "xargs",
+        "comm", "join", "paste",
+        // file metadata
+        "file", "stat", "du", "df", "readlink", "realpath",
+        "basename", "dirname",
+        // system info
+        "uname", "whoami", "date", "which", "whereis", "type",
+        "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
+        "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
+        // network info (read-only)
+        "ping", "nslookup", "dig", "host",
+        // interpreters (read-only execution)
+        "python3", "python",
+        // path / env
+        "env", "printenv",
+        // pure output (no file write)
+        "echo", "printf", "true", "false", "test", "yes",
+      ),
+      protectedPaths = ProtectedPathsConfig(
+        systemPrefixes = listOf(
+          "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
+          "/lib", "/lib64", "/opt",
+          "/System", "/Library", "/Applications", "/private"
+        ),
+        protectedHomeSubdirectories = listOf(
+          ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
+          ".pypirc", ".npmrc", ".docker",
+        ),
+        safePathPrefixes = listOf("/tmp"),
+        exactProtectedPaths = listOf("/", "/dev", "/proc", "/sys"),
+      )
+    )
+  }
+}
+
+/**
+ * Runtime holder so the server can swap in the user's `commandFilter` config
+ * after parsing `~/.gradum/settings.json`. Defaults to [CommandFilterConfig.DEFAULT];
+ * left untouched it preserves the current behavior exactly. Swap is atomic and
+ * read by [classifyCommand] and [ProtectedPaths] on each invocation.
+ */
+object CommandFilterRuntime {
+
+  @Volatile
+  var config: CommandFilterConfig = CommandFilterConfig.DEFAULT
+}
 
 /** Prefixes that wrap a real command (e.g. `sudo reboot`). The filter skips past these. */
 private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pkexec")
@@ -41,16 +134,11 @@ private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pke
  */
 object ProtectedPaths {
 
-  private val systemPrefixes: List<String> = listOf(
-    "/etc", "/usr", "/var", "/boot", "/bin", "/sbin",
-    "/lib", "/lib64", "/opt",
-    "/System", "/Library", "/Applications", "/private"
-  )
+  val systemPrefixes: List<String>
+    get() = CommandFilterRuntime.config.protectedPaths.systemPrefixes
 
-  private val protectedHomeSubdirectories: List<String> = listOf(
-    ".ssh", ".gnupg", ".aws", ".kube", ".netrc",
-    ".pypirc", ".npmrc", ".docker",
-  )
+  val protectedHomeSubdirectories: List<String>
+    get() = CommandFilterRuntime.config.protectedPaths.protectedHomeSubdirectories
 
   /**
    * Directories that LLM-driven file operations are *always* allowed
@@ -66,16 +154,12 @@ object ProtectedPaths {
    * paths pass the boundary check. Limiting the carve-out to
    * `/tmp` keeps the safe-prefix list narrow and the boundary
    * check honest.
-   *
-   * If a future feature needs an additional directory (a CI
-   * `$RUNNER_TEMP`, a Gradle build cache, etc.), add it here and
-   * make sure the consumers in PathResolver still gate the
-   * safe-prefix opt-in on the LLM typing an absolute path
-   * explicitly.
    */
-  val safePathPrefixes: List<String> = listOf("/tmp")
+  val safePathPrefixes: List<String>
+    get() = CommandFilterRuntime.config.protectedPaths.safePathPrefixes
 
-  private val exactProtectedPaths: List<String> = listOf("/", "/dev", "/proc", "/sys")
+  val exactProtectedPaths: List<String>
+    get() = CommandFilterRuntime.config.protectedPaths.exactProtectedPaths
 
   /**
    * True when [targetPath] resolves to a system path, a protected home
@@ -118,44 +202,6 @@ object ProtectedPaths {
 }
 
 /**
- * Executables that are safe to invoke when the active [ToolMode] is
- * [ToolMode.READ_ONLY]. Any command whose head token resolves to a name
- * outside this whitelist is rejected before it reaches the shell.
- *
- * Anything that can mutate the filesystem, network, or process state
- * is deliberately absent. `git` is excluded too — its write subcommands
- * (commit, push, checkout, reset, clean, stash) are easy to reach and
- * hard to enumerate exhaustively, so a Read-only session skips it
- * entirely rather than trying to filter subcommands.
- */
-private val readOnlyAllowedExecutables: Set<String> = setOf(
-  // directory listing
-  "ls", "tree", "pwd", "dir",
-  // file content
-  "cat", "head", "tail", "less", "more", "bat",
-  "nl", "od", "hexdump", "xxd", "strings",
-  // search / text
-  "grep", "rg", "ag", "ack", "find", "wc",
-  "sort", "uniq", "cut", "tr", "awk", "diff", "cmp", "xargs",
-  "comm", "join", "paste",
-  // file metadata
-  "file", "stat", "du", "df", "readlink", "realpath",
-  "basename", "dirname",
-  // system info
-  "uname", "whoami", "date", "which", "whereis", "type",
-  "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
-  "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
-  // network info (read-only)
-  "ping", "nslookup", "dig", "host",
-  // interpreters (read-only execution)
-  "python3", "python",
-  // path / env
-  "env", "printenv",
-  // pure output (no file write)
-  "echo", "printf", "true", "false", "test", "yes",
-)
-
-/**
  * Classify a shell command. Returns [CommandVerdict.Safe] when the
  * command may run, or [CommandVerdict.Blocked] with the reason.
  *
@@ -164,7 +210,8 @@ private val readOnlyAllowedExecutables: Set<String> = setOf(
  *    (`sudo`, `mkfs`, etc.) and operations against protected paths.
  *    Independent of [toolMode] so it always applies.
  * 2. **Read-only whitelist** — when [toolMode] is [ToolMode.READ_ONLY],
- *    the head executable must appear in [readOnlyAllowedExecutables].
+ *    the head executable must appear in the configured read-only
+ *    whitelist ([CommandFilterRuntime] -> [CommandFilterConfig.readOnlyAllowedExecutables]).
  *    Any other executable is blocked so the model cannot reach
  *    `rm`, `mv`, `touch`, `mkdir`, `git commit`, `>`, etc. through
  *    `run_cmd` even though `run_cmd` is in the tool list.
@@ -182,7 +229,7 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
   val prefixOffset: Int = if (executableName in PRIVILEGE_ESCALATORS && tokens.size > 1) 1 else 0
   val effectiveName: String = Paths.get(tokens[prefixOffset]).fileName.toString()
 
-  if (effectiveName in blockedExecutables) {
+  if (effectiveName in CommandFilterRuntime.config.blockedExecutables) {
     return CommandVerdict.Blocked(
       ruleName = "executable:$effectiveName",
       description = "'$effectiveName' is not allowed"
@@ -204,7 +251,7 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
       val subTokens: List<String> = trimmed.split(regex = WHITESPACE_PATTERN)
       val subPrefixOffset: Int = if (subTokens[0] in PRIVILEGE_ESCALATORS && subTokens.size > 1) 1 else 0
       val subcommandExecutable: String = Paths.get(subTokens[subPrefixOffset]).fileName.toString()
-      if (subcommandExecutable !in readOnlyAllowedExecutables) {
+      if (subcommandExecutable !in CommandFilterRuntime.config.readOnlyAllowedExecutables) {
         return CommandVerdict.Blocked(
           ruleName = "readonly:executable:$subcommandExecutable",
           description = "Read-only mode: '$subcommandExecutable' is not in the read-only command set"

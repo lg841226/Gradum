@@ -8,7 +8,9 @@
 package gradum.server
 
 import gradum.AgentConfiguration
+import gradum.utils.CommandFilterConfig
 import gradum.utils.JsonUtil
+import gradum.utils.ProtectedPathsConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -33,6 +35,8 @@ data class ServerSettings(
   val defaultBaseUrl: String,
   val defaultModelName: String,
   val defaultThinkEnabled: Boolean,
+  /** Resolved command filter rules; equals [CommandFilterConfig.DEFAULT] when the user configures nothing. */
+  val commandFilter: CommandFilterConfig,
 )
 
 /**
@@ -176,6 +180,8 @@ object ServerSettingsStore {
       else issues += ValidationIssue("llm.think", Severity.WARN, "expected a boolean (true/false); got ${describe(rawThink)}")
     }
 
+    val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
+
     logIssues(issues)
     if (issues.isEmpty()) {
       logger.info("Settings OK (host=$host, port=$port)")
@@ -192,7 +198,8 @@ object ServerSettingsStore {
       port = port,
       host = host,
       defaultBaseUrl = defaultBaseUrl,
-      defaultThinkEnabled = defaultThinkEnabled
+      defaultThinkEnabled = defaultThinkEnabled,
+      commandFilter = commandFilter,
     )
   }
 
@@ -226,7 +233,7 @@ object ServerSettingsStore {
   )
 
   private val PORT_RANGE: IntRange = 1024..65535
-  private val TOP_LEVEL_KEYS: Set<String> = setOf($$"$schema", "server", "llm")
+  private val TOP_LEVEL_KEYS: Set<String> = setOf($$"$schema", "server", "llm", "commandFilter")
   private val SERVER_KEYS: Set<String> = setOf("host", "port", "autoDetectPort", "apiKeyFile")
   private val LLM_KEYS: Set<String> = setOf("baseUrl", "model", "think")
 
@@ -269,4 +276,64 @@ object ServerSettingsStore {
       is Float -> if (value.isFinite() && value == value.toInt().toFloat()) value.toInt() else null
       else -> null
     }
+
+  /**
+   * Resolves the user's optional `commandFilter` section into a
+   * [CommandFilterConfig]. Starts from [CommandFilterConfig.DEFAULT] and
+   * replaces each field that the user supplied (replace-whole semantics);
+   * an absent or malformed field keeps the DEFAULT. Non-object values for
+   * the section itself are ignored and fall back to [CommandFilterConfig.DEFAULT].
+   */
+  private fun parseCommandFilter(
+    sectionRaw: Any?, issues: MutableList<ValidationIssue>
+  ): CommandFilterConfig {
+    if (sectionRaw == null) return CommandFilterConfig.DEFAULT
+    if (sectionRaw !is Map<*, *>) {
+      issues += ValidationIssue(key = "commandFilter", level = Severity.WARN, reason = "expected an object; got ${describe(sectionRaw)}")
+      return CommandFilterConfig.DEFAULT
+    }
+
+    val defaultConfig: CommandFilterConfig = CommandFilterConfig.DEFAULT
+    var resolvedProtectedPaths: ProtectedPathsConfig = defaultConfig.protectedPaths
+
+    warnUnknownKeys(sectionRaw, COMMAND_FILTER_KEYS, "commandFilter", issues)
+
+    val protectedSectionRaw: Any? = sectionRaw["protectedPaths"]
+    if (protectedSectionRaw != null) {
+      if (protectedSectionRaw is Map<*, *>) resolvedProtectedPaths = parseProtectedPaths(protectedSectionRaw, issues)
+      else issues += ValidationIssue(
+        key = "commandFilter.protectedPaths",
+        level = Severity.WARN,
+        reason = "expected an object; got ${describe(protectedSectionRaw)}"
+      )
+    }
+
+    return CommandFilterConfig(
+      blockedExecutables = stringListOrNull(sectionRaw["blockedExecutables"])?.toSet() ?: defaultConfig.blockedExecutables,
+      readOnlyAllowedExecutables =
+        stringListOrNull(sectionRaw["readOnlyAllowedExecutables"])?.toSet() ?: defaultConfig.readOnlyAllowedExecutables,
+      protectedPaths = resolvedProtectedPaths,
+    )
+  }
+
+  private fun parseProtectedPaths(
+    sectionRaw: Map<*, *>, issues: MutableList<ValidationIssue>
+  ): ProtectedPathsConfig {
+    val defaultProtectedPaths: ProtectedPathsConfig = CommandFilterConfig.DEFAULT.protectedPaths
+    warnUnknownKeys(sectionRaw, PROTECTED_PATHS_KEYS, "commandFilter.protectedPaths", issues)
+    return ProtectedPathsConfig(
+      systemPrefixes = stringListOrNull(sectionRaw["systemPrefixes"]) ?: defaultProtectedPaths.systemPrefixes,
+      protectedHomeSubdirectories = stringListOrNull(sectionRaw["protectedHomeSubdirectories"]) ?: defaultProtectedPaths.protectedHomeSubdirectories,
+      safePathPrefixes = stringListOrNull(sectionRaw["safePathPrefixes"]) ?: defaultProtectedPaths.safePathPrefixes,
+      exactProtectedPaths = stringListOrNull(sectionRaw["exactProtectedPaths"]) ?: defaultProtectedPaths.exactProtectedPaths,
+    )
+  }
+
+  /** Returns the strings of a JSON array, or null when [jsonValue] is not an all-string list. */
+  private fun stringListOrNull(jsonValue: Any?): List<String>? =
+    if (jsonValue is List<*>) jsonValue.filterIsInstance<String>().takeIf { it.size == jsonValue.size } else null
+
+  private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "readOnlyAllowedExecutables", "protectedPaths")
+  private val PROTECTED_PATHS_KEYS: Set<String> =
+    setOf("systemPrefixes", "protectedHomeSubdirectories", "safePathPrefixes", "exactProtectedPaths")
 }
