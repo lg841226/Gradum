@@ -2,13 +2,9 @@
 #  Copyright (c) 2026 Gradum Authors
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
+#  git_stats.py  2026-09-20 13:32:23 Changed by gwy
+#
 #  git_stats.py  2026-08-31 19:21:55 Changed by gwy
-#
-#  git_stats.py  2026-08-17 08:55:38 Changed by gwy
-#
-#  git_stats.py  2026-08-01 22:11:46 Changed by gwy
-#
-#  git_stats.py  2026-07-31 14:47:15 Changed by gwy
 
 import functools
 import itertools

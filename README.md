@@ -62,6 +62,56 @@ the configuration overview and HTTP endpoint list.
 Install the output `plugin/build/distributions/gradum-*.zip` via
 `Settings > Plugins > Install Plugin from Disk`, then point the plugin at a running Gradum server.
 
+## Building from Source Pitfalls
+
+Gradum is not a single-JDK single-command build. It targets two JDKs at once, leans on IDE-copied jars, and packages a
+fat jar, so a plain `./gradlew build` on a fresh machine hits several traps. If a build fails, work through this list
+first.
+
+### 1. Two JDKs are required
+
+- The root **server** module declares `jvmToolchain(21)` (see `build.gradle.kts`).
+- The **IntelliJ plugin** module requires `jvmToolchain(25)` (`plugin/build.gradle.kts`).
+
+On Windows/ARM64 you need matching **ARM64** builds of **both** JDK 21 and JDK 25 (or let Gradle toolchains auto-provision
+them). A missing JDK 21 surfaces as:
+
+```
+Cannot find a Java installation ... {languageVersion=21}
+```
+
+### 2. detekt 1.23.7 does not understand JDK 25
+
+detekt 1.23.7 cannot parse JVM 25 class files: the `:detekt` task fails, printing the raw JDK version as the "error"
+(`> 25.0.4.1`). Skip it while building/testing server code:
+
+```bash
+./gradlew compileKotlin -x detekt   # compile server only
+./gradlew test -x detekt            # run unit tests
+```
+
+### 3. The server fat-jar task conflicts with Gradle 9.5.1
+
+The `io.ktor.plugin` fat-jar task (`:shadowDistTar`) uses a `mainClassName` property that Gradle 9.5.1 removed, so a
+full `./gradlew build` can fail at the packaging step. The tasks you usually want (`compileKotlin`, `test`, `run`)
+never touch the shadow jar and work fine.
+
+### 4. Do not enable Gradle configuration-cache
+
+Setting `org.gradle.configuration-cache=true` breaks the `:plugin:generateBuildConfig` task, which closes over
+non-serializable Gradle script objects. It is already off in `gradle.properties`; leave it that way.
+
+### 5. Missing `plugin/libs/` jars are warnings, not errors
+
+`plugin/build.gradle.kts` loads the IDE's Jewel / Compose / Skiko jars from `plugin/libs/*.jar`, copied from the IDE's
+`Contents/lib/`. On non-macOS those files don't exist, so you'll see a list like:
+
+```
+w: Specified Dependency Does Not Exist ... intellij.libraries.compose.foundation.desktop.jar
+```
+
+These are **warnings**; the plugin still compiles. The classes are provided at runtime by the IDE inside the sandbox.
+
 ## Features
 
 - **Skill system**: pluggable tool architecture, add capabilities by implementing a `Skill`

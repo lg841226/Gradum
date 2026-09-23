@@ -178,7 +178,7 @@ private fun ThinkingBlock(
     onUrlClick = onUrlClick,
     thinking = block.content,
     isTaskComplete = !isLoading,
-    startCollapsed = !isLoading && LocalCollapseThinkingByDefault.current,
+    startCollapsed = LocalCollapseThinkingByDefault.current,
     hasResponseAfter = hasResponseAfter,
   )
 }

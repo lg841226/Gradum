@@ -1,0 +1,230 @@
+/*
+ * Copyright (c) 2026 Gradum Authors
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * style.css  2026-09-24 00:03:00 Changed by gwy
+ */
+
+/* ---------------------------------------------------------------------------
+ * Controlled Single-Model Benchmark
+ * style.css - design tokens, layout, components.
+ *
+ * Conventions:
+ *  - CSS custom properties for every color and spacing value.
+ *  - BEM-ish class naming: `.block`, `.block__element`, `.block--modifier`.
+ *  - State-driven styling via data-* attributes (JS toggles `aria-selected`,
+ *    `data-active`), never cosmetic classes.
+ *  - Reduced-motion / focus-visible accessibility hooks are preserved.
+ * ------------------------------------------------------------------------- */
+
+:root {
+    --text: #1d1d1f;
+    --muted: #86868b;
+    --line: #d2d2d7;
+    --gray-bar: #c8c8cc;
+    --accent: #7cb3ff;
+    --accent-strong: #165dff;
+    --accent-grad: linear-gradient(90deg, #7cb3ff 0%, #3a8aff 35%, #165dff 100%);
+    --gray-grad: linear-gradient(90deg, #dcdcdf 0%, #c7c7cc 100%);
+    --bg: #ffffff;
+
+    /* Typography */
+    --font-stack: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --fs-label: 14px;
+    --fs-tab: 14px;
+    --fs-num: 36px;
+    --fs-num-small: 20px;
+    --fs-note: 11px;
+
+    /* Layout */
+    --row-gap: 35px;
+    --row-width: 776px;
+    --row-cols: 560px 180px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    line-height: 1.4;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    color: var(--text);
+    background: var(--bg);
+    font-family: var(--font-stack), system-ui;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.crumbs {
+    font-size: 13px;
+    letter-spacing: 0;
+}
+
+.crumbs a {
+    text-decoration: none;
+    color: var(--muted);
+}
+
+.crumbs .sep {
+    margin: 0 6px;
+    color: var(--muted);
+}
+
+.crumbs .cur {
+    font-weight: 600;
+    color: var(--accent-strong);
+}
+
+.title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 24px 0 20px;
+}
+
+.tabs {
+    gap: 0;
+    display: flex;
+    margin-top: 6px;
+    justify-content: center;
+    width: var(--row-width);
+    border-bottom: 1px solid var(--line);
+}
+
+.tab {
+    border: 0;
+    cursor: pointer;
+    padding: 8px 18px;
+    background: none;
+    font-family: inherit;
+    color: var(--muted);
+    font-size: var(--fs-tab);
+    user-select: none;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+}
+
+.tab:hover {
+    color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+    font-weight: 700;
+    color: var(--accent-strong);
+    border-color: var(--accent-strong);
+}
+
+.tab:focus-visible {
+    border-radius: 4px;
+    outline-offset: 2px;
+    outline: 2px solid var(--accent);
+}
+
+.panel {
+    display: none;
+}
+
+.panel[data-active="true"] {
+    display: block;
+}
+
+.row {
+    display: grid;
+    column-gap: 36px;
+    align-items: center;
+    margin: var(--row-gap) 0;
+    width: var(--row-width);
+    grid-template-columns: var(--row-cols);
+}
+
+.name {
+    margin-top: 6px;
+    color: var(--text);
+    font-size: var(--fs-label);
+}
+
+.version {
+    font-weight: 400;
+    margin-left: 6px;
+    color: var(--muted);
+    font-size: var(--fs-label);
+}
+
+.base-tag {
+    margin-left: 4px;
+    font-weight: 400;
+    color: var(--muted);
+    font-size: var(--fs-label);
+}
+
+.track {
+    height: 7px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: transparent;
+}
+
+.fill {
+    width: 0;
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1s cubic-bezier(.2, .7, .2, 1);
+}
+
+.fill--primary {
+    background: var(--accent-grad);
+}
+
+.fill--dim {
+    background: var(--gray-grad);
+}
+
+.num {
+    font-size: var(--fs-num);
+    font-weight: 700;
+    line-height: 1;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+}
+
+.num--primary {
+    color: var(--accent-strong);
+}
+
+.num--dim {
+    color: var(--muted);
+}
+
+.num small {
+    font-size: var(--fs-num-small);
+    font-weight: 700;
+    color: inherit;
+}
+
+.numwrap {
+    gap: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.footnote {
+    margin-top: 20px;
+    line-height: 1.6;
+    max-width: 780px;
+    color: var(--muted);
+    font-size: var(--fs-note);
+}

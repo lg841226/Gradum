@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ThinkingIndicator.kt  2026-08-31 19:21:55 Changed by gwy
+ * ThinkingIndicator.kt  2026-09-23 13:17:03 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -11,7 +11,9 @@ package gradum.idea.chat.ui.chat
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +58,15 @@ fun ThinkingIndicator(
   if (thinking.isBlank()) return
   var isExpanded: Boolean by remember { mutableStateOf(value = !startCollapsed) }
 
+  val window = remember(thinking) {
+    val all = thinking.trim()
+    if (all.length <= PREVIEW_WINDOW) all else all.takeLast(PREVIEW_WINDOW)
+  }
+
+  val previewStyle = rememberGradumParagraphTextStyle().copy(
+    color = LocalGlobalColors.current.text.info
+  )
+
   Column(modifier = modifier.fillMaxWidth()) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
@@ -70,6 +81,24 @@ fun ThinkingIndicator(
         text = message("gradum.thinking"),
         fontWeight = FontWeight.Medium
       )
+      if (!isExpanded && window.isNotEmpty()) {
+        val scrollState = rememberScrollState()
+        LaunchedEffect(window) {
+          scrollState.animateScrollTo(scrollState.maxValue)
+        }
+        Row(
+          modifier = Modifier
+            .weight(1f)
+            .horizontalScroll(scrollState)
+        ) {
+          Text(
+            text = window,
+            style = previewStyle,
+            maxLines = 1,
+            softWrap = false
+          )
+        }
+      }
       Icon(
         contentDescription = null,
         key =
@@ -85,11 +114,11 @@ fun ThinkingIndicator(
         GradumMarkdown(text = thinking) {
           thinkingMode = true
           animationEnabled = false
-          paragraphStyle = rememberGradumParagraphTextStyle().copy(
-            color = LocalGlobalColors.current.text.info
-          )
+          paragraphStyle = previewStyle
         }
       }
     }
   }
 }
+
+private const val PREVIEW_WINDOW = 400

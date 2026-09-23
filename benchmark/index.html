@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Controlled single-model benchmark comparing four coding agents across four scoring factors.">
+  <title>Controlled Single-Model Benchmark</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <h1 class="title">Controlled Single-Model Benchmark</h1>
+
+  <div class="tabs" role="tablist" aria-label="Benchmark factors">
+    <button class="tab" data-tab="completion" role="tab" tabindex="0">Task Completion</button>
+    <button class="tab" data-tab="tooling" role="tab" tabindex="-1">Tool Following</button>
+    <button class="tab" data-tab="boundary" role="tab" tabindex="-1">Boundary</button>
+    <button class="tab" data-tab="leak" role="tab" tabindex="-1">Safety / Leak</button>
+    <button class="tab" data-tab="total" role="tab" aria-label="Total out of 180 points" tabindex="-1">Total (180)</button>
+  </div>
+
+  <div id="panels" class="panels" role="tabpanels"></div>
+
+  <footer class="footnote">
+    This controlled single-model benchmark was conducted using the Qwen 3.5 9B model within the testKit working
+    environment. The four coding agents enumerated herein were evaluated across three distinct tasks under a
+    four-factor scoring scheme, namely task completion, tool following, boundary adherence, and information
+    security and disclosure. Each factor represents the aggregate of the corresponding scores across the three
+    tasks, with a cumulative scale of 180 points. The multiplier shown for each agent is computed relative to the
+    lowest non-zero score within the same factor; the agent carrying that baseline is marked "(Baseline)" and no
+    multiplier is shown for it.
+  </footer>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

@@ -36,7 +36,7 @@ val LocalShowTimestamp = staticCompositionLocalOf { true }
 /**
  * Whether the thinking block starts collapsed (showing only the label).
  */
-val LocalCollapseThinkingByDefault = staticCompositionLocalOf { false }
+val LocalCollapseThinkingByDefault = staticCompositionLocalOf { true }
 
 /**
  * Whether the assistant bubble shows the model name header.

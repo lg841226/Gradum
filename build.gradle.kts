@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-09-11 23:27:36 Changed by gwy
+ * build.gradle.kts  2026-09-23 23:49:49 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -77,6 +77,12 @@ val gradumOpenAiApiKey: String =
 tasks.named<JavaExec>("run") {
   standardInput = System.`in`
   isIgnoreExitValue = true
+
+  jvmArgs(
+    "-Dfile.encoding=UTF-8",
+    "-Dstdout.encoding=UTF-8",
+    "-Dstderr.encoding=UTF-8",
+  )
   if (gradumOpenAiApiKey.isNotBlank()) {
     environment("GRADUM_OPENAI_API_KEY", gradumOpenAiApiKey)
   }
@@ -87,31 +93,18 @@ repositories {
 }
 
 dependencies {
-  // Ktor server
   implementation("io.ktor:ktor-server-core:3.0.3")
   implementation("io.ktor:ktor-server-netty:3.0.3")
   implementation("io.ktor:ktor-server-content-negotiation:3.0.3")
   implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.3")
-
-  // Ktor client (for LLM API calls)
   implementation("io.ktor:ktor-client-core:3.0.3")
   implementation("io.ktor:ktor-client-cio:3.0.3")
   implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
-
-  // Serialization
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-
-  // Coroutines
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-
-  // Logging
   implementation("ch.qos.logback:logback-classic:1.5.25")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
-
-  // Detekt
   detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
-
-  // Test
   testImplementation("io.ktor:ktor-server-test-host:3.0.3")
   testImplementation("io.ktor:ktor-client-mock:3.0.3")
   testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
