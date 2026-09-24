@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * style.css  2026-09-24 00:03:00 Changed by gwy
+ * style.css  2026-09-24 Changed by gwy
  */
 
 /* ---------------------------------------------------------------------------
@@ -17,16 +17,25 @@
  *  - Reduced-motion / focus-visible accessibility hooks are preserved.
  * ------------------------------------------------------------------------- */
 
+/* Design tokens */
 :root {
+    /* Color */
     --text: #1d1d1f;
     --muted: #86868b;
     --line: #d2d2d7;
     --gray-bar: #c8c8cc;
     --accent: #7cb3ff;
-    --accent-strong: #165dff;
-    --accent-grad: linear-gradient(90deg, #7cb3ff 0%, #3a8aff 35%, #165dff 100%);
-    --gray-grad: linear-gradient(90deg, #dcdcdf 0%, #c7c7cc 100%);
+    --accent-strong: #2f6bff;
     --bg: #ffffff;
+
+    /* Gradient fills */
+    --fill-primary: linear-gradient(90deg, #7cb3ff 0%, #5a9eff 35%, #2f6bff 100%);
+    --fill-dim: linear-gradient(90deg, #dcdcdf 0%, #c7c7cc 100%);
+
+    /* Page glow: a strong highlight top-left echoing the logo, and a softer
+       counterpoint bottom-right. Defined here so `body` stays declarative. */
+    --glow-primary: radial-gradient(140% 100% at 12% 6%, rgba(22, 93, 255, 0.14), rgba(22, 93, 255, 0.04) 45%, rgba(255, 255, 255, 0) 75%);
+    --glow-secondary: radial-gradient(130% 95% at 88% 94%, rgba(22, 93, 255, 0.12), rgba(22, 93, 255, 0.03) 45%, rgba(255, 255, 255, 0) 72%);
 
     /* Typography */
     --font-stack: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -42,21 +51,22 @@
     --row-cols: 560px 180px;
 }
 
+/* Reset */
 *,
 *::before,
 *::after {
-    box-sizing: border-box;
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
 }
 
+/* Base */
 html,
 body {
-    line-height: 1.4;
     min-height: 100vh;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     color: var(--text);
-    background: var(--bg);
     font-family: var(--font-stack), system-ui;
 }
 
@@ -65,16 +75,30 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    background: var(--glow-secondary), var(--glow-primary), var(--bg);
+    background-color: var(--bg);
 }
 
+/* Fixed top-left corner brand; absolutely positioned so it leaves the
+   centered flex layout untouched (no flow, no overlap on scroll). */
+.logo {
+    position: fixed;
+    top: 16px;
+    left: 22px;
+    height: auto;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* Breadcrumb-style header */
 .crumbs {
     font-size: 13px;
     letter-spacing: 0;
 }
 
 .crumbs a {
-    text-decoration: none;
     color: var(--muted);
+    text-decoration: none;
 }
 
 .crumbs .sep {
@@ -88,33 +112,34 @@ body {
 }
 
 .title {
+    margin: 24px 0 20px;
     font-size: 22px;
     font-weight: 700;
-    margin: 24px 0 20px;
 }
 
+/* Tabs */
 .tabs {
-    gap: 0;
     display: flex;
-    margin-top: 6px;
     justify-content: center;
     width: var(--row-width);
+    margin-top: 6px;
+    gap: 0;
     border-bottom: 1px solid var(--line);
 }
 
 .tab {
-    border: 0;
-    cursor: pointer;
-    padding: 8px 18px;
-    background: none;
-    font-family: inherit;
-    color: var(--muted);
-    font-size: var(--fs-tab);
-    user-select: none;
     margin-bottom: -1px;
-    white-space: nowrap;
+    padding: 8px 18px;
+    border: 0;
     border-bottom: 2px solid transparent;
-    transition: color .15s, border-color .15s;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: var(--fs-tab);
+    transition: color 0.15s, border-color 0.15s;
 }
 
 .tab:hover {
@@ -122,17 +147,18 @@ body {
 }
 
 .tab[aria-selected="true"] {
-    font-weight: 700;
     color: var(--accent-strong);
     border-color: var(--accent-strong);
+    font-weight: 700;
 }
 
 .tab:focus-visible {
-    border-radius: 4px;
-    outline-offset: 2px;
     outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
+/* Panels shown/hidden via data-active (state-only attr, never cosmetic) */
 .panel {
     display: none;
 }
@@ -141,13 +167,14 @@ body {
     display: block;
 }
 
+/* Benchmark rows */
 .row {
     display: grid;
-    column-gap: 36px;
-    align-items: center;
-    margin: var(--row-gap) 0;
-    width: var(--row-width);
     grid-template-columns: var(--row-cols);
+    align-items: center;
+    column-gap: 36px;
+    width: var(--row-width);
+    margin: var(--row-gap) 0;
 }
 
 .name {
@@ -157,23 +184,24 @@ body {
 }
 
 .version {
-    font-weight: 400;
     margin-left: 6px;
     color: var(--muted);
+    font-weight: 400;
     font-size: var(--fs-label);
 }
 
 .base-tag {
     margin-left: 4px;
-    font-weight: 400;
     color: var(--muted);
+    font-weight: 400;
     font-size: var(--fs-label);
 }
 
+/* Progress bar */
 .track {
     height: 7px;
-    border-radius: 99px;
     overflow: hidden;
+    border-radius: 99px;
     background: transparent;
 }
 
@@ -181,22 +209,23 @@ body {
     width: 0;
     height: 100%;
     border-radius: 99px;
-    transition: width 1s cubic-bezier(.2, .7, .2, 1);
+    transition: width 1s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .fill--primary {
-    background: var(--accent-grad);
+    background: var(--fill-primary);
 }
 
 .fill--dim {
-    background: var(--gray-grad);
+    background: var(--fill-dim);
 }
 
+/* Score numbers */
 .num {
+    text-align: left;
+    line-height: 1;
     font-size: var(--fs-num);
     font-weight: 700;
-    line-height: 1;
-    text-align: left;
     font-variant-numeric: tabular-nums;
 }
 
@@ -209,22 +238,23 @@ body {
 }
 
 .num small {
+    color: inherit;
     font-size: var(--fs-num-small);
     font-weight: 700;
-    color: inherit;
 }
 
 .numwrap {
-    gap: 12px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    gap: 12px;
 }
 
+/* Legal-style footnote */
 .footnote {
     margin-top: 20px;
-    line-height: 1.6;
     max-width: 780px;
+    line-height: 1.6;
     color: var(--muted);
     font-size: var(--fs-note);
 }

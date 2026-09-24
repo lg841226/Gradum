@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-09-23 23:49:49 Changed by gwy
+ * build.gradle.kts  2026-09-24 00:10:38 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -25,7 +25,7 @@ val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")
   outputs.dir(outputDir)
   doLast {
-    val file = outputDir.get().file("gradum/BuildConfig.kt").asFile
+    val file: File = outputDir.get().file("gradum/BuildConfig.kt").asFile
     file.parentFile.mkdirs()
     file.writeText(
       """
@@ -224,17 +224,19 @@ private fun wrapMacAppForTerminalLaunch(launcher: File) {
   val newConfig = File(appDirectory, "${realBinary.name}.cfg")
   if (oldConfig.isFile && !newConfig.exists()) oldConfig.renameTo(newConfig)
 
-  val script: String =
-    "#!/bin/bash\n" +
-      "# Launch the Java server inside a fresh Terminal window so logs are visible.\n" +
-      "self_dir=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\"\n" +
-      "/usr/bin/osascript <<GRADUM_APPLESCRIPT\n" +
-      $$"set serverPath to \"$self_dir/$${launcher.name}Bin\"\n" +
-      "tell application \"Terminal\"\n" +
-      "  do script (quoted form of serverPath)\n" +
-      "  activate\n" +
-      "end tell\n" +
-      "GRADUM_APPLESCRIPT\n"
+  val script: String = $$"""
+    |#!/bin/bash
+    |# Launch the Java server inside a fresh Terminal window so logs are visible.
+    |self_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+    |/usr/bin/osascript <<GRADUM_APPLESCRIPT
+    |set serverPath to "$self_dir/$${launcher.name}Bin"
+    |tell application "Terminal"
+    |  do script (quoted form of serverPath)
+    |  activate
+    |end tell
+    |GRADUM_APPLESCRIPT
+    |
+    |""".trimMargin()
 
   launcher.writeText(script)
   launcher.setExecutable(true, false)
