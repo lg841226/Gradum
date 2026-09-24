@@ -258,3 +258,19 @@ body {
     color: var(--muted);
     font-size: var(--fs-note);
 }
+
+/* Note linking to the benchmark evidence */
+.note {
+    margin: 14px 0 0;
+}
+
+.note a {
+    color: var(--muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.15s;
+}
+
+.note a:hover {
+    color: var(--accent-strong);
+}
