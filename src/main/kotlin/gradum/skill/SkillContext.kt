@@ -79,8 +79,26 @@ data class SkillContext(
    * [registerChildSession]; the [DelegateSkill] calls this in
    * a `finally` block to guarantee cleanup.
    */
-  val unregisterChildSession: ((childSessionId: String) -> Unit)? = null
+  val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
+
+  /**
+   * Ask capability for this session. When non-null, skills may call
+   * `scope.ask_interaction { ... }` to pause for a user decision and
+   * resume with their answer. Null when the agent was not wired with a
+   * [PendingQuestions] (e.g. tests or sub-agents that must not block) —
+   * a skill must fall back when this is absent instead of assuming it exists.
+   */
+  val scope: AskScope? = null
 ) {
+  /**
+   * Session-scoped cache of externally-authorized read paths (e.g. a
+   * `read_file` target outside the project root that the user approved
+   * "always"). In-memory only, never persisted; a session restart asks
+   * again. Not part of the constructor/equality — it lives for the
+   * lifetime of the per-session [SkillContext] instance.
+   */
+  val authorizedReadPaths: MutableSet<String> = mutableSetOf()
+
   /**
    * True when the active model wants the SIMPLE schema variant (small /
    * local models). Single source of truth for the per-skill

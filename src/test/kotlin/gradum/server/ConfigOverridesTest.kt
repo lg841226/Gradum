@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ConfigOverridesTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * ConfigOverridesTest.kt  2026-09-24 13:05:27 Changed by gwy
  */
 
 package gradum.server
@@ -25,6 +25,7 @@ class ConfigOverridesTest {
     assertNull(overrides.numCtx)
     assertNull(overrides.numPredict)
     assertNull(overrides.timeout)
+    assertNull(overrides.keepAlive)
   }
 
   @Test
@@ -43,12 +44,13 @@ class ConfigOverridesTest {
       rawConfig = mapOf(
         "baseUrl" to "http://127.0.0.1:11434",
         "provider" to "openai",
-        "think" to "true",
-        "temperature" to "0.3",
         "topP" to "0.95",
+        "think" to "true",
+        "timeout" to "120",
+        "keepAlive" to "2h",
         "numCtx" to "16384",
         "numPredict" to "4096",
-        "timeout" to "120",
+        "temperature" to "0.3"
       )
     )
 
@@ -84,6 +86,10 @@ class ConfigOverridesTest {
       120,
       overrides.timeout
     )
+    assertEquals(
+      "2h",
+      overrides.keepAlive
+    )
   }
 
   @Test
@@ -107,7 +113,7 @@ class ConfigOverridesTest {
 
   @Test
   fun `partial config map fills only the supplied fields`() {
-    val overrides = ConfigOverrides.fromRequestMap(
+    val overrides: ConfigOverrides = ConfigOverrides.fromRequestMap(
       rawConfig = mapOf("baseUrl" to "http://ollama", "think" to "false")
     )
 
@@ -125,7 +131,7 @@ class ConfigOverridesTest {
 
   @Test
   fun `non boolean strings parse to false instead of crashing`() {
-    val overrides = ConfigOverrides.fromRequestMap(
+    val overrides: ConfigOverrides = ConfigOverrides.fromRequestMap(
       rawConfig = mapOf("think" to "certainly")
     )
 

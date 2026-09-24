@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * PendingToolCallTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * PendingToolCallTest.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -13,13 +13,13 @@ import org.junit.Test
 /**
  * Pins the pending tool-call lifecycle: a `tool_call_start` event
  * renders a pending placeholder, and the completed `tool_call` event
- * with the same `toolCallId` replaces it in place (both in [ChatMessage.events]
- * and [ChatMessage.renderBlocks]) instead of stacking a duplicate row.
+ * with the same `toolCallId` replaces it in place (both in [events]
+ * and [renderBlocks]) instead of stacking a duplicate row.
  */
 class PendingToolCallTest {
 
   private fun assistantMessage(): ChatMessage =
-    ChatMessage(role = "assistant", content = "")
+    ChatMessage(role = "assistant")
 
   @Test
   fun `pending tool call appends a pending render block`() {

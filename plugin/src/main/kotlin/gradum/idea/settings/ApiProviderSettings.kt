@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-09-11 14:23:48 Changed by gwy
+ * ApiProviderSettings.kt  2026-09-24 23:25:55 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -32,10 +32,12 @@ import gradum.idea.provider.ProviderSettings
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
+import kotlinx.coroutines.delay
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val API_FIELD_WIDTH_DP = 56
 private const val MIN_POLL_INTERVAL_SECONDS = PluginConfig.MIN_POLL_INTERVAL_SECONDS
@@ -58,6 +60,7 @@ internal fun ApiProviderSettings() {
   val ollamaUrlState = remember { TextFieldState(initialText = state.ollamaBaseUrl) }
   val lmStudioKeyState = remember { TextFieldState(initialText = state.lmStudioApiKey) }
   val lmStudioUrlState = remember { TextFieldState(initialText = state.lmStudioBaseUrl) }
+  val keepAliveState = remember { TextFieldState(initialText = state.keepAlive) }
 
   LaunchedEffect(key1 = Unit) {
     pushAllKindsToCoordinator(settings)
@@ -118,6 +121,25 @@ internal fun ApiProviderSettings() {
       }
       settings.update(transform, persistToDisk = false)
     }
+
+    Spacer(Modifier.height(GradumSpacing.md))
+
+    KeepAliveRow(
+      checked = state.keepAliveEnabled,
+      onCheckedChange = { isChecked ->
+        val transform: (ProviderSettings.State) -> Unit = { s ->
+          s.keepAliveEnabled = isChecked
+        }
+        settings.update(transform, persistToDisk = false)
+      },
+      state = keepAliveState,
+      onKeepAliveChange = { value ->
+        val transform: (ProviderSettings.State) -> Unit = { s ->
+          s.keepAlive = value
+        }
+        settings.update(transform, persistToDisk = false)
+      }
+    )
 
     Spacer(Modifier.height(GradumSpacing.ml))
 
@@ -501,4 +523,47 @@ private fun pushKindToCoordinator(settings: ProviderSettings, kind: ProviderKind
     autoDetect = snapshot.autoDetectEnabled,
     pollIntervalMs = snapshot.pollIntervalSeconds * 1000L
   )
+}
+
+/**
+ * App-level row for the Ollama keep-alive, mirroring [AutoDetectRow]:
+ * a checkbox + short field on one line, with a one-line hint below. The
+ * field holds a duration (`12m`, `1h`, or `-1` for always-on); values
+ * push up through [onKeepAliveChange] after a short debounce so the
+ * request builder always reads the persisted [keepAlive].
+ */
+@Composable
+private fun KeepAliveRow(
+  checked: Boolean,
+  state: TextFieldState,
+  onCheckedChange: (Boolean) -> Unit,
+  onKeepAliveChange: (String) -> Unit
+) {
+  Column {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Checkbox(
+        checked = checked,
+        onCheckedChange = onCheckedChange
+      )
+      Spacer(Modifier.width(GradumSpacing.sm))
+      Text(text = message("gradum.settings.provider.keepalive"))
+      Spacer(Modifier.width(GradumSpacing.sml))
+      TextField(
+        state = state,
+        enabled = checked,
+        outline = Outline.None,
+        modifier = Modifier.width(85.dp),
+        placeholder = { Text(message("gradum.settings.provider.keepalive.placeholder")) }
+      )
+    }
+    Spacer(Modifier.height(GradumSpacing.xs))
+    Text(
+      color = JewelTheme.globalColors.text.info,
+      text = message("gradum.settings.provider.keepalive.hint")
+    )
+  }
+  LaunchedEffect(state.text) {
+    delay(duration = 300L.milliseconds)
+    onKeepAliveChange(state.text.toString())
+  }
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatEventHandlers.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatEventHandlers.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -11,10 +11,7 @@ import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
 import gradum.idea.chat.history.ChatTranscript
 import gradum.idea.chat.history.SessionMeta
-import gradum.idea.chat.model.ChatEvent
-import gradum.idea.chat.model.ChatMessage
-import gradum.idea.chat.model.TokenUsage
-import gradum.idea.chat.model.ToolCallInfo
+import gradum.idea.chat.model.*
 import gradum.idea.chat.ui.chat.errorDetailText
 import gradum.idea.chat.ui.chat.friendlyErrorMessage
 import gradum.idea.utils.GradumBundle
@@ -391,9 +388,9 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     add(
       ChatMessage(
         role = "assistant",
+        content = subAgentState.streamingResponse,
         events = assistantEvents,
-        modelName = subAgentState.modelName,
-        content = subAgentState.streamingResponse
+        modelName = subAgentState.modelName
       )
     )
   }
@@ -445,6 +442,78 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     log.warn("Failed to update delegate block on end", appendException)
   }
   sendingPhase = message("gradum.phase.delegate.done")
+}
+
+/**
+ * Handles an agent-initiated `ask_interaction` event. Parses the server wire
+ * shape (requestId/sessionId/title/details/default plus either `choices` or
+ * `input`), resolves title/details/placeholder from their `L10nText` form via
+ * the i18n bundle, and appends an ask card to the current assistant message.
+ */
+internal fun GradumChatSession.handleAskInteractionEvent(eventData: JsonObject?) {
+  if (eventData == null) return
+  val requestId: String = eventData["requestId"]?.jsonPrimitive?.contentOrNull ?: return
+  val sessionId: String = eventData["sessionId"]?.jsonPrimitive?.contentOrNull ?: ""
+  val titleText: String = resolveL10n(eventData["title"])
+  val detailText: String = resolveL10n(eventData["details"], fallback = "")
+  val defaultValue: String = eventData["default"]?.jsonPrimitive?.contentOrNull ?: ""
+
+  val askPrompt: AskPrompt =
+    when {
+      eventData["choices"]?.jsonArray != null -> {
+        val choiceOptions: List<AskChoice> = eventData["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
+          val choiceObject: JsonObject = choiceElement as? JsonObject ?: return@mapNotNull null
+          val choiceId: String = choiceObject["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+          val semanticCode: String = choiceObject["semantics"]?.jsonPrimitive?.contentOrNull ?: ""
+          AskChoice(id = choiceId, semantics = semanticCode)
+        }
+        if (choiceOptions.isEmpty()) return
+        AskPrompt.Choices(choiceOptions)
+      }
+
+      eventData["input"]?.jsonObject != null -> {
+        val placeholderText: String = resolveL10n(eventData["input"]!!.jsonObject["placeholder"], fallback = "")
+        AskPrompt.Input(placeholderText)
+      }
+
+      else -> return
+    }
+
+  val assistantIndex: Int = messages.lastIndex
+  if (assistantIndex < 0 || messages[assistantIndex].isUserMessage) return
+
+  messages[assistantIndex] = messages[assistantIndex].appendEvent(
+    ChatEvent.AskInteraction(
+      requestId = requestId,
+      sessionId = sessionId,
+      title = titleText,
+      details = detailText,
+      default = defaultValue,
+      prompt = askPrompt
+    )
+  )
+}
+
+/**
+ * Resolves a server `L10nText` value into a display string. `key` form looks
+ * the key up in the i18n bundle (interpolating `{0}`-style args); `raw` form
+ * shows the text verbatim.
+ */
+private fun resolveL10n(element: JsonElement?, fallback: String = "?"): String {
+  val value: JsonObject = element as? JsonObject ?: return fallback
+  return when (value["kind"]?.jsonPrimitive?.contentOrNull) {
+    "key" -> {
+      val key: String = value["key"]?.jsonPrimitive?.contentOrNull ?: return fallback
+      val args: List<String> = value["args"]?.jsonArray
+        ?.mapNotNull { argument: JsonElement ->
+          argument.jsonPrimitive.contentOrNull
+        } ?: emptyList()
+      message(key, *args.toTypedArray())
+    }
+
+    "raw" -> value["text"]?.jsonPrimitive?.contentOrNull ?: fallback
+    else -> fallback
+  }
 }
 
 internal fun parseArguments(jsonObject: JsonObject?): Map<String, Any> {

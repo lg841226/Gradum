@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-09-19 16:08:06 Changed by gwy
+ * Main.kt  2026-09-24 23:12:43 Changed by gwy
  */
 
 package gradum.server
@@ -26,8 +26,6 @@ fun main(arguments: Array<String>) {
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
 
-  // Apply the user's command filter rules (dangerous blacklist, read-only
-  // whitelist, protected paths) read from settings.json before any skill runs.
   CommandFilterRuntime.config = settings.commandFilter
 
   val resolvedApiKey: String? =
@@ -63,8 +61,9 @@ fun main(arguments: Array<String>) {
     hostAddress = settings.host,
     defaultApiKey = resolvedApiKey,
     defaultBaseUrl = settings.defaultBaseUrl,
+    defaultKeepAlive = settings.defaultKeepAlive,
     defaultModelName = settings.defaultModelName,
-    defaultThinkEnabled = settings.defaultThinkEnabled,
+    defaultThinkEnabled = settings.defaultThinkEnabled
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)
@@ -130,7 +129,7 @@ private fun printUsage() {
 }
 
 private fun printStartupBanner() {
-  val workDir = abbreviatePath(System.getProperty("user.dir") ?: "?")
+  val workDir: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
 
   println(
     """
@@ -152,13 +151,12 @@ private fun printStartupBanner() {
 }
 
 private fun abbreviatePath(path: String): String {
-  val homeDirectory = System.getProperty("user.home") ?: return path
+  val homeDirectory: String = System.getProperty("user.home") ?: return path
   if (!path.startsWith(prefix = homeDirectory)) return path
 
-  val relativePath = path.removePrefix(homeDirectory).trimStart('/')
+  val relativePath: String = path.removePrefix(homeDirectory).trimStart('/')
   val pathSegments = relativePath.split("/")
 
-  return if (pathSegments.size >= 2)
-    "~/${pathSegments.takeLast(n = 2).joinToString(separator = "/")}"
+  return if (pathSegments.size >= 2) "~/${pathSegments.takeLast(n = 2).joinToString(separator = "/")}"
   else "~/$relativePath"
 }

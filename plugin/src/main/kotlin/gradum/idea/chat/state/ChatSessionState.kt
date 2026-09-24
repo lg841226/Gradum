@@ -75,5 +75,9 @@ data class ChatSessionState(
   val onRenameSession: (String, String) -> Unit,
   val onDeleteSession: (String) -> Unit,
 
+  val onRespondToAsk: suspend (
+    sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
+  ) -> Unit,
+
   val onSubChatClick: (String) -> Unit,
 )

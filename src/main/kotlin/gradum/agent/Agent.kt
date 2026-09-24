@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-09-11 14:38:08 Changed by gwy
+ * Agent.kt  2026-09-24 23:12:43 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -15,10 +15,7 @@ import gradum.Provider
 import gradum.Version
 import gradum.client.*
 import gradum.debug.*
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.SkillRegistry
-import gradum.skill.getTodoManagerInstance
+import gradum.skill.*
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.flow.Flow
@@ -88,6 +85,13 @@ class Agent(
    * or errors so the session hierarchy stays clean.
    */
   private val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
+  /**
+   * Registry that backs the ask_interaction channel. When non-null the
+   * session's [SkillContext.scope] is wired so skills can pause for a
+   * user decision; when null (tests, isolated sub-agents) `scope` stays
+   * null and asking skills must fall back rather than block forever.
+   */
+  private val askScopeHolder: PendingQuestions? = null,
 ) {
   private val ollamaClient: OllamaClient = OllamaClient(configuration)
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
@@ -103,15 +107,22 @@ class Agent(
   private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
   private val toolExecutor: ToolExecutor = ToolExecutor(
     skillContext = SkillContext(
+      emitEvent = emitEvent,
       toolMode = configuration.toolMode,
       provider = configuration.provider,
       agentConfiguration = configuration,
       modelName = configuration.modelName,
       projectRoot = configuration.projectRoot,
       conversationHistory = { conversationHistory.toList() },
-      emitEvent = emitEvent,
       registerChildSession = registerChildSession,
       unregisterChildSession = unregisterChildSession,
+      scope = askScopeHolder?.let { holder ->
+        AskScope(
+          sessionId = configuration.sessionId.orEmpty(),
+          pendingQuestions = holder,
+          emitEvent = emitEvent,
+        )
+      },
     ), sessionManager, configuration,
     conversationHistory,
     emitEvent = emitEvent
@@ -129,16 +140,16 @@ class Agent(
   internal constructor(
     llmClient: LlmClient,
     configuration: AgentConfiguration,
-    emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit,
+    emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit
   ) : this(configuration, emitEvent) {
     activeClient = llmClient
   }
 
   fun executeTask(
     userInput: String,
+    messageId: String? = null,
     toolCallXml: String? = null,
     loadPreviousContext: Boolean = false,
-    messageId: String? = null,
     attachments: List<AttachmentPayload> = emptyList()
   ): Unit {
     sessionManager.reset()

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderSettings.kt  2026-08-31 19:21:55 Changed by gwy
+ * ProviderSettings.kt  2026-09-24 13:13:34 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -31,23 +31,25 @@ import com.intellij.openapi.components.Storage
 class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
 
   data class State(
-    var ollamaApiKey: String = "",
-    var lmStudioApiKey: String = "",
-    var ollamaBaseUrl: String = "http://localhost:11434",
-    var lmStudioBaseUrl: String = "http://localhost:1234",
     var pollIntervalSeconds: Int = 5,
+    var zhipuEnabled: Boolean = false,
+    var minimaxEnabled: Boolean = false,
+    var deepseekEnabled: Boolean = false,
+    var keepAliveEnabled: Boolean = true,
     var ollamaAutoFilter: Boolean = true,
     var autoDetectEnabled: Boolean = true,
     var lmStudioAllowRemote: Boolean = false,
-    var zhipuEnabled: Boolean = false,
+    var keepAlive: String = "5m",
     var zhipuApiKey: String = "",
-    var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
-    var deepseekEnabled: Boolean = false,
-    var deepseekApiKey: String = "",
-    var deepseekBaseUrl: String = "https://api.deepseek.com/v1",
-    var minimaxEnabled: Boolean = false,
+    var ollamaApiKey: String = "",
     var minimaxApiKey: String = "",
+    var lmStudioApiKey: String = "",
+    var deepseekApiKey: String = "",
+    var ollamaBaseUrl: String = "http://localhost:11434",
+    var lmStudioBaseUrl: String = "http://localhost:1234",
     var minimaxBaseUrl: String = "https://api.minimaxi.com/v1",
+    var deepseekBaseUrl: String = "https://api.deepseek.com/v1",
+    var zhipuBaseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
   ) {
     fun configFor(kind: ProviderKind): Pair<String, String> = when (kind) {
       ProviderKind.OLLAMA -> ollamaBaseUrl to ollamaApiKey

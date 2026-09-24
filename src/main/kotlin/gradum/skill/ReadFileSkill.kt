@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ReadFileSkill.kt  2026-08-31 19:21:55 Changed by gwy
+ * ReadFileSkill.kt  2026-09-24 23:50:38 Changed by gwy
  */
 
 package gradum.skill
@@ -53,7 +53,9 @@ class ReadFileSkill : Skill() {
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     string(
       name = "path",
-      description = "File path relative to project root, e.g. 'src/main.py'.",
+      description = "File path (relative to project root, e.g. 'src/main.py', or an " +
+        "absolute path). Absolute paths outside the project may prompt the user " +
+        "for authorization before reading.",
       required = true,
     )
     cloudOnly {
@@ -87,20 +89,48 @@ class ReadFileSkill : Skill() {
       )
 
     val resolved: ResolvedProjectPath = resolveProjectPath(filePath, projectRoot)
-    val resolvedPath: Path = resolved.resolved
-    if (resolved.rejectionReason != null) {
-      return makeFailure(
-        code = ErrorCode.PERMISSION_DENIED,
-        message = buildXmlError(
-          code = "PERMISSION_DENIED",
-          message = "Path is outside the project root: ${resolved.rejectionReason}",
-          fixHint = "Use a path relative to the project root. " +
-            "If the file lives outside the project, copy it into the project first."
-        ),
-        context = mapOf("path" to filePath)
-      )
+    val pathRejection: String? = resolved.rejectionReason
+    var targetPath: Path = resolved.resolved
+
+    if (pathRejection != null) {
+      val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
+      val alreadyAuthorized: Boolean = externalPath.toString() in context.authorizedReadPaths
+
+      if (!alreadyAuthorized) {
+        val askScope: AskScope = context.scope ?: return outsideDenied(path = filePath, reason = pathRejection)
+        val pathDecision: AskResult = askScope.ask_interaction {
+          title = l10n.raw("Allow reading this path outside the project root?", source = Lang.EN)
+          details = l10n.raw(externalPath.toString(), source = Lang.EN)
+          choices {
+            item("once", Choice.Meaning.ALLOW_ONCE)
+            item("always", Choice.Meaning.ALLOW_ALWAYS)
+            item("no", Choice.Meaning.REJECT)
+          }
+          default = "no"
+        }
+        val allowedToRead: Boolean = when (pathDecision) {
+          is AskResult.Case ->
+            when (pathDecision.id) {
+              "once" -> true
+              "always" -> {
+                context.authorizedReadPaths.add(externalPath.toString())
+                true
+              }
+
+              else -> false
+            }
+
+          else -> false
+        }
+        if (!allowedToRead) {
+          return outsideDenied(path = filePath, reason = pathRejection)
+        }
+      }
+
+      targetPath = externalPath
     }
-    val targetFile: File = resolvedPath.toFile()
+
+    val targetFile: File = targetPath.toFile()
 
     return try {
       val fileSize: Long = targetFile.length()
@@ -112,7 +142,7 @@ class ReadFileSkill : Skill() {
             message = "File too large: $fileSize bytes (max: $MAXIMUM_FILE_SIZE bytes).",
             fixHint = "Use lineRange to read specific sections of the file."
           ),
-          context = mapOf("path" to resolvedPath.toString(), "fileSize" to fileSize)
+          context = mapOf("path" to targetPath.toString(), "fileSize" to fileSize)
         )
       }
 
@@ -126,7 +156,7 @@ class ReadFileSkill : Skill() {
               message = "File has ${allLines.size} lines (max: $MAXIMUM_LINES).",
               fixHint = "Use lineRange to read specific sections of the file."
             ),
-            context = mapOf("path" to resolvedPath.toString(), "totalLines" to allLines.size)
+            context = mapOf("path" to targetPath.toString(), "totalLines" to allLines.size)
           )
         }
         Triple(1, allLines.size, allLines)
@@ -138,7 +168,7 @@ class ReadFileSkill : Skill() {
             message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
             fixHint = "Provide lineRange in the format 'start-end' with numeric values."
           ),
-          context = mapOf("path" to resolvedPath.toString(), "lineRange" to lineRange)
+          context = mapOf("path" to targetPath.toString(), "lineRange" to lineRange)
         )
 
         val lines = targetFile.useLines {
@@ -155,7 +185,7 @@ class ReadFileSkill : Skill() {
         }.toMap()
 
         makeSuccess {
-          string("path", resolvedPath.toString())
+          string("path", targetPath.toString())
           set("content", numberedContent)
         }
       } else {
@@ -165,7 +195,7 @@ class ReadFileSkill : Skill() {
           .joinToString(separator = "") { "%02x".format(it) }
 
         makeSuccess {
-          string("path", resolvedPath.toString())
+          string("path", targetPath.toString())
           string("lineRange", "$startLineNumber-$endLineNumber")
           integer("totalLines", endLineNumber)
           string("contentHashShort", contentHash.take(n = 5))
@@ -180,7 +210,7 @@ class ReadFileSkill : Skill() {
           message = "File not found: $filePath",
           fixHint = "Check the file path. Use explore_project to find the correct path."
         ),
-        context = mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to targetPath.toString())
       )
     } catch (fileReadException: Exception) {
       makeFailure(
@@ -190,15 +220,30 @@ class ReadFileSkill : Skill() {
           message = fileReadException.message ?: "Unknown I/O error.",
           fixHint = "This is not your fault. Check file permissions and try again."
         ),
-        context = mapOf("path" to resolvedPath.toString())
+        context = mapOf("path" to targetPath.toString())
       )
     }
   }
 }
 
 /**
+ * Builds the `PERMISSION_DENIED` failure for an out-of-project read target.
+ * Used both when no ask capability is wired and when the user rejects.
+ */
+private fun outsideDenied(path: String, reason: String): SkillResult = makeFailure(
+  code = ErrorCode.PERMISSION_DENIED,
+  message = buildXmlError(
+    code = "PERMISSION_DENIED",
+    message = "Path is outside the project root: $reason",
+    fixHint = "Use a path relative to the project root. " +
+      "If the file lives outside the project, copy it into the project first."
+  ),
+  context = mapOf("path" to path)
+)
+
+/**
  * A validated, normalized `start..end` line range. Both bounds are
- * clamped to the document (start ≥ 1) and ordered so `start ≤ end`.
+ * clamped to the document (start ≥ 1) and ordered so `start <= end`.
  */
 private data class LineRange(val start: Int, val end: Int)
 

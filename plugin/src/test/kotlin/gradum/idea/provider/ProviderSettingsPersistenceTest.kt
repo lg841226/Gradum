@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderSettingsPersistenceTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * ProviderSettingsPersistenceTest.kt  2026-09-24 23:23:59 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -74,10 +74,8 @@ class ProviderSettingsPersistenceTest {
   @Test
   fun `configFor returns per-kind base url and api key`() {
     val state = ProviderSettings.State(
-      ollamaBaseUrl = "http://localhost:11434",
-      ollamaApiKey = "k1",
-      zhipuBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
       zhipuApiKey = "kz",
+      ollamaApiKey = "k1",
     )
     assertEquals(
       "http://localhost:11434" to "k1",

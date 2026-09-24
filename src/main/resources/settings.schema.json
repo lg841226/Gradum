@@ -59,6 +59,11 @@
           "type": "boolean",
           "description": "Enable thinking mode by default",
           "default": false
+        },
+        "keepAlive": {
+          "type": "string",
+          "description": "Server-wide default for how long the local Ollama model stays loaded after a request (e.g. \"5m\", \"2h\", or \"-1\" for always-on). Used only when the plugin request doesn't specify keepAlive.",
+          "default": "5m"
         }
       },
       "additionalProperties": false,

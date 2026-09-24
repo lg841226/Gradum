@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-08-31 19:21:55 Changed by gwy
+ * Routes.kt  2026-09-24 23:12:43 Changed by gwy
  */
 
 package gradum.server
@@ -151,6 +151,21 @@ data class StopRequestBody(
   val sessionId: String
 )
 
+/** Body for `POST /events/respond` — resolves an in-flight ask_interaction. */
+@Serializable
+data class RespondRequestBody(
+  /** Session the ask belongs to. */
+  val sessionId: String,
+  /** Unique id carried by the `ask_interaction` event this answers. */
+  val requestId: String,
+  /** One of the choice ids offered by the ask (choices flavor). */
+  val choice: String? = null,
+  /** Free text the user submitted (input flavor). */
+  val text: String? = null,
+  /** True when the user dismissed the card instead of answering. */
+  val cancelled: Boolean = false,
+)
+
 
 @Serializable
 data class DeleteSessionRequestBody(
@@ -176,14 +191,14 @@ data class RewindSessionRequestBody(
  */
 @Serializable
 data class ConfigOverrides(
+  val numCtx: Int? = null,
+  val topP: Double? = null,
+  val timeout: Int? = null,
+  val think: Boolean? = null,
+  val numPredict: Int? = null,
   val baseUrl: String? = null,
   val provider: String? = null,
-  val think: Boolean? = null,
   val temperature: Double? = null,
-  val topP: Double? = null,
-  val numCtx: Int? = null,
-  val numPredict: Int? = null,
-  val timeout: Int? = null,
   /**
    * Per-request bearer token. Overrides the server-wide
    * [ServerConfiguration.defaultApiKey] when non-blank, so a user
@@ -197,6 +212,12 @@ data class ConfigOverrides(
    * under its `api/coding/paas/v4` subdomain.
    */
   val chatCompletionsPath: String? = null,
+  /**
+   * How long the local model stays loaded in memory (Ollama `keep_alive`).
+   * A duration string ("5m", "2h") or "-1" for always-on. Blank leaves the
+   * request unchanged so Ollama's own default applies.
+   */
+  val keepAlive: String? = null,
 ) {
   companion object {
     /**
@@ -208,16 +229,17 @@ data class ConfigOverrides(
     fun fromRequestMap(rawConfig: Map<String, String>?): ConfigOverrides {
       if (rawConfig == null) return ConfigOverrides()
       return ConfigOverrides(
+        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
+        topP = rawConfig["topP"]?.toDoubleOrNull(),
+        timeout = rawConfig["timeout"]?.toIntOrNull(),
+        think = rawConfig["think"]?.toBoolean(),
+        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         baseUrl = rawConfig["baseUrl"],
         provider = rawConfig["provider"],
-        think = rawConfig["think"]?.toBoolean(),
-        topP = rawConfig["topP"]?.toDoubleOrNull(),
-        numCtx = rawConfig["numCtx"]?.toIntOrNull(),
-        timeout = rawConfig["timeout"]?.toIntOrNull(),
-        numPredict = rawConfig["numPredict"]?.toIntOrNull(),
         temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
-        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() }
+        chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
+        keepAlive = rawConfig["keepAlive"]?.trim()?.takeIf { it.isNotEmpty() }
       )
     }
   }
@@ -256,7 +278,10 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
  * - `GET /models`  — discovered LLM models.
  * - `GET /skills`  — registered Skill implementations.
  */
-fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = ServerConfiguration()) {
+fun Application.registerAllRoutes(
+  serverConfiguration: ServerConfiguration = ServerConfiguration(),
+  pendingQuestions: gradum.skill.PendingQuestions = gradum.skill.PendingQuestions(),
+) {
   val serverStartTime: LocalDateTime = LocalDateTime.now()
   val activeSessions: ConcurrentHashMap<String, SessionEntry> = ConcurrentHashMap()
 
@@ -290,15 +315,8 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
       }
 
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
-      // Bounded (not UNLIMITED) so a slow or disconnected client can't
-      // make the producer buffer events without limit. A full channel
-      // means the client stopped draining — the stream is already broken
-      // (it would hang forever otherwise), so dropping new events with a
-      // warning is safe and keeps memory bounded.
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
-
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
-
       val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
       val resolvedToolMode: ToolMode =
         if (requestBody.toolCallXml != null) ToolMode.AGENT
@@ -317,13 +335,7 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
           ?: "",
         provider = resolvedProvider,
         baseUrl = resolvedBaseUrl,
-        // Per-request key wins so the plugin UI can override; otherwise
-        // fall back to the server-wide key resolved at startup. Null
-        // here is the correct state for the local Ollama path.
         apiKey = configOverrides.apiKey ?: serverConfiguration.defaultApiKey,
-        // Plugin → server path override always wins; otherwise infer
-        // the path from the base URL host so plugin users don't have
-        // to know Zhipu's quirk (no /v1 prefix under api/coding/paas/v4).
         chatCompletionsPath = configOverrides.chatCompletionsPath
           ?: inferChatCompletionsPath(resolvedBaseUrl),
         toolMode = resolvedToolMode,
@@ -331,11 +343,12 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
         projectRoot = projectRootPath.toString(),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
         promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
+        keepAlive = configOverrides.keepAlive ?: serverConfiguration.defaultKeepAlive,
         enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
-        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
+        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE
       )
 
       launch(Dispatchers.IO) {
@@ -385,14 +398,15 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
             },
             registerChildSession = registerChildSession,
             unregisterChildSession = unregisterChildSession,
+            askScopeHolder = pendingQuestions,
           )
 
           activeSessions[sessionId] = SessionEntry(agent = agentInstance)
           agentInstance.executeTask(
             userInput = requestBody.message,
+            messageId = requestBody.messageId,
             toolCallXml = requestBody.toolCallXml,
             loadPreviousContext = requestBody.loadContext,
-            messageId = requestBody.messageId,
             attachments = requestBody.attachments.map { attachment ->
               gradum.agent.AttachmentPayload(
                 type = attachment.type,
@@ -418,6 +432,59 @@ fun Application.registerAllRoutes(serverConfiguration: ServerConfiguration = Ser
           }
         }
       })
+    }
+
+    post("/events/respond") {
+      val requestBody: RespondRequestBody = call.receive<RespondRequestBody>()
+      val sessionId: String = requestBody.sessionId.trim()
+      val requestId: String = requestBody.requestId.trim()
+      if (sessionId.isEmpty() || requestId.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "sessionId and requestId are required")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      val (action, toResult) = when {
+        requestBody.cancelled ->
+          "cancelled" to pendingQuestions.completeCancelled(sessionId, requestId)
+
+        requestBody.choice != null ->
+          "choice" to pendingQuestions.completeChoice(sessionId, requestId, requestBody.choice)
+
+        requestBody.text != null ->
+          "text" to pendingQuestions.completeText(sessionId, requestId, requestBody.text)
+
+        else -> "" to null
+      }
+
+      if (action.isEmpty()) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "exactly one of choice, text, or cancelled must be provided")),
+          status = HttpStatusCode.BadRequest,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      // A null result means no live pending question matched this key — either
+      // an unknown id (nothing was ever asked) or a duplicate response for an
+      // already-resolved ask. Both are idempotent no-ops for the client.
+      if (toResult == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionId, "requestId" to requestId)),
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("status" to "delivered", "sessionId" to sessionId, "requestId" to requestId)),
+        contentType = ContentType.Application.Json,
+      )
     }
 
     post("/stop") {

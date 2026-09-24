@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessageSender.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatMessageSender.kt  2026-09-24 23:15:04 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -240,7 +240,6 @@ internal suspend fun GradumChatSession.sendMessage(
         }
 
         "tool_call_start" -> handleToolCallStartEvent(data = payload)
-
         "tool_call" -> handleToolCallEvent(data = payload)
 
         "tool_expect_mismatch" -> {
@@ -249,12 +248,12 @@ internal suspend fun GradumChatSession.sendMessage(
         }
 
         "error" -> handleErrorEvent(data = payload)
-
         "sub_agent:start" -> handleSubAgentStart(data = payload)
         "sub_agent:response" -> handleSubAgentResponse(data = payload)
         "sub_agent:tool_call" -> handleSubAgentToolCall(data = payload)
         "sub_agent:error" -> handleSubAgentError(data = payload)
         "sub_agent:session_end" -> handleSubAgentEnd(data = payload)
+        "ask_interaction" -> handleAskInteractionEvent(eventData = payload)
 
         "session_end" -> {
           receivedSessionEnd = true
@@ -329,6 +328,9 @@ private fun GradumChatSession.buildModelConfig(): Map<String, String> {
   selectedModel?.let { model: ModelInfo ->
     if (model.provider.isNotBlank()) requestParams["provider"] = model.provider
     if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
+
+    if (snapshot.keepAliveEnabled)
+      requestParams["keepAlive"] = snapshot.keepAlive.trim().ifEmpty { "5m" }
 
     val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind: ProviderKind ->
       snapshot.isEnabled(kind) && model.server.isNotBlank() &&

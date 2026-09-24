@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClient.kt  2026-08-31 19:21:55 Changed by gwy
+ * LLMClient.kt  2026-09-24 23:12:43 Changed by gwy
  */
 
 package gradum.client
@@ -259,20 +259,24 @@ class OllamaClient(
         "num_predict" to configuration.maxTokensToGenerate
       ),
     )
+    // Local-first: keep the model resident so consecutive turns skip the
+    // cold re-load. "-1" pins it until the server stops.
+    if (configuration.keepAlive.isNotBlank())
+      requestPayload["keep_alive"] = configuration.keepAlive
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true
     var lastError: Exception? = null
     var emittedAnyChunk = false
 
-    for (attemptIndex in 0..2) {
+    for (attemptIndex: Int in 0..2) {
       try {
         val flowCollector = this
         var succeeded = false
         httpClient.preparePost(urlString = requestUrl) {
           contentType(ContentType.Application.Json)
           setBody(JsonUtil.encodeMap(input = requestPayload))
-        }.execute { httpResponse ->
+        }.execute { httpResponse: HttpResponse ->
           if (httpResponse.status.value !in 200..299) {
             flowCollector.emit(
               value = LLMResponseChunk.ErrorMessage(description = extractApiError(httpResponse))
@@ -445,7 +449,8 @@ class OpenAICompatibleClient(
           emit(value = chunk)
         }
 
-        lastError = null; break
+        lastError = null
+        break
 
       } catch (httpClientException: Exception) {
         if (httpClientException is CancellationException) throw httpClientException
@@ -534,7 +539,7 @@ class OpenAICompatibleClient(
           usageStats,
           currentUsage = tokenUsage,
           promptField = "prompt_tokens",
-          completionField = "completion_tokens",
+          completionField = "completion_tokens"
         )
       }
     }
@@ -683,6 +688,6 @@ private fun recordTokenUsage(
   return currentUsage.copy(
     promptTokens = currentUsage.promptTokens + promptTokens,
     completionTokens = currentUsage.completionTokens + completionTokens,
-    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens,
+    totalTokens = currentUsage.totalTokens + promptTokens + completionTokens
   )
 }

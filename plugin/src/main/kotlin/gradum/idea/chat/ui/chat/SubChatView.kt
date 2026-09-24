@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SubChatView.kt  2026-08-31 19:21:55 Changed by gwy
+ * SubChatView.kt  2026-09-25 01:18:31 Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat
@@ -335,12 +335,12 @@ private fun SubChatConversationContent(
 
 private fun ToolCallInfo.toRenderBlock(): RenderBlock.ToolCall = RenderBlock.ToolCall(
   alias = alias,
-  result = result,
   success = success,
-  pending = pending,
-  arguments = arguments,
+  result = result,
   toolCallId = toolCallId,
   errorDetail = errorDetail,
   errorMessage = errorMessage,
-  timeoutSeconds = timeoutSeconds
+  timeoutSeconds = timeoutSeconds,
+  pending = pending,
+  arguments = arguments
 )

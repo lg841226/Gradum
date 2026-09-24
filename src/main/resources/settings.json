@@ -9,7 +9,8 @@
   "llm": {
     "baseUrl": "http://localhost:11434",
     "model": "",
-    "think": false
+    "think": false,
+    "keepAlive": "5m"
   },
   "commandFilter": {
     "blockedExecutables": [

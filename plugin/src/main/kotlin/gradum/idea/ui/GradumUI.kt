@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-08-31 19:21:55 Changed by gwy
+ * GradumUI.kt  2026-09-25 01:19:20 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -98,10 +98,9 @@ private fun sendPlaybackXml(
 
   session.messages.add(
     ChatMessage(
-      content = "",
       role = "assistant",
-      modelName = displayName,
       provider = providerName,
+      modelName = displayName,
       serverName = serverLabel
     )
   )
@@ -466,10 +465,9 @@ private fun rememberChatSessionState(
       session.messages.add(
         index = userMessageIndex + 1,
         element = ChatMessage(
-          content = "",
           role = "assistant",
-          modelName = displayName,
           provider = providerName,
+          modelName = displayName,
           serverName = serverLabel
         )
       )
@@ -580,10 +578,9 @@ private fun rememberChatSessionState(
           )
           session.messages.add(
             ChatMessage(
-              content = "",
               role = "assistant",
-              modelName = displayName,
               provider = providerName,
+              modelName = displayName,
               serverName = serverLabel
             )
           )
@@ -727,6 +724,17 @@ private fun rememberChatSessionState(
     onOpenSession = { id -> coroutineScope.launch { session.switchSession(targetSessionId = id) } },
     onRefreshSuggestions = { session.suggestionVariants = List(size = 4) { Random.nextInt(until = 5) } },
     onRenameSession = { id: String, title: String -> coroutineScope.launch { session.renameSession(sessionId = id, newTitle = title) } },
+    onRespondToAsk = { sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean ->
+      coroutineScope.launch {
+        session.apiClient.respondToAsk(
+          sessionId = sessionId,
+          requestId = requestId,
+          choice = choice,
+          text = text,
+          cancelled = cancelled
+        )
+      }
+    },
   ) {}
 }
 

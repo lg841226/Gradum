@@ -28,6 +28,7 @@ enum class GradumEventType(val wireName: String) {
   PLAYBACK_END("playback_end"),
   SUB_AGENT_START("sub_agent:start"),
   SUB_AGENT_SESSION_END("sub_agent:session_end"),
+  ASK_INTERACTION("ask_interaction"),
 }
 
 /**

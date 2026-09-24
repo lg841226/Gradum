@@ -141,6 +141,48 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   }
 
   /**
+   * Answers a pending agent-initiated question (`ask_interaction`). The server
+   * parks the skill's coroutine until it gets one of `choice` / `text` /
+   * `cancelled` for the matching [requestId]. Only one of [choice], [text] or
+   * [cancelled] is sent per call.
+   *
+   * @return `true` when the server acknowledged the answer (HTTP 200), `false`
+   *   when the request id is unknown/already answered (404) or the call failed.
+   */
+  suspend fun respondToAsk(
+    sessionId: String,
+    requestId: String,
+    choice: String? = null,
+    text: String? = null,
+    cancelled: Boolean = false
+  ): Boolean = withContext(Dispatchers.IO) {
+    val requestBody: JsonObject = buildJsonObject {
+      put("sessionId", sessionId)
+      put("requestId", requestId)
+      when {
+        cancelled -> put("cancelled", true)
+        choice != null -> put("choice", choice)
+        text != null -> put("text", text)
+      }
+    }
+
+    val request: HttpRequest = HttpRequest.newBuilder()
+      .uri(URI.create("$baseUrl/events/respond"))
+      .header("Content-Type", "application/json")
+      .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+      .build()
+
+    try {
+      val response: HttpResponse<String> =
+        client.send(request, HttpResponse.BodyHandlers.ofString())
+      response.statusCode() == 200
+    } catch (respondException: Exception) {
+      log.warn("Failed to respond to ask $requestId on server", respondException)
+      false
+    }
+  }
+
+  /**
    * Rewinds a session's server-side context to just before the message
    * identified by [messageId], dropping that message and everything after it.
    * Mirrors the plugin's local withdrawal so the persisted `context.json` and

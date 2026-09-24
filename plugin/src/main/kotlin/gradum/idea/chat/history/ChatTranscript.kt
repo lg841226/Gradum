@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-09-11 10:43:31 Changed by gwy
+ * ChatTranscript.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -190,6 +190,11 @@ object ChatTranscript {
               contentBuilder.append(RESPONSE_MARKER).append('\n')
               contentBuilder.append(event.content).append('\n')
             }
+
+            is ChatEvent.AskInteraction -> {
+              // An ask card awaits a live user decision; nothing to persist
+              // into the transcript's Markdown export.
+            }
           }
         }
       }
@@ -222,9 +227,6 @@ object ChatTranscript {
     var sessionMeta = SessionMeta(title = "", modelName = "", sessionId = "", createdAt = 0L, updatedAt = 0L)
     val messages: MutableList<ChatMessage> = mutableListOf()
 
-    // Working message: assistant messages are built incrementally as their
-    // event blocks stream in; user messages accumulate verbatim content and
-    // attachments. Flushed into `messages` when a new message starts or EOF.
     var workingTimestamp = 0L
     var workingModel: String
     var workingServer: String
@@ -232,11 +234,11 @@ object ChatTranscript {
     var workingTokens: TokenUsage?
     var blockType: String? = null
     var workingRole: String? = null
-    var workingMessageId = ""
     var workingMessage: ChatMessage? = null
     var pendingToolCall: ToolCallInfo? = null
     val blockLines: MutableList<String> = mutableListOf()
     val workingAttachments: MutableList<AttachedContext> = mutableListOf()
+    var workingMessageId = ""
     var pendingErrorCode = ""
     var pendingErrorTool = ""
     var pendingUserContent = ""
@@ -299,20 +301,20 @@ object ChatTranscript {
             role = "user",
             content = pendingUserContent,
             attachments = workingAttachments.toList(),
-            messageId = workingMessageId,
-            timestamp = workingTimestamp
+            timestamp = workingTimestamp,
+            messageId = workingMessageId
           )
         )
       }
       workingRole = null
-      workingMessageId = ""
+      workingTokens = null
       workingTimestamp = 0L
       workingModel = ""
-      workingProvider = ""
       workingServer = ""
-      workingTokens = null
-      workingAttachments.clear()
+      workingProvider = ""
+      workingMessageId = ""
       pendingUserContent = ""
+      workingAttachments.clear()
     }
 
     for (line: String in content.lines()) {
@@ -352,14 +354,13 @@ object ChatTranscript {
             blockType = "user"
           } else {
             workingMessage = ChatMessage(
-              content = "",
               role = "assistant",
-              messageId = workingMessageId,
-              modelName = workingModel,
+              timestamp = workingTimestamp,
               provider = workingProvider,
+              modelName = workingModel,
+              messageId = workingMessageId,
               serverName = workingServer,
-              tokenUsage = workingTokens,
-              timestamp = workingTimestamp
+              tokenUsage = workingTokens
             )
           }
         }

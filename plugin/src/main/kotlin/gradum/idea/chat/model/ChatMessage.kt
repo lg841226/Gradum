@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatMessage.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatMessage.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.model
@@ -37,6 +37,29 @@ data class ToolCallInfo(
   val timeoutSeconds: Int = 0
 )
 
+/**
+ * Stable semantic code for an ask choice option, echoed from the server's
+ * `Choice.Meaning` wire codes. The card maps each code to a localized button
+ * label at render time — the server never ships display copy.
+ */
+object AskChoiceMeaning {
+  const val ALLOW_ONCE: String = "allow_once"
+  const val ALLOW_ALWAYS: String = "allow_always"
+  const val REJECT: String = "reject"
+}
+
+/** A single choice option in an ask card (echoes the server `Choice` type). */
+data class AskChoice(
+  val id: String,
+  val semantics: String
+)
+
+/** Prompt body of an ask card: either discrete choices or free-text input. */
+sealed interface AskPrompt {
+  data class Choices(val choices: List<AskChoice>) : AskPrompt
+  data class Input(val placeholder: String) : AskPrompt
+}
+
 /** A single event in an assistant message's timeline, rendered in order. */
 sealed class ChatEvent {
   data class Thinking(val content: String) : ChatEvent()
@@ -46,6 +69,21 @@ sealed class ChatEvent {
     val message: String,
     val code: String = "",
     val tool: String = ""
+  ) : ChatEvent()
+
+  /**
+   * An agent-initiated question awaiting the user's answer. [requestId] and
+   * [sessionId] identify the pending ask server-side; the plugin renders it as
+   * an ask card and POSTs the answer to `/events/respond` to un-block the
+   * suspended skill.
+   */
+  data class AskInteraction(
+    val requestId: String,
+    val sessionId: String,
+    val title: String,
+    val details: String,
+    val default: String,
+    val prompt: AskPrompt
   ) : ChatEvent()
 }
 
@@ -60,17 +98,31 @@ sealed class RenderBlock {
   data class ToolCall(
     val alias: String,
     val success: Boolean,
-    val arguments: Map<String, Any> = emptyMap(),
     val result: String = "",
-    val errorMessage: String = "",
-    val errorDetail: String = "",
     val toolCallId: String = "",
+    val errorDetail: String = "",
+    val errorMessage: String = "",
+    val timeoutSeconds: Int = 0,
     val pending: Boolean = false,
-    val timeoutSeconds: Int = 0
+    val arguments: Map<String, Any> = emptyMap(),
   ) : RenderBlock()
 
   data class Response(val content: String) : RenderBlock()
   data class Error(val message: String, val code: String = "") : RenderBlock()
+
+  /**
+   * Self-contained ask card payload: the server-supplied question (title/
+   * details already resolved to strings) plus the interaction handle needed to
+   * POST the user's answer back to `/events/respond`.
+   */
+  data class AskInteraction(
+    val requestId: String,
+    val sessionId: String,
+    val title: String,
+    val details: String,
+    val default: String,
+    val prompt: AskPrompt
+  ) : RenderBlock()
 }
 
 /**
@@ -88,12 +140,12 @@ data class ChatMessage(
    * ends share this value so a "rewind" (withdraw) can locate the exact
    * server-side user message to truncate the context from.
    */
-  val messageId: String = "",
-  val timestamp: Long = System.currentTimeMillis(),
   val events: List<ChatEvent> = emptyList(),
+  val timestamp: Long = System.currentTimeMillis(),
   val renderBlocks: List<RenderBlock> = emptyList(),
-  val modelName: String = "",
   val provider: String = "",
+  val modelName: String = "",
+  val messageId: String = "",
   val serverName: String = "",
   val tokenUsage: TokenUsage? = null
 ) {
@@ -143,6 +195,11 @@ data class ChatMessage(
             if (contentBuilder.isNotEmpty())
               contentBuilder.append("\n\n")
             contentBuilder.append("Error: ${event.message}")
+          }
+
+          is ChatEvent.AskInteraction -> {
+            // An ask card is interactive UI awaiting a user decision, not
+            // agent prose — it contributes nothing to the clipboard copy.
           }
         }
       }
@@ -206,6 +263,16 @@ data class ChatMessage(
 
       is ChatEvent.Error ->
         renderBlocks + RenderBlock.Error(event.message, event.code)
+
+      is ChatEvent.AskInteraction ->
+        renderBlocks + RenderBlock.AskInteraction(
+          title = event.title,
+          prompt = event.prompt,
+          details = event.details,
+          default = event.default,
+          requestId = event.requestId,
+          sessionId = event.sessionId
+        )
     }
     return copy(
       events = newEvents,
@@ -238,7 +305,7 @@ data class ChatMessage(
   /**
    * Resolve the [renderBlocks] change for a [ChatEvent.ToolCall].
    *
-   * If a block with the same [RenderBlock.ToolCall.toolCallId] already
+   * If a block with the same [toolCallId] already
    * exists, it is replaced by the new block regardless of pending state.
    * This handles the delegate case where two `sub_agent:session_end`
    * events arrive (one forwarded from the inner agent, one from the
@@ -251,14 +318,14 @@ data class ChatMessage(
     val info: ToolCallInfo = event.info
     val newBlock = RenderBlock.ToolCall(
       alias = info.alias,
-      result = info.result,
       success = info.success,
-      pending = info.pending,
-      arguments = info.arguments,
+      result = info.result,
       toolCallId = info.toolCallId,
       errorDetail = info.errorDetail,
       errorMessage = info.errorMessage,
-      timeoutSeconds = info.timeoutSeconds
+      timeoutSeconds = info.timeoutSeconds,
+      pending = info.pending,
+      arguments = info.arguments
     )
 
     if (info.toolCallId.isNotBlank()) {

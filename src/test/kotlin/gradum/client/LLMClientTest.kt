@@ -415,4 +415,44 @@ class LLMClientTest {
       actual = requestCount
     )
   }
+
+  @Test
+  fun `ollama sends configured keep_alive so the local model stays resident`() = runBlocking {
+    var requestBody = ""
+    val engine = MockEngine { request ->
+      requestBody = (request.body as io.ktor.http.content.TextContent).text
+      respond(
+        content = ByteReadChannel("""{"message":{"content":"ok"}}"""),
+        status = HttpStatusCode.OK,
+      )
+    }
+    val client = OllamaClient(
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAlive = "2h"),
+      HttpClient(engine),
+    )
+
+    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+
+    assertTrue(actual = requestBody.contains("\"keep_alive\":\"2h\""))
+  }
+
+  @Test
+  fun `ollama omits keep_alive when it is blank`() = runBlocking {
+    var requestBody = ""
+    val engine = MockEngine { request ->
+      requestBody = (request.body as io.ktor.http.content.TextContent).text
+      respond(
+        content = ByteReadChannel("""{"message":{"content":"ok"}}"""),
+        status = HttpStatusCode.OK,
+      )
+    }
+    val client = OllamaClient(
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAlive = ""),
+      HttpClient(engine),
+    )
+
+    client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
+
+    assertTrue(actual = !requestBody.contains("keep_alive"))
+  }
 }

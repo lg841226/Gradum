@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-08-31 19:21:55 Changed by gwy
+ * AgentConfiguration.kt  2026-09-24 23:20:43 Changed by gwy
  */
 
 package gradum
@@ -56,12 +56,12 @@ enum class ToolMode {
     private val ALIASES: Map<String, ToolMode> = mapOf(
       "write" to AGENT,
       "single_step" to EDIT,
-      "read_only" to READ_ONLY,
+      "read_only" to READ_ONLY
     )
 
     fun fromStringOrDefault(rawValue: String?, default: ToolMode = AGENT): ToolMode {
       if (rawValue.isNullOrBlank()) return default
-      val normalized = rawValue.trim().lowercase()
+      val normalized: String = rawValue.trim().lowercase()
       return ALIASES[normalized]
         ?: entries.firstOrNull { it.name.equals(normalized, ignoreCase = true) }
         ?: default
@@ -114,7 +114,7 @@ data class AgentConfiguration(
    * Path appended to [baseUrl] for chat completions. Default
    * `/v1/chat/completions` matches OpenAI / DeepSeek / OpenRouter;
    * Zhipu BigModel uses `/chat/completions` (no `/v1`) under its
-   * `api/coding/paas/v4` sub-domain. Plugin sets this per-provider
+   * `api/coding/paas/v4` subdomain. Plugin sets this per-provider
    * via the `config` map in the `/events` request body.
    */
   val chatCompletionsPath: String = DEFAULT_CHAT_COMPLETIONS_PATH,
@@ -133,6 +133,18 @@ data class AgentConfiguration(
   val maxTokensToGenerate: Int = DEFAULT_MAX_TOKENS_TO_GENERATE,
 
   val contextWindowSize: Int = DEFAULT_CONTEXT_WINDOW_SIZE,
+
+  /**
+   * How long the local model stays loaded in memory after a request,
+   * passed to Ollama as the `keep_alive` field. Accepts a duration
+   * string ("5m", "2h") or an integer number of seconds; "-1" keeps the
+   * model loaded until the server restarts. Blank means the request does
+   * not set the field and Ollama's own default applies.
+   *
+   * Only meaningful for the Ollama backend; OpenAI-compatible providers
+   * have no equivalent and ignore it.
+   */
+  val keepAlive: String = DEFAULT_KEEP_ALIVE,
 
   /**
    * Absolute, validated, normalized path to the project the current
@@ -162,27 +174,14 @@ data class AgentConfiguration(
   val taskDescription: String? = null
 ) {
   companion object {
-
     const val DEFAULT_TOP_P: Double = GradumConfig.DEFAULT_TOP_P
     const val DEFAULT_TEMPERATURE: Double = GradumConfig.DEFAULT_TEMPERATURE
     const val DEFAULT_TIMEOUT_SECONDS: Int = GradumConfig.AGENT_TIMEOUT_SECONDS
     const val DEFAULT_MAX_TOKENS_TO_GENERATE: Int = GradumConfig.DEFAULT_MAX_TOKENS
     const val DEFAULT_ENABLE_THINKING: Boolean = false
     const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
-
-    /**
-     * Default chat-completions path. Matches the OpenAI / DeepSeek /
-     * OpenRouter wire shape. Providers whose base URL already encodes
-     * the version (e.g. Zhipu BigModel `api/coding/paas/v4`) override
-     * this via the `config.chatCompletionsPath` plugin field.
-     */
     const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
-
-    /**
-     * Default context window size (num_ctx) used by the Ollama backend
-     * and as the fallback when the client does not supply a `numCtx`
-     * value.  The canonical source of truth is [GradumConfig].
-     */
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
+    const val DEFAULT_KEEP_ALIVE: String = "5m"
   }
 }

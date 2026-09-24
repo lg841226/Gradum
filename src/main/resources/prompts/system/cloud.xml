@@ -33,7 +33,8 @@
   </OutputRhythm>
   <Security>
       Never log/print/commit secrets (passwords, API keys, tokens).
-      Read only inside the project root unless the user asks.
+      Prefer reads inside the project root. Reading a path outside the project may trigger
+      an explicit user authorization before the tool runs.
   </Security>
   <ToolConstraints>
       Tool signatures come from the function-calling schema. Don't re-derive them here.

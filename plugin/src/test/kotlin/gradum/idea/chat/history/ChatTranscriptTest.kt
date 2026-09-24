@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscriptTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatTranscriptTest.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -35,18 +35,17 @@ class ChatTranscriptTest {
     val user = ChatMessage(
       role = "user",
       content = "Explain the bug in `renderBlocks` please.\n\nSecond paragraph.",
-      timestamp = 1000L,
       attachments = listOf(
         AttachedText(content = "/project/src/Main.kt", preview = "Main.kt")
-      )
+      ),
+      timestamp = 1000L
     )
 
     val assistant = ChatMessage(
       role = "assistant",
-      content = "",
       timestamp = 1500L,
-      modelName = "qwen2.5:7b",
       provider = "ollama",
+      modelName = "qwen2.5:7b",
       serverName = "ollama",
       tokenUsage = TokenUsage(promptTokens = 10, completionTokens = 20, totalTokens = 30)
     )
@@ -252,8 +251,12 @@ class ChatTranscriptTest {
   @Test
   fun `titleFor uses first non blank user line truncated`() {
     val messages = listOf(
-      ChatMessage(role = "user", content = "\n  Fix the render block bug in ChatMessage.kt and its tests\nmore", timestamp = 1L),
-      ChatMessage(role = "assistant", content = "", timestamp = 2L)
+      ChatMessage(
+        role = "user",
+        content = "\n  Fix the render block bug in ChatMessage.kt and its tests\nmore",
+        timestamp = 1L
+      ),
+      ChatMessage(role = "assistant", timestamp = 2L)
     )
     assertEquals(
       "Fix the render block bug in ChatMessage.kt and i",
@@ -265,7 +268,7 @@ class ChatTranscriptTest {
   fun `titleFor falls back to empty for no user message`() {
     assertEquals(
       "",
-      ChatTranscript.titleFor(messages = listOf(ChatMessage(role = "assistant", content = "")))
+      ChatTranscript.titleFor(messages = listOf(ChatMessage(role = "assistant")))
     )
   }
 }

@@ -29,12 +29,14 @@ private val logger: Logger = LoggerFactory.getLogger("ServerSettingsStore")
 data class ServerSettings(
   val host: String,
   val port: Int,
-  val autoDetectPort: Boolean,
   /** Path to a file whose first non-blank line is used as the default API key. */
   val apiKeyFile: String?,
   val defaultBaseUrl: String,
+  val autoDetectPort: Boolean,
   val defaultModelName: String,
   val defaultThinkEnabled: Boolean,
+  /** Server-wide Ollama keep-alive used when the plugin request omits `keepAlive`. */
+  val defaultKeepAlive: String,
   /** Resolved command filter rules; equals [CommandFilterConfig.DEFAULT] when the user configures nothing. */
   val commandFilter: CommandFilterConfig,
 )
@@ -180,6 +182,14 @@ object ServerSettingsStore {
       else issues += ValidationIssue("llm.think", Severity.WARN, "expected a boolean (true/false); got ${describe(rawThink)}")
     }
 
+    var defaultKeepAlive: String = AgentConfiguration.DEFAULT_KEEP_ALIVE
+    val rawKeepAlive: Any? = llmGroup["keepAlive"]
+    if (rawKeepAlive != null) {
+      if (rawKeepAlive is String && rawKeepAlive.isNotBlank())
+        defaultKeepAlive = rawKeepAlive.trim()
+      else issues += ValidationIssue("llm.keepAlive", Severity.WARN, "expected a non-empty string; got ${describe(rawKeepAlive)}")
+    }
+
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
 
     logIssues(issues)
@@ -192,13 +202,14 @@ object ServerSettingsStore {
     }
 
     return ServerSettings(
-      apiKeyFile = apiKeyFile,
-      defaultModelName = defaultModelName,
-      autoDetectPort = autoDetectPort,
-      port = port,
       host = host,
+      port = port,
+      apiKeyFile = apiKeyFile,
       defaultBaseUrl = defaultBaseUrl,
+      autoDetectPort = autoDetectPort,
+      defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
+      defaultKeepAlive = defaultKeepAlive,
       commandFilter = commandFilter,
     )
   }

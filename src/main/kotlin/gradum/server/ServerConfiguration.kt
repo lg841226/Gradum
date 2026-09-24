@@ -2,10 +2,12 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ServerConfiguration.kt  2026-08-31 19:21:55 Changed by gwy
+ * ServerConfiguration.kt  2026-09-24 22:57:25 Changed by gwy
  */
 
 package gradum.server
+
+import gradum.AgentConfiguration
 
 /**
  * Configuration for the Gradum embedded HTTP server.
@@ -69,6 +71,13 @@ data class ServerConfiguration(
    * does not specify it. Mirrors `AgentConfiguration.DEFAULT_ENABLE_THINKING`.
    */
   val defaultThinkEnabled: Boolean = false,
+
+  /**
+   * Server-wide default Ollama keep-alive duration. Applied when a
+   * `/events` request does not specify `keepAlive`. Mirrors
+   * `AgentConfiguration.DEFAULT_KEEP_ALIVE`.
+   */
+  val defaultKeepAlive: String = AgentConfiguration.DEFAULT_KEEP_ALIVE,
 ) {
   companion object {
     /** Default bind host; the single source of truth. */
@@ -108,7 +117,7 @@ data class ServerConfiguration(
      * Trims whitespace so a stray `export FOO=bar ` still works.
      */
     fun resolveDefaultApiKeyFromEnv(): String? {
-      for (envVarName in API_KEY_ENV_CANDIDATES) {
+      for (envVarName: String in API_KEY_ENV_CANDIDATES) {
         val rawValue: String? = System.getenv(envVarName)
         val trimmed: String? = rawValue?.trim()?.takeIf { it.isNotEmpty() }
         if (trimmed != null) return trimmed

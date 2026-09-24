@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-08-31 19:21:55 Changed by gwy
+ * GradumChatSession.kt  2026-09-25 01:19:19 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -41,7 +41,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import java.nio.file.Path
-import java.util.UUID
+import java.util.*
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -327,7 +327,6 @@ class GradumChatSession {
   fun loadDebugMarkdown(content: String) {
     hasSentMessage = true
     val chatMsg = ChatMessage(
-      content = "",
       role = "debug",
       modelName = message("gradum.debug.model.name"),
     )
@@ -352,10 +351,9 @@ class GradumChatSession {
       )
       messages.add(
         ChatMessage(
-          content = "",
           role = "assistant",
-          modelName = displayName,
           provider = providerName,
+          modelName = displayName,
           serverName = serverLabel
         )
       )

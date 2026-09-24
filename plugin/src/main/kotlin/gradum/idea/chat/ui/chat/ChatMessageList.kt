@@ -35,6 +35,9 @@ fun ChatMessageList(
   onCopyAsContext: (String) -> Unit = {},
   onAttachmentClick: (VirtualFile) -> Unit = {},
   selectedPermission: String = PermissionMode.READONLY,
+  onRespondToAsk: suspend (
+    sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
+  ) -> Unit = { _: String, _: String, _: String?, _: String?, _: Boolean -> }
 ) {
   val scrollState: ScrollState = rememberScrollState()
 
@@ -64,7 +67,8 @@ fun ChatMessageList(
           sendingPhase = if (isLastAssistant) sendingPhase else "",
           onRetry = { onRetryMessage(index) },
           isLoading = isLastAssistant,
-          selectedPermission = selectedPermission
+          selectedPermission = selectedPermission,
+          onRespondToAsk = onRespondToAsk
         )
       }
     }
