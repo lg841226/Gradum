@@ -1,0 +1,4 @@
+server_port = 9090
+
+[logging]
+level = "info"
