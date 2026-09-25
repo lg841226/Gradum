@@ -8,7 +8,10 @@
 package gradum.server
 
 import gradum.BuildConfig
+import gradum.mcp.McpConnectionManager
+import gradum.skill.SkillRegistry
 import gradum.utils.CommandFilterRuntime
+import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.net.BindException
@@ -27,6 +30,17 @@ fun main(arguments: Array<String>) {
   val settings: ServerSettings = ServerSettingsStore.load()
 
   CommandFilterRuntime.config = settings.commandFilter
+
+  // Connect any configured MCP servers and register their tools as skills
+  // before the HTTP server starts, so tools are available from the first call.
+  val mcpManager: McpConnectionManager = McpConnectionManager()
+  if (settings.mcpServers.isNotEmpty()) {
+    runBlocking {
+      val adapters = mcpManager.connect(settings.mcpServers)
+      adapters.forEach { adapter -> SkillRegistry.register(adapter) }
+      logger.info("Registered {} MCP tool(s) as skills", adapters.size)
+    }
+  }
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)
@@ -69,6 +83,7 @@ fun main(arguments: Array<String>) {
   val server: GradumServer = createServerInstance(serverConfiguration)
 
   Runtime.getRuntime().addShutdownHook(Thread {
+    mcpManager.close()
     server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
     logger.info("Gradum Server has been shut down successfully")
   })

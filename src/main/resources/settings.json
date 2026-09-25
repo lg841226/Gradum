@@ -35,6 +35,7 @@
       ]
     }
   },
+  "mcpServers": [],
   "ollama.baseUrl": "http://localhost:11434",
   "ollama.apiKey": "",
   "lmstudio.baseUrl": "http://localhost:1234",

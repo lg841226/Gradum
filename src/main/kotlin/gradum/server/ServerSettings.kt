@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ServerSettings.kt  2026-09-11 16:44:12 Changed by gwy
+ * ServerSettings.kt  2026-09-25 23:13:02 Changed by gwy
  */
 
 package gradum.server
 
 import gradum.AgentConfiguration
+import gradum.mcp.McpServerConfig
 import gradum.utils.CommandFilterConfig
 import gradum.utils.JsonUtil
 import gradum.utils.ProtectedPathsConfig
@@ -39,6 +40,8 @@ data class ServerSettings(
   val defaultKeepAliveMinutes: Int,
   /** Resolved command filter rules; equals [CommandFilterConfig.DEFAULT] when the user configures nothing. */
   val commandFilter: CommandFilterConfig,
+  /** Configured MCP stdio servers whose tools are exposed as skills; empty when the user configures nothing. */
+  val mcpServers: List<McpServerConfig>,
 )
 
 /**
@@ -128,10 +131,16 @@ object ServerSettingsStore {
     if (rawPort != null) {
       when (val parsedPort: Int? = integerValue(rawPort)) {
         null ->
-          issues += ValidationIssue("server.port", Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got ${describe(rawPort)}")
+          issues += ValidationIssue(
+            "server.port",
+            Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got ${describe(rawPort)}"
+          )
 
         !in PORT_RANGE ->
-          issues += ValidationIssue("server.port", Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got $parsedPort")
+          issues += ValidationIssue(
+            "server.port",
+            Severity.ERROR, "expected ${PORT_RANGE.first}..${PORT_RANGE.last}; got $parsedPort"
+          )
 
         else -> port = parsedPort
       }
@@ -141,7 +150,10 @@ object ServerSettingsStore {
     val rawAutoDetectPort: Any? = serverGroup["autoDetectPort"]
     if (rawAutoDetectPort != null) {
       if (rawAutoDetectPort is Boolean) autoDetectPort = rawAutoDetectPort
-      else issues += ValidationIssue("server.autoDetectPort", Severity.ERROR, "expected a boolean (true/false); got ${describe(rawAutoDetectPort)}")
+      else issues += ValidationIssue(
+        "server.autoDetectPort", Severity.ERROR,
+        "expected a boolean (true/false); got ${describe(rawAutoDetectPort)}"
+      )
     }
 
     var apiKeyFile: String? = null
@@ -149,13 +161,22 @@ object ServerSettingsStore {
     if (rawApiKeyFile != null) {
       when {
         rawApiKeyFile !is String ->
-          issues += ValidationIssue("server.apiKeyFile", Severity.WARN, "expected a string (absolute path) or null; got ${describe(rawApiKeyFile)}")
+          issues += ValidationIssue(
+            "server.apiKeyFile", Severity.WARN,
+            "expected a string (absolute path) or null; got ${describe(rawApiKeyFile)}"
+          )
 
         rawApiKeyFile.isBlank() ->
-          issues += ValidationIssue("server.apiKeyFile", Severity.WARN, "expected a non-blank absolute path")
+          issues += ValidationIssue(
+            "server.apiKeyFile", Severity.WARN,
+            "expected a non-blank absolute path"
+          )
 
         !rawApiKeyFile.startsWith("/") ->
-          issues += ValidationIssue("server.apiKeyFile", Severity.WARN, "expected an absolute path; relative or \"~\" shorthand is not allowed: \"$rawApiKeyFile\"")
+          issues += ValidationIssue(
+            "server.apiKeyFile", Severity.WARN,
+            "expected an absolute path; relative or \"~\" shorthand is not allowed: \"$rawApiKeyFile\""
+          )
 
         else -> apiKeyFile = rawApiKeyFile
       }
@@ -165,7 +186,9 @@ object ServerSettingsStore {
     val rawBaseUrl: Any? = llmGroup["baseUrl"]
     if (rawBaseUrl != null) {
       if (rawBaseUrl is String && rawBaseUrl.isNotBlank()) defaultBaseUrl = rawBaseUrl
-      else issues += ValidationIssue("llm.baseUrl", Severity.WARN, "expected a non-empty URL string; got ${describe(rawBaseUrl)}")
+      else issues += ValidationIssue(
+        "llm.baseUrl", Severity.WARN, "expected a non-empty URL string; got ${describe(rawBaseUrl)}"
+      )
     }
 
     var defaultModelName = ""
@@ -179,7 +202,9 @@ object ServerSettingsStore {
     val rawThink: Any? = llmGroup["think"]
     if (rawThink != null) {
       if (rawThink is Boolean) defaultThinkEnabled = rawThink
-      else issues += ValidationIssue("llm.think", Severity.WARN, "expected a boolean (true/false); got ${describe(rawThink)}")
+      else issues += ValidationIssue(
+        "llm.think", Severity.WARN, "expected a boolean (true/false); got ${describe(rawThink)}"
+      )
     }
 
     var defaultKeepAliveMinutes: Int = AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES
@@ -187,10 +212,15 @@ object ServerSettingsStore {
     if (rawKeepAlive != null) {
       if (rawKeepAlive is Number)
         defaultKeepAliveMinutes = rawKeepAlive.toInt()
-      else issues += ValidationIssue("llm.keepAliveMinutes", Severity.WARN, "expected an integer (minutes); got ${describe(rawKeepAlive)}")
+      else issues += ValidationIssue(
+        "llm.keepAliveMinutes",
+        Severity.WARN,
+        "expected an integer (minutes); got ${describe(rawKeepAlive)}"
+      )
     }
 
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
+    val mcpServers: List<McpServerConfig> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
 
     logIssues(issues)
     if (issues.isEmpty()) {
@@ -205,12 +235,13 @@ object ServerSettingsStore {
       host = host,
       port = port,
       apiKeyFile = apiKeyFile,
+      mcpServers = mcpServers,
+      commandFilter = commandFilter,
       defaultBaseUrl = defaultBaseUrl,
       autoDetectPort = autoDetectPort,
       defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
-      defaultKeepAliveMinutes = defaultKeepAliveMinutes,
-      commandFilter = commandFilter,
+      defaultKeepAliveMinutes = defaultKeepAliveMinutes
     )
   }
 
@@ -240,14 +271,12 @@ object ServerSettingsStore {
   private data class ValidationIssue(
     val key: String,
     val level: Severity,
-    val reason: String,
+    val reason: String
   )
 
   private val PORT_RANGE: IntRange = 1024..65535
   private val TOP_LEVEL_KEYS: Set<String> = setOf(
-    $$"$schema", "server", "llm", "commandFilter",
-    // Provider overrides live at the top level as VS Code style dotted
-    // keys (see gradum.ProviderConfigStore); they must not warn as unknown.
+    $$"$schema", "server", "llm", "commandFilter", "mcpServers",
     "ollama.baseUrl", "ollama.apiKey", "ollama.allowRemote",
     "lmstudio.baseUrl", "lmstudio.apiKey", "lmstudio.allowRemote",
     "zhipu.baseUrl", "zhipu.apiKey", "zhipu.allowRemote",
@@ -271,7 +300,9 @@ object ServerSettingsStore {
     }
   }
 
-  private fun warnUnknownKeys(group: Map<*, *>, allowed: Set<String>, groupLabel: String, issues: MutableList<ValidationIssue>) {
+  private fun warnUnknownKeys(
+    group: Map<*, *>, allowed: Set<String>, groupLabel: String, issues: MutableList<ValidationIssue>
+  ) {
     group.keys.filterIsInstance<String>()
       .filter { it !in allowed }
       .forEach { key ->
@@ -309,7 +340,11 @@ object ServerSettingsStore {
   ): CommandFilterConfig {
     if (sectionRaw == null) return CommandFilterConfig.DEFAULT
     if (sectionRaw !is Map<*, *>) {
-      issues += ValidationIssue(key = "commandFilter", level = Severity.WARN, reason = "expected an object; got ${describe(sectionRaw)}")
+      issues += ValidationIssue(
+        key = "commandFilter",
+        level = Severity.WARN,
+        reason = "expected an object; got ${describe(sectionRaw)}"
+      )
       return CommandFilterConfig.DEFAULT
     }
 
@@ -341,15 +376,102 @@ object ServerSettingsStore {
     warnUnknownKeys(sectionRaw, PROTECTED_PATHS_KEYS, "commandFilter.protectedPaths", issues)
     return ProtectedPathsConfig(
       systemPrefixes = stringListOrNull(sectionRaw["systemPrefixes"]) ?: defaultProtectedPaths.systemPrefixes,
-      protectedHomeSubdirectories = stringListOrNull(sectionRaw["protectedHomeSubdirectories"]) ?: defaultProtectedPaths.protectedHomeSubdirectories,
       safePathPrefixes = stringListOrNull(sectionRaw["safePathPrefixes"]) ?: defaultProtectedPaths.safePathPrefixes,
       exactProtectedPaths = stringListOrNull(sectionRaw["exactProtectedPaths"]) ?: defaultProtectedPaths.exactProtectedPaths,
+      protectedHomeSubdirectories = stringListOrNull(sectionRaw["protectedHomeSubdirectories"]) ?: defaultProtectedPaths.protectedHomeSubdirectories
     )
   }
 
   /** Returns the strings of a JSON array, or null when [jsonValue] is not an all-string list. */
   private fun stringListOrNull(jsonValue: Any?): List<String>? =
     if (jsonValue is List<*>) jsonValue.filterIsInstance<String>().takeIf { it.size == jsonValue.size } else null
+
+  /**
+   * Parses the optional top-level `mcpServers` array into [McpServerConfig]s.
+   * Each entry must be an object with a non-blank `name` and a non-empty
+   * `command` string array; malformed entries are logged and skipped so one
+   * bad server never blocks the rest from registering.
+   */
+  private fun parseMcpServers(sectionRaw: Any?, issues: MutableList<ValidationIssue>): List<McpServerConfig> {
+    if (sectionRaw == null) return emptyList()
+    if (sectionRaw !is List<*>) {
+      issues += ValidationIssue(
+        key = "mcpServers",
+        level = Severity.WARN,
+        reason = "expected an array of server objects; got ${describe(sectionRaw)}"
+      )
+      return emptyList()
+    }
+
+    val servers = mutableListOf<McpServerConfig>()
+    for ((index, entry) in sectionRaw.withIndex()) {
+      if (entry !is Map<*, *>) {
+        issues += ValidationIssue(
+          level = Severity.WARN,
+          key = "mcpServers[$index]",
+          reason = "expected an object; got ${describe(entry)}"
+        )
+        continue
+      }
+
+      val name: Any? = entry["name"]
+      if (name !is String || name.isBlank()) {
+        issues += ValidationIssue(
+          level = Severity.WARN,
+          key = "mcpServers[$index].name",
+          reason = "expected a non-blank string; got ${describe(name)}"
+        )
+        continue
+      }
+
+      val commandRaw: Any? = entry["command"]
+      val command: List<String>? = stringListOrNull(commandRaw)
+      if (command.isNullOrEmpty()) {
+        issues += ValidationIssue(
+          level = Severity.WARN,
+          key = "mcpServers[$index].command",
+          reason = "expected a non-empty array of strings; got ${describe(commandRaw)}"
+        )
+        continue
+      }
+
+      val workingDir: String? = (entry["workingDir"] as? String)?.takeIf { it.isNotBlank() }
+      val env: Map<String, String> = parseMcpEnv(
+        sectionRaw = entry["env"], key = "mcpServers[$index].env", issues = issues
+      )
+      servers.add(
+        McpServerConfig(
+          name = name, command = command, workingDir = workingDir, env = env
+        )
+      )
+    }
+    return servers
+  }
+
+  private fun parseMcpEnv(sectionRaw: Any?, key: String, issues: MutableList<ValidationIssue>): Map<String, String> {
+    if (sectionRaw == null) return emptyMap()
+    if (sectionRaw !is Map<*, *>) {
+      issues += ValidationIssue(
+        key = key,
+        level = Severity.WARN,
+        reason = "expected an object of string values; got ${describe(sectionRaw)}"
+      )
+      return emptyMap()
+    }
+    val result = mutableMapOf<String, String>()
+    for ((rawKey, rawValue) in sectionRaw) {
+      if (rawKey !is String || rawValue !is String) {
+        issues += ValidationIssue(
+          key = key,
+          level = Severity.WARN,
+          reason = "expected only string values; got ${describe(rawValue)}"
+        )
+        return emptyMap()
+      }
+      result[rawKey] = rawValue
+    }
+    return result
+  }
 
   private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "protectedPaths")
   private val PROTECTED_PATHS_KEYS: Set<String> =

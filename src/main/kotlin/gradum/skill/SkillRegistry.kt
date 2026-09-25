@@ -19,6 +19,7 @@ import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentHashMap
 
 private val logger: Logger = LoggerFactory.getLogger("SkillRegistry")
 
@@ -32,7 +33,7 @@ object SkillRegistry {
 
   private const val SKILL_PACKAGE = "gradum.skill"
 
-  private val registeredSkills: MutableMap<String, Skill> = mutableMapOf()
+  private val registeredSkills: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
 
   init {
     discoverSkills()
@@ -46,6 +47,17 @@ object SkillRegistry {
   /** Returns the skill registered under [skillName], or null. */
   fun getSkill(skillName: String): Skill? {
     return registeredSkills[skillName]
+  }
+
+  /**
+   * Registers a [Skill] under its [Skill.skillName] at runtime, overwriting
+   * any earlier registration of the same name. Used to register MCP-backed
+   * tool adapters that are discovered from the server config at startup
+   * rather than via classpath scanning. Thread-safe (backing store is a
+   * [ConcurrentHashMap]).
+   */
+  fun register(skill: Skill) {
+    registeredSkills[skill.skillName] = skill
   }
 
   /**

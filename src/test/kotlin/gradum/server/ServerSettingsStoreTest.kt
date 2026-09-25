@@ -57,6 +57,35 @@ class ServerSettingsStoreTest {
     assertEquals("", settings.defaultModelName)
     assertFalse(settings.defaultThinkEnabled)
     assertEquals(5, settings.defaultKeepAliveMinutes)
+    assertTrue(settings.mcpServers.isEmpty())
+  }
+
+  @Test
+  fun `load parses mcpServers and skips malformed entries`() {
+    File(tempDir, "settings.json").writeText(
+      """
+        {
+          "mcpServers": [
+            {
+              "name": "fs",
+              "command": ["npx", "-y", "server-filesystem", "/tmp"],
+              "workingDir": "/tmp",
+              "env": {"FOO": "bar"}
+            },
+            {"name": "bad", "command": "npx"}
+          ]
+        }
+      """.trimIndent()
+    )
+
+    val settings: ServerSettings = ServerSettingsStore.load()
+
+    assertEquals(1, settings.mcpServers.size)
+    val server = settings.mcpServers.single()
+    assertEquals("fs", server.name)
+    assertEquals(listOf("npx", "-y", "server-filesystem", "/tmp"), server.command)
+    assertEquals("/tmp", server.workingDir)
+    assertEquals(mapOf("FOO" to "bar"), server.env)
   }
 
   @Test

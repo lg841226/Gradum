@@ -25,6 +25,8 @@ out/
 # Runtime / local data
 output/
 temp/
+# Playwright MCP page snapshots written during browser smoke tests
+.playwright-mcp/
 logs/
 docs/idea-develop
 *.log

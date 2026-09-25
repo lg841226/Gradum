@@ -79,6 +79,40 @@
       "description": "Allow the MiniMax provider to dial non-localhost base URLs",
       "default": false
     },
+    "mcpServers": {
+      "type": "array",
+      "title": "MCP Servers",
+      "description": "External MCP servers (stdio transport) whose tools are exposed as agent skills. Each entry spawns a subprocess on startup; the command array is the executable plus its arguments.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A short label used in logs for this server. Tools are registered under their server-advertised names, not this label."
+          },
+          "command": {
+            "type": "array",
+            "description": "The command to spawn, as an executable and its arguments (e.g. [\"npx\", \"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]).",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "workingDir": {
+            "type": ["string", "null"],
+            "description": "Working directory for the child process. Omitted or null inherits the server's working directory.",
+            "default": null
+          },
+          "env": {
+            "type": "object",
+            "description": "Extra environment variables to pass to the child process.",
+            "additionalProperties": { "type": "string" },
+            "default": {}
+          }
+        },
+        "additionalProperties": false,
+        "required": ["name", "command"]
+      },
+      "default": []
+    },
     "server": {
       "type": "object",
       "title": "Server Binding Configuration",
