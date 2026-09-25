@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ModelNameFormatter.kt  2026-08-31 19:21:55 Changed by gwy
+ * ModelNameFormatter.kt  2026-09-26 00:53:01 Changed by gwy
  */
 
 package gradum.idea.chat.ui.input
@@ -246,6 +246,10 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("claude-sonnet-5", "Claude Sonnet 5")
   put("claude-haiku-5", "Claude Haiku 5")
   put("claude-fable-5", "Claude Fable 5")
+  put("claude-opus-5.5", "Claude Opus 5.5")
+  put("claude-5.5-opus", "Claude Opus 5.5")
+  put("claude-fable-5.1", "Claude Fable 5.1")
+  put("claude-mythos-5.1", "Claude Mythos 5.1")
 
   put("gpt-3.5", "GPT-3.5")
   put("gpt-3.5-turbo", "GPT-3.5 Turbo")
@@ -264,11 +268,15 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("gpt-5.1-mini", "GPT-5.1 Mini")
   put("gpt-5.1-pro", "GPT-5.1 Pro")
   put("gpt-5.1-codex", "GPT-5.1 Codex")
-  // ChatGPT 5.6 — OpenAI's 3-tier release. Stays separate from `gpt-5.6`
-  // because "ChatGPT 5.6" is the consumer product name vs the API-facing model.
   put("chatgpt-5.6", "ChatGPT 5.6")
   put("chatgpt-5.6-mini", "ChatGPT 5.6 Mini")
   put("chatgpt-5.6-nano", "ChatGPT 5.6 Nano")
+  put("gpt-5.6", "GPT-5.6")
+  put("gpt-5.6-sol", "GPT-5.6 Sol")
+  put("gpt-6", "GPT-6")
+  put("gpt-6-astra", "GPT-6 Astra")
+  put("gpt-6-sol", "GPT-6 Sol")
+  put("gpt-6-luna", "GPT-6 Luna")
   put("o1", "o1")
   put("o1-mini", "o1 Mini")
   put("o1-preview", "o1 Preview")
@@ -281,16 +289,12 @@ private val modelDisplayNames: Map<String, String> = buildMap {
   put("o5-mini", "o5 Mini")
   put("o5-pro", "o5 Pro")
   put("chatgpt-4o-latest", "ChatGPT-4o")
-  // GPT-OSS — OpenAI's open-weights distilled line.
-  // 20b presents itself as "ChatGPT 4 Nano", 120b as "ChatGPT 4"
-  // (per system prompt, not the closed-source flagship).
   put("gpt-oss", "ChatGPT 4")
   put("gpt-oss-20b", "ChatGPT 4 Nano")
   put("gpt-oss-120b", "ChatGPT 4")
   put("text-embedding-3-small", "Embedding 3 Small")
   put("text-embedding-3-large", "Embedding 3 Large")
   put("text-embedding-nomic-embed-text-v1.5", "Nomic Embed V1.5")
-
   put("nous-hermes", "Nous Hermes")
   put("openhermes", "OpenHermes")
   put("dolphin", "Dolphin")

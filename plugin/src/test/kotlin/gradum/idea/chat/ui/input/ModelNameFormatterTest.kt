@@ -246,7 +246,10 @@ class ModelNameFormatterTest {
       "claude-3.5-haiku-20241022" to "Claude 3.5 Haiku",
       "claude-3.7-sonnet" to "Claude 3.7 Sonnet",
       "claude-sonnet-4-20250514" to "Claude Sonnet 4",
-      "claude-opus-4" to "Claude Opus 4"
+      "claude-opus-4" to "Claude Opus 4",
+      "claude-opus-5.5" to "Claude Opus 5.5",
+      "claude-fable-5.1" to "Claude Fable 5.1",
+      "claude-mythos-5.1" to "Claude Mythos 5.1"
     )
     cases.forEach { (input, expected) ->
       assertEquals(
@@ -267,6 +270,11 @@ class ModelNameFormatterTest {
       "gpt-4.1" to "GPT-4.1",
       "gpt-4.1-nano" to "GPT-4.1 Nano",
       "gpt-5" to "GPT-5",
+      "gpt-5.6" to "GPT-5.6",
+      "gpt-5.6-sol" to "GPT-5.6 Sol",
+      "gpt-6-astra" to "GPT-6 Astra",
+      "gpt-6-sol" to "GPT-6 Sol",
+      "gpt-6-luna" to "GPT-6 Luna",
       "gpt-oss:20b" to "ChatGPT 4 Nano",
       "gpt-oss-120b" to "ChatGPT 4"
     )
