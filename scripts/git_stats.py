@@ -1,14 +1,10 @@
+#!/usr/bin/env python3
+
 #  Copyright (c) 2026 Gradum Authors
 #  For licensing terms and conditions, see the MIT LICENSE file.
 #
-#  git_stats.py  2026-08-31 19:21:55 Changed by gwy
-#
-#  git_stats.py  2026-08-16 22:00:45 Changed by gwy
-#
-#  git_stats.py  2026-08-16 21:34:06 Changed by gwy
-#
-#  git_stats.py  2026-07-28 21:35:29 Changed by gwy
-#
+#  git_stats.py  2026-09-25 17:19:15 Changed by gwy
+
 import csv
 import functools
 import itertools
@@ -170,7 +166,7 @@ def all_commits(repo_path: str, all_branches: bool = False, since_date: str = No
     git_args = f"{since_flag} {ref}".strip()
     entries = list(_stream_git_log(repo_path, git_args, on_commit, progress_total=total))
 
-    # Sort by date (oldest first) — multi-branch may interleave
+    # Sort by date (oldest first); multi-branch may interleave
     entries.sort(key=lambda e: e["date"])
     return entries
 
@@ -304,11 +300,11 @@ class QualityModel:
 
     Pipeline:
       evaluate()
-        ├─ gather_metrics()    → extract raw values from commit entries (no scoring)
-        ├─ score_*()            → one method per dimension (independent, testable)
-        ├─ aggregate_suspicion()→ combine AI sub-dimensions via noisy-OR
-        ├─ compute_raw_score()  → weighted sum of factor scores
-        └─ adjust_composite()   → confidence shrinkage + personality jitter → clamp
+        gather_metrics()      extract raw values from commit entries (no scoring)
+        score_*()             one method per dimension (independent, testable)
+        aggregate_suspicion() combine AI sub-dimensions via noisy-OR
+        compute_raw_score()   weighted sum of factor scores
+        adjust_composite()    confidence shrinkage + personality jitter, then clamp
 
     Why separate methods instead of one monolithic function:
     Each dimension can be unit-tested, tuned, or replaced in isolation
@@ -316,7 +312,7 @@ class QualityModel:
     """
 
     def __init__(self, quality_params: dict):
-        """All toggles and thresholds come from configs.json — no hardcoded magic numbers."""
+        """All toggles and thresholds come from configs.json; no hardcoded magic numbers."""
         self._params = quality_params
 
     @staticmethod
@@ -387,7 +383,7 @@ class QualityModel:
         Recent activity score. The more recent the last commit, the higher the score.
 
         Uses Gaussian rather than linear decay because project activity
-        doesn't die on a fixed date — it decays continuously.
+        doesn't die on a fixed date; it decays continuously.
         At half-life = 90 days: 90-day-old project scores ~0.61,
         180-day-old scores ~0.14.
 
@@ -405,14 +401,14 @@ class QualityModel:
 
     @staticmethod
     def _score_sigmoid(value: float, threshold: float, scale: float, invert: bool = False) -> float:
-        """Common sigmoid scoring: (value - threshold) / scale → sigmoid. Invert flips direction."""
+        """Common sigmoid scoring: sigmoid((value - threshold) / scale). Invert flips direction."""
         normalized = (value - threshold) / scale
         score = _sigmoid(normalized)
         return 1.0 - score if invert else score
 
     def score_ai_volume(self, average_additions: float) -> float:
         """
-        AI suspicion — average additions per commit.
+        AI suspicion: average additions per commit.
 
         GPT-class AI often generates hundreds to thousands of lines per commit,
         while human commits typically range from tens to a few hundred.
@@ -425,7 +421,7 @@ class QualityModel:
 
     def score_ai_initiative(self, entries: List[Dict]) -> float:
         """
-        AI suspicion — initial project bootstrap signature.
+        AI suspicion: initial project bootstrap signature.
 
         AI tends to generate large amounts of boilerplate in early commits.
         Captured via the add/delete ratio of the first N commits.
@@ -442,10 +438,10 @@ class QualityModel:
 
     def score_ai_repetition(self, all_additions: List[int]) -> float:
         """
-        AI suspicion — commit size repetition.
+        AI suspicion: commit size repetition.
 
         Human commit sizes vary widely; AI-generated commits tend to be uniformly sized.
-        Low CV (coefficient of variation) → highly uniform → suspicious.
+        Low CV (coefficient of variation) = highly uniform = suspicious.
         """
         if len(all_additions) < 2:
             return 0.5
@@ -459,7 +455,7 @@ class QualityModel:
 
     def score_ai_focus(self, average_files_changed: float) -> float:
         """
-        AI suspicion — file focus per commit.
+        AI suspicion: file focus per commit.
 
         Humans typically touch multiple related files per commit.
         AI tends to modify 1-2 files at a time. Target is ~3 files.
@@ -473,7 +469,7 @@ class QualityModel:
 
     def score_firework(self, commits_per_day: float, active_days: float) -> float:
         """
-        AI suspicion — firework pattern: dense commits in a short span.
+        AI suspicion: firework pattern, dense commits in a short span.
 
         AI can produce 10+ commits within minutes, while humans have
         natural rhythms (work hours, weekdays). Uses the product of
@@ -511,7 +507,7 @@ class QualityModel:
 
     def score_ai_claude(self, claude_commit_count: int, total_commits: int) -> float:
         """
-        AI suspicion — Claude Co-Authored-By commit ratio.
+        AI suspicion: Claude Co-Authored-By commit ratio.
 
         Uses ratio instead of binary check: one Claude commit doesn't
         make a project AI-driven. Ratio better reflects real AI dependency.
@@ -527,7 +523,7 @@ class QualityModel:
 
     def score_deletion_health(self, total_additions: int, total_deletions: int) -> float:
         """
-        Deletion health — how close the delete/add ratio is to ideal.
+        Deletion health: how close the delete/add ratio is to ideal.
 
         Uses Gaussian instead of linear: neither "delete less = better"
         nor "delete more = better". Ideal ratio ~35% scores highest.
@@ -547,7 +543,7 @@ class QualityModel:
 
     def score_scale(self, total_lines: int) -> float:
         """
-        Project scale maturity — maps line count to score via a smooth log curve.
+        Project scale maturity: maps line count to score via a smooth log curve.
 
         Formula:
           score = min + (max - min) × log(1 + lines / ref) / log(1 + max_ref / ref)
@@ -579,7 +575,7 @@ class QualityModel:
     @staticmethod
     def score_hero(entries: List[Dict], top_n: int) -> float:
         """
-        Contribution concentration risk — share of commits by top N contributors.
+        Contribution concentration risk: share of commits by top N contributors.
 
         Doesn't look at absolute team size: a 10-person project where
         one person writes 90% is high-risk; a 3-person project at
@@ -609,10 +605,10 @@ class QualityModel:
 
     def compute_tiny_penalty(self, total_commits: int) -> float:
         """
-        Tiny-project penalty — scores are unreliable with very few commits.
+        Tiny-project penalty: scores are unreliable with very few commits.
 
         Uses sigmoid for smooth transition:
-        5 commits → ~0.22 penalty, 10 → ~0.12, 20 → ~0.01.
+        5 commits give ~0.22 penalty, 10 give ~0.12, 20 give ~0.01.
         No hard cliff at the threshold.
 
         Config params: tiny_commit_threshold, tiny_penalty_max, tiny_penalty_slope.
@@ -624,22 +620,22 @@ class QualityModel:
     @staticmethod
     def compute_confidence(total_commits: int) -> float:
         """
-        Confidence — more commits = more trust in the score.
+        Confidence: more commits = more trust in the score.
 
         confidence = 1 - 1 / (√n + 1)
-        1 commit  → 0.50
-        9 commits → 0.75
-        99        → 0.91
+        1 commit  = 0.50
+        9 commits = 0.75
+        99        = 0.91
 
         Square root makes confidence growth diminish:
         the first few commits add the most information.
-        Never reaches 1.0 — always preserves some uncertainty.
+        Never reaches 1.0; it always preserves some uncertainty.
         """
         return 1.0 - 1.0 / (math.sqrt(total_commits) + 1.0)
 
     def compute_personality(self, total_lines: int, confidence: float) -> float:
         """
-        Scale-based jitter — small projects get a slight downward nudge,
+        Scale-based jitter: small projects get a slight downward nudge,
         large projects a slight upward nudge.
 
         Uses project size (log) instead of a random hash for the offset:
@@ -749,7 +745,7 @@ class QualityModel:
 
         metrics = self.gather_metrics(entries, now)
 
-        # Early exit for zombie projects — skip all scoring
+        # Early exit for zombie projects; skip all scoring
         if metrics["days_since_last_commit"] > self._params["zombieDays"]:
             return dict(
                 name=project_name,
@@ -850,7 +846,7 @@ class QualityModel:
         Evaluate quality per time period (month/week/quarter/year).
 
         Uses the same scoring pipeline as evaluate() so period scores
-        are directly comparable to the overall score — unlike the old
+        are directly comparable to the overall score, unlike the old
         model which used a simplified formula for periods.
 
         Hero score is passed from the overall evaluation (not recomputed
@@ -867,7 +863,7 @@ class QualityModel:
             Reference timestamp for recency.
         overall_hero_score : float, optional
             Hero score from the overall evaluation. If omitted, defaults
-            to 1.0 (perfectly distributed — neutral assumption).
+            to 1.0 (perfectly distributed, the neutral assumption).
         repo : str, optional
             Repository path for AI artifact detection.
 
@@ -969,7 +965,7 @@ class QualityModel:
         return periods
 
 
-# Compatibility wrappers — delegate to QualityModel.
+# Compatibility wrappers that delegate to QualityModel.
 def compute_quality(entries: List[Dict], params: Dict, now: datetime,
                     name: str = "", repo: str = None) -> Dict:
     """Delegate to QualityModel.evaluate()."""
@@ -1991,19 +1987,19 @@ def _build_hero_section(entries: List[Dict], hero_top_n: int, hero_threshold: fl
     lines = ["",
              f"  Hero Risk (top {hero_top_n}):  {hero_ratio:.0%}  ({hero_top:,} / {hero_total:,} commits)"]
     if hero_ratio >= hero_threshold:
-        lines.append(f"  High risk — project relies on top {hero_top_n} contributors")
+        lines.append(f"  High risk: project relies on top {hero_top_n} contributors")
     return "\n".join(lines)
 
 
 def _build_see_also() -> str:
     return ("\n"
             "  See also (in charts/ subdirectory):\n"
-            "    charts/growth_trend.png     — Code growth trend\n"
-            "    charts/commit_activity.png  — Daily commit activity\n"
-            "    charts/contributors.png     — Developer Pareto (bots excluded)\n"
-            "    charts/quality_radar.png    — Quality factor radar\n"
-            "    contributors.csv            — Contributor activity summary (AI Participation)\n"
-            "    suspicion.csv               — Detailed audit findings with error codes")
+            "    charts/growth_trend.png      Code growth trend\n"
+            "    charts/commit_activity.png   Daily commit activity\n"
+            "    charts/contributors.png      Developer Pareto (bots excluded)\n"
+            "    charts/quality_radar.png     Quality factor radar\n"
+            "    contributors.csv             Contributor activity summary (AI Participation)\n"
+            "    suspicion.csv                Detailed audit findings with error codes")
 
 
 def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_path: str, path: str,
@@ -2026,7 +2022,7 @@ def write_report(q: Dict, periods: List[Dict], audit: Dict, repo_path: str, csv_
         ctx = dict(
             generated_at=now_str, project_name=q['name'], total_commits=q['total_commits'],
             active_days=q['active_days'], duration_since_last=duration,
-            status=f"Archived — no activity in {duration}",
+            status=f"Archived: no activity in {duration}",
         )
     else:
         marker = "{NORMAL_BLOCK}"
@@ -2232,7 +2228,7 @@ def main():
                 audit = audit_deletions(repo, entries, now, quality.get("scores"))
 
         if not quality or quality.get("band") == "Archived":
-            msg = f"Archived — no commits in {_duration_str(quality['days_since_last'])}" if quality else "Archived — no commits"
+            msg = f"Archived: no commits in {_duration_str(quality['days_since_last'])}" if quality else "Archived: no commits"
             console.print(f"[grey58]{ICON_STEP}[/grey58] [default]{msg}[/default]")
         else:
             console.print(
@@ -2262,13 +2258,10 @@ def main():
             _SEVERITY = {"critical": 0, "alert": 1, "watch": 2, "normal": 3, "clean": 4}
             _ABBREV = {"critical": "C", "alert": "A", "watch": "W", "normal": "N", "clean": "L"}
 
-            quality_band = quality["band"]
             quality_color = quality["band_color"]
             console.print(
                 f"[{quality_color}]◆[/{quality_color}] "
-                f"[default]Quality: Add/Del rate {audit['deletion_percent']}% · "
-                f"{len(audit['suspicion'])} problems[/default] · "
-                f"[{quality_color}]{quality_band}[/{quality_color}]"
+                f"[default]{audit['suspicion_count']} problems in your git history[/default]"
             )
 
             top = sorted(audit["suspicion"], key=lambda item: _SEVERITY.get(item["level"], 99))[:4]
@@ -2279,10 +2272,10 @@ def main():
                     parts.append(
                         f"[{lvl_color}]{s['hash']} [{_ABBREV.get(s['level'], '?')}][/{lvl_color}]"
                     )
-                console.print(f"[dim]{ICON_ARROW}       ⎿  {'  '.join(parts)}[/dim]")
+                console.print(f"[dim]{ICON_ARROW}    {'  '.join(parts)}[/dim]")
                 remaining = max(0, audit["suspicion_count"] - 4)
                 if remaining > 0:
-                    console.print(f"[dim]{ICON_ARROW}          [/dim][default]+{remaining} more...[/default]")
+                    console.print(f"[dim]{ICON_ARROW}[/dim]    [dim black](+{remaining} more...)[/]")
 
             console.print(f"[dim]{ICON_ARROW}[/dim]")
             console.print(f"[dim]{ICON_ARROW}[/dim]")
