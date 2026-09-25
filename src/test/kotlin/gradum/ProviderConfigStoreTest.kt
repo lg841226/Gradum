@@ -32,12 +32,14 @@ class ProviderConfigStoreTest {
   }
 
   @Test
-  fun `load parses hand-written env file`() {
-    File(tempDir, "provider.env").writeText(
+  fun `load parses hand-written settings json`() {
+    File(tempDir, "settings.json").writeText(
       """
-        GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434
-        GRADUM_DEEPSEEK_API_KEY=sk-123
-        # comment line is fine
+        {
+          "ollama.baseUrl": "http://192.168.1.50:11434",
+          "deepseek.apiKey": "sk-123",
+          "ollama.allowRemote": true
+        }
       """.trimIndent()
     )
 
@@ -45,22 +47,26 @@ class ProviderConfigStoreTest {
 
     assertEquals(
       "http://192.168.1.50:11434",
-      props.getProperty("GRADUM_OLLAMA_BASE_URL")
+      props.getProperty("ollama.baseUrl")
     )
     assertEquals(
       "sk-123",
-      props.getProperty("GRADUM_DEEPSEEK_API_KEY")
+      props.getProperty("deepseek.apiKey")
+    )
+    assertEquals(
+      "true",
+      props.getProperty("ollama.allowRemote")
     )
   }
 
   @Test
   fun `base url and api key keys are derived from configKey`() {
     assertEquals(
-      "GRADUM_OLLAMA_BASE_URL",
+      "ollama.baseUrl",
       ProviderConfigStore.baseUrlKey(configKey = "ollama")
     )
     assertEquals(
-      "GRADUM_LMSTUDIO_API_KEY",
+      "lmstudio.apiKey",
       ProviderConfigStore.apiKeyKey(configKey = "lmstudio")
     )
     assertEquals(
@@ -70,9 +76,9 @@ class ProviderConfigStoreTest {
   }
 
   @Test
-  fun `allow remote flag defaults to false and reads from env file`() {
+  fun `allow remote flag defaults to false and reads from settings json`() {
     assertEquals(
-      "GRADUM_LMSTUDIO_ALLOW_REMOTE",
+      "lmstudio.allowRemote",
       ProviderConfigStore.allowRemoteKey(configKey = "lmstudio")
     )
     assertEquals(
@@ -80,7 +86,7 @@ class ProviderConfigStoreTest {
       ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
     )
 
-    File(tempDir, "provider.env").writeText("GRADUM_LMSTUDIO_ALLOW_REMOTE=true")
+    File(tempDir, "settings.json").writeText("""{"lmstudio.allowRemote": true}""")
     assertEquals(
       true,
       ProviderConfigStore.isAllowRemote(configKey = "lmstudio")
@@ -231,7 +237,7 @@ class ProviderConfigStoreTest {
 
   @Test
   fun `probeProvider allows remote lmstudio url when flag on`() {
-    File(tempDir, "provider.env").writeText("GRADUM_LMSTUDIO_ALLOW_REMOTE=true")
+    File(tempDir, "settings.json").writeText("""{"lmstudio.allowRemote": true}""")
     val result = ModelIdentity.probeProvider(
       apiKey = null,
       kind = "lmstudio",
@@ -273,16 +279,67 @@ class ProviderConfigStoreTest {
       missingFingerprint
     )
 
-    val configFile = File(tempDir, "provider.env")
-    configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://localhost:11434")
+    val configFile = File(tempDir, "settings.json")
+    configFile.writeText("""{"ollama.baseUrl": "http://localhost:11434"}""")
     val first: String = ProviderConfigStore.fingerprint()
     assertTrue(first != "missing")
 
-    configFile.writeText("GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434")
+    configFile.writeText("""{"ollama.baseUrl": "http://192.168.1.50:11434"}""")
     val second: String = ProviderConfigStore.fingerprint()
     assertTrue(
       second != first,
       "fingerprint must change when the file content changes"
     )
+  }
+
+  @Test
+  fun `legacy provider env is migrated into settings json on first load`() {
+    File(tempDir, "provider.env").writeText(
+      """
+        GRADUM_OLLAMA_BASE_URL=http://192.168.1.50:11434
+        GRADUM_DEEPSEEK_API_KEY=sk-123
+        GRADUM_LMSTUDIO_ALLOW_REMOTE=true
+        GRADUM_UNKNOWN_X_BASE_URL=should-be-ignored
+      """.trimIndent()
+    )
+    File(tempDir, "settings.json").writeText(
+      """
+        {
+          "server": { "port": 9000, "host": "127.0.0.1" },
+          "llm": { "model": "qwen2.5" }
+        }
+      """.trimIndent()
+    )
+
+    val props = ProviderConfigStore.load()
+
+    assertEquals(
+      "http://192.168.1.50:11434",
+      props.getProperty("ollama.baseUrl")
+    )
+    assertEquals(
+      "sk-123",
+      props.getProperty("deepseek.apiKey")
+    )
+    assertEquals(
+      "true",
+      props.getProperty("lmstudio.allowRemote")
+    )
+    assertNull(props.getProperty("unknown.baseUrl"))
+
+    // Legacy file is gone after a successful migration.
+    assertFalse(File(tempDir, "provider.env").exists())
+
+    // Non-provider keys are preserved; provider keys now live in settings.json.
+    val migrated = gradum.utils.JsonUtil.decodeMap(File(tempDir, "settings.json").readText())
+    assertEquals("http://192.168.1.50:11434", migrated["ollama.baseUrl"])
+    assertEquals("sk-123", migrated["deepseek.apiKey"])
+    assertEquals(true, migrated["lmstudio.allowRemote"])
+    assertEquals("qwen2.5", (migrated["llm"] as Map<*, *>)["model"])
+    assertEquals(9000L, (migrated["server"] as Map<*, *>)["port"])
+
+    // Migration is one-time: a second load must not resurrect provider.env.
+    ProviderConfigStore.load()
+    assertFalse(File(tempDir, "provider.env").exists())
   }
 }

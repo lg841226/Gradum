@@ -244,7 +244,16 @@ object ServerSettingsStore {
   )
 
   private val PORT_RANGE: IntRange = 1024..65535
-  private val TOP_LEVEL_KEYS: Set<String> = setOf($$"$schema", "server", "llm", "commandFilter")
+  private val TOP_LEVEL_KEYS: Set<String> = setOf(
+    $$"$schema", "server", "llm", "commandFilter",
+    // Provider overrides live at the top level as VS Code style dotted
+    // keys (see gradum.ProviderConfigStore); they must not warn as unknown.
+    "ollama.baseUrl", "ollama.apiKey", "ollama.allowRemote",
+    "lmstudio.baseUrl", "lmstudio.apiKey", "lmstudio.allowRemote",
+    "zhipu.baseUrl", "zhipu.apiKey", "zhipu.allowRemote",
+    "deepseek.baseUrl", "deepseek.apiKey", "deepseek.allowRemote",
+    "minimax.baseUrl", "minimax.apiKey", "minimax.allowRemote",
+  )
   private val SERVER_KEYS: Set<String> = setOf("host", "port", "autoDetectPort", "apiKeyFile")
   private val LLM_KEYS: Set<String> = setOf("baseUrl", "model", "think")
 

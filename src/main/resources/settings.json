@@ -34,5 +34,15 @@
         "/", "/dev", "/proc", "/sys"
       ]
     }
-  }
+  },
+  "ollama.baseUrl": "http://localhost:11434",
+  "ollama.apiKey": "",
+  "lmstudio.baseUrl": "http://localhost:1234",
+  "lmstudio.apiKey": "",
+  "zhipu.baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+  "zhipu.apiKey": "",
+  "deepseek.baseUrl": "https://api.deepseek.com/v1",
+  "deepseek.apiKey": "",
+  "minimax.baseUrl": "https://api.minimaxi.com/v1",
+  "minimax.apiKey": ""
 }

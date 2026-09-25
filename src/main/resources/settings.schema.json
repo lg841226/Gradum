@@ -9,6 +9,76 @@
       "type": "string",
       "description": "JSON Schema location for editor autocompletion"
     },
+    "ollama.baseUrl": {
+      "type": "string",
+      "description": "Base URL override for the Ollama provider"
+    },
+    "ollama.apiKey": {
+      "type": ["string", "null"],
+      "description": "API key override for the Ollama provider",
+      "default": null
+    },
+    "ollama.allowRemote": {
+      "type": "boolean",
+      "description": "Allow the Ollama provider to dial non-localhost base URLs",
+      "default": false
+    },
+    "lmstudio.baseUrl": {
+      "type": "string",
+      "description": "Base URL override for the LM Studio provider"
+    },
+    "lmstudio.apiKey": {
+      "type": ["string", "null"],
+      "description": "API key override for the LM Studio provider",
+      "default": null
+    },
+    "lmstudio.allowRemote": {
+      "type": "boolean",
+      "description": "Allow the LM Studio provider to dial non-localhost base URLs",
+      "default": false
+    },
+    "zhipu.baseUrl": {
+      "type": "string",
+      "description": "Base URL override for the Zhipu BigModel provider"
+    },
+    "zhipu.apiKey": {
+      "type": ["string", "null"],
+      "description": "API key override for the Zhipu BigModel provider",
+      "default": null
+    },
+    "zhipu.allowRemote": {
+      "type": "boolean",
+      "description": "Allow the Zhipu provider to dial non-localhost base URLs",
+      "default": false
+    },
+    "deepseek.baseUrl": {
+      "type": "string",
+      "description": "Base URL override for the DeepSeek provider"
+    },
+    "deepseek.apiKey": {
+      "type": ["string", "null"],
+      "description": "API key override for the DeepSeek provider",
+      "default": null
+    },
+    "deepseek.allowRemote": {
+      "type": "boolean",
+      "description": "Allow the DeepSeek provider to dial non-localhost base URLs",
+      "default": false
+    },
+    "minimax.baseUrl": {
+      "type": "string",
+      "description": "Base URL override for the MiniMax provider"
+    },
+    "minimax.apiKey": {
+      "type": ["string", "null"],
+      "description": "API key override for the MiniMax provider",
+      "default": null
+    },
+    "minimax.allowRemote": {
+      "type": "boolean",
+      "description": "Allow the MiniMax provider to dial non-localhost base URLs",
+      "default": false
+    },
     "server": {
       "type": "object",
       "title": "Server Binding Configuration",

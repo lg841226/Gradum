@@ -16,10 +16,12 @@ import java.nio.file.Files
 
 /**
  * Persistence tests for [ProviderSettings.State] (defaults + per-kind
- * accessors) and [ProviderConfigFile] (the shared `provider.env` the
- * embedded server reads). The config file is redirected to a temp dir
- * via `gradum.provider.configDir` so tests never touch the user's real
- * `~/.gradum/provider.env`.
+ * accessors) and [ProviderConfigFile] (the shared `~/.gradum/settings.json`
+ * the embedded server reads). Provider overrides live at the top level of
+ * the JSON object as VS Code style dotted keys (`ollama.baseUrl`,
+ * `deepseek.apiKey`, `lmstudio.allowRemote`, ...). The config file is
+ * redirected to a temp dir via `gradum.provider.configDir` so tests never
+ * touch the user's real `~/.gradum/settings.json`.
  */
 class ProviderSettingsPersistenceTest {
 
@@ -145,11 +147,11 @@ class ProviderSettingsPersistenceTest {
     val props = ProviderConfigFile.loadProperties()
     assertEquals(
       "http://localhost:11434",
-      props.getProperty("GRADUM_OLLAMA_BASE_URL")
+      props.getProperty("ollama.baseUrl")
     )
     assertEquals(
       "secret-key",
-      props.getProperty("GRADUM_OLLAMA_API_KEY")
+      props.getProperty("ollama.apiKey")
     )
   }
 
@@ -161,11 +163,11 @@ class ProviderSettingsPersistenceTest {
     val props = ProviderConfigFile.loadProperties()
     assertEquals(
       "https://api.deepseek.com/v1",
-      props.getProperty("GRADUM_DEEPSEEK_BASE_URL")
+      props.getProperty("deepseek.baseUrl")
     )
     assertEquals(
       "dk",
-      props.getProperty("GRADUM_DEEPSEEK_API_KEY")
+      props.getProperty("deepseek.apiKey")
     )
   }
 
@@ -175,9 +177,9 @@ class ProviderSettingsPersistenceTest {
     ProviderConfigFile.updateAllowRemote(configKey = "zhipu", allowRemote = true)
     ProviderConfigFile.removeProviderConfig(configKey = "zhipu")
     val props = ProviderConfigFile.loadProperties()
-    assertFalse(props.containsKey("GRADUM_ZHIPU_BASE_URL"))
-    assertFalse(props.containsKey("GRADUM_ZHIPU_API_KEY"))
-    assertFalse(props.containsKey("GRADUM_ZHIPU_ALLOW_REMOTE"))
+    assertFalse(props.containsKey("zhipu.baseUrl"))
+    assertFalse(props.containsKey("zhipu.apiKey"))
+    assertFalse(props.containsKey("zhipu.allowRemote"))
   }
 
   @Test
@@ -185,12 +187,12 @@ class ProviderSettingsPersistenceTest {
     ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", allowRemote = true)
     assertEquals(
       "true",
-      ProviderConfigFile.loadProperties().getProperty("GRADUM_LMSTUDIO_ALLOW_REMOTE")
+      ProviderConfigFile.loadProperties().getProperty("lmstudio.allowRemote")
     )
     ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", allowRemote = false)
     assertEquals(
       "false",
-      ProviderConfigFile.loadProperties().getProperty("GRADUM_LMSTUDIO_ALLOW_REMOTE")
+      ProviderConfigFile.loadProperties().getProperty("lmstudio.allowRemote")
     )
   }
 
@@ -208,11 +210,41 @@ class ProviderSettingsPersistenceTest {
     val props = ProviderConfigFile.loadProperties()
     assertEquals(
       "http://localhost:11434",
-      props.getProperty("GRADUM_OLLAMA_BASE_URL")
+      props.getProperty("ollama.baseUrl")
     )
     assertEquals(
       "http://localhost:1234",
-      props.getProperty("GRADUM_LMSTUDIO_BASE_URL")
+      props.getProperty("lmstudio.baseUrl")
     )
+  }
+
+  @Test
+  fun `edits preserve non-provider keys in settings json`() {
+    File(tempDir, "settings.json").writeText(
+      """
+        {
+          "${'$'}schema": "https://gradum.dev/schemas/settings.schema.json",
+          "server": { "port": 9000 },
+          "llm": { "model": "qwen2.5" },
+          "commandFilter": { "blockedExecutables": ["dd"] }
+        }
+      """.trimIndent()
+    )
+    ProviderConfigFile.updateProviderConfig(configKey = "ollama", baseUrl = "http://localhost:11434", apiKey = "k1")
+
+    val props = ProviderConfigFile.loadProperties()
+    assertEquals(
+      "http://localhost:11434",
+      props.getProperty("ollama.baseUrl")
+    )
+
+    val text = File(tempDir, "settings.json").readText()
+    assertTrue(text.contains("\"server\""))
+    assertTrue(text.contains("\"port\": 9000"))
+    assertTrue(text.contains("\"llm\""))
+    assertTrue(text.contains("\"model\": \"qwen2.5\""))
+    assertTrue(text.contains("\"commandFilter\""))
+    assertTrue(text.contains("\"blockedExecutables\""))
+    assertTrue(text.contains("\"\$schema\""))
   }
 }

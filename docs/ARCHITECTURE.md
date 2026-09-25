@@ -791,7 +791,7 @@ flowchart TD
     R1 --> CLOUD["Ollama cloud models<br/>(name contains 'cloud'):<br/>live availability probe<br/>POST /api/chat (5s)<br/>classify → UnavailableReason"]
     CLOUD --> RESULT["List<ModelEntry><br/>{modelName, providerType, serverUrl,<br/>serverName, available, contextLimit, ...}"]
 
-    PROBE_CONFIG{"provider config file<br/>mtime/length changed?"}
+    PROBE_CONFIG{"~/.gradum/settings.json<br/>mtime/length changed?"}
     PROBE_CONFIG -- Yes --> CACHE_IVAL["invalidate HealthCache<br/>→ re-probe on next /models"]
     style P1 fill: #c1daf4
     style P2 fill: #c1f4c1
@@ -804,7 +804,9 @@ flowchart TD
 - **Discovery** (`Discovery.probe()`): probes the five well-known servers (four local + Zhipu BigModel cloud) with a 5s
   timeout, classifies failures as `HttpError` (skipped, `debug` log) or `Unreachable`, and returns reachable models.
   Results are cached by `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
-- **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from the provider settings file.
+- **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`, where
+  provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
+  `zhipu.allowRemote`, ...). The legacy `~/.gradum/provider.env` was migrated into settings.json once on first access.
   `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
   cache is dropped and the next `/models` call re-probes the providers, so a URL edit surfaces in the model list within
   one poll cycle instead of waiting out the 60s TTL.
