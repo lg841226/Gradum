@@ -2,8 +2,31 @@
 
 All notable changes to Gradum are tracked here, roughly following
 [Keep a Changelog](https://keepachangelog.com/). The version number stays at
-`1.0.1-experimental` while the project is still maturing; see the README for
+`1.0.2-experimental` while the project is still maturing; see the README for
 how to download the packaged distributions.
+
+## [1.0.2-experimental] - 2026-09-25
+
+Command authorization and security-model rework.
+
+**Command authorization (run_cmd)**
+
+- `readOnlyAllowedExecutables` removed; the READ_ONLY tier no longer uses a
+  whitelist. Destructive commands on paths outside the project root now pause
+  and ask the user for explicit authorization (once / always / reject) instead
+  of being auto-blocked.
+- `CommandVerdict` gains `NeedsApproval`, classifying `rm`, recursive `chmod`,
+  and `dd` against paths outside the project root. Protected system paths and
+  blocked executables stay hard-blocked and cannot be authorized away.
+- Session-scoped `authorizedCommandCategories` remembers per-category approvals
+  so the same class of command is not re-asked within a session.
+
+**Skills & prompts**
+
+- `write_file` merged from `edit_file` and `save_file`; file-creation now renders
+  added-line counts.
+- System prompts updated so models call the tool and await user authorization
+  rather than self-refusing out-of-project destructive commands.
 
 ## [1.0.1-experimental] - 2026-09-11
 
