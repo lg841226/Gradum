@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Routes.kt  2026-09-24 23:12:43 Changed by gwy
+ * Routes.kt  2026-09-25 12:00:01 Changed by gwy
  */
 
 package gradum.server
@@ -338,17 +338,17 @@ fun Application.registerAllRoutes(
         apiKey = configOverrides.apiKey ?: serverConfiguration.defaultApiKey,
         chatCompletionsPath = configOverrides.chatCompletionsPath
           ?: inferChatCompletionsPath(resolvedBaseUrl),
-        toolMode = resolvedToolMode,
-        sessionId = resolvedSessionId,
-        projectRoot = projectRootPath.toString(),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
-        promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
-        keepAlive = configOverrides.keepAlive ?: serverConfiguration.defaultKeepAlive,
+        toolMode = resolvedToolMode,
         enableThinking = configOverrides.think ?: serverConfiguration.defaultThinkEnabled,
-        timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
+        promptVariant = PromptVariant.fromStringOrDefault(requestBody.promptVariant),
         temperatureValue = configOverrides.temperature ?: AgentConfiguration.DEFAULT_TEMPERATURE,
+        timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
-        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE
+        maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
+        keepAlive = configOverrides.keepAlive ?: serverConfiguration.defaultKeepAlive,
+        projectRoot = projectRootPath.toString(),
+        sessionId = resolvedSessionId
       )
 
       launch(Dispatchers.IO) {

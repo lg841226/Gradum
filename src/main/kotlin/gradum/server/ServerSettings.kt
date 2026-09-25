@@ -321,8 +321,6 @@ object ServerSettingsStore {
 
     return CommandFilterConfig(
       blockedExecutables = stringListOrNull(sectionRaw["blockedExecutables"])?.toSet() ?: defaultConfig.blockedExecutables,
-      readOnlyAllowedExecutables =
-        stringListOrNull(sectionRaw["readOnlyAllowedExecutables"])?.toSet() ?: defaultConfig.readOnlyAllowedExecutables,
       protectedPaths = resolvedProtectedPaths,
     )
   }
@@ -344,7 +342,7 @@ object ServerSettingsStore {
   private fun stringListOrNull(jsonValue: Any?): List<String>? =
     if (jsonValue is List<*>) jsonValue.filterIsInstance<String>().takeIf { it.size == jsonValue.size } else null
 
-  private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "readOnlyAllowedExecutables", "protectedPaths")
+  private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "protectedPaths")
   private val PROTECTED_PATHS_KEYS: Set<String> =
     setOf("systemPrefixes", "protectedHomeSubdirectories", "safePathPrefixes", "exactProtectedPaths")
 }

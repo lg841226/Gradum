@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Registry of in-flight agent→user questions, keyed by `sessionId::requestId`.
  *
- * The skill's [AskScope.ask_interaction] registers a [CompletableDeferred]
+ * The skill's [AskScope.askInteraction] registers a [CompletableDeferred]
  * here and blocks on it; the `POST /events/respond` endpoint resolves the
  * matching deferred when the user answers. A question may be held open
  * **indefinitely** by design — there is deliberately no timeout (matching

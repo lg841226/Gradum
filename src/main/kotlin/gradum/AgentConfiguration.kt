@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AgentConfiguration.kt  2026-09-24 23:20:43 Changed by gwy
+ * AgentConfiguration.kt  2026-09-25 11:43:46 Changed by gwy
  */
 
 package gradum
@@ -119,20 +119,16 @@ data class AgentConfiguration(
    */
   val chatCompletionsPath: String = DEFAULT_CHAT_COMPLETIONS_PATH,
 
-  val toolMode: ToolMode = ToolMode.AGENT,
-  val promptVariant: PromptVariant = PromptVariant.AUTO,
-  val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
-
   val topPValue: Double = DEFAULT_TOP_P,
-  val temperatureValue: Double = DEFAULT_TEMPERATURE,
-
-  val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
-
   val maxRepeatedResponses: Int = 3,
   val maxRepeatedToolCalls: Int = 5,
-  val maxTokensToGenerate: Int = DEFAULT_MAX_TOKENS_TO_GENERATE,
-
+  val toolMode: ToolMode = ToolMode.AGENT,
+  val enableThinking: Boolean = DEFAULT_ENABLE_THINKING,
+  val promptVariant: PromptVariant = PromptVariant.AUTO,
+  val temperatureValue: Double = DEFAULT_TEMPERATURE,
+  val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
   val contextWindowSize: Int = DEFAULT_CONTEXT_WINDOW_SIZE,
+  val maxTokensToGenerate: Int = DEFAULT_MAX_TOKENS_TO_GENERATE,
 
   /**
    * How long the local model stays loaded in memory after a request,

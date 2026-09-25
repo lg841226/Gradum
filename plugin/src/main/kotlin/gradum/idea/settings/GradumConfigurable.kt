@@ -844,7 +844,8 @@ private fun FontSizeRow(
       allowAuto = secondary.allowAuto,
       fontSizeSp = secondary.fontSizeSp,
       onFontSizeChange = secondary.onFontSizeChange,
-      autoHint = if (secondary.allowAuto) formatFontSize(primary.fontSizeSp) else null
+      autoHint =
+        if (secondary.allowAuto) formatFontSize(primary.fontSizeSp) else null
     )
     Text(
       text = "sp",

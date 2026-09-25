@@ -83,7 +83,7 @@ data class SkillContext(
 
   /**
    * Ask capability for this session. When non-null, skills may call
-   * `scope.ask_interaction { ... }` to pause for a user decision and
+   * `scope.askInteraction { ... }` to pause for a user decision and
    * resume with their answer. Null when the agent was not wired with a
    * [PendingQuestions] (e.g. tests or sub-agents that must not block) —
    * a skill must fall back when this is absent instead of assuming it exists.
@@ -98,6 +98,25 @@ data class SkillContext(
    * lifetime of the per-session [SkillContext] instance.
    */
   val authorizedReadPaths: MutableSet<String> = mutableSetOf()
+
+  /**
+   * Session-scoped cache of externally-authorized write paths (e.g. a
+   * `write_file` target outside the project root that the user approved
+   * "always"). In-memory only, never persisted; a session restart asks
+   * again. Not part of the constructor/equality — it lives for the
+   * lifetime of the per-session [SkillContext] instance.
+   */
+  val authorizedWritePaths: MutableSet<String> = mutableSetOf()
+
+  /**
+   * Session-scoped cache of dangerous command *categories* the user approved
+   * "always" (e.g. `rm:delete`, `chmod:recursive`, `dd:device-write`) after a
+   * [CommandVerdict.NeedsApproval] verdict on `run_cmd`. In-memory only, never
+   * persisted; a session restart asks again. Not part of the
+   * constructor/equality — it lives for the lifetime of the per-session
+   * [SkillContext] instance.
+   */
+  val authorizedCommandCategories: MutableSet<String> = mutableSetOf()
 
   /**
    * True when the active model wants the SIMPLE schema variant (small /

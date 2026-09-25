@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WriteFileSkill.kt  2026-09-25 Changed by gwy
+ * WriteFileSkill.kt  2026-09-25 12:10:39 Changed by gwy
  */
 
 package gradum.skill
@@ -32,6 +32,40 @@ private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
 /** True when path resolves inside a protected system directory (blocked for writes). */
 private fun isBlockedPaths(targetPath: Path): Boolean =
   ProtectedPaths.isProtected(targetPath.toString())
+
+/**
+ * Resolves authorization for writing to a path outside the project root.
+ * Returns the authorized external [Path] on success, or null when to write
+ * must be denied (no ask capability wired, or the user rejected/canceled).
+ * An "always" answer remembers the path for the rest of the session so it is
+ * not asked again. The resulting external path still passes through
+ * [isBlockedPaths] before any write, so protected system directories are
+ * never bypassed by an authorization.
+ */
+private fun authorizeWrite(filePath: String, projectRoot: String, context: SkillContext): Path? {
+  val externalPath: Path = resolveProjectPath(filePath, projectRoot, requireWithinProject = false).resolved
+  if (externalPath.toString() in context.authorizedWritePaths) return externalPath
+  val askScope: AskScope = context.scope ?: return null
+  val decision: AskResult = askScope.askInteraction {
+    title = l10n.key("gradum.ask.write.title")
+    details = l10n.raw(externalPath.toString(), source = Lang.EN)
+    choices {
+      item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.write.choice.once")
+      item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.write.choice.always")
+      item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.write.choice.reject")
+    }
+    default = "no"
+  }
+  return when (decision) {
+    is AskResult.Case -> when (decision.meaning) {
+      Choice.Meaning.ALLOW_ONCE -> externalPath
+      Choice.Meaning.ALLOW_ALWAYS -> externalPath.also { context.authorizedWritePaths.add(it.toString()) }
+      Choice.Meaning.REJECT -> null
+    }
+
+    else -> null
+  }
+}
 
 /**
  * Write text to a file: search-and-replace, or create/overwrite the whole file.
@@ -131,17 +165,19 @@ class WriteFileSkill : Skill() {
       )
 
     val resolved: ResolvedProjectPath = resolveProjectPath(filePath, projectRoot)
-    val resolvedPath: Path = resolved.resolved
+    var resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
-      return makeFailure(
-        code = ErrorCode.PERMISSION_DENIED,
-        message = buildXmlError(
-          code = "PERMISSION_DENIED",
-          message = "Path is outside the project root: ${resolved.rejectionReason}",
-          fixHint = "Use a path relative to the project root."
-        ),
-        context = mapOf("path" to filePath)
-      )
+      val authorizedPath: Path = authorizeWrite(filePath, projectRoot, context)
+        ?: return makeFailure(
+          code = ErrorCode.PERMISSION_DENIED,
+          message = buildXmlError(
+            code = "PERMISSION_DENIED",
+            message = "Path is outside the project root: ${resolved.rejectionReason}",
+            fixHint = "Use a path relative to the project root."
+          ),
+          context = mapOf("path" to filePath)
+        )
+      resolvedPath = authorizedPath
     }
     val targetFile: File = resolvedPath.toFile()
 
@@ -226,32 +262,47 @@ class WriteFileSkill : Skill() {
         )
       )
 
-    if (rawEdits.isEmpty())
-      return makeFailure(
-        code = ErrorCode.INVALID_PARAMETER,
-        message = buildXmlError(
-          code = "INVALID_PARAMETER",
-          message = "No edits provided.",
-          fixHint = "Provide at least one edit object with 'oldString' and 'newString' fields."
+    val fallbackEdits: List<Map<String, Any>> = if (rawEdits.isEmpty()) {
+      // The cloud schema expects an `edits` array, but a model may fall back
+      // to the local create/replace shape (top-level oldString/newString).
+      // Fold that into a single edit so both shapes share one pipeline.
+      val topLevelOldString: String = arguments["oldString"] as? String ?: ""
+      val topLevelNewString: String = arguments["newString"] as? String ?: ""
+      if (topLevelOldString.isBlank() && topLevelNewString.isBlank()) {
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "No edits provided and no newString to write.",
+            fixHint = "Provide oldString and newString to replace text, or newString alone as the full content to create/overwrite a file."
+          ),
+          context = mapOf("path" to filePath)
         )
-      )
+      }
+      listOf(mapOf("oldString" to topLevelOldString, "newString" to topLevelNewString))
+    } else {
+      emptyList()
+    }
 
     val resolved: ResolvedProjectPath = resolveProjectPath(filePath, projectRoot)
-    val resolvedPath: Path = resolved.resolved
+    var resolvedPath: Path = resolved.resolved
     if (resolved.rejectionReason != null) {
-      return makeFailure(
-        code = ErrorCode.PERMISSION_DENIED,
-        message = buildXmlError(
-          code = "PERMISSION_DENIED",
-          message = "Path is outside the project root: ${resolved.rejectionReason}",
-          fixHint = "Use a path relative to the project root."
-        ),
-        context = mapOf("path" to filePath)
-      )
+      val authorizedPath: Path = authorizeWrite(filePath, projectRoot, context)
+        ?: return makeFailure(
+          code = ErrorCode.PERMISSION_DENIED,
+          message = buildXmlError(
+            code = "PERMISSION_DENIED",
+            message = "Path is outside the project root: ${resolved.rejectionReason}",
+            fixHint = "Use a path relative to the project root."
+          ),
+          context = mapOf("path" to filePath)
+        )
+      resolvedPath = authorizedPath
     }
     val targetFile: File = resolvedPath.toFile()
 
-    val parsedEdits: List<EditOperation> = rawEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
+    val effectiveEdits: List<Map<String, Any>> = rawEdits.ifEmpty { fallbackEdits }
+    val parsedEdits: List<EditOperation> = effectiveEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
       EditOperation(
         searchText = editEntry["oldString"] as? String ?: "",
         replaceText = editEntry["newString"] as? String ?: "",

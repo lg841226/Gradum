@@ -2,12 +2,15 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * DelegateSkillTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * DelegateSkillTest.kt  2026-09-25 12:00:01 Changed by gwy
  */
 
 package gradum.skill
 
-import gradum.*
+import gradum.AgentConfiguration
+import gradum.GradumConfig
+import gradum.SkillResult
+import gradum.ToolMode
 import kotlin.test.*
 
 /**
@@ -84,7 +87,7 @@ class DelegateSkillTest {
     val context = SkillContext(
       toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
-      agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA),
+      agentConfiguration = AgentConfiguration(),
       emitEvent = { _, _ -> }
     )
     val result = skill.execute(arguments = emptyMap(), context)
@@ -122,7 +125,7 @@ class DelegateSkillTest {
     val context = SkillContext(
       toolMode = ToolMode.AGENT,
       projectRoot = "/tmp",
-      agentConfiguration = AgentConfiguration(provider = Provider.OLLAMA)
+      agentConfiguration = AgentConfiguration()
     )
     val longTask = "a".repeat(n = GradumConfig.MIN_TASK_LENGTH)
     val result = skill.execute(arguments = mapOf("task" to longTask), context)

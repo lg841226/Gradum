@@ -10,15 +10,12 @@ package gradum.agent
 import gradum.AgentConfiguration
 import gradum.ErrorCode
 import gradum.SkillResult
-import gradum.ToolMode
 import gradum.client.ToolCallEntry
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
 import gradum.skill.getTodoManagerInstance
-import gradum.utils.CommandVerdict
 import gradum.utils.JsonUtil
-import gradum.utils.classifyCommand
 import kotlinx.serialization.json.JsonElement
 import org.slf4j.LoggerFactory
 
@@ -154,27 +151,6 @@ class ToolExecutor(
       logToolCall(functionName, convertedArguments, executionResult, startedAt)
       sessionManager.abort(reason = "tool_runaway")
       return executionResult
-    }
-
-    if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
-      val commandText: String = convertedArguments["command"] as? String ?: ""
-      val verdict: CommandVerdict = classifyCommand(commandText, configuration.toolMode)
-      if (verdict is CommandVerdict.Blocked) {
-        logger.error("COMMAND_BLOCKED — ${verdict.description} (rule: ${verdict.ruleName})")
-        executionResult = mapOf(
-          "success" to false,
-          "error" to mapOf(
-            "rule" to verdict.ruleName,
-            "message" to verdict.description,
-            "code" to ErrorCode.COMMAND_BLOCKED.name
-          ),
-        )
-        emitToolResult(
-          functionName, skillInstance, isLastToolCall, processedCall, executionResult, convertedArguments
-        )
-        logToolCall(functionName, convertedArguments, executionResult, startedAt)
-        return executionResult
-      }
     }
 
     executionResult = executeSkill(skillInstance, functionName, convertedArguments)

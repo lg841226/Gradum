@@ -7,7 +7,6 @@
 
 package gradum.utils
 
-import gradum.ToolMode
 import kotlin.jvm.Volatile
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -20,6 +19,15 @@ sealed class CommandVerdict {
   data object Safe : CommandVerdict()
 
   data class Blocked(val ruleName: String, val description: String) : CommandVerdict()
+
+  /**
+   * The command is potentially destructive but only touches paths outside
+   * the project root and outside the always-protected set. It may run only
+   * after the user approves — granted for one execution or remembered for
+   * the session by [category] (e.g. `rm:delete`, `chmod:recursive`,
+   * `dd:device-write`).
+   */
+  data class NeedsApproval(val category: String, val description: String) : CommandVerdict()
 }
 
 /** User-configurable lists of protected filesystem paths (see [CommandFilterConfig]). */
@@ -40,19 +48,12 @@ data class ProtectedPathsConfig(
  * [DEFAULT] mirrors the historical hardcoded lists. Any field present under
  * the `commandFilter` key of `~/.gradum/settings.json` replaces the matching
  * DEFAULT field wholesale; absent fields keep the DEFAULT. Only the *data*
- * (command / path lists) is configurable — the filtering logic (shell-operator
- * regexes, dd/rm/chmod analysis) stays in code on purpose.
+ * (command / path lists) is configurable — the filtering logic (dd/rm/chmod
+ * analysis) stays in code on purpose.
  */
 data class CommandFilterConfig(
-  /** Always-on dangerous executables blacklist (independent of [ToolMode]). */
+  /** Always-on dangerous executables blacklist (never configurable away). */
   val blockedExecutables: Set<String>,
-  /**
-   * Whitelist of executables allowed while [ToolMode.READ_ONLY] is active.
-   * Anything mutating the filesystem / network / process state is deliberately
-   * absent; `git` is excluded too since its write subcommands are easy to reach
-   * and hard to enumerate exhaustively.
-   */
-  val readOnlyAllowedExecutables: Set<String>,
   /** Paths that destructive operations must never touch. */
   val protectedPaths: ProtectedPathsConfig,
 ) {
@@ -65,32 +66,6 @@ data class CommandFilterConfig(
         "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
         "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
         "shutdown", "reboot", "poweroff",
-      ),
-      readOnlyAllowedExecutables = setOf(
-        // directory listing
-        "ls", "tree", "pwd", "dir",
-        // file content
-        "cat", "head", "tail", "less", "more", "bat",
-        "nl", "od", "hexdump", "xxd", "strings",
-        // search / text
-        "grep", "rg", "ag", "ack", "find", "wc",
-        "sort", "uniq", "cut", "tr", "awk", "diff", "cmp", "xargs",
-        "comm", "join", "paste",
-        // file metadata
-        "file", "stat", "du", "df", "readlink", "realpath",
-        "basename", "dirname",
-        // system info
-        "uname", "whoami", "date", "which", "whereis", "type",
-        "id", "groups", "ps", "top", "htop", "hostname", "uptime", "arch",
-        "system_profiler", "sw_vers", "free", "nproc", "getconf", "lsof",
-        // network info (read-only)
-        "ping", "nslookup", "dig", "host",
-        // interpreters (read-only execution)
-        "python3", "python",
-        // path / env
-        "env", "printenv",
-        // pure output (no file write)
-        "echo", "printf", "true", "false", "test", "yes",
       ),
       protectedPaths = ProtectedPathsConfig(
         systemPrefixes = listOf(
@@ -202,24 +177,22 @@ object ProtectedPaths {
 }
 
 /**
- * Classify a shell command. Returns [CommandVerdict.Safe] when the
- * command may run, or [CommandVerdict.Blocked] with the reason.
+ * Classify a shell command. Returns [CommandVerdict.Safe] when the command
+ * may run, [CommandVerdict.Blocked] when a hard safety rule forbids it, or
+ * [CommandVerdict.NeedsApproval] when a potentially destructive operation
+ * targets a path outside [projectRoot] (and outside the always-protected set)
+ * and therefore requires user authorization before it may run.
  *
- * Two layers of filtering run, in order:
- * 1. **Always-on danger filter** — blocklists dangerous executables
- *    (`sudo`, `mkfs`, etc.) and operations against protected paths.
- *    Independent of [toolMode] so it always applies.
- * 2. **Read-only whitelist** — when [toolMode] is [ToolMode.READ_ONLY],
- *    the head executable must appear in the configured read-only
- *    whitelist ([CommandFilterRuntime] -> [CommandFilterConfig.readOnlyAllowedExecutables]).
- *    Any other executable is blocked so the model cannot reach
- *    `rm`, `mv`, `touch`, `mkdir`, `git commit`, `>`, etc. through
- *    `run_cmd` even though `run_cmd` is in the tool list.
+ * The always-on danger filter runs for every caller: dangerous executables
+ * (`sudo`, `mkfs`, ...) and operations against protected system paths are
+ * blocked outright. Destructive operations (`rm`, recursive `chmod`, `dd`)
+ * that only touch paths outside [projectRoot] are flagged for approval
+ * instead of blocked, so the user can authorize them once or for the session.
  *
- * Defaults to [ToolMode.AGENT] for callers that don't have a toolMode
- * in scope (the existing dangerous-only path inside RunCommandSkill).
+ * A blank [projectRoot] means no project boundary is defined, so any
+ * non-protected target path is treated as outside and requires approval.
  */
-fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): CommandVerdict {
+fun classifyCommand(commandText: String, projectRoot: String = ""): CommandVerdict {
   if (commandText.isBlank()) return CommandVerdict.Safe
 
   val tokens: List<String> = commandText.trim().split(regex = WHITESPACE_PATTERN)
@@ -236,123 +209,133 @@ fun classifyCommand(commandText: String, toolMode: ToolMode = ToolMode.AGENT): C
     )
   }
 
-  val baseVerdict: CommandVerdict = when (effectiveName) {
-    "dd" -> classifyDeviceWrite(commandTokens = tokens.drop(n = prefixOffset))
-    "rm" -> classifyRemoveOperation(commandTokens = tokens.drop(n = prefixOffset))
-    "chmod" -> classifyChmodOperation(commandTokens = tokens.drop(n = prefixOffset))
+  return when (effectiveName) {
+    "dd" -> classifyDeviceWrite(commandTokens = tokens.drop(n = prefixOffset), projectRoot = projectRoot)
+    "rm" -> classifyRemoveOperation(commandTokens = tokens.drop(n = prefixOffset), projectRoot = projectRoot)
+    "chmod" -> classifyChmodOperation(commandTokens = tokens.drop(n = prefixOffset), projectRoot = projectRoot)
     else -> CommandVerdict.Safe
   }
-  if (baseVerdict is CommandVerdict.Blocked) return baseVerdict
-
-  if (toolMode == ToolMode.READ_ONLY) {
-    for (subcommand: String in commandText.split(regex = SHELL_OPERATOR_PATTERN)) {
-      val trimmed: String = subcommand.trim()
-      if (trimmed.isEmpty()) continue
-      val subTokens: List<String> = trimmed.split(regex = WHITESPACE_PATTERN)
-      val subPrefixOffset: Int = if (subTokens[0] in PRIVILEGE_ESCALATORS && subTokens.size > 1) 1 else 0
-      val subcommandExecutable: String = Paths.get(subTokens[subPrefixOffset]).fileName.toString()
-      if (subcommandExecutable !in CommandFilterRuntime.config.readOnlyAllowedExecutables) {
-        return CommandVerdict.Blocked(
-          ruleName = "readonly:executable:$subcommandExecutable",
-          description = "Read-only mode: '$subcommandExecutable' is not in the read-only command set"
-        )
-      }
-    }
-    if (hasShellFileRedirect(commandText)) {
-      return CommandVerdict.Blocked(
-        ruleName = "readonly:shell-redirect",
-        description = "Read-only mode: output redirection is not allowed"
-      )
-    }
-
-    if (COMMAND_SUBSTITUTION_PATTERN.containsMatchIn(input = commandText) ||
-      FIND_EXEC_PATTERN.containsMatchIn(input = commandText) ||
-      XARGS_HEAD_PATTERN.matches(input = commandText.trim())
-    ) {
-      return CommandVerdict.Blocked(
-        ruleName = "readonly:nested-execution",
-        description = "Read-only mode: command substitution / nested execution is not allowed"
-      )
-    }
-  }
-
-  return CommandVerdict.Safe
 }
-
-/** Pipeline / chain operators that split a shell command into subcommands. */
-private val SHELL_OPERATOR_PATTERN: Regex = Regex(pattern = """[|;&]""")
 
 private val WHITESPACE_PATTERN: Regex = Regex(pattern = """\s+""")
 
 /**
- * True when commandText contains an output redirect to a file:
- * `> file`, `>> file`, `>| file`, and fd-source forms like `1>file`,
- * `2>>file` (a bare fd number before `>` points the fd at a file, not
- * at another fd). Does NOT match fd-merge redirections `2>&1`, `>&2`,
- * `&>` where the `>` is followed by `&`, so read-only idioms like
- * `cmd 2>&1` still pass.
+ * Combines per-target verdicts with a hard [CommandVerdict.Blocked] taking
+ * priority over [CommandVerdict.NeedsApproval]; either wins over
+ * [CommandVerdict.Safe]. Empty input resolves to [CommandVerdict.Safe].
  */
-private val SHELL_REDIRECT_PATTERN: Regex = Regex(pattern = """>>?(?!&)""")
-
-private fun hasShellFileRedirect(commandText: String): Boolean {
-  return SHELL_REDIRECT_PATTERN.containsMatchIn(input = commandText)
-}
-
-/** `$(...)` command substitution or backticks — nested executable whose head is unchecked. */
-private val COMMAND_SUBSTITUTION_PATTERN: Regex = Regex(pattern = """\$\(|`\S+""")
-
-/** `find ... -exec <cmd> ... \;` / `find ... -delete` — nested write. */
-private val FIND_EXEC_PATTERN: Regex = Regex(pattern = """\bfind\b.*\b-exec\b|\bfind\b.*\b-delete\b""")
-
-/** `xargs <executable>` — piped input becomes that executable's args. */
-private val XARGS_HEAD_PATTERN: Regex = Regex(pattern = """^\s*xargs\b.*""")
-
-private fun classifyDeviceWrite(commandTokens: List<String>): CommandVerdict {
-  for (token in commandTokens) {
-    if (token.startsWith(prefix = "of=") && token.removePrefix("of=").startsWith(prefix = "/dev/")) {
-      return CommandVerdict.Blocked(
-        ruleName = "dd:deviceOutput",
-        description = "Writing to device '${token.removePrefix("of=")}' is not allowed",
-      )
-    }
-  }
+private fun combineVerdicts(verdicts: List<CommandVerdict>): CommandVerdict {
+  for (verdict in verdicts) if (verdict is CommandVerdict.Blocked) return verdict
+  for (verdict in verdicts) if (verdict is CommandVerdict.NeedsApproval) return verdict
   return CommandVerdict.Safe
 }
 
-private fun classifyRemoveOperation(commandTokens: List<String>): CommandVerdict {
+/**
+ * Verdict for a single destructive-operation target path: hard-blocked when it
+ * is a protected system path, needs approval when it is outside [projectRoot],
+ * otherwise safe.
+ */
+private fun classifyOperationTarget(
+  targetPath: String, category: String, blockedRuleName: String, blockedDescription: (String) -> String, projectRoot: String
+): CommandVerdict {
+  if (ProtectedPaths.isProtected(targetPath))
+    return CommandVerdict.Blocked(blockedRuleName, blockedDescription(targetPath))
+  if (isOutsideProjectRoot(targetPath, projectRoot))
+    return CommandVerdict.NeedsApproval(
+      category = category,
+      description = "'$category' targets '$targetPath' outside the project root",
+    )
+  return CommandVerdict.Safe
+}
+
+/** True when [targetPath] is not under [projectRoot]. A blank root means "outside". */
+private fun isOutsideProjectRoot(targetPath: String, projectRoot: String): Boolean {
+  if (projectRoot.isBlank()) return true
+  val rootString: String = resolveAbsolute(projectRoot)
+  val targetString: String = resolveRelativeTo(targetPath, projectRoot)
+  return targetString != rootString && !targetString.startsWith("$rootString/")
+}
+
+private fun resolveAbsolute(pathString: String): String {
+  return try {
+    Paths.get(pathString).toAbsolutePath().normalize().toString()
+  } catch (pathException: Exception) {
+    logger.debug("Failed to resolve path '$pathString': ${pathException.message}", pathException)
+    pathString
+  }
+}
+
+/** Resolves [pathString] against [projectRoot] when it is relative, so an in-project relative path stays inside. */
+private fun resolveRelativeTo(pathString: String, projectRoot: String): String {
+  val path = try {
+    Paths.get(pathString)
+  } catch (pathException: Exception) {
+    logger.debug("Failed to parse path '$pathString': ${pathException.message}", pathException)
+    return pathString
+  }
+  return try {
+    if (path.isAbsolute) path.normalize().toString()
+    else Paths.get(projectRoot).resolve(path).normalize().toAbsolutePath().toString()
+  } catch (pathException: Exception) {
+    logger.debug("Failed to resolve path '$pathString': ${pathException.message}", pathException)
+    pathString
+  }
+}
+
+private fun classifyDeviceWrite(commandTokens: List<String>, projectRoot: String): CommandVerdict {
+  val ofTargets: List<String> = commandTokens
+    .filter { token: String -> token.startsWith(prefix = "of=") }
+    .map { token: String -> token.removePrefix("of=") }
+  if (ofTargets.isEmpty()) return CommandVerdict.Safe
+  return combineVerdicts(
+    ofTargets.map { target: String ->
+      if (target.startsWith(prefix = "/dev/"))
+        CommandVerdict.Blocked(
+          ruleName = "dd:deviceOutput",
+          description = "Writing to device '$target' is not allowed",
+        )
+      else
+        classifyOperationTarget(
+          targetPath = target, category = "dd:device-write",
+          blockedRuleName = "dd:deviceOutput",
+          blockedDescription = { "Writing to '$it' is not allowed" },
+          projectRoot = projectRoot
+        )
+    }
+  )
+}
+
+private fun classifyRemoveOperation(commandTokens: List<String>, projectRoot: String): CommandVerdict {
   val pathArguments: List<String> = extractPathArguments(commandTokens)
-  for (targetPath in pathArguments) {
-    if (isCriticalPath(targetPath)) {
-      return CommandVerdict.Blocked(
-        ruleName = "rm:criticalPath",
-        description = "Removing critical path '$targetPath' is not allowed"
+  return combineVerdicts(
+    pathArguments.map { targetPath: String ->
+      classifyOperationTarget(
+        targetPath = targetPath, category = "rm:delete",
+        blockedRuleName = "rm:criticalPath",
+        blockedDescription = { "Removing critical path '$it' is not allowed" },
+        projectRoot = projectRoot
       )
     }
-  }
-
-  return CommandVerdict.Safe
+  )
 }
 
-private fun classifyChmodOperation(commandTokens: List<String>): CommandVerdict {
+private fun classifyChmodOperation(commandTokens: List<String>, projectRoot: String): CommandVerdict {
   val hasRecursiveFlag: Boolean = commandTokens.any { it == "-R" || it == "--recursive" }
   if (!hasRecursiveFlag) return CommandVerdict.Safe
 
   val pathArguments: List<String> = extractPathArguments(commandTokens)
-  for (targetPath in pathArguments) {
-    if (isCriticalPath(targetPath)) {
-      return CommandVerdict.Blocked(
-        ruleName = "chmod:criticalPathRecursive",
-        description = "Recursive chmod on critical path '$targetPath' is not allowed",
+  return combineVerdicts(
+    pathArguments.map { targetPath: String ->
+      classifyOperationTarget(
+        targetPath = targetPath, category = "chmod:recursive",
+        blockedRuleName = "chmod:criticalPathRecursive",
+        blockedDescription = { "Recursive chmod on critical path '$it' is not allowed" },
+        projectRoot = projectRoot
       )
     }
-  }
-
-  return CommandVerdict.Safe
+  )
 }
 
 private fun extractPathArguments(commandTokens: List<String>): List<String> {
   return commandTokens.drop(n = 1).filter { token: String -> !token.startsWith(prefix = "-") }
 }
-
-private fun isCriticalPath(targetPath: String): Boolean =
-  ProtectedPaths.isProtected(targetPath)

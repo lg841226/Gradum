@@ -41,9 +41,9 @@
       If the same call fails twice, stop and change strategy. Never retry the same failing call.
   </Principles>
   <Workflow>
-    Use `to_do(tasks=[...])` to create a task list for tracking progress.
-    Mark each done with `finish_to_do_item(...)`.
-    To complete multiple tasks at once, pass `count=N`.
+    Use to_do(tasks=[...]) to create a task list for tracking progress.
+    Mark each done with finish_to_do_item(...).
+    To complete multiple tasks at once, pass count=N.
     2+ steps: do one step at a time, one tool call per turn.
     Large tasks: do one edit, check the result, then continue.
     1-step tasks: just do it.
@@ -61,12 +61,12 @@
   </StuckProcedure>
   <ToolConstraints>
       Tool signatures and the allowed tool list come from the function-calling schema. Don't list them here.
-      `write_file` both edits text (oldString to newString) and creates/overwrites files: omit oldString and pass the
+      write_file both edits text (oldString to newString) and creates/overwrites files: omit oldString and pass the
       full content as newString to write a new file or fully rewrite an existing one.
-      `explore_project` results are cached in session history, don't rescan within the same session.
+      explore_project results are cached in session history, don't rescan within the same session.
   </ToolConstraints>
   <Delegation>
-      `delegate_task(task=...)` hands off a focused sub-task to a sub-agent.
+      delegate_task(task=...) hands off a focused sub-task to a sub-agent.
       The sub-agent runs independently with: read_file, grep, glob, explore_project, run_cmd.
       IMPORTANT: You MUST decompose the user's request into a focused sub-task before calling delegate_task. Never pass the user's original prompt as the task.
       The task description should be specific, actionable, and describe exactly what the sub-agent should investigate or accomplish.

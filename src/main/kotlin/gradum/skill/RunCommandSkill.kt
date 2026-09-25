@@ -42,6 +42,38 @@ private val streamReaderPool: java.util.concurrent.ExecutorService =
   }
 
 /**
+ * Resolves authorization for a command that received a
+ * [CommandVerdict.NeedsApproval] verdict. Returns true when it may run:
+ * the category was already approved this session, the user allowed a single
+ * execution, or the user chose "always" (remembered by [category]). Returns
+ * false when no ask capability is wired (tests / sub-agents) or the user
+ * rejected/canceled.
+ */
+private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsApproval, context: SkillContext): Boolean {
+  if (verdict.category in context.authorizedCommandCategories) return true
+  val askScope: AskScope = context.scope ?: return false
+  val decision: AskResult = askScope.askInteraction {
+    title = l10n.key("gradum.ask.run_cmd.title")
+    details = l10n.raw("$commandText\n(${verdict.description})", source = Lang.EN)
+    choices {
+      item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.run_cmd.choice.once")
+      item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.run_cmd.choice.always")
+      item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.run_cmd.choice.reject")
+    }
+    default = "no"
+  }
+  return when (decision) {
+    is AskResult.Case -> when (decision.meaning) {
+      Choice.Meaning.ALLOW_ONCE -> true
+      Choice.Meaning.ALLOW_ALWAYS -> true.also { context.authorizedCommandCategories.add(verdict.category) }
+      Choice.Meaning.REJECT -> false
+    }
+
+    else -> false
+  }
+}
+
+/**
  * Enumerates all descendants of [process] and returns them. This must be
  * called BEFORE sending any signal to the parent, because once the parent
  * dies the children become orphans (adopted by init) and are no longer
@@ -148,7 +180,7 @@ class RunCommandSkill : Skill() {
         )
       )
 
-    val commandVerdict: CommandVerdict = classifyCommand(commandText)
+    val commandVerdict: CommandVerdict = classifyCommand(commandText, projectRoot)
     if (commandVerdict is CommandVerdict.Blocked) {
       return makeFailure(
         code = ErrorCode.COMMAND_BLOCKED,
@@ -158,6 +190,20 @@ class RunCommandSkill : Skill() {
           fixHint = "This command is blocked by security policy. Choose a different command or ask the user for permission."
         ),
         context = mapOf("command" to commandText, "rule" to commandVerdict.ruleName)
+      )
+    }
+
+    if (commandVerdict is CommandVerdict.NeedsApproval &&
+      !authorizeCommand(commandText, commandVerdict, context)
+    ) {
+      return makeFailure(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
+          code = "PERMISSION_DENIED",
+          message = "Command not approved: ${commandVerdict.description}",
+          fixHint = "Ask the user for permission to run this command."
+        ),
+        context = mapOf("command" to commandText, "category" to commandVerdict.category)
       )
     }
 

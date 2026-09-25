@@ -960,36 +960,38 @@ Gradum's most critical security component.
 
 ```mermaid
 flowchart TD
-    START["classifyCommand(commandText, toolMode=AGENT)"] --> EMPTY{commandText empty?}
+    START["classifyCommand(commandText, projectRoot)"] --> EMPTY{commandText empty?}
     EMPTY -->|Yes| SAFE["return CommandVerdict.Safe"]
     EMPTY -->|No| TOKENIZE["split by whitespace into tokens<br/>tokens[0] = executableName<br/>(strip path prefix)"]
     TOKENIZE --> BLOCKED{executableName in BLOCKED_EXECUTABLES?}
-    BLOCKED -->|Yes| BL["return Blocked<br/>rule: executable:$executableName<br/>message: '$executableName is not allowed'"]
+    BLOCKED -->|Yes| BL["return Blocked<br/>rule: executable:$executableName"]
     BLOCKED -->|No| SWITCH[branch by executable]
-    SWITCH -->|" dd "| DD["classifyDeviceWrite(tokens)<br/>scan for 'of=/dev/...' pattern<br/>if found → Blocked('dd:deviceOutput')"]
-    SWITCH -->|" rm "| RM["classifyRemoveOperation(tokens)<br/>extract pathArgs (non-flag tokens)<br/>for each pathArg → ProtectedPaths.isProtected"]
-    RM --> RM_CRIT{critical?}
+    SWITCH -->|" dd "| DD["classifyDeviceWrite(tokens, projectRoot)<br/>scan for 'of=' targets"]
+    DD --> DD_DEV{target starts with /dev/?}
+    DD_DEV -->|Yes| DD_BLK["Blocked('dd:deviceOutput')"]
+    DD_DEV -->|No| DD_CRIT{ProtectedPaths.isProtected?}
+    DD_CRIT -->|Yes| DD_CRIT_BLK["Blocked('dd:deviceOutput')"]
+    DD_CRIT -->|No| DD_OUT{outside projectRoot?}
+    DD_OUT -->|Yes| DD_APPROVE["NeedsApproval('dd:device-write')"]
+    DD_OUT -->|No| SAFE_DD[Safe]
+
+    SWITCH -->|" rm "| RM["classifyRemoveOperation(tokens, projectRoot)<br/>for each pathArg"]
+    RM --> RM_CRIT{ProtectedPaths.isProtected?}
     RM_CRIT -->|Yes| RM_BLK["Blocked('rm:criticalPath')"]
-    RM_CRIT -->|No| SAFE_RM[Safe]
-    SWITCH -->|" chmod "| CHMOD["classifyChmodOperation(tokens)<br/>check tokens in {'-R', '--recursive'}"]
+    RM_CRIT -->|No| RM_OUT{outside projectRoot?}
+    RM_OUT -->|Yes| RM_APPROVE["NeedsApproval('rm:delete')"]
+    RM_OUT -->|No| SAFE_RM[Safe]
+
+    SWITCH -->|" chmod "| CHMOD["classifyChmodOperation(tokens, projectRoot)<br/>check recursive flag"]
     CHMOD --> CHMOD_R{recursive?}
     CHMOD_R -->|No| SAFE_CHMOD[Safe]
-    CHMOD_R -->|Yes| CHMOD_PATH["for each pathArg → ProtectedPaths.isProtected"]
-    CHMOD_PATH --> CHMOD_CRIT{critical?}
+    CHMOD_R -->|Yes| CHMOD_CRIT{ProtectedPaths.isProtected?}
     CHMOD_CRIT -->|Yes| CHMOD_BLK["Blocked('chmod:criticalPathRecursive')"]
-    CHMOD_CRIT -->|No| SAFE_CHMOD2[Safe]
-    SWITCH -->|" other executables "| SAFE_OTHER[Safe]
+    CHMOD_CRIT -->|No| CHMOD_OUT{outside projectRoot?}
+    CHMOD_OUT -->|Yes| CHMOD_APPROVE["NeedsApproval('chmod:recursive')"]
+    CHMOD_OUT -->|No| SAFE_CHMOD2[Safe]
 
-    SAFE_RM --> RO{READ_ONLY mode?}
-    SAFE_CHMOD --> RO
-    SAFE_CHMOD2 --> RO
-    SAFE_OTHER --> RO
-    RO -->|No| DONE_SAFE["return Safe"]
-    RO -->|Yes| WHITELIST["every subcommand head<br/>(split on |;&) ∈ readOnlyAllowedExecutables?"]
-    WHITELIST -->|No| WL_BLK["Blocked('readonly:executable:...')"]
-    WHITELIST -->|Yes| REDIR{"shell file redirect present?<br/>(&gt; file, &gt;&gt; file, &gt;&#124; file, &lt;&gt; file)"}
-    REDIR -->|Yes| RED_BLK["Blocked('readonly:shell-redirect')"]
-    REDIR -->|No| DONE_SAFE2["return Safe"]
+    SWITCH -->|" other executables "| SAFE_OTHER[Safe]
 
     subgraph PROTECTED["ProtectedPaths.isProtected(path)"]
         RESOLVE["resolveAbsolutePath(path)<br/>normalize path"]
@@ -1008,7 +1010,7 @@ flowchart TD
     style CRIT fill: #f4c1c1
     style NOT_CRIT fill: #d4f1d4
     style PROTECTED fill: #fff4c1
-    style WHITELIST fill: #c1daf4
+    style APPROVE fill: #ffe1a8
 ```
 
 **BLOCKED_EXECUTABLES set** (always-on, independent of `toolMode`):
@@ -1025,34 +1027,26 @@ flowchart TD
 
 `safePathPrefixes` (never critical): `/tmp`
 
-**readOnlyAllowedExecutables** (head-token whitelist, only when `toolMode == READ_ONLY`):
-`ls, tree, pwd, dir, cat, head, tail, less, more, bat, grep, rg, ag, ack, find, wc, sort, uniq, cut, tr, awk, diff, cmp, xargs, file, stat, du, df, readlink, realpath, uname, whoami, date, which, whereis, type, id, groups, ps, top, htop, hostname, uptime, arch, echo, printf, true, false, test, yes`
+**NeedsApproval categories** (destructive operations that target a path *outside* the project root but *not*
+protected return `CommandVerdict.NeedsApproval` instead of being blocked):
+`rm:delete`, `chmod:recursive`, `dd:device-write`. The category is remembered for the rest of the session when the
+user answers "always"; a hard-protected path is never bypassed by an approval.
 
-`git` is deliberately **absent** from the whitelist: its write subcommands (commit, push, checkout, reset, clean, stash)
-are easy to reach and hard to enumerate, so a Read-only session skips git entirely instead of trying to filter
-subcommands. In read-only mode every subcommand of the pipeline (split on `|;&`) is whitelisted independently and shell
-file redirects (`echo hi > out.txt`) are blocked, so `cat in | tee out` or `ls && touch foo` can't smuggle a write past
-the head-only check.
-
-**Call locations** (two enforcement points, both delegate to `classifyCommand`):
+**Call location** (enforcement point, delegates to `classifyCommand`):
 
 ```kotlin
-// 1. RunCommandSkill.execute(): always-on safety classification
+// RunCommandSkill.execute(): always-on safety classification
 @OptIn(DangerousOperation::class)
 override fun execute(arguments, context): SkillResult {
-    val verdict: CommandVerdict = classifyCommand(commandText)          // default ToolMode.AGENT
+    val verdict: CommandVerdict = classifyCommand(commandText, context.projectRoot)
     if (verdict is CommandVerdict.Blocked) {
         return makeFailure("COMMAND_BLOCKED", "Blocked by safety filter: ${verdict.description}", ...)
     }
-    // ... subsequent ProcessBuilder.start()
-}
-
-// 2. Agent.executeSingleTool(): READ_ONLY re-classification (run_cmd only)
-if (configuration.toolMode == ToolMode.READ_ONLY && functionName == "run_cmd") {
-    val verdict: CommandVerdict = classifyCommand(commandText, configuration.toolMode)
-    if (verdict is CommandVerdict.Blocked) {
-        // emit tool_call + error(COMMAND_BLOCKED) via the shared emitToolResult path
+    if (verdict is CommandVerdict.NeedsApproval) {
+        // ask the user (once / always / no) via scope.askInteraction
+        // always -> remember verdict.category for the session; no -> deny
     }
+    // ... subsequent ProcessBuilder.start()
 }
 ```
 

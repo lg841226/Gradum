@@ -72,16 +72,11 @@
     "commandFilter": {
       "type": "object",
       "title": "Command Filter Rules",
-      "description": "Configures the command safety filter (dangerous blacklist, read-only whitelist, protected paths). Each field present replaces its built-in default wholesale; absent fields keep the default. The filtering logic itself (shell-operator regexes, dd/rm/chmod analysis) is not configurable.",
+      "description": "Configures the command safety filter (dangerous blacklist, protected paths). Each field present replaces its built-in default wholesale; absent fields keep the default. The filtering logic itself (dd/rm/chmod analysis) is not configurable.",
       "properties": {
         "blockedExecutables": {
           "type": "array",
-          "description": "Always-on blacklist of dangerous executables that may never run (independent of permission mode).",
-          "items": { "type": "string" }
-        },
-        "readOnlyAllowedExecutables": {
-          "type": "array",
-          "description": "Whitelist of executables allowed while in READ_ONLY mode. Mutating commands (rm, mv, git commit, output redirection, etc.) stay blocked.",
+          "description": "Always-on blacklist of dangerous executables that may never run.",
           "items": { "type": "string" }
         },
         "protectedPaths": {

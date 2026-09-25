@@ -98,7 +98,7 @@ class ReadFileSkill : Skill() {
 
       if (!alreadyAuthorized) {
         val askScope: AskScope = context.scope ?: return outsideDenied(path = filePath, reason = pathRejection)
-        val pathDecision: AskResult = askScope.ask_interaction {
+        val pathDecision: AskResult = askScope.askInteraction {
           title = l10n.raw("Allow reading this path outside the project root?", source = Lang.EN)
           details = l10n.raw(externalPath.toString(), source = Lang.EN)
           choices {
@@ -109,17 +109,14 @@ class ReadFileSkill : Skill() {
           default = "no"
         }
         val allowedToRead: Boolean = when (pathDecision) {
-          is AskResult.Case ->
-            when (pathDecision.id) {
-              "once" -> true
-              "always" -> {
-                context.authorizedReadPaths.add(externalPath.toString())
-                true
-              }
-
-              else -> false
+          is AskResult.Case -> when (pathDecision.meaning) {
+            Choice.Meaning.ALLOW_ONCE -> true
+            Choice.Meaning.ALLOW_ALWAYS -> {
+              context.authorizedReadPaths.add(externalPath.toString())
+              true
             }
-
+            Choice.Meaning.REJECT -> false
+          }
           else -> false
         }
         if (!allowedToRead) {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * LLMClientTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * LLMClientTest.kt  2026-09-25 12:00:01 Changed by gwy
  */
 
 package gradum.client
@@ -33,10 +33,10 @@ class LLMClientTest {
     apiKey: String? = "test-key",
     baseUrl: String = "https://api.example.com/v1"
   ): AgentConfiguration = AgentConfiguration(
-    apiKey = apiKey,
-    baseUrl = baseUrl,
     modelName = "test-model",
     provider = Provider.OPENAI,
+    baseUrl = baseUrl,
+    apiKey = apiKey,
     enableThinking = thinking
   )
 

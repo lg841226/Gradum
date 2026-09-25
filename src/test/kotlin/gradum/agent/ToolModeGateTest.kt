@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ToolModeGateTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * ToolModeGateTest.kt  2026-09-25 12:00:01 Changed by gwy
  */
 
 package gradum.agent
@@ -262,8 +262,8 @@ class ToolModeGateTest {
     val agent = Agent(
       llmClient = mockClient,
       configuration = AgentConfiguration(
-        toolMode = toolMode,
         provider = Provider.OPENAI,
+        toolMode = toolMode,
         projectRoot = tempProjectRoot.toString()
       ),
     ) { type, data -> events.add(type to data) }

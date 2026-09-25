@@ -19,18 +19,6 @@
       "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
       "shutdown", "reboot", "poweroff"
     ],
-    "readOnlyAllowedExecutables": [
-      "ls", "tree", "pwd", "dir", "cat", "head", "tail", "less", "more",
-      "bat", "nl", "od", "hexdump", "xxd", "strings", "grep", "rg", "ag",
-      "ack", "find", "wc", "sort", "uniq", "cut", "tr", "awk", "diff",
-      "cmp", "xargs", "comm", "join", "paste", "file", "stat", "du", "df",
-      "readlink", "realpath", "basename", "dirname", "uname", "whoami",
-      "date", "which", "whereis", "type", "id", "groups", "ps", "top",
-      "htop", "hostname", "uptime", "arch", "system_profiler", "sw_vers",
-      "free", "nproc", "getconf", "lsof", "ping", "nslookup", "dig",
-      "host", "python3", "python", "env", "printenv", "echo", "printf",
-      "true", "false", "test", "yes"
-    ],
     "protectedPaths": {
       "systemPrefixes": [
         "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib",

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WriteFileSkillSecurityTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * WriteFileSkillSecurityTest.kt  2026-09-25 11:39:54 Changed by gwy
  */
 package gradum.skill
 
@@ -54,6 +54,105 @@ class WriteFileSkillSecurityTest {
     projectRoot = projectRoot.absolutePath,
     modelName = "qwen2.5:7b"
   )
+
+  private fun askContext(): Triple<SkillContext, PendingQuestions, MutableList<Pair<String, Map<String, Any>>>> {
+    val pending = PendingQuestions()
+    val emitted = mutableListOf<Pair<String, Map<String, Any>>>()
+    val scope = AskScope("s", pending) { type, data -> emitted.add(type to data) }
+    val ctx = SkillContext(
+      toolMode = ToolMode.EDIT,
+      projectRoot = projectRoot.absolutePath,
+      modelName = "qwen2.5:7b",
+      scope = scope
+    )
+    return Triple(ctx, pending, emitted)
+  }
+
+  /** Answers the single outstanding ask question and returns the executed result. */
+  private fun runAskWith(
+    ctx: SkillContext,
+    pending: PendingQuestions,
+    emitted: MutableList<Pair<String, Map<String, Any>>>,
+    arguments: Map<String, Any>,
+    answer: String
+  ): SkillResult {
+    val holder = arrayOfNulls<SkillResult>(1)
+    val executor = Thread { holder[0] = skill.execute(arguments, ctx) }
+    executor.start()
+    waitUntil { emitted.isNotEmpty() && pending.size() == 1 }
+    val requestId: String = emitted.last().second["requestId"] as String
+    pending.completeChoice("s", requestId, answer)
+    executor.join(2000)
+    return holder[0]!!
+  }
+
+  @Test
+  fun `write_file asks and writes once when the user allows one write`() {
+    val fileName = "gradum-write-auth-${System.nanoTime()}.txt"
+    val outside = File(projectRoot.parentFile, fileName)
+    val (ctx, pending, emitted) = askContext()
+    val result = runAskWith(
+      ctx, pending, emitted,
+      mapOf("path" to "../$fileName", "newString" to "written\n"),
+      "once"
+    )
+    assertTrue("one-time allow should succeed: $result", result is SkillResult.Success)
+    assertEquals("written\n", outside.readText())
+    assertTrue("once must not remember the path", ctx.authorizedWritePaths.isEmpty())
+    outside.delete()
+  }
+
+  @Test
+  fun `write_file always whitelists the external path for the session`() {
+    val fileName = "gradum-write-always-${System.nanoTime()}.txt"
+    val outside = File(projectRoot.parentFile, fileName)
+    val (ctx, pending, emitted) = askContext()
+
+    val result = runAskWith(
+      ctx, pending, emitted,
+      mapOf("path" to "../$fileName", "newString" to "first\n"),
+      "always"
+    )
+    assertTrue("always allow should succeed: $result", result is SkillResult.Success)
+    assertTrue(outside.absolutePath in ctx.authorizedWritePaths)
+
+    // A second write to the same path must NOT re-ask.
+    val secondHolder = arrayOfNulls<SkillResult>(1)
+    val second = Thread {
+      secondHolder[0] = skill.execute(mapOf("path" to "../$fileName", "newString" to "second\n"), ctx)
+    }
+    second.start()
+    second.join(2000)
+    assertTrue("whitelisted write should succeed: ${secondHolder[0]}", secondHolder[0] is SkillResult.Success)
+    assertTrue("whitelisted write must not re-ask", !second.isAlive)
+    assertEquals("second\n", outside.readText())
+    assertEquals(1, emitted.size, "whitelisted write must not emit another ask card")
+    outside.delete()
+  }
+
+  @Test
+  fun `write_file denies when the user rejects the external write`() {
+    val fileName = "gradum-write-no-${System.nanoTime()}.txt"
+    val outside = File(projectRoot.parentFile, fileName)
+    val (ctx, pending, emitted) = askContext()
+    val result = runAskWith(
+      ctx, pending, emitted,
+      mapOf("path" to "../$fileName", "newString" to "nope\n"),
+      "no"
+    )
+    assertTrue(result is SkillResult.Failure)
+    assertEquals(ErrorCode.PERMISSION_DENIED.code, (result as SkillResult.Failure).code)
+    assertTrue("rejected write must not create the file", !outside.exists())
+  }
+
+  private fun waitUntil(condition: () -> Boolean) {
+    val deadline = System.currentTimeMillis() + 2000
+    while (System.currentTimeMillis() < deadline) {
+      if (condition()) return
+      Thread.sleep(10)
+    }
+    error("condition not met within timeout")
+  }
 
   @Test
   fun `write_file rejects absolute system path on the local schema`() {

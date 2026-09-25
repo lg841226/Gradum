@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AskCard.kt  2026-09-25 01:45:19 Changed by gwy
+ * AskCard.kt  2026-09-25 11:37:17 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -200,7 +200,7 @@ fun AskCard(
               }
               Text(
                 style = optionStyle,
-                text = askChoiceLabel(option.semantics)
+                text = askChoiceLabel(option)
               )
             }
           }
@@ -241,12 +241,20 @@ fun AskCard(
   }
 }
 
-/** Maps a choice's stable semantic code to its localized button label. */
-private fun askChoiceLabel(semantics: String): String = when (semantics) {
-  AskChoiceMeaning.ALLOW_ONCE -> message("gradum.ask.choice.allow_once")
-  AskChoiceMeaning.ALLOW_ALWAYS -> message("gradum.ask.choice.allow_always")
-  AskChoiceMeaning.REJECT -> message("gradum.ask.choice.reject")
-  else -> semantics
+/**
+ * Maps a choice to its localized button label. A server-supplied `labelKey`
+ * wins (lets the server pin write/read-specific copy); otherwise the choice
+ * falls back to the semantic-code mapping shared by all ask cards.
+ */
+private fun askChoiceLabel(option: AskChoice): String {
+  val labelKey: String? = option.labelKey
+  if (!labelKey.isNullOrBlank()) return message(labelKey)
+  return when (option.semantics) {
+    AskChoiceMeaning.ALLOW_ONCE -> message("gradum.ask.choice.allow_once")
+    AskChoiceMeaning.ALLOW_ALWAYS -> message("gradum.ask.choice.allow_always")
+    AskChoiceMeaning.REJECT -> message("gradum.ask.choice.reject")
+    else -> option.semantics
+  }
 }
 
 /** A 1-dp dashed horizontal divider used to frame the ask card. */

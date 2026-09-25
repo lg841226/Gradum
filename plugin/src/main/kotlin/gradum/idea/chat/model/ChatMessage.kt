@@ -51,7 +51,8 @@ object AskChoiceMeaning {
 /** A single choice option in an ask card (echoes the server `Choice` type). */
 data class AskChoice(
   val id: String,
-  val semantics: String
+  val semantics: String,
+  val labelKey: String? = null
 )
 
 /** Prompt body of an ask card: either discrete choices or free-text input. */

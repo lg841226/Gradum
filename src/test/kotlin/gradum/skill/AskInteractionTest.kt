@@ -241,7 +241,7 @@ class AskInteractionTest {
 
     fun startAsk(build: AskBuilder.() -> Unit): Pair<Thread, Array<AskResult?>> {
       val holder = arrayOfNulls<AskResult>(1)
-      val blocker = Thread { holder[0] = scope.ask_interaction(build) }
+      val blocker = Thread { holder[0] = scope.askInteraction(build) }
       blocker.start()
       waitUntil { emitted.isNotEmpty() && pending.size() == 1 }
       return blocker to holder

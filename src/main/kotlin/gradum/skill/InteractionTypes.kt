@@ -97,10 +97,17 @@ object Choice {
   }
 }
 
-/** The outcome of an [AskScope.ask_interaction], returned once the user answers. */
+/** The outcome of an [AskScope.askInteraction], returned once the user answers. */
 sealed interface AskResult {
-  /** The user picked a choice option; [id] is the choice's stable id. */
-  data class Case(val id: String) : AskResult
+  /**
+   * The user picked a choice option. [id] is the choice's stable id (a
+   * rendering / answer key); [meaning] is the authoritative semantic code
+   * the caller switches on, so callers never branch on string ids.
+   */
+  data class Case(
+    val id: String,
+    val meaning: Choice.Meaning = Choice.Meaning.REJECT,
+  ) : AskResult
 
   /** The user submitted free text (`.input` flavor); [value] is the submitted text. */
   data class Text(val value: String) : AskResult
