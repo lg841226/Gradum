@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WriteFileSkill.kt  2026-09-25 12:10:39 Changed by gwy
+ * WriteFileSkill.kt  2026-09-26 00:35:03 Changed by gwy
  */
 
 package gradum.skill
@@ -715,9 +715,7 @@ class FileMutation {
     return getMutex(path).withLock { block() }
   }
 
-  suspend fun writeIfUnchanged(
-    path: Path, content: String, expected: ByteArray
-  ): Result<Unit> {
+  suspend fun writeIfUnchanged(path: Path, content: String, expected: ByteArray): Result<Unit> {
     return withLock(path) {
       val targetFile = path.toFile()
       if (!targetFile.exists())
