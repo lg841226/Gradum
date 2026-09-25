@@ -187,21 +187,3 @@ internal fun formatToolDetails(
   }
   return stringBuilder.toString().trimEnd()
 }
-
-/**
- * Format a byte count into a human-readable string. Picks the
- * largest unit that still gives a value >= 1, with one decimal for
- * KB / MB / GB. Used by the built-in `SavedRenderer` (defined in
- * the `skill/` package, not imported here to keep this internal
- * file free of cross-package deps) to render the saved file's
- * size on the tool call capsule.
- */
-internal fun formatBytes(bytes: Long): String {
-  if (bytes < 1024L) return "$bytes B"
-  val kbValue: Double = bytes / 1024.0
-  if (kbValue < 1024.0) return "%.1f KB".format(kbValue)
-  val mbValue: Double = kbValue / 1024.0
-  if (mbValue < 1024.0) return "%.1f MB".format(mbValue)
-  val gbValue: Double = mbValue / 1024.0
-  return "%.1f GB".format(gbValue)
-}

@@ -20,7 +20,7 @@ import kotlin.test.*
  *     project-root-relative — never bare basenames.
  *  2. The three lists share the same shape (`{path, lines}`) so the
  *     model can pass any entry straight into `read_file` /
- *     `edit_file` without a type switch.
+ *     `write_file` without a type switch.
  *  3. `project_root` is always returned so the model can compose
  *     full paths if it needs to.
  *  4. Every returned relative path resolves to a real file on disk

@@ -2,12 +2,13 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkill.kt  2026-08-31 19:21:55 Changed by gwy
+ * WriteFileSkill.kt  2026-09-25 Changed by gwy
  */
 
 package gradum.skill
 
 import gradum.*
+import gradum.utils.ProtectedPaths
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -24,20 +25,29 @@ import java.nio.charset.CodingErrorAction
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
-private val logger: Logger = LoggerFactory.getLogger("EditFileSkill")
+private val logger: Logger = LoggerFactory.getLogger("WriteFileSkill")
+
+private const val MAXIMUM_CONTENT_SIZE: Int = GradumConfig.WRITE_MAX_FILE_SIZE
+
+/** True when path resolves inside a protected system directory (blocked for writes). */
+private fun isBlockedPaths(targetPath: Path): Boolean =
+  ProtectedPaths.isProtected(targetPath.toString())
 
 /**
- * Search-and-replace file editing. Local models edit one file at a time with
- * a single oldString/newString pair. Cloud models can batch multiple edits.
+ * Write text to a file: search-and-replace, or create/overwrite the whole file.
+ * Local models edit one file at a time with a single oldString/newString pair.
+ * Cloud models can batch multiple edits. Omitting oldString writes the full
+ * file content (create or overwrite).
  */
-class EditFileSkill : Skill() {
+class WriteFileSkill : Skill() {
 
-  override val alias: String = "Edited"
-  override val skillName: String = "edit_file"
+  override val alias: String = "Written"
+  override val skillName: String = "write_file"
   override val description: String =
-    "Replace text in a file. Provide the exact text to find (oldString) and the replacement (newString). " +
+    "Replace text in a file, or create/overwrite a file. Provide oldString (exact text to find) and newString (replacement). " +
       "oldString must be unique — include 2-3 lines of surrounding context for a reliable match. " +
       "Empty newString deletes the matched lines. " +
+      "To create a new file or fully overwrite one, omit oldString and pass the entire content as newString. " +
       "The response carries a code: CODE_NOT_FOUND means oldString is absent (re-read the file), " +
       "MULTIPLE_MATCHES means it is ambiguous (add more context), FILE_NOT_FOUND means the path is missing. " +
       "After editing, read the syntaxErrors field and fix any issues."
@@ -53,8 +63,8 @@ class EditFileSkill : Skill() {
   }
 
   override val simpleDescription: String =
-    "Replace text in a file. First read the file with read_file, then pass the exact text as oldString and the new" +
-      " text as newString. oldString must match exactly. You can only edit one location per call."
+    "Edit text in a file. To replace, pass the exact text as oldString and the new text as newString (oldString must match exactly)." +
+      " You can only edit one location per call. To create a new file or overwrite the whole file, omit oldString and pass the full content as newString."
 
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     string(
@@ -66,12 +76,13 @@ class EditFileSkill : Skill() {
       string(
         name = "oldString",
         description = "Exact text to find. Include 2-3 lines of context for uniqueness. " +
-          "Must match file content including whitespace and indentation.",
-        required = true,
+          "Must match file content including whitespace and indentation. " +
+          "Leave blank to create a new file or overwrite the whole file with newString.",
       )
       string(
         name = "newString",
-        description = "Replacement text. Can be longer, shorter, or empty to delete.",
+        description = "Replacement text. Can be longer, shorter, or empty to delete. " +
+          "When oldString is blank, this is the entire file content.",
         required = true,
       )
     }
@@ -79,17 +90,19 @@ class EditFileSkill : Skill() {
       objectArray(
         name = "edits",
         description = "List of edits to apply. Each edit has oldString (text to find) and newString (replacement)." +
-          " Edits are applied in order. You can batch multiple edits to the same file in one call.",
+          " Edits are applied in order. You can batch multiple edits to the same file in one call." +
+          " To create a new file or overwrite the whole file, leave oldString blank and set newString to the entire content.",
         required = true,
-        itemRequired = listOf("oldString", "newString"),
+        itemRequired = listOf("newString"),
         items = {
           string(
             name = "oldString",
-            description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly."
+            description = "Exact text to find. Must include 2-3 lines of code context. Copy from read_file tool output exactly." +
+              " Leave blank to create or overwrite the whole file with newString."
           )
           string(
             name = "newString",
-            description = "You want replacement text. Can be empty to delete lines."
+            description = "Replacement text. Can be empty to delete lines. When oldString is blank, this is the entire file content."
           )
         },
       )
@@ -112,18 +125,8 @@ class EditFileSkill : Skill() {
         code = ErrorCode.INVALID_PARAMETER,
         message = buildXmlError(
           code = "INVALID_PARAMETER",
-          message = "Missing 'path' parameter in edit_file call.",
+          message = "Missing 'path' parameter in write_file call.",
           fixHint = "The 'path' parameter is required. Example: 'path': 'src/main.kt'"
-        )
-      )
-
-    if (oldString.isBlank())
-      return makeFailure(
-        code = ErrorCode.INVALID_PARAMETER,
-        message = buildXmlError(
-          code = "INVALID_PARAMETER",
-          message = "Missing 'oldString' parameter.",
-          fixHint = "Provide the text to find in the 'oldString' parameter."
         )
       )
 
@@ -141,6 +144,19 @@ class EditFileSkill : Skill() {
       )
     }
     val targetFile: File = resolvedPath.toFile()
+
+    if (oldString.isBlank()) {
+      if (newString.isBlank())
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Both 'oldString' and 'newString' are blank. Nothing to write.",
+            fixHint = "Provide oldString + newString to replace text, or newString alone as the full content to create/overwrite a file."
+          )
+        )
+      return createOrOverwriteFile(resolvedPath, newString)
+    }
 
     return try {
       val originalBytes: ByteArray = targetFile.readBytes()
@@ -235,6 +251,29 @@ class EditFileSkill : Skill() {
     }
     val targetFile: File = resolvedPath.toFile()
 
+    val parsedEdits: List<EditOperation> = rawEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
+      EditOperation(
+        searchText = editEntry["oldString"] as? String ?: "",
+        replaceText = editEntry["newString"] as? String ?: "",
+        editIndex = editIndex
+      )
+    }
+
+    val createEdits: List<EditOperation> = parsedEdits.filter { it.searchText.isBlank() }
+    if (createEdits.isNotEmpty()) {
+      if (createEdits.size != parsedEdits.size)
+        return makeFailure(
+          code = ErrorCode.INVALID_PARAMETER,
+          message = buildXmlError(
+            code = "INVALID_PARAMETER",
+            message = "Cannot mix whole-file write (blank oldString) with partial edits in one call.",
+            fixHint = "Use a single edit with blank oldString and newString as the full content to create/overwrite a file."
+          ),
+          context = mapOf("path" to resolvedPath.toString())
+        )
+      return createOrOverwriteFile(resolvedPath, createEdits.last().replaceText)
+    }
+
     return try {
       val originalBytes: ByteArray = targetFile.readBytes()
       val decodeError: String? = validateUtf8(originalBytes)
@@ -249,25 +288,6 @@ class EditFileSkill : Skill() {
         )
       }
       val originalContent = String(originalBytes, Charsets.UTF_8)
-      val parsedEdits: List<EditOperation> = rawEdits.mapIndexed { editIndex: Int, editEntry: Map<String, Any> ->
-        EditOperation(
-          searchText = editEntry["oldString"] as? String ?: "",
-          replaceText = editEntry["newString"] as? String ?: "",
-          editIndex = editIndex
-        )
-      }
-
-      val invalidEdit: EditOperation? = parsedEdits.firstOrNull { it.searchText.isBlank() }
-      if (invalidEdit != null) {
-        return makeFailure(
-          code = ErrorCode.INVALID_PARAMETER,
-          message = buildXmlError(
-            code = "INVALID_PARAMETER",
-            message = "Edit ${invalidEdit.editIndex + 1} has empty 'search' text.",
-            fixHint = "Provide non-empty oldString text that matches the target code block in the file."
-          )
-        )
-      }
       applySequentialEdits(resolvedPath, originalContent, originalBytes, editOperations = parsedEdits)
     } catch (_: FileNotFoundException) {
       makeFailure(
@@ -286,6 +306,63 @@ class EditFileSkill : Skill() {
           message = editException.message ?: "Unknown error during edit.",
           fixHint = "Check file permissions and disk space. Stop editing."
         ), context = mapOf("path" to resolvedPath.toString())
+      )
+    }
+  }
+
+  /**
+   * Create a new file or fully overwrite an existing one with [fileContent].
+   *
+   * Triggered by an edit whose `oldString` is blank — the absence of search
+   * text means "write the whole file" (write_file's create/overwrite mode).
+   * Writes UTF-8, creates parent directories, and applies the same size and
+   * protected-path guards as partial edits.
+   */
+  private fun createOrOverwriteFile(resolvedPath: Path, fileContent: String): SkillResult {
+    if (isBlockedPaths(resolvedPath)) {
+      return makeFailure(
+        code = ErrorCode.PERMISSION_DENIED,
+        message = buildXmlError(
+          code = "PERMISSION_DENIED",
+          message = "Writing to '$resolvedPath' is not allowed for security reasons.",
+          fixHint = "Choose a different file path outside protected system directories."
+        )
+      )
+    }
+
+    val contentBytes: ByteArray = fileContent.toByteArray(Charsets.UTF_8)
+    if (contentBytes.size > MAXIMUM_CONTENT_SIZE)
+      return makeFailure(
+        code = ErrorCode.FILE_TOO_LARGE,
+        message = buildXmlError(
+          code = "FILE_TOO_LARGE",
+          message = "Content too large: ${contentBytes.size} bytes (max: $MAXIMUM_CONTENT_SIZE bytes).",
+          fixHint = "Reduce the content size or split it into smaller writes."
+        )
+      )
+
+    val targetFile: File = resolvedPath.toFile()
+    val wasCreated: Boolean = !targetFile.exists()
+
+    return try {
+      targetFile.parentFile?.mkdirs()
+      targetFile.writeText(fileContent, Charsets.UTF_8)
+
+      makeSuccess {
+        string("path", resolvedPath.toString())
+        boolean("created", wasCreated)
+        long("bytesWritten", targetFile.length())
+        integer("totalLines", fileContent.lines().size)
+      }
+    } catch (writeException: Exception) {
+      makeFailure(
+        code = ErrorCode.IO_ERROR,
+        message = buildXmlError(
+          code = "IO_ERROR",
+          message = writeException.message ?: "Failed to write file.",
+          fixHint = "This is not your fault. Check file permissions and disk space."
+        ),
+        context = mapOf("path" to resolvedPath.toString())
       )
     }
   }

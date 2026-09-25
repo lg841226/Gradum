@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscriptTest.kt  2026-09-25 01:19:19 Changed by gwy
+ * ChatTranscriptTest.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -34,11 +34,11 @@ class ChatTranscriptTest {
   private fun sampleMessages(): List<ChatMessage> {
     val user = ChatMessage(
       role = "user",
-      content = "Explain the bug in `renderBlocks` please.\n\nSecond paragraph.",
+      timestamp = 1000L,
       attachments = listOf(
         AttachedText(content = "/project/src/Main.kt", preview = "Main.kt")
       ),
-      timestamp = 1000L
+      content = "Explain the bug in `renderBlocks` please.\n\nSecond paragraph."
     )
 
     val assistant = ChatMessage(
@@ -253,8 +253,8 @@ class ChatTranscriptTest {
     val messages = listOf(
       ChatMessage(
         role = "user",
-        content = "\n  Fix the render block bug in ChatMessage.kt and its tests\nmore",
-        timestamp = 1L
+        timestamp = 1L,
+        content = "\n  Fix the render block bug in ChatMessage.kt and its tests\nmore"
       ),
       ChatMessage(role = "assistant", timestamp = 2L)
     )

@@ -10,14 +10,14 @@ How to develop new skills for Gradum
 2. [Skill Type System](#2-skill-type-system)
 3. [Skill Abstract Base Class](#3-skill-abstract-base-class)
 4. [SkillResult Output Format](#4-skillresult-output-format)
-5. [getSchema () Format](#5-getschema-format)
+5. [getSchema () Format](#5-getschema--format)
 6. [Developing a New Skill: Step-by-Step Guide](#6-developing-a-new-skill-step-by-step-guide)
 7. [Complete Example: File Counter Skill](#7-complete-example-file-counter-skill)
 8. [Best Practices](#8-best-practices)
 9. [Existing Skills Reference](#9-existing-skills-reference)
 10. [Declaring
-    `allowedToolModes`: The Three-Tier Permission Model](#10-declaring-allowedtoolmodes--the-three-tier-permission-model)
-11. [Using `SkillContext` for Project Root and Mode](#11-using-skillcontext-for-project-root-and-mode)
+    `allowedToolModes`: The Three-Tier Permission Model](#10-declaring-allowedtoolmodes-the-three-tier-permission-model)
+11. [Using `SkillContext` for Project Root and Mode](#11-using-skillcontext-for-project-root-mode-and-model-info)
 12. [Conversation History Management](#12-conversation-history-management)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Coding Style](#14-coding-style)
@@ -43,22 +43,20 @@ flowchart TD
         Init["init { discoverSkills() }"]
         Init --> SCAN["Scan gradum.skill package"]
         SCAN --> R1["ReadFileSkill"]
-        SCAN --> R2["EditFileSkill"]
-        SCAN --> R3["SaveFileSkill"]
-        SCAN --> R4["RunCommandSkill"]
-        SCAN --> R5["TodoSkill"]
-        SCAN --> R6["CompletePlanSkill"]
-        SCAN --> R7["ExploreProjectSkill"]
+        SCAN --> R2["WriteFileSkill"]
+        SCAN --> R3["RunCommandSkill"]
+        SCAN --> R4["TodoSkill"]
+        SCAN --> R5["CompletePlanSkill"]
+        SCAN --> R6["ExploreProjectSkill"]
     end
 
     subgraph Map["registeredSkills: Map<String, Skill>"]
         Key1["'read_file' -> ReadFileSkill"]
-        Key2["'edit_file' -> EditFileSkill"]
-        Key3["'save_file' -> SaveFileSkill"]
-        Key4["'run_cmd' -> RunCommandSkill"]
-        Key5["'explore_project' -> ExploreProjectSkill"]
-        Key6["'to_do' -> TodoSkill"]
-        Key7["'finish_to_do_item' -> CompletePlanSkill"]
+        Key2["'write_file' -> WriteFileSkill"]
+        Key3["'run_cmd' -> RunCommandSkill"]
+        Key4["'explore_project' -> ExploreProjectSkill"]
+        Key5["'to_do' -> TodoSkill"]
+        Key6["'finish_to_do_item' -> CompletePlanSkill"]
     end
 
     R1 --> Key1
@@ -67,7 +65,6 @@ flowchart TD
     R4 --> Key4
     R5 --> Key5
     R6 --> Key6
-    R7 --> Key7
     Agent[Agent.kt] -->|" skillRegistry.getSkill(name) "| SkillLook[Look up by key]
     SkillLook -->|matches| Skills[Skills in the registry]
     style Registry fill: #3b82f6
@@ -134,8 +131,7 @@ classDiagram
     }
 
     class ReadFileSkill
-    class EditFileSkill
-    class SaveFileSkill
+    class WriteFileSkill
     class RunCommandSkill
     class TodoSkill
     class CompletePlanSkill
@@ -143,8 +139,7 @@ classDiagram
     SkillResult <|-- Success
     SkillResult <|-- Failure
     Skill <|-- ReadFileSkill
-    Skill <|-- EditFileSkill
-    Skill <|-- SaveFileSkill
+    Skill <|-- WriteFileSkill
     Skill <|-- RunCommandSkill
     Skill <|-- TodoSkill
     Skill <|-- CompletePlanSkill
@@ -241,13 +236,14 @@ abstract class Skill {
 
 > **Heads up: signature change.** `execute` now takes a second argument
 > `context: SkillContext`. The previous single-argument signature
-> `execute(arguments: Map<String, Any>)` is gone. See [§11](#11-using-skillcontext-for-project-root-and-mode).
+> `execute(arguments: Map<String, Any>)` is gone.
+> See [§11](#11-using-skillcontext-for-project-root-mode-and-model-info).
 
 ### Required Class Properties
 
 | Property      | Type     | Purpose                                 | Example                               |
 |---------------|----------|-----------------------------------------|---------------------------------------|
-| `skillName`   | `String` | Unique name used for LLM function calls | `"edit_file"`                         |
+| `skillName`   | `String` | Unique name used for LLM function calls | `"write_file"`                        |
 | `description` | `String` | Description shown to the LLM            | `"Atomic find-and-replace in a file"` |
 | `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Ran"`, `"Planned"`                  |
 
@@ -260,12 +256,12 @@ abstract class Skill {
 
 ### Optional Properties
 
-| Property              | Type            | Default                           | Purpose                                                                                                              |
-|-----------------------|-----------------|-----------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| `allowedToolModes`    | `Set<ToolMode>` | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes--the-three-tier-model). |
-| `mutatesProject`      | `Boolean`       | `false`                           | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                        |
-| `historyKeepCount`    | `Int`           | `Int.MAX_VALUE`                   | Keep this many recent results intact; strip volatile keys beyond                                                     |
-| `historyVolatileKeys` | `List<String>`  | `emptyList()`                     | Keys to remove from history result when exceeding `historyKeepCount`                                                 |
+| Property              | Type            | Default                           | Purpose                                                                                                                        |
+|-----------------------|-----------------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `allowedToolModes`    | `Set<ToolMode>` | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model). |
+| `mutatesProject`      | `Boolean`       | `false`                           | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                                  |
+| `historyKeepCount`    | `Int`           | `Int.MAX_VALUE`                   | Keep this many recent results intact; strip volatile keys beyond                                                               |
+| `historyVolatileKeys` | `List<String>`  | `emptyList()`                     | Keys to remove from history result when exceeding `historyKeepCount`                                                           |
 
 ### Optional Hooks
 
@@ -601,18 +597,20 @@ See `ReadFileSkill` for a real-world example.
 **Key behavior**: Resolves relative paths against `context.projectRoot`, computes MD5 hash of content, returns path +
 lineRange + totalLines + contentHash + content. Max file size 1MB, max 10,000 lines.
 
-#### EditFileSkill (Mutating, search-and-replace)
+#### WriteFileSkill (Mutating, search-and-replace or create/overwrite)
 
-| Property              | Value                                                                        |
-|-----------------------|------------------------------------------------------------------------------|
-| `skillName`           | `"edit_file"`                                                                |
-| `alias`               | `"Edited"`                                                                   |
-| `allowedToolModes`    | `setOf(WRITE, SINGLE_STEP)`: **excludes READ_ONLY**                         |
-| `historyKeepCount`    | 2                                                                            |
-| `historyVolatileKeys` | `listOf("syntaxErrors", "linesAdded", "linesRemoved", "totalEdits", "path")` |
+| Property              | Value                                               |
+|-----------------------|-----------------------------------------------------|
+| `skillName`           | `"write_file"`                                      |
+| `alias`               | `"Written"`                                         |
+| `allowedToolModes`    | `setOf(WRITE, SINGLE_STEP)`: **excludes READ_ONLY** |
+| `historyKeepCount`    | 5                                                   |
+| `historyVolatileKeys` | `listOf("originalContent", "modifiedContent")`      |
 
-**Key behavior**: Two edit modes: **Sequential** (apply one-by-one, stop on failure) and **Atomic** (all-or-nothing
-rollback). Custom `prepareHistoryResult` strips `originalContent` and `modifiedContent` from ALL history entries.
+**Key behavior**: Search-and-replace (`oldString`/`newString` locally, `edits[]` for cloud), applied sequentially and
+stopping on the first failure. Omitting `oldString` writes the whole file content as `newString` (create/overwrite),
+auto-creating parent directories. Custom `prepareHistoryResult` strips `originalContent` and `modifiedContent` from ALL
+history entries.
 
 #### RunCommandSkill (Shell execution)
 
@@ -642,9 +640,9 @@ rollback). Custom `prepareHistoryResult` strips `originalContent` and `modifiedC
 
 #### TodoSkill and CompletePlanSkill (Task planning)
 
-| Property           | Value                                                   |
-|--------------------|---------------------------------------------------------|
-| `skillName`        | `"to_do"` / `"finish_to_do_item"`                       |
+| Property           | Value                                                  |
+|--------------------|--------------------------------------------------------|
+| `skillName`        | `"to_do"` / `"finish_to_do_item"`                      |
 | `allowedToolModes` | `setOf(WRITE)`: **excludes READ_ONLY and SINGLE_STEP** |
 
 **Key behavior**: Both share a singleton `TodoManager` that maintains the in-memory task list. Reminder text is injected
@@ -746,14 +744,13 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ## 9. Existing Skills Reference
 
-| Skill Class         | skillName           | Purpose                                          |
-|---------------------|---------------------|--------------------------------------------------|
-| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)       |
-| `EditFileSkill`     | `edit_file`         | Search-and-replace editing (sequential / atomic) |
-| `SaveFileSkill`     | `save_file`         | Write to or create a file                        |
-| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)    |
-| `TodoSkill`         | `to_do`             | Initialize a task list                           |
-| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                         |
+| Skill Class         | skillName           | Purpose                                                |
+|---------------------|---------------------|--------------------------------------------------------|
+| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)             |
+| `WriteFileSkill`    | `write_file`        | Search-and-replace editing, or create/overwrite a file |
+| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)          |
+| `TodoSkill`         | `to_do`             | Initialize a task list                                 |
+| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                               |
 
 ---
 
@@ -768,7 +765,7 @@ the two views can never drift. The `SkillRegistrySchemaTest` pins this invariant
 | Tier          | Wire format     | UI Label   | When to use                                                                     |
 |---------------|-----------------|------------|---------------------------------------------------------------------------------|
 | `READ_ONLY`   | `"read_only"`   | Read-only  | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)                   |
-| `SINGLE_STEP` | `"single_step"` | Edit mode  | Single-shot edits (`edit_file`, `save_file`): no multi-step planning           |
+| `SINGLE_STEP` | `"single_step"` | Edit mode  | Single-shot edits (`write_file`): no multi-step planning                        |
 | `WRITE`       | `"write"`       | Agent mode | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
 
 A skill should declare the **narrowest** set of tiers that covers what it does. Anything else weakens the safety net for
@@ -776,21 +773,21 @@ the user.
 
 ### 10.2 Decision table
 
-| Does the skill ...                                                | Declare `allowedToolModes`                                  | Example skills                                                            |
-|-------------------------------------------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------|
+| Does the skill ...                                                | Declare `allowedToolModes`                                 | Example skills                                                            |
+|-------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------------------|
 | Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, SINGLE_STEP, WRITE}` (the default: all three) | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` filter) |
-| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                      | `edit_file`, `save_file`                                                  |
-| Drives the agent loop (initializes a task list, marks completion) | `{WRITE}`                                                   | `to_do`, `finish_to_do_item`                                              |
+| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                     | `write_file`                                                              |
+| Drives the agent loop (initializes a task list, marks completion) | `{WRITE}`                                                  | `to_do`, `finish_to_do_item`                                              |
 
 ### 10.3 Worked example
 
 ```kotlin
-class EditFileSkill : Skill() {
-    override val skillName: String = "edit_file"
-    override val alias: String = "Edited"
+class WriteFileSkill : Skill() {
+    override val skillName: String = "write_file"
+    override val alias: String = "Written"
     override val description: String = "Atomic find-and-replace in a file."
 
-    // EditFileSkill mutates the project. It is allowed in SINGLE_STEP
+    // WriteFileSkill mutates the project. It is allowed in SINGLE_STEP
     // (single-shot edit) and WRITE (full agent loop), but NEVER in
     // READ_ONLY. A user in READ_ONLY mode physically cannot trigger it,
     // even if the LLM hallucinates a call.
@@ -814,7 +811,7 @@ The agent runs the same `toolMode in skill.allowedToolModes` check at two points
 1. **Schema filter** (LLM side). `SkillRegistry.getSchemas(toolMode)` returns only the tools whose `allowedToolModes`
    includes the active tier. The LLM is never told the tool exists in modes where it is forbidden.
 2. **Runtime gate** (Agent side). `Agent.executeSingleTool` does the same check before dispatch. If the LLM hallucinates
-   an `edit_file` call in
+   an `write_file` call in
    `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
 For a `READ_ONLY` `run_cmd`, the agent also runs `classifyCommand(...)`
@@ -1172,13 +1169,12 @@ are kept only when `SchemaVariant` is `FULL`.
 
 ### 15.4 Per-Skill Behavior
 
-| Skill                 | FULL mode                                          | SIMPLE mode                                          |
-|-----------------------|----------------------------------------------------|------------------------------------------------------|
-| `ReadFileSkill`       | Returns `content` as joined string                 | Returns `content` as `{lineNumber: lineContent}` map |
-| `SaveFileSkill`       | Full params: `path`, `content`, `mode`, `encoding` | Minimal params: `path`, `content` only               |
-| `RunCommandSkill`     | Supports `detached` param, full output             | No `detached`, output truncated to 2000 chars        |
-| `ExploreProjectSkill` | Returns nested `entries` tree                      | Returns counts + flat `["path:lines", ...]` list     |
-| `EditFileSkill`       | Unified search/replace for all models              | Same as FULL (no SIMPLE variant)                     |
+| Skill                 | FULL mode                              | SIMPLE mode                                          |
+|-----------------------|----------------------------------------|------------------------------------------------------|
+| `ReadFileSkill`       | Returns `content` as joined string     | Returns `content` as `{lineNumber: lineContent}` map |
+| `WriteFileSkill`      | Full params: `path`, `edits[]`         | Minimal params: `path`, `oldString`, `newString`     |
+| `RunCommandSkill`     | Supports `detached` param, full output | No `detached`, output truncated to 2000 chars        |
+| `ExploreProjectSkill` | Returns nested `entries` tree          | Returns counts + flat `["path:lines", ...]` list     |
 
 ### 15.5 Complete Plugin Example
 
@@ -1293,17 +1289,17 @@ class AdaptiveFileWriterSkill : Skill() {
 > IDE-plugin authors.
 
 The Gradum IntelliJ plugin exposes one interface for the chat UI:
-[`ToolCallRenderer`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt). A renderer is
+[`ToolCallRenderer`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRenderer.kt). A renderer is
 responsible for turning a server-side `tool_call` event into the row the user sees in the chat timeline: its icon, its
 localized label, its body, and the action buttons (`Open in editor`,
 `View diff`, `Copy`, etc.) it offers.
 
-The built-in `RanRenderer`, `EditedRenderer`,
-`ReadRenderer`, `SavedRenderer`, `ExploredRenderer`, `PlannedRenderer`,
+The built-in `RanRenderer`,
+`ReadRenderer`, `WriteFileRenderer`, `ExploredRenderer`, `PlannedRenderer`,
 `CompletedRenderer`, and the wildcard `DefaultRenderer` all use the same mechanism. Each renderer is a single file at
 `chat/ui/chat/skill/<Alias>Renderer.kt` and is registered in
 [
-`ToolCallRendererRegistry`](../../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
+`ToolCallRendererRegistry`](../plugin/src/main/kotlin/gradum/idea/chat/ui/chat/skill/spi/ToolCallRendererRegistry.kt)
 by appending one line to the `RENDERERS` list.
 
 ### 16.1 Why a plain Kotlin list, not an IntelliJ `ExtensionPoint`?
@@ -1319,7 +1315,8 @@ Earlier revisions of the chat panel used an IntelliJ Platform
   is the most common form of this and is hard to debug.
 - **Hard runtime crash on misconfiguration.** EP resolution goes through the IDE's `Extensions` area, which throws
   `IllegalArgumentException: Missing extension point` at the first chat render if anything is misconfigured. The
-  exception is caught by the IDE's `CoroutineExceptionHandler` and surfaced as an `UnhandledException` dialog. The chat panel is dead until the user restarts the IDE.
+  exception is caught by the IDE's `CoroutineExceptionHandler` and surfaced as an `UnhandledException` dialog. The chat
+  panel is dead until the user restarts the IDE.
 - **Classloader isolation between Gradum and third-party plugins.**
   A third-party plugin that depends on `com.gradum.idea` cannot reliably resolve an EP declared in Gradum's `plugin.xml`
   because Platform EP lookups go through a classloader-aware `Extensions`
@@ -1334,7 +1331,7 @@ A plain `val RENDERERS: List<ToolCallRenderer>` solves all four problems at the 
 // ToolCallRendererRegistry.kt
 private val RENDERERS: List<ToolCallRenderer> = listOf(
     RanRenderer(),
-    EditedRenderer(),
+    WriteFileRenderer(),
     // ... your renderer goes here ...
     MyNewRenderer(),
 
@@ -1387,7 +1384,8 @@ data class ToolCallContent(
 ```
 
 `fieldMap` is an arbitrary `Map<String, Any?>` you read from inside
-`render`. The convention is to put the same string keys here that the server-side skill puts in its `SkillResult` payload, e.g.
+`render`. The convention is to put the same string keys here that the server-side skill puts in its `SkillResult`
+payload, e.g.
 `"command"`, `"path"`, `"linesAdded"`, `"reason"`.
 
 `actionList` is a list of `ToolCallAction`s the row exposes:
@@ -1534,7 +1532,7 @@ in its `plugin.xml`) can still call it.
 // ToolCallRendererRegistry.kt
 private val RENDERERS: List<ToolCallRenderer> = listOf(
     RanRenderer(),
-    EditedRenderer(),
+    WriteFileRenderer(),
     // ... existing renderers ...
     TestsPassedRenderer(),  // <- new
 
@@ -1557,12 +1555,13 @@ edit, no Platform EP, no classloader dance.
 ### 16.6 Conventions
 
 - **One folder per alias**: `chat/ui/chat/skill/ran/`,
-  `chat/ui/chat/skill/edited/`, etc. The folder contains the renderer class (`RanRenderer.kt`).
+  `chat/ui/chat/skill/written/`, etc. The folder contains the renderer class (`RanRenderer.kt`).
 - **Aliases are first-listed-wins.** The first renderer in
   `RENDERERS` whose `alias()` matches is used; the rest are ignored for that alias. Put more specific entries above more
   general ones. The wildcard catch-all (`*`) must be the last entry.
 - **Don't swallow exceptions in `parseContent`.** If a field is missing or has the wrong type, surface it via
-  `errorDetail` on the context so the model can react. The same rule applies to the server-side `SkillResult` payloads, see
+  `errorDetail` on the context so the model can react. The same rule applies to the server-side `SkillResult` payloads,
+  see
   `RunCommandSkill.readStreamOutput` for the canonical example.
 - **Reuse `ToolCallCapsule` and the action button helpers in
   `chat/ui/chat/skill/internal/`.** They are `internal` to the plugin module, so a third-party plugin depending on

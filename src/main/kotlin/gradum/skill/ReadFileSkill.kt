@@ -48,7 +48,7 @@ class ReadFileSkill : Skill() {
 
   override val simpleDescription: String =
     "Read file content. Returns content as a map of line numbers to line text." +
-      " Use this before edit_file to see the exact text to replace."
+      " Use this before write_file to see the exact text to replace."
 
   override val schemaProperties: SchemaBuilder.() -> Unit = {
     string(

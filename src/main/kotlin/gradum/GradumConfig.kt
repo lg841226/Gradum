@@ -57,7 +57,7 @@ object GradumConfig {
   /** Max file size for read_file (1 MB). */
   const val READ_MAX_FILE_SIZE: Int = 1 * 1024 * 1024
 
-  /** Max file size for save_file (512 KB). */
+  /** Max size for a whole-file write via write_file (512 KB). */
   const val WRITE_MAX_FILE_SIZE: Int = 512 * 1024
 
   /** Max lines for read_file. */

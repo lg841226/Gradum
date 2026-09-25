@@ -129,7 +129,7 @@ private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pke
  *
  * Single source of truth for the protected-path check, shared by
  * [classifyCommand] (rm / recursive chmod) and the file-writing
- * skills (e.g. SaveFileSkill). If a path needs protecting, add it
+ * skills (e.g. WriteFileSkill). If a path needs protecting, add it
  * here — not in a per-skill copy.
  */
 object ProtectedPaths {

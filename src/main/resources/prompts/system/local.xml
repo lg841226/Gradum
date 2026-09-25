@@ -48,7 +48,7 @@
     CODE_NOT_FOUND  → re-read file; oldString needs 2-3 lines of surrounding context.
     MULTIPLE_MATCHES → add more context (function/class name) to oldString.
     EMPTY_RESULT    → newString was empty; provide content.
-    SYNTAX_ERRORS   → not an error code; field in edit_file response listing compile issues to fix.
+    SYNTAX_ERRORS   → not an error code; field in write_file response listing compile issues to fix.
     COMMAND_BLOCKED → on blocklist; use a safer alternative.
     TIMEOUT         → 45s limit; split into smaller commands.
     TOOL_NOT_PERMITTED → not in tools list.

@@ -31,8 +31,7 @@ private val logger = LoggerFactory.getLogger("ToolExecutor")
  */
 private val SKILL_PARAM_KEY: Map<String, String> = mapOf(
   "read_file" to "path",
-  "edit_file" to "path",
-  "save_file" to "path",
+  "write_file" to "path",
   "run_cmd" to "command",
   "grep" to "pattern",
   "glob" to "pattern",
@@ -366,7 +365,7 @@ class ToolExecutor(
     executionResult: Map<String, Any>
   ): String {
     return when (functionName) {
-      "edit_file" -> {
+      "write_file" -> {
         val oldLen: Int = (arguments["oldString"] as? String)?.length ?: 0
         val newLen: Int = (arguments["newString"] as? String)?.length ?: 0
         val path: String = shortenPath(arguments["path"] as? String ?: "")
@@ -408,11 +407,6 @@ class ToolExecutor(
       }
 
       "explore_project" -> ""
-      "save_file" -> {
-        val path: String = shortenPath(arguments["path"] as? String ?: "")
-        " $path"
-      }
-
       "to_do" -> {
         val task: String = truncate(arguments["task"] as? String ?: "", 40)
         " $task"

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStore.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatSessionStore.kt  2026-09-25 01:23:29 Changed by gwy
  */
 
 @file:Suppress("UnstableApiUsage")
@@ -248,7 +248,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     /**
      * Chronological interleave of multiple conversations for
      * [ChatSessionStore.mergeSessions]. The concatenated message lists are
-     * stably sorted by [ChatMessage.timestamp], so each source's own order
+     * stably sorted by [timestamp], so each source's own order
      * stays intact whenever timestamps tie.
      */
     fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =

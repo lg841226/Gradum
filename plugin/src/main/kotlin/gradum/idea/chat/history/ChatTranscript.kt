@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatTranscript.kt  2026-09-25 01:19:19 Changed by gwy
+ * ChatTranscript.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -299,9 +299,9 @@ object ChatTranscript {
         messages.add(
           ChatMessage(
             role = "user",
-            content = pendingUserContent,
-            attachments = workingAttachments.toList(),
             timestamp = workingTimestamp,
+            attachments = workingAttachments.toList(),
+            content = pendingUserContent,
             messageId = workingMessageId
           )
         )

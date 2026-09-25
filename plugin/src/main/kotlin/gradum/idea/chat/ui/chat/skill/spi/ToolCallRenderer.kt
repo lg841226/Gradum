@@ -19,7 +19,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
  * The renderer is responsible for:
  *
  * - Recognizing a server-side skill alias via [alias] (e.g. `"Ran"`,
- *   `"Edited"`, `"Read"`, `"Saved"`, `"Explored"`, `"Planned"`,
+ *   `"Written"`, `"Read"`, `"Explored"`, `"Planned"`,
  *   `"Completed"`). The alias must match the value emitted by the
  *   server-side `Skill.alias`.
  * - Parsing the server `arguments` + `result` JSON into a

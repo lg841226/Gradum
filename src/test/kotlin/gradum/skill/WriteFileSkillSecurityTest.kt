@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditFileSkillSecurityTest.kt  2026-08-31 19:21:55 Changed by gwy
+ * WriteFileSkillSecurityTest.kt  2026-08-31 19:21:55 Changed by gwy
  */
 package gradum.skill
 
@@ -16,30 +16,32 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.junit5.JUnit5Asserter.assertTrue
 
 /**
- * Security boundary tests for [EditFileSkill].
+ * Security boundary tests for [WriteFileSkill].
  *
  * Mirrors [ReadFileSkillSecurityTest] — the same attack surface
  * (absolute system paths, parent traversal, prefix-collision
- * siblings) applies to edit_file with strictly worse blast radius
+ * siblings) applies to write_file with strictly worse blast radius
  * (the LLM can corrupt or replace the targeted file). The check
  * is shared via [resolveProjectPath] and applied at the same
  * point in the execute path, so a regression in one skill would
  * surface in the other's test as well.
  */
-class EditFileSkillSecurityTest {
+class WriteFileSkillSecurityTest {
 
   private lateinit var projectRoot: File
-  private lateinit var skill: EditFileSkill
+  private lateinit var skill: WriteFileSkill
 
   @BeforeEach
   fun setUp() {
-    projectRoot = Files.createTempDirectory("gradum-edit-security-test").toFile()
+    // Under /tmp (ProtectedPaths.safePathPrefixes) so whole-file writes pass
+    // the protected-path guard; java.io.tmpdir (/var/folders) is deliberately blocked.
+    projectRoot = File("/tmp", "gradum-edit-security-test-${System.nanoTime()}")
+    projectRoot.mkdirs()
     File(projectRoot, "editable.txt").writeText("old content\n")
-    skill = EditFileSkill()
+    skill = WriteFileSkill()
   }
 
   @AfterEach
@@ -54,7 +56,7 @@ class EditFileSkillSecurityTest {
   )
 
   @Test
-  fun `edit_file rejects absolute system path on the local schema`() {
+  fun `write_file rejects absolute system path on the local schema`() {
     val result = skill.execute(
       mapOf(
         "path" to "/etc/hosts",
@@ -72,7 +74,7 @@ class EditFileSkillSecurityTest {
   }
 
   @Test
-  fun `edit_file rejects parent traversal on the local schema`() {
+  fun `write_file rejects parent traversal on the local schema`() {
     val result = skill.execute(
       mapOf(
         "path" to "../escaped.txt",
@@ -90,7 +92,7 @@ class EditFileSkillSecurityTest {
   }
 
   @Test
-  fun `edit_file accepts in-project edit on the local schema`() {
+  fun `write_file accepts in-project edit on the local schema`() {
     val result = skill.execute(
       mapOf(
         "path" to "editable.txt",
@@ -107,7 +109,7 @@ class EditFileSkillSecurityTest {
   }
 
   @Test
-  fun `edit_file rejects absolute system path on the cloud schema`() {
+  fun `write_file rejects absolute system path on the cloud schema`() {
     val result = skill.execute(
       mapOf(
         "path" to "/etc/hostname",
@@ -131,7 +133,7 @@ class EditFileSkillSecurityTest {
   }
 
   @Test
-  fun `edit_file rejects home dot ssh via cloud schema`() {
+  fun `write_file rejects home dot ssh via cloud schema`() {
     val result = skill.execute(
       mapOf(
         "path" to "${System.getProperty("user.home")}/.ssh/authorized_keys",
@@ -155,7 +157,7 @@ class EditFileSkillSecurityTest {
   }
 
   @Test
-  fun `edit_file with blank projectRoot rejects every path`() {
+  fun `write_file with blank projectRoot rejects every path`() {
     val result = skill.execute(
       mapOf(
         "path" to "editable.txt",
@@ -172,6 +174,77 @@ class EditFileSkillSecurityTest {
     result as SkillResult.Failure
     assertEquals(
       ErrorCode.PERMISSION_DENIED.code,
+      result.code
+    )
+  }
+
+  @Test
+  fun `write_file creates a new file when oldString is omitted on the local schema`() {
+    val result = skill.execute(
+      mapOf(
+        "path" to "fresh.txt",
+        "newString" to "brand new content\n"
+      ),
+      context()
+    )
+    assertTrue("creation should succeed: $result", result is SkillResult.Success)
+    assertEquals(
+      "brand new content\n",
+      File(projectRoot, "fresh.txt").readText()
+    )
+  }
+
+  @Test
+  fun `write_file overwrites an existing file when oldString is omitted on the local schema`() {
+    val result = skill.execute(
+      mapOf(
+        "path" to "editable.txt",
+        "newString" to "fully replaced\n"
+      ),
+      context()
+    )
+    assertTrue("overwrite should succeed: $result", result is SkillResult.Success)
+    assertEquals(
+      "fully replaced\n",
+      File(projectRoot, "editable.txt").readText()
+    )
+  }
+
+  @Test
+  fun `write_file creates a new file via blank oldString on the cloud schema`() {
+    val result = skill.execute(
+      mapOf(
+        "path" to "fresh.txt",
+        "edits" to listOf(mapOf("newString" to "cloud content\n"))
+      ),
+      SkillContext(
+        toolMode = ToolMode.EDIT,
+        projectRoot = projectRoot.absolutePath,
+        modelName = "gpt-4o",
+        provider = Provider.OPENAI
+      )
+    )
+    assertTrue("creation should succeed: $result", result is SkillResult.Success)
+    assertEquals(
+      "cloud content\n",
+      File(projectRoot, "fresh.txt").readText()
+    )
+  }
+
+  @Test
+  fun `write_file rejects call with both oldString and newString blank`() {
+    val result = skill.execute(
+      mapOf(
+        "path" to "fresh.txt",
+        "oldString" to "",
+        "newString" to ""
+      ),
+      context()
+    )
+    assertTrue(result is SkillResult.Failure)
+    result as SkillResult.Failure
+    assertEquals(
+      ErrorCode.INVALID_PARAMETER.code,
       result.code
     )
   }

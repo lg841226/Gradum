@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * EditedRenderer.kt  2026-08-31 19:21:55 Changed by gwy
+ * WriteFileRenderer.kt  Changed by gwy
  */
 
 package gradum.idea.chat.ui.chat.skill
@@ -21,21 +21,26 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.IconKey
 
 /**
- * Default renderer for the server-side `edit_file` skill (alias
- * "Edited"). Shows the file name, a `+linesAdded` / `-linesRemoved`
- * delta, and offers a `ViewDiff` action when the tool result carried
- * an `originalContent` + `modifiedContent` payload (so the chat panel
- * can launch an inline diff viewer).
+ * Default renderer for the server-side `write_file` skill (alias
+ * "Written"). Handles both result shapes of write_file:
+ *
+ *  - a replace edit: shows the file name plus a `+linesAdded` /
+ *    `-linesRemoved` delta, and offers a `ViewDiff` action when the
+ *    tool result carried an `originalContent` + `modifiedContent`
+ *    payload (so the chat panel can launch an inline diff viewer);
+ *  - a create/overwrite: shows the file name plus a `+totalLines`
+ *    delta (e.g. "Build.kt +38") when the result carried a
+ *    `totalLines` value.
  *
  * When the call itself failed (with an `error.message`), an inline
  * collapsible errors panel is rendered next to the diff button. The
  * panel mirrors
  * [gradum.idea.chat.ui.chat.ThinkingIndicator]'s "expand to reveal"
- * pattern: collapsed by default on a successful edit, auto-expanded
+ * pattern: collapsed by default on a successful write, auto-expanded
  * when the call failed so the model — and the user — see the
  * failure detail without an extra click.
  */
-class EditedRenderer : ToolCallRenderer {
+class WriteFileRenderer : ToolCallRenderer {
 
   override fun alias(): String = ALIAS
 
@@ -49,6 +54,7 @@ class EditedRenderer : ToolCallRenderer {
     val filePath: String = arguments.string(key = "path")
     val linesAdded: Int = result.int(key = "linesAdded")
     val linesRemoved: Int = result.int(key = "linesRemoved")
+    val totalLines: Int = result.int(key = "totalLines")
     val originalContent: String? = result["originalContent"] as? String
     val modifiedContent: String? = result["modifiedContent"] as? String
     val hasDiffPayload: Boolean = originalContent != null && modifiedContent != null
@@ -63,6 +69,7 @@ class EditedRenderer : ToolCallRenderer {
         "filePath" to filePath,
         "linesAdded" to linesAdded,
         "linesRemoved" to linesRemoved,
+        "totalLines" to totalLines,
         "hasDiffPayload" to hasDiffPayload,
         "isSuccess" to isSuccess,
         "error" to result["error"],
@@ -79,6 +86,7 @@ class EditedRenderer : ToolCallRenderer {
     val fileName: String = filePath.substringAfterLast(delimiter = '/')
     val linesAdded: Int = (content.fieldMap["linesAdded"] as? Number)?.toInt() ?: 0
     val linesRemoved: Int = (content.fieldMap["linesRemoved"] as? Number)?.toInt() ?: 0
+    val totalLines: Int = (content.fieldMap["totalLines"] as? Number)?.toInt() ?: 0
     val hasDiffPayload: Boolean = content.fieldMap["hasDiffPayload"] == true
     val isSuccess: Boolean = (content.fieldMap["isSuccess"] as? Boolean) ?: true
     val originalContent: String? = content.fieldMap["originalContent"] as? String
@@ -87,6 +95,7 @@ class EditedRenderer : ToolCallRenderer {
     val errorColor = toolCallErrorColor()
     val isError: Boolean = !isSuccess || ctx.isError
     val bodyStyle = rememberGradumParagraphTextStyle()
+    val sizeText: String? = if (totalLines > 0) "+$totalLines" else null
 
     ToolCallCapsule(
       label = message(LABEL_KEY),
@@ -100,6 +109,9 @@ class EditedRenderer : ToolCallRenderer {
         ) {
           if (linesAdded > 0) Text(text = "+$linesAdded", color = addedColor, style = bodyStyle)
           if (linesRemoved > 0) Text(text = "-$linesRemoved", color = errorColor, style = bodyStyle)
+          if (linesAdded == 0 && linesRemoved == 0 && sizeText != null) {
+            Text(text = sizeText, color = addedColor, style = bodyStyle)
+          }
           if (!isError && hasDiffPayload && originalContent != null && modifiedContent != null) {
             ViewDiffButton(
               onClick = {
@@ -125,7 +137,7 @@ class EditedRenderer : ToolCallRenderer {
   }
 
   companion object {
-    const val ALIAS: String = "Edited"
-    const val LABEL_KEY: String = "gradum.tool.edited"
+    const val ALIAS: String = "Written"
+    const val LABEL_KEY: String = "gradum.tool.written"
   }
 }

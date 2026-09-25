@@ -198,7 +198,7 @@ class ToolCallScenarioParserTest {
       rawXml = """
       <tls>
         <t nam="read_file" pth="a.txt" exp="error"/>
-        <t nam="save_file" pth="b.txt" ctl="hello" exp="success"/>
+        <t nam="write_file" pth="b.txt" ctl="hello" exp="success"/>
       </tls>
       """.trimIndent()
     )
@@ -309,7 +309,7 @@ class ToolCallScenarioParserTest {
       rawXml = """
       <tls>
         <t nam="to_do" tasks='["read config", "scan skills"]'/>
-        <t nam="edit_file" pth="a.txt" edits='[{"oldString":"x","newString":"y"}]'/>
+        <t nam="write_file" pth="a.txt" edits='[{"oldString":"x","newString":"y"}]'/>
       </tls>
       """.trimIndent()
     )
@@ -433,7 +433,7 @@ class ToolCallScenarioParserTest {
     val scenario: ToolCallScenario = ToolCallScenarioParser.parse(
       rawXml = """
       <tls>
-        <t nam="edit_file" pth="a.txt" edits='[{"oldString":"x","newString":"y"}]'/>
+        <t nam="write_file" pth="a.txt" edits='[{"oldString":"x","newString":"y"}]'/>
       </tls>
       """.trimIndent()
     )

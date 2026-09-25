@@ -15,6 +15,7 @@ import io.ktor.server.testing.*
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ServerRoutesTest {
@@ -51,8 +52,9 @@ class ServerRoutesTest {
 
     assertContains(body, "\"skills\"")
     assertTrue(body.contains("read_file"), "skills should include read_file")
-    assertTrue(body.contains("edit_file"), "skills should include edit_file")
-    assertTrue(body.contains("save_file"), "skills should include save_file")
+    assertTrue(body.contains("write_file"), "skills should include write_file")
+    assertFalse(body.contains("save_file"), "save_file was merged into write_file")
+    assertFalse(body.contains("edit_file"), "edit_file was renamed to write_file")
   }
 
   @Test

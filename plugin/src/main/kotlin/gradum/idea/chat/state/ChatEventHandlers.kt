@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatEventHandlers.kt  2026-09-25 01:19:19 Changed by gwy
+ * ChatEventHandlers.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -388,8 +388,8 @@ internal fun GradumChatSession.handleSubAgentEnd(data: JsonObject?) {
     add(
       ChatMessage(
         role = "assistant",
-        content = subAgentState.streamingResponse,
         events = assistantEvents,
+        content = subAgentState.streamingResponse,
         modelName = subAgentState.modelName
       )
     )

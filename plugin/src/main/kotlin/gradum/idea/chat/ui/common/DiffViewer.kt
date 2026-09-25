@@ -24,7 +24,7 @@ import java.io.File
 
 /**
  * Thin facade over the IntelliJ Platform's native diff viewer. Used by the chat UI
- * to expose a "View Diff" action on successful `edit_file` tool calls.
+ * to expose a "View Diff" action on successful `write_file` tool calls.
  *
  * Platform API surface is intentionally narrow: `DiffManager.showDiff` +
  * `DiffContentFactory.create` + `SimpleDiffRequest` + `DiffDialogHints.MODAL`
@@ -143,7 +143,7 @@ object DiffViewer {
    * 1. `LocalFileSystem.findFileByPath(path)` — succeeds for
    *    absolute paths the platform already knows about.
    * 2. `path` joined with `project.basePath` — needed because the
-   *    `edit_file` tool receives project-relative paths from the
+   *    `write_file` tool receives project-relative paths from the
    *    LLM and `findFileByPath` does NOT resolve them itself.
    *
    * Returns null when both lookups fail; the caller falls back to

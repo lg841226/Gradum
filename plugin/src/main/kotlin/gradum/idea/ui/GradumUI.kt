@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumUI.kt  2026-09-25 01:19:20 Changed by gwy
+ * GradumUI.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.ui
@@ -457,8 +457,8 @@ private fun rememberChatSessionState(
         userMessageIndex,
         element = ChatMessage(
           role = "user",
-          content = userMessage.content,
           attachments = userMessage.attachments,
+          content = userMessage.content,
           messageId = nextMessageId
         )
       )
@@ -571,8 +571,8 @@ private fun rememberChatSessionState(
           session.messages.add(
             ChatMessage(
               role = "user",
-              content = rawText,
               attachments = attachedList,
+              content = rawText,
               messageId = sendMessageId
             )
           )

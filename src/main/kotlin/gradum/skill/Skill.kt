@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-08-31 19:21:55 Changed by gwy
+ * Skill.kt  2026-09-25 02:05:52 Changed by gwy
  */
 
 package gradum.skill
@@ -21,7 +21,7 @@ abstract class Skill {
    * The [ToolMode] values under which this skill may execute.
    *
    * The runtime gate lives here, not in [gradum.skill.SkillRegistry],
-   * because LLM-hallucinated tool calls bypass the schema filter — the
+   * because LLM-hallucinated tool calls bypass the schema filter, the
    * agent must enforce the invariant regardless of what the schema
    * whitelist let through. Skills that mutate the project must exclude
    * [ToolMode.READ_ONLY].
@@ -86,9 +86,7 @@ abstract class Skill {
    * the `mapOf` envelope.
    */
   protected fun buildFunctionSchema(
-    description: String,
-    properties: Map<String, Any>,
-    required: List<String>,
+    description: String, properties: Map<String, Any>, required: List<String>
   ): Map<String, Any> = mapOf(
     "type" to "function",
     "function" to mapOf(
@@ -191,15 +189,15 @@ abstract class Skill {
 
   /**
    * Return the version of [result] to add to history and show to the
-   * LLM this turn. Default: as-is — the LLM must see what the tool
+   * LLM this turn. Default: as-is the LLM must see what the tool
    * just produced.
    *
    * Override ONLY when the current result carries data too large for
-   * the LLM's view of THIS turn — e.g. [EditFileSkill] strips diff
+   * the LLM's view of THIS turn. e.g. [WriteFileSkill] strips diff
    * payloads that would blow the response context.
    *
    * **Do not** override to strip based on [historyKeepCount] /
-   * [historyVolatileKeys] — that is [compactHistory]'s job and applies
+   * [historyVolatileKeys], that is [compactHistory]'s job and applies
    * to OLDER messages only.
    */
   open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
@@ -238,11 +236,12 @@ abstract class Skill {
     }
     if (!hasVolatileKey) return message
 
-    val decodedMap = try {
-      decodeMap(input = encodedContent)
-    } catch (_: Exception) {
-      return message
-    }
+    val decodedMap =
+      try {
+        decodeMap(input = encodedContent)
+      } catch (_: Exception) {
+        return message
+      }
 
     val filteredMap = decodedMap.filterKeys { key ->
       key !in historyVolatileKeys

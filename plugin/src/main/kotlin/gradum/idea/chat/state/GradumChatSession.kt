@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-09-25 01:19:19 Changed by gwy
+ * GradumChatSession.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -344,8 +344,8 @@ class GradumChatSession {
       messages.add(
         ChatMessage(
           role = "user",
-          content = next.content,
           attachments = next.attachments,
+          content = next.content,
           messageId = messageId
         )
       )

@@ -123,7 +123,7 @@ flowchart TB
         SK1["Skill.kt (abstract base, mode gate, history pruning)"]
         SK2["SkillContext.kt (per-session tool mode / root / identity)"]
         SK3["SkillRegistry.kt (classpath scanning)"]
-        SK4["ReadFileSkill.kt / EditFileSkill.kt / SaveFileSkill.kt"]
+        SK4["ReadFileSkill.kt / WriteFileSkill.kt"]
         SK5["RunCommandSkill.kt / TodoSkill.kt (to_do + finish_to_do_item)"]
         SK6["ExploreProjectSkill.kt / SearchSkills.kt (grep + glob)"]
         SK7["PathResolver.kt / XmlError.kt"]
@@ -249,8 +249,7 @@ src/main/kotlin/gradum/
 │   ├── XmlError.kt             # Shared XML error format (buildXmlError)
 │   ├── PathResolver.kt         # resolveProjectPath: LLM path → on-disk path with basename autocorrection
 │   ├── ReadFileSkill.kt        # read_file (line range / MD5 / size limits, SIMPLE vs FULL output)
-│   ├── EditFileSkill.kt        # edit_file (local: single edit, cloud: batch edits, syntax check, concurrent lock)
-│   ├── SaveFileSkill.kt        # save_file (overwrite / append, encoding, protected-path guard)
+│   ├── WriteFileSkill.kt       # write_file (local: single edit, cloud: batch edits, create/overwrite, syntax check, concurrent lock)
 │   ├── RunCommandSkill.kt      # run_cmd (blocking/detached + CommandFilter + project cwd)
 │   ├── ExploreProjectSkill.kt  # explore_project (tree scan → categorized file lists, depth 5..14)
 │   ├── SearchSkills.kt         # grep + glob (content regex search, glob path matcher)
@@ -366,8 +365,7 @@ flowchart TD
 
     subgraph SKILL_EXEC["Skill execution surface"]
         SK_RD[ReadFileSkill<br/>Path.readText]
-        SK_ED[EditFileSkill<br/>sequential / atomic / lock]
-        SK_SV[SaveFileSkill<br/>Path.writeText]
+        SK_WR[WriteFileSkill<br/>sequential edits / create / lock]
         SK_RC[RunCommandSkill<br/>classifyCommand to ProcessBuilder]
         SK_GP[GrepSkill / GlobSkill<br/>concurrent file scan]
         SK_TD[TodoSkill<br/>TodoManager singleton]
@@ -375,8 +373,7 @@ flowchart TD
     end
 
     GS --> SK_RD
-    GS --> SK_ED
-    GS --> SK_SV
+    GS --> SK_WR
     GS --> SK_RC
     GS --> SK_GP
     GS --> SK_TD
@@ -390,8 +387,7 @@ flowchart TD
     end
 
     SK_RD --> FS
-    SK_ED --> FS
-    SK_SV --> FS
+    SK_WR --> FS
     SK_RC --> SH
     SK_GP --> FS
     SK_TD --> FS
@@ -636,18 +632,17 @@ consumes the stream.
 
 #### `tool_call.result` Fields by Skill
 
-| Skill                  | Result Fields                                                                                                                                |
-|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| **read_file**          | `{path, lineRange, totalLines, contentHashShort, content}` (FULL); `{path, content: {lineNumber: lineText}}` (SIMPLE)                        |
-| **edit_file**          | `{path, editsApplied, totalEdits, linesAdded, linesRemoved}` (+ `syntaxErrors`); diff payloads stripped from history                         |
-| **save_file**          | `{path, bytesWritten, totalLines, created, mode, encoding}` (+ `previousSize` on append)                                                     |
-| **run_cmd** (blocking) | `{command, exitCode, output, timedOut}` (SIMPLE truncates output to 2000 chars; output stripped from old history)                            |
-| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                           |
-| **explore_project**    | `{project_root, depth, total_size, config_files, code_files, other_files}` (lists collapse to counts in old history)                         |
-| **grep**               | `{pattern, search_path, total_matches, matches: [{file, line, content}], files_searched, limit_applied}` (matches stripped from old history) |
-| **glob**               | `{pattern, search_path, total_files, files: [relative paths], limit_applied}` (files stripped from old history)                              |
-| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                    |
-| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                      |
+| Skill                  | Result Fields                                                                                                                                                                                |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **read_file**          | `{path, lineRange, totalLines, contentHashShort, content}` (FULL); `{path, content: {lineNumber: lineText}}` (SIMPLE)                                                                        |
+| **write_file**         | replace: `{path, linesAdded, linesRemoved, editsApplied, totalEdits}` (+ `syntaxErrors`); diff payloads stripped from history. create/overwrite: `{path, created, bytesWritten, totalLines}` |
+| **run_cmd** (blocking) | `{command, exitCode, output, timedOut}` (SIMPLE truncates output to 2000 chars; output stripped from old history)                                                                            |
+| **run_cmd** (detached) | `{command, detached, processId, logPath, message}`                                                                                                                                           |
+| **explore_project**    | `{project_root, depth, total_size, config_files, code_files, other_files}` (lists collapse to counts in old history)                                                                         |
+| **grep**               | `{pattern, search_path, total_matches, matches: [{file, line, content}], files_searched, limit_applied}` (matches stripped from old history)                                                 |
+| **glob**               | `{pattern, search_path, total_files, files: [relative paths], limit_applied}` (files stripped from old history)                                                                              |
+| **to_do**              | `{totalTasks, currentTask, currentIndex}`                                                                                                                                                    |
+| **finish_to_do_item**  | `{completed, totalTasks, currentTask?}`                                                                                                                                                      |
 
 ### 2.7 LLM Client Protocol Comparison
 
@@ -876,13 +871,13 @@ flowchart TD
 
 ## 3. Core Subsystems
 
-### 3.1 EditFileSkill State Machine
+### 3.1 WriteFileSkill State Machine
 
 When editing a file, the execution path is determined by the `SchemaVariant`:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ValidateArgs: EditFileSkill.execute
+    [*] --> ValidateArgs: WriteFileSkill.execute
     ValidateArgs --> PathEmpty: path is empty
     ValidateArgs --> EditsEmpty: no edits or oldString/newString
     ValidateArgs --> ReadOriginal: valid arguments
@@ -1239,7 +1234,7 @@ fun buildXmlError(
 </Error>
 ```
 
-**Used by all skills** (ReadFileSkill, EditFileSkill, SaveFileSkill, RunCommandSkill, ExploreProjectSkill, TodoSkill).
+**Used by all skills** (ReadFileSkill, WriteFileSkill, RunCommandSkill, ExploreProjectSkill, TodoSkill).
 It replaces per-skill XML string construction and gives every skill the same error format.
 
 ---
@@ -1285,8 +1280,7 @@ classDiagram
     }
 
     class ReadFileSkill
-    class EditFileSkill
-    class SaveFileSkill
+    class WriteFileSkill
     class RunCommandSkill
     class ExploreProjectSkill
     class TodoSkill
@@ -1296,8 +1290,7 @@ classDiagram
     SkillResult <|-- Success
     SkillResult <|-- Failure
     Skill <|-- ReadFileSkill
-    Skill <|-- EditFileSkill
-    Skill <|-- SaveFileSkill
+    Skill <|-- WriteFileSkill
     Skill <|-- RunCommandSkill
     Skill <|-- ExploreProjectSkill
     Skill <|-- TodoSkill
@@ -1426,7 +1419,7 @@ flowchart TB
 
 Skills are discovered by **reflection over the `gradum.skill` package**, not by a hardcoded list and not by the SPI
 `ServiceLoader`: any concrete public class extending `Skill` with a no-argument constructor (e.g. `ReadFileSkill`,
-`EditFileSkill`, `SaveFileSkill`, `RunCommandSkill`, `ExploreProjectSkill`, `TodoSkill`, `CompletePlanSkill`) is
+`WriteFileSkill`, `RunCommandSkill`, `ExploreProjectSkill`, `TodoSkill`, `CompletePlanSkill`) is
 instantiated and registered. External plugin JARs on the classpath that contain a `gradum/skill/*.class` tree are picked
 up by the `jar`-scheme scanner automatically.
 
@@ -1438,18 +1431,17 @@ up by the `jar`-scheme scanner automatically.
 
 ### 4.3 Skill Overview
 
-| Skill               | Input Parameters                                              | Output Fields                                                                                          | Error Codes                                                                                   | Limits                                                 |
-|---------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| ReadFileSkill       | `path`, `lineRange?` (cloud only)                             | `path, lineRange, totalLines, contentHash, content` (cloud); `path, content` (local)                   | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                              |
-| EditFileSkill       | `path, edits[]` (cloud); `path, oldString, newString` (local) | `path, editsApplied, totalEdits`                                                                       | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Each edit must match uniquely; 1 edit per call (local) |
-| SaveFileSkill       | `path, content`                                               | `path, bytesWritten, created`                                                                          | `INVALID_PARAMETER, IO_ERROR`                                                                 | Auto mkdirs parent directories                         |
-| RunCommandSkill     | `command, reason?, detached?`                                 | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message` | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                   |
-| GrepSkill           | `pattern, path?, include?, limit?`                            | `pattern, searchPath, totalMatches, matches, filesSearched, limitApplied`                              | `INVALID_PARAMETER, IO_ERROR`                                                                 | Concurrent scan; match + result limits                 |
-| GlobSkill           | `pattern, path?, limit?`                                      | `pattern, searchPath, totalFiles, files, limitApplied`                                                 | `INVALID_PARAMETER, IO_ERROR`                                                                 | Concurrent scan; result limit                          |
-| ExploreProjectSkill | `path?, depth?`                                               | `path, entries: [{name, type, children?}]`                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 5–14; truncated build/dependency directories     |
-| TodoSkill           | `tasks[]`                                                     | `totalTasks, currentTask, currentIndex`                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization        |
-| CompletePlanSkill   | none                                                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                   |
-| WebSearchSkill      | `query, max_results?, search_depth?`                          | `query, max_results, search_depth, results: [{title, snippet, url}]`                                   | `INVALID_PARAMETER, SEARCH_FAILED`                                                            | Requires `TAVILY_API_KEY` env var; max 10 results      |
+| Skill               | Input Parameters                                              | Output Fields                                                                                                          | Error Codes                                                                                   | Limits                                                                                                    |
+|---------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| ReadFileSkill       | `path`, `lineRange?` (cloud only)                             | `path, lineRange, totalLines, contentHash, content` (cloud); `path, content` (local)                                   | `FILE_NOT_FOUND, FILE_TOO_LARGE, INVALID_PARAMETER, IO_ERROR`                                 | Size ≤ 1MB, lines ≤ 10000                                                                                 |
+| WriteFileSkill      | `path, edits[]` (cloud); `path, oldString, newString` (local) | replace: `path, linesAdded, linesRemoved, editsApplied, totalEdits`; create: `path, created, bytesWritten, totalLines` | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Local: 1 edit per call; cloud: batch `edits[]`; blank `oldString` creates/overwrites, auto mkdirs parents |
+| RunCommandSkill     | `command, reason?, detached?`                                 | blocking: `command, exitCode, output` <br/> detached: `command, detached, processId, logPath, message`                 | `COMMAND_BLOCKED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                       | Timeout 45s; CommandFilter pre-check                                                                      |
+| GrepSkill           | `pattern, path?, include?, limit?`                            | `pattern, searchPath, totalMatches, matches, filesSearched, limitApplied`                                              | `INVALID_PARAMETER, IO_ERROR`                                                                 | Concurrent scan; match + result limits                                                                    |
+| GlobSkill           | `pattern, path?, limit?`                                      | `pattern, searchPath, totalFiles, files, limitApplied`                                                                 | `INVALID_PARAMETER, IO_ERROR`                                                                 | Concurrent scan; result limit                                                                             |
+| ExploreProjectSkill | `path?, depth?`                                               | `path, entries: [{name, type, children?}]`                                                                             | `INVALID_PARAMETER, IO_ERROR`                                                                 | Depth 5–14; truncated build/dependency directories                                                        |
+| TodoSkill           | `tasks[]`                                                     | `totalTasks, currentTask, currentIndex`                                                                                | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                      | Singleton; cannot be reset after initialization                                                           |
+| CompletePlanSkill   | none                                                          | `{completed, totalTasks, message?}` or `{completed, totalTasks, currentTask, currentIndex}`                            | `NOT_INITIALIZED, ALL_COMPLETED`                                                              | Advance task pointer                                                                                      |
+| WebSearchSkill      | `query, max_results?, search_depth?`                          | `query, max_results, search_depth, results: [{title, snippet, url}]`                                                   | `INVALID_PARAMETER, SEARCH_FAILED`                                                            | Requires `TAVILY_API_KEY` env var; max 10 results                                                         |
 
 ---
 
@@ -1517,8 +1509,8 @@ flowchart TD
 ### 5.3 Guardrail System
 
 The Guardrail System protects against anomalous model behavior by monitoring the LLM's text output across turns. It
-consists of a single detector — repetitive responses — that reaches the common termination pathway via `mission_revoked`.
-(The former Red Line keyword detector has been removed; only repetitive-response detection remains.)
+consists of a single detector — repetitive responses — that reaches the common termination pathway via
+`mission_revoked`. (The former Red Line keyword detector has been removed; only repetitive-response detection remains.)
 
 ```mermaid
 flowchart TB
@@ -1546,10 +1538,10 @@ flowchart TB
 
 #### Revocation Reasons
 
-| Reason               | Trigger                                                      | Response                             |
-|----------------------|--------------------------------------------------------------|--------------------------------------|
-| `repetitive_loop`    | Model repeats the same output ≥ N times                      | Mission revoked, conversation erased |
-| `tool_runaway`       | Reserved for future use (tool call loop detection)           | Mission revoked, conversation erased |
+| Reason            | Trigger                                            | Response                             |
+|-------------------|----------------------------------------------------|--------------------------------------|
+| `repetitive_loop` | Model repeats the same output ≥ N times            | Mission revoked, conversation erased |
+| `tool_runaway`    | Reserved for future use (tool call loop detection) | Mission revoked, conversation erased |
 
 #### `mission_revoked` Event Contract
 
@@ -1585,7 +1577,7 @@ mindmap
       Defense: pipeline subcommand checks (|;& splits)
       Defense: shell file-redirect detection
     File Destruction
-      Accidental emptying of files via edit_file
+      Accidental emptying of files via write_file
       Defense: EMPTY_RESULT check
       Defense: Atomic mode rollback
       Defense: syntax self-check after edit
@@ -1880,9 +1872,8 @@ gradum.idea/
 │       │       ├── spi/                      #   SPI: ToolCallRenderer, ToolCallRendererRegistry, ToolCallContent, ToolCallAction, ToolCallRenderContext, ResultParser
 │       │       ├── internal/                 #   Shared internals: CommonCapsule (icon+label+body), CommonActionButtons (OpenInEditor / ViewDiff / CopyToClipboard), ErrorsPanel
 │       │       ├── RanRenderer.kt            #   "Ran"      — server skill `run_cmd`
-│       │       ├── EditedRenderer.kt         #   "Edited"   — server skill `edit_file`
+│       │       ├── WriteFileRenderer.kt      #   "Written"  — server skill `write_file`
 │       │       ├── ReadRenderer.kt           #   "Read"     — server skill `read_file`
-│       │       ├── SavedRenderer.kt          #   "Saved"    — server skill `save_file`
 │       │       ├── ExploredRenderer.kt       #   "Explored" — server skill `explore_project`
 │       │       ├── GrepRenderer.kt           #   "Grep"     — server skill `grep`
 │       │       ├── GlobRenderer.kt           #   "Glob"     — server skill `glob`
@@ -2111,7 +2102,7 @@ enum class ToolMode {
 | Tier        | Wire format   | Tools exposed to the LLM                                                            | Use case                                                          |
 |-------------|---------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------|
 | `READ_ONLY` | `"read_only"` | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` read-only filter) | Code review, bug-hunting, reading the project without touching it |
-| `EDIT`      | `"edit"`      | READ_ONLY tools + `edit_file`, `save_file`                                          | Local 7B-14B models that can edit but cannot reliably plan        |
+| `EDIT`      | `"edit"`      | READ_ONLY tools + `write_file`                                                      | Local 7B-14B models that can edit but cannot reliably plan        |
 | `AGENT`     | `"agent"`     | EDIT tools + `to_do`, `finish_to_do_item` (everything)                              | Code generation, planning, full autonomy                          |
 
 `ToolMode.fromStringOrDefault` matches case-insensitively against the enum name first (so `"edit"`, `"agent"`,
@@ -2124,7 +2115,7 @@ cloud models, and the same backend deserves different surfaces depending on what
 `GradumChatSession`); `Routes` parses it via `ToolMode.fromStringOrDefault(it)`. Two different defaults apply:
 
 - **Plugin (client)**: `GradumChatSession.selectedPermission` starts at `READ_ONLY`, the user who has not actively
-  opted into write access physically cannot mutate the project, even if the LLM hallucinates an `edit_file` call.
+  opted into write access physically cannot mutate the project, even if the LLM hallucinates an `write_file` call.
 - **Server fallback**: when the client omits `toolMode` entirely, `Routes` falls back to `ToolMode.AGENT` (the
   reachability invariant, no tool silently disappears because of a missing field).
 
@@ -2133,7 +2124,7 @@ cloud models, and the same backend deserves different surfaces depending on what
 Every `Skill` declares the tiers it is allowed to run in:
 
 ```kotlin
-class EditFileSkill : Skill() {
+class WriteFileSkill : Skill() {
     override val allowedToolModes: Set<ToolMode> = setOf(
         ToolMode.AGENT,
         ToolMode.EDIT,
@@ -2148,7 +2139,7 @@ This set is the **only** place the tier → skill mapping lives. Two consumers r
 - **`SkillRegistry.getSchemas(toolMode)`** filters the LLM's tool list to skills whose `allowedToolModes` includes the
   active tier. The LLM never sees a tool it cannot actually call.
 - **`Agent.executeSingleTool`** performs the same membership check at runtime before invoking `skill.execute(...)`. If
-  the LLM hallucinates a `edit_file`
+  the LLM hallucinates a `write_file`
   call under `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
 The two views were previously two separate sources of truth (a hardcoded set in `SkillRegistry` plus per-skill mode
@@ -2162,7 +2153,7 @@ which makes a future regression impossible without breaking
    has to work to call a forbidden tool.
 2. **Runtime mode gate** (Agent-side). `Agent.executeSingleTool` checks
    `configuration.toolMode in skillInstance.allowedToolModes` before dispatch. Defeats LLM hallucination. The model may
-   have seen `edit_file` in training data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
+   have seen `write_file` in training data, but the agent rejects the call with `TOOL_NOT_PERMITTED` regardless.
 3. **Command re-classification** (Read-only `run_cmd` only). The `READ_ONLY`
    mode still exposes `run_cmd`, because `cat`/`ls`/`grep` are essential for inspection. The agent re-runs
    `classifyCommand(...)` against the active
@@ -2328,10 +2319,9 @@ flowchart LR
 | Skill                 | FULL mode                                                 | SIMPLE mode                                                           |
 |-----------------------|-----------------------------------------------------------|-----------------------------------------------------------------------|
 | `ReadFileSkill`       | Returns `content` as joined string; supports `line_range` | Returns `content` as `{lineNumber: lineContent}` map; no `line_range` |
-| `SaveFileSkill`       | Full params: `path`, `content`, `mode`, `encoding`        | Minimal params: `path`, `content` only                                |
+| `WriteFileSkill`      | Batch `edits[]` array, multiple edits per call            | Single `oldString`/`newString` pair, 1 edit per call                  |
 | `RunCommandSkill`     | Supports `detached` param, full output                    | No `detached`, output truncated to 2000 chars                         |
 | `ExploreProjectSkill` | Returns nested `entries` tree                             | Returns counts + flat `["path:lines", ...]` list                      |
-| `EditFileSkill`       | Batch `edits[]` array, multiple edits per call            | Single `oldString`/`newString` pair, 1 edit per call                  |
 
 ### 9.8 Why this design
 
@@ -2350,9 +2340,9 @@ flowchart LR
 
 | Concern                                                              | Test file                 | Cases |
 |----------------------------------------------------------------------|---------------------------|-------|
-| `READ_ONLY` rejects `edit_file` / `save_file` / `to_do`              | `ToolModeGateTest`        | 6     |
+| `READ_ONLY` rejects `write_file` / `to_do`                           | `ToolModeGateTest`        | 6     |
 | `EDIT` rejects `to_do` / `finish_to_do_item`                         | `ToolModeGateTest`        | 1     |
-| `AGENT` allows `edit_file` and applies the edit to disk              | `ToolModeGateTest`        | 1     |
+| `AGENT` allows `write_file` and applies the edit to disk             | `ToolModeGateTest`        | 1     |
 | `READ_ONLY` still allows `read_file` / `explore_project` / `run_cmd` | `ToolModeGateTest`        | 1     |
 | `SkillRegistry.getSchemas` agrees with `allowedToolModes`            | `SkillRegistrySchemaTest` | 5     |
 | `ToolMode.fromStringOrDefault` parses wire format correctly          | `AgentConfigurationTest`  | 7     |
@@ -2364,11 +2354,11 @@ Each tier maps to a dedicated persona prompt under `src/main/resources/prompts/m
 `ToolMode` and injected as the `{{MODE}}` section of the system prompt (see §2.5). Permission is personality: choosing a
 tier chooses **who the model is**, not merely which tools it may call.
 
-| Mode        | File               | Persona               | Focus                                                                 |
-|-------------|--------------------|-----------------------|-----------------------------------------------------------------------|
-| `READ_ONLY` | `read_only.xml`    | Solutions architect   | Produces a decision and a plan, never a diff; diagnoses root causes and hands the write to an implementer mode |
-| `EDIT`      | `edit.xml`         | Surgical implementer  | Minimal, compiling, zero-touch edits; no adjacent refactoring, then reports what changed |
-| `AGENT`     | `agent.xml`        | Full authority        | Plans and executes end-to-end (optionally via `plan.md` + `to_do`)    |
+| Mode        | File            | Persona              | Focus                                                                                                          |
+|-------------|-----------------|----------------------|----------------------------------------------------------------------------------------------------------------|
+| `READ_ONLY` | `read_only.xml` | Solutions architect  | Produces a decision and a plan, never a diff; diagnoses root causes and hands the write to an implementer mode |
+| `EDIT`      | `edit.xml`      | Surgical implementer | Minimal, compiling, zero-touch edits; no adjacent refactoring, then reports what changed                       |
+| `AGENT`     | `agent.xml`     | Full authority       | Plans and executes end-to-end (optionally via `plan.md` + `to_do`)                                             |
 
 Each prompt is an XML document (`<Identity>` / `<HowYouWork>` / `<ReportFormat>` / `<Constraints>` /
 `<ToolConstraints>`), deliberately **deduplicated**: tool signatures and the allowed-tool list are left to the
@@ -2402,7 +2392,7 @@ are two faces of the same tier choice.
 | **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                                                                                                 |
 | **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)                                                                             |
 | **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                                                                                   |
-| **Guardrail**            | Output monitoring system that detects anomalous model behavior (repetitive loops) and can terminate the session                                                                                            |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (repetitive loops) and can terminate the session                                                                                             |
 | **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                                                                                                |
 | **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                                                                                             |
 | **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                                                                                 |

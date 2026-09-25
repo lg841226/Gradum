@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionStoreTest.kt  2026-09-25 01:19:19 Changed by gwy
+ * ChatSessionStoreTest.kt  2026-09-25 01:23:48 Changed by gwy
  */
 
 package gradum.idea.chat.history
@@ -37,7 +37,7 @@ class ChatSessionStoreTest {
   }
 
   private fun messages(text: String): List<ChatMessage> {
-    val user = ChatMessage(role = "user", content = text, timestamp = 100L)
+    val user = ChatMessage(role = "user", timestamp = 100L, content = text)
     val assistant = ChatMessage(role = "assistant", timestamp = 200L)
       .appendEvent(ChatEvent.Response(content = "I fixed it."))
     return listOf(user, assistant)
@@ -146,7 +146,7 @@ class ChatSessionStoreTest {
 
   private fun chatRecord(marker: String, userTs: Long, assistantTs: Long, reply: String): List<ChatMessage> =
     listOf(
-      ChatMessage(role = "user", content = "$marker q", timestamp = userTs),
+      ChatMessage(role = "user", timestamp = userTs, content = "$marker q"),
       ChatMessage(role = "assistant", timestamp = assistantTs)
         .appendEvent(ChatEvent.Response(content = "$marker $reply"))
     )

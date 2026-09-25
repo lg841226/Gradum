@@ -52,9 +52,8 @@ object ToolCallRendererRegistry {
    */
   private val RENDERERS: List<ToolCallRenderer> = listOf(
     RanRenderer(),
-    EditedRenderer(),
+    WriteFileRenderer(),
     ReadRenderer(),
-    SavedRenderer(),
     ExploredRenderer(),
     GrepRenderer(),
     GlobRenderer(),

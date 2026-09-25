@@ -27,14 +27,14 @@ import kotlin.test.*
 
 /**
  * Pins the read-only / edit tool surface to a real disk: when the
- * LLM emits an edit_file / save_file / to_do / finish_to_do_item call
+ * LLM emits a write_file / to_do / finish_to_do_item call
  * under a mode that excludes it, the agent must return TOOL_NOT_PERMITTED
  * AND the file on disk must be unchanged. The first condition is easy to
  * check via emitted events; the second is the actual security guarantee.
  *
  * Why this test exists: the schema whitelist in SkillRegistry.getSchemas
  * hides forbidden skills from the LLM's tool list, but the model still
- * knows about edit_file from training data and from the system prompt
+ * knows about write_file from training data and from the system prompt
  * (which documents the tool surface in AGENT mode). The mode gate in
  * executeSingleTool is the only line of defense against a hallucinated
  * tool call — if that gate ever regresses, these tests will catch it.
@@ -46,13 +46,13 @@ class ToolModeGateTest {
   }
 
   @Test
-  fun `read-only mode rejects edit_file call and does not touch the file`() {
+  fun `read-only mode rejects write_file call and does not touch the file`() {
     val targetFile: Path = tempProjectRoot.resolve("victim.txt")
     val originalContent = "original line one\noriginal line two\n"
     Files.writeString(targetFile, originalContent)
 
     val toolCall = ToolCallEntry(
-      functionName = "edit_file",
+      functionName = "write_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
         "path" to JsonPrimitive(value = "victim.txt"),
@@ -71,7 +71,7 @@ class ToolModeGateTest {
     assertEquals(
       ErrorCode.TOOL_NOT_PERMITTED.name,
       errorMap["code"],
-      "edit_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
+      "write_file in READ_ONLY mode must return TOOL_NOT_PERMITTED",
     )
     assertEquals(
       "READ_ONLY",
@@ -90,19 +90,19 @@ class ToolModeGateTest {
   }
 
   @Test
-  fun `read-only mode rejects save_file call and does not touch the file`() {
+  fun `read-only mode rejects write_file create call and does not touch the file`() {
     val targetFile: Path = tempProjectRoot.resolve("new-victim.txt")
     assertFalse(
       Files.exists(targetFile),
-      "Test precondition: file must not exist before save_file"
+      "Test precondition: file must not exist before write_file create"
     )
 
     val toolCall = ToolCallEntry(
-      functionName = "save_file",
+      functionName = "write_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
         "path" to JsonPrimitive(value = "new-victim.txt"),
-        "content" to JsonPrimitive(value = "HACKED CONTENT"),
+        "newString" to JsonPrimitive(value = "HACKED CONTENT"),
       ),
     )
 
@@ -119,7 +119,7 @@ class ToolModeGateTest {
     )
     assertFalse(
       Files.exists(targetFile),
-      "save_file must not create the file in READ_ONLY mode"
+      "write_file must not create the file in READ_ONLY mode"
     )
   }
 
@@ -174,12 +174,12 @@ class ToolModeGateTest {
   }
 
   @Test
-  fun `agent mode allows edit_file to actually run`() {
+  fun `agent mode allows write_file to actually run`() {
     val targetFile: Path = tempProjectRoot.resolve("legit.txt")
     Files.writeString(targetFile, "hello world\n")
 
     val toolCall = ToolCallEntry(
-      functionName = "edit_file",
+      functionName = "write_file",
       callIdentifier = "call_1",
       functionArguments = mapOf(
         "path" to JsonPrimitive(value = "legit.txt"),
@@ -205,13 +205,13 @@ class ToolModeGateTest {
     assertNotEquals(
       (result["error"] as? Map<*, *>)?.get("code"),
       ErrorCode.TOOL_NOT_PERMITTED.name,
-      "AGENT mode must NOT reject edit_file — only the mode gate should not fire, " +
+      "AGENT mode must NOT reject write_file — only the mode gate should not fire, " +
         "result was: $result"
     )
     assertEquals(
       "goodbye world\n",
       Files.readString(targetFile),
-      "edit_file should have applied the edit in AGENT mode"
+      "write_file should have applied the edit in AGENT mode"
     )
   }
 

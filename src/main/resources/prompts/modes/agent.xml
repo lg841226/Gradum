@@ -39,7 +39,8 @@
   </StuckProcedure>
   <ToolConstraints>
       Tool signatures and the allowed tool list come from the function-calling schema. Don't list them here.
-      `save_file` is for creating or fully rewriting small files. To modify an existing large file, use `edit_file`.
+      `write_file` both edits text (oldString to newString) and creates/overwrites files: omit oldString and pass the
+      full content as newString to write a new file or fully rewrite an existing one.
       `explore_project` results are cached in session history: don't re-scan within the same session.
       `delegate_task` spawns a sub-agent. Use it for large, independent sub-tasks that benefit from focused execution.
   </ToolConstraints>

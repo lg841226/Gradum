@@ -73,7 +73,8 @@ first.
 - The root **server** module declares `jvmToolchain(21)` (see `build.gradle.kts`).
 - The **IntelliJ plugin** module requires `jvmToolchain(25)` (`plugin/build.gradle.kts`).
 
-On Windows/ARM64 you need matching **ARM64** builds of **both** JDK 21 and JDK 25 (or let Gradle toolchains auto-provision
+On Windows/ARM64 you need matching **ARM64** builds of **both** JDK 21 and JDK 25 (or let Gradle toolchains
+auto-provision
 them). A missing JDK 21 surfaces as:
 
 ```
@@ -144,18 +145,17 @@ cloud dependencies.
 
 ## Built-in Skills
 
-| Skill               | Description                                                 |
-|---------------------|-------------------------------------------------------------|
-| `read_file`         | Read file content (whole file or line range)                |
-| `edit_file`         | Search-replace editing (sequential or atomic mode)          |
-| `save_file`         | Write a new file                                            |
-| `run_cmd`           | Execute shell commands (blocking or detached)               |
-| `explore_project`   | Explore project structure with depth control and file stats |
-| `grep`              | Content regex search across project files                   |
-| `glob`              | Glob path matcher for file discovery                        |
-| `to_do`             | Initialize a task list                                      |
-| `finish_to_do_item` | Mark tasks complete                                         |
-| `search_web`        | Web search via Tavily API (requires API key, see below)     |
+| Skill               | Description                                                                         |
+|---------------------|-------------------------------------------------------------------------------------|
+| `read_file`         | Read file content (whole file or line range)                                        |
+| `write_file`        | Search-replace editing, or create/overwrite a whole file (parent dirs auto-created) |
+| `run_cmd`           | Execute shell commands (blocking or detached)                                       |
+| `explore_project`   | Explore project structure with depth control and file stats                         |
+| `grep`              | Content regex search across project files                                           |
+| `glob`              | Glob path matcher for file discovery                                                |
+| `to_do`             | Initialize a task list                                                              |
+| `finish_to_do_item` | Mark tasks complete                                                                 |
+| `search_web`        | Web search via Tavily API (requires API key, see below)                             |
 
 ## LLM Backend Setup
 

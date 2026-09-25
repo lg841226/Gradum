@@ -66,7 +66,7 @@ data class ToolCallScenario(
  * <tls>
  *   <t nam="read_file" pth="src/main/kotlin/gradum/AgentConfiguration.kt" lin="10-30"/>
  *   <t nam="grep" pth="src/main" ptr="TODO"/>
- *   <t nam="save_file" pth="/tmp/out.txt" ctl="hello" exp="error"/>
+ *   <t nam="write_file" pth="/tmp/out.txt" ctl="hello" exp="error"/>
  * </tls>
  * ```
  *
