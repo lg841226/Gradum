@@ -70,11 +70,12 @@ fun AssistantChatBubble(
   onSubChatClick: ((conversationJson: String, toolCallsJson: String, title: String) -> Unit)? = null,
   onRespondToAsk: suspend (
     sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
-  ) -> Unit = { _: String, _: String, _: String?, _: String?, _: Boolean -> }
+  ) -> Unit = { _: String, _: String, _: String?, _: String?, _: Boolean -> },
+  dismissedAskRequestIds: Set<String> = emptySet(),
+  onDismissAsk: (String) -> Unit = {}
 ) {
-  var dismissedAsks by remember { mutableStateOf<Set<String>>(emptySet()) }
   val renderBlocks: List<RenderBlock> = message.renderBlocks.filter { block ->
-    block !is RenderBlock.AskInteraction || block.requestId !in dismissedAsks
+    block !is RenderBlock.AskInteraction || block.requestId !in dismissedAskRequestIds
   }
   val hasContent = renderBlocks.isNotEmpty()
   val isDebugMode = selectedPermission == PermissionMode.DEBUG
@@ -134,7 +135,7 @@ fun AssistantChatBubble(
             is RenderBlock.AskInteraction -> AskCard(
               block,
               onRespondToAsk,
-              onResponded = { dismissedAsks = dismissedAsks + block.requestId }
+              onResponded = { onDismissAsk(block.requestId) }
             )
           }
         }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ChatSessionState.kt  2026-08-31 19:21:55 Changed by gwy
+ * ChatSessionState.kt  2026-09-26 00:21:14 Changed by gwy
  */
 
 package gradum.idea.chat.state
@@ -79,5 +79,7 @@ data class ChatSessionState(
     sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
   ) -> Unit,
 
+  val dismissedAskRequestIds: Set<String>,
+  val onDismissAsk: (String) -> Unit,
   val onSubChatClick: (String) -> Unit,
 )

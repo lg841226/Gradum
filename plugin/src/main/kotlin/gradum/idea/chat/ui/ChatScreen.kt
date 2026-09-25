@@ -235,7 +235,9 @@ fun ChatScreen(
                     onSubChatClick = onSubChatClick,
                     onOpenInEditor = state.onOpenInEditor,
                     selectedPermission = state.selectedPermission,
-                    onRespondToAsk = state.onRespondToAsk
+                    onRespondToAsk = state.onRespondToAsk,
+                    dismissedAskRequestIds = state.dismissedAskRequestIds,
+                    onDismissAsk = state.onDismissAsk
                   )
                 }
               }

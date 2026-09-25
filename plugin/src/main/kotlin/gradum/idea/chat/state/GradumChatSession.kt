@@ -2,17 +2,14 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumChatSession.kt  2026-09-25 01:23:48 Changed by gwy
+ * GradumChatSession.kt  2026-09-26 00:24:56 Changed by gwy
  */
 
 package gradum.idea.chat.state
 
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -58,6 +55,18 @@ class GradumChatSession {
   val messages: SnapshotStateList<ChatMessage> = mutableStateListOf()
   val attachedFiles: SnapshotStateList<AttachedContext> = mutableStateListOf()
   val pendingMessages: SnapshotStateList<PendingMessage> = mutableStateListOf()
+
+  /**
+   * Request ids of ask cards the user has already answered. Held at session
+   * scope (the project-scoped service survives panel refreshes) so an answered
+   * card stays dropped from the layout instead of reappearing after a refresh.
+   */
+  val dismissedAskRequestIds: MutableState<Set<String>> = mutableStateOf(emptySet())
+
+  /** Marks an ask card [requestId] as answered so it is removed everywhere. */
+  fun dismissAsk(requestId: String) {
+    dismissedAskRequestIds.value += requestId
+  }
 
   var hasSentMessage: Boolean by mutableStateOf(false)
 
@@ -116,8 +125,6 @@ class GradumChatSession {
   private var pollingJob: Job? = null
   private var probeRefreshJob: Job? = null
   val subAgentState: SubAgentState = SubAgentState()
-
-  // ── State reset ────────────────────────────────────────────────
 
   private fun clearConversationState() {
     messages.clear()
