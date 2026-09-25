@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * build.gradle.kts  2026-09-11 10:42:04 Changed by gwy
+ * build.gradle.kts  2026-09-25 17:34:58 Changed by gwy
  */
 
 plugins {
@@ -16,7 +16,7 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "1.0.0-experimental"
+version = "1.0.2-experimental"
 
 // Bundled Git Analysis script version, kept in lock-step with
 // `scripts/git_stats_log/git_stats.py`'s `__version__`. Bump both together.
@@ -118,7 +118,7 @@ dependencies {
   compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
   compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-  // LaTeX math rendering (LANDED 2026-07-20 — see docs/plan.md). The
+  // LaTeX math rendering (LANDED 2026-07-20, see docs/plan.md). The
   // `io.github.huarangmeng:latex-*` artifacts are published as Compose
   // Multiplatform packages; each transitively pulls its own
   // `org.jetbrains.compose.*` + `org.jetbrains.skiko` +
