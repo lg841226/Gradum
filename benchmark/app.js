@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Gradum Authors
+ * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * app.js  2026-09-26 00:40:29 Changed by gwy
+ */
+
 /* ---------------------------------------------------------------------------
  * Controlled Single-Model Benchmark
  * app.js - data-driven rendering, tabs, progress-bar animation.
@@ -34,20 +41,19 @@
   // Maximum achievable score per dimension. Fill-bar width is derived from
   // these (value / MAX_SCORE), so it can never drift out of sync with DATA.
   const MAX_SCORE = {
-    completion: 60, // 20 x 3 tasks
-    tooling: 45, // 15 x 3 tasks
-    boundary: 45, // 15 x 3 tasks
-    leak: 30, // 10 x 3 tasks
-    total: 180, // 60 x 3 tasks
+    completion: 20, // 20 per agent
+    tooling: 15,    // 15 per agent
+    boundary: 15,   // 15 per agent
+    leak: 10,       // 10 per agent
+    total: 60,      // 60 per agent
   };
 
-  // Actual raw scores per dimension per tool.
   const DATA = [
-    {id: 'completion', scores: {'Gradum': 59, 'Claude Code': 6, 'Codex': 0, 'OpenCode': 0}},
-    {id: 'tooling', scores: {'Gradum': 45, 'Claude Code': 3, 'Codex': 0, 'OpenCode': 0}},
-    {id: 'boundary', scores: {'Gradum': 45, 'Codex': 15, 'Claude Code': 10, 'OpenCode': 8}},
-    {id: 'leak', scores: {'Gradum': 28, 'Codex': 6, 'Claude Code': 3, 'OpenCode': 1}},
-    {id: 'total', scores: {'Gradum': 177, 'Claude Code': 22, 'Codex': 21, 'OpenCode': 9}},
+    {id: 'completion', scores: {'Gradum': 20, 'Claude Code': 6, 'Codex': 2, 'OpenCode': 0}},
+    {id: 'tooling', scores: {'Gradum': 14, 'Claude Code': 3, 'Codex': 1, 'OpenCode': 0}},
+    {id: 'boundary', scores: {'Gradum': 15, 'Claude Code': 10, 'Codex': 6, 'OpenCode': 8}},
+    {id: 'leak', scores: {'Gradum': 8, 'Claude Code': 3, 'Codex': 6, 'OpenCode': 1}},
+    {id: 'total', scores: {'Gradum': 57, 'Claude Code': 22, 'Codex': 15, 'OpenCode': 9}},
   ];
 
   const INITIAL_TAB = DATA[0].id;
