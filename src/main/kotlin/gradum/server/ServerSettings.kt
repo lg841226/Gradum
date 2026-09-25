@@ -35,8 +35,8 @@ data class ServerSettings(
   val autoDetectPort: Boolean,
   val defaultModelName: String,
   val defaultThinkEnabled: Boolean,
-  /** Server-wide Ollama keep-alive used when the plugin request omits `keepAlive`. */
-  val defaultKeepAlive: String,
+  /** Server-wide Ollama keep-alive (minutes) used when the plugin request omits `keepAliveMinutes`. */
+  val defaultKeepAliveMinutes: Int,
   /** Resolved command filter rules; equals [CommandFilterConfig.DEFAULT] when the user configures nothing. */
   val commandFilter: CommandFilterConfig,
 )
@@ -182,12 +182,12 @@ object ServerSettingsStore {
       else issues += ValidationIssue("llm.think", Severity.WARN, "expected a boolean (true/false); got ${describe(rawThink)}")
     }
 
-    var defaultKeepAlive: String = AgentConfiguration.DEFAULT_KEEP_ALIVE
-    val rawKeepAlive: Any? = llmGroup["keepAlive"]
+    var defaultKeepAliveMinutes: Int = AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES
+    val rawKeepAlive: Any? = llmGroup["keepAliveMinutes"]
     if (rawKeepAlive != null) {
-      if (rawKeepAlive is String && rawKeepAlive.isNotBlank())
-        defaultKeepAlive = rawKeepAlive.trim()
-      else issues += ValidationIssue("llm.keepAlive", Severity.WARN, "expected a non-empty string; got ${describe(rawKeepAlive)}")
+      if (rawKeepAlive is Number)
+        defaultKeepAliveMinutes = rawKeepAlive.toInt()
+      else issues += ValidationIssue("llm.keepAliveMinutes", Severity.WARN, "expected an integer (minutes); got ${describe(rawKeepAlive)}")
     }
 
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
@@ -209,7 +209,7 @@ object ServerSettingsStore {
       autoDetectPort = autoDetectPort,
       defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
-      defaultKeepAlive = defaultKeepAlive,
+      defaultKeepAliveMinutes = defaultKeepAliveMinutes,
       commandFilter = commandFilter,
     )
   }

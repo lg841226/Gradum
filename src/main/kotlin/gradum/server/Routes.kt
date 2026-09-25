@@ -213,11 +213,12 @@ data class ConfigOverrides(
    */
   val chatCompletionsPath: String? = null,
   /**
-   * How long the local model stays loaded in memory (Ollama `keep_alive`).
-   * A duration string ("5m", "2h") or "-1" for always-on. Blank leaves the
-   * request unchanged so Ollama's own default applies.
+   * How long the local model stays loaded in memory, in whole minutes
+   * (Ollama `keep_alive`). A positive value keeps it resident; `-1` keeps
+   * it until the server stops; `0` leaves the request unchanged so
+   * Ollama's own default applies. `null` defers to the server-wide default.
    */
-  val keepAlive: String? = null,
+  val keepAliveMinutes: Int? = null,
 ) {
   companion object {
     /**
@@ -239,7 +240,7 @@ data class ConfigOverrides(
         temperature = rawConfig["temperature"]?.toDoubleOrNull(),
         apiKey = rawConfig["apiKey"]?.trim()?.takeIf { it.isNotEmpty() },
         chatCompletionsPath = rawConfig["chatCompletionsPath"]?.trim()?.takeIf { it.isNotEmpty() },
-        keepAlive = rawConfig["keepAlive"]?.trim()?.takeIf { it.isNotEmpty() }
+        keepAliveMinutes = rawConfig["keepAliveMinutes"]?.toIntOrNull()
       )
     }
   }
@@ -346,7 +347,7 @@ fun Application.registerAllRoutes(
         timeoutSeconds = configOverrides.timeout ?: AgentConfiguration.DEFAULT_TIMEOUT_SECONDS,
         contextWindowSize = configOverrides.numCtx ?: AgentConfiguration.DEFAULT_CONTEXT_WINDOW_SIZE,
         maxTokensToGenerate = configOverrides.numPredict ?: AgentConfiguration.DEFAULT_MAX_TOKENS_TO_GENERATE,
-        keepAlive = configOverrides.keepAlive ?: serverConfiguration.defaultKeepAlive,
+        keepAliveMinutes = configOverrides.keepAliveMinutes ?: serverConfiguration.defaultKeepAliveMinutes,
         projectRoot = projectRootPath.toString(),
         sessionId = resolvedSessionId
       )

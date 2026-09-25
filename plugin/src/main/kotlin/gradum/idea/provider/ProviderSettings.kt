@@ -39,7 +39,7 @@ class ProviderSettings : PersistentStateComponent<ProviderSettings.State> {
     var ollamaAutoFilter: Boolean = true,
     var autoDetectEnabled: Boolean = true,
     var lmStudioAllowRemote: Boolean = false,
-    var keepAlive: String = "5m",
+    var keepAliveMinutes: Int = 5,
     var zhipuApiKey: String = "",
     var ollamaApiKey: String = "",
     var minimaxApiKey: String = "",

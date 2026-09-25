@@ -61,7 +61,7 @@ fun main(arguments: Array<String>) {
     hostAddress = settings.host,
     defaultApiKey = resolvedApiKey,
     defaultBaseUrl = settings.defaultBaseUrl,
-    defaultKeepAlive = settings.defaultKeepAlive,
+    defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled
   )
@@ -128,6 +128,9 @@ private fun printUsage() {
   )
 }
 
+private const val BANNER_BLUE = "\u001B[1;34m"
+private const val BANNER_RESET = "\u001B[0m"
+
 private fun printStartupBanner() {
   val workDir: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
 
@@ -135,12 +138,12 @@ private fun printStartupBanner() {
     """
       |
       |
-      |   ██████╗ ██████╗  █████╗ ██████╗ ██╗   ██╗███╗   ███╗
-      |  ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║   ██║████╗ ████║
-      |  ██║  ███╗██████╔╝███████║██║  ██║██║   ██║██╔████╔██║
-      |  ██║   ██║██╔══██╗██╔══██║██║  ██║██║   ██║██║╚██╔╝██║
-      |  ╚██████╔╝██║  ██║██║  ██║██████╔╝╚██████╔╝██║ ╚═╝ ██║
-      |   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝
+      |$BANNER_BLUE   ██████╗ ██████╗  █████╗ ██████╗ ██╗   ██╗███╗   ███╗$BANNER_RESET
+      |$BANNER_BLUE  ██╔════╝ ██╔══██╗██╔══██╗██╔══██╗██║   ██║████╗ ████║$BANNER_RESET
+      |$BANNER_BLUE  ██║  ███╗██████╔╝███████║██║  ██║██║   ██║██╔████╔██║$BANNER_RESET
+      |$BANNER_BLUE  ██║   ██║██╔══██╗██╔══██║██║  ██║██║   ██║██║╚██╔╝██║$BANNER_RESET
+      |$BANNER_BLUE  ╚██████╔╝██║  ██║██║  ██║██████╔╝╚██████╔╝██║ ╚═╝ ██║$BANNER_RESET
+      |$BANNER_BLUE   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝$BANNER_RESET
       |
       |  Copyright (c) 2026 Gradum Authors, software version ${BuildConfig.version}
       |

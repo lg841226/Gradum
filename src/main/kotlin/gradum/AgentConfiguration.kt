@@ -132,15 +132,15 @@ data class AgentConfiguration(
 
   /**
    * How long the local model stays loaded in memory after a request,
-   * passed to Ollama as the `keep_alive` field. Accepts a duration
-   * string ("5m", "2h") or an integer number of seconds; "-1" keeps the
-   * model loaded until the server restarts. Blank means the request does
-   * not set the field and Ollama's own default applies.
+   * expressed in whole minutes and passed to Ollama as the `keep_alive`
+   * field. A positive value keeps the model resident for that many
+   * minutes; `-1` keeps it loaded until the server stops; `0` leaves the
+   * field unset so Ollama's own default applies.
    *
    * Only meaningful for the Ollama backend; OpenAI-compatible providers
    * have no equivalent and ignore it.
    */
-  val keepAlive: String = DEFAULT_KEEP_ALIVE,
+  val keepAliveMinutes: Int = DEFAULT_KEEP_ALIVE_MINUTES,
 
   /**
    * Absolute, validated, normalized path to the project the current
@@ -178,6 +178,6 @@ data class AgentConfiguration(
     const val DEFAULT_OLLAMA_BASE_URL: String = GradumConfig.DEFAULT_OLLAMA_BASE_URL
     const val DEFAULT_CHAT_COMPLETIONS_PATH: String = GradumConfig.DEFAULT_CHAT_COMPLETIONS_PATH
     const val DEFAULT_CONTEXT_WINDOW_SIZE: Int = GradumConfig.DEFAULT_CONTEXT_WINDOW_SIZE
-    const val DEFAULT_KEEP_ALIVE: String = "5m"
+    const val DEFAULT_KEEP_ALIVE_MINUTES: Int = 5
   }
 }

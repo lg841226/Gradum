@@ -260,9 +260,11 @@ class OllamaClient(
       ),
     )
     // Local-first: keep the model resident so consecutive turns skip the
-    // cold re-load. "-1" pins it until the server stops.
-    if (configuration.keepAlive.isNotBlank())
-      requestPayload["keep_alive"] = configuration.keepAlive
+    // cold re-load. Minutes go to Ollama as whole seconds; -1 pins it
+    // until the server stops, 0 leaves the field unset (Ollama default).
+    if (configuration.keepAliveMinutes != 0)
+      requestPayload["keep_alive"] =
+        if (configuration.keepAliveMinutes < 0) -1 else configuration.keepAliveMinutes * 60
 
     toolDefinitions?.let { definitions -> requestPayload["tools"] = definitions }
     if (shouldThink) requestPayload["think"] = true

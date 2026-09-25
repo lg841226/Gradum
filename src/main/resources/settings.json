@@ -10,7 +10,7 @@
     "baseUrl": "http://localhost:11434",
     "model": "",
     "think": false,
-    "keepAlive": "5m"
+    "keepAliveMinutes": 5
   },
   "commandFilter": {
     "blockedExecutables": [

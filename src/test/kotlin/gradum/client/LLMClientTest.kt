@@ -427,13 +427,13 @@ class LLMClientTest {
       )
     }
     val client = OllamaClient(
-      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAlive = "2h"),
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAliveMinutes = 2),
       HttpClient(engine),
     )
 
     client.sendChat(messageHistory = listOf(mapOf("role" to "user", "content" to "hi"))).toList()
 
-    assertTrue(actual = requestBody.contains("\"keep_alive\":\"2h\""))
+    assertTrue(actual = requestBody.contains("\"keep_alive\":120"))
   }
 
   @Test
@@ -447,7 +447,7 @@ class LLMClientTest {
       )
     }
     val client = OllamaClient(
-      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAlive = ""),
+      configuration = config(apiKey = null, baseUrl = "http://localhost:11434").copy(keepAliveMinutes = 0),
       HttpClient(engine),
     )
 

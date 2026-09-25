@@ -56,7 +56,7 @@ class ServerSettingsStoreTest {
     assertEquals(ServerConfiguration.DEFAULT_BASE_URL, settings.defaultBaseUrl)
     assertEquals("", settings.defaultModelName)
     assertFalse(settings.defaultThinkEnabled)
-    assertEquals("5m", settings.defaultKeepAlive)
+    assertEquals(5, settings.defaultKeepAliveMinutes)
   }
 
   @Test
@@ -74,7 +74,7 @@ class ServerSettingsStoreTest {
             "baseUrl": "https://api.deepseek.com/v1",
             "model": "deepseek-chat",
             "think": true,
-            "keepAlive": "2h"
+            "keepAliveMinutes": 120
           }
         }
       """.trimIndent()
@@ -89,7 +89,7 @@ class ServerSettingsStoreTest {
     assertEquals("https://api.deepseek.com/v1", settings.defaultBaseUrl)
     assertEquals("deepseek-chat", settings.defaultModelName)
     assertTrue(settings.defaultThinkEnabled)
-    assertEquals("2h", settings.defaultKeepAlive)
+    assertEquals(120, settings.defaultKeepAliveMinutes)
   }
 
   @Test

@@ -330,7 +330,7 @@ private fun GradumChatSession.buildModelConfig(): Map<String, String> {
     if (model.server.isNotBlank()) requestParams["baseUrl"] = model.server
 
     if (snapshot.keepAliveEnabled)
-      requestParams["keepAlive"] = snapshot.keepAlive.trim().ifEmpty { "5m" }
+      requestParams["keepAliveMinutes"] = snapshot.keepAliveMinutes.toString()
 
     val configuredKind: ProviderKind? = ProviderKind.entries.firstOrNull { kind: ProviderKind ->
       snapshot.isEnabled(kind) && model.server.isNotBlank() &&

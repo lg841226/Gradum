@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ApiProviderSettings.kt  2026-09-24 23:25:55 Changed by gwy
+ * ApiProviderSettings.kt  2026-09-25 17:47:00 Changed by gwy
  */
 
 package gradum.idea.settings
@@ -60,7 +60,7 @@ internal fun ApiProviderSettings() {
   val ollamaUrlState = remember { TextFieldState(initialText = state.ollamaBaseUrl) }
   val lmStudioKeyState = remember { TextFieldState(initialText = state.lmStudioApiKey) }
   val lmStudioUrlState = remember { TextFieldState(initialText = state.lmStudioBaseUrl) }
-  val keepAliveState = remember { TextFieldState(initialText = state.keepAlive) }
+  val keepAliveState = remember { TextFieldState(initialText = state.keepAliveMinutes.toString()) }
 
   LaunchedEffect(key1 = Unit) {
     pushAllKindsToCoordinator(settings)
@@ -134,10 +134,12 @@ internal fun ApiProviderSettings() {
       },
       state = keepAliveState,
       onKeepAliveChange = { value ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.keepAlive = value
+        value.toIntOrNull()?.let { minutes ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.keepAliveMinutes = minutes
+          }
+          settings.update(transform, persistToDisk = false)
         }
-        settings.update(transform, persistToDisk = false)
       }
     )
 
@@ -528,9 +530,9 @@ private fun pushKindToCoordinator(settings: ProviderSettings, kind: ProviderKind
 /**
  * App-level row for the Ollama keep-alive, mirroring [AutoDetectRow]:
  * a checkbox + short field on one line, with a one-line hint below. The
- * field holds a duration (`12m`, `1h`, or `-1` for always-on); values
- * push up through [onKeepAliveChange] after a short debounce so the
- * request builder always reads the persisted [keepAlive].
+ * field holds a whole number of minutes (`12`, or `-1` for always-on);
+ * values push up through [onKeepAliveChange] after a short debounce so the
+ * request builder always reads the persisted [keepAliveMinutes].
  */
 @Composable
 private fun KeepAliveRow(
@@ -552,9 +554,11 @@ private fun KeepAliveRow(
         state = state,
         enabled = checked,
         outline = Outline.None,
-        modifier = Modifier.width(85.dp),
-        placeholder = { Text(message("gradum.settings.provider.keepalive.placeholder")) }
+        modifier = Modifier.width(50.dp),
+        placeholder = { Text("5~1000") }
       )
+      Spacer(Modifier.width(GradumSpacing.sml))
+      Text(text = message("gradum.settings.provider.keepalive.unit"))
     }
     Spacer(Modifier.height(GradumSpacing.xs))
     Text(

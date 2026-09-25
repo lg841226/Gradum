@@ -25,7 +25,7 @@ class ConfigOverridesTest {
     assertNull(overrides.numCtx)
     assertNull(overrides.numPredict)
     assertNull(overrides.timeout)
-    assertNull(overrides.keepAlive)
+    assertNull(overrides.keepAliveMinutes)
   }
 
   @Test
@@ -47,7 +47,7 @@ class ConfigOverridesTest {
         "topP" to "0.95",
         "think" to "true",
         "timeout" to "120",
-        "keepAlive" to "2h",
+        "keepAliveMinutes" to "120",
         "numCtx" to "16384",
         "numPredict" to "4096",
         "temperature" to "0.3"
@@ -87,8 +87,8 @@ class ConfigOverridesTest {
       overrides.timeout
     )
     assertEquals(
-      "2h",
-      overrides.keepAlive
+      120,
+      overrides.keepAliveMinutes
     )
   }
 

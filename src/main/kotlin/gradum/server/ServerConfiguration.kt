@@ -73,11 +73,11 @@ data class ServerConfiguration(
   val defaultThinkEnabled: Boolean = false,
 
   /**
-   * Server-wide default Ollama keep-alive duration. Applied when a
-   * `/events` request does not specify `keepAlive`. Mirrors
-   * `AgentConfiguration.DEFAULT_KEEP_ALIVE`.
+   * Server-wide default Ollama keep-alive in minutes. Applied when a
+   * `/events` request does not specify `keepAliveMinutes`. Mirrors
+   * `AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES`.
    */
-  val defaultKeepAlive: String = AgentConfiguration.DEFAULT_KEEP_ALIVE,
+  val defaultKeepAliveMinutes: Int = AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES,
 ) {
   companion object {
     /** Default bind host; the single source of truth. */
