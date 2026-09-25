@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * McpSkillAdapter.kt  2026-09-25 Changed by gwy
+ * McpSkillAdapter.kt  2026-09-26 00:06:57 Changed by gwy
  */
 
 package gradum.mcp
@@ -12,32 +12,25 @@ import gradum.ToolMode
 import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.mcp.jsonrpc.RpcException
-import gradum.skill.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.boolean
-import gradum.skill.integer
-import gradum.skill.string
-import gradum.skill.stringArray
+import gradum.skill.*
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.*
 
 /**
- * Exposes a single MCP server [McpTool] to Gradum's skill system as a
- * [Skill]. Its schema is rendered from the tool's advertised JSON schema
- * ([McpTool.inputSchema]), and [execute] forwards the caller's arguments to
- * the server via [McpClient.callTool].
+ * Exposes a single MCP server [McpTool] to Gradum's skill system as a [Skill],
+ * so the model can call it directly in one step (e.g. `browser_navigate(url=...)`).
  *
- * Because [Skill.execute] is synchronous while the transport is
- * coroutine-based, [execute] bridges with [runBlocking]; the response is
- * handled on the transport's own IO scope, so blocking the calling thread
- * only waits on the deferred — it never deadlocks.
+ * The schema is deliberately trimmed to keep the model context small: only the
+ * tool's required parameters are surfaced (plus the tool's trimmed native
+ * description). Verbose optional properties are dropped, so the model sees a
+ * compact definition instead of the tool's full JSON Schema. [execute] forwards
+ * the caller's arguments to the server via [McpClient.callTool].
+ *
+ * Because [Skill.execute] is synchronous while the transport is coroutine-based,
+ * [execute] bridges with [runBlocking]; the response is handled on the
+ * transport's own IO scope, so blocking the calling thread only waits on the
+ * deferred — it never deadlocks.
  */
 internal class McpSkillAdapter(
   private val tool: McpTool,
@@ -45,12 +38,13 @@ internal class McpSkillAdapter(
 ) : Skill() {
 
   override val skillName: String get() = tool.name
-  override val description: String get() = tool.description ?: "MCP tool ${tool.name}"
+  override val description: String get() = trimmedDescription(tool.description ?: "MCP tool ${tool.name}")
   override val alias: String get() = tool.name
 
   /** External MCP tools may mutate arbitrary state; exclude READ_ONLY. */
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
+  private val properties: JsonObject = tool.inputSchema["properties"]?.jsonObject ?: buildJsonObject {}
   private val requiredNames: Set<String> = tool.inputSchema["required"]
     ?.jsonArray
     ?.mapNotNull { (it as? JsonPrimitive)?.content }
@@ -58,24 +52,28 @@ internal class McpSkillAdapter(
     ?: emptySet()
 
   override val schemaProperties: SchemaBuilder.() -> Unit = {
-    val properties: JsonObject = tool.inputSchema["properties"]?.jsonObject ?: buildJsonObject {}
-    for ((propertyName, propertySchema) in properties) {
-      val property = propertySchema.jsonObject
+    for (propertyName in requiredNames.sorted()) {
+      val propertySchema: JsonObject = properties[propertyName]?.jsonObject ?: buildJsonObject {}
       val propertyDescription: String =
-        (property["description"] as? JsonPrimitive)?.content ?: ""
-      val propertyRequired: Boolean = propertyName in requiredNames
+        (propertySchema["description"] as? JsonPrimitive)?.content ?: ""
 
-      when ((property["type"] as? JsonPrimitive)?.content) {
-        "integer", "number" -> integer(propertyName, propertyDescription, propertyRequired)
-        "boolean" -> boolean(propertyName, propertyDescription, propertyRequired)
-        "array" -> stringArray(propertyName, propertyDescription, propertyRequired)
-        else -> string(propertyName, propertyDescription, propertyRequired)
+      when ((propertySchema["type"] as? JsonPrimitive)?.content) {
+        "integer", "number" -> integer(propertyName, propertyDescription, required = true)
+        "boolean" -> boolean(propertyName, propertyDescription, required = true)
+        "array" -> stringArray(propertyName, propertyDescription, required = true)
+        else -> string(propertyName, propertyDescription, required = true)
       }
     }
   }
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val jsonArguments: JsonObject = JsonUtil.toJsonElement(arguments).jsonObject
+    if (!isAuthorized(jsonArguments.toString(), context)) {
+      return makeFailure(
+        code = "TOOL_REJECTED",
+        message = "MCP tool '${tool.name}' was not approved by the user.",
+      )
+    }
     return try {
       val resultElement = runBlocking { client.callTool(tool.name, jsonArguments) }
       makeSuccess(mapOf("content" to renderContent(resultElement)))
@@ -94,6 +92,41 @@ internal class McpSkillAdapter(
   }
 
   /**
+   * Resolves user consent to run this tool. Returns true when the tool was
+   * already approved "always" this session, the user allowed a single run,
+   * or the user chose "always" (remembered by name). Returns true without a
+   * prompt when no ask capability is wired (tests / sub-agents that must not
+   * block), and false when the user rejected or canceled.
+   */
+  private fun isAuthorized(argumentsText: String, context: SkillContext): Boolean {
+    if (tool.name in context.authorizedMcpTools) return true
+    val askScope: AskScope = context.scope ?: return true
+    val decision: AskResult = askScope.askInteraction {
+      title = l10n.key("gradum.ask.mcp_tool.title")
+      details = l10n.raw("${tool.name}$argumentsText", source = Lang.EN)
+      choices {
+        item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.mcp_tool.choice.once")
+        item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.mcp_tool.choice.always")
+        item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.mcp_tool.choice.reject")
+      }
+      default = "no"
+    }
+    return when (decision) {
+      is AskResult.Case ->
+        when (decision.meaning) {
+          Choice.Meaning.ALLOW_ONCE -> true
+          Choice.Meaning.ALLOW_ALWAYS -> true.also {
+            context.authorizedMcpTools.add(tool.name)
+          }
+
+          Choice.Meaning.REJECT -> false
+        }
+
+      else -> false
+    }
+  }
+
+  /**
    * Renders a `tools/call` result element to the plain text the LLM should
    * see. Joins every `text` field found in the `content` array (MCP's
    * standard text blocks); falls back to the compact JSON when the result
@@ -108,5 +141,13 @@ internal class McpSkillAdapter(
       if (textBlocks.isNotEmpty()) return textBlocks.joinToString(separator = "\n")
     }
     return resultElement.toString()
+  }
+
+  private fun trimmedDescription(description: String): String =
+    if (description.length > DESCRIPTION_TRIM_LENGTH) description.take(DESCRIPTION_TRIM_LENGTH) + "..."
+    else description
+
+  private companion object {
+    const val DESCRIPTION_TRIM_LENGTH = 100
   }
 }

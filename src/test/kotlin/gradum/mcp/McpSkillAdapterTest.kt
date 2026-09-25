@@ -7,7 +7,6 @@
 
 package gradum.mcp
 
-import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
@@ -21,10 +20,10 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * Verifies that a single MCP tool is wrapped into a [Skill]: its schema is
- * rendered from the advertised JSON schema and [Skill.execute] forwards the
- * caller's arguments to the server and returns the rendered content. Uses the
- * same tiny Python echo server as [McpClientIntegrationTest]; skips when no
- * Python interpreter is on PATH.
+ * trimmed to the required parameters and [Skill.execute] forwards the caller's
+ * arguments to the server and returns the rendered content. Uses the same tiny
+ * Python echo server as [McpClientIntegrationTest]; skips when no Python
+ * interpreter is on PATH.
  */
 class McpSkillAdapterTest {
 
@@ -50,9 +49,7 @@ class McpSkillAdapterTest {
         val parameters = function["parameters"] as Map<*, *>
         val properties = parameters["properties"] as Map<*, *>
         assertEquals(listOf("text"), parameters["required"])
-        assertEquals(
-          "string", (properties["text"] as Map<*, *>)["type"]
-        )
+        assertEquals("string", (properties["text"] as Map<*, *>)["type"])
 
         val context = SkillContext(toolMode = ToolMode.AGENT, projectRoot = "")
         val result: SkillResult = adapter.execute(mapOf("text" to "hi"), context)

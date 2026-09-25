@@ -30,16 +30,17 @@ data class McpServerConfig(
 /**
  * Owns the live connections to all configured MCP servers. [connect] starts
  * each server, performs the initialize handshake, lists its tools, and wraps
- * every tool in a [McpSkillAdapter] ready for [gradum.skill.SkillRegistry].
- * A server that fails to connect is logged and skipped — the rest still
- * register. [close] tears down every connection.
+ * every tool in a [McpSkillAdapter] ready for [gradum.skill.SkillRegistry], so
+ * the model can call each tool directly in one step. A server that fails to
+ * connect is logged and skipped — the rest still register. [close] tears down
+ * every connection.
  */
 class McpConnectionManager {
   private val clients = mutableListOf<McpClient>()
 
   /** Connects to each [configs] entry and returns one adapter per advertised tool. */
   suspend fun connect(configs: List<McpServerConfig>): List<Skill> {
-    val adapters = mutableListOf<McpSkillAdapter>()
+    val adapters = mutableListOf<Skill>()
     for ((name, command, workingDir, env) in configs) {
       try {
         val client = McpClient(

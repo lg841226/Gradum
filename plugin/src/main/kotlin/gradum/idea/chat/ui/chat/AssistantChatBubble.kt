@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-09-25 19:58:46 Changed by gwy
+ * AssistantChatBubble.kt  2026-09-26 00:12:53 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -72,7 +72,10 @@ fun AssistantChatBubble(
     sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
   ) -> Unit = { _: String, _: String, _: String?, _: String?, _: Boolean -> }
 ) {
-  val renderBlocks = message.renderBlocks
+  var dismissedAsks by remember { mutableStateOf<Set<String>>(emptySet()) }
+  val renderBlocks: List<RenderBlock> = message.renderBlocks.filter { block ->
+    block !is RenderBlock.AskInteraction || block.requestId !in dismissedAsks
+  }
   val hasContent = renderBlocks.isNotEmpty()
   val isDebugMode = selectedPermission == PermissionMode.DEBUG
 
@@ -128,7 +131,11 @@ fun AssistantChatBubble(
 
             is RenderBlock.Error -> ErrorBlock(block)
             is RenderBlock.Response -> ResponseBlock(block, onUrlClick)
-            is RenderBlock.AskInteraction -> AskCard(block, onRespondToAsk)
+            is RenderBlock.AskInteraction -> AskCard(
+              block,
+              onRespondToAsk,
+              onResponded = { dismissedAsks = dismissedAsks + block.requestId }
+            )
           }
         }
       }

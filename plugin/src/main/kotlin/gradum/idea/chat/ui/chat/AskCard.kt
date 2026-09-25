@@ -56,16 +56,17 @@ private const val askOptionNumberWidthDp: Int = 24
 /**
  * Renders the agent-initiated question card. Shows title/details, then the
  * interaction body (discrete choice buttons, or a free-text field + send
- * button). A response POSTs the answer back to the server and locks the card
- * into an "answered" state so it cannot be submitted twice. Fades in quickly
- * when first shown.
+ * button). A response POSTs the answer back to the server, locks the card
+ * against double submission, and invokes [onResponded] so the parent can drop
+ * the card from the layout entirely. Fades in quickly when first shown.
  */
 @Composable
 fun AskCard(
   block: RenderBlock.AskInteraction,
   onRespondToAsk: suspend (
     sessionId: String, requestId: String, choice: String?, text: String?, cancelled: Boolean
-  ) -> Unit
+  ) -> Unit,
+  onResponded: () -> Unit = {}
 ) {
   val scope: CoroutineScope = rememberCoroutineScope()
   val paragraphStyle: TextStyle = rememberGradumParagraphTextStyle()
@@ -130,6 +131,7 @@ fun AskCard(
         val submit: (AskChoice) -> Unit = { option: AskChoice ->
           if (!responded) {
             responded = true
+            onResponded()
             scope.launch {
               onRespondToAsk(block.sessionId, block.requestId, option.id, null, false)
             }
@@ -225,6 +227,7 @@ fun AskCard(
             enabled = !responded && inputState.text.isNotBlank(),
             onClick = {
               responded = true
+              onResponded()
               val submitted: String = inputState.text.toString()
               scope.launch {
                 onRespondToAsk(block.sessionId, block.requestId, null, submitted, false)

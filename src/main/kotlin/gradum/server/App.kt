@@ -44,7 +44,7 @@ fun Application.module(serverConfiguration: ServerConfiguration) {
   }
 
   registerAllRoutes(serverConfiguration)
-  val skills = SkillRegistry.getAllSkills().toList()
+  val skills = SkillRegistry.getAllSkills().sortedBy { it.skillName }
   if (skills.isNotEmpty()) {
     logger.info("Available skills: ${skills.count()}")
     skills.dropLast(n = 1).forEach { skill ->

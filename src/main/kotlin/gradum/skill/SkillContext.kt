@@ -119,6 +119,15 @@ data class SkillContext(
   val authorizedCommandCategories: MutableSet<String> = mutableSetOf()
 
   /**
+   * Session-scoped cache of MCP tools the user approved "always" (e.g. a
+   * `browser_navigate` call the user allowed every time). In-memory only,
+   * never persisted; a session restart asks again. Not part of the
+   * constructor/equality — it lives for the lifetime of the per-session
+   * [SkillContext] instance.
+   */
+  val authorizedMcpTools: MutableSet<String> = mutableSetOf()
+
+  /**
    * True when the active model wants the SIMPLE schema variant (small /
    * local models). Single source of truth for the per-skill
    * `SchemaVariant.resolve(modelName) == SIMPLE` checks.

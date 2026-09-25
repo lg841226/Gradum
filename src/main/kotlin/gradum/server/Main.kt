@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Main.kt  2026-09-24 23:12:43 Changed by gwy
+ * Main.kt  2026-09-26 00:04:31 Changed by gwy
  */
 
 package gradum.server
@@ -33,12 +33,12 @@ fun main(arguments: Array<String>) {
 
   // Connect any configured MCP servers and register their tools as skills
   // before the HTTP server starts, so tools are available from the first call.
-  val mcpManager: McpConnectionManager = McpConnectionManager()
+  val mcpManager = McpConnectionManager()
   if (settings.mcpServers.isNotEmpty()) {
     runBlocking {
       val adapters = mcpManager.connect(settings.mcpServers)
       adapters.forEach { adapter -> SkillRegistry.register(adapter) }
-      logger.info("Registered {} MCP tool(s) as skills", adapters.size)
+      logger.info("Registered {} MCP tool(s)", adapters.size)
     }
   }
 
