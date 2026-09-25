@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * GradumConfig.kt  2026-08-31 19:21:55 Changed by gwy
+ * GradumConfig.kt  2026-09-25 19:58:46 Changed by gwy
  */
 
 package gradum
@@ -35,21 +35,6 @@ object GradumConfig {
 
   /** HTTP request timeout for LLM API calls (ms). */
   const val LLM_REQUEST_TIMEOUT_MS: Long = 600_000L
-
-  /** HTTP probe timeout for model identity checks (ms). */
-  const val HTTP_PROBE_TIMEOUT_MS: Long = 5_000
-
-  /** Socket timeout for port availability checks (ms). */
-  const val PORT_CHECK_TIMEOUT_MS: Int = 5_000
-
-  /** HTTP connect timeout for plugin-to-server calls (seconds). */
-  const val PLUGIN_CONNECT_TIMEOUT_SECONDS: Long = 5
-
-  /** HTTP request timeout for plugin-to-server calls (seconds). */
-  const val PLUGIN_REQUEST_TIMEOUT_SECONDS: Long = 30
-
-  /** Thumbnail image HTTP timeout (ms). */
-  const val THUMBNAIL_TIMEOUT_MS: Int = 3_000
 
   /** Max chars of command output kept in LLM context. */
   const val COMMAND_MAX_OUTPUT_CHARS: Int = 16 * 1024

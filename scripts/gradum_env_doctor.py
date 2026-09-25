@@ -101,7 +101,7 @@ def print_node(status, title, lead=True):
     if lead:
         CONSOLE.print(f"[dim]{ICON_ARROW}[/dim]")
         CONSOLE.print(f"[dim]{ICON_ARROW}[/dim]")
-    CONSOLE.print(f"[{color}]{ICON_STEP}[/{color}] [black]{title}[/black]")
+    CONSOLE.print(f"[{color}]{ICON_STEP}[/{color}] [default]{title}[/default]")
 
 
 def write_report(findings, project_root):
@@ -313,9 +313,9 @@ def main():
         CONSOLE.print(f"[dim]{ICON_ARROW}[/dim]")
 
     log_name = write_report(findings, project_root)
-    CONSOLE.print(f"[blue]{ICON_STEP}[/blue] [black]Report written to {log_name}[/black]")
+    CONSOLE.print(f"[default][blue]{ICON_STEP}[/blue] Report written to {log_name}[/default]")
     CONSOLE.print(f"[dim]{ICON_ARROW}[/dim]")
-    CONSOLE.print(f"[dim]{ICON_COMPLETE}[/dim] Complete")
+    CONSOLE.print(f"[default][dim]{ICON_COMPLETE}[/dim] Complete[/default]")
     CONSOLE.print("")
 
 

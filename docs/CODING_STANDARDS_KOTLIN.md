@@ -708,8 +708,8 @@ class MyNewSkill : Skill() {
 
 - `skillName` must be unique across all registered skills
 
-- Override `allowedToolModes` and `mutatesProject` to declare the ToolMode tiers the skill may run under (see
-  `docs/ARCHITECTURE.md` §9)
+- Override `allowedToolModes` to declare the ToolMode tiers the skill may run under (see
+  `docs/ARCHITECTURE.md` §9); use `manageOwnEventStream = true` only when the skill emits its own progress events
 
 - `execute(arguments, context: SkillContext)` and `getSchema(context: SkillContext?)`: not the legacy no-context
   signatures

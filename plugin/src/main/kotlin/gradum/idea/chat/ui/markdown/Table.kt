@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-09-25 17:34:58 Changed by gwy
+ * Table.kt  2026-09-25 18:25:18 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -79,12 +79,12 @@ val GradumMarkdownProcessor: MarkdownProcessor by lazy {
 
 /**
  * A piece of Markdown content. The three variants are produced by [splitMarkdown]:
- * - [Plain] — `Paragraph` blocks. Routed to the custom inline chip parser
+ * - [Plain]: `Paragraph` blocks. Routed to the custom inline chip parser
  *   (`InlineMarkdown`) so backticks render as rounded chips. The text is the
  *   original Markdown source (re-serialized from the commonmark AST).
- * - [Table] — a parsed GFM table. Routed to [ScrollableTable] (or the
+ * - [Table]: a parsed GFM table. Routed to [ScrollableTable] (or the
  *   placeholder if the body is empty).
- * - [NonProseBlock] — a non-`Paragraph` block (heading, list, blockquote,
+ * - [NonProseBlock]: a non-`Paragraph` block (heading, list, blockquote,
  *   fenced code, thematic break, HTML). The caller routes this to
  *   [RenderNonProseBlock] so the block renders normally. The split between
  *   [Plain] and [NonProseBlock] is done by [splitPlainAtBlocks].

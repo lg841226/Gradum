@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * AssistantChatBubble.kt  2026-09-25 01:29:59 Changed by gwy
+ * AssistantChatBubble.kt  2026-09-25 19:58:46 Changed by gwy
  */
 
 @file:OptIn(ExperimentalFoundationApi::class)
@@ -13,24 +13,19 @@ package gradum.idea.chat.ui.chat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import gradum.idea.chat.model.*
+import gradum.idea.chat.model.ChatMessage
+import gradum.idea.chat.model.ErrorCode
+import gradum.idea.chat.model.RenderBlock
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.internal.formatToolDetails
@@ -46,9 +41,6 @@ import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import org.jetbrains.jewel.foundation.GlobalColors
-import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -443,7 +435,6 @@ private fun ErrorBlock(block: RenderBlock.Error) {
     )
   }
 }
-
 
 
 private fun formatTokenCount(count: Int): String {

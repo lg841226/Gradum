@@ -166,15 +166,15 @@ abstract class Skill {
      * model hallucinates a forbidden call). The default is "all three".
      */
     open val allowedToolModes: Set<ToolMode> = setOf(
-        ToolMode.WRITE, ToolMode.SINGLE_STEP, ToolMode.READ_ONLY,
+        ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY,
     )
 
     /**
-     * Hint for documentation. Whether this skill mutates the project
-     * (filesystem, git, process environment). The actual gate is
-     * `allowedToolModes`; this is just a self-declared label.
+     * When true, the skill streams its own progress events (as
+     * DelegateSkill does) and the agent skips the standard
+     * tool_call_start / tool_call pair for it.
      */
-    open val mutatesProject: Boolean = false
+    open val manageOwnEventStream: Boolean = false
 
     /**
      * Execute the skill with the LLM-supplied arguments and the
@@ -256,18 +256,18 @@ abstract class Skill {
 
 ### Optional Properties
 
-| Property              | Type            | Default                           | Purpose                                                                                                                        |
-|-----------------------|-----------------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `allowedToolModes`    | `Set<ToolMode>` | `{WRITE, SINGLE_STEP, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model). |
-| `mutatesProject`      | `Boolean`       | `false`                           | Self-declared "this skill writes to the project" hint. The actual gate is `allowedToolModes`.                                  |
-| `historyKeepCount`    | `Int`           | `Int.MAX_VALUE`                   | Keep this many recent results intact; strip volatile keys beyond                                                               |
-| `historyVolatileKeys` | `List<String>`  | `emptyList()`                     | Keys to remove from history result when exceeding `historyKeepCount`                                                           |
+| Property               | Type            | Default                    | Purpose                                                                                                                        |
+|------------------------|-----------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `allowedToolModes`     | `Set<ToolMode>` | `{AGENT, EDIT, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model). |
+| `manageOwnEventStream` | `Boolean`       | `false`                    | Opt out of the agent's standard `tool_call_start` / `tool_call` pair and emit your own events.                                 |
+| `historyKeepCount`     | `Int`           | `Int.MAX_VALUE`            | Keep this many recent results intact; strip volatile keys beyond                                                               |
+| `historyVolatileKeys`  | `List<String>`  | `emptyList()`              | Keys to remove from history result when exceeding `historyKeepCount`                                                           |
 
 ### Optional Hooks
 
-| Method                                                             | Return                                                     | Purpose                                                     |
-|--------------------------------------------------------------------|------------------------------------------------------------|-------------------------------------------------------------|
-| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process result before saving to `conversationHistory` | By default handles `historyKeepCount`/`historyVolatileKeys` |
+| Method                                                             | Return                                            | Purpose                                                                                              |
+|--------------------------------------------------------------------|---------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process the **current** result before saving | Default returns it unchanged; per-call pruning lives in `recordAndCompactHistory` / `compactHistory` |
 
 ---
 
@@ -586,31 +586,33 @@ See `ReadFileSkill` for a real-world example.
 
 #### ReadFileSkill (Read-only inspection)
 
-| Property              | Value                              |
-|-----------------------|------------------------------------|
-| `skillName`           | `"read_file"`                      |
-| `alias`               | `"Read"`                           |
-| `allowedToolModes`    | Default (all three modes)          |
-| `historyKeepCount`    | 5 (keeps content for last 5 calls) |
-| `historyVolatileKeys` | `listOf("content")`                |
+| Property              | Value                          |
+|-----------------------|--------------------------------|
+| `skillName`           | `"read_file"`                  |
+| `alias`               | `"Read"`                       |
+| `allowedToolModes`    | Default (all three modes)      |
+| `historyKeepCount`    | `Int.MAX_VALUE` (never pruned) |
+| `historyVolatileKeys` | `emptyList()`                  |
 
-**Key behavior**: Resolves relative paths against `context.projectRoot`, computes MD5 hash of content, returns path +
-lineRange + totalLines + contentHash + content. Max file size 1MB, max 10,000 lines.
+**Key behavior**: Resolves relative paths against `context.projectRoot`, supports `lineRange`, and returns
+`{path, lineRange, totalLines, contentHashShort, content}` (cloud) or `{path, content: {lineNumber: line}}` (simple
+models). Max file size 1MB, max 10,000 lines. A target outside `projectRoot` goes through `scope.askInteraction`
+(`once` / `always` → `authorizedReadPaths` / `no` → `PERMISSION_DENIED`).
 
 #### WriteFileSkill (Mutating, search-and-replace or create/overwrite)
 
-| Property              | Value                                               |
-|-----------------------|-----------------------------------------------------|
-| `skillName`           | `"write_file"`                                      |
-| `alias`               | `"Written"`                                         |
-| `allowedToolModes`    | `setOf(WRITE, SINGLE_STEP)`: **excludes READ_ONLY** |
-| `historyKeepCount`    | 5                                                   |
-| `historyVolatileKeys` | `listOf("originalContent", "modifiedContent")`      |
+| Property              | Value                                          |
+|-----------------------|------------------------------------------------|
+| `skillName`           | `"write_file"`                                 |
+| `alias`               | `"Written"`                                    |
+| `allowedToolModes`    | `setOf(AGENT, EDIT)`: **excludes READ_ONLY**   |
+| `historyKeepCount`    | 5                                              |
+| `historyVolatileKeys` | `listOf("originalContent", "modifiedContent")` |
 
 **Key behavior**: Search-and-replace (`oldString`/`newString` locally, `edits[]` for cloud), applied sequentially and
 stopping on the first failure. Omitting `oldString` writes the whole file content as `newString` (create/overwrite),
-auto-creating parent directories. Custom `prepareHistoryResult` strips `originalContent` and `modifiedContent` from ALL
-history entries.
+auto-creating parent directories. Its `prepareHistoryResult` strips `originalContent` and `modifiedContent` from the
+current result before it is stored, so diff payloads never enter history at all.
 
 #### RunCommandSkill (Shell execution)
 
@@ -619,31 +621,34 @@ history entries.
 | `skillName`           | `"run_cmd"`               |
 | `alias`               | `"Ran"`                   |
 | `allowedToolModes`    | Default (all three modes) |
-| `historyKeepCount`    | 2                         |
+| `historyKeepCount`    | 3                         |
 | `historyVolatileKeys` | `listOf("output")`        |
 
-**Key behavior**: Pre-classifies every command via `classifyCommand()`. 45-second hard timeout. Two execution modes: *
-*Blocking** (waits for completion) and **Detached** (background, returns PID + log path).
+**Key behavior**: Classifies every command with `CommandFilter.classifyCommand()` (`Blocked` → `COMMAND_BLOCKED`,
+`NeedsApproval` → `ask_interaction` → `once`/`always`/`no`). Default timeout 120 s, hard max 600 s, output capped at
+16 KiB. Two execution modes: **Blocking** (waits for completion) and **Detached** (background, returns PID + log path;
+cloud-only).
 
 #### ExploreProjectSkill (Directory tree scan)
 
-| Property              | Value                                                           |
-|-----------------------|-----------------------------------------------------------------|
-| `skillName`           | `"explore_project"`                                             |
-| `alias`               | `"Explored"`                                                    |
-| `allowedToolModes`    | Default (all three modes)                                       |
-| `historyKeepCount`    | 1 (only keeps full tree for first call)                         |
-| `historyVolatileKeys` | Custom `prepareHistoryResult` collapses tree to top-level names |
+| Property              | Value                                                  |
+|-----------------------|--------------------------------------------------------|
+| `skillName`           | `"explore_project"`                                    |
+| `alias`               | `"Explored"`                                           |
+| `allowedToolModes`    | Default (all three modes)                              |
+| `historyKeepCount`    | 3                                                      |
+| `historyVolatileKeys` | custom `compactHistory` collapses file lists to counts |
 
 **Key behavior**: Recognizes and truncates build/dependency dirs (`.git`, `build`, `node_modules`, `__pycache__`,
-`.venv`, `target`, etc.). All dotfile dirs are truncated.
+`.venv`, `target`, etc.). All dotfile dirs are truncated. Older history entries are compacted in place (counts instead
+of full path lists) rather than stripped.
 
 #### TodoSkill and CompletePlanSkill (Task planning)
 
-| Property           | Value                                                  |
-|--------------------|--------------------------------------------------------|
-| `skillName`        | `"to_do"` / `"finish_to_do_item"`                      |
-| `allowedToolModes` | `setOf(WRITE)`: **excludes READ_ONLY and SINGLE_STEP** |
+| Property           | Value                                           |
+|--------------------|-------------------------------------------------|
+| `skillName`        | `"to_do"` / `"finish_to_do_item"`               |
+| `allowedToolModes` | `setOf(AGENT)`: **excludes EDIT and READ_ONLY** |
 
 **Key behavior**: Both share a singleton `TodoManager` that maintains the in-memory task list. Reminder text is injected
 automatically after each tool call to keep the model on track.
@@ -762,22 +767,22 @@ the two views can never drift. The `SkillRegistrySchemaTest` pins this invariant
 
 ### 10.1 The three tiers
 
-| Tier          | Wire format     | UI Label   | When to use                                                                     |
-|---------------|-----------------|------------|---------------------------------------------------------------------------------|
-| `READ_ONLY`   | `"read_only"`   | Read-only  | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)                   |
-| `SINGLE_STEP` | `"single_step"` | Edit mode  | Single-shot edits (`write_file`): no multi-step planning                        |
-| `WRITE`       | `"write"`       | Agent mode | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
+| Tier        | Wire format   | UI Label   | When to use                                                                     |
+|-------------|---------------|------------|---------------------------------------------------------------------------------|
+| `READ_ONLY` | `"read_only"` | Read-only  | Pure inspection (read file, scan tree, run `cat`/`ls`/`grep`)                   |
+| `EDIT`      | `"edit"`      | Edit mode  | Single-shot edits (`write_file`): no multi-step planning                        |
+| `AGENT`     | `"agent"`     | Agent mode | Full autonomy including multi-step task planning (`to_do`, `finish_to_do_item`) |
 
 A skill should declare the **narrowest** set of tiers that covers what it does. Anything else weakens the safety net for
-the user.
+the user. (Legacy wire values `write`, `single_step`, `read_only` still parse through `ToolMode.ALIASES`.)
 
 ### 10.2 Decision table
 
-| Does the skill ...                                                | Declare `allowedToolModes`                                 | Example skills                                                            |
-|-------------------------------------------------------------------|------------------------------------------------------------|---------------------------------------------------------------------------|
-| Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, SINGLE_STEP, WRITE}` (the default: all three) | `read_file`, `explore_project`, `run_cmd` (with `classifyCommand` filter) |
-| Writes the filesystem but doesn't multi-step plan                 | `{SINGLE_STEP, WRITE}`                                     | `write_file`                                                              |
-| Drives the agent loop (initializes a task list, marks completion) | `{WRITE}`                                                  | `to_do`, `finish_to_do_item`                                              |
+| Does the skill ...                                                | Declare `allowedToolModes`               | Example skills                                                          |
+|-------------------------------------------------------------------|------------------------------------------|-------------------------------------------------------------------------|
+| Never writes the filesystem, never starts a mutating process      | `{READ_ONLY, EDIT, AGENT}` (the default) | `read_file`, `explore_project`, `grep`, `glob`, `search_web`, `run_cmd` |
+| Writes the filesystem but doesn't multi-step plan                 | `{EDIT, AGENT}`                          | `write_file`                                                            |
+| Drives the agent loop (initializes a task list, marks completion) | `{AGENT}`                                | `to_do`, `finish_to_do_item`                                            |
 
 ### 10.3 Worked example
 
@@ -787,16 +792,14 @@ class WriteFileSkill : Skill() {
     override val alias: String = "Written"
     override val description: String = "Atomic find-and-replace in a file."
 
-    // WriteFileSkill mutates the project. It is allowed in SINGLE_STEP
-    // (single-shot edit) and WRITE (full agent loop), but NEVER in
+    // WriteFileSkill mutates the project. It is allowed in EDIT
+    // (single-shot edit) and AGENT (full agent loop), but NEVER in
     // READ_ONLY. A user in READ_ONLY mode physically cannot trigger it,
     // even if the LLM hallucinates a call.
     override val allowedToolModes: Set<ToolMode> = setOf(
-        ToolMode.SINGLE_STEP,
-        ToolMode.WRITE,
+        ToolMode.EDIT,
+        ToolMode.AGENT,
     )
-
-    override val mutatesProject: Boolean = true
 
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         // ...
@@ -814,9 +817,9 @@ The agent runs the same `toolMode in skill.allowedToolModes` check at two points
    an `write_file` call in
    `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
-For a `READ_ONLY` `run_cmd`, the agent also runs `classifyCommand(...)`
-with the active `ToolMode` so `touch`, `rm`, `git commit` etc. are blocked with `COMMAND_BLOCKED` even when the schema
-filter let them through.
+For a `READ_ONLY` `run_cmd`, the agent also runs `CommandFilter.classifyCommand(...)`
+before `ProcessBuilder.start()`: `Blocked` commands return `COMMAND_BLOCKED`, and `NeedsApproval` commands pause for an
+`ask_interaction` (once / always / no) even when the schema filter let them through.
 
 ### 10.5 Testing your tier declaration
 
@@ -825,12 +828,11 @@ set must satisfy both:
 
 ```kotlin
 // SkillRegistrySchemaTest style:
-val allSkills = SkillRegistry.discoverSkills()
-val writeTier = SkillRegistry.getSchemas(ToolMode.WRITE)
-assert(writeTier.any { it.matches(yourSkill) })  // WRITE always sees everything
+val agentTier = SkillRegistry.getSchemas(toolMode = ToolMode.AGENT)
+assert(agentTier.any { it.matches(yourSkill) })  // AGENT always sees everything
 
-val readOnlyTier = SkillRegistry.getSchemas(ToolMode.READ_ONLY)
-if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.SINGLE_STEP, ToolMode.WRITE)) {
+val readOnlyTier = SkillRegistry.getSchemas(toolMode = ToolMode.READ_ONLY)
+if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.EDIT, ToolMode.AGENT)) {
     assert(readOnlyTier.any { it.matches(yourSkill) })
 } else {
     assert(readOnlyTier.none { it.matches(yourSkill) })
@@ -1063,8 +1065,9 @@ messages. That keeps local LLMs from getting overwhelmed.
 
 ### "Tool not permitted" / "Command blocked" in read-only mode
 
-- The skill's `allowedToolModes` excludes `READ_ONLY`, or `classifyCommand`
-  rejected the command. Either switch the IDE to `SINGLE_STEP`/`WRITE` mode (user action) or declare a broader
+- The skill's `allowedToolModes` excludes `READ_ONLY`, or `CommandFilter` refused the command (`Blocked` →
+  `COMMAND_BLOCKED`, `NeedsApproval` → the user answered "no" → `PERMISSION_DENIED`). Either switch the IDE
+  to `edit`/`agent` mode (user action) or declare a broader
   `allowedToolModes` (skill author action). The agent's gate is the same on both sides. The LLM is told the tool
   doesn't exist AND the runtime rejects the call if it tries anyway.
 
@@ -1123,19 +1126,27 @@ val variant = SchemaVariant.resolve("gpt-4o")        // FULL
 val variant = SchemaVariant.resolve("")               // FULL (default)
 ```
 
-### 15.2 `ModelCapability` Object
+### 15.2 `ModelIdentity.isSmallModel`
+
+Size detection lives in `ModelIdentity` (`src/main/kotlin/gradum/ModelIdentity.kt`); `SchemaVariant.resolve` is a
+thin delegate to `ModelIdentity.schemaVariant`.
 
 ```kotlin
-object ModelCapability {
-    fun isSmall(modelName: String): Boolean
+object ModelIdentity {
+    fun isCloudTagged(modelName: String): Boolean // substring "cloud", ignore case
+    fun isSmallModel(modelName: String): Boolean
+    fun schemaVariant(modelName: String): SchemaVariant // SIMPLE iff isSmallModel
 }
 ```
 
-**Detection rules:**
+**Detection rules** (in order):
 
-1. Cloud/API indicators (cloud, gpt, claude, gemini, sonnet, haiku, opus, pro, flash, turbo, mini, large, xxl) → large
-2. Parameter size tag (7b, 14b, 70b, etc.) → compare against 32B threshold
-3. Unknown/unrecognized → default to large (assume capable)
+1. Blank name → `false` (assume capable → `FULL`).
+2. Name contains any cloud keyword (`cloud`, `api`, `gpt`, `claude`, `gemini`, `sonnet`, `haiku`, `opus`, `pro`,
+   `flash`, `turbo`, `mini`, `large`, `xxl`) → `false`.
+3. Otherwise, match a parameter-size tag with `(\d+\.?\d*)b(\s|$|:|[-_])` (case-insensitive): `7b`, `14b`, `70b`,
+   `qwen2.5:14b-quant` … and compare against the 32 B threshold — `≤ 32` → `true`, `> 32` → `false`.
+4. No size tag → `false` (default to large).
 
 **Examples:**
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Agent.kt  2026-09-24 23:12:43 Changed by gwy
+ * Agent.kt  2026-09-25 19:58:46 Changed by gwy
  */
 
 @file:Suppress("RedundantUnitReturnType")
@@ -91,7 +91,7 @@ class Agent(
    * user decision; when null (tests, isolated sub-agents) `scope` stays
    * null and asking skills must fall back rather than block forever.
    */
-  private val askScopeHolder: PendingQuestions? = null,
+  askScopeHolder: PendingQuestions? = null,
 ) {
   private val ollamaClient: OllamaClient = OllamaClient(configuration)
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)

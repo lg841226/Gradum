@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
+ *
+ * InteractionTypes.kt  2026-09-25 19:58:46 Changed by gwy
  */
 
 package gradum.skill
@@ -21,7 +23,7 @@ enum class Lang(val wire: String) {
 
   companion object {
     fun fromWire(value: String?): Lang =
-      values().firstOrNull { it.wire.equals(value, ignoreCase = true) } ?: EN
+      entries.firstOrNull { it.wire.equals(value, ignoreCase = true) } ?: EN
   }
 }
 
@@ -92,7 +94,7 @@ object Choice {
     REJECT("reject");
 
     companion object {
-      fun fromWire(wire: String?): Meaning? = values().firstOrNull { it.wire == wire }
+      fun fromWire(wire: String?): Meaning? = entries.firstOrNull { it.wire == wire }
     }
   }
 }
