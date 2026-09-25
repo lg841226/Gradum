@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ProviderCoordinator.kt  2026-08-31 19:21:55 Changed by gwy
+ * ProviderCoordinator.kt  2026-09-25 17:34:58 Changed by gwy
  */
 
 package gradum.idea.provider
@@ -151,7 +151,7 @@ object ProviderCoordinator {
  * - a non-blank host that is a valid IPv4 literal or hostname
  *   (no spaces, control chars or garbage such as `/v1832483294239482394`);
  * - a port in `1..65535` when one is present;
- * - a path that is empty, `/`, `/v1` or `/v1/` — the API base prefixes
+ * - a path that is empty, `/`, `/v1` or `/v1/`: the API base prefixes
  *   these providers accept. Anything else (arbitrary junk paths) fails.
  *
  * A pure string/scheme check is not enough: users can paste garbage after

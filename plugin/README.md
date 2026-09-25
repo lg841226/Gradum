@@ -18,8 +18,8 @@ The plugin adds the following to IntelliJ IDEA:
   multi-turn conversations, tool calling, sub-agent delegation, and Markdown rendering with
   tables, LaTeX, and task lists.
 - **Git Analysis Tool Window** — Automated commit-message and PR analysis powered by AI.
-- **Multi-Provider Support** — Seamless switching between cloud-hosted and local LLM providers
-  (OpenAI, Anthropic, DeepSeek, Zhipu AI, Ollama, LM Studio, and more).
+- **Multi-Provider Support** — Seamless switching between cloud-hosted and local LLM providers (OpenAI, Anthropic,
+  DeepSeek, Zhipu AI, Ollama, LM Studio, and more).
 - **Provider Discovery** — Automatic detection of running local providers via WebSocket probe.
 - **Custom Skills** — Extensible tool system that allows the AI to read, search, edit, and run
   commands within the project.
@@ -28,12 +28,12 @@ The plugin adds the following to IntelliJ IDEA:
 
 ## Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
+| Requirement   | Version                        |
+|---------------|--------------------------------|
 | Gradum Server | 1.0.0-experimental (this repo) |
-| IntelliJ IDEA | 2026.2 (IU-262.x) |
-| JDK | 21+ (IDE runtime) |
-| Gradle | 8.x (via wrapper) |
+| IntelliJ IDEA | 2026.2 (IU-262.x)              |
+| JDK           | 21+ (IDE runtime)              |
+| Gradle        | 8.x (via wrapper)              |
 
 > The plugin is a **frontend only** — it requires the Gradum server to be running. See the
 > [main project README](../README.md#quick-start) for server setup instructions.
@@ -168,7 +168,7 @@ is accidentally declared as `implementation`. Verify the dependency block.
 ### Plugin loads but UI is broken or missing
 
 The vendored JARs may be from a different IDE build. Re-copy them from IntelliJ IDEA 2026.2
-exactly — JARs from 2025.x or 2026.1 will not work.
+exactly, JARs from 2025.x or 2026.1 will not work.
 
 ### "requires plugin ... to be installed" error at startup
 

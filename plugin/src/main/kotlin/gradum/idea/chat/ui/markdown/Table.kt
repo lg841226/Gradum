@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Table.kt  2026-08-31 19:21:55 Changed by gwy
+ * Table.kt  2026-09-25 17:34:58 Changed by gwy
  */
 @file:OptIn(ExperimentalJewelApi::class)
 @file:Suppress("UnstableApiUsage")
@@ -56,8 +56,8 @@ import org.jetbrains.jewel.ui.typography
 /**
  * [MarkdownProcessor] used across the chat UI. Adds two extensions on top of
  * stock CommonMark:
- * - `GitHubStrikethroughProcessorExtension` — `~~strike~~` support.
- * - `AutolinkProcessorExtension` — `<https://...>` and bare URLs.
+ * - `GitHubStrikethroughProcessorExtension`: `~~strike~~` support.
+ * - `AutolinkProcessorExtension`: `<https://...>` and bare URLs.
  *
  * GFM table syntax is *not* registered here: the chat UI strips GFM tables out
  * at the call site in AssistantChatBubble and renders them with [ScrollableTable].

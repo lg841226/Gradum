@@ -39,7 +39,7 @@ Please report unacceptable behavior via GitHub Issues or email.
 If you represent an organization, company, government entity, or institution and intend to use
 Gradum in an official capacity, please post a courtesy notice in
 [GitHub Discussions](https://github.com/gwy15/Gradum/discussions) before doing so. This is not
-a request for approval — it is a courtesy to the community and helps maintain transparency.
+a request for approval: it is a courtesy to the community and helps maintain transparency.
 
 This project is an independent open-source work maintained in a personal capacity. It is not
 affiliated with, endorsed by, or sponsored by any organization, corporation, government entity,
@@ -136,7 +136,7 @@ The plugin requires vendored JARs from IntelliJ IDEA 2026.2. See the
 
 All Kotlin code must follow the conventions in:
 
-* [CODING\_STANDARDS\_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md) — Kotlin conventions, file headers,
+* [CODING\_STANDARDS\_KOTLIN.md](docs/CODING_STANDARDS_KOTLIN.md): kotlin conventions, file headers,
   naming, and structure.
 
 Key points:
@@ -175,8 +175,8 @@ dependencies, will be closed without detailed review.
 
 Contributions that use AI-assisted coding tools (GitHub Copilot, Cursor, ChatGPT, etc.) must:
 
-1. **Declare it in the PR description** — state which tool (s) were used and how.
-2. **Confirm manual review of every line** — the contributor is responsible for all code,
+1. **Declare it in the PR description** state which tool (s) were used and how.
+2. **Confirm manual review of every line** the contributor is responsible for all code,
    regardless of how it was generated.
 
 AI-generated security reports, threat models, or vulnerability analyses are not accepted
