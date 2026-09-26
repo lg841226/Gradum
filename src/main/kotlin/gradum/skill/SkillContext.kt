@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SkillContext.kt  2026-08-31 19:21:55 Changed by gwy
+ * SkillContext.kt  2026-09-26 10:48:29 Changed by gwy
  */
 
 package gradum.skill
@@ -126,6 +126,19 @@ data class SkillContext(
    * [SkillContext] instance.
    */
   val authorizedMcpTools: MutableSet<String> = mutableSetOf()
+
+  /**
+   * Session-scoped registry of MCP tools materialized this session via the
+   * `mcp_tools` directory skill: once a tool is found by search, its full
+   * schema is injected into the model's tool list, and it becomes directly
+   * callable while it stays within the retention window (the last
+   * [MaterializedMcpTools.DEFAULT_MAX_ROUNDS] materialization rounds; older
+   * tools are trimmed automatically). In-memory only; a fresh session starts
+   * with only the directory skill exposed again. Not part of the
+   * constructor/equality — it lives for the lifetime of the per-session
+   * [SkillContext] instance.
+   */
+  val materializedMcpTools: MaterializedMcpTools = MaterializedMcpTools()
 
   /**
    * True when the active model wants the SIMPLE schema variant (small /

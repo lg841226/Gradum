@@ -15,6 +15,7 @@ import gradum.Provider
 import gradum.Version
 import gradum.client.*
 import gradum.debug.*
+import gradum.mcp.McpToolCatalog
 import gradum.skill.*
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
@@ -105,25 +106,33 @@ class Agent(
   private val sessionManager: SessionManager = SessionManager(configuration, emitEvent)
   private val promptLoader: SystemPromptLoader = SystemPromptLoader(configuration)
   private val guardrailManager: GuardrailManager = GuardrailManager(configuration)
+
+  /**
+   * Per-session context shared with [toolExecutor]. Carries the session-scoped
+   * [SkillContext.materializedMcpTools] set that drives which MCP tools are
+   * injected into the model's tool list this session (see [buildToolSchemas]).
+   */
+  private val skillContext: SkillContext = SkillContext(
+    emitEvent = emitEvent,
+    toolMode = configuration.toolMode,
+    provider = configuration.provider,
+    agentConfiguration = configuration,
+    modelName = configuration.modelName,
+    projectRoot = configuration.projectRoot,
+    conversationHistory = { conversationHistory.toList() },
+    registerChildSession = registerChildSession,
+    unregisterChildSession = unregisterChildSession,
+    scope = askScopeHolder?.let { holder ->
+      AskScope(
+        sessionId = configuration.sessionId.orEmpty(),
+        pendingQuestions = holder,
+        emitEvent = emitEvent,
+      )
+    },
+  )
+
   private val toolExecutor: ToolExecutor = ToolExecutor(
-    skillContext = SkillContext(
-      emitEvent = emitEvent,
-      toolMode = configuration.toolMode,
-      provider = configuration.provider,
-      agentConfiguration = configuration,
-      modelName = configuration.modelName,
-      projectRoot = configuration.projectRoot,
-      conversationHistory = { conversationHistory.toList() },
-      registerChildSession = registerChildSession,
-      unregisterChildSession = unregisterChildSession,
-      scope = askScopeHolder?.let { holder ->
-        AskScope(
-          sessionId = configuration.sessionId.orEmpty(),
-          pendingQuestions = holder,
-          emitEvent = emitEvent,
-        )
-      },
-    ), sessionManager, configuration,
+    skillContext = skillContext, sessionManager, configuration,
     conversationHistory,
     emitEvent = emitEvent
   )
@@ -190,19 +199,12 @@ class Agent(
       return
     }
 
-    val toolSchemas: List<Map<String, Any>> = SkillRegistry.getSchemas(
-      toolMode = configuration.toolMode,
-      provider = configuration.provider,
-      modelName = configuration.modelName
-    )
-
     while (true) {
       if (sessionManager.isAborted) break
 
       conversationHistory.truncate(maxHistoryMessages)
 
-      val result: AgentTurnResult = processLlmTurn(toolSchemas)
-
+      val result: AgentTurnResult = processLlmTurn(buildToolSchemas())
       result.errorMessage?.let { error ->
         emitEvent(
           GradumEventType.ERROR.wireName,
@@ -281,6 +283,23 @@ class Agent(
       "totalTokens" to activeClient.tokenUsage.totalTokens
     )
     sessionManager.abort(reason, tokenUsage)
+  }
+
+  /**
+   * Builds the tool list for the current LLM turn: the globally registered
+   * skills (including the `mcp_tools` directory skill) plus the full schemas of
+   * any MCP tools this session has materialized. Rebuilt every turn so tools
+   * materialized mid-conversation appear in the model's tool list immediately.
+   */
+  private fun buildToolSchemas(): List<Map<String, Any>> {
+    val base: List<Map<String, Any>> = SkillRegistry.getSchemas(
+      toolMode = configuration.toolMode,
+      provider = configuration.provider,
+      modelName = configuration.modelName
+    )
+    val materialized: List<Map<String, Any>> =
+      McpToolCatalog.fullSchemas(skillContext.materializedMcpTools.names, configuration.toolMode)
+    return base + materialized
   }
 
   private fun processLlmTurn(toolSchemas: List<Map<String, Any>>): AgentTurnResult {

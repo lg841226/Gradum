@@ -9,6 +9,8 @@ package gradum.server
 
 import gradum.BuildConfig
 import gradum.mcp.McpConnectionManager
+import gradum.mcp.McpToolCatalog
+import gradum.mcp.McpToolsSkill
 import gradum.skill.SkillRegistry
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
@@ -31,16 +33,18 @@ fun main(arguments: Array<String>) {
 
   CommandFilterRuntime.config = settings.commandFilter
 
-  // Connect any configured MCP servers and register their tools as skills
-  // before the HTTP server starts, so tools are available from the first call.
+  // Connect any configured MCP servers and register their tools in the catalog.
+  // Individual tools are NOT registered as skills at startup; only the `mcp_tools`
+  // directory skill is, so the model starts with a compact listing and tools are
+  // materialized (with their full schema) only when the model searches for them.
   val mcpManager = McpConnectionManager()
   if (settings.mcpServers.isNotEmpty()) {
     runBlocking {
-      val adapters = mcpManager.connect(settings.mcpServers)
-      adapters.forEach { adapter -> SkillRegistry.register(adapter) }
-      logger.info("Registered {} MCP tool(s)", adapters.size)
+      mcpManager.connect(settings.mcpServers)
     }
   }
+  SkillRegistry.register(McpToolsSkill())
+  logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)

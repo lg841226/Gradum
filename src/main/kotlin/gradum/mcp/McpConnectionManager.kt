@@ -8,7 +8,6 @@
 package gradum.mcp
 
 import gradum.mcp.transport.StdioMcpClient
-import gradum.skill.Skill
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -29,18 +28,19 @@ data class McpServerConfig(
 
 /**
  * Owns the live connections to all configured MCP servers. [connect] starts
- * each server, performs the initialize handshake, lists its tools, and wraps
- * every tool in a [McpSkillAdapter] ready for [gradum.skill.SkillRegistry], so
- * the model can call each tool directly in one step. A server that fails to
- * connect is logged and skipped — the rest still register. [close] tears down
- * every connection.
+ * each server, performs the initialize handshake, lists its tools, and registers
+ * every tool (with its full schema) in [McpToolCatalog] — the single source of
+ * truth the `mcp_tools` directory skill reads from. No individual tool is
+ * registered as a [Skill] at startup; tools become visible and callable only
+ * after the model searches for them and the directory skill materializes them
+ * into the current session. A server that fails to connect is logged and
+ * skipped — the rest still register. [close] tears down every connection.
  */
 class McpConnectionManager {
   private val clients = mutableListOf<McpClient>()
 
-  /** Connects to each [configs] entry and returns one adapter per advertised tool. */
-  suspend fun connect(configs: List<McpServerConfig>): List<Skill> {
-    val adapters = mutableListOf<Skill>()
+  /** Connects to each [configs] entry and registers every advertised tool in [McpToolCatalog]. */
+  suspend fun connect(configs: List<McpServerConfig>) {
     for ((name, command, workingDir, env) in configs) {
       try {
         val client = McpClient(
@@ -54,18 +54,18 @@ class McpConnectionManager {
         client.start()
         client.initialize()
         val tools = client.listTools()
-        tools.forEach { tool -> adapters.add(McpSkillAdapter(tool, client)) }
+        tools.forEach { tool -> McpToolCatalog.register(tool, client) }
         logger.info("Connected MCP server '{}': {} tool(s)", name, tools.size)
       } catch (connectionException: Exception) {
         logger.warn("Failed to connect MCP server '$name': ${connectionException.message}")
       }
     }
-    return adapters
   }
 
-  /** Closes every live connection. Safe to call multiple times and when nothing connected. */
+  /** Closes every live connection and drops the catalog. Safe to call multiple times and when nothing connected. */
   fun close() {
     clients.forEach { client -> runCatching { client.close() } }
     clients.clear()
+    McpToolCatalog.clear()
   }
 }

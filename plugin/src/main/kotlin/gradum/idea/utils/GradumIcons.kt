@@ -7,6 +7,7 @@
 
 package gradum.idea.utils
 
+import gradum.idea.chat.ui.chat.skill.McpToolsRenderer
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icon.PathIconKey
 
@@ -58,6 +59,8 @@ object GradumIcons {
   val Chat = PathIconKey("/icons/chat-mode/chat-mode.svg", GradumIcons::class.java)
   val Web = PathIconKey("/icons/web/web.svg", GradumIcons::class.java)
   val Github = PathIconKey("/icons/github/github.svg", GradumIcons::class.java)
+
+  val Mcp = PathIconKey("/icons/mcp/mcp.svg", GradumIcons::class.java)
 
   private val PROVIDER_KEYWORD_MAP = mapOf(
     "qwen" to ProviderAlibaba,

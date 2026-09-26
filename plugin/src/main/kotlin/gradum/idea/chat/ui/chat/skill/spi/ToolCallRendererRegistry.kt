@@ -58,6 +58,7 @@ object ToolCallRendererRegistry {
     GrepRenderer(),
     GlobRenderer(),
     SearchedRenderer(),
+    McpToolsRenderer(),
     PlannedRenderer(),
     CompletedRenderer(),
     DelegateRenderer(),
@@ -68,8 +69,10 @@ object ToolCallRendererRegistry {
    * The alias reserved for the wildcard catch-all renderer.
    * Lookups that miss every specific renderer fall back to the
    * renderer whose [ToolCallRenderer.alias] returns this value.
+   * Derives from [DefaultRenderer.WILDCARD_ALIAS] so the registry and
+   * the catch-all renderer stay in sync.
    */
-  const val DEFAULT_ALIAS: String = "Unregistered"
+  const val DEFAULT_ALIAS: String = DefaultRenderer.WILDCARD_ALIAS
 
   /**
    * Look up the renderer registered for [aliasName]. Falls back

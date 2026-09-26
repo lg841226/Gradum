@@ -54,7 +54,7 @@ class DefaultRenderer : ToolCallRenderer {
   @Composable
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     ToolCallCapsule(
-      label = content.aliasName,
+      label = humanizeToolName(content.aliasName),
       iconKey = AllIconsKeys.Nodes.Plugin,
       success = !ctx.isError,
       errorInfo = ToolCallErrorInfo(
@@ -74,4 +74,21 @@ class DefaultRenderer : ToolCallRenderer {
      */
     const val WILDCARD_ALIAS: String = "*"
   }
+}
+
+/**
+ * Convert an unregistered tool alias (typically a snake_case MCP tool
+ * name like `open_drawio_mermaid`) into a human-readable title, e.g.
+ * `Open Drawio Mermaid`. Used by the catch-all renderer so unknown MCP
+ * tools don't surface as raw identifiers in the chat bubble. Blank and
+ * wildcard aliases pass through unchanged.
+ */
+internal fun humanizeToolName(raw: String): String {
+  if (raw.isBlank() || raw == DefaultRenderer.WILDCARD_ALIAS) return raw
+  return raw
+    .split('_')
+    .filter { it.isNotBlank() }
+    .joinToString(separator = " ") { word ->
+      word.lowercase().replaceFirstChar { it.titlecase() }
+    }
 }

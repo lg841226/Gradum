@@ -11,6 +11,7 @@ import gradum.AgentConfiguration
 import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.client.ToolCallEntry
+import gradum.mcp.McpToolCatalog
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
@@ -107,7 +108,10 @@ class ToolExecutor(
     convertedArguments.remove(key = "project_root")
     convertedArguments["projectRoot"] = configuration.projectRoot
 
-    val skillInstance: Skill? = SkillRegistry.getSkill(skillName = functionName)
+    val skillInstance: Skill? =
+      SkillRegistry.getSkill(skillName = functionName)
+        ?: McpToolCatalog.adapterFor(functionName)
+          ?.takeIf { functionName in skillContext.materializedMcpTools }
     val toolAlias: String = skillInstance?.alias ?: functionName
 
     emitToolCallStart(

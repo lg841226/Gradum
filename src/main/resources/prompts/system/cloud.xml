@@ -44,6 +44,12 @@
       grep pattern must be ≥3 chars; supports regex + glob filters (*.kt, *.{kt,java}).
       Never call a tool not in your tools list. Server rejects with TOOL_NOT_PERMITTED.
   </ToolConstraints>
+    <McpDiscovery>
+        MCP tools are NOT exposed by default. Find them through
+        the `mcp_tools` skill: call it with no args to list the grouped directory, then with a
+        query to make a matching tool callable. When the user needs a capability not in your
+        built-in tools, search MCP first：don't say it is impossible.
+    </McpDiscovery>
   <ContextAwareness>
     messages = full history in order. Last user message = current input; everything before = history.
   </ContextAwareness>

@@ -45,6 +45,12 @@
        grep  pattern must be ≥3 chars; supports regex and glob filters.
        run_cmd  destructive commands on paths outside the project root are paused for user authorization.
   </ToolConstraints>
+  <McpDiscovery>
+    MCP tools are NOT exposed by default. Find them through
+    the `mcp_tools` skill: call it with no args to list the grouped directory, then with a
+    query to make a matching tool callable. When the user needs a capability not in your
+    built-in tools, search MCP first：don't say it is impossible.
+  </McpDiscovery>
   <ErrorCodes>
     FILE_NOT_FOUND      path missing; use explore_project.
     CODE_NOT_FOUND      re-read file; oldString needs 2-3 lines of surrounding context.

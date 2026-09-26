@@ -12,9 +12,13 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
+
+private val logger: Logger = LoggerFactory.getLogger("JsonRpcSession")
 
 /**
  * Concurrent request/response dispatcher for JSON-RPC 2.0.
@@ -71,7 +75,18 @@ internal class JsonRpcSession(
    * background reader can dispatch responses as they arrive.
    */
   fun handleFrame(jsonString: String) {
-    val message = json.parseToJsonElement(jsonString).jsonObject
+    val message: JsonObject? =
+      try {
+        json.parseToJsonElement(jsonString).jsonObject
+      } catch (decodeException: Exception) {
+        // The MCP stdio spec says stdout must carry only newline-delimited
+        // JSON-RPC frames, but some servers (e.g. location-mcp) print a startup
+        // banner or log line to stdout anyway. Drop such non-JSON frames rather
+        // than crashing the reader coroutine and taking the whole transport down.
+        logger.debug("Dropping non-JSON frame from MCP server: $jsonString", decodeException)
+        null
+      }
+    if (message == null) return
     if (message.containsKey("id")) {
       handleResponse(message)
     } else {

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * Skill.kt  2026-09-25 02:05:52 Changed by gwy
+ * Skill.kt  2026-09-26 10:48:59 Changed by gwy
  */
 
 package gradum.skill
@@ -13,9 +13,9 @@ import gradum.utils.JsonUtil.decodeMap
 import gradum.utils.JsonUtil.encodeMap
 
 abstract class Skill {
+  abstract val alias: String
   abstract val skillName: String
   abstract val description: String
-  abstract val alias: String
 
   /**
    * The [ToolMode] values under which this skill may execute.
@@ -48,17 +48,22 @@ abstract class Skill {
   /**
    * Returns the OpenAI-compatible function schema for this skill.
    *
-   * A final template method: it decides whether the active model is simple by
+   * A template method: it decides whether the active model is simple by
    * reading [SkillContext.isSimpleModel], then renders [schemaProperties]
    * through the [SchemaBuilder] DSL. A skill declares its parameters once and
    * never branches on simple vs cloud here.
+   *
+   * Open so that external adapters (e.g. MCP tool wrappers whose JSON Schema
+   * the DSL cannot faithfully express) can override it and emit their full
+   * native schema envelope instead.
    */
-  fun getSchema(context: SkillContext? = null): Map<String, Any> {
+  open fun getSchema(context: SkillContext? = null): Map<String, Any> {
     val useSimple: Boolean = context?.isSimpleModel == true
     return buildFunctionSchema(
       useSimple = useSimple,
       description =
-        if (useSimple) (simpleDescription ?: description) else description,
+        if (useSimple) (simpleDescription ?: description)
+        else description,
     ) {
       schemaProperties()
     }

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.ChatMessage
 import gradum.idea.chat.model.ErrorCode
 import gradum.idea.chat.model.RenderBlock
+import gradum.idea.chat.ui.chat.skill.humanizeToolName
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallCapsule
 import gradum.idea.chat.ui.chat.skill.internal.ToolCallErrorInfo
 import gradum.idea.chat.ui.chat.skill.internal.formatToolDetails
@@ -241,7 +242,7 @@ fun ToolCallBlock(
       )
     } else ""
     ToolCallCapsule(
-      label = block.alias,
+      label = humanizeToolName(block.alias),
       iconKey = AllIconsKeys.Nodes.Plugin,
       success = block.success,
       errorInfo = ToolCallErrorInfo(
@@ -264,6 +265,11 @@ fun ToolCallBlock(
       arguments = delegateArgs,
       result = parseJsonResult(serializedResult = block.result)
     )
+  // The catch-all renderer can't see `block.alias` (parseContent only gets
+  // arguments + result), so surface the real tool name through the content.
+  val displayContent: ToolCallContent =
+    if (renderer.alias() == ToolCallRendererRegistry.DEFAULT_ALIAS) content.copy(aliasName = block.alias)
+    else content
   val toolDetails: String? =
     if (!block.success) {
       formatToolDetails(
@@ -299,7 +305,7 @@ fun ToolCallBlock(
       onSubChatClick = onSubChatClick,
     )
   Box(modifier = Modifier.horizontalScroll(state = rememberScrollState())) {
-    renderer.render(content, ctx)
+    renderer.render(displayContent, ctx)
   }
 }
 

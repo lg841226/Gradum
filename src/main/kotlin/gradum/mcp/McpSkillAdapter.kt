@@ -21,11 +21,12 @@ import kotlinx.serialization.json.*
  * Exposes a single MCP server [McpTool] to Gradum's skill system as a [Skill],
  * so the model can call it directly in one step (e.g. `browser_navigate(url=...)`).
  *
- * The schema is deliberately trimmed to keep the model context small: only the
- * tool's required parameters are surfaced (plus the tool's trimmed native
- * description). Verbose optional properties are dropped, so the model sees a
- * compact definition instead of the tool's full JSON Schema. [execute] forwards
- * the caller's arguments to the server via [McpClient.callTool].
+ * Unlike an ordinary [gradum.skill.Skill], the schema is NOT trimmed: [getSchema]
+ * emits the tool's full native JSON Schema (every property plus `required`), so
+ * the model sees the complete parameter surface instead of only required fields.
+ * This adapter is used for tools materialized on demand via [McpToolCatalog] —
+ * it is never registered for all tools at startup. [execute] forwards the
+ * caller's arguments to the server via [McpClient.callTool].
  *
  * Because [Skill.execute] is synchronous while the transport is coroutine-based,
  * [execute] bridges with [runBlocking]; the response is handled on the
@@ -38,33 +39,38 @@ internal class McpSkillAdapter(
 ) : Skill() {
 
   override val skillName: String get() = tool.name
-  override val description: String get() = trimmedDescription(tool.description ?: "MCP tool ${tool.name}")
+  override val description: String get() = tool.description ?: "MCP tool ${tool.name}"
   override val alias: String get() = tool.name
 
   /** External MCP tools may mutate arbitrary state; exclude READ_ONLY. */
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
-  private val properties: JsonObject = tool.inputSchema["properties"]?.jsonObject ?: buildJsonObject {}
-  private val requiredNames: Set<String> = tool.inputSchema["required"]
-    ?.jsonArray
-    ?.mapNotNull { (it as? JsonPrimitive)?.content }
-    ?.toSet()
-    ?: emptySet()
-
-  override val schemaProperties: SchemaBuilder.() -> Unit = {
-    for (propertyName in requiredNames.sorted()) {
-      val propertySchema: JsonObject = properties[propertyName]?.jsonObject ?: buildJsonObject {}
-      val propertyDescription: String =
-        (propertySchema["description"] as? JsonPrimitive)?.content ?: ""
-
-      when ((propertySchema["type"] as? JsonPrimitive)?.content) {
-        "integer", "number" -> integer(propertyName, propertyDescription, required = true)
-        "boolean" -> boolean(propertyName, propertyDescription, required = true)
-        "array" -> stringArray(propertyName, propertyDescription, required = true)
-        else -> string(propertyName, propertyDescription, required = true)
-      }
-    }
+  /** Full native schema; the [SchemaBuilder] DSL cannot faithfully express arbitrary JSON Schema. */
+  override fun getSchema(context: SkillContext?): Map<String, Any> {
+    val requiredNames: List<String> = tool.inputSchema["required"]
+      ?.jsonArray
+      ?.mapNotNull { (it as? JsonPrimitive)?.content }
+      ?: emptyList()
+    @Suppress("UNCHECKED_CAST")
+    val propertyMap: Map<String, Any> =
+      (JsonUtil.fromJsonElement(tool.inputSchema["properties"] ?: buildJsonObject {}) as? Map<String, Any>)
+        ?: emptyMap()
+    return mapOf(
+      "type" to "function",
+      "function" to mapOf(
+        "name" to skillName,
+        "description" to description,
+        "parameters" to mapOf(
+          "type" to "object",
+          "required" to requiredNames,
+          "properties" to propertyMap,
+        ),
+      ),
+    )
   }
+
+  /** Unused because [getSchema] is overridden; kept to satisfy the abstract [Skill.schemaProperties]. */
+  override val schemaProperties: SchemaBuilder.() -> Unit = {}
 
   override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val jsonArguments: JsonObject = JsonUtil.toJsonElement(arguments).jsonObject
@@ -141,13 +147,5 @@ internal class McpSkillAdapter(
       if (textBlocks.isNotEmpty()) return textBlocks.joinToString(separator = "\n")
     }
     return resultElement.toString()
-  }
-
-  private fun trimmedDescription(description: String): String =
-    if (description.length > DESCRIPTION_TRIM_LENGTH) description.take(DESCRIPTION_TRIM_LENGTH) + "..."
-    else description
-
-  private companion object {
-    const val DESCRIPTION_TRIM_LENGTH = 100
   }
 }
