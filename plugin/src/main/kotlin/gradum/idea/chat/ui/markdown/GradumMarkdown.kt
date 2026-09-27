@@ -22,7 +22,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -238,7 +237,6 @@ private fun StaticGradumSegment(
                 val density = LocalDensity.current
                 val badgeColor = JewelTheme.globalColors.text.info
                 val backgroundColor = badgeColor.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA)
-                val borderColor = badgeColor.copy(alpha = MarkdownStyle.InlineCode.CHIP_BORDER_ALPHA)
                 Text(
                   style = resolvedStyle,
                   text = inlineSegment.annotated,
@@ -247,7 +245,6 @@ private fun StaticGradumSegment(
                   modifier = Modifier.drawWithContent {
                     drawInlineCodeBackgrounds(
                       density = density,
-                      borderColor = borderColor,
                       backgroundColor = backgroundColor,
                       fontSize = resolvedStyle.fontSize,
                       textLayoutResult = textLayoutResult,
@@ -386,7 +383,6 @@ private fun resolveParagraphStyle(baseStyle: TextStyle, config: GradumMarkdownSc
  */
 private fun DrawScope.drawInlineCodeBackgrounds(
   density: Density,
-  borderColor: Color,
   fontSize: TextUnit,
   backgroundColor: Color,
   textLayoutResult: TextLayoutResult?,
@@ -399,7 +395,9 @@ private fun DrawScope.drawInlineCodeBackgrounds(
   val chipHeightPx: Float = with(receiver = density) {
     fontSize.toPx() * MarkdownStyle.InlineCode.CHIP_HEIGHT_MULTIPLIER
   }
-  val borderWidth: Float = MarkdownStyle.InlineCode.CHIP_BORDER_WIDTH.toPx()
+  val chipPadPx: Float = with(receiver = density) {
+    MarkdownStyle.InlineCode.CHIP_PADDING_HORIZONTAL.toPx()
+  }
 
   for ((_, start, end) in codeSpanAnnotations) {
     if (start >= end) continue
@@ -416,8 +414,8 @@ private fun DrawScope.drawInlineCodeBackgrounds(
       if (segmentStartOffset >= segmentEndOffset) continue
 
       val lineBaseline = layoutResult.getLineBaseline(lineIndex)
-      val leftX = layoutResult.getBoundingBox(segmentStartOffset).left
-      val rightX = layoutResult.getBoundingBox(offset = segmentEndOffset - 1).right
+      val leftX = layoutResult.getBoundingBox(segmentStartOffset).left - chipPadPx
+      val rightX = layoutResult.getBoundingBox(offset = segmentEndOffset - 1).right + chipPadPx
       val chipTopY = lineBaseline - chipHeightPx * MarkdownStyle.InlineCode.CHIP_BASELINE_RATIO
 
       val chipSize = Size(
@@ -434,13 +432,6 @@ private fun DrawScope.drawInlineCodeBackgrounds(
         color = backgroundColor,
         topLeft = Offset(leftX, chipTopY),
         cornerRadius = chipCornerRadius
-      )
-      drawRoundRect(
-        size = chipSize,
-        color = borderColor,
-        topLeft = Offset(leftX, chipTopY),
-        cornerRadius = chipCornerRadius,
-        style = Stroke(width = borderWidth)
       )
     }
   }

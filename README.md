@@ -24,8 +24,8 @@
 ## Screenshots
 
 <div align="center">
-  <img src="docs/screenshots/Dark.png" alt="Gradum in IntelliJ IDEA (dark)" width="50%"/>
-  <img src="docs/screenshots/Light.png" alt="Gradum in IntelliJ IDEA (light)" width="50%"/>
+  <img src="docs/screenshots/Light.png" alt="Gradum in IntelliJ IDEA (dark)" width="50%"/>
+  <img src="docs/screenshots/Dark.png" alt="Gradum in IntelliJ IDEA (light)" width="50%"/>
 </div>
 
 ## Getting Started

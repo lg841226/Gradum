@@ -37,9 +37,7 @@ class DefaultRenderer : ToolCallRenderer {
 
   override fun labelKey(): String? = null
 
-  override fun parseContent(
-    arguments: Map<String, Any?>, result: Map<String, Any?>
-  ): ToolCallContent {
+  override fun parseContent(arguments: Map<String, Any?>, result: Map<String, Any?>): ToolCallContent {
     val aliasName: String = arguments
       .string(key = "alias").ifEmpty {
         result.string(key = "alias key = , ")
@@ -55,7 +53,7 @@ class DefaultRenderer : ToolCallRenderer {
   override fun render(content: ToolCallContent, ctx: ToolCallRenderContext) {
     ToolCallCapsule(
       label = humanizeToolName(content.aliasName),
-      iconKey = AllIconsKeys.Nodes.Plugin,
+      iconKey = AllIconsKeys.General.Groups,
       success = !ctx.isError,
       errorInfo = ToolCallErrorInfo(
         detail = ctx.errorDetail.orEmpty(),

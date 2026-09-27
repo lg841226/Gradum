@@ -9,6 +9,8 @@ package gradum.idea.chat.ui.chat.skill
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
@@ -27,6 +31,7 @@ import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticalScrollbar
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
@@ -135,44 +140,56 @@ class McpToolsRenderer : ToolCallRenderer {
       }
 
       AnimatedVisibility(visible = isExpanded) {
-        if (groups.isNotEmpty()) {
+        val capHeight: Boolean = total > MCP_LIST_SCROLL_THRESHOLD
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .then(
+              if (capHeight) Modifier.heightIn(max = MCP_LIST_MAX_HEIGHT_DP)
+              else Modifier
+            )
+        ) {
+          val scrollState = rememberScrollState()
           Column(
             modifier = Modifier
               .fillMaxWidth()
+              .then(if (capHeight) Modifier.verticalScroll(scrollState) else Modifier)
               .padding(start = GradumSpacing.md),
             verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
           ) {
             Spacer(modifier = Modifier.height(GradumSpacing.sml))
-            groups.forEach { group ->
-              val groupName: String = (group["group"] as? String).orEmpty()
+            if (groups.isNotEmpty()) {
+              groups.forEach { group ->
+                val groupName: String = (group["group"] as? String).orEmpty()
 
-              @Suppress("UNCHECKED_CAST")
-              val groupTools: List<Map<String, Any>> =
-                (group["tools"] as? List<Map<String, Any>>) ?: emptyList()
-              if (groupName.isNotBlank()) {
-                Text(
-                  text = groupName,
-                  style = bodyStyle,
-                  color = disabledColor,
-                  fontWeight = FontWeight.Medium
-                )
+                @Suppress("UNCHECKED_CAST")
+                val groupTools: List<Map<String, Any>> =
+                  (group["tools"] as? List<Map<String, Any>>) ?: emptyList()
+                if (groupName.isNotBlank()) {
+                  Text(
+                    text = groupName,
+                    style = bodyStyle,
+                    color = disabledColor,
+                    fontWeight = FontWeight.Medium
+                  )
+                }
+                groupTools.forEach { tool ->
+                  ToolRow(infoColor, textColor, bodyStyle, tool)
+                }
               }
-              groupTools.forEach { tool ->
+            } else if (tools.isNotEmpty()) {
+              tools.forEach { tool ->
                 ToolRow(infoColor, textColor, bodyStyle, tool)
               }
             }
           }
-        } else if (tools.isNotEmpty()) {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(start = GradumSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
-          ) {
-            Spacer(modifier = Modifier.height(GradumSpacing.sml))
-            tools.forEach { tool ->
-              ToolRow(infoColor, textColor, bodyStyle, tool)
-            }
+          if (capHeight) {
+            VerticalScrollbar(
+              scrollState = scrollState,
+              modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+            )
           }
         }
       }
@@ -208,7 +225,10 @@ class McpToolsRenderer : ToolCallRenderer {
           Text(
             color = infoColor,
             style = bodyStyle,
-            text = description
+            text = description,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
           )
         }
       }
@@ -219,5 +239,11 @@ class McpToolsRenderer : ToolCallRenderer {
     const val ALIAS: String = "MCP Tools"
     const val LABEL_KEY: String = "gradum.tool.mcp"
     const val LABEL_KEY_DISPLAY: String = "gradum.tool.mcp.tools.display"
+
+    /** Height cap for the expanded tool list; taller lists scroll with a native scrollbar. */
+    val MCP_LIST_MAX_HEIGHT_DP: Dp = 560.dp
+
+    /** The height cap and scrollbar only engage once the tool count exceeds this. */
+    const val MCP_LIST_SCROLL_THRESHOLD: Int = 20
   }
 }

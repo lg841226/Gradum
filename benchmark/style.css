@@ -274,3 +274,46 @@ body {
 .note a:hover {
     color: var(--accent-strong);
 }
+
+/* ---------------------------------------------------------------------------
+ * Feature Cloud (shared by feature.html)
+ * ------------------------------------------------------------------------- */
+
+.cloud {
+    width: var(--row-width);
+}
+
+.cloud-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 50px;
+    margin: 40px 0;
+    justify-content: center;
+}
+
+.term {
+    white-space: nowrap;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    user-select: none;
+    cursor: default;
+}
+
+/* important: blue gradient */
+.term.grad {
+    background: var(--fill-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* normal: body text */
+.term.normal {
+    color: var(--text);
+}
+
+/* minor: muted gray */
+.term.minor {
+    color: var(--muted);
+}

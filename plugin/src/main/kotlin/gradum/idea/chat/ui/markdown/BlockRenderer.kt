@@ -22,7 +22,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString.Range
 import androidx.compose.ui.text.TextLayoutResult
@@ -881,7 +880,6 @@ private fun RenderInlineRender(
           val density: Density = LocalDensity.current
           val badgeColor: Color = JewelTheme.globalColors.text.info
           val backgroundColor: Color = badgeColor.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA)
-          val borderColor: Color = badgeColor.copy(alpha = MarkdownStyle.InlineCode.CHIP_BORDER_ALPHA)
           Text(
             style = resolvedStyle,
             text = segment.annotated,
@@ -895,7 +893,6 @@ private fun RenderInlineRender(
                     density = density,
                     layoutResult = this,
                     style = resolvedStyle,
-                    borderColor = borderColor,
                     codeSpans = codeSpanAnnotations,
                     backgroundColor = backgroundColor
                   )
@@ -917,7 +914,7 @@ private fun RenderInlineRender(
 }
 
 /**
- * Draws the rounded background + border chip behind each inline-code span.
+ * Draws the rounded background chip behind each inline-code span.
  *
  * Works at line granularity so a multi-line code span gets one chip per line.
  * [layoutResult] is the Text layout used to resolve offsets to geometry; [style]
@@ -927,7 +924,6 @@ private fun RenderInlineRender(
 private fun DrawScope.drawInlineCodeChips(
   density: Density,
   style: TextStyle,
-  borderColor: Color,
   backgroundColor: Color,
   codeSpans: List<Range<String>>,
   layoutResult: TextLayoutResult
@@ -937,6 +933,9 @@ private fun DrawScope.drawInlineCodeChips(
   val cornerRadiusPx: Float = MarkdownStyle.InlineCode.CORNER_RADIUS.toPx()
   val chipHeightPx: Float = with(receiver = density) {
     style.fontSize.toPx() * MarkdownStyle.InlineCode.CHIP_HEIGHT_MULTIPLIER
+  }
+  val chipPadPx: Float = with(receiver = density) {
+    MarkdownStyle.InlineCode.CHIP_PADDING_HORIZONTAL.toPx()
   }
 
   for ((_, start: Int, end: Int) in codeSpans) {
@@ -951,8 +950,8 @@ private fun DrawScope.drawInlineCodeChips(
       val segmentEnd: Int = minOf(a = end, b = lineEnd)
       if (segmentStart >= segmentEnd) continue
 
-      val left: Float = layoutResult.getBoundingBox(offset = segmentStart).left
-      val right: Float = layoutResult.getBoundingBox(offset = segmentEnd - 1).right
+      val left: Float = layoutResult.getBoundingBox(offset = segmentStart).left - chipPadPx
+      val right: Float = layoutResult.getBoundingBox(offset = segmentEnd - 1).right + chipPadPx
       val baseline: Float = layoutResult.getLineBaseline(lineIndex = line)
       val chipTop: Float = baseline - chipHeightPx * MarkdownStyle.InlineCode.CHIP_BASELINE_RATIO
       val chipOrigin = Offset(x = left, y = chipTop)
@@ -963,13 +962,6 @@ private fun DrawScope.drawInlineCodeChips(
         topLeft = chipOrigin,
         size = chipSize,
         cornerRadius = CornerRadius(cornerRadiusPx, y = cornerRadiusPx)
-      )
-      drawRoundRect(
-        color = borderColor,
-        topLeft = chipOrigin,
-        size = chipSize,
-        cornerRadius = CornerRadius(cornerRadiusPx, y = cornerRadiusPx),
-        style = Stroke(width = MarkdownStyle.InlineCode.CHIP_BORDER_WIDTH.toPx())
       )
     }
   }

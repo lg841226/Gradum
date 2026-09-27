@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MarkdownConstants.kt  2026-08-31 19:21:55 Changed by gwy
+ * MarkdownConstants.kt  2026-09-26 12:29:11 Changed by gwy
  */
 
 package gradum.idea.chat.ui.markdown
@@ -21,7 +21,7 @@ internal object MarkdownStyle {
     val CORNER_RADIUS: Dp = GradumSpacing.sm
     val PADDING_VERTICAL: Dp = GradumSpacing.xs
     val PADDING_HORIZONTAL: Dp = GradumSpacing.sm
-    val CHIP_BORDER_WIDTH: Dp = 0.5.dp
+    val CHIP_PADDING_HORIZONTAL: Dp = 1.dp
     const val BACKGROUND_ALPHA: Float = 0.16f
     const val CHIP_BORDER_ALPHA: Float = 0.3f
     const val CHIP_BASELINE_RATIO: Float = 0.75f
