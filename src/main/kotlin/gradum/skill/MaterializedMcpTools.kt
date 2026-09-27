@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * MaterializedMcpTools.kt  2026-09-26 11:18:02 Changed by gwy
+ * MaterializedMcpTools.kt  2026-09-27 13:43:21 Changed by gwy
  */
+
 package gradum.skill
 
 /**

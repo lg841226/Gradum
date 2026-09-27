@@ -12,6 +12,7 @@ import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
 import gradum.skill.external.ExternalSkillDirectoryScanner
+import gradum.skill.external.ExternalSkillDirectoryWatcher
 import gradum.skill.SkillRegistry
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
@@ -46,8 +47,11 @@ fun main(arguments: Array<String>) {
   }
   SkillRegistry.register(McpToolsSkill())
   // Compile and register any developer-authored `.kt` skills dropped into
-  // `~/.gradum/skills/`. Runs once at startup; hot reload is a later step.
-  ExternalSkillDirectoryScanner().scan()
+  // `~/.gradum/skills/`, then watch the directory so add/edit/delete hot-reloads
+  // without restarting the server.
+  val skillScanner = ExternalSkillDirectoryScanner()
+  skillScanner.scan()
+  val skillWatcher = ExternalSkillDirectoryWatcher(skillScanner).start()
   logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =
@@ -92,6 +96,7 @@ fun main(arguments: Array<String>) {
   val server: GradumServer = createServerInstance(serverConfiguration)
 
   Runtime.getRuntime().addShutdownHook(Thread {
+    skillWatcher.close()
     mcpManager.close()
     server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
     logger.info("Gradum Server has been shut down successfully")
@@ -100,6 +105,7 @@ fun main(arguments: Array<String>) {
   try {
     server.start(wait = true)
   } catch (bindException: BindException) {
+    skillWatcher.close()
     logger.error(
       "Port $resolvedPort on ${settings.host} is already in use (${bindException.message}). " +
         "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."

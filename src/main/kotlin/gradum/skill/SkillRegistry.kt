@@ -29,7 +29,7 @@ private val logger: Logger = LoggerFactory.getLogger("SkillRegistry")
  * Discovers [Skill] implementations at runtime by scanning the
  * `gradum.skill.builtin` package for concrete classes extending [Skill].
  */
-object SkillRegistry {
+object SkillRegistry : SkillStore {
 
   private const val SKILL_PACKAGE = "gradum.skill.builtin"
 
@@ -45,7 +45,7 @@ object SkillRegistry {
   }
 
   /** Returns the skill registered under [skillName], or null. */
-  fun getSkill(skillName: String): Skill? {
+  override fun getSkill(skillName: String): Skill? {
     return registeredSkills[skillName]
   }
 
@@ -56,8 +56,18 @@ object SkillRegistry {
    * rather than via classpath scanning. Thread-safe (backing store is a
    * [ConcurrentHashMap]).
    */
-  fun register(skill: Skill) {
+  override fun register(skill: Skill) {
     registeredSkills[skill.skillName] = skill
+  }
+
+  /**
+   * Removes the skill registered under [skillName] and returns the removed
+   * instance, or null when no such skill is registered. Used by the external
+   * skill hot-reload to drop a skill whose `.kt` source was deleted from the
+   * skills directory. Thread-safe (backing store is a [ConcurrentHashMap]).
+   */
+  override fun unregister(skillName: String): Skill? {
+    return registeredSkills.remove(skillName)
   }
 
   /**

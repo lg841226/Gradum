@@ -2,94 +2,187 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * ExternalSkillDirectoryScanner.kt  2026-09-27 11:49:08 Changed by gwy
+ * ExternalSkillDirectoryScanner.kt  2026-09-27 13:27:35 Changed by gwy
  */
 
 package gradum.skill.external
 
 import gradum.skill.Skill
 import gradum.skill.SkillRegistry
+import gradum.skill.SkillStore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /** The subdirectory under `~/.gradum/` that holds drop-in `.kt` skills. */
 internal const val SKILLS_DIR_NAME: String = "skills"
 
 /**
- * Scans `~/.gradum/skills/` at startup, compiles every `.kt` skill with
+ * Compiles every `.kt` skill under `~/.gradum/skills/` with
  * [ExternalSkillCompiler], loads the output with [ExternalSkillClassLoader],
- * and registers each skill through [SkillRegistry.register] so it is callable
- * from the next agent turn.
+ * and reconciles them into the [SkillStore] so each becomes callable from the
+ * next agent turn.
  *
- * First run creates the directory and drops a `HelloSkill.kt` starter so a
- * developer sees the shape of a skill without reading the docs. Hot reload
- * (watching the directory for changes) is deliberately out of scope for this
- * first version — only the startup pass runs.
+ * [reconcile] is the single idempotent entry point: it is run once at startup
+ * (via [scan]) and again by [ExternalSkillDirectoryWatcher] on any change to
+ * the directory. First run creates the directory and drops a `HelloSkill.kt`
+ * starter so a developer sees the shape of a skill without reading the docs.
  */
 class ExternalSkillDirectoryScanner(
   private val homeDirectory: File = File(System.getProperty("user.home")),
-  private val registry: SkillRegistry = SkillRegistry,
+  private val registry: SkillStore = SkillRegistry,
 ) {
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillDirectoryScanner")
   private val compiler = ExternalSkillCompiler()
 
+  /** The skills directory (`~/.gradum/skills/`). */
+  val skillsDirectory: File = homeDirectory.resolve(".gradum").resolve(SKILLS_DIR_NAME)
+
   /**
-   * Runs the startup pass: ensure the directory exists, compile and register
-   * every `.kt` skill found. A compilation failure logs the diagnostics and
-   * leaves the registry untouched rather than crashing startup.
+   * Skills registered by this scanner, keyed by name. Only these are ever
+   * unregistered on reload — built-in and MCP skills are never touched.
+   */
+  private val externalOwned: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
+
+  /**
+   * Runs the startup pass: ensure the directory exists (writing the starter
+   * skill on first run) and then reconcile whatever is present.
    */
   fun scan() {
-    val skillsDirectory = homeDirectory.resolve(".gradum").resolve(SKILLS_DIR_NAME)
     if (!skillsDirectory.exists()) {
       skillsDirectory.mkdirs()
       writeStarterSkill(skillsDirectory)
       logger.info("Created external skills directory at {}", skillsDirectory.absolutePath)
       return
     }
+    reconcile()
+  }
 
-    val sources = skillsDirectory.listFiles { file -> file.isFile && file.extension == "kt" }
-      ?.sortedBy { file -> file.name }
-      ?.toList()
-      .orEmpty()
-    if (sources.isEmpty()) return
+  /**
+   * Recompiles the current `.kt` sources and reconciles them into the
+   * registry: registers new/changed skills, and unregisters external skills
+   * whose source file disappeared. A compilation failure leaves the registry
+   * untouched (last-good) rather than dropping every skill.
+   */
+  @Synchronized
+  fun reconcile() {
+    if (!skillsDirectory.exists()) {
+      unloadAllExternal()
+      return
+    }
 
+    val sources = listKtSources()
     val outputDirectory = skillsDirectory.resolve(".build")
+    if (sources.isEmpty()) {
+      wipeOutputDirectory(outputDirectory)
+      unloadAllExternal()
+      return
+    }
+
+    wipeOutputDirectory(outputDirectory)
     val result = compiler.compile(sources, outputDirectory, runtimeClasspath())
     result.warnings.forEach { warning -> logger.warn("External skill compile warning: {}", warning) }
     if (!result.isSuccess) {
       logger.error(
-        "External .kt skills failed to compile and were skipped: {}",
+        "External .kt skills failed to compile; keeping previously-loaded skills: {}",
         result.errors.joinToString(separator = "\n")
       )
       return
     }
 
+    val loadedByName = loadSkillsByName(outputDirectory)
+    unloadMissingExternal(loadedByName.keys)
+    registerOrSkipLoaded(loadedByName)
+  }
+
+  /**
+   * Returns a stable fingerprint of the current `.kt` sources, used by the
+   * watcher to skip redundant reloads when nothing changed. Only source files
+   * are considered — never the `.build` output, so compiled artifacts cannot
+   * re-trigger a reload.
+   */
+  internal fun currentFingerprint(): String {
+    if (!skillsDirectory.exists()) return ""
+    return listKtSources()
+      .map { file -> "${file.name}:${file.lastModified()}:${file.length()}" }
+      .joinToString("|")
+  }
+
+  private fun listKtSources(): List<File> =
+    skillsDirectory.listFiles { file -> file.isFile && file.extension == "kt" }
+      ?.sortedBy { file -> file.name }
+      ?.toList()
+      .orEmpty()
+
+  private fun loadSkillsByName(outputDirectory: File): Map<String, Skill> {
     val classLoader = ExternalSkillClassLoader(Skill::class.java.classLoader, outputDirectory)
-    val registeredThisScan = mutableSetOf<String>()
+    val loadedByName = mutableMapOf<String, Skill>()
+    val seenNames = mutableSetOf<String>()
     classLoader.loadSkills().forEach { skill ->
       val skillName = skill.skillName
-      val collidesWithBuiltIn = registry.getSkill(skillName) != null && skillName !in registeredThisScan
-      val redefinedWithinScan = skillName in registeredThisScan
+      if (skillName in seenNames) {
+        logger.warn("External skill '{}' redefined by another .kt file; the latest definition wins", skillName)
+      }
+      seenNames += skillName
+      loadedByName[skillName] = skill
+    }
+    return loadedByName
+  }
+
+  /** Unregisters external skills whose source file is no longer present. */
+  private fun unloadMissingExternal(loadedNames: Set<String>) {
+    val removedNames = externalOwned.keys.filterNot { name -> name in loadedNames }
+    for (name in removedNames) {
+      val owned = externalOwned[name]
+      if (owned != null && registry.getSkill(name) === owned) {
+        registry.unregister(name)
+        logger.info("Unregistered external skill '{}'", name)
+      }
+      externalOwned.remove(name)
+    }
+  }
+
+  /** Registers new skills, re-registers reloaded ones, skips name collisions. */
+  private fun registerOrSkipLoaded(loadedByName: Map<String, Skill>) {
+    for ((name, skill) in loadedByName) {
       when {
-        collidesWithBuiltIn -> {
-          logger.warn("Skipping external skill '{}': name collides with an already-registered skill", skillName)
+        externalOwned.containsKey(name) -> {
+          registry.register(skill)
+          externalOwned[name] = skill
+          logger.info("Reloaded external skill '{}'", name)
         }
 
-        redefinedWithinScan -> {
-          logger.warn("External skill '{}' redefined by another .kt file; the latest definition wins", skillName)
-          registry.register(skill)
-          registeredThisScan += skillName
+        registry.getSkill(name) != null -> {
+          logger.warn("Skipping external skill '{}': name collides with an already-registered skill", name)
         }
 
         else -> {
           registry.register(skill)
-          registeredThisScan += skillName
-          logger.info("Registered external skill '{}'", skillName)
+          externalOwned[name] = skill
+          logger.info("Registered external skill '{}'", name)
         }
       }
     }
+  }
+
+  private fun unloadAllExternal() {
+    val names = externalOwned.keys.toList()
+    for (name in names) {
+      val owned = externalOwned[name]
+      if (owned != null && registry.getSkill(name) === owned) {
+        registry.unregister(name)
+        logger.info("Unregistered external skill '{}'", name)
+      }
+      externalOwned.remove(name)
+    }
+  }
+
+  /** Empties and recreates [outputDirectory] so stale `.class` files cannot survive a reload. */
+  private fun wipeOutputDirectory(outputDirectory: File) {
+    if (outputDirectory.exists()) outputDirectory.deleteRecursively()
+    outputDirectory.mkdirs()
   }
 
   private fun runtimeClasspath(): List<String> =
