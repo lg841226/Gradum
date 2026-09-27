@@ -102,6 +102,8 @@ dependencies {
   implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+  // Runtime compilation of external `.kt` skills dropped into `.gradum/skills/`.
+  implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.0")
   implementation("ch.qos.logback:logback-classic:1.5.25")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
   detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")

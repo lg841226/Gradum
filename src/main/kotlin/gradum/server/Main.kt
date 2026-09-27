@@ -11,6 +11,7 @@ import gradum.BuildConfig
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
+import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.SkillRegistry
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
@@ -44,6 +45,9 @@ fun main(arguments: Array<String>) {
     }
   }
   SkillRegistry.register(McpToolsSkill())
+  // Compile and register any developer-authored `.kt` skills dropped into
+  // `~/.gradum/skills/`. Runs once at startup; hot reload is a later step.
+  ExternalSkillDirectoryScanner().scan()
   logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =

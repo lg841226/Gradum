@@ -9,6 +9,7 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.builtin.WebSearchSkill
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

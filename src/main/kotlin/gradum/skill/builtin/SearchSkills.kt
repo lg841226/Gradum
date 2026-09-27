@@ -4,9 +4,19 @@
  *
  * SearchSkills.kt  2026-08-31 19:21:55 Changed by gwy
  */
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.*
+import gradum.skill.IntConstraints
+import gradum.skill.ResolvedProjectPath
+import gradum.skill.SchemaBuilder
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.boolean
+import gradum.skill.buildXmlError
+import gradum.skill.integer
+import gradum.skill.resolveProjectPath
+import gradum.skill.string
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch

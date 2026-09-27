@@ -5,9 +5,16 @@
  * ExploreProjectSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.*
+import gradum.skill.IntConstraints
+import gradum.skill.SchemaBuilder
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.buildXmlError
+import gradum.skill.integer
+import gradum.skill.string
 import gradum.utils.JsonUtil.decodeMap
 import gradum.utils.JsonUtil.encodeMap
 import org.slf4j.Logger

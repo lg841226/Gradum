@@ -8,6 +8,9 @@
 package gradum.skill
 
 import gradum.SkillResult
+import gradum.skill.builtin.CompletePlanSkill
+import gradum.skill.builtin.TodoManager
+import gradum.skill.builtin.TodoSkill
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

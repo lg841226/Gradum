@@ -15,7 +15,7 @@ import gradum.mcp.McpToolCatalog
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
-import gradum.skill.getTodoManagerInstance
+import gradum.skill.builtin.getTodoManagerInstance
 import gradum.utils.JsonUtil
 import kotlinx.serialization.json.JsonElement
 import org.slf4j.LoggerFactory

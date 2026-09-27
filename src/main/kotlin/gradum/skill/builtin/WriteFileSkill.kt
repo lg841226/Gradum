@@ -5,9 +5,23 @@
  * WriteFileSkill.kt  2026-09-26 00:35:03 Changed by gwy
  */
 
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.*
+import gradum.skill.AskResult
+import gradum.skill.AskScope
+import gradum.skill.Choice
+import gradum.skill.Lang
+import gradum.skill.ResolvedProjectPath
+import gradum.skill.SchemaBuilder
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.boolean
+import gradum.skill.buildXmlError
+import gradum.skill.integer
+import gradum.skill.objectArray
+import gradum.skill.resolveProjectPath
+import gradum.skill.string
 import gradum.utils.ProtectedPaths
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex

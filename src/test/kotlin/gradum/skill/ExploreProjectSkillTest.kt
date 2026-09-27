@@ -9,6 +9,7 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.builtin.ExploreProjectSkill
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.*

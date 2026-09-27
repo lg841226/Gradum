@@ -5,12 +5,20 @@
  * TodoSkill.kt  2026-08-31 19:21:55 Changed by gwy
  */
 
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import gradum.skill.SchemaBuilder
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.boolean
+import gradum.skill.buildXmlError
+import gradum.skill.integer
+import gradum.skill.string
+import gradum.skill.stringArray
 
 /**
  * Initializes a shared task list for the agent to follow during a session.

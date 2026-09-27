@@ -11,6 +11,7 @@ import gradum.AgentConfiguration
 import gradum.GradumConfig
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.builtin.DelegateSkill
 import kotlin.test.*
 
 /**

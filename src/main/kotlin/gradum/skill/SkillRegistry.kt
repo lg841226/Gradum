@@ -27,11 +27,11 @@ private val logger: Logger = LoggerFactory.getLogger("SkillRegistry")
  * Central registry for all available skills.
  *
  * Discovers [Skill] implementations at runtime by scanning the
- * `gradum.skill` package for concrete classes extending [Skill].
+ * `gradum.skill.builtin` package for concrete classes extending [Skill].
  */
 object SkillRegistry {
 
-  private const val SKILL_PACKAGE = "gradum.skill"
+  private const val SKILL_PACKAGE = "gradum.skill.builtin"
 
   private val registeredSkills: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
 

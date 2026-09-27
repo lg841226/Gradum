@@ -17,6 +17,7 @@ import gradum.client.*
 import gradum.debug.*
 import gradum.mcp.McpToolCatalog
 import gradum.skill.*
+import gradum.skill.builtin.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.flow.Flow

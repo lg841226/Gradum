@@ -5,9 +5,20 @@
  * ReadFileSkill.kt  2026-09-24 23:50:38 Changed by gwy
  */
 
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.*
+import gradum.skill.AskResult
+import gradum.skill.AskScope
+import gradum.skill.Choice
+import gradum.skill.Lang
+import gradum.skill.ResolvedProjectPath
+import gradum.skill.SchemaBuilder
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.buildXmlError
+import gradum.skill.resolveProjectPath
+import gradum.skill.string
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path

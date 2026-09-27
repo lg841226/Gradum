@@ -10,6 +10,7 @@ import gradum.ErrorCode
 import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.builtin.WriteFileSkill
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

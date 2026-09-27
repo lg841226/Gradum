@@ -10,6 +10,8 @@ package gradum.skill
 import gradum.Provider
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.builtin.GlobSkill
+import gradum.skill.builtin.GrepSkill
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.*
