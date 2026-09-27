@@ -1,7 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- */
-
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -63,7 +59,7 @@ ktor {
  * Also injects the OpenAI-compatible provider key from
  * `gradle.properties` into the JVM as an env var, so users don't
  * have to `export` before every `./gradlew :run`. A blank value
- * is fine — the Gradum server still reads the env-var fallback
+ * is fine: the Gradum server still reads the env-var fallback
  * chain when the value is missing or empty. Hosted providers
  * themselves (currently just Zhipu) are first-class in
  * ModelIdentity and need no JSON config.
@@ -99,7 +95,6 @@ dependencies {
   implementation("io.ktor:ktor-client-content-negotiation:3.0.3")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-  // Runtime compilation of external `.kt` skills dropped into `.gradum/skills/`.
   implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.0")
   implementation("ch.qos.logback:logback-classic:1.5.25")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
@@ -133,14 +128,14 @@ detekt {
  * Force the quality gate into every code path that produces a
  * Gradle artifact. Two wirings, both belt-and-suspenders:
  *
- * 1. `compileKotlin.dependsOn(detekt)` — any explicit
+ * 1. `compileKotlin.dependsOn(detekt)`: any explicit
  *    `gradlew compileKotlin` (root or JVM variant) and the IDE
  *    background compile that flows through it runs detekt first.
  *    Lint failures block the compile: no half-built class files,
  *    no `--no-detekt` escape hatch. This is the "code cleanliness"
- *    gate — by the time `compileKotlin` finishes, every line of
+ *    gate: by the time `compileKotlin` finishes, every line of
  *    new code is detekt-clean.
- * 2. `check.dependsOn(detekt)` — the standard `gradlew build`
+ * 2. `check.dependsOn(detekt)`: the standard `gradlew build`
  *    (which runs `assemble + check`) also enforces detekt. The
  *    detekt 1.23.x plugin *usually* auto-wires this, but pinning
  *    it explicitly in the build file means a future plugin update
@@ -152,12 +147,12 @@ detekt {
  * once on the changed file set (~3-8s for this module), then
  * the cache marks it up-to-date until the next change. The IDE
  * background compile that runs on every save also benefits from
- * the cache — only the first save after an edit pays the cost.
+ * the cache: only the first save after an edit pays the cost.
  *
  * Emergency opt-out (don't use it for code review, only for
  * unblocking a local repro): pass `-Pgradum.skipDetektGate=true`
  * to bypass the `compileKotlin` wiring. The `check.dependsOn`
- * wiring is unconditional — drop it here if you really need to
+ * wiring is unconditional: drop it here if you really need to
  * ship a half-clean build, and add a `// detekt:disable-next-line`
  * with a justification on the offending lines.
  */
@@ -297,8 +292,8 @@ private fun runAndCapture(command: List<String>): String {
 /**
  * Builds a stripped-down JVM runtime with `jlink`, keeping only the JDK
  * modules the fat jar actually needs (discovered via `jdeps`). Using it as
- * jpackage's `--runtime-image` shrinks the bundled runtime dramatically —
- * roughly 165 MB down to ~40 MB — without losing any functionality.
+ * jpackage's `--runtime-image` shrinks the bundled runtime dramatically,
+ * roughly 165 MB down to ~40 MB, without losing any functionality.
  */
 tasks.register("buildMinimalRuntime") {
   group = "distribution"
@@ -329,8 +324,8 @@ tasks.register("buildMinimalRuntime") {
 /**
  * Self-contained Gradum server executable via `jpackage` (bundled JRE).
  *
- * The output is an "app image" — a folder with the launcher plus a private
- * JVM runtime — so end-user machines that do NOT have Java installed can
+ * The output is an "app image": a folder with the launcher plus a private
+ * JVM runtime, so end-user machines that do NOT have Java installed can
  * still run the server. Run per-target-OS: jpackage cannot cross-compile.
  *
  *   ./gradlew serverPackage

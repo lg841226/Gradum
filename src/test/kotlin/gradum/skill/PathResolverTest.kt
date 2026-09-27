@@ -136,8 +136,8 @@ class PathResolverTest {
     // The resolver deliberately treats absolute `/tmp` paths as safe scratch
     // space, and `Files.createTempDirectory(...)` targets the system temp dir:
     // that is `/tmp` on Linux but `/var/folders/.../T` on macOS. Building the
-    // project root and its evil sibling in the *working directory* — which is
-    // never a safe prefix — keeps the boundary check identical on every OS.
+    // project root and its evil sibling in the *working directory*, which is
+    // never a safe prefix, keeps the boundary check identical on every OS.
     val scratch: Path = Files.createTempDirectory(
       Paths.get(System.getProperty("user.dir")), "gradum-resolver-"
     )

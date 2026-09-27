@@ -35,7 +35,7 @@ class ExternalSkillDirectoryScanner(
 
   /**
    * Skills registered by this scanner, keyed by name. Only these are ever
-   * unregistered on reload — built-in and MCP skills are never touched.
+   * unregistered on reload: built-in and MCP skills are never touched.
    */
   private val externalOwned: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
 
@@ -93,7 +93,7 @@ class ExternalSkillDirectoryScanner(
   /**
    * Returns a stable fingerprint of the current `.kt` sources, used by the
    * watcher to skip redundant reloads when nothing changed. Only source files
-   * are considered — never the `.build` output, so compiled artifacts cannot
+   * are considered: never the `.build` output, so compiled artifacts cannot
    * re-trigger a reload.
    */
   internal fun currentFingerprint(): String {

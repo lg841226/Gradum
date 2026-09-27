@@ -8,14 +8,14 @@ import gradum.idea.chat.model.ThinkingLevel
  * [gradum.idea.chat.model.ThinkingLevel].
  *
  * **Why a plugin-side injector, not a server-side parameter.** The Gradum
- * server is dumb on purpose — it relays the request payload to whichever
+ * server is dumb on purpose: it relays the request payload to whichever
  * LLM backend the model is hosted on. Adding a `reasoning_effort` /
  * `thinking` / `budget_tokens` parameter per provider would mean tracking
  * three incompatible wire formats that change on the upstream's schedule.
  * Prompt-injection lives entirely in user-typed text: it's stable across
  * providers, zero protocol cost, and degrades gracefully on a model that
  * ignores the hint. That is also why the dropdown is **always enabled**,
- * regardless of the model's catalog `reasoning` flag — the prompt works
+ * regardless of the model's catalog `reasoning` flag: the prompt works
  * on any model, just with different yields.
  *
  * **Why append, not prepend.** Models weight the most recently seen
@@ -30,7 +30,7 @@ internal object ThinkingPromptInjector {
    * Suffix appended after the user message + `<Rule>` block. The wording
    * is deliberate: it asks the model to **think** (an action) not to
    * **say** "thinking" (a label). "Let me think step by step" is a
-   * stronger trigger than "show your reasoning" — the latter often
+   * stronger trigger than "show your reasoning": the latter often
    * produces decorative reasoning that just paraphrases the answer.
    *
    * Strength ordering is enforced by content length and the

@@ -24,7 +24,7 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailDiskCache")
  * re-fetched every time the user opens the project. Favicons are
  * small (1–15 KB) and effectively immutable from a 16x16 preview's
  * point of view, so paying a few MB of disk for a cache that
- * survives restart is a clear win — especially for searches against
+ * survives restart is a clear win: especially for searches against
  * the same engine during the same development session.
  *
  * **Why this shape.** One file per URL, hash-named, mtime-evicted.
@@ -54,7 +54,7 @@ internal class ThumbnailDiskCache(
 ) {
 
   companion object {
-    /** First 32 hex chars (128 bits) of SHA-256 — collision-safe for any realistic URL set. */
+    /** First 32 hex chars (128 bits) of SHA-256: collision-safe for any realistic URL set. */
     private const val HASH_HEX_LENGTH: Int = 32
 
     fun defaultRootDirectory(): Path =

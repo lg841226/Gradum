@@ -1,24 +1,20 @@
 <!--
-  ~ Copyright (c) 2026 Gradum Authors
-  -->
-
-<!--
-  Debug tool-call playback scenario — one example per registered skill.
+  Debug tool-call playback scenario: one example per registered skill.
 
   Play it through the REAL skill pipeline by opening this file with the
-  plugin debug tab. Assistant reply text is NOT authored here — it comes
+  plugin debug tab. Assistant reply text is NOT authored here: it comes
   from the real LLM stream.
 
   Skills covered, in order:
-      1. explore_project    — scan the project layout
-      2. to_do              — initialize a task list (AGENT-only)
-      3. finish_to_do_item  — mark a task completed
-      4. grep               — find a symbol in file contents
-      5. glob               — find files by name pattern
-      6. read_file          — read a file (or a line range)
-      7. write_file         — search/replace edits (JSON edits array), or create/overwrite a file (needs AGENT/EDIT)
-      8. run_cmd            — execute a safe read-only command
-      9. exp="error"        — bonus: assert a tool FAILS (file missing)
+      1. explore_project   : scan the project layout
+      2. to_do             : initialize a task list (AGENT-only)
+      3. finish_to_do_item : mark a task completed
+      4. grep              : find a symbol in file contents
+      5. glob              : find files by name pattern
+      6. read_file         : read a file (or a line range)
+      7. write_file        : search/replace edits (JSON edits array), or create/overwrite a file (needs AGENT/EDIT)
+      8. run_cmd           : execute a safe read-only command
+      9. exp="error"       : bonus: assert a tool FAILS (file missing)
 
   `<tls>` root. Optional `name` names the recording file.
   Each `<t>` self-closes. All shorthand attributes are three letters:

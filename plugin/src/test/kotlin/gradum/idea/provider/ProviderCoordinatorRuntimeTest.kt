@@ -7,7 +7,7 @@ import org.junit.Test
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Behavioral tests for ProviderRuntime — the state machine behind
+ * Behavioral tests for ProviderRuntime: the state machine behind
  * [ProviderCoordinator]. Covers the poll-loop lifecycle, auth-error
  * short-circuit, interval-change restarts, and the probe mutex that
  * serializes concurrent probes.

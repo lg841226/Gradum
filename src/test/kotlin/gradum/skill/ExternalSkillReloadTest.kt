@@ -12,7 +12,7 @@ import kotlin.test.*
 /**
  * Pins the external-skill hot-reload: [ExternalSkillDirectoryScanner.reconcile]
  * must register new skills, re-register changed ones with freshly-compiled
- * classes, and unregister deleted ones — all against a fake [SkillStore] so the
+ * classes, and unregister deleted ones: all against a fake [SkillStore] so the
  * global registry is never polluted by tests.
  */
 class ExternalSkillReloadTest {

@@ -23,7 +23,7 @@ private const val MAXIMUM_FILE_SIZE: Int = GradumConfig.READ_MAX_FILE_SIZE
  * strips OLDER history (the current call's result is always
  * returned to the LLM in full), `read_file` is the one skill
  * whose `content` field the LLM routinely needs to refer back
- * to in subsequent turns — when planning an edit, when
+ * to in subsequent turns: when planning an edit, when
  * verifying a previous edit, when answering questions about
  * the file. Stripping even a deeply-old `content` from a long
  * session can force the model to re-read the file from disk

@@ -18,7 +18,7 @@ private val logger: Logger = LoggerFactory.getLogger("JsonRpcSession")
  *
  * Each [call] assigns a fresh `id`, stashes a deferred for it, writes the
  * request frame, then suspends until [handleFrame] completes the matching
- * deferred. Because matching is by `id` — never by arrival order — many
+ * deferred. Because matching is by `id`, never by arrival order, many
  * calls can be in flight at once. Frames that carry no `id` are treated as
  * notifications and routed to [onNotification].
  */

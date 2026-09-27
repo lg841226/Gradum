@@ -10,7 +10,7 @@ import org.commonmark.parser.block.*
 /**
  * A LaTeX block: `$$\n<formula>\n$$`. The `$$` markers must sit on
  * their own lines (per the project's LaTeX plan). The body is the
- * raw formula source — we don't parse it, the renderer hands it
+ * raw formula source: we don't parse it, the renderer hands it
  * to the LaTeX library. Stored verbatim (no whitespace trimming
  * beyond the [LatexBlockParser.closeBlock] edge-strip) so the
  * user can re-serialize and round-trip without surprises.
@@ -26,11 +26,11 @@ class LatexBlock : CustomBlock() {
 
 /**
  * CommonMark [Extension] for `$$…$$` blocks. The custom block
- * parser is the only thing the Gradum chat needs — there is no
+ * parser is the only thing the Gradum chat needs: there is no
  * HTML / text-content renderer for the chat, so we don't register
  * any [org.commonmark.renderer.html.HtmlRenderer.HtmlRendererExtension]
  * on the extension surface. (The chat ignores the stock
- * `HtmlRenderer` entirely — the Markdown UI is Compose, not HTML.)
+ * `HtmlRenderer` entirely: the Markdown UI is Compose, not HTML.)
  *
  * Register on every commonmark [Parser] in the project so the
  * inline path (`splitPlainAtBlocks` → `RenderNonProseBlock`
@@ -65,14 +65,14 @@ internal class LatexBlockParser : AbstractBlockParser() {
   }
 
   /**
-   * Called once the closing line has been consumed — store the
+   * Called once the closing line has been consumed: store the
    * captured body. The opening `$$` was already consumed by
    * [Factory.tryStart]; the closing line is `$$` itself, not
    * part of the formula. First / last blank lines are trimmed
    * so a `$$\n\int\n$$` source becomes the formula `"\int"`
    * rather than `"\n\int\n"`. We also `trim()` the first and
    * last surviving line so a casual `$$\n x^2 \n$$` (with
-   * stray spaces around the body) is normalized to `x^2` —
+   * stray spaces around the body) is normalized to `x^2`,
    * the LaTeX library is sensitive to leading / trailing
    * whitespace and chat users won't think to remove it.
    * Internal newlines and the whitespace between non-edge
@@ -102,7 +102,7 @@ internal class LatexBlockParser : AbstractBlockParser() {
 
   /**
    * `AbstractBlockParser#addLine` is also called for the
-   * opening line. We don't need it — the factory's `tryStart`
+   * opening line. We don't need it: the factory's `tryStart`
    * already consumed the opening `$$`. Override to a no-op
    * so the opening line isn't double-added to [lines].
    */

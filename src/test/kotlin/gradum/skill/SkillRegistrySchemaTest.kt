@@ -10,13 +10,13 @@ import kotlin.test.assertTrue
  * Pins the schema filter that [SkillRegistry.getSchemas] applies per
  * [ToolMode]. The previous implementation maintained two hardcoded
  * string sets in [SkillRegistry] that mirrored what [Skill.allowedToolModes]
- * was supposed to enforce — a second source of truth for the same
+ * was supposed to enforce: a second source of truth for the same
  * invariant. The test cases below pin the contract that the two are
  * now one source: schema visibility is determined exclusively by the
  * per-skill `allowedToolModes` set.
  *
  * If a future refactor adds a new Skill, this test does not need to
- * change — the new Skill declares its own `allowedToolModes` and
+ * change: the new Skill declares its own `allowedToolModes` and
  * that single declaration is the only thing the registry reads. If
  * a future refactor re-introduces a hardcoded mode → skill mapping
  * anywhere, the assertSkillNamesSeen list will surface the change

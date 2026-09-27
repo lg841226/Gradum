@@ -19,7 +19,7 @@ import org.jetbrains.jewel.ui.icons.AllIconsKeys
 /**
  * Attachment bar below the toolbar, showing selected attachments
  * as a flat horizontal row of [file-type icon, name, remove] chips.
- * Image attachments do not decode a preview bitmap here — the
+ * Image attachments do not decode a preview bitmap here: the
  * full-fidelity preview is rendered by [MessageAttachmentPreview]
  * once the message is sent, using the user's original file.
  */

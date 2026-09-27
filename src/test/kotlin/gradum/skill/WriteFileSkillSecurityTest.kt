@@ -16,7 +16,7 @@ import kotlin.test.junit5.JUnit5Asserter.assertTrue
 /**
  * Security boundary tests for [WriteFileSkill].
  *
- * Mirrors [ReadFileSkillSecurityTest] — the same attack surface
+ * Mirrors [ReadFileSkillSecurityTest]: the same attack surface
  * (absolute system paths, parent traversal, prefix-collision
  * siblings) applies to write_file with strictly worse blast radius
  * (the LLM can corrupt or replace the targeted file). The check

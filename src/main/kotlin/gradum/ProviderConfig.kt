@@ -12,7 +12,7 @@ import java.util.*
  * The file is a public, user-editable artifact shared between the plugin
  * (which reads and edits it) and the embedded server (which reads it).
  * The server re-reads it on every model discovery, so changing the plugin
- * settings — or hand-editing the file — is picked up without a server
+ * settings, or hand-editing the file, is picked up without a server
  * restart.
  *
  * Provider overrides live at the top level of the JSON object using VS
@@ -112,13 +112,13 @@ object ProviderConfigStore {
       settingsFile.writeText(JsonUtil.encodeMap(root, prettyPrint = true))
       legacyEnv.delete()
     } catch (_: Exception) {
-      // Best-effort migration by design — the legacy file survives a failed write.
+      // Best-effort migration by design: the legacy file survives a failed write.
     }
   }
 
   /**
    * Read the provider overrides from settings.json as a [Properties] map.
-   * Returns an empty [Properties] when the file is missing or unreadable —
+   * Returns an empty [Properties] when the file is missing or unreadable,
    * discovery then falls back to defaults. Keys use the dotted
    * `<configKey>.baseUrl` / `.apiKey` (string values) and
    * `.allowRemote` (`"true"`/`"false"` strings) convention.
@@ -182,7 +182,7 @@ object ProviderConfigStore {
   }
 
   /**
-   * Cheap fingerprint of the config file's current content — `mtime:size`.
+   * Cheap fingerprint of the config file's current content: `mtime:size`.
    * Used to invalidate the server's model-discovery cache when the file
    * changes (plugin settings edits land here), so `/models` never serves a
    * stale snapshot after a provider reconfiguration. Returns the same

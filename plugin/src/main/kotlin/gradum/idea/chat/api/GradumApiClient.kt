@@ -38,13 +38,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * Wire-shaped image attachment for [sendMessage]. Mirrors the
    * server-side `AttachmentDto` exactly (the `type` field is
    * `image` for now; the discriminator exists so future
-   * attachment kinds — e.g. PDF, audio — share the same envelope
+   * attachment kinds (e.g. PDF, audio) share the same envelope
    * without a breaking change).
    *
    * The base64 payload in [data] is the original file bytes
    * (no re-encoding) and [mime] is the IANA type derived from
    * the file extension (`image/png`, `image/jpeg`, `image/webp`,
-   * …) — the server gets exactly what the user picked.
+   * …): the server gets exactly what the user picked.
    */
   data class ApiImageAttachment(
     val mime: String,
@@ -318,7 +318,7 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   /**
    * Parses a single NDJSON line into a [JsonObject] and emits it. Failures
    * are logged with a truncated preview and swallowed so the stream keeps
-   * flowing. Returns nothing — the result (success or skipped) is expressed
+   * flowing. Returns nothing: the result (success or skipped) is expressed
    * through whether [emit][kotlinx.coroutines.flow.FlowCollector.emit] was
    * called.
    */

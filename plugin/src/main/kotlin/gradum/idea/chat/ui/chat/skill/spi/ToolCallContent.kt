@@ -13,14 +13,14 @@ package gradum.idea.chat.ui.chat.skill.spi
  * A renderer is free to:
  * - Put any fields it understands into [fields] (e.g. `path: String`,
  *   `linesAdded: Int`, `command: String`, `url: String`). The Gradum
- *   chat UI never inspects [fields] — only the originating renderer
+ *   chat UI never inspects [fields]: only the originating renderer
  *   does, when its `render` composable is invoked.
  * - Expose any user actions (open in editor, view diff, open in
  *   browser, copy command, custom) via [actions]. The default
  *   `DefaultRenderer` renders the standard set; third-party renderers
  *   are free to ship their own action bar.
  *
- * The base class is intentionally minimal — the bulk of the UI logic
+ * The base class is intentionally minimal: the bulk of the UI logic
  * lives in each renderer's `render` composable.
  */
 data class ToolCallContent(

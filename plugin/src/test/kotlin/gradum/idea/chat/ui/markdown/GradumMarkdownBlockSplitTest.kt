@@ -109,7 +109,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `multiple blocks in any order split correctly`() {
-    // The mixed content that triggered the bug — paragraph + list
+    // The mixed content that triggered the bug: paragraph + list
     // + heading + thematic break + paragraph.
     val input: String =
       """
@@ -146,7 +146,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `LinkReferenceDefinition is dropped - reference link still resolves in paragraph`() {
-    // The reference link `[text][ref]` resolves at parse time — the
+    // The reference link `[text][ref]` resolves at parse time: the
     // `Link` node inside the `Paragraph` carries the resolved URL,
     // and the `LinkReferenceDefinition` block is dropped (not
     // visible body text).
@@ -158,7 +158,7 @@ class GradumMarkdownBlockSplitTest {
       segments.size
     )
     val plain: MarkdownSegment.Plain = segments[0] as MarkdownSegment.Plain
-    // The reference link resolves — the re-serialized text contains
+    // The reference link resolves: the re-serialized text contains
     // the inline link form, not the reference form.
     assertTrue(
       "expected inline link in serialized text: ${plain.text}",
@@ -199,7 +199,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `nested ordered list with bullet child is round-tripped as a nested list`() {
-    // Bug: 2026-07-14 — nested list with mixed children used to
+    // Bug: 2026-07-14: nested list with mixed children used to
     // serialize to "1. 有序1- 无序嵌套\n2. 有序2- 有序嵌套" (all on
     // one line, nested list unindented, Markdown(...) reparses
     // it as a flat list of two items, losing the nesting). The
@@ -250,7 +250,7 @@ class GradumMarkdownBlockSplitTest {
     // A list item containing a paragraph + a fenced code block
     // must serialize with the code block indented 4 columns past
     // the marker (CommonMark rule for continuation blocks inside
-    // list items). 2-space indent is NOT enough — CommonMark would
+    // list items). 2-space indent is NOT enough: CommonMark would
     // reparse that as a top-level code block, not a list child.
     val input: String =
       """
@@ -330,7 +330,7 @@ class GradumMarkdownBlockSplitTest {
 
   @Test
   fun `HtmlBlock with no inner text falls back to NonProseBlock`() {
-    // `<br>` and other self-closing tags have no text content — the
+    // `<br>` and other self-closing tags have no text content: the
     // stripper returns null, so the splitter emits a NonProseBlock
     // and falls through to Jewel's native Markdown(...) path.
     val segments: List<MarkdownSegment> = splitPlainAtBlocks("<br>")

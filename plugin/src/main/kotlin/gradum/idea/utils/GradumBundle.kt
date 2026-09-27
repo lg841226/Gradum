@@ -22,7 +22,7 @@ import java.util.*
  * The hard-coded [BUNDLE_NAME] is the JetBrains-recommended pattern (the
  * class lives in `gradum.idea.bundle` but its resources sit in the
  * `messages` package on purpose, so a class-based path would require
- * moving 132 keys — out of scope for this refactor).
+ * moving 132 keys: out of scope for this refactor).
  */
 object GradumBundle : DynamicBundle(BUNDLE_NAME) {
 

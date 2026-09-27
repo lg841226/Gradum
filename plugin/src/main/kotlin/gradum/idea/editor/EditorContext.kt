@@ -112,7 +112,7 @@ object EditorUtils {
    * Creates a `LightVirtualFile` backed by a PSI file (so syntax highlighting
    * kicks in immediately for the chosen language), then asks the
    * [FileEditorManager] to open it. The file lives in memory until the user
-   * chooses `Save As` from the editor — we never write into the project root
+   * chooses `Save As` from the editor: we never write into the project root
    * unprompted, since that would be a destructive side effect of just
    * clicking a code-block toolbar button.
    *
@@ -124,7 +124,7 @@ object EditorUtils {
    * @param project  current IntelliJ project.
    * @param code     raw code block text (no fence markers).
    * @param language fenced language tag (e.g. `"kotlin"`); pass `""` for
-   *                 unknown / unlabelled blocks — falls back to plain text.
+   *                 unknown / unlabelled blocks: falls back to plain text.
    */
   fun openCodeAsNewFile(project: Project, code: String, language: String) {
     val normalizedLanguage: String = language.trim().lowercase()

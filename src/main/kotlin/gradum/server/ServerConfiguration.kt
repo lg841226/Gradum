@@ -7,7 +7,7 @@ import gradum.AgentConfiguration
  *
  * Cloud providers (Zhipu BigModel, DeepSeek, MiniMax, future
  * first-class additions) are hard-coded inside
- * [gradum.ModelIdentity] — they are discovered at startup and
+ * [gradum.ModelIdentity]: they are discovered at startup and
  * exposed in the plugin's model selector without any JSON-config /
  * env-var plumbing on the user's side.
  *

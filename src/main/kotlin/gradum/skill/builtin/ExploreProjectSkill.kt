@@ -56,7 +56,7 @@ class ExploreProjectSkill : Skill() {
    * [historyKeepCount] calls) keeps the full lists because the model
    * may still refer back to them when planning a follow-up read.
    *
-   * The current call's full lists are returned by [execute] as-is —
+   * The current call's full lists are returned by [execute] as-is,
    * they are not collapsed here, since the LLM needs them in full
    * to decide what to read next.
    */

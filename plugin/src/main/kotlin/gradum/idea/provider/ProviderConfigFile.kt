@@ -37,7 +37,7 @@ object ProviderConfigFile {
 
   /**
    * Read the provider overrides from settings.json as a [Properties] map
-   * (dotted keys, `allowRemote` as `"true"`/`"false"` strings — the same
+   * (dotted keys, `allowRemote` as `"true"`/`"false"` strings: the same
    * key semantics as the server's [gradum.ProviderConfigStore.load]).
    * Empty when the file is missing or unreadable.
    */
@@ -105,7 +105,7 @@ object ProviderConfigFile {
    * Loads the current settings.json, applies [transform], and stores the
    * result back. Shared by every read-modify-write entry point so the
    * "create dirs → load → mutate → store" dance lives in one place.
-   * Failures are swallowed by design — see KDoc on the public callers.
+   * Failures are swallowed by design: see KDoc on the public callers.
    */
   private fun editConfigFile(transform: (MutableMap<String, Any?>) -> Unit) {
     try {

@@ -11,7 +11,7 @@ import kotlin.test.*
  * Pins [ExploreProjectSkill] behavior the model depends on:
  *
  *  1. Paths in `code_files` / `config_files` / `other_files` are
- *     project-root-relative — never bare basenames.
+ *     project-root-relative: never bare basenames.
  *  2. The three lists share the same shape (`{path, lines}`) so the
  *     model can pass any entry straight into `read_file` /
  *     `write_file` without a type switch.

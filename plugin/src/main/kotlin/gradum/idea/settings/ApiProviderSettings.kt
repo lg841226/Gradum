@@ -41,8 +41,8 @@ private const val MAX_POLL_INTERVAL_SECONDS = PluginConfig.MAX_POLL_INTERVAL_SEC
  *
  * Persists edits through [ProviderSettings] and mirrors the latest
  * configuration into [ProviderCoordinator] on first composition and on
- * every relevant change. Provider rows themselves are pure subscribers
- * — they do not run probes.
+ * every relevant change. Provider rows themselves are pure subscribers:
+ * they do not run probes.
  */
 @Composable
 internal fun ApiProviderSettings() {
@@ -323,7 +323,7 @@ private fun CloudProviderTabsSection(
  *
  * Deletes its persisted config (URL / API key / enable flag) so the
  * embedded server stops probing it, stops the coordinator's poll loop,
- * and returns the next selection for the tab strip — the tab to the
+ * and returns the next selection for the tab strip: the tab to the
  * left of the removed one, or `null` when no tab remains.
  */
 private fun removeCloudProvider(

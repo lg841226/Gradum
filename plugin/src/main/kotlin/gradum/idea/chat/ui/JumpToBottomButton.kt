@@ -69,7 +69,7 @@ private const val WIDTH_ANIMATION_DURATION_MS = 180
  *  - Mode swap: label crossfades (140ms in / 80ms out), width animates via [animateContentSize].
  *
  * ## Visual stack
- *  1. Solid `panelBackground` fill (former frosted-blur was a self-blur, not a true backdrop blur —
+ *  1. Solid `panelBackground` fill (former frosted-blur was a self-blur, not a true backdrop blur,
  *     reverted because it only softened the fill silhouette without actually blurring chat content).
  *  2. 1 dp `borders.normal` outline at 40% alpha.
  *  3. Sharp foreground Row (icon + label, not blurred).
@@ -122,7 +122,7 @@ private fun AltKeyModeEffect(isVisible: Boolean, onToggle: () -> Unit) {
 /**
  * Icon-first text reveal: holds the label at alpha 0 for
  * [TEXT_REVEAL_DELAY_MS] when the pill becomes visible, then
- * animates to 1 over [TEXT_REVEAL_DURATION_MS] — the icon lands
+ * animates to 1 over [TEXT_REVEAL_DURATION_MS]: the icon lands
  * and rises alone, then the text joins in.
  */
 @Composable

@@ -11,14 +11,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Tests for `gradumInlinesStyling` — the single source of truth for
+ * Tests for `gradumInlinesStyling`: the single source of truth for
  * the chat's `Markdown(...)` fallback path's per-scanState link colors
  * and inline emphasis.
  *
  * The v1 implementation kept a hand-rolled `LinkStateStyles` data
  * class with 6 SpanStyle fields; the v2 replacement (LANDED
  * 2026-07-15, after reading Jewel 0.37.0's `LinkColors` source)
- * pulls link colors directly from `JewelTheme.linkStyle.colors` —
+ * pulls link colors directly from `JewelTheme.linkStyle.colors`,
  * the official Jewel API already provides 6 scanState-aware Color
  * fields (`content` / `contentDisabled` / `contentFocused` /
  * `contentHovered` / `contentPressed` / `contentVisited`). The
@@ -29,7 +29,7 @@ import org.junit.Test
  *  - Each `LinkColors.*` field lands in the corresponding
  *    `InlinesStyling.*` field as a `SpanStyle` with that color.
  *  - The 6 link states preserve their distinct colors (a future
- *    tweak to one — e.g. visited = desaturated — stays visible).
+ *    tweak to one, e.g. visited = desaturated, stays visible).
  *  - `inlineCode` is passed through unchanged.
  *  - `emphasis` and `strongEmphasis` are baked-in italic / bold.
  */
@@ -129,7 +129,7 @@ class GradumLinkStylingTest {
     )
     assertNotNull("emphasis must define a non-empty span", styling.emphasis)
     assertNotNull("strong emphasis must define a non-empty span", styling.strongEmphasis)
-    // Italic and Bold weights differ from the base — sanity check
+    // Italic and Bold weights differ from the base: sanity check
     // that the helper didn't collapse them to an empty SpanStyle.
     assertNotEquals(SpanStyle(), styling.emphasis)
     assertNotEquals(SpanStyle(), styling.strongEmphasis)

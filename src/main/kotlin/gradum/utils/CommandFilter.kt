@@ -15,7 +15,7 @@ sealed class CommandVerdict {
   /**
    * The command is potentially destructive but only touches paths outside
    * the project root and outside the always-protected set. It may run only
-   * after the user approves — granted for one execution or remembered for
+   * after the user approves: granted for one execution or remembered for
    * the session by [category] (e.g. `rm:delete`, `chmod:recursive`,
    * `dd:device-write`).
    */
@@ -40,7 +40,7 @@ data class ProtectedPathsConfig(
  * [DEFAULT] mirrors the historical hardcoded lists. Any field present under
  * the `commandFilter` key of `~/.gradum/settings.json` replaces the matching
  * DEFAULT field wholesale; absent fields keep the DEFAULT. Only the *data*
- * (command / path lists) is configurable — the filtering logic (dd/rm/chmod
+ * (command / path lists) is configurable: the filtering logic (dd/rm/chmod
  * analysis) stays in code on purpose.
  */
 data class CommandFilterConfig(
@@ -97,7 +97,7 @@ private val PRIVILEGE_ESCALATORS: Set<String> = setOf("sudo", "su", "doas", "pke
  * Single source of truth for the protected-path check, shared by
  * [classifyCommand] (rm / recursive chmod) and the file-writing
  * skills (e.g. WriteFileSkill). If a path needs protecting, add it
- * here — not in a per-skill copy.
+ * here: not in a per-skill copy.
  */
 object ProtectedPaths {
 
@@ -110,7 +110,7 @@ object ProtectedPaths {
   /**
    * Directories that LLM-driven file operations are *always* allowed
    * to touch, regardless of project root. Currently limited to
-   * `/tmp` — the universal, cross-platform "scratch space" path
+   * `/tmp`: the universal, cross-platform "scratch space" path
    * every Unix user knows.
    *
    * `java.io.tmpdir` is deliberately NOT in this list: on macOS

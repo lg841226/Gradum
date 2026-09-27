@@ -6,7 +6,7 @@ package gradum.skill
  * A skill asks the user a question at runtime; the plugin renders an ask
  * card and POSTs the user's answer back to `POST /events/respond`, which
  * un-blocks the suspended skill. The server never ships an ask card with
- * human-readable copy — it only sends logical keys and stable semantic
+ * human-readable copy: it only sends logical keys and stable semantic
  * codes, leaving translation to the consuming IDE's i18n bundle.
  */
 
@@ -78,7 +78,7 @@ object L10n {
 object Choice {
   /**
    * Stable semantic code for a choice option. The wire carries the semantic
-   * [wire] code, NOT display copy — the plugin maps semantics (e.g.
+   * [wire] code, NOT display copy: the plugin maps semantics (e.g.
    * `ALLOW_ONCE`) to its own localized button label.
    */
   enum class Meaning(val wire: String) {

@@ -11,7 +11,7 @@ package gradum
  */
 object GradumConfig {
 
-  /** Global agent loop timeout (50 min — covers multistep tasks). */
+  /** Global agent loop timeout (50 min for multistep tasks). */
   const val AGENT_TIMEOUT_SECONDS: Int = 3000
 
   /** Sub-agent (delegate) timeout. */

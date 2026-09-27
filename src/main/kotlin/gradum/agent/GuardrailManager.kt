@@ -11,7 +11,7 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex(pattern = "(?<=[.!?])\\s+")
  * - Repeated/abnormal response detection (repetitive loops).
  * - Tool-runaway detection (identical call signatures).
  *
- * This class is purely about *detection* — escalation (mission revoked,
+ * This class is purely about *detection*: escalation (mission revoked,
  * session abort) is handled by [SessionManager] and the main [Agent] loop.
  */
 class GuardrailManager(private val configuration: AgentConfiguration) {

@@ -59,7 +59,7 @@ private const val THIRD_PARTY_DIALOG_MIN_HEIGHT = 520
 private const val THIRD_PARTY_DIALOG_MAX_WIDTH = 800
 private const val THIRD_PARTY_DIALOG_MAX_HEIGHT = 1000
 
-// Inner content max width — keeps text readable when dialog is wide
+// Inner content max width: keeps text readable when dialog is wide
 private const val THIRD_PARTY_CONTENT_MAX_WIDTH = 540
 
 internal fun showThirdPartyNoticesDialog() =

@@ -3,7 +3,7 @@
 # This file is loaded by the detekt Gradle plugin in both modules
 # (root `build.gradle.kts` and `plugin/build.gradle.kts`). New lint
 # rules MUST be paired with an entry in
-# `docs/CODING_STANDARDS_KOTLIN.md` — see §23 "Lint Enforcement".
+# `docs/CODING_STANDARDS_KOTLIN.md`: see §22 "Lint Enforcement".
 #
 # Conventions:
 # - `active: true` means the rule is enforced.
@@ -12,7 +12,7 @@
 # - `severity` is the baseline. Specific findings can still be
 #   raised in code review; do not duplicate the rule's job.
 # - Numeric thresholds that match the human-readable rule in
-#   `docs/CODING_STANDARDS_KOTLIN.md` should match exactly — change
+#   `docs/CODING_STANDARDS_KOTLIN.md` should match exactly: change
 #   both at the same time.
 
 build:
@@ -126,7 +126,7 @@ empty-blocks:
   active: true
   EmptyCatchBlock:
     # Allow `catch (ioException: IOException) { /* ignore */ }` only
-    # when the variable name is `ignore` — detekt's stock convention.
+    # when the variable name is `ignore`: detekt's stock convention.
     active: true
     allowedExceptionNameRegex: '_|(ignore|expected)'
   EmptyClassBlock:
@@ -244,9 +244,9 @@ naming:
     enumEntryPattern: '[A-Z][_a-zA-Z0-9]*'
   FunctionMaxLength:
     # Test names are deliberately descriptive (e.g. "strikethrough
-    # accumulates with bold — both styles apply"). 50 chars is too
+    # accumulates with bold: both styles apply"). 50 chars is too
     # tight for the chat test fixtures, and these names document
-    # edge cases that have bitten us before — we'd rather read the
+    # edge cases that have bitten us before: we'd rather read the
     # long name than guess from a 47-char abbreviation.
     active: true
     maximumFunctionNameLength: 60
@@ -294,7 +294,7 @@ naming:
     maximumVariableNameLength: 50
   VariableMinLength:
     # §2.3: Enforce a 3-character minimum. The "two-word" rule
-    # itself is a soft convention enforced by review — this catches
+    # itself is a soft convention enforced by review: this catches
     # the worst offenders (`id`, `e`, `x`).
     active: true
     minimumVariableNameLength: 3
@@ -393,8 +393,8 @@ style:
   BracesOnIfStatements:
     # §9 / §21: single-line `if` / `for` / `while` MUST NOT have
     # braces. detekt's `BracesOnIfStatements` rule is "must have
-    # braces" — we turn it OFF. detekt's `UnlessBraces` companion
-    # rule is "must have braces when multi-line" — we turn that ON.
+    # braces": we turn it OFF. detekt's `UnlessBraces` companion
+    # rule is "must have braces when multi-line": we turn that ON.
     active: false
   BracesOnWhenStatements:
     active: false
@@ -464,7 +464,7 @@ style:
   MandatoryBracesLoops:
     active: true
   MaxLineLength:
-    # editorconfig says 120 — we keep detekt slightly looser (200)
+    # editorconfig says 120: we keep detekt slightly looser (200)
     # because Compose Modifier chains read better as one line.
     active: true
     maxLineLength: 200
@@ -764,7 +764,7 @@ formatting:
     # bug is fixed.
     active: false
   TrailingCommaOnDeclarationSite:
-    # Same bug as TrailingCommaOnCallSite — see above.
+    # Same bug as TrailingCommaOnCallSite: see above.
     active: false
   TryClauseLocation:
     active: true

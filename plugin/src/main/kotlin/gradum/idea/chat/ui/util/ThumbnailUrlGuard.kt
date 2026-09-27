@@ -9,7 +9,7 @@ import java.net.URI
 /**
  * URL / network-target guard for [ThumbnailImageLoader].
  *
- * Gradum is a local agent — the network is its only outbound channel —
+ * Gradum is a local agent, the network is its only outbound channel,
  * and every thumbnail URL we fetch is attacker-influenced: a malicious
  * page can publish any URL as its `favicon` field, the result page's
  * own root favicon path is composed from a Tavily-supplied host, and
@@ -24,7 +24,7 @@ import java.net.URI
  *    RFC 1918 / loopback / link-local / CGNAT / multicast / reserved
  *    / benchmarking / TEST-NET / IPv6 ULA / IPv6 link-local /
  *    IPv4-mapped-private address. A single bad answer in the
- *    round-robin is enough to block — partial checks are how SSRF
+ *    round-robin is enough to block: partial checks are how SSRF
  *    gets in.
  *
  * The check is split out from the loader so it can be unit-tested

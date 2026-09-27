@@ -20,7 +20,7 @@
             The `applicationConfigurable` EP ONLY accepts `instance` or
             `provider` (see Settings Guide → Settings Declaration
             Attributes). Using `implementation=...` looks plausible but
-            is silently ignored — the Configurable never registers in
+            is silently ignored: the Configurable never registers in
             the Settings tree, so clicking "Gradum" in Tools simply
             shows the parent Tools page instead. Always use `instance`.
         -->

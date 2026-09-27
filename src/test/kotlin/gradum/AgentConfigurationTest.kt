@@ -5,8 +5,8 @@ import kotlin.test.assertEquals
 
 /**
  * Locks the wire format that the plugin sends for [ToolMode]. The plugin
- * emits `"read_only"` / `"edit"` / `"agent"` (lowercase)
- * — see [gradum.idea.chat.ui.input.PermissionMode] — and the server's
+ * emits `"read_only"` / `"edit"` / `"agent"` (lowercase),
+ * see [gradum.idea.chat.ui.input.PermissionMode], and the server's
  * [ToolMode.fromStringOrDefault] must translate those to the actual
  * enum constants. If this translation ever regresses to be case-sensitive
  * or to reject lowercase values, the read-only mode is silently treated

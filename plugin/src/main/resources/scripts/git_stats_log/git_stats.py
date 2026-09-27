@@ -192,7 +192,7 @@ def all_commits(repo_path: str, all_branches: bool = False, since_date: str = No
     return entries
 
 
-# Per-commit additions/deletions and dates — the atomic units that feed
+# Per-commit additions/deletions and dates: the atomic units that feed
 # every quality sub-score. All downstream analyses are just aggregations
 # and transformations of these three raw numbers per commit.
 SAFE_BUILTINS = {
@@ -626,7 +626,7 @@ class QualityModel:
         return periods
 
 
-# Compatibility wrappers — delegate to QualityModel.
+# Compatibility wrappers: delegate to QualityModel.
 def compute_quality(entries: List[Dict], params: Dict, now: datetime,
                     name: str = "", repo: str = None) -> Dict:
     model = QualityModel(params)

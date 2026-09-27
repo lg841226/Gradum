@@ -30,7 +30,7 @@ import kotlin.test.*
  * knows about write_file from training data and from the system prompt
  * (which documents the tool surface in AGENT mode). The mode gate in
  * executeSingleTool is the only line of defense against a hallucinated
- * tool call — if that gate ever regresses, these tests will catch it.
+ * tool call: if that gate ever regresses, these tests will catch it.
  */
 class ToolModeGateTest {
 

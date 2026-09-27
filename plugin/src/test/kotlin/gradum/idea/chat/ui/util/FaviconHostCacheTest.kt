@@ -12,8 +12,8 @@ import org.junit.Test
  *  1. `recordSuccess` populates `getWinningUrl`; `isFailed` is false.
  *  2. `recordFailure` populates `isFailed`; `getWinningUrl` is null.
  *  3. `recordSuccess` over a previously-failed host flips it back to
- *     a positive entry — the negative entry is cleared, not stuck.
- *  4. `recordFailure` over a previously-successful host is a no-op —
+ *     a positive entry: the negative entry is cleared, not stuck.
+ *  4. `recordFailure` over a previously-successful host is a no-op,
  *     a positive entry is never silently downgraded.
  *  5. The cache is bounded by `maxEntries` and evicts the eldest
  *     insertion on overflow.

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-#  Copyright (c) 2026 Gradum Authors
-#
-#  gradum_env_doctor.py  2026-09-25 17:20:28 Changed by gwy
-
 import json
 import os
 import re

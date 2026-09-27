@@ -12,7 +12,7 @@ import org.junit.Test
  *
  * The guard is the only thing standing between a malicious Tavily
  * result (or a malicious favicon.vip query) and the IDE process
- * talking to `127.0.0.1`, `169.254.169.254`, `10.0.0.0/8`, etc. —
+ * talking to `127.0.0.1`, `169.254.169.254`, `10.0.0.0/8`, etc.,
  * treat coverage gaps here as security bugs.
  */
 class ThumbnailUrlGuardTest {

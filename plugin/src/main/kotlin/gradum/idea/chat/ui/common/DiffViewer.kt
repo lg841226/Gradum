@@ -20,15 +20,15 @@ import java.io.File
  * to expose a "View Diff" action on successful `write_file` tool calls.
  *
  * Platform API surface is intentionally narrow: `DiffManager.showDiff` +
- * `DiffContentFactory.create` + `SimpleDiffRequest` + `DiffDialogHints.MODAL`
- * — these types have been stable since 2017 (2024.3/2025.x/2026.x).
+ * `DiffContentFactory.create` + `SimpleDiffRequest` + `DiffDialogHints.MODAL`;
+ * these types have been stable since 2017 (2024.3/2025.x/2026.x).
  *
  * Side resolution falls back through three tiers:
  *  1. [VirtualFile] from `LocalFileSystem.findFileByPath(path)` or joined with
- *     `project.basePath` — full syntax highlighting, gutter icons, navigation.
- *  2. [FileType] from `FileTypeRegistry.getFileTypeByFileName(name)` — correct
+ *     `project.basePath`: full syntax highlighting, gutter icons, navigation.
+ *  2. [FileType] from `FileTypeRegistry.getFileTypeByFileName(name)`: correct
  *     highlighting for known extensions but no live editor integration.
- *  3. [PlainTextFileType.INSTANCE] — no syntax highlighting, last resort.
+ *  3. [PlainTextFileType.INSTANCE]: no syntax highlighting, last resort.
  */
 object DiffViewer {
   private val log: Logger = Logger.getInstance(DiffViewer::class.java)
@@ -37,7 +37,7 @@ object DiffViewer {
    * Open the platform diff viewer as a modal dialog showing the diff
    * between [originalContent] and [modifiedContent] in the context
    * of the file at [path]. The path is used for the display title
-   * and for resolving a file type — no file is read or written.
+   * and for resolving a file type: no file is read or written.
    *
    * The `project` may be null when invoked from a context without a
    * project (e.g. a unit test that drives the chat UI standalone);
@@ -119,7 +119,7 @@ object DiffViewer {
    * Resolution tier used for selecting which [DiffContentFactory.create]
    * overload to call. Split out as a sealed hierarchy so the caller
    * does not have to remember whether the diff came from a
-   * [VirtualFile], a fallback [FileType], or `PlainTextFileType` —
+   * [VirtualFile], a fallback [FileType], or `PlainTextFileType`,
    * each tier routes to a different `create` overload and the log
    * line records which path was taken.
    */
@@ -133,9 +133,9 @@ object DiffViewer {
    * Resolve [path] to a [VirtualFile] in the local file system.
    *
    * Tries, in order:
-   * 1. `LocalFileSystem.findFileByPath(path)` — succeeds for
+   * 1. `LocalFileSystem.findFileByPath(path)`: succeeds for
    *    absolute paths the platform already knows about.
-   * 2. `path` joined with `project.basePath` — needed because the
+   * 2. `path` joined with `project.basePath`: needed because the
    *    `write_file` tool receives project-relative paths from the
    *    LLM and `findFileByPath` does NOT resolve them itself.
    *

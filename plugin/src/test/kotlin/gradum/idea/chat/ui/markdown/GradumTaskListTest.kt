@@ -7,8 +7,8 @@ import org.junit.Test
 
 /**
  * Tests for the GFM task-list item detection / strip helpers in
- * BlockRenderer.kt. These run as pure-data logic — no Compose UI,
- * no theme — so they live in the same package and call the
+ * BlockRenderer.kt. These run as pure-data logic, no Compose UI,
+ * no theme, so they live in the same package and call the
  * `internal` helpers directly. End-to-end rendering (Checkbox on the
  * left, inline text on the right) is verified by manual smoke-test
  * in the chat panel.

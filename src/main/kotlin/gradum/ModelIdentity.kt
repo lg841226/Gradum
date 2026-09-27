@@ -41,7 +41,7 @@ enum class UnavailableReason {
  * [apiKey] is the bearer token to send on the GET against
  * [endpoint]; pass null/blank for unauthenticated servers (local
  * Ollama / LM Studio / vLLM / LocalAI). The chat request itself
- * reads its key from [gradum.AgentConfiguration] — this field is
+ * reads its key from [gradum.AgentConfiguration]: this field is
  * only for the discovery probe.
  *
  * [apiKeyEnvVar] is the **per-provider** environment variable
@@ -99,7 +99,7 @@ object ModelIdentity {
    * Builds the models-list endpoint for an OpenAI-compatible base URL.
    * Users may paste a base URL that already ends with `/v1` (e.g.
    * `http://192.168.1.5:1234/v1`), so the `/v1/models` suffix must not be
-   * appended twice — otherwise the request hits `/v1/v1/models` and fails.
+   * appended twice: otherwise the request hits `/v1/v1/models` and fails.
    */
   fun resolveModelsEndpoint(baseUrl: String, endpoint: String): String {
     val base: String = baseUrl.trimEnd('/')
@@ -143,7 +143,7 @@ object ModelIdentity {
   /**
    * Defensive URL-structure check applied by [probeProvider]. Local
    * providers (Ollama, LM Studio, vLLM, LocalAI) only accept a bare
-   * `http(s)://host[:port]` or a `/v1` OpenAI prefix — arbitrary junk
+   * `http(s)://host[:port]` or a `/v1` OpenAI prefix: arbitrary junk
    * paths like `/v1832483294239482394` are rejected before any dial.
    * Cloud providers keep their built-in multi-segment base URLs
    * (e.g. `.../api/coding/paas/v4`), so only their host is validated.
@@ -351,7 +351,7 @@ object ModelIdentity {
    * Built-in hosted (non-local) [ServerDef]s, exposed at `internal`
    * scope so ModelIdentityTest can assert that each new provider
    * we onboard (Zhipu, DeepSeek, MiniMax, …) is wired up with the
-   * expected URL, env var, and OpenAI-compatible protocol — a
+   * expected URL, env var, and OpenAI-compatible protocol: a
    * hand-edit deleting one of them will fail the build rather than
    * silently dropping the provider from the model selector.
    */
@@ -366,7 +366,7 @@ object ModelIdentity {
      * (no auth, fastest to fail when offline), then hosted providers
      * that need a bearer token resolved at probe time
      * (see resolveCloudApiKey). Adding a new cloud provider here is
-     * the supported way to "promote" it to first-class — no plugin
+     * the supported way to "promote" it to first-class: no plugin
      * restart, no env-var JSON config, no extra injection method.
      *
      * Each hosted provider declares its own apiKeyEnvVar
@@ -433,14 +433,14 @@ object ModelIdentity {
      * Env-var lookup order for the bearer token shared by every
      * built-in hosted provider. Mirrors
      * [gradum.server.ServerConfiguration.resolveDefaultApiKeyFromEnv]
-     * so the probe key and the chat fallback key always agree —
+     * so the probe key and the chat fallback key always agree,
      * including the exact spelling of `MiniMax_API_KEY` (mixed
      * case), which must match the `apiKeyEnvVar` declared on the
      * MiniMax [ServerDef]. A mismatch here means a user who sets
      * `MiniMax_API_KEY` gets working chat fallback on the server
      * while discovery silently probes with no key (or vice versa).
      * Adding a new provider to [baseKnownServers] needs no change
-     * here — the same key is reused.
+     * here: the same key is reused.
      */
     private val cloudApiKeyEnvCandidates: List<String> = listOf(
       "GRADUM_OPENAI_API_KEY",

@@ -24,7 +24,7 @@ import java.util.*
  * executing thread on a [PendingQuestions] entry, and returns the user's
  * answer when the plugin POSTs it back via `POST /events/respond`.
  *
- * There is intentionally **no timeout** — a question may stay open
+ * There is intentionally **no timeout**: a question may stay open
  * indefinitely until the user answers or dismisses the card (see
  * [PendingQuestions]). [Skill.execute] is non-suspend, so the wait is a
  * blocking run on the agent's IO thread rather than a coroutine suspension.

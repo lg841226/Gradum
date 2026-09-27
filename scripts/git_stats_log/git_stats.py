@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-#  Copyright (c) 2026 Gradum Authors
-#
-#  git_stats.py  2026-08-31 19:21:55 Changed by gwy
-#
-#  git_stats.py  2026-08-04 14:45:22 Changed by gwy
-#
-#  git_stats.py  2026-08-01 22:11:46 Changed by gwy
-#
-#  git_stats.py  2026-07-31 14:47:15 Changed by gwy
 
 import functools
 import itertools
@@ -228,7 +219,7 @@ def all_commits(repo_path: str, all_branches: bool = False, since_date: str = No
     return entries
 
 
-# Per-commit additions/deletions and dates — the atomic units that feed
+# Per-commit additions/deletions and dates: the atomic units that feed
 # every quality sub-score. All downstream analyses are just aggregations
 # and transformations of these three raw numbers per commit.
 SAFE_BUILTINS = {
@@ -662,7 +653,7 @@ class QualityModel:
         return periods
 
 
-# Compatibility wrappers — delegate to QualityModel.
+# Compatibility wrappers: delegate to QualityModel.
 def compute_quality(entries: List[Dict], params: Dict, now: datetime,
                     name: str = "", repo: str = None) -> Dict:
     model = QualityModel(params)

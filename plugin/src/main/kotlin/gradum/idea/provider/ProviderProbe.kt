@@ -29,7 +29,7 @@ interface ProviderProbeContract {
 /**
  * Single-shot probe for a model provider, routed through the Gradum server.
  *
- * The plugin never dials the provider directly — it asks the embedded
+ * The plugin never dials the provider directly: it asks the embedded
  * server (`POST /provider/probe`) to run the health check on the shared
  * network stack. The server answers with `{ status, latencyMs, error }`,
  * which is folded into a [ProviderStatus] for the settings page badge.

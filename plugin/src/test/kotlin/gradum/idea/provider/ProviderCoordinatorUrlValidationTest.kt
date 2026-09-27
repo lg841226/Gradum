@@ -8,7 +8,7 @@ import org.junit.Test
  * Unit tests for [isValidBaseUrl].
  *
  * The validator must reject garbage URLs such as
- * `http://192.168.1.5:1234/v1832483294239482394` — a scheme-only check is not
+ * `http://192.168.1.5:1234/v1832483294239482394`: a scheme-only check is not
  * enough, since users can paste arbitrary junk after a valid scheme. At the
  * same time every legitimately used base URL (plain host, `/v1` OpenAI
  * prefix, real hostnames, IPv4 loopback/LAN) must still be accepted.

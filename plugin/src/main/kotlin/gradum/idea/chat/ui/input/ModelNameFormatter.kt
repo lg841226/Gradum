@@ -6,7 +6,7 @@ package gradum.idea.chat.ui.input
  * Returned by [parseModelName] so the UI can render parts separately:
  * [displayName] for the title, [parameterSize] for a badge (e.g. "7B"),
  * [quant] for a secondary tag (e.g. "Q4_K_M"), [provider] for an icon.
- * The split is deliberately lossy — noise is dropped; [rawName] preserves the original.
+ * The split is deliberately lossy: noise is dropped; [rawName] preserves the original.
  */
 data class FormattedModelName(
   /** Human-friendly family + variant name, e.g. "Qwen 2.5 Coder". */
@@ -368,7 +368,7 @@ private val providerDisplayByKeyword: List<Pair<String, String>> = listOf(
  * Recognized parameter-size patterns. MoE (`8x7B`) must come before standalone `7B`
  * so the trailing `7B` in `8x7B` is consumed first. Decimals (`0.5B`) before integer
  * patterns for the same reason.
- * Unit is `[bm]` only — `k` is reserved for context size, `M` for million-param models.
+ * Unit is `[bm]` only: `k` is reserved for context size, `M` for million-param models.
  */
 private val parameterSizePatterns: List<Regex> = listOf(
   Regex(pattern = """(\d+)x(\d+(?:\.\d+)?)[bm]""", option = RegexOption.IGNORE_CASE),
@@ -392,10 +392,10 @@ private val quantPatterns: List<Regex> = listOf(
 
 /**
  * Recognized variant / pipeline suffixes that are dropped during family-key lookup.
- * `preview`, `experimental`, `exp` are NOT here — they are valid identifiers
+ * `preview`, `experimental`, `exp` are NOT here: they are valid identifiers
  * (`o1-preview`, `gpt-4o-exp`) and the fuzzy lookup handles them by dropping
  * the suffix and re-checking. File-format tags (`gguf`, `ggml`) are also NOT
- * here — quant extraction handles them.
+ * here: quant extraction handles them.
  */
 private val variantSuffixes: Set<String> = setOf(
   "instruct", "chat", "base", "it", "hf",
@@ -405,7 +405,7 @@ private val variantSuffixes: Set<String> = setOf(
 /**
  * Version/date tokens dropped when at the end of the family key.
  * Requires either `v` prefix (`v0.1`) or 3+ segment numeric pattern (`0.2.1`).
- * Bare digits preserved — they are usually model generations (`V3`, `3`, `5`).
+ * Bare digits preserved: they are usually model generations (`V3`, `3`, `5`).
  */
 private val versionPatterns: List<Regex> = listOf(
   Regex(pattern = """v\d+(\.\d+)+""", option = RegexOption.IGNORE_CASE),
@@ -466,8 +466,8 @@ fun parseModelName(raw: String): FormattedModelName {
  * [FormattedModelName.displayName] of a [parseModelName] call.
  *
  * Kept as a thin wrapper (rather than a duplicate of the logic)
- * so the four existing call sites — [ModelSelectorBar] (3×) and
- * [AssistantChatBubble] (1×) — can keep using the `String`
+ * so the four existing call sites, [ModelSelectorBar] (3×) and
+ * [AssistantChatBubble] (1×), can keep using the `String`
  * return type until the badge UI lands.
  */
 fun formatModelName(raw: String): String = parseModelName(raw).displayName
@@ -513,7 +513,7 @@ private fun lookupDisplayName(key: String): String? {
 /**
  * Variant of [lookupDisplayName] that tries a size-qualified key (e.g. `gpt-oss-20b`)
  * before falling through to the bare key. Needed because [buildLookupKey] operates on the
- * base name only — the colon tag's size is lost if not re-appended here.
+ * base name only: the colon tag's size is lost if not re-appended here.
  *
  * The size-qualified entry wins only when the bare entry ALSO exists AND the size-specific
  * displayName is NOT simply `bareDisplay + " " + size`. This rejects cases where the suffix
@@ -571,7 +571,7 @@ private fun extractParameterSize(name: String): String? {
  * Examples:
  *  - `qwen2.5-7b-instruct-q4_k_m` → `Q4_K_M`
  *  - `Mistral-7B-Instruct-v0.2.AWQ` → `AWQ`
- *  - `llama-3-8b-instruct-4bit` → (not matched — 4bit isn't in
+ *  - `llama-3-8b-instruct-4bit` → (not matched: 4bit isn't in
  *    our list; would only show in rawName)
  */
 private fun extractQuant(name: String): String? {
@@ -590,7 +590,7 @@ private fun extractQuant(name: String): String? {
 /**
  * Build the family-root lookup key by repeatedly stripping trailing size, quant, version,
  * and variant tokens until nothing changes. Loop (not fixed pipeline) because the order
- * of trailing tokens varies — any fixed order leaves at least one case partially stripped.
+ * of trailing tokens varies: any fixed order leaves at least one case partially stripped.
  */
 private fun buildLookupKey(name: String): String {
   var working: String = name
@@ -643,7 +643,7 @@ private fun buildLookupKey(name: String): String {
 /**
  * Title-Case-Space-Replace fallback for unrecognized models.
  * Hyphens → spaces, first letter uppercase, rest lowercase.
- * Deliberately simple — if the model isn't in the map, the user
+ * Deliberately simple: if the model isn't in the map, the user
  * gets a readable approximation, not a guess.
  */
 private fun fallbackDisplay(key: String): String =
@@ -699,6 +699,6 @@ private fun resolveGlmDisplay(key: String): String? {
 
 /**
  * Mini-catalog of well-known model identifiers. Used only for [FormattedModelName.isFromCatalog].
- * Local proxy — can't reach server-side `ModelCatalog` from the plugin module.
+ * Local proxy: can't reach server-side `ModelCatalog` from the plugin module.
  */
 private val knownModelSet: Set<String> = modelDisplayNames.keys

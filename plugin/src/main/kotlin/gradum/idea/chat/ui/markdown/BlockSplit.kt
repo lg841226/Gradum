@@ -34,7 +34,7 @@ internal fun serializeInlineChildren(containerNode: Node): String {
  *
  * A `HtmlBlock` whose text content is non-empty (after stripping the
  * raw `<tag>` markers) is reclassified as [MarkdownSegment.Plain]
- * rather than [MarkdownSegment.NonProseBlock] — Jewel's native
+ * rather than [MarkdownSegment.NonProseBlock]: Jewel's native
  * `Markdown(...)` renders raw HTML as a fenced code block, which
  * reads as "broken output" in chat. Stripping + reclassifying sends
  * the inner text through the inline path (with bold / italic / links

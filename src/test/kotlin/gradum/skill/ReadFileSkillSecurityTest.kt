@@ -20,19 +20,19 @@ import kotlin.test.Test
  *
  * Pinned behaviors:
  *  - `read_file("/etc/passwd")` and similar absolute escapes fail
- *    with `PERMISSION_DENIED` (not `FILE_NOT_FOUND` — that's an
+ *    with `PERMISSION_DENIED` (not `FILE_NOT_FOUND`: that's an
  *    information leak about which files exist outside the project).
  *  - `read_file("~/.ssh/id_rsa")` likewise fails.
  *  - Sibling directories sharing a name prefix are not silently
  *    accepted as "inside the project".
  *  - In-project relative paths still work end-to-end.
  *
- * The LLM is treated as untrusted input — a prompt-injected search
+ * The LLM is treated as untrusted input: a prompt-injected search
  * result or a malicious context file can ask the skill to read
  * anywhere. The agent's first line of defense is the schema
- * description ("relative to project root"), but the second line —
+ * description ("relative to project root"), but the second line,
  * the runtime check that runs regardless of what the schema let
- * through — is what these tests pin.
+ * through, is what these tests pin.
  */
 class ReadFileSkillSecurityTest {
 

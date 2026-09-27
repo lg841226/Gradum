@@ -21,7 +21,7 @@ import gradum.agent.Agent
  * that spawn sub-agents to register them in the server's session
  * hierarchy ([gradum.server.Routes.SessionEntry]), so that stopping
  * the parent session via `POST /stop` cascades to all child sessions
- * and terminates them on the server side — not just in the plugin UI.
+ * and terminates them on the server side: not just in the plugin UI.
  */
 data class SkillContext(
   val toolMode: ToolMode,
@@ -78,7 +78,7 @@ data class SkillContext(
    * Ask capability for this session. When non-null, skills may call
    * `scope.askInteraction { ... }` to pause for a user decision and
    * resume with their answer. Null when the agent was not wired with a
-   * [PendingQuestions] (e.g. tests or sub-agents that must not block) —
+   * [PendingQuestions] (e.g. tests or sub-agents that must not block),
    * a skill must fall back when this is absent instead of assuming it exists.
    */
   val scope: AskScope? = null,
@@ -94,7 +94,7 @@ data class SkillContext(
    * Session-scoped cache of externally-authorized read paths (e.g. a
    * `read_file` target outside the project root that the user approved
    * "always"). In-memory only, never persisted; a session restart asks
-   * again. Not part of the constructor/equality — it lives for the
+   * again. Not part of the constructor/equality: it lives for the
    * lifetime of the per-session [SkillContext] instance.
    */
   val authorizedReadPaths: MutableSet<String> = mutableSetOf()
@@ -103,7 +103,7 @@ data class SkillContext(
    * Session-scoped cache of externally-authorized write paths (e.g. a
    * `write_file` target outside the project root that the user approved
    * "always"). In-memory only, never persisted; a session restart asks
-   * again. Not part of the constructor/equality — it lives for the
+   * again. Not part of the constructor/equality: it lives for the
    * lifetime of the per-session [SkillContext] instance.
    */
   val authorizedWritePaths: MutableSet<String> = mutableSetOf()
@@ -113,7 +113,7 @@ data class SkillContext(
    * "always" (e.g. `rm:delete`, `chmod:recursive`, `dd:device-write`) after a
    * [CommandVerdict.NeedsApproval] verdict on `run_cmd`. In-memory only, never
    * persisted; a session restart asks again. Not part of the
-   * constructor/equality — it lives for the lifetime of the per-session
+   * constructor/equality: it lives for the lifetime of the per-session
    * [SkillContext] instance.
    */
   val authorizedCommandCategories: MutableSet<String> = mutableSetOf()
@@ -122,7 +122,7 @@ data class SkillContext(
    * Session-scoped cache of MCP tools the user approved "always" (e.g. a
    * `browser_navigate` call the user allowed every time). In-memory only,
    * never persisted; a session restart asks again. Not part of the
-   * constructor/equality — it lives for the lifetime of the per-session
+   * constructor/equality: it lives for the lifetime of the per-session
    * [SkillContext] instance.
    */
   val authorizedMcpTools: MutableSet<String> = mutableSetOf()
@@ -135,7 +135,7 @@ data class SkillContext(
    * [MaterializedMcpTools.DEFAULT_MAX_ROUNDS] materialization rounds; older
    * tools are trimmed automatically). In-memory only; a fresh session starts
    * with only the directory skill exposed again. Not part of the
-   * constructor/equality — it lives for the lifetime of the per-session
+   * constructor/equality: it lives for the lifetime of the per-session
    * [SkillContext] instance.
    */
   val materializedMcpTools: MaterializedMcpTools = MaterializedMcpTools()

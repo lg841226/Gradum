@@ -10,7 +10,7 @@ enum class Provider {
   /**
    * Wire-level identifier used in model discovery payloads and the
    * `providerType` field of [gradum.ModelEntry]. Single source of truth
-   * for the lowercase provider string — call sites must not hard-code
+   * for the lowercase provider string: call sites must not hard-code
    * `"ollama"` / `"openai"` literals.
    */
   val wireType: String get() = name.lowercase()
@@ -140,7 +140,7 @@ data class AgentConfiguration(
    * session is operating on. Resolved by `Routes` from the
    * `projectRoot` field of the HTTP request body, which the plugin
    * populates from `Project.basePath`. The server never infers this
-   * from CWD or any other source — only the plugin knows which
+   * from CWD or any other source: only the plugin knows which
    * project is actually open in the IDE.
    */
   val projectRoot: String = "",

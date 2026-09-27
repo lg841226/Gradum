@@ -59,7 +59,7 @@ private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
  * page. In a chat bubble that stack of 24 dp + the heading's own
  * line-height slack + the markdown `blockVerticalSpacing` (16 dp)
  * creates a ~40 sp gap between an H1 and the body text that follows
- * it — roughly 2½ lines of empty space, which reads as a layout
+ * it: roughly 2½ lines of empty space, which reads as a layout
  * bug. Override to 0 so the block-level `blockVerticalSpacing` is
  * the single source of truth for inter-block gaps, matching the
  * spacing between any two regular paragraphs.
@@ -70,7 +70,7 @@ private val HeadingBlockPadding: PaddingValues = PaddingValues(0.dp)
  * Optional override for the Markdown body/paragraph text style, applied by
  * [rememberGradumMarkdownStyling] when present. Lets a non-chat surface
  * (e.g. the commit-details panel) render the Markdown renderer's body text
- * in a custom font — such as the editor font — while reusing the full
+ * in a custom font, such as the editor font, while reusing the full
  * block/inline pipeline. When `null`, the chat's default paragraph style
  * ([rememberGradumParagraphTextStyle]) is used.
  */
@@ -108,7 +108,7 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
  * Returns a `LinkColors` with `content` overridden and the other 5
  * scanState colors (disabled / focused / hovered / pressed / visited)
  * carried through unchanged. `LinkColors` is a plain class (not
- * a data class) so it has no `copy(...)` — we hand-roll a small
+ * a data class) so it has no `copy(...)`: we hand-roll a small
  * `withContent` for the chat's "thinking-mode link color"
  * override. Used by [rememberGradumMarkdownStyling].
  */
@@ -124,7 +124,7 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 /**
  * Build an [InlinesStyling] for the [MarkdownStyling] used by
  * [BlockRenderer]'s non-prose block rendering. Link colors are
- * pulled directly from [linkColors] — the official Jewel API
+ * pulled directly from [linkColors]: the official Jewel API
  * already provides 6 scanState-aware Color fields (`content` /
  * `contentDisabled` / `contentFocused` / `contentHovered` /
  * `contentPressed` / `contentVisited`), and there is no need to

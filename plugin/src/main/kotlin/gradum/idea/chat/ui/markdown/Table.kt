@@ -56,7 +56,7 @@ import org.jetbrains.jewel.ui.typography
  * GFM table syntax is *not* registered here: the chat UI strips GFM tables out
  * at the call site in AssistantChatBubble and renders them with [ScrollableTable].
  *
- * [LatexBlockExtension] is intentionally **not** registered here — this
+ * [LatexBlockExtension] is intentionally **not** registered here: this
  * processor is used by the fenced / indented code block reparse path
  * (`BlockRenderer.parseFencedCodeBlock`), and a `$$…$$` inside a code
  * block must stay as literal text, not become a rendered formula. The
@@ -503,7 +503,7 @@ fun ScrollableTable(
 /**
  * Renders the table's header row. Shared between the in-flow table and the
  * sticky header overlay (registered via [StickySectionRegistry]) so both
- * render identically — same per-column widths, padding and typography.
+ * render identically: same per-column widths, padding and typography.
  */
 @Composable
 private fun TableHeaderRow(
@@ -691,7 +691,7 @@ internal fun distributeTableWidth(
  *
  * Jewel 0.37's [MarkdownText] internally does `block as MarkdownBlock.Paragraph`,
  * which throws `NoSuchElementException` for empty / whitespace-only input and
- * `ClassCastException` for non-`Paragraph` parsed blocks — both propagate as
+ * `ClassCastException` for non-`Paragraph` parsed blocks: both propagate as
  * unhandled Compose exceptions and take the chat panel down. Composable calls
  * can't be wrapped in try/catch (exceptions escape the try block and land in
  * the coroutine exception handler), so we use [RenderInlineTextWithChips]
@@ -742,7 +742,7 @@ fun SafeMarkdownText(
  * Renders the parse-failure placeholder for a [MarkdownSegment.Table] that
  * the caller has determined to be unrenderable
  * ([MarkdownSegment.Table.isRenderable] is `false`). The chat bubble
- * substitutes this for any `Table` whose body is empty / blank — the raw
+ * substitutes this for any `Table` whose body is empty / blank: the raw
  * pipe syntax of the original Markdown block is not surfaced here, since
  * it's visually noisy and uninformative.
  */

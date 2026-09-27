@@ -35,12 +35,12 @@ data class ToolCallErrorInfo(
 /**
  * Shared one-line "capsule" used by every built-in default renderer
  * to render a tool call row. Lives in `skill/internal/` because
- * third-party renderers should not import it — they own their own
+ * third-party renderers should not import it: they own their own
  * composables. Only the Gradum plugin's bundled renderers (Ran,
  * Edited, Read, Saved, Explored, Planned, Completed, Default) and
  * tests depend on this composable.
  *
- * Error display — when [success] is `false` and [message] is
+ * Error display: when [success] is `false` and [message] is
  * non-blank, a trailing `Status.FailedInProgress` failure icon is
  * rendered as a clickable button. Clicking it copies
  * errorInfo.toolDetails to the clipboard (defaulting to
@@ -132,7 +132,7 @@ internal fun linesAddedColor(): Color = LocalColorPalette.current.greenOrNull(in
  * copy-friendly string. Used by the error popup's "Copy details"
  * action so the user can paste a complete snapshot of what the
  * model asked the tool to do, what the tool returned, and what went
- * wrong — without us hand-curating per-renderer error strings.
+ * wrong: without us hand-curating per-renderer error strings.
  *
  * Sections are emitted in this order, each one omitted when its
  * source is blank:
@@ -146,7 +146,7 @@ internal fun linesAddedColor(): Color = LocalColorPalette.current.greenOrNull(in
  *   Detail:
  *     <errorDetail>
  *
- * `arguments` values are rendered via `toString()` — the map's value
+ * `arguments` values are rendered via `toString()`: the map's value
  * type is `Any?` (kotlinx-serialization round-trip), and we don't
  * pull `kotlinx-serialization-json` into the renderer layer to
  * pretty-print them. The output is still copyable into a chat /

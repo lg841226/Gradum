@@ -1,6 +1,6 @@
 /**
  * This file controls the Git analyzer behavior. Unexpected inputs may cause the
- * tool to fail or produce distorted analysis — proceed with caution.
+ * tool to fail or produce distorted analysis: proceed with caution.
  * We provide you with a JSONC autocomplete file for this purpose. Enjoy it.
  */
 {

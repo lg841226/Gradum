@@ -210,7 +210,7 @@ class EncryptionUtilTest {
 
   @Test
   fun `non-base64 ciphertext is rejected`() {
-    // The function should not crash on garbage input — it should
+    // The function should not crash on garbage input: it should
     // surface a clear error.
     val error: Throwable = assertFails {
       decryptMessageContent(encodedCiphertext = "not!valid!base64!@#$")

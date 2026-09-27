@@ -1,7 +1,7 @@
 package gradum.utils
 
 /**
- * Maximum number of messages kept in conversation history — the single
+ * Maximum number of messages kept in conversation history: the single
  * source of truth for both the in-memory truncation in
  * [gradum.agent.Agent] and the persisted-context truncation in
  * [ContextManager]. Canonical value lives in [gradum.GradumConfig].
@@ -24,7 +24,7 @@ const val MAX_HISTORY_MESSAGES: Int = gradum.GradumConfig.MAX_HISTORY_MESSAGES
  *
  * If [messages] has fewer than or exactly [maxTurns] entries, it's
  * returned unchanged. If every turn is larger than [maxTurns] (a
- * pathological case — turns are normally 1-3 messages), the most
+ * pathological case: turns are normally 1-3 messages), the most
  * recent [maxTurns] messages are returned as a last-resort tail cut.
  * Callers should log a warning when they detect this case.
  */

@@ -18,14 +18,14 @@ import kotlinx.serialization.json.*
  * Unlike an ordinary [gradum.skill.Skill], the schema is NOT trimmed: [getSchema]
  * emits the tool's full native JSON Schema (every property plus `required`), so
  * the model sees the complete parameter surface instead of only required fields.
- * This adapter is used for tools materialized on demand via [McpToolCatalog] —
+ * This adapter is used for tools materialized on demand via [McpToolCatalog],
  * it is never registered for all tools at startup. [execute] forwards the
  * caller's arguments to the server via [McpClient.callTool].
  *
  * Because [Skill.execute] is synchronous while the transport is coroutine-based,
  * [execute] bridges with [runBlocking]; the response is handled on the
  * transport's own IO scope, so blocking the calling thread only waits on the
- * deferred — it never deadlocks.
+ * deferred: it never deadlocks.
  */
 internal class McpSkillAdapter(
   private val tool: McpTool,

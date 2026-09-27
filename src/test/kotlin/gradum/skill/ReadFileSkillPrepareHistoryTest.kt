@@ -29,7 +29,7 @@ import kotlin.test.*
  * `prepareHistoryResult` pipeline five times on the same skill
  * instance and asserts that `content` survives every call.
  *
- * The skill instance is treated as a singleton here — that
+ * The skill instance is treated as a singleton here: that
  * matches the production behavior in [SkillRegistry], which
  * reuses one ReadFileSkill across the whole session. The
  * counter is per-instance, not per-call, so a single instance

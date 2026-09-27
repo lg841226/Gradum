@@ -11,12 +11,12 @@ import kotlin.test.*
  * Pins [DelegateSkill] behavior that the agent orchestration and the
  * sub-agent lifecycle depend on:
  *
- *  1. Schema structure — the LLM must discover `task` and `title`.
- *  2. Tool-mode gates — the skill must be available in all modes.
- *  3. Validation — missing required parameters return structured errors.
- *  4. Context validation — missing [AgentConfiguration] or [emitEvent]
+ *  1. Schema structure: the LLM must discover `task` and `title`.
+ *  2. Tool-mode gates: the skill must be available in all modes.
+ *  3. Validation: missing required parameters return structured errors.
+ *  4. Context validation: missing [AgentConfiguration] or [emitEvent]
  *     in [SkillContext] return client errors, not NPEs.
- *  5. Event-stream ownership — the skill signals
+ *  5. Event-stream ownership: the skill signals
  *     [manageOwnEventStream] so the agent loop does not emit
  *     duplicate `tool_call_start` / `tool_call` events.
  */

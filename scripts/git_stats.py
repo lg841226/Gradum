@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 
-#  Copyright (c) 2026 Gradum Authors
-#
-#  git_stats.py  2026-09-25 17:19:15 Changed by gwy
-
 import csv
 import functools
 import itertools

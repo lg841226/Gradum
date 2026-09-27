@@ -30,7 +30,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
  * panel mirrors
  * [gradum.idea.chat.ui.chat.ThinkingIndicator]'s "expand to reveal"
  * pattern: collapsed by default on a successful write, auto-expanded
- * when the call failed so the model — and the user — see the
+ * when the call failed so the model, and the user, see the
  * failure detail without an extra click.
  */
 class WriteFileRenderer : ToolCallRenderer {

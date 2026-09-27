@@ -6,7 +6,7 @@ import java.time.Duration
  * Single source of truth for cross-cutting plugin constants.
  *
  * Component-local animation timings (e.g. bubble fade-in, jump-to-bottom
- * transitions) stay in their own files — they are not shared and centralizing
+ * transitions) stay in their own files: they are not shared and centralizing
  * them would add indirection without value.
  *
  * This object covers values that are:

@@ -93,11 +93,11 @@ fun RenderNonProseBlock(
  * types (HtmlBlock, extension nodes) fall back to plain
  * `Text(serializeMarkdownNode(node))`.
  *
- * All lists — top-level AND nested — go through [RenderBulletList] /
+ * All lists, top-level AND nested, go through [RenderBulletList] /
  * [RenderOrderedList] with `indentDepth + 1` recursion so the chat's bullet
  * style, marker column width, item spacing, and the blue `` `code` `` chip
  * apply uniformly. [indentDepth] is NOT used to compound the visible indent
- * (that would make nested lists look ragged) — the inner indent is the
+ * (that would make nested lists look ragged): the inner indent is the
  * same fixed step regardless of how deep we are.
  */
 @Composable
@@ -167,7 +167,7 @@ private fun RenderHeading(heading: Heading, onUrlClick: (String) -> Unit) {
  * Render an unordered list. Each item is its own [RenderListItem] row; the
  * marker column reserves [MarkdownStyle.Block.UNORDERED_MARKER_MIN_WIDTH]. Nested bullet
  * lists recurse with `indentDepth + 1`. The visible start-padding is
- * "one step if nested, zero otherwise" — not `indentDepth × step` — so
+ * "one step if nested, zero otherwise", not `indentDepth × step`, so
  * deeply-nested lists stay aligned instead of stair-stepping off-screen.
  */
 @OptIn(ExperimentalJewelApi::class)
@@ -294,8 +294,8 @@ internal data class TaskListMarker(val checked: Boolean)
 /**
  * Returns the task-list marker if [paragraph] starts with `[ ] ` /
  * `[x] ` / `[x] ` (the only forms GFM recognizes), or `null` if it's
- * a normal paragraph. The check looks at the first `Text` child only
- * — commonmark emits the marker as a single Text literal, so a split
+ * a normal paragraph. The check looks at the first `Text` child only:
+ * commonmark emits the marker as a single Text literal, so a split
  * (e.g. an `Emphasis` node before the marker) would already be a
  * non-task-list paragraph.
  */
@@ -345,7 +345,7 @@ internal fun stripTaskListMarker(paragraph: Paragraph): Paragraph? {
 
 /**
  * Render a single GFM task-list item as `Row { CheckboxRow(text) }`. The
- * checkbox is `enabled = false` — task lists in chat messages are
+ * checkbox is `enabled = false`: task lists in chat messages are
  * informational, not interactive (the user copies the list out to a
  * todo app if they want to track it). The `[ ]` / `[x]` marker is
  * stripped from a synthetic copy of the first `Paragraph` before
@@ -409,7 +409,7 @@ private fun RenderTaskListItem(
  * Stripped-paragraph → CheckboxRow helper. The marker is removed
  * from a synthetic `Paragraph` (so the original AST is untouched and
  * the serializer's round-trip is preserved) and the inline children
- * walk through [rememberInlineMarkdownRenderFromNode] — same path
+ * walk through [rememberInlineMarkdownRenderFromNode]: same path
  * the non-task-list `RenderInlineTextInListRow` uses, minus the
  * marker prefix.
  */
@@ -512,7 +512,7 @@ private fun RenderListItem(
  * Shared list-item row layout: marker column on the left, paragraph
  * inline children on the right. The paragraph is walked via
  * [rememberInlineMarkdownRenderFromNode] so list-marker-shaped content
- * (e.g. `- 1. **bold**`) keeps its formatting — the previous
+ * (e.g. `- 1. **bold**`) keeps its formatting: the previous
  * serialize-then-re-parse flow would re-interpret the leading `1. `
  * as an `OrderedList` and bail.
  */
@@ -544,7 +544,7 @@ private fun RenderInlineTextInListRow(
   }
 }
 
-/** Marker column slot — fixed-width right-aligned Box that always reserves space for the marker. */
+/** Marker column slot: fixed-width right-aligned Box that always reserves space for the marker. */
 @Composable
 private fun MarkerColumn(
   prefixText: String,
@@ -576,7 +576,7 @@ private fun MarkerColumn(
  * color and clipped to a `RoundedCornerShape(percent = 50)`. Compose
  * resolves the percent to `min(width, height) / 2` at layout time, so a
  * 4-dp-wide rule becomes a perfect capsule (radius = 2 dp) regardless
- * of how tall the quote runs — no hand-rolled `drawLine` / `StrokeCap`
+ * of how tall the quote runs: no hand-rolled `drawLine` / `StrokeCap`
  * math, no inset coordinates. Same width as
  * `styling.blockQuote.lineWidth` (4 dp / `GradumSpacing.sm`) and same
  * gray as `styling.blockQuote.lineColor` (`globalColors.text.disabled`),
@@ -668,7 +668,7 @@ private fun RenderBlockQuoteChild(
 /**
  * Render a fenced code block via the project's [GradumCodeBlockRenderer]. Fetches
  * the renderer through [LocalMarkdownBlockRenderer] and calls its
- * `RenderFencedCodeBlock` method directly — no `Markdown(...)` wrapper, no
+ * `RenderFencedCodeBlock` method directly: no `Markdown(...)` wrapper, no
  * double-parse, no loss of toolbar / language tag / copy / insert-as-file.
  */
 @OptIn(ExperimentalJewelApi::class)
@@ -688,7 +688,7 @@ private fun RenderFencedCodeBlock(block: FencedCodeBlock) {
   )
 }
 
-/** Render an indented code block — same strategy as [RenderFencedCodeBlock] but no language tag. */
+/** Render an indented code block: same strategy as [RenderFencedCodeBlock] but no language tag. */
 @OptIn(ExperimentalJewelApi::class)
 @Composable
 private fun RenderIndentedCodeBlock(block: IndentedCodeBlock) {

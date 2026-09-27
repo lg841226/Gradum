@@ -22,13 +22,13 @@ import java.nio.file.Paths
  *   segment; `false` if the path resolved as-is (including
  *   the case where the original path was a hit and the
  *   shifted candidate was not).
- * @property shiftedForm The corrected form — only set when
+ * @property shiftedForm The corrected form: only set when
  *   [shifted] is `true`. Useful for the `original` →
  *   `shiftedForm` mapping the LLM can observe in the
  *   success response.
  * @property rejectionReason Non-null when the path was
  *   rejected by the [resolveProjectPath]'s
- *   `requireWithinProject` check — i.e. the resolved path
+ *   `requireWithinProject` check: i.e. the resolved path
  *   escapes the project root and is not on the safe-prefix
  *   list (`/tmp`). The tool should fail the call with
  *   `PERMISSION_DENIED` rather than operate on the path.
@@ -59,7 +59,7 @@ data class ResolvedProjectPath(
  *
  * Without correction, the resolved path becomes
  * `/.../gradum-playground/gradum-playground/src/demo.js` and
- * the tool returns "file not found" — forcing the LLM to
+ * the tool returns "file not found": forcing the LLM to
  * re-explore the project and try again. The correction saves
  * one round-trip per occurrence. See the LLM trace in the
  * feature request: an `Explored` + a self-corrected `Read`
@@ -67,7 +67,7 @@ data class ResolvedProjectPath(
  *
  * ## Security: `requireWithinProject`
  *
- * The LLM is treated as untrusted input — a prompt-injected
+ * The LLM is treated as untrusted input: a prompt-injected
  * search result or a malicious context file can tell it to
  * read `/etc/passwd`, `~/.ssh/id_rsa`, or the cloud metadata
  * service. With `requireWithinProject = true` (the default
@@ -99,7 +99,7 @@ data class ResolvedProjectPath(
  *
  * The check is **scoped to "first segment matches project
  * basename"** deliberately. We do not try every possible
- * prefix strip — that would risk substituting a wrong file
+ * prefix strip: that would risk substituting a wrong file
  * that happens to exist at a shallower depth (e.g., shifting
  * a correct `src/demo.js` to a top-level `demo.js` that
  * exists by coincidence). The single-shift rule only fires
@@ -108,7 +108,7 @@ data class ResolvedProjectPath(
  *
  * Edge cases (all return the trivial resolution with
  * [ResolvedProjectPath.shifted] = `false`):
- *  - blank [filePath] or blank [projectRoot] — the resolved
+ *  - blank [filePath] or blank [projectRoot]: the resolved
  *    path is marked rejected (no project to constrain to)
  *  - absolute [filePath] (POSIX `/...` or Windows
  *    `C:\\...`); absolute paths must still be under
@@ -226,7 +226,7 @@ fun resolveProjectPath(
  * [originalWasAbsolute] is the gate on the safe-prefix escape:
  * only an LLM that explicitly typed an absolute path can opt into
  * a `/tmp`-style carve-out. A relative path whose `..` happens to
- * land in `/tmp` is still rejected — that's the point of the
+ * land in `/tmp` is still rejected: that's the point of the
  * boundary check, and treating the two cases the same is what let
  * a project under `java.io.tmpdir` (the macOS default) silently
  * expose its siblings as "safe scratch space".
@@ -288,7 +288,7 @@ private fun isWithinProjectRoot(resolved: Path, normalizedRoot: Path?): Boolean 
  * (following symlinks) falls outside the project / safe-prefix boundary.
  * A string-level `startsWith` check is fooled by `proj/evil -> ~/.ssh`:
  * the path reads as inside, but every file operation follows the link
- * out of the project. Only checks paths that actually exist — a
+ * out of the project. Only checks paths that actually exist: a
  * not-yet-created target has no symlink chain to resolve yet.
  */
 private fun isResolvedThroughSymlinkOutside(
@@ -311,7 +311,7 @@ private fun isResolvedThroughSymlinkOutside(
       })
     !within
   } catch (_: IOException) {
-    // Can't resolve the real path — be conservative and reject.
+    // Can't resolve the real path: be conservative and reject.
     true
   }
 }

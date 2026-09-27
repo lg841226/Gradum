@@ -25,7 +25,7 @@ import org.jetbrains.jewel.ui.icon.IconKey
  *   no dedicated renderer.
  *
  * To add a new tool-call row, see
- * [ToolCallRendererRegistry] — it holds the explicit list of
+ * [ToolCallRendererRegistry]: it holds the explicit list of
  * renderer instances the chat panel consults. New code lives in
  * its own folder under `chat/ui/chat/skill/<alias>/` and is
  * registered with a single line in
@@ -35,7 +35,7 @@ interface ToolCallRenderer {
 
   /**
    * Server-side skill alias this renderer handles. Multiple
-   * renderers for the same alias are unsupported — the registry
+   * renderers for the same alias are unsupported: the registry
    * uses first-registered wins.
    */
   fun alias(): String

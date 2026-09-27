@@ -17,7 +17,7 @@ private val logger: Logger = LoggerFactory.getLogger("ThumbnailImageLoader")
 
 /**
  * HTTP request timeout for a thumbnail fetch. Kept short because the
- * user is staring at a chat reply — a slow favicon should never make
+ * user is staring at a chat reply: a slow favicon should never make
  * the whole row feel laggy. 3 s matches JetBrains' own URL handler
  * default for image previews in the IDE.
  */
@@ -55,8 +55,8 @@ private const val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
  * its only outbound channel. Thumbnail URLs come from three places,
  * all of which are attacker-controlled in principle: the Tavily
  * search response (a malicious page can publish any URL as its
- * `favicon`), the result page's own root (`https://{host}/favicon.ico`
- * — `host` came from a Tavily-supplied URL), and a third-party
+ * `favicon`), the result page's own root (`https://{host}/favicon.ico`,
+ * `host` came from a Tavily-supplied URL), and a third-party
  * aggregator (`favicon.vip`, which sees and could be tricked into
  * serving whatever). Every URL therefore goes through
  * [ThumbnailUrlGuard] before we open a socket. The guard enforces
@@ -67,7 +67,7 @@ private const val MAX_IMAGE_BYTES: Int = PluginConfig.THUMBNAIL_MAX_IMAGE_BYTES
  * still be caught because the `URI(...).toURL()` path re-resolves
  * through the JDK and re-validates on every retry; full pinning
  * would require IP-literal connections, which we leave to a future
- * change). Disk-cache hits skip the guard on the read path — the
+ * change). Disk-cache hits skip the guard on the read path: the
  * URL was already vetted when it was first written.
  *
  * **Other guarantees.** Thread-safe (used from arbitrary
@@ -106,7 +106,7 @@ object ThumbnailImageLoader {
    * network.
    *
    * The function does *not* block the calling coroutine on the
-   * network — it just synchronously reads from the cache. The actual
+   * network: it just synchronously reads from the cache. The actual
    * HTTP / decode work happens on a [java.util.concurrent.ForkJoinPool]
    * daemon thread (the default executor for `CompletableFuture.supplyAsync`).
    * This keeps thumbnail loading off the UI thread.
@@ -136,7 +136,7 @@ object ThumbnailImageLoader {
    * concurrent callers (single-flight), so it's safe to fire-and-forget
    * from many recompositions.
    *
-   * The read path consults the on-disk cache (synchronous — the
+   * The read path consults the on-disk cache (synchronous: the
    * decode is fast) before issuing a network request, so a favicon
    * the user saw in a previous IDE session is rendered without any
    * HTTP I/O on the first hit.
@@ -195,8 +195,8 @@ object ThumbnailImageLoader {
   /**
    * Validates the URL, opens the connection, reads (capped) bytes,
    * decodes via Skia, and returns the bitmap. Returns `null` on any
-   * failure — guard rejection, HTTP error, oversized body, decode
-   * error, timeout — and logs a single warning. Caller renders the
+   * failure: guard rejection, HTTP error, oversized body, decode
+   * error, timeout, and logs a single warning. Caller renders the
    * placeholder box on null.
    *
    * We use [URI] rather than [URL] so URLs with unusual characters
@@ -270,7 +270,7 @@ object ThumbnailImageLoader {
 
   /**
    * Decode a byte payload into a Compose [ImageBitmap]. Returns `null`
-   * on any Skia parse error. Skia is format-agnostic — PNG, JPG, WebP,
+   * on any Skia parse error. Skia is format-agnostic: PNG, JPG, WebP,
    * GIF are all auto-detected from the byte header, so the caller
    * doesn't need to know which format a given URL serves.
    */

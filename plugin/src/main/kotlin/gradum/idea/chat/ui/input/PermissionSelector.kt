@@ -35,7 +35,7 @@ object PermissionMode {
  * label in [gradum.idea.chat.state.GradumChatSession.selectedPermission]
  * and translated to wire inside the tool window factory, which meant
  * the initial scanState was always the label and the translation was
- * never run — a silent default back to "write" on every fresh session.
+ * never run: a silent default back to "write" on every fresh session.
  */
 fun permissionLabel(wire: String): String = when (wire) {
   PermissionMode.READONLY -> message("gradum.read")

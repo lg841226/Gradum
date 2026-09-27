@@ -39,8 +39,8 @@ private val logger: Logger = Logger.getInstance("#gradum.idea.chat.ui.chat.SubCh
  * conversation. Rendered in place of the main chat panel when
  * the user clicks on a delegate capsule.
  *
- * Layout mirrors the main [gradum.idea.chat.ui.ChatScreen] — centered message list
- * with a max width of 680dp, timestamps, and the same bubble rendering —
+ * Layout mirrors the main [gradum.idea.chat.ui.ChatScreen]: centered message list
+ * with a max width of 680dp, timestamps, and the same bubble rendering,
  * but without an input area.
  *
  * A back button at the top-left returns to the main conversation.

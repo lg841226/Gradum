@@ -67,7 +67,7 @@ object SkillRegistry : SkillStore {
    * Returns function schemas for every skill that allows the given
    * [toolMode].
    *
-   * The filter mirrors the runtime gate in [gradum.agent.Agent] — both
+   * The filter mirrors the runtime gate in [gradum.agent.Agent]: both
    * delegate to [Skill.allows]. The two checks must agree: a tool whose
    * schema is in the LLM's list must pass the runtime gate, and a tool
    * left out of the list must still be gated (the model can hallucinate

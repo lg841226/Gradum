@@ -92,7 +92,7 @@ class GradumMarkdownScope {
  * Unified Markdown renderer for the Gradum chat UI.
  *
  * Encapsulates the common rendering pipeline:
- * 1. [splitMarkdown] — split raw text into [MarkdownSegment]s
+ * 1. [splitMarkdown]: split raw text into [MarkdownSegment]s
  * 2. [gradum.idea.chat.ui.markdown.MarkdownSegment.Plain] segments → [rememberInlineMarkdownRender] → [Text]
  * 3. [gradum.idea.chat.ui.markdown.MarkdownSegment.Table] segments → [ScrollableTable]
  * 4. [gradum.idea.chat.ui.markdown.MarkdownSegment.NonProseBlock] segments → [RenderNonProseBlock] or [Markdown]

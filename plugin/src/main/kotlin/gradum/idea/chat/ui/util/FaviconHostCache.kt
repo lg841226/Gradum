@@ -43,7 +43,7 @@ import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
  * In-memory, scoped to the IDE process. The persistent [ThumbnailDiskCache]
  * is the right place for byte-level reuse across restarts; this cache
  * is just an in-session optimisation for the chain walk. Losing it on
- * restart is fine — the worst case is one extra HTTP probe per host,
+ * restart is fine: the worst case is one extra HTTP probe per host,
  * which is the same as a cold start.
  *
  * ## Concurrency
@@ -57,7 +57,7 @@ import gradum.idea.chat.ui.util.FaviconHostCache.Companion.MAX_ENTRIES
  * ## Eviction
  *
  * Bounded by [MAX_ENTRIES] (default 256). On overflow, drops the
- * eldest insertion — an LRU-by-insertion approximation is fine here
+ * eldest insertion: an LRU-by-insertion approximation is fine here
  * because a hot host that gets re-rendered will get re-promoted to
  * "winning URL" on the very next render, well before the entry has
  * a chance to age out.
@@ -82,7 +82,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
   /**
    * Returns the remembered winning favicon URL for [host], or `null`
    * if we don't have one. A `null` result does *not* mean the host
-   * has no favicon — only that we haven't tried yet, or that the
+   * has no favicon: only that we haven't tried yet, or that the
    * last attempt failed. Callers must handle both cases.
    */
   fun getWinningUrl(host: String): String? = synchronized(lock) {
@@ -114,7 +114,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
   /**
    * Record that *no* URL in the chain worked for [host]. Future
    * renders will render the gray placeholder without touching the
-   * network. The negative entry never overwrites a positive one —
+   * network. The negative entry never overwrites a positive one,
    * if the host later gets a success, [recordSuccess] clears the
    * negative entry and the cache becomes a positive cache again.
    */
@@ -152,7 +152,7 @@ internal class FaviconHostCache(private val maxEntries: Int = MAX_ENTRIES) {
 
   companion object {
     /**
-     * 256 hosts is more than enough for a single chat session — a
+     * 256 hosts is more than enough for a single chat session: a
      * 10-result search page referencing 10 unique hosts only adds 10
      * entries, and the user has to keep the IDE open and search
      * through 25+ distinct domains to ever overflow this.

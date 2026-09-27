@@ -104,7 +104,7 @@ data class InlineMarkdownRender(
 data class UrlAnnotation(val start: Int, val end: Int, val url: String)
 
 /**
- * One chunk of a rendered inline line — either prose (Text with inlineContent for chips)
+ * One chunk of a rendered inline line: either prose (Text with inlineContent for chips)
  * or a clickable link (ExternalLink). Split at link boundaries by splitIntoInlineSegments.
  */
 sealed interface InlineSegment {
@@ -191,7 +191,7 @@ internal val INLINE_LATEX_PAREN_REGEX: Regex = Regex(pattern = """\\\(([^()\n]+?
 /**
  * Matches "currency-like" dollar-span content: digits with comma/dot
  * thousand/ decimal separators, optional spaces and a +/- sign. `$5.99`,
- * `$1,000`, `$ 50` are prices, not LaTeX — a real formula always carries
+ * `$1,000`, `$ 50` are prices, not LaTeX: a real formula always carries
  * a letter, symbol, or operator. A pure-digit span is never math.
  */
 internal val CURRENCY_LIKE_CONTENT_REGEX: Regex = Regex(pattern = """[\d,.\s+-]*""")
@@ -279,9 +279,9 @@ internal fun parseInlineMarkdown(
 
 /**
  * Result of preprocessParenLatexFormulas:
- *   text — the input with each \(…\) span replaced by a single PUA marker char.
+ *   text: the input with each \(…\) span replaced by a single PUA marker char.
  *          Safe to feed to the CommonMark parser.
- *   formulaByMarker — map from marker char (the literal PUA string) to the original formula text.
+ *   formulaByMarker: map from marker char (the literal PUA string) to the original formula text.
  *                     The walker uses this to recover the formula when it encounters a marker.
  */
 internal data class PreprocessedParenLatex(
@@ -361,7 +361,7 @@ internal fun preprocessDollarLatexFormulas(rawText: String): PreprocessedParenLa
  *
  * Rejects:
  *  - whitespace immediately after the opening `$` or before the closing
- *    `$` (markdown-it rule — inline math never has a space there);
+ *    `$` (markdown-it rule: inline math never has a space there);
  *  - purely numeric content (`$5.99`, `$1,000`, `$ 50`) which is
  *    currency, not math.
  */
@@ -949,7 +949,7 @@ internal fun splitIntoInlineSegments(
   return segments
 }
 
-/** Drop PUA placeholders from a link's text range — chips/icons/formulas render through their own inlineContent. */
+/** Drop PUA placeholders from a link's text range: chips/icons/formulas render through their own inlineContent. */
 private fun stripInlineLinkText(range: CharSequence): String {
   if (range.none { it.isInlinePlaceholderPua() })
     return range.toString()
@@ -1084,11 +1084,11 @@ private fun FootnoteMark(text: String, fontSizeSp: Float, isDefinition: Boolean 
  * Color for the alt text of an inline `![alt](url)` image. The chat
  * doesn't render the binary, so the alt text is a placeholder /
  * description, not a link. Using the body text's color at 60% alpha
- * reads as "secondary / decorative" — visually subordinate to the
+ * reads as "secondary / decorative": visually subordinate to the
  * link blue and the body black, but still readable in both light
  * and dark themes. (The previous v1.5 path made the alt text use
  * the link color, which confused the user when the message mixed
- * images and links — see the feedback case
+ * images and links: see the feedback case
  * `![alt](imageUrl) <https://example.com> <email@example.com>`.)
  */
 @Composable

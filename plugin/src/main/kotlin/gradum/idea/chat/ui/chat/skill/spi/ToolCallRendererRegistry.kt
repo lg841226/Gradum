@@ -17,7 +17,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallRendererRegistry.RENDERERS
  *   / paste of an `<extensions>` block.
  * - EP resolution goes through the IDE's `Extensions` area, which
  *   throws `IllegalArgumentException: Missing extension point` at
- *   the first chat render if anything is misconfigured — a
+ *   the first chat render if anything is misconfigured: a
  *   non-recoverable runtime crash.
  * - The EP cannot be defined per-alias in a way that's easy to
  *   discover: a third-party developer has to read the EP interface

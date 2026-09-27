@@ -32,7 +32,7 @@ class GradumInlineMarkdownTest {
 
   /**
    * Unwrap the [InlineMarkdownRender] from the result of [render]. Fails
-   * the test if the parser bailed — callers are tests that need a
+   * the test if the parser bailed: callers are tests that need a
    * non-null render. The bail path is exercised separately via [render]
    * + null checks on `.render`.
    */
@@ -49,13 +49,13 @@ class GradumInlineMarkdownTest {
     return out.toString()
   }
 
-  /** Count PUA placeholders — the chip is rendered as one PUA char in the annotated text. */
+  /** Count PUA placeholders: the chip is rendered as one PUA char in the annotated text. */
   private fun countPua(annotated: AnnotatedString): Int =
     annotated.count { ch -> ch == '\uE000' }
 
   @Test
   fun `blank input returns null render and null bailReason`() {
-    // Blank input is "no rendering needed" — not a real bail. The
+    // Blank input is "no rendering needed": not a real bail. The
     // caller treats it as "use Markdown(...)" with no diagnostic.
     val blankResult: InlineMarkdownRenderResult = render("")
     assertNull(blankResult.render)
@@ -80,7 +80,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `list input bails with non-prose block reason`() {
     // CommonMark produces BulletList for "- item" and OrderedList for
-    // "1. item" — not the abstract ListBlock base class.
+    // "1. item": not the abstract ListBlock base class.
     val bulletResult: InlineMarkdownRenderResult = render("- item 1\n- item 2")
     assertNull(bulletResult.render)
     assertTrue(
@@ -133,7 +133,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `reference link definition bails with its block reason`() {
     // `[text][ref]` produces a `LinkReferenceDefinition` block in
-    // addition to the paragraph — that's a non-`Paragraph` block, so
+    // addition to the paragraph: that's a non-`Paragraph` block, so
     // the parser bails. In normal flow the upstream `splitPlainAtBlocks`
     // splits this into a `Plain` sub-segment and a `NonProseBlock`, so
     // the inline parser would see the paragraph alone. This test
@@ -200,7 +200,7 @@ class GradumInlineMarkdownTest {
   fun `inline code renders as real text without a PUA placeholder`() {
     // renderCodeInline writes the literal code text directly (with a
     // SpanStyle + INLINE_CODE_SPAN_TAG annotation) instead of allocating
-    // a PUA chip — so the annotated string carries the text and there is
+    // a PUA chip: so the annotated string carries the text and there is
     // no PUA placeholder to strip.
     val render: InlineMarkdownRender = inlineRender("use `foo()` here")
     assertEquals(
@@ -299,7 +299,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `link renders with link color and permanent underline span`() {
     // The chat's link rule is "blue text + permanent underline",
-    // not "blue text + underline on hover" — see `linkStateStyles`
+    // not "blue text + underline on hover": see `linkStateStyles`
     // KDoc for why. The walker emits a `SpanStyle` with
     // `TextDecoration.Underline` for the link's text range so
     // the `Markdown(...)` fallback path (and the legacy
@@ -350,7 +350,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `inline image renders alt text as italic placeholder and does NOT register a URL annotation`() {
     // The chat doesn't render the binary, so `![alt](imageUrl)` is a
-    // *placeholder*, not a link — see the KDoc on `renderImageInline`.
+    // *placeholder*, not a link: see the KDoc on `renderImageInline`.
     // The previous v1.5 path registered the image's URL as a
     // UrlAnnotation and applied the link color, which made the alt
     // text visually indistinguishable from a link and surprised the
@@ -614,7 +614,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `parser does not throw on unclosed backtick`() {
     // CommonMark treats `foo` (no closing backtick) as literal text.
-    // The parser should not throw — a defensive try/catch wraps the
+    // The parser should not throw: a defensive try/catch wraps the
     // walker and converts any throw into a bail with a descriptive
     // reason (logged to the IDE log).
     val result: InlineMarkdownRenderResult = render("a `foo with no closing")
@@ -648,7 +648,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `strikethrough accumulates with bold - both styles apply`() {
-    // `~~**bold strike**~~` — the inner bold gets BOTH the bold
+    // `~~**bold strike**~~`: the inner bold gets BOTH the bold
     // weight AND the line-through decoration.
     val render: InlineMarkdownRender = inlineRender("~~**bold strike**~~")
     val strikeSpans: List<AnnotatedString.Range<SpanStyle>> =
@@ -672,7 +672,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `strikethrough inside link - link underline plus strike`() {
-    // `~~[struck link](https://x.test)~~` — the link's text is
+    // `~~[struck link](https://x.test)~~`: the link's text is
     // struck-through, and the link's underline decoration coexists
     // with the strike (composed via combineDecoration).
     val render: InlineMarkdownRender = inlineRender("see ~~[struck link](https://x.test)~~ here")
@@ -695,7 +695,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `strikethrough and inline code in same paragraph both render`() {
-    // Mix of formatting — the strike spans only the struck text while
+    // Mix of formatting: the strike spans only the struck text while
     // the code is independent via its own INLINE_CODE_SPAN_TAG range.
     val render: InlineMarkdownRender = inlineRender("struck ~~here~~ with `code`")
     val strikeSpans: List<AnnotatedString.Range<SpanStyle>> =
@@ -730,7 +730,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio for pure CJK uses CJK ratio`() {
-    // 3 Chinese ideographs × 1.0 = 3.0 — much wider than the
+    // 3 Chinese ideographs × 1.0 = 3.0: much wider than the
     // previous Latin-only `0.6f * 3 = 1.8` would have allocated. This
     // is the bug the user reported: chip clipped Chinese code spans
     // because the old computation under-allocated width for full-width
@@ -744,7 +744,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `cjkAwareWidthRatio for mixed CJK and Latin sums per char`() {
-    // "中a文" — 2 CJK × 1.0 + 1 Latin × 0.6 = 2.6
+    // "中a文": 2 CJK × 1.0 + 1 Latin × 0.6 = 2.6
     assertEquals(
       2.6f,
       cjkAwareWidthRatio("中a文"),
@@ -755,7 +755,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `cjkAwareWidthRatio recognizes full-width punctuation`() {
     // "，" (U+FF0C) is full-width comma → CJK ratio.
-    // "a,b" — comma is ASCII Latin; "a，b" — comma is full-width.
+    // "a,b": comma is ASCII Latin; "a，b": comma is full-width.
     assertEquals(1.8f, cjkAwareWidthRatio("a,b"), 0.0001f) // 3 × 0.6
     assertEquals(2.2f, cjkAwareWidthRatio("a，b"), 0.0001f) // 2 × 0.6 + 1 × 1.0
   }
@@ -788,7 +788,7 @@ class GradumInlineMarkdownTest {
     )
   }
 
-  // parseInlineNodes — the AST-walking entry point used by
+  // parseInlineNodes: the AST-walking entry point used by
   // RenderHeading to avoid the serialize-then-re-parse round-trip that
   // would change block structure for headings starting with a list
   // marker (e.g. `### 2. **bold**` → `2. **bold**` → OrderedList,
@@ -797,7 +797,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `parseInlineNodes on a heading walks its inline children directly`() {
     // Build the heading AST by parsing the original Markdown source
-    // once with commonmark — this is what RenderNonProseBlock does
+    // once with commonmark: this is what RenderNonProseBlock does
     // before dispatching to RenderHeading.
     val parser: Parser = Parser.builder().build()
     val headingNode: Heading =
@@ -812,7 +812,7 @@ class GradumInlineMarkdownTest {
     val render: InlineMarkdownRender = requireNotNull(result.render)
     val visible: String = visibleText(render.annotated)
     // The list-marker-looking "2. " prefix is preserved as text and
-    // the strong-emphasis renders as a bold span — neither was
+    // the strong-emphasis renders as a bold span: neither was
     // possible through the old serialize-then-re-parse flow.
     assertEquals(
       "2. 游戏速度不一致",
@@ -882,7 +882,7 @@ class GradumInlineMarkdownTest {
 
   @Test
   fun `parseInlineNodes on a manually-built heading with only text returns the text`() {
-    // Empty / synthetic AST — proves the walker handles a fresh
+    // Empty / synthetic AST: proves the walker handles a fresh
     // Heading that wasn't produced by commonmark (e.g. constructed
     // by a future caller).
     val headingNode: Heading = Heading().apply { level = 3 }
@@ -912,7 +912,7 @@ class GradumInlineMarkdownTest {
     // RenderBlockQuoteChild do) and verify bold survives.
     // AST: Document → OrderedList → ListItem → Paragraph → StrongEmphasis.
     // The `1. ` is the ListItem's marker (rendered separately by the
-    // list renderer), NOT a Text child of the Paragraph — so the
+    // list renderer), NOT a Text child of the Paragraph: so the
     // Paragraph's children are just `**bold item**`.
     val parser: Parser = Parser.builder().build()
     val paragraphNode: Paragraph = parser.parse("1. **bold item**")
@@ -945,7 +945,7 @@ class GradumInlineMarkdownTest {
   @Test
   fun `parseInlineNodes on a paragraph inside a blockquote renders bold`() {
     // A blockquote containing a list-marker-shaped paragraph is the
-    // same lossy round-trip as the heading case — commonmark
+    // same lossy round-trip as the heading case: commonmark
     // re-interpreted the leading `1. ` as an OrderedList, the inline
     // parser bailed, the bold was lost. Walking the AST keeps it.
     // AST: Document → BlockQuote → OrderedList → ListItem → Paragraph → StrongEmphasis

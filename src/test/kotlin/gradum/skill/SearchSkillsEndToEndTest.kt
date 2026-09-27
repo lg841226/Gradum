@@ -83,7 +83,7 @@ class SearchSkillsEndToEndTest {
 
   /**
    * The SIMPLE schema path (local 7B models) is hard-wired to
-   * case-insensitive matching — small models can't reliably use
+   * case-insensitive matching: small models can't reliably use
    * `caseSensitive`. The CLOUD/FULL path is what actually honors the
    * `caseSensitive` argument, so the case-sensitivity tests must run
    * with a model that resolves to `SchemaVariant.FULL`.

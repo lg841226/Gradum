@@ -4,7 +4,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 /**
- * Unit tests for [ModelInfo.sameAs] — the stable identity key used by
+ * Unit tests for [ModelInfo.sameAs]: the stable identity key used by
  * model pinning, selection preservation, and unpinned filtering.
  */
 class ModelInfoTest {

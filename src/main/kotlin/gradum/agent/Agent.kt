@@ -61,11 +61,11 @@ data class AttachmentPayload(
  * Orchestrates a single user request through one or more LLM turns.
  *
  * Delegates specialized concerns to dedicated managers:
- * - [ConversationHistory] — message list management
- * - [SessionManager] — session lifecycle and events
- * - [SystemPromptLoader] — prompt assembly
- * - [GuardrailManager] — content-safety and repetition detection
- * - [ToolExecutor] — tool call execution and result emission
+ * - [ConversationHistory]: message list management
+ * - [SessionManager]: session lifecycle and events
+ * - [SystemPromptLoader]: prompt assembly
+ * - [GuardrailManager]: content-safety and repetition detection
+ * - [ToolExecutor]: tool call execution and result emission
  *
  * The [executeTask] method remains the single entry point; it drives the
  * agent loop, dispatching tool calls between turns until the model stops
@@ -392,7 +392,7 @@ class Agent(
 
   /**
    * Debug tool-call playback mode. The developer authors a scenario as
-   * a short `<tls>` XML block — playing the part of the model — instead
+   * a short `<tls>` XML block, playing the part of the model, instead
    * of spending LLM tokens. Every listed call runs through the real
    * [toolExecutor] pipeline, streams the same `tool_call` NDJSON events,
    * then writes a machine-readable recording to

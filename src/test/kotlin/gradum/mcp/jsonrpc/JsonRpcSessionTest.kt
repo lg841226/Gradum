@@ -17,7 +17,7 @@ class JsonRpcSessionTest {
       onNotification = { methods.add(it.method) }
     )
 
-    // location-mcp prints this banner to stdout on startup — it is not JSON.
+    // location-mcp prints this banner to stdout on startup: it is not JSON.
     session.handleFrame("Starting Location MCP server...")
     // A well-formed notification after the banner must still be delivered.
     session.handleFrame("""{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}""")

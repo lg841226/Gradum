@@ -8,7 +8,7 @@ import java.util.*
  * Per-extension MIME type for the wire payload. The key is the
  * lower-cased extension with no leading dot; the value is the
  * IANA media type sent to the model. Extensions not in this map
- * are rejected outright — we'd rather fail loud than ship a
+ * are rejected outright: we'd rather fail loud than ship a
  * `application/octet-stream` blob the vision model can't decode.
  */
 private val imageMimeByExtension: Map<String, String> = mapOf(
@@ -26,7 +26,7 @@ private val imageMimeByExtension: Map<String, String> = mapOf(
 
 /**
  * Resolve the wire MIME type from [file]'s extension. Returns `null`
- * for unknown / missing extensions — the caller treats that as a
+ * for unknown / missing extensions: the caller treats that as a
  * "not an image we support" failure and bails out.
  */
 private fun getImageMimeType(file: VirtualFile): String? {
@@ -37,14 +37,14 @@ private fun getImageMimeType(file: VirtualFile): String? {
 /**
  * Read [file] verbatim and return an [AttachedImage] carrying the
  * original bytes on the wire. Returns `null` if the file extension
- * is not a recognized image format — the 5 MB cap is enforced by
+ * is not a recognized image format: the 5 MB cap is enforced by
  * the caller in
  * [gradum.idea.GradumToolWindowFactory.attachImages] before we get
  * here, so this function does no size check of its own.
  *
  * The bytes are base64-encoded for the wire because the plugin
  * surfaces the payload as a UTF-8 string in the request body.
- * Original file content is preserved byte-for-byte — vision
+ * Original file content is preserved byte-for-byte: vision
  * models that need lossless input (HEIC from iPhone screenshots,
  * WebP animations, large PNGs with subtle gradients) get exactly
  * what the user picked, not a re-encoded JPEG.

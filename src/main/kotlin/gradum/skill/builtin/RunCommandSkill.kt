@@ -21,16 +21,16 @@ import java.util.concurrent.TimeUnit
 
 private val logger: Logger = LoggerFactory.getLogger("RunCommandSkill")
 
-/** Default timeout in seconds — delegated to [GradumConfig]. */
+/** Default timeout in seconds: delegated to [GradumConfig]. */
 private const val DEFAULT_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_DEFAULT_TIMEOUT_SECONDS
 
-/** Maximum allowed timeout in seconds — delegated to [GradumConfig]. */
+/** Maximum allowed timeout in seconds: delegated to [GradumConfig]. */
 private const val MAX_TIMEOUT_SECONDS: Long = GradumConfig.COMMAND_MAX_TIMEOUT_SECONDS
 
-/** Grace period after SIGTERM before SIGKILL — delegated to [GradumConfig]. */
+/** Grace period after SIGTERM before SIGKILL: delegated to [GradumConfig]. */
 private const val FORCE_KILL_DELAY_MS: Long = GradumConfig.COMMAND_FORCE_KILL_DELAY_MS
 
-/** Cap on how much command output is read into the LLM context — delegated to [GradumConfig]. */
+/** Cap on how much command output is read into the LLM context: delegated to [GradumConfig]. */
 private const val MAX_OUTPUT_CHARS: Int = GradumConfig.COMMAND_MAX_OUTPUT_CHARS
 
 /** Reader used for stdout/stderr draining that happens before waitFor. */
@@ -89,7 +89,7 @@ private fun captureDescendants(process: Process): List<ProcessHandle> {
 /**
  * Kills the entire process tree rooted at [process], not just the immediate
  * child. Without this, `destroyForcibly()` on a `sh -c "command"` parent
- * only kills the shell — the actual command becomes an orphan and continues
+ * only kills the shell: the actual command becomes an orphan and continues
  * running.
  *
  * This mirrors opencode's `killGroup` pattern which sends signals to the
@@ -123,7 +123,7 @@ private fun killProcessTree(process: Process, descendants: List<ProcessHandle>) 
  * `COMMAND_BLOCKED` if it touches a critical path or unsafe executable.
  * All execution sites are annotated `@OptIn(DangerousOperation::class)`.
  *
- * Process isolation is handled by [killProcessTree] — on timeout the entire
+ * Process isolation is handled by [killProcessTree]: on timeout the entire
  * process tree is killed (SIGTERM → grace period → SIGKILL), matching the
  * `forceKillAfter` pattern from opencode's bash tool. No orphan processes
  * are left behind.

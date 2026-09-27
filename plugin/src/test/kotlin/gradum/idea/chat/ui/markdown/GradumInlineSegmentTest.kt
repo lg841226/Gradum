@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests for [splitIntoInlineSegments] — the link-boundary slicer that
+ * Tests for [splitIntoInlineSegments]: the link-boundary slicer that
  * lets the renderer use `ExternalLink` for link ranges while keeping
  * `Text(annotated, inlineContent = ...)` for the prose path.
  *
@@ -46,7 +46,7 @@ class GradumInlineSegmentTest {
     // Walker output for "see [the docs](https://example.com) please":
     //   "see " (text), "the docs" (link, 8 chars), " please" (text)
     // The `[]` brackets are part of the Markdown source consumed
-    // by the parser — the walker only sees the Link's child Text
+    // by the parser: the walker only sees the Link's child Text
     // node "the docs", not the brackets.
     val annotated: AnnotatedString = buildAnnotatedString { append("see the docs please") }
     val urlAnnotations: List<UrlAnnotation> = listOf(

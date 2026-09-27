@@ -15,7 +15,7 @@ private val logger: Logger = LoggerFactory.getLogger("ServerSettingsStore")
  * The fully-resolved server configuration read from `~/.gradum/settings.json`.
  *
  * The config file is the single source of truth for the server's startup
- * parameters — the old `--host/--port/--auto-port/--api-key` CLI flags have
+ * parameters: the old `--host/--port/--auto-port/--api-key` CLI flags have
  * been removed (see gradum.server.Main). `server.*` drives the HTTP bind
  * and default credentials; `llm.*` are server-wide defaults applied only
  * when the plugin request doesn't supply its own values.
@@ -71,7 +71,7 @@ object ServerSettingsStore {
    * Ensures `~/.gradum/` exists and copies the bundled `settings.json` and
    * `settings.schema.json` into it when they are absent. Returns the dir so
    * callers can locate the released files. Existing files are never
-   * overwritten — a user edit survives server restarts.
+   * overwritten: a user edit survives server restarts.
    */
   fun releaseDefaultsIfMissing(): File {
     val configDirectory: File = configDir()
@@ -92,7 +92,7 @@ object ServerSettingsStore {
 
   /**
    * Parses `~/.gradum/settings.json` into [ServerSettings]. Tolerant of a
-   * missing file, malformed JSON, or absent keys — every field falls back
+   * missing file, malformed JSON, or absent keys: every field falls back
    * to its built-in default.
    */
   fun load(): ServerSettings {
@@ -250,7 +250,7 @@ object ServerSettingsStore {
   /**
    * Reads the API key from the absolute path referenced by `apiKeyFile`,
    * using that file's first non-blank line (trimmed). Returns null when the
-   * path is blank or the file is unreadable — callers then fall back to env.
+   * path is blank or the file is unreadable: callers then fall back to env.
    */
   fun resolveApiKeyFromFile(apiKeyFile: String?): String? {
     val rawPath: String = apiKeyFile?.trim() ?: return null
@@ -484,7 +484,7 @@ object ServerSettingsStore {
    * maps. Each skill gets a free-form object (numbers, strings, booleans,
    * arrays, objects) that skills read back through the settings DSL with the
    * type each skill declared. Unknown keys inside a skill's section are kept
-   * as-is — plugin keys are intentionally not validated here. A non-object
+   * as-is: plugin keys are intentionally not validated here. A non-object
    * skill entry is logged and skipped so one bad section never blocks the rest.
    */
   private fun parsePlugins(

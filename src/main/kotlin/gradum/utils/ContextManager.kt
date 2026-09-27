@@ -174,7 +174,7 @@ class ContextManager(private val outputDirectory: Path) {
         "assistant" -> cleanAssistantMessage(message, content, preservedToolCallIds, cleanedMessages)
 
         // Keep the original content structure: multimodal user messages
-        // carry content as a List (text + images) — casting to String
+        // carry content as a List (text + images): casting to String
         // would wipe it. And don't trim(): trailing newlines are
         // meaningful when this history is re-sent to the model.
         else -> cleanedMessages.add(

@@ -18,7 +18,7 @@ private val logger: Logger = LoggerFactory.getLogger("ToolCallScenarioParser")
 /** A single scenario step: either an AI reply segment or a tool call. */
 sealed interface ScenarioStep {
   /**
-   * AI reply narration — what the LLM says between tool calls on a real
+   * AI reply narration: what the LLM says between tool calls on a real
    * turn. In playback, it is carried over from the Markdown document
    * (`<tt>` segments) so text and tools interleave exactly like a turn.
    */
@@ -70,8 +70,8 @@ data class ToolCallScenario(
  *
  * Two elements may be interleaved freely in document order, matching a
  * real agent turn:
- *  - `<tt>text</tt>`  — AI reply narration (produced by Markdown compilation)
- *  - `<t .../>`       — a real tool call (see attribute map below).
+ *  - `<tt>text</tt>` : AI reply narration (produced by Markdown compilation)
+ *  - `<t .../>`      : a real tool call (see attribute map below).
  *
  * The abbreviation map (attribute -> real argument key):
  *  - `nam` tool name            (real tool name, e.g. `read_file`)
@@ -81,7 +81,7 @@ data class ToolCallScenario(
  *  - `ptr` pattern             (grep pattern, glob pattern)
  *  - `dep` depth               (explore_project)
  *  - `cmd` command             (run_cmd)
- *  - `exp` expect              — `success` or `error` (assertion hint)
+ *  - `exp` expect             : `success` or `error` (assertion hint)
  */
 object ToolCallScenarioParser {
 

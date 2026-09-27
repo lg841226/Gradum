@@ -30,7 +30,7 @@ import org.jetbrains.jewel.ui.component.Text
  * Render a block-level LaTeX formula (`$$…$$`). Centered, padded vertically.
  * Falls back to monospace raw text if the library throws.
  *
- * Alignment: `TopCenter` — overflow extends downward into bottom padding.
+ * Alignment: `TopCenter`, overflow extends downward into bottom padding.
  * `Center` horizontally centers the formula within the panel.
  * Sizing: outer `Box` is `fillMaxWidth`, inner `Latex` sizes to content (no fillMaxWidth).
  * Layout-shift defense: `heightIn(min=...)` reserves 44dp for the formula so the Box
@@ -116,7 +116,7 @@ internal data class LatexRenderState(val config: LatexConfig, val shouldFallback
 
 /**
  * Build a [LatexConfig] with the IDE's text color for both light/dark (the chat panel's text
- * color is the same in both modes — IntelliJ inverts background, not text).
+ * color is the same in both modes: IntelliJ inverts background, not text).
  * Background is [Color.Transparent] to avoid a "chip-like" rectangle behind formulas.
  */
 private fun buildAdaptiveLatexConfig(baseColor: Color): LatexConfig {

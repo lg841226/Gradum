@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
  * The skill's [AskScope.askInteraction] registers a [CompletableDeferred]
  * here and blocks on it; the `POST /events/respond` endpoint resolves the
  * matching deferred when the user answers. A question may be held open
- * **indefinitely** by design — there is deliberately no timeout (matching
+ * **indefinitely** by design: there is deliberately no timeout (matching
  * mainstream agent CLIs): the blocked call stays parked until the user
  * responds or dismisses the card.
  *

@@ -11,18 +11,18 @@ import kotlinx.serialization.Serializable
  * boundary. The server is unaware of this enum; lowering the surface area
  * keeps the protocol stable across plugin versions.
  *
- * - [LOW]    — a one-sentence "think briefly" hint is appended. Cheapest,
+ * - [LOW]   : a one-sentence "think briefly" hint is appended. Cheapest,
  *              almost no latency cost; useful for routine questions where
  *              the user wants a slight quality bump.
- * - [MEDIUM] — a short "think about the main constraints and approach"
+ * - [MEDIUM]: a short "think about the main constraints and approach"
  *              hint is appended. Balanced cost / quality; the default for
  *              brand-new sessions.
- * - [HIGH]   — a multi-sentence "think deeply, step-by-step" hint is
+ * - [HIGH]  : a multi-sentence "think deeply, step-by-step" hint is
  *              appended. Increases planning depth at the cost of longer
  *              responses; worth it for refactors, multi-file edits, and
  *              architecture questions.
  *
- * No explicit "off" level — the plugin-side prompt-injection approach
+ * No explicit "off" level: the plugin-side prompt-injection approach
  * degrades gracefully on any model (including ones without a native
  * `reasoning` field), so Low is effectively the minimum the user can
  * pick. The dropdown is always enabled, regardless of the selected

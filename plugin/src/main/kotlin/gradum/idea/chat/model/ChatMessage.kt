@@ -33,7 +33,7 @@ data class ToolCallInfo(
 /**
  * Stable semantic code for an ask choice option, echoed from the server's
  * `Choice.Meaning` wire codes. The card maps each code to a localized button
- * label at render time — the server never ships display copy.
+ * label at render time: the server never ships display copy.
  */
 object AskChoiceMeaning {
   const val ALLOW_ONCE: String = "allow_once"
@@ -193,7 +193,7 @@ data class ChatMessage(
 
           is ChatEvent.AskInteraction -> {
             // An ask card is interactive UI awaiting a user decision, not
-            // agent prose — it contributes nothing to the clipboard copy.
+            // agent prose: it contributes nothing to the clipboard copy.
           }
         }
       }
@@ -303,7 +303,7 @@ data class ChatMessage(
    * exists, it is replaced by the new block regardless of pending state.
    * This handles the delegate case where two `sub_agent:session_end`
    * events arrive (one forwarded from the inner agent, one from the
-   * skill itself) — the second event carries the `conversation` payload
+   * skill itself): the second event carries the `conversation` payload
    * and must replace the first.
    *
    * When no matching toolCallId exists, the block is appended.

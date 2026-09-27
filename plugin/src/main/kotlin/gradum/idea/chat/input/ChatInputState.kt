@@ -33,7 +33,7 @@ data class ChatInputState(
    *
    * The hint is implemented as plain prompt suffix in
    * [gradum.idea.chat.ui.util.ThinkingPromptInjector] and therefore
-   * works on every model — the catalog `reasoning` flag is not a
+   * works on every model: the catalog `reasoning` flag is not a
    * precondition, so the dropdown is always enabled.
    */
   val thinkingLevel: ThinkingLevel = ThinkingLevel.MEDIUM,
@@ -43,7 +43,7 @@ data class ChatInputState(
    * attachments. Used by the `Upload Image` row in the add-menu
    * popup to switch to the disabled scanState with a `gradum.model.no.vision`
    * tooltip. In auto-select mode the first available model is picked, which
-   * may or may not be a vision model — if it is not, the same rule still
+   * may or may not be a vision model: if it is not, the same rule still
    * applies, so we read directly from [selectedModel].
    *
    * Defaults to `false` when no model is picked yet, so a brand-new session with an empty roster never exposes the upload

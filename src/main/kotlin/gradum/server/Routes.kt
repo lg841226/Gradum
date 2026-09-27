@@ -77,7 +77,7 @@ data class EventsRequestBody(
    * Optional tool-call scenario XML (`<tls>` format) that bypasses the LLM
    * entirely: the server executes the described tool calls through the same
    * real `executeSingleTool` pipeline and records each result. Used by the
-   * debug tool-call playback mode — the developer authors the scenario
+   * debug tool-call playback mode: the developer authors the scenario
    * instead of spending LLM tokens.
    */
   val toolCallXml: String? = null,
@@ -94,7 +94,7 @@ data class EventsRequestBody(
    * `GradumApiClient.ApiImageAttachment`; the discriminator is
    * `type` and currently only `image` is supported.
    *
-   * Empty by default — the common case is a text-only message.
+   * Empty by default: the common case is a text-only message.
    * Server-side `Agent.executeTask` projects the image entries
    * into a `content` array on the user message before pushing
    * it into the conversation history; the per-provider
@@ -118,8 +118,8 @@ data class AttachmentDto(
   /**
    * The wire-mime, e.g. `image/jpeg`. The plugin pipeline
    * normalizes every uploaded image to JPEG, so this is
-   * expected to be `image/jpeg` for the foreseeable future
-   * — kept explicit so a re-introduction of raw PNG
+   * expected to be `image/jpeg` for the foreseeable future,
+   * kept explicit so a re-introduction of raw PNG
    * passthrough can be negotiated in a follow-up.
    */
   val mime: String? = null,
@@ -134,7 +134,7 @@ data class AttachmentDto(
    * Original file name as the user picked it. Used by the
    * LLM prompt as a hint (`"image filename.png attached"`)
    * and by the persisted conversation history for human
-   * readability — not part of the multimodal payload.
+   * readability: not part of the multimodal payload.
    */
   val filename: String? = null,
 )
@@ -144,7 +144,7 @@ data class StopRequestBody(
   val sessionId: String
 )
 
-/** Body for `POST /events/respond` — resolves an in-flight ask_interaction. */
+/** Body for `POST /events/respond`: resolves an in-flight ask_interaction. */
 @Serializable
 data class RespondRequestBody(
   /** Session the ask belongs to. */
@@ -244,7 +244,7 @@ data class ConfigOverrides(
  * from its [baseUrl]. Most providers (`api.openai.com`,
  * `openrouter.ai/api`, `api.deepseek.com`) put the version in the
  * path (`/v1/chat/completions`); Zhipu BigModel under
- * `api/coding/paas/v4` does not — the URL fragment is already
+ * `api/coding/paas/v4` does not: the URL fragment is already
  * versioned, so the chat-completions endpoint is the bare
  * `/chat/completions`.
  *
@@ -266,11 +266,11 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
 
 /**
  * Registers every HTTP route the Gradum server exposes:
- * - `POST /events` — streams an agent run as NDJSON.
- * - `POST /stop`   — aborts an active agent session.
- * - `GET /health`  — liveness probe.
- * - `GET /models`  — discovered LLM models.
- * - `GET /skills`  — registered Skill implementations.
+ * - `POST /events`: streams an agent run as NDJSON.
+ * - `POST /stop`  : aborts an active agent session.
+ * - `GET /health` : liveness probe.
+ * - `GET /models` : discovered LLM models.
+ * - `GET /skills` : registered Skill implementations.
  */
 fun Application.registerAllRoutes(
   serverConfiguration: ServerConfiguration = ServerConfiguration(),
@@ -464,7 +464,7 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      // A null result means no live pending question matched this key — either
+      // A null result means no live pending question matched this key: either
       // an unknown id (nothing was ever asked) or a duplicate response for an
       // already-resolved ask. Both are idempotent no-ops for the client.
       if (toResult == null) {
@@ -557,7 +557,7 @@ fun Application.registerAllRoutes(
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
 
-      // `sessionKey="."` normalizes to sessionsRoot itself — a bare
+      // `sessionKey="."` normalizes to sessionsRoot itself: a bare
       // startsWith check passes and deleteRecursively() would wipe every
       // session. Require a strict child: parent must be sessionsRoot.
       if (sessionKey == "." || sessionKey == ".." || !sessionDir.startsWith(sessionsRoot) ||

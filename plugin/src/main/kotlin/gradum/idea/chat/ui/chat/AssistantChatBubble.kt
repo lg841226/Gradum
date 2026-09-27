@@ -208,7 +208,7 @@ private fun ResponseBlock(
  * Renders the parse-failure placeholder for a MarkdownSegment.Table
  * that the caller has determined to be unrenderable
  * (MarkdownSegment.Table.isRenderable is `false`). The chat bubble
- * substitutes this for any `Table` whose body is empty / blank — the
+ * substitutes this for any `Table` whose body is empty / blank: the
  * raw pipe syntax of the original Markdown block is not surfaced
  * here, since it's visually noisy and uninformative.
  */

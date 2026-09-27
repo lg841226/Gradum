@@ -22,12 +22,12 @@ data class McpServerConfig(
 /**
  * Owns the live connections to all configured MCP servers. [connect] starts
  * each server, performs the initialize handshake, lists its tools, and registers
- * every tool (with its full schema) in [McpToolCatalog] — the single source of
+ * every tool (with its full schema) in [McpToolCatalog]: the single source of
  * truth the `mcp_tools` directory skill reads from. No individual tool is
  * registered as a [Skill] at startup; tools become visible and callable only
  * after the model searches for them and the directory skill materializes them
  * into the current session. A server that fails to connect is logged and
- * skipped — the rest still register. [close] tears down every connection.
+ * skipped: the rest still register. [close] tears down every connection.
  */
 class McpConnectionManager {
   private val clients = mutableListOf<McpClient>()

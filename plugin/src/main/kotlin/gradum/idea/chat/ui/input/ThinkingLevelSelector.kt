@@ -42,7 +42,7 @@ import org.jetbrains.jewel.ui.component.Text
  * any model, so the dropdown is never grayed out. The previous
  * capability-gated design (disable when `reasoning = false`) was
  * removed because the gating contradicts the prompt-injection
- * approach — a non-reasoning model still benefits from the hint,
+ * approach: a non-reasoning model still benefits from the hint,
  * it just yields less.
  */
 @Composable
@@ -113,7 +113,7 @@ private fun thinkingButtonLabel(level: ThinkingLevel): String = thinkingLabel(le
 
 /**
  * One-liner shown in the closed-button tooltip. Tells the user what
- * the model will *do* with this level, not what the level is named —
+ * the model will *do* with this level, not what the level is named,
  * the level name is already on the button face, the tooltip is the
  * place for the "so what".
  */

@@ -14,7 +14,7 @@ import java.nio.file.Path
  * exercise the read / write / eviction invariants without touching
  * the IDE config dir or the network. The cache is the only thing
  * standing between a re-opened project and another HTTP fetch of
- * every favicon in a search result row — the LRU + mtime logic
+ * every favicon in a search result row: the LRU + mtime logic
  * here directly determines whether the second visit is fast.
  */
 class ThumbnailDiskCacheTest {

@@ -26,7 +26,7 @@ import kotlin.test.assertFalse
  */
 class SkillCompactHistoryTest {
 
-  /** Minimal Skill that succeeds with a fixed payload — used to drive
+  /** Minimal Skill that succeeds with a fixed payload: used to drive
    *  the framework's compactHistory / recordAndCompactHistory logic
    *  without depending on filesystem / network state. */
   private class ContentSkill(

@@ -41,7 +41,7 @@ private const val INPUT_DEBOUNCE_MS: Long = PluginConfig.INPUT_DEBOUNCE_MS
  *
  * Renders the URL field, API key field, optional extra toggle, a manual
  * probe button, and a status badge. All connection-state work is
- * delegated to [ProviderCoordinator] — this composable only reads the
+ * delegated to [ProviderCoordinator]: this composable only reads the
  * latest [ProviderStatus] / `isTesting` flag and forwards user edits
  * through [onUrlChange] / [onApiKeyChange], both debounced by
  * [INPUT_DEBOUNCE_MS] so the coordinator is not reconfigured on every

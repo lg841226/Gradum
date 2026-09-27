@@ -177,15 +177,15 @@ class SearchedRenderer : ToolCallRenderer {
    *     gray placeholder.
    *
    * **Fallback chain** (in order):
-   *  1. The favicon URL returned by Tavily (best signal — usually
+   *  1. The favicon URL returned by Tavily (best signal: usually
    *     matches the actual page's icon).
-   *  2. `https://{host}/favicon.ico` — most sites still serve their
+   *  2. `https://{host}/favicon.ico`: most sites still serve their
    *     favicon at the root, no third-party dependency.
-   *  3. `https://www.favicon.vip/get.php?url={host}` — China-friendly
+   *  3. `https://www.favicon.vip/get.php?url={host}`: China-friendly
    *     aggregator (Google's `s2/favicons` is GFW-blocked).
    *
    * **Host-level short-circuit ([faviconCache]).** Without caching,
-   * the chain is walked top-to-bottom on every render — a host whose
+   * the chain is walked top-to-bottom on every render: a host whose
    * Tavily favicon 404s will pay a 3-second timeout for that URL
    * every time the row re-composes. The cache remembers the *single*
    * URL that worked for each host, so a host that's been seen before
@@ -196,7 +196,7 @@ class SearchedRenderer : ToolCallRenderer {
    *
    * **Threading:** the loader exposes a `CompletableFuture`. Calling
    * `future.get()` on the main thread would block the UI for the
-   * entire HTTP round-trip — instead we bridge the future into a
+   * entire HTTP round-trip: instead we bridge the future into a
    * suspending coroutine via [suspendCancellableCoroutine], so the
    * main thread is free to keep painting frames while bytes flow in.
    */
@@ -264,7 +264,7 @@ class SearchedRenderer : ToolCallRenderer {
    * Build the favicon URL fallback chain for [host]. Returns an
    * empty list when [host] is blank so the caller renders the gray
    * placeholder instead of trying a blank URL. [tavilyFaviconUrl] is
-   * prepended verbatim when non-blank — it's the highest-signal
+   * prepended verbatim when non-blank: it's the highest-signal
    * member of the chain when Tavily has a real one.
    */
   private fun buildFaviconFallbackChain(host: String, tavilyFaviconUrl: String): List<String> {

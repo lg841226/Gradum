@@ -28,8 +28,8 @@ data class SessionMeta(
  * Project-scoped file store for chat session transcripts.
  *
  * Every session lives under `<projectRoot>/.gradum/sessions/<sessionId>/`
- * (the same directory rule the server uses for that session's `context.json`
- * — see [docs/CHAT_HISTORY_PLAN.md §1]). The plugin writes a
+ * (the same directory rule the server uses for that session's `context.json`,
+ * see [docs/CHAT_HISTORY_PLAN.md §1]). The plugin writes a
  * [ChatTranscript] `conversation.md` into it; deleteSession removes the
  * whole directory so server context is cascaded away too.
  *
@@ -156,7 +156,7 @@ class ChatSessionStore(private val projectRoot: Path) {
   /**
    * Merges [sessionIds] (two or more) into a brand-new session whose
    * transcript is every source conversation interleaved chronologically by
-   * message timestamp ("timeline weave" — see [interleaveMessages]).
+   * message timestamp ("timeline weave": see [interleaveMessages]).
    *
    * The source sessions are left untouched: merge is non-destructive. The
    * merged session gets a fresh [nextSessionId], the caller-supplied
@@ -188,7 +188,7 @@ class ChatSessionStore(private val projectRoot: Path) {
 
   /**
    * Rewrites [sessionId]'s transcript header with [newTitle]. The
-   * conversation body is untouched — messages are re-serialized unchanged
+   * conversation body is untouched: messages are re-serialized unchanged
    * into the same session directory.
    *
    * @return `false` when the session does not exist or [newTitle] is blank.
@@ -205,7 +205,7 @@ class ChatSessionStore(private val projectRoot: Path) {
    * Deletes a session's entire directory (transcript included).
    *
    * The path is re-verified against [sessionsRoot] after resolution as a
-   * belt-and-suspenders guard against path traversal — a session id coming
+   * belt-and-suspenders guard against path traversal: a session id coming
    * from the UI is trusted, but this must never be able to reach outside
    * `.gradum/sessions/`.
    *
@@ -247,7 +247,7 @@ class ChatSessionStore(private val projectRoot: Path) {
     fun interleaveMessages(conversations: List<List<ChatMessage>>): List<ChatMessage> =
       conversations.flatten().sortedWith(comparator = compareBy { it.timestamp })
 
-    /** `yyyyMMdd-HHmmss-xxxxxx` — time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
+    /** `yyyyMMdd-HHmmss-xxxxxx`: time prefix sorts lexicographically; 6-char hex suffix guards same-second collisions. */
     private val SESSION_ID_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
     private val HEX_CHARS: CharArray = "0123456789abcdef".toCharArray()

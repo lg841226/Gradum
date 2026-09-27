@@ -38,7 +38,7 @@ import org.jetbrains.jewel.ui.typography
  * point is reachable via the bubble's internal vertical scroll rather
  * than letting the bubble grow to fill the entire chat panel. At the
  * current typography (16sp regular × 1.5 line-height ≈ 24dp per line)
- * 200dp fits roughly 5 lines of body text — a tight cap, with most
+ * 200dp fits roughly 5 lines of body text: a tight cap, with most
  * longer pastes scrolling internally rather than growing the bubble.
  */
 private val EXPAND_MAX_HEIGHT: Dp = 200.dp

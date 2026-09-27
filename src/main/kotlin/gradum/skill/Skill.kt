@@ -29,7 +29,7 @@ abstract class Skill {
   /**
    * Whether this skill may execute under [toolMode].
    *
-   * The single authority for the tool-mode gate — both the schema filter
+   * The single authority for the tool-mode gate: both the schema filter
    * in [gradum.skill.SkillRegistry] and the runtime gate in
    * [gradum.agent.Agent] call this so the two checks can never disagree.
    */
@@ -82,7 +82,7 @@ abstract class Skill {
   /**
    * Builds the standard OpenAI function-schema envelope
    * (`{"type":"function","function":{...}}`) around this skill's
-   * [skillName]. Single source of truth for the wrapper shape — every
+   * [skillName]. Single source of truth for the wrapper shape: every
    * skill schema is composed through this helper instead of hand-rolling
    * the `mapOf` envelope.
    */
@@ -146,7 +146,7 @@ abstract class Skill {
    * full. Older calls have their [historyVolatileKeys] stripped by
    * [compactHistory]. Defaults to [Int.MAX_VALUE] (no stripping).
    *
-   * **Applies to OLDER history only** — the current call's result is
+   * **Applies to OLDER history only**: the current call's result is
    * never silently stripped.
    */
   open val historyKeepCount: Int = Int.MAX_VALUE
@@ -154,7 +154,7 @@ abstract class Skill {
   /**
    * Field names removed from older tool messages when [compactHistory]
    * runs. These should be redundant or oversized fields (diff payloads,
-   * verbose metadata) — never the primary payload the LLM just asked for.
+   * verbose metadata): never the primary payload the LLM just asked for.
    */
   open val historyVolatileKeys: List<String> = emptyList()
 
@@ -174,7 +174,7 @@ abstract class Skill {
    * processed version of [currentResult] to add to history and return
    * to the LLM this turn.
    *
-   * This is the only sanctioned way to do per-call history work —
+   * This is the only sanctioned way to do per-call history work,
    * direct calls to [compactHistory] / [prepareHistoryResult] bypass
    * the counter increment and can leave the two paths inconsistent.
    */

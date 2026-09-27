@@ -9,7 +9,7 @@ import kotlinx.serialization.json.*
  * [ToolCallRenderer] can inspect.
  *
  * The server serializes results as JSON objects, but a renderer should
- * not need to know that — it should just receive a `Map`. This
+ * not need to know that: it should just receive a `Map`. This
  * helper does the JSON → `Map<String, Any?>` translation once, with
  * a tolerant fall-back (returns an empty map on any parse error,
  * so the renderer still has a `Map` to call `get` on).

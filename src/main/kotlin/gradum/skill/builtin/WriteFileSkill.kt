@@ -364,7 +364,7 @@ class WriteFileSkill : Skill() {
   /**
    * Create a new file or fully overwrite an existing one with [fileContent].
    *
-   * Triggered by an edit whose `oldString` is blank — the absence of search
+   * Triggered by an edit whose `oldString` is blank: the absence of search
    * text means "write the whole file" (write_file's create/overwrite mode).
    * Writes UTF-8, creates parent directories, and applies the same size and
    * protected-path guards as partial edits.

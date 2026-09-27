@@ -50,8 +50,8 @@ private fun JsonObject.optObject(key: String): JsonObject =
  * Most providers we proxy to (Zhipu BigModel, OpenAI, OpenRouter, local
  * LM Studio / vLLM / LocalAI) follow the OpenAI spec to the letter, so
  * the [Default] row covers them. DeepSeek and MiniMax deviate in two
- * narrow spots — the thinking field shape and the token-cap field name
- * — and DeepSeek / MiniMax both surface the model's reasoning in a
+ * narrow spots, the thinking field shape and the token-cap field name,
+ * and DeepSeek / MiniMax both surface the model's reasoning in a
  * separate `reasoning_content` delta alongside `content`. Without this
  * table we'd either drop native thinking (waste DeepSeek-R1) or send
  * `max_tokens` to MiniMax (silently ignored → unbounded completion).
@@ -371,8 +371,8 @@ class OllamaClient(
  *
  * The "Thinking Mode" toggle is dual-channel: the system prompt's
  * "Think first, then act" instruction is sent for every model, and
- * — when the matched [ProviderHints] declares a native
- * `thinking` field — the request also carries that native shape
+ * when the matched [ProviderHints] declares a native
+ * `thinking` field, the request also carries that native shape
  * (DeepSeek: `{"type":"enabled"}`; MiniMax: `{"type":"adaptive"}`).
  * The native channel's reasoning tokens are surfaced as
  * [LLMResponseChunk.ReasoningContent] so the UI can render them.
