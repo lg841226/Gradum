@@ -72,11 +72,15 @@ internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable 
         put("name", name)
         put("arguments", arguments)
       },
+      timeoutMillis = TOOLS_CALL_TIMEOUT_MILLIS,
     )
 
   override fun close() = transport.close()
 
   companion object {
     const val PROTOCOL_VERSION = "2025-03-26"
+
+    /** Longer budget for a `tools/call`: an MCP command may take a while to finish. */
+    const val TOOLS_CALL_TIMEOUT_MILLIS = 180_000L
   }
 }

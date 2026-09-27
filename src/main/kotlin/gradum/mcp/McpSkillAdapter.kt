@@ -42,6 +42,18 @@ internal class McpSkillAdapter(
   override val description: String get() = tool.description ?: "MCP tool ${tool.name}"
   override val alias: String get() = tool.name
 
+  /**
+   * The description shown to the LLM inside the tool schema. Enriched over the
+   * server-provided text so the model recognizes this as a dedicated MCP tool
+   * and prefers it over reaching for the generic shell command (`run_cmd`) when
+   * the task matches. The raw [description] is kept for the directory/search
+   * listing so grouping and keyword search stay clean.
+   */
+  private fun schemaDescription(): String =
+    "Dedicated MCP tool. " +
+      (tool.description ?: tool.name) +
+      " Prefer this tool over running the equivalent shell command when the task matches."
+
   /** External MCP tools may mutate arbitrary state; exclude READ_ONLY. */
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
@@ -59,7 +71,7 @@ internal class McpSkillAdapter(
       "type" to "function",
       "function" to mapOf(
         "name" to skillName,
-        "description" to description,
+        "description" to schemaDescription(),
         "parameters" to mapOf(
           "type" to "object",
           "required" to requiredNames,

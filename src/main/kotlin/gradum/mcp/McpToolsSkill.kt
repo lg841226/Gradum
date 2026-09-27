@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * McpToolsSkill.kt  2026-09-26 10:51:30 Changed by gwy
+ * McpToolsSkill.kt  2026-09-26 12:34:45 Changed by gwy
  */
 
 package gradum.mcp
@@ -93,7 +93,7 @@ internal class McpToolsSkill : Skill() {
           "matched" to 0,
           "available_groups" to McpToolCatalog.groupedListing().map { it.group },
           "hint" to "No MCP tool matched the query. Refine it, or call mcp_tools with " +
-            "no arguments to browse the full group listing.",
+            "no arguments to browse the full group listing."
         )
       )
     }
