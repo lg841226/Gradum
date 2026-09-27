@@ -94,6 +94,12 @@ class Agent(
    * null and asking skills must fall back rather than block forever.
    */
   askScopeHolder: PendingQuestions? = null,
+  /**
+   * The user's per-skill plugin config sections (`plugins.<skillName>`),
+   * threaded from the server's settings. A skill reads its own slice through
+   * the `gradum.skill.dsl` settings DSL; empty when nothing is configured.
+   */
+  plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
   private val ollamaClient: OllamaClient = OllamaClient(configuration)
   private val openAiClient: OpenAICompatibleClient = OpenAICompatibleClient(configuration)
@@ -130,6 +136,7 @@ class Agent(
         emitEvent = emitEvent,
       )
     },
+    plugins = plugins,
   )
 
   private val toolExecutor: ToolExecutor = ToolExecutor(

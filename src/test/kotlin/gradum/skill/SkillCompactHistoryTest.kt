@@ -9,6 +9,7 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.dsl.SchemaBuilder
 import gradum.utils.JsonUtil
 import kotlin.test.Test
 import kotlin.test.assertEquals

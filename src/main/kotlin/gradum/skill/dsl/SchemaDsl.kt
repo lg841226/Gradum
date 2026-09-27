@@ -2,10 +2,10 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SchemaDsl.kt  2026-08-31 19:21:55 Changed by gwy
+ * SchemaDsl.kt  2026-09-27 Changed by gwy
  */
 
-package gradum.skill
+package gradum.skill.dsl
 
 /**
  * Controls whether a skill parameter is exposed to the simple (local) model

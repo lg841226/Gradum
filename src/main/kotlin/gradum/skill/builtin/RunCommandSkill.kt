@@ -12,13 +12,13 @@ import gradum.skill.AskResult
 import gradum.skill.AskScope
 import gradum.skill.Choice
 import gradum.skill.Lang
-import gradum.skill.SchemaBuilder
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.buildXmlError
-import gradum.skill.boolean
-import gradum.skill.integer
-import gradum.skill.string
+import gradum.skill.dsl.boolean
+import gradum.skill.dsl.integer
+import gradum.skill.dsl.string
 import gradum.utils.CommandVerdict
 import gradum.utils.classifyCommand
 import org.slf4j.Logger

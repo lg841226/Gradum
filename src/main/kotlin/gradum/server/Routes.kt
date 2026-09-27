@@ -400,6 +400,7 @@ fun Application.registerAllRoutes(
             registerChildSession = registerChildSession,
             unregisterChildSession = unregisterChildSession,
             askScopeHolder = pendingQuestions,
+            plugins = serverConfiguration.plugins,
           )
 
           activeSessions[sessionId] = SessionEntry(agent = agentInstance)

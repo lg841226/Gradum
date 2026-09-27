@@ -113,6 +113,17 @@
       },
       "default": []
     },
+    "plugins": {
+      "type": "object",
+      "title": "Plugin Configuration",
+      "description": "Per-skill configuration. Each key is a skill name (e.g. search_web); its value is a free-form object the skill reads back through the settings DSL. Keys are defined by each plugin, not by this file.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "A plugin's own config values (numbers, strings, booleans, arrays, objects), interpreted by that plugin.",
+        "additionalProperties": true
+      },
+      "default": {}
+    },
     "server": {
       "type": "object",
       "title": "Server Binding Configuration",

@@ -2,26 +2,14 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WriteFileSkill.kt  2026-09-26 00:35:03 Changed by gwy
+ * WriteFileSkill.kt  2026-09-27 12:06:53 Changed by gwy
  */
 
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.AskResult
-import gradum.skill.AskScope
-import gradum.skill.Choice
-import gradum.skill.Lang
-import gradum.skill.ResolvedProjectPath
-import gradum.skill.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.boolean
-import gradum.skill.buildXmlError
-import gradum.skill.integer
-import gradum.skill.objectArray
-import gradum.skill.resolveProjectPath
-import gradum.skill.string
+import gradum.skill.*
+import gradum.skill.dsl.*
 import gradum.utils.ProtectedPaths
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -71,11 +59,14 @@ private fun authorizeWrite(filePath: String, projectRoot: String, context: Skill
     default = "no"
   }
   return when (decision) {
-    is AskResult.Case -> when (decision.meaning) {
-      Choice.Meaning.ALLOW_ONCE -> externalPath
-      Choice.Meaning.ALLOW_ALWAYS -> externalPath.also { context.authorizedWritePaths.add(it.toString()) }
-      Choice.Meaning.REJECT -> null
-    }
+    is AskResult.Case ->
+      when (decision.meaning) {
+        Choice.Meaning.REJECT -> null
+        Choice.Meaning.ALLOW_ONCE -> externalPath
+        Choice.Meaning.ALLOW_ALWAYS -> externalPath.also {
+          context.authorizedWritePaths.add(it.toString())
+        }
+      }
 
     else -> null
   }
@@ -443,9 +434,9 @@ class WriteFileSkill : Skill() {
 
     val fileMutation = FileMutation()
 
-    for (editOperation in editOperations) {
+    for ((searchText, replaceText, editIndex) in editOperations) {
       val fileLines = currentContent.lines()
-      val searchLines = editOperation.searchText.lines()
+      val searchLines = searchText.lines()
 
       when (val matchResult = findMatchesWithFallback(fileLines, searchLines)) {
         is FindResult.Found -> {
@@ -463,7 +454,7 @@ class WriteFileSkill : Skill() {
               code = ErrorCode.MULTIPLE_MATCHES,
               message = buildXmlError(
                 code = "MULTIPLE_MATCHES",
-                message = "Edit ${editOperation.editIndex + 1} found ${matchResult.matches.size} matches. Cannot determine which to replace.",
+                message = "Edit ${editIndex + 1} found ${matchResult.matches.size} matches. Cannot determine which to replace.",
                 fixHint = "Add more surrounding context (function name, class declaration, comments) to make the match unique.",
                 appliedCount = appliedEdits.size
               ),
@@ -473,8 +464,8 @@ class WriteFileSkill : Skill() {
 
           val bestMatch = matchResult.matches.first()
           val replaceLines =
-            if (editOperation.replaceText.isBlank()) emptyList()
-            else editOperation.replaceText.lines()
+            if (replaceText.isBlank()) emptyList()
+            else replaceText.lines()
 
           linesRemoved += searchLines.size
           linesAdded += replaceLines.size
@@ -482,7 +473,7 @@ class WriteFileSkill : Skill() {
           val newFileLines = fileLines.subList(0, bestMatch.startIndex) +
             replaceLines + fileLines.subList(bestMatch.endIndex, fileLines.size)
           currentContent = newFileLines.joinToString(separator = "\n")
-          appliedEdits.add(editOperation.editIndex)
+          appliedEdits.add(editIndex)
         }
 
         is FindResult.NotFound -> {
@@ -504,7 +495,7 @@ class WriteFileSkill : Skill() {
             code = ErrorCode.CODE_NOT_FOUND,
             message = buildXmlError(
               code = "CODE_NOT_FOUND",
-              message = "Edit ${editOperation.editIndex + 1} failed at step: $failureStep. oldString text not found in file.",
+              message = "Edit ${editIndex + 1} failed at step: $failureStep. oldString text not found in file.",
               fixHint = "Check for whitespace differences or add more surrounding context (function name, class declaration," +
                 " comments) to make the match unique. If this fails after multiple attempts, inform the user and suggest manual editing.",
               appliedCount = appliedEdits.size,

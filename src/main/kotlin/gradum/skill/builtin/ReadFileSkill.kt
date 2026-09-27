@@ -13,12 +13,12 @@ import gradum.skill.AskScope
 import gradum.skill.Choice
 import gradum.skill.Lang
 import gradum.skill.ResolvedProjectPath
-import gradum.skill.SchemaBuilder
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.buildXmlError
 import gradum.skill.resolveProjectPath
-import gradum.skill.string
+import gradum.skill.dsl.string
 import java.io.File
 import java.io.FileNotFoundException
 import java.nio.file.Path

@@ -2,19 +2,14 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * WebSearchSkill.kt  2026-08-31 19:21:55 Changed by gwy
+ * WebSearchSkill.kt  2026-09-27 12:06:53 Changed by gwy
  */
 
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.IntConstraints
-import gradum.skill.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.buildXmlError
-import gradum.skill.integer
-import gradum.skill.string
+import gradum.skill.*
+import gradum.skill.dsl.*
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
@@ -27,10 +22,9 @@ import org.slf4j.LoggerFactory
 
 private val logger: Logger = LoggerFactory.getLogger("WebSearchSkill")
 private val jsonParser: Json = Json { ignoreUnknownKeys = true }
-
-private const val MAX_QUERY_LENGTH: Int = 5000
 private const val MAX_RESULTS: Int = 10
 private const val DEFAULT_RESULTS: Int = 5
+private const val MAX_QUERY_LENGTH: Int = 5000
 
 /**
  * Searches the web via Tavily Search API.

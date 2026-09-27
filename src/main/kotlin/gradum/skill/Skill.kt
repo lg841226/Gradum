@@ -9,6 +9,9 @@ package gradum.skill
 
 import gradum.SkillResult
 import gradum.ToolMode
+import gradum.skill.dsl.ParameterLevel
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.SkillParameter
 import gradum.utils.JsonUtil.decodeMap
 import gradum.utils.JsonUtil.encodeMap
 

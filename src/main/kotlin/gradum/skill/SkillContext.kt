@@ -88,7 +88,14 @@ data class SkillContext(
    * [PendingQuestions] (e.g. tests or sub-agents that must not block) —
    * a skill must fall back when this is absent instead of assuming it exists.
    */
-  val scope: AskScope? = null
+  val scope: AskScope? = null,
+  /**
+   * The user's per-skill plugin config sections (`plugins.<skillName>`),
+   * resolved from `settings.json` by the server. A skill reads its own slice
+   * through the `gradum.skill.dsl` settings DSL; keys are isolated per skill
+   * and never expose server-internal settings. Empty when nothing is configured.
+   */
+  val plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
   /**
    * Session-scoped cache of externally-authorized read paths (e.g. a

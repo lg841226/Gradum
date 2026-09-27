@@ -85,7 +85,8 @@ fun main(arguments: Array<String>) {
     defaultBaseUrl = settings.defaultBaseUrl,
     defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes,
     defaultModelName = settings.defaultModelName,
-    defaultThinkEnabled = settings.defaultThinkEnabled
+    defaultThinkEnabled = settings.defaultThinkEnabled,
+    plugins = settings.plugins,
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)

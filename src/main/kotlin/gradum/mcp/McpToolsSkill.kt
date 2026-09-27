@@ -10,10 +10,10 @@ package gradum.mcp
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.makeSuccess
-import gradum.skill.SchemaBuilder
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
-import gradum.skill.string
+import gradum.skill.dsl.string
 
 /**
  * The single entry point through which the model discovers MCP tools, named

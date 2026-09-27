@@ -9,11 +9,11 @@ package gradum.skill.builtin
 
 import gradum.*
 import gradum.agent.*
-import gradum.skill.SchemaBuilder
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.buildXmlError
-import gradum.skill.string
+import gradum.skill.dsl.string
 import org.slf4j.LoggerFactory
 import java.util.*
 

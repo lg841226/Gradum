@@ -86,10 +86,10 @@ private val ECHO_SKILL_SOURCE: String = """
   |
   |import gradum.SkillResult
   |import gradum.makeSuccess
-  |import gradum.skill.SchemaBuilder
+  |import gradum.skill.dsl.SchemaBuilder
   |import gradum.skill.Skill
   |import gradum.skill.SkillContext
-  |import gradum.skill.string
+  |import gradum.skill.dsl.string
   |
   |class EchoSkill : Skill() {
   |  override val alias: String = "echo"

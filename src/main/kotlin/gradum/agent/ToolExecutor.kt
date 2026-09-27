@@ -204,6 +204,15 @@ class ToolExecutor(
           "error" to mapOf("code" to result.code, "message" to result.message)
         )
       }
+    } catch (pluginError: gradum.skill.dsl.PluginConfigTypeError) {
+      logger.warn("Skill configuration error: ${pluginError.message}")
+      mapOf(
+        "success" to false,
+        "error" to mapOf(
+          "code" to "PLUGIN_CONFIG_ERROR",
+          "message" to "Skill configuration error: ${pluginError.message}",
+        )
+      )
     } catch (exception: Exception) {
       logger.error("Skill execution failed: ${exception.message}", exception)
       mapOf(

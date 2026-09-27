@@ -111,10 +111,10 @@ private val HELLO_SKILL_TEMPLATE: String = $$"""
   |
   |import gradum.SkillResult
   |import gradum.makeSuccess
-  |import gradum.skill.SchemaBuilder
+  |import gradum.skill.dsl.SchemaBuilder
   |import gradum.skill.Skill
   |import gradum.skill.SkillContext
-  |import gradum.skill.string
+  |import gradum.skill.dsl.string
   |
   |class HelloSkill : Skill() {
   |  override val alias: String = "hello"

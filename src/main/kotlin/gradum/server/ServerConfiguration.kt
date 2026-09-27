@@ -78,6 +78,14 @@ data class ServerConfiguration(
    * `AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES`.
    */
   val defaultKeepAliveMinutes: Int = AgentConfiguration.DEFAULT_KEEP_ALIVE_MINUTES,
+
+  /**
+   * Per-skill plugin config sections (`plugins.<skillName>`), carried from the
+   * server's settings to each [Agent] session so skills can read their own
+   * slice through the `gradum.skill.dsl` settings DSL. Empty when nothing is
+   * configured.
+   */
+  val plugins: Map<String, Map<String, Any?>> = emptyMap(),
 ) {
   companion object {
     /** Default bind host; the single source of truth. */

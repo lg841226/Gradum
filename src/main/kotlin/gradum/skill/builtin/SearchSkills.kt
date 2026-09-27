@@ -2,21 +2,13 @@
  * Copyright (c) 2026 Gradum Authors
  * For licensing terms and conditions, see the MIT LICENSE file.
  *
- * SearchSkills.kt  2026-08-31 19:21:55 Changed by gwy
+ * SearchSkills.kt  2026-09-27 13:03:15 Changed by gwy
  */
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.IntConstraints
-import gradum.skill.ResolvedProjectPath
-import gradum.skill.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.boolean
-import gradum.skill.buildXmlError
-import gradum.skill.integer
-import gradum.skill.resolveProjectPath
-import gradum.skill.string
+import gradum.skill.*
+import gradum.skill.dsl.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -267,7 +259,7 @@ class GrepSkill : Skill() {
   }
 
   private fun executeInternal(
-    arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean,
+    arguments: Map<String, Any>, context: SkillContext, ignoreCase: Boolean
   ): SkillResult {
     val params =
       when (val result = prepareSearch(arguments, context, ignoreCase)) {

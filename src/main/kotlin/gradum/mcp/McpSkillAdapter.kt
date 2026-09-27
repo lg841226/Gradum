@@ -13,6 +13,7 @@ import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.mcp.jsonrpc.RpcException
 import gradum.skill.*
+import gradum.skill.dsl.*
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*

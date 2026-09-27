@@ -11,14 +11,14 @@ import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.skill.SchemaBuilder
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
-import gradum.skill.boolean
+import gradum.skill.dsl.boolean
 import gradum.skill.buildXmlError
-import gradum.skill.integer
-import gradum.skill.string
-import gradum.skill.stringArray
+import gradum.skill.dsl.integer
+import gradum.skill.dsl.string
+import gradum.skill.dsl.stringArray
 
 /**
  * Initializes a shared task list for the agent to follow during a session.

@@ -42,6 +42,13 @@ data class ServerSettings(
   val commandFilter: CommandFilterConfig,
   /** Configured MCP stdio servers whose tools are exposed as skills; empty when the user configures nothing. */
   val mcpServers: List<McpServerConfig>,
+  /**
+   * Per-skill plugin config (`plugins.<skillName>`), read by skills through
+   * the settings DSL in `gradum.skill.dsl`. Values are raw JSON (numbers,
+   * strings, booleans, arrays, objects); each skill reads its own slice back
+   * with the type it declared. Empty when the user configures nothing.
+   */
+  val plugins: Map<String, Map<String, Any?>>,
 )
 
 /**
@@ -221,6 +228,7 @@ object ServerSettingsStore {
 
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
     val mcpServers: List<McpServerConfig> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
+    val plugins: Map<String, Map<String, Any?>> = parsePlugins(sectionRaw = root["plugins"], issues = issues)
 
     logIssues(issues)
     if (issues.isEmpty()) {
@@ -241,7 +249,8 @@ object ServerSettingsStore {
       autoDetectPort = autoDetectPort,
       defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
-      defaultKeepAliveMinutes = defaultKeepAliveMinutes
+      defaultKeepAliveMinutes = defaultKeepAliveMinutes,
+      plugins = plugins
     )
   }
 
@@ -276,7 +285,7 @@ object ServerSettingsStore {
 
   private val PORT_RANGE: IntRange = 1024..65535
   private val TOP_LEVEL_KEYS: Set<String> = setOf(
-    $$"$schema", "server", "llm", "commandFilter", "mcpServers",
+    $$"$schema", "server", "llm", "commandFilter", "mcpServers", "plugins",
     "ollama.baseUrl", "ollama.apiKey", "ollama.allowRemote",
     "lmstudio.baseUrl", "lmstudio.apiKey", "lmstudio.allowRemote",
     "zhipu.baseUrl", "zhipu.apiKey", "zhipu.allowRemote",
@@ -476,4 +485,52 @@ object ServerSettingsStore {
   private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "protectedPaths")
   private val PROTECTED_PATHS_KEYS: Set<String> =
     setOf("systemPrefixes", "protectedHomeSubdirectories", "safePathPrefixes", "exactProtectedPaths")
+
+  /**
+   * Parses the optional top-level `plugins` section into per-skill config
+   * maps. Each skill gets a free-form object (numbers, strings, booleans,
+   * arrays, objects) that skills read back through the settings DSL with the
+   * type each skill declared. Unknown keys inside a skill's section are kept
+   * as-is — plugin keys are intentionally not validated here. A non-object
+   * skill entry is logged and skipped so one bad section never blocks the rest.
+   */
+  private fun parsePlugins(
+    sectionRaw: Any?, issues: MutableList<ValidationIssue>
+  ): Map<String, Map<String, Any?>> {
+    if (sectionRaw == null) return emptyMap()
+    if (sectionRaw !is Map<*, *>) {
+      issues += ValidationIssue(
+        key = "plugins",
+        level = Severity.WARN,
+        reason = "expected an object keyed by skill name; got ${describe(sectionRaw)}"
+      )
+      return emptyMap()
+    }
+
+    val result = mutableMapOf<String, Map<String, Any?>>()
+    for ((rawName, rawConfig) in sectionRaw) {
+      if (rawName !is String) {
+        issues += ValidationIssue(
+          key = "plugins",
+          level = Severity.WARN,
+          reason = "expected string skill names; got ${describe(rawName)}"
+        )
+        continue
+      }
+      if (rawConfig !is Map<*, *>) {
+        issues += ValidationIssue(
+          key = "plugins.$rawName",
+          level = Severity.WARN,
+          reason = "expected an object of config values; got ${describe(rawConfig)}"
+        )
+        continue
+      }
+      val cleaned = linkedMapOf<String, Any?>()
+      for ((rawKey, rawValue) in rawConfig) {
+        if (rawKey is String) cleaned[rawKey] = rawValue
+      }
+      result[rawName] = cleaned
+    }
+    return result
+  }
 }
