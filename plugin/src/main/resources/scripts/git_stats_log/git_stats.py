@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-#  Copyright (c) 2026 Gradum Authors
-#  For licensing terms and conditions, see the MIT LICENSE file.
-#
-#  git_stats.py  2026-09-20 13:32:23 Changed by gwy
-#
-#  git_stats.py  2026-08-31 19:21:55 Changed by gwy
-
 import functools
 import itertools
 import json

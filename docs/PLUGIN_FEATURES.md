@@ -1,10 +1,3 @@
-<!--
-  ~ Copyright (c) 2026 Gradum Authors
-  ~ For licensing terms and conditions, see the MIT LICENSE file.
-  ~
-  ~ PLUGIN_FEATURES.md  2026-07-14 07:46:00 Changed by gwy
-  -->
-
 # Gradum Plugin Features
 
 Every user-facing feature of the Gradum IntelliJ IDEA plugin (`plugin/` module) is covered here, the chat tool-window,

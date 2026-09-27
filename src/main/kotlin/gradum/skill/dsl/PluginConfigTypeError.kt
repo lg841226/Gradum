@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * PluginConfigTypeError.kt  2026-09-27 13:05:45 Changed by gwy
- */
-
 package gradum.skill.dsl
 
 class PluginConfigTypeError(

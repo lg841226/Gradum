@@ -1,21 +1,13 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * TodoSkill.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.ErrorCode
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
-import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
-import gradum.skill.dsl.boolean
 import gradum.skill.buildXmlError
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.integer
 import gradum.skill.dsl.string
 import gradum.skill.dsl.stringArray

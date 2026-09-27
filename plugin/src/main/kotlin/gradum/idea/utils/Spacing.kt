@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * Spacing.kt  2026-09-24 13:13:15 Changed by gwy
- */
-
 package gradum.idea.utils
 
 import androidx.compose.ui.unit.Dp

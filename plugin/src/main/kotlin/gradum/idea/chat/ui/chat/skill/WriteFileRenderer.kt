@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * WriteFileRenderer.kt  Changed by gwy
- */
-
 package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.foundation.layout.Arrangement

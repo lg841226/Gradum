@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ProviderConfig.kt  2026-08-31 19:21:55 Changed by gwy
- */
 package gradum
 
 import gradum.utils.JsonUtil
@@ -97,8 +91,14 @@ object ProviderConfigStore {
       val configKey: String = match.groupValues[1].lowercase()
       if (configKey !in KNOWN_CONFIG_KEYS) continue
       when (match.groupValues[2]) {
-        "BASE_URL" -> { root["$configKey.baseUrl"] = rawValue.toString(); migrated = true }
-        "API_KEY" -> { root["$configKey.apiKey"] = rawValue.toString(); migrated = true }
+        "BASE_URL" -> {
+          root["$configKey.baseUrl"] = rawValue.toString(); migrated = true
+        }
+
+        "API_KEY" -> {
+          root["$configKey.apiKey"] = rawValue.toString(); migrated = true
+        }
+
         "ALLOW_REMOTE" -> {
           root["$configKey.allowRemote"] = rawValue.toString().toBooleanStrictOrNull() ?: false
           migrated = true

@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * DelegateSkillTest.kt  2026-09-25 12:00:01 Changed by gwy
- */
-
 package gradum.skill
 
 import gradum.AgentConfiguration

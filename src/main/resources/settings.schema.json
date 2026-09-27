@@ -14,7 +14,10 @@
       "description": "Base URL override for the Ollama provider"
     },
     "ollama.apiKey": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "API key override for the Ollama provider",
       "default": null
     },
@@ -28,7 +31,10 @@
       "description": "Base URL override for the LM Studio provider"
     },
     "lmstudio.apiKey": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "API key override for the LM Studio provider",
       "default": null
     },
@@ -42,7 +48,10 @@
       "description": "Base URL override for the Zhipu BigModel provider"
     },
     "zhipu.apiKey": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "API key override for the Zhipu BigModel provider",
       "default": null
     },
@@ -56,7 +65,10 @@
       "description": "Base URL override for the DeepSeek provider"
     },
     "deepseek.apiKey": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "API key override for the DeepSeek provider",
       "default": null
     },
@@ -70,7 +82,10 @@
       "description": "Base URL override for the MiniMax provider"
     },
     "minimax.apiKey": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "API key override for the MiniMax provider",
       "default": null
     },
@@ -93,23 +108,33 @@
           "command": {
             "type": "array",
             "description": "The command to spawn, as an executable and its arguments (e.g. [\"npx\", \"-y\", \"@modelcontextprotocol/server-filesystem\", \"/tmp\"]).",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "minItems": 1
           },
           "workingDir": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Working directory for the child process. Omitted or null inherits the server's working directory.",
             "default": null
           },
           "env": {
             "type": "object",
             "description": "Extra environment variables to pass to the child process.",
-            "additionalProperties": { "type": "string" },
+            "additionalProperties": {
+              "type": "string"
+            },
             "default": {}
           }
         },
         "additionalProperties": false,
-        "required": ["name", "command"]
+        "required": [
+          "name",
+          "command"
+        ]
       },
       "default": []
     },
@@ -147,7 +172,10 @@
           "default": false
         },
         "apiKeyFile": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Absolute path to a plain-text file listing the default API key for hosted providers (keeps the secret out of this file). Only the first non-blank line is used; must not be a relative path or '~' shorthand.",
           "default": null
         }
@@ -192,7 +220,9 @@
         "blockedExecutables": {
           "type": "array",
           "description": "Always-on blacklist of dangerous executables that may never run.",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "protectedPaths": {
           "type": "object",
@@ -202,22 +232,30 @@
             "systemPrefixes": {
               "type": "array",
               "description": "System root prefixes that are always protected.",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "protectedHomeSubdirectories": {
               "type": "array",
               "description": "Home subdirectories that are always protected (secrets, credentials).",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "safePathPrefixes": {
               "type": "array",
               "description": "Scratch directories LLM-driven file ops are always allowed to touch regardless of project root.",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "exactProtectedPaths": {
               "type": "array",
               "description": "Bare paths that are always protected (e.g. '/', '/dev').",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false,

@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * MaterializedMcpToolsTest.kt  2026-09-26 Changed by gwy
- */
 package gradum.skill
 
 import kotlin.test.Test

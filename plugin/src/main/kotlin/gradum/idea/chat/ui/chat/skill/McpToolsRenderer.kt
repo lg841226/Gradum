@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpToolsRenderer.kt  2026-09-26 11:28:18 Changed by gwy
- */
 package gradum.idea.chat.ui.chat.skill
 
 import androidx.compose.animation.AnimatedVisibility

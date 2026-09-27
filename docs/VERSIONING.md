@@ -15,11 +15,11 @@ The current pre-release is `experimental` (see §4).
 
 ## 2. When to Bump
 
-| Level   | Trigger                                         | Example                                      |
-|---------|-------------------------------------------------|----------------------------------------------|
-| PATCH   | Bug fix, perf work, behavior-neutral refactor   | Fix a crash, change log formatting           |
-| MINOR   | Backward-compatible new feature                 | Add a skill, endpoint, or event type         |
-| MAJOR   | Breaking change to the HTTP API contract        | Change NDJSON event fields; old plugin stops |
+| Level | Trigger                                       | Example                                      |
+|-------|-----------------------------------------------|----------------------------------------------|
+| PATCH | Bug fix, perf work, behavior-neutral refactor | Fix a crash, change log formatting           |
+| MINOR | Backward-compatible new feature               | Add a skill, endpoint, or event type         |
+| MAJOR | Breaking change to the HTTP API contract      | Change NDJSON event fields; old plugin stops |
 
 ### What does NOT bump the version
 

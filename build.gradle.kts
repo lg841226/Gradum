@@ -1,8 +1,5 @@
 /*
  * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * build.gradle.kts  2026-09-24 00:10:38 Changed by gwy
  */
 
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget

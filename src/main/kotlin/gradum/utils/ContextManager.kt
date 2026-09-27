@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ContextManager.kt  2026-09-11 15:02:59 Changed by gwy
- */
-
 package gradum.utils
 
 import kotlinx.serialization.json.*

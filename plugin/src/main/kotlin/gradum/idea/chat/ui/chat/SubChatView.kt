@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * SubChatView.kt  2026-09-25 01:18:31 Changed by gwy
- */
-
 package gradum.idea.chat.ui.chat
 
 

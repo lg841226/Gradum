@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumEventType.kt  2026-09-17 Changed by gwy
- */
-
 package gradum.agent
 
 /**

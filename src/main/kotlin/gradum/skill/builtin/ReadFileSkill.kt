@@ -1,23 +1,8 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ReadFileSkill.kt  2026-09-24 23:50:38 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.AskResult
-import gradum.skill.AskScope
-import gradum.skill.Choice
-import gradum.skill.Lang
-import gradum.skill.ResolvedProjectPath
+import gradum.skill.*
 import gradum.skill.dsl.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.buildXmlError
-import gradum.skill.resolveProjectPath
 import gradum.skill.dsl.string
 import java.io.File
 import java.io.FileNotFoundException
@@ -126,8 +111,10 @@ class ReadFileSkill : Skill() {
               context.authorizedReadPaths.add(externalPath.toString())
               true
             }
+
             Choice.Meaning.REJECT -> false
           }
+
           else -> false
         }
         if (!allowedToRead) {

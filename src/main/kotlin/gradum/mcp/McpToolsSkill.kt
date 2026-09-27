@@ -1,18 +1,11 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpToolsSkill.kt  2026-09-26 12:34:45 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.makeSuccess
-import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.string
 
 /**

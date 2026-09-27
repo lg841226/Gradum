@@ -1,18 +1,11 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ExploreProjectSkill.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.dsl.IntConstraints
-import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.buildXmlError
+import gradum.skill.dsl.IntConstraints
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.integer
 import gradum.skill.dsl.string
 import gradum.utils.JsonUtil.decodeMap

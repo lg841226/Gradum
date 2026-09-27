@@ -1,11 +1,4 @@
 /*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * SettingsDsl.kt  2026-09-27 12:48:57 Changed by gwy
- */
-
-/*
  * Declares the plugin config a skill expects, once, and hands it to the
  * reader bound to the user's `plugins.<skillName>` section.
  *

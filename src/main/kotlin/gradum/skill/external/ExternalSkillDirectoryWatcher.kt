@@ -1,23 +1,9 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ExternalSkillDirectoryWatcher.kt  2026-09-27 13:27:35 Changed by gwy
- */
-
 package gradum.skill.external
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.nio.file.FileSystems
-import java.nio.file.NoSuchFileException
-import java.nio.file.Path
-import java.nio.file.StandardWatchEventKinds.ENTRY_CREATE
-import java.nio.file.StandardWatchEventKinds.ENTRY_DELETE
-import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-import java.nio.file.WatchKey
-import java.nio.file.WatchService
-import java.nio.file.ClosedWatchServiceException
+import java.nio.file.*
+import java.nio.file.StandardWatchEventKinds.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit

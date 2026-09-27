@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpProtocol.kt  2026-09-25 21:35:33 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.BuildConfig

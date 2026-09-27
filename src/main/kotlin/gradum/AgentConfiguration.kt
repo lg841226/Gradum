@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * AgentConfiguration.kt  2026-09-25 11:43:46 Changed by gwy
- */
-
 package gradum
 
 /**

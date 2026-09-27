@@ -1,14 +1,12 @@
 **Gradum Data Security and Privacy Statement**
 
-**Effective Date:** August 9, 2026
-**Version:** 1.0
+**Effective Date:** August 9, 2026 **Version:** 1.0
 
 **1. Scope and Application**
 
 This Data Security and Privacy Statement ("Statement") governs the
-handling of all data, code, and metadata by the Gradum plugin
-("Plugin") across all supported integrated development environments
-(IDEs) and platforms. By installing, accessing, or using the Plugin,
+handling of all data, code, and metadata by the Gradum plugin ("Plugin") across all supported integrated development
+environments (IDEs) and platforms. By installing, accessing, or using the Plugin,
 you ("User") acknowledge that you have read, understood, and agree to
 be bound by the terms of this Statement. If you do not agree with any
 provision of this Statement, you must immediately cease using the

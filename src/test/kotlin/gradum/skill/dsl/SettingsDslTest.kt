@@ -1,16 +1,8 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * SettingsDslTest.kt  2026-09-27 Changed by gwy
- */
-
 package gradum.skill.dsl
 
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.makeSuccess
-import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import kotlin.test.Test
@@ -34,12 +26,12 @@ class SettingsDslTest {
   private val settingsSpec: SettingsSpec = settings {
     settings("search") {
       "maxResults" set 5
-      "depth"      set "basic"
+      "depth" set "basic"
     }
     settings("output") {
       "verbose" set false
-      "tags"    set listOf("a", "b")
-      "mode"    set Mode.BASIC
+      "tags" set listOf("a", "b")
+      "mode" set Mode.BASIC
     }
   }
 

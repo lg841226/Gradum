@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ChatMessageSender.kt  2026-09-24 23:15:04 Changed by gwy
- */
-
 package gradum.idea.chat.state
 
 import gradum.idea.chat.api.GradumApiClient

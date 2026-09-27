@@ -14,24 +14,57 @@
   },
   "commandFilter": {
     "blockedExecutables": [
-      "mkfs", "mkfs.ext2", "mkfs.ext3", "mkfs.ext4",
-      "mkfs.xfs", "mkfs.btrfs", "mkfs.vfat", "mkfs.ntfs",
-      "mkswap", "fdisk", "sfdisk", "parted", "gdisk",
-      "shutdown", "reboot", "poweroff"
+      "mkfs",
+      "mkfs.ext2",
+      "mkfs.ext3",
+      "mkfs.ext4",
+      "mkfs.xfs",
+      "mkfs.btrfs",
+      "mkfs.vfat",
+      "mkfs.ntfs",
+      "mkswap",
+      "fdisk",
+      "sfdisk",
+      "parted",
+      "gdisk",
+      "shutdown",
+      "reboot",
+      "poweroff"
     ],
     "protectedPaths": {
       "systemPrefixes": [
-        "/etc", "/usr", "/var", "/boot", "/bin", "/sbin", "/lib",
-        "/lib64", "/opt", "/System", "/Library", "/Applications", "/private"
+        "/etc",
+        "/usr",
+        "/var",
+        "/boot",
+        "/bin",
+        "/sbin",
+        "/lib",
+        "/lib64",
+        "/opt",
+        "/System",
+        "/Library",
+        "/Applications",
+        "/private"
       ],
       "protectedHomeSubdirectories": [
-        ".ssh", ".gnupg", ".aws", ".kube", ".netrc", ".pypirc", ".npmrc", ".docker"
+        ".ssh",
+        ".gnupg",
+        ".aws",
+        ".kube",
+        ".netrc",
+        ".pypirc",
+        ".npmrc",
+        ".docker"
       ],
       "safePathPrefixes": [
         "/tmp"
       ],
       "exactProtectedPaths": [
-        "/", "/dev", "/proc", "/sys"
+        "/",
+        "/dev",
+        "/proc",
+        "/sys"
       ]
     }
   },

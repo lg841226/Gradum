@@ -1,15 +1,10 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * WriteFileSkill.kt  2026-09-27 12:06:53 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
 import gradum.skill.*
-import gradum.skill.dsl.*
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.objectArray
+import gradum.skill.dsl.string
 import gradum.utils.ProtectedPaths
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex

@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * Version.java  2026-08-31 19:21:54 Changed by gwy
- */
-
 package gradum;
 
 

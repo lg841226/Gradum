@@ -1,13 +1,7 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpToolCatalog.kt  2026-09-26 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.ToolMode
+import gradum.mcp.McpToolCatalog.OTHER_GROUP
 import java.util.concurrent.ConcurrentHashMap
 
 /**

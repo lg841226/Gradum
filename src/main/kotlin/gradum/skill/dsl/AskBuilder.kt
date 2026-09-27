@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * AskBuilder.kt  2026-09-27 Changed by gwy
- */
-
 package gradum.skill.dsl
 
 import gradum.skill.Choice

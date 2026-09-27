@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpSkillAdapter.kt  2026-09-26 00:06:57 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.SkillResult
@@ -13,7 +6,7 @@ import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.mcp.jsonrpc.RpcException
 import gradum.skill.*
-import gradum.skill.dsl.*
+import gradum.skill.dsl.SchemaBuilder
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
@@ -64,6 +57,7 @@ internal class McpSkillAdapter(
       ?.jsonArray
       ?.mapNotNull { (it as? JsonPrimitive)?.content }
       ?: emptyList()
+
     @Suppress("UNCHECKED_CAST")
     val propertyMap: Map<String, Any> =
       (JsonUtil.fromJsonElement(tool.inputSchema["properties"] ?: buildJsonObject {}) as? Map<String, Any>)

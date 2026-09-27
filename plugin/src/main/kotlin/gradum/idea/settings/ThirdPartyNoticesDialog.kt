@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ThirdPartyNoticesDialog.kt  2026-08-31 19:21:55 Changed by gwy
- */
 package gradum.idea.settings
 
 import androidx.compose.animation.core.FastOutSlowInEasing

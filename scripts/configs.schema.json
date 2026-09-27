@@ -8,21 +8,29 @@
       "type": "array",
       "title": "Code Extensions",
       "description": "File extensions considered source code for analysis. Matching files contribute to add/delete totals.",
-      "items": { "type": "string", "pattern": "^\\..+$" },
+      "items": {
+        "type": "string",
+        "pattern": "^\\..+$"
+      },
       "uniqueItems": true
     },
     "nonProgrammingExtensions": {
       "type": "array",
       "title": "Non-Programming Extensions",
       "description": "Extensions excluded from core source-code counting. These files still appear in total file stats but are flagged as non-core during audit checks.",
-      "items": { "type": "string", "pattern": "^\\..+$" },
+      "items": {
+        "type": "string",
+        "pattern": "^\\..+$"
+      },
       "uniqueItems": true
     },
     "excludedDirectories": {
       "type": "array",
       "title": "Excluded Directories",
       "description": "Directory names completely skipped during file traversal. Supports both bare names (node_modules) and dot-prefixed names (.git).",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "uniqueItems": true
     },
     "settings": {
@@ -46,12 +54,18 @@
           "description": "Window size for moving average calculation in CSV output. Set to 0 to omit this column."
         },
         "formulaExpression": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Custom expression for an additional CSV column. Accepts a built-in name (net_ratio, efficiency, churn) or any Python math expression (e.g., 'add / max(deletions, 1)')."
         },
         "outputFilePath": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Output path for the generated CSV file. When null, a timestamped name is auto-generated."
         },
@@ -66,18 +80,33 @@
           "description": "Enable the 4-factor quality model (recency, anti-AI, deletion health, and scale)."
         },
         "batchPeriodUnit": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
-          "enum": ["month", "week", "quarter", "year", null],
+          "enum": [
+            "month",
+            "week",
+            "quarter",
+            "year",
+            null
+          ],
           "description": "Enable per-period quality analysis by partitioning commits into time windows."
         },
         "reportOutputPath": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Output path for the ZIP report containing quality charts, a radar chart, and the suspicion CSV."
         },
         "qualityParamsFilePath": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "default": null,
           "description": "Path to a JSON file with custom quality parameters that override defaults in qualityParams."
         },
@@ -96,8 +125,13 @@
       "properties": {
         "botAuthorPatterns": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["bot", "agent"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "bot",
+            "agent"
+          ],
           "description": "Case-insensitive patterns matched against author names to identify bot accounts."
         },
         "heroTopContributorCount": {
@@ -393,7 +427,9 @@
       "patternProperties": {
         "^(clean|normal|watch|alert|critical)$": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 2,
           "maxItems": 2
         }
@@ -420,7 +456,11 @@
             "description": "Rich color name used in console output."
           }
         },
-        "required": ["min", "name", "color"]
+        "required": [
+          "min",
+          "name",
+          "color"
+        ]
       }
     }
   },

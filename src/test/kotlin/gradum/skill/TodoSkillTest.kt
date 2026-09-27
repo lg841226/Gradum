@@ -1,16 +1,7 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * TodoSkillTest.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.skill
 
 import gradum.SkillResult
-import gradum.skill.builtin.CompletePlanSkill
 import gradum.skill.builtin.TodoManager
-import gradum.skill.builtin.TodoSkill
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * AuditFindingsTree.kt  2026-08-25 01:50:11 Changed by gwy
- */
-
 @file:OptIn(
   InternalJewelApi::class,
   ExperimentalJewelApi::class,

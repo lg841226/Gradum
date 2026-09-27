@@ -1,19 +1,12 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * Main.kt  2026-09-26 00:04:31 Changed by gwy
- */
-
 package gradum.server
 
 import gradum.BuildConfig
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
+import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
-import gradum.skill.SkillRegistry
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger

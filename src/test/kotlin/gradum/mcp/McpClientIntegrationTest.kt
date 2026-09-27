@@ -1,21 +1,10 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpClientIntegrationTest.kt  2026-09-25 18:00:00 Changed by gwy
- */
-
 package gradum.mcp
 
+import gradum.mcp.transport.StdioMcpClient
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.*
 import java.io.File
 import java.io.IOException
-import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import gradum.mcp.transport.StdioMcpClient
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

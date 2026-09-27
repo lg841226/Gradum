@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ExternalSkillDirectoryScanner.kt  2026-09-27 13:27:35 Changed by gwy
- */
-
 package gradum.skill.external
 
 import gradum.skill.Skill

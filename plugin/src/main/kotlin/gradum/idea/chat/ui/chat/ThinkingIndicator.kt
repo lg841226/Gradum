@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ThinkingIndicator.kt  2026-09-23 13:17:03 Changed by gwy
- */
-
 @file:Suppress("UnstableApiUsage")
 
 package gradum.idea.chat.ui.chat

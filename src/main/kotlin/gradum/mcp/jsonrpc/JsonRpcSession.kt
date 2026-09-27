@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * JsonRpcSession.kt  2026-09-25 21:37:42 Changed by gwy
- */
-
 package gradum.mcp.jsonrpc
 
 import gradum.mcp.transport.FrameCodec

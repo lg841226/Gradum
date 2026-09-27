@@ -1,15 +1,13 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * WebSearchSkill.kt  2026-09-27 12:06:53 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.*
-import gradum.skill.dsl.*
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.buildXmlError
+import gradum.skill.dsl.IntConstraints
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.integer
+import gradum.skill.dsl.string
 import io.ktor.client.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*

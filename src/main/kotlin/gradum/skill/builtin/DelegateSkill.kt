@@ -1,18 +1,13 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * DelegateSkill.kt  2026-09-11 14:59:56 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.agent.*
-import gradum.skill.dsl.SchemaBuilder
+import gradum.agent.Agent
+import gradum.agent.GradumEventType
+import gradum.agent.SUB_AGENT_EVENT_PREFIX
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.buildXmlError
+import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.string
 import org.slf4j.LoggerFactory
 import java.util.*

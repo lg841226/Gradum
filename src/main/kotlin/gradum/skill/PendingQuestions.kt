@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * PendingQuestions.kt  2026-09-24 23:20:11 Changed by gwy
- */
-
 package gradum.skill
 
 import kotlinx.coroutines.CompletableDeferred

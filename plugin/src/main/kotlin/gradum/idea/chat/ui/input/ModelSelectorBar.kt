@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ModelSelectorBar.kt  2026-09-11 10:42:33 Changed by gwy
- */
-
 package gradum.idea.chat.ui.input
 
 import androidx.compose.foundation.ExperimentalFoundationApi

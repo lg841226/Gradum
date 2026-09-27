@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * LLMClient.kt  2026-09-24 23:12:43 Changed by gwy
- */
-
 package gradum.client
 
 import gradum.AgentConfiguration

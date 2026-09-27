@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ServerConfiguration.kt  2026-09-24 22:57:25 Changed by gwy
- */
-
 package gradum.server
 
 import gradum.AgentConfiguration

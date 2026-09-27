@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ExternalSkillReloadTest.kt  2026-09-27 Changed by gwy
- */
-
 package gradum.skill
 
 import gradum.SkillResult
@@ -14,11 +7,7 @@ import gradum.skill.external.ExternalSkillDirectoryWatcher
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import kotlin.test.*
 
 /**
  * Pins the external-skill hot-reload: [ExternalSkillDirectoryScanner.reconcile]

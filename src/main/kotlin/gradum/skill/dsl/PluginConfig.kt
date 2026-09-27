@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * PluginConfig.kt  2026-09-27 13:05:45 Changed by gwy
- */
-
 /**
  * Reading side of the plugin config declared in SettingsDsl.kt: a skill
  * reaches its own `plugins.<skillName>` slice and binds it to its declared

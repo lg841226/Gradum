@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ApiProviderRow.kt  2026-09-11 10:42:04 Changed by gwy
- */
-
 @file:OptIn(ExperimentalFoundationApi::class)
 
 package gradum.idea.settings

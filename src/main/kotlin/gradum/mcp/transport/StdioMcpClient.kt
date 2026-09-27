@@ -1,22 +1,11 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * StdioMcpClient.kt  2026-09-25 18:00:00 Changed by gwy
- */
-
 package gradum.mcp.transport
 
 import gradum.mcp.jsonrpc.JsonRpcSession
-import java.io.File
-import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
+import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Spawns an MCP server as a child process and bridges its stdin/stdout to a

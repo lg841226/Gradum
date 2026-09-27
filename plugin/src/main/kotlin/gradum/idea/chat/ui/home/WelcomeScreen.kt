@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * WelcomeScreen.kt  2026-09-19 17:11:20 Changed by gwy
- */
-
 package gradum.idea.chat.ui.home
 
 import androidx.compose.foundation.layout.*

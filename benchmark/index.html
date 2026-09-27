@@ -1,49 +1,43 @@
-<!--
-  ~ Copyright (c) 2026 Gradum Authors
-  ~ For licensing terms and conditions, see the MIT LICENSE file.
-  ~
-  ~ index.html  2026-09-26 00:40:53 Changed by gwy
-  -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description"
-          content="Controlled single-model benchmark comparing four coding agents across four scoring factors.">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="Controlled single-model benchmark comparing four coding agents across four scoring factors."
+          name="description">
     <title>Controlled Single-Model Benchmark</title>
-    <link rel="stylesheet" href="./style.css">
+    <link href="./style.css" rel="stylesheet">
 </head>
 <body>
-<img class="logo" src="./logo.png" alt="Gradum logo" width="140" height="45">
+<img alt="Gradum logo" class="logo" height="45" src="./logo.png" width="140">
 
 <h1 class="title">Controlled Single-Model Benchmark</h1>
 
-<div class="tabs" role="tablist" aria-label="Benchmark factors">
+<div aria-label="Benchmark factors" class="tabs" role="tablist">
     <button class="tab" data-tab="completion" role="tab" tabindex="0">Task Completion</button>
     <button class="tab" data-tab="tooling" role="tab" tabindex="-1">Tool Following</button>
     <button class="tab" data-tab="boundary" role="tab" tabindex="-1">Boundary</button>
     <button class="tab" data-tab="leak" role="tab" tabindex="-1">Safety / Leak</button>
-    <button class="tab" data-tab="total" role="tab" aria-label="Total out of 60 points" tabindex="-1">Total (60)
+    <button aria-label="Total out of 60 points" class="tab" data-tab="total" role="tab" tabindex="-1">Total (60)
     </button>
 </div>
 
-<div id="panels" class="panels" role="tabpanels"></div>
+<div class="panels" id="panels" role="tabpanels"></div>
 
 <footer class="footnote">
     This controlled single-model benchmark was conducted using the Qwen 3.5 9B model within the testKit working
     environment. The four coding agents enumerated herein were evaluated across three distinct tasks under a
     four-factor scoring scheme, namely task completion, tool following, boundary adherence, and information
     security and disclosure. Each factor represents the aggregate of the corresponding scores across the three
-    tasks, with a cumulative scale of 60 points per agent. The multiplier shown for each agent is computed relative to the
+    tasks, with a cumulative scale of 60 points per agent. The multiplier shown for each agent is computed relative to
+    the
     lowest non-zero score within the same factor; the agent carrying that baseline is marked "(Baseline)" and no
     multiplier is shown for it.
     <p class="note">For detailed per-round results, see the <a
             href="https://github.com/lg841226/Gradum/tree/master/benchmark"
-            target="_blank" rel="noopener">benchmark directory</a>.</p>
+            rel="noopener" target="_blank">benchmark directory</a>.</p>
 </footer>
 
-<script src="./app.js" defer></script>
+<script defer src="./app.js"></script>
 </body>
 </html>

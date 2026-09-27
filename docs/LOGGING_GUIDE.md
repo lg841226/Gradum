@@ -43,17 +43,20 @@ or recoverable errors. This prevents logback from printing the full stack
 trace, which is noise for predictable failures.
 
 **Bad** (prints full stack trace for expected errors):
+
 ```kotlin
 logger.warn("Connection failed", connectException)
 ```
 
 **Good** (message only, no stack trace):
+
 ```kotlin
 logger.warn("Connection failed: ${connectException.message}")
 ```
 
 **Only** pass the exception object when the error is genuinely unexpected
 and the stack trace is needed for debugging:
+
 ```kotlin
 logger.error("Uncaught exception in probe loop", probeError)
 ```
@@ -70,6 +73,7 @@ format with `├──` and `└──` characters:
 ```
 
 Rules:
+
 - The first line uses `── Title ──────` as a section header
 - Each item uses `├── ` for all but the last item
 - The last item uses `└── `

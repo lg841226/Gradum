@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ProviderSettingsPersistenceTest.kt  2026-09-24 23:23:59 Changed by gwy
- */
-
 package gradum.idea.provider
 
 import org.junit.After

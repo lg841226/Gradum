@@ -1,24 +1,13 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpToolCatalogTest.kt  2026-09-26 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
 import gradum.skill.SkillContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.IOException
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
+import kotlin.test.*
 
 /**
  * Verifies the on-demand materialization flow behind the `mcp_tools` directory

@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * app.js  2026-09-26 00:40:29 Changed by gwy
- */
-
 /* ---------------------------------------------------------------------------
  * Controlled Single-Model Benchmark
  * app.js - data-driven rendering, tabs, progress-bar animation.

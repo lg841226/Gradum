@@ -1,18 +1,7 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- */
-
 package gradum.skill
 
 import gradum.skill.dsl.AskBuilder
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 /**
  * Unit tests for the ask_interaction channel's server-side primitives:
@@ -194,6 +183,7 @@ class AskInteractionTest {
     }
 
     val wire = h.emitted.single().second
+
     @Suppress("UNCHECKED_CAST")
     val inputWire = wire["input"] as Map<String, Any>
     assertEquals("raw", assertIs<Map<String, Any>>(inputWire["placeholder"])["kind"])

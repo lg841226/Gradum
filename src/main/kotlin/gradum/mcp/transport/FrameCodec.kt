@@ -1,15 +1,8 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * FrameCodec.kt  2026-09-25 18:00:00 Changed by gwy
- */
-
 package gradum.mcp.transport
 
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import java.io.ByteArrayOutputStream
 
 /**
  * Frames MCP stdio messages with the newline-delimited framing from the

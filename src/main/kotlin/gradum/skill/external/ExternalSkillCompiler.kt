@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ExternalSkillCompiler.kt  2026-09-27 11:49:08 Changed by gwy
- */
-
 package gradum.skill.external
 
 import org.jetbrains.kotlin.cli.common.ExitCode

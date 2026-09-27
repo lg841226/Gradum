@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumUI.kt  2026-09-25 01:23:48 Changed by gwy
- */
-
 package gradum.idea.ui
 
 import androidx.compose.foundation.layout.Box

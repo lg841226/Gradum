@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ChatMessage.kt  2026-09-25 01:19:19 Changed by gwy
- */
-
 package gradum.idea.chat.model
 
 import gradum.idea.editor.AttachedContext

@@ -1,13 +1,5 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumIcons.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.idea.utils
 
-import gradum.idea.chat.ui.chat.skill.McpToolsRenderer
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icon.PathIconKey
 

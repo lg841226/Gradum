@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * MarkdownConstants.kt  2026-09-26 12:29:11 Changed by gwy
- */
-
 package gradum.idea.chat.ui.markdown
 
 import androidx.compose.foundation.layout.PaddingValues

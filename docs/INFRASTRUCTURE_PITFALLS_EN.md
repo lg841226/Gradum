@@ -232,7 +232,8 @@ Keep `plugin.xml` `<depends>` to the **minimum two**:
 Plugin 'Gradum' requires plugin 'intellij.libraries.skiko' to be installed
 ```
 
-(In fact, **any** `intellij.libraries.*` or `intellij.platform.*` added to `<depends>` will trigger this error; skiko was just the first one found. coroutines has the same issue.)
+(In fact, **any** `intellij.libraries.*` or `intellij.platform.*` added to `<depends>` will trigger this error; skiko
+was just the first one found. coroutines has the same issue.)
 
 ### Root Cause
 
@@ -342,8 +343,8 @@ Upgrade detekt to >= 1.24.x (stable versions that support JDK 25). Modify `build
 
 IDE 2026.2's `Contents/lib/` has 15 jars related to Jewel/Compose/Skiko. JetBrains' official README offers two paths:
 
-| Approach                                                      | Description                                                                            | Fate on 2026.2                                                                          |
-|---------------------------------------------------------------|----------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| Approach                                                      | Description                                                                            | Fate on 2026.2                                                                         |
+|---------------------------------------------------------------|----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
 | `bundledModule("intellij.platform.jewel.markdown.core")` etc. | Gradle compile classpath gets descriptor; runtime IDE loads via plugin.xml `<depends>` | **Doesn't work**: `<depends>` rejects `jetbrains` namespace IDs                        |
 | `plugin/libs/` + `implementation(files(...))`                 | Copy IDE same-name jars into plugin/lib                                                | **Works**: but must exclude all LaTeX Compose transitive deps, otherwise StackOverflow |
 
@@ -576,7 +577,8 @@ verified clean.
 
 `Text(annotated, inlineContent = map)` requires `StringAnnotation.item` == map key **AND** a fixed internal tag. Compose
 looks up chips via
-`getStringAnnotations("androidx.compose.foundation.text.inlineContent", ...).filter { it.item == mapKey }`. The tag is `INLINE_CONTENT_TAG`, an internal constant in `InlineContentUtils`, NOT a user-defined tag.
+`getStringAnnotations("androidx.compose.foundation.text.inlineContent", ...).filter { it.item == mapKey }`. The tag is
+`INLINE_CONTENT_TAG`, an internal constant in `InlineContentUtils`, NOT a user-defined tag.
 
 Using `pushStringAnnotation("INLINE_CODE", placeholder)` (or any custom tag) makes Compose **silently drop every chip**.
 The official extension `AnnotatedString.Builder.appendInlineContent(id, alternateText)` is `internal` in Compose
@@ -587,7 +589,8 @@ pop). Hardcode the tag string `"androidx.compose.foundation.text.inlineContent"`
 > `annotation.item` didn't match the map key, then because the tag was user-defined. Both versions produced no error, no
 > log; every chip was silently dropped and the segment fell back to default `Markdown(...)`.
 
-Always pair the `INLINE_CONTENT_TAG` annotation with an `INLINE_CODE_TEXT` annotation (or similar) for the raw code text; that one CAN have a user-defined tag and is needed for click-to-copy.
+Always pair the `INLINE_CONTENT_TAG` annotation with an `INLINE_CODE_TEXT` annotation (or similar) for the raw code
+text; that one CAN have a user-defined tag and is needed for click-to-copy.
 
 ### 11.2 Badge Style Color Trap — Transparent Tint
 
@@ -712,8 +715,8 @@ text.
 
 ### 12.5 Placeholder Vertical Alignment: Center vs TextCenter
 
-| Mode                   | Behavior                                                           | Problem                                                                                              |
-|------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
+| Mode                   | Behavior                                                           | Problem                                                                                             |
+|------------------------|--------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `Center`               | Placeholder center = line-height center (baseline + 0.75×fontSize) | Formula visual center at x-height (baseline + 0.5×fontSize): offset 0.25×fontSize, looks "elevated" |
 | `AboveBaseline`        | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize: still elevated                                   |
 | `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5×fontSize)            | Matches formula visual center: this is what LaTeX `\textstyle` does                                 |
@@ -736,7 +739,8 @@ Parent layout: `AssistantChatBubble`'s `Column` has no `verticalArrangement` (in
 
 `MathConstants.CANVAS_HORIZONTAL_PADDING = 0.15f` (proportional to fontSize) is folded into `renderResult.canvasWidth`,
 so the Latex Canvas width = formula visible width + 2×0.15×fontSize (~5.4dp transparent padding at 18sp). The user
-perceiving "large right margin" is actually a visual illusion from the panel content area being much wider than the formula; left and right are perfectly symmetric. Cannot be eliminated externally (hardcoded in library); the only way
+perceiving "large right margin" is actually a visual illusion from the panel content area being much wider than the
+formula; left and right are perfectly symmetric. Cannot be eliminated externally (hardcoded in library); the only way
 to reduce perceived "right margin" is to narrow the chat panel content area (`maxContentWidth`).
 
 ### 12.8 PUA Placeholder Allocation Table
@@ -773,7 +777,8 @@ formulas like
 `2(3)^2 - 7(3) + 3 = 18 - 21 + 3 = 0` because the estimate couldn't account for the actual glyph widths rendered by the
 huarangmeng library.
 
-**Initial wrong approach**: Tried to improve the heuristic with tighter per-character ratios. This is fundamentally unreliable; no character-level estimate can match the library's internal layout engine which considers font metrics,
+**Initial wrong approach**: Tried to improve the heuristic with tighter per-character ratios. This is fundamentally
+unreliable; no character-level estimate can match the library's internal layout engine which considers font metrics,
 kerning, and math-mode spacing.
 
 **Solution**: Use the library's own synchronous measurement API (`LatexMeasurerState.measure()`) to get the real
@@ -853,7 +858,8 @@ containing `$`. The test framework's `Edit` tool also has this issue; use Python
 treated as OrderedList start, causing bold syntax (`**text**`) to be dropped when reparsing via `parseInlineMarkdown`.
 Use `parseInlineNodes` + `rememberInlineMarkdownRenderFromNode` to directly process AST inline children instead.
 
-**End-to-end tests must check root node type**: `Parser.parse()` returns a `Document`, so appending it to another `Document` causes nested structure; use the parsed `Node` directly instead of wrapping it.
+**End-to-end tests must check root node type**: `Parser.parse()` returns a `Document`, so appending it to another
+`Document` causes nested structure; use the parsed `Node` directly instead of wrapping it.
 
 **GradumBlockRenderer compilation errors**: incorrect casting of `ListItem`, using non-existent `editorBackground` from
 `GlobalColors`, using non-existent `HorizontalDivider` composable, and accessing non-existent `textStyle` on
@@ -962,13 +968,13 @@ attributes**
 in its EP descriptor
 ([Settings Guide → Settings Declaration Attributes](https://plugins.jetbrains.com/docs/intellij/settings-guide.html)):
 
-| Attribute           | Required   | Purpose                                                |
-|---------------------|------------|--------------------------------------------------------|
-| `id`                | yes        | Stable ID, must be unique                              |
-| `displayName`       | yes        | Tree label (i18n via `key`+`bundle` recommended)       |
-| `instance`          | **one of** | FQN of a `Configurable` implementation                 |
-| `provider`          | **one of** | FQN of a `ConfigurableProvider` implementation         |
-| `parentId`          | no         | Existing Configurable ID this one nests under          |
+| Attribute           | Required   | Purpose                                               |
+|---------------------|------------|-------------------------------------------------------|
+| `id`                | yes        | Stable ID, must be unique                             |
+| `displayName`       | yes        | Tree label (i18n via `key`+`bundle` recommended)      |
+| `instance`          | **one of** | FQN of a `Configurable` implementation                |
+| `provider`          | **one of** | FQN of a `ConfigurableProvider` implementation        |
+| `parentId`          | no         | Existing Configurable ID this one nests under         |
 | `nonDefaultProject` | no         | `projectConfigurable` only: hide in non-project scope |
 
 There is **no `implementation` attribute**. The IDE parser ignores unknown attributes silently; the EP entry is
@@ -1089,7 +1095,8 @@ signed value. If you ever see this number, you have an Infinity-constraint leak 
 ### Fix
 
 **Primary fix: implement `Configurable.NoScroll`** (this is what JetBrains' own
-[`ComposeSearchableConfigurable`](https://github.com/JetBrains/intellij-community/blob/master/platform/compose/src/com/intellij/platform/compose/ComposeSearchableConfigurable.kt)
+[
+`ComposeSearchableConfigurable`](https://github.com/JetBrains/intellij-community/blob/master/platform/compose/src/com/intellij/platform/compose/ComposeSearchableConfigurable.kt)
 does, and what their
 [showcase example](https://github.com/JetBrains/intellij-community/blob/master/plugins/devkit/intellij.devkit.compose/src/showcase/SettingsPageOnCompose.kt)
 verifies works without any `preferredSize` shim):
@@ -1244,7 +1251,8 @@ httpClient.preparePost(requestUrl) {
   still open, so `body()` returns a live `ByteReadChannel` that reads from the network.
 - Inside `execute {}`, the `FlowCollector` receiver from the outer `flow { }` builder is **not** available (the
   receiver is `HttpResponse`). Capture it explicitly: `val flowCollector = this` before `execute {}`.
-- The `io.ktor.client.statement.useEngineDispatcher` JVM system property is **not** required for this fix; the default dispatcher works fine.
+- The `io.ktor.client.statement.useEngineDispatcher` JVM system property is **not** required for this fix; the default
+  dispatcher works fine.
 
 ### Files Changed
 
@@ -1267,7 +1275,8 @@ httpClient.preparePost(requestUrl) {
 > function is only truly streaming when called inside the `execute {}` scope. Outside it, `bodyAsChannel()` is a
 > buffer reader.
 >
-> The fingerprint of this bug: `curl -N` works, but your code doesn't. The fix is always the same: `post()` → `execute {}`.
+> The fingerprint of this bug: `curl -N` works, but your code doesn't. The fix is always the same: `post()` →
+> `execute {}`.
 >
 > This bug took half a day of debugging; Ollama logs showed token generation, `curl -N` confirmed Ollama was
 > streaming correctly, but the Ktor client still received everything at once. The Ktor documentation's "Streaming data"

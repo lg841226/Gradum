@@ -1,21 +1,8 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * RunCommandSkill.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.AskResult
-import gradum.skill.AskScope
-import gradum.skill.Choice
-import gradum.skill.Lang
+import gradum.skill.*
 import gradum.skill.dsl.SchemaBuilder
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.buildXmlError
 import gradum.skill.dsl.boolean
 import gradum.skill.dsl.integer
 import gradum.skill.dsl.string

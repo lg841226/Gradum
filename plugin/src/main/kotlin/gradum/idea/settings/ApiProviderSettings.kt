@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ApiProviderSettings.kt  2026-09-25 17:47:00 Changed by gwy
- */
-
 package gradum.idea.settings
 
 import androidx.compose.animation.core.tween

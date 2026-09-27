@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 #  Copyright (c) 2026 Gradum Authors
-#  For licensing terms and conditions, see the MIT LICENSE file.
 #
 #  git_stats.py  2026-09-25 17:19:15 Changed by gwy
 

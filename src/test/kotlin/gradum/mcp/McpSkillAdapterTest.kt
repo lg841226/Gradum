@@ -1,22 +1,15 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * McpSkillAdapterTest.kt  2026-09-25 Changed by gwy
- */
-
 package gradum.mcp
 
 import gradum.SkillResult
 import gradum.ToolMode
 import gradum.mcp.transport.StdioMcpClient
 import gradum.skill.SkillContext
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
 
 /**
  * Verifies that a single MCP tool is wrapped into a [Skill]: its schema is

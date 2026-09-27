@@ -1,17 +1,10 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * EncryptionUtil.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.utils
 
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 

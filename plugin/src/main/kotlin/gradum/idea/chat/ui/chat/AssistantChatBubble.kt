@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * AssistantChatBubble.kt  2026-09-26 00:12:53 Changed by gwy
- */
-
 @file:OptIn(ExperimentalFoundationApi::class)
 @file:Suppress("UnstableApiUsage")
 

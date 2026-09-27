@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumGitAnalysisToolWindowFactory.kt  2026-09-10 13:47:12 Changed by gwy
- */
-
 @file:OptIn(ExperimentalJewelApi::class, ExperimentalFoundationApi::class)
 
 package gradum.idea

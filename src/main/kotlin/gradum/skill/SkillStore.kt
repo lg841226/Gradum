@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * SkillStore.kt  2026-09-28 00:05:47 Changed by gwy
- */
-
 /**
  * Abstraction over the central skill registry that the external-skill
  * pipeline needs to mutate. The scanner reloads against [SkillStore] instead

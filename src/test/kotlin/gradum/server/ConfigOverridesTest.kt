@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * ConfigOverridesTest.kt  2026-09-24 13:05:27 Changed by gwy
- */
-
 package gradum.server
 
 import kotlin.test.Test

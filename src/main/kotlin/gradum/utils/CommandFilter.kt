@@ -1,13 +1,5 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * CommandFilter.kt  2026-08-31 19:21:55 Changed by gwy
- */
-
 package gradum.utils
 
-import kotlin.jvm.Volatile
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Paths

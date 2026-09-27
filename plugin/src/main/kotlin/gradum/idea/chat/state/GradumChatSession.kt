@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2026 Gradum Authors
- * For licensing terms and conditions, see the MIT LICENSE file.
- *
- * GradumChatSession.kt  2026-09-26 00:24:56 Changed by gwy
- */
-
 package gradum.idea.chat.state
 
 import androidx.compose.foundation.text.input.TextFieldState
