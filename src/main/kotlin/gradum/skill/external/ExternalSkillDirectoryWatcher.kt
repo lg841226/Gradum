@@ -13,12 +13,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Watches the external skills directory for changes and hot-reloads skills
  * without restarting the server.
  *
- * Reloads are driven two ways, both funneling into [scanner.reconcile] (which
+ * Reloads are driven two ways, both funneling into scanner.reconcile (which
  * is state-based, so a reload always reflects the full current `.kt` set):
  *
- * - **Event-driven**: a [WatchService] on the directory fires on create /
- *   modify / delete of a top-level `.kt` file, debounced to coalesce bursts.
- * - **Periodic fallback**: a daemon scheduler re-checks [currentFingerprint]
+ * - **Event-driven**: a [WatchService] on the directory fires on create or
+ *   modify or delete of a top-level `.kt` file, debounced to coalesce bursts.
+ * - **Periodic fallback**: a daemon scheduler rechecks currentFingerprint
  *   every [fallbackIntervalMillis] to catch events the platform's watch
  *   service may have missed (a known macOS quirk).
  *
@@ -26,56 +26,56 @@ import java.util.concurrent.atomic.AtomicBoolean
  * is deliberately ignored so a reload can never trigger itself.
  */
 class ExternalSkillDirectoryWatcher(
-  private val scanner: ExternalSkillDirectoryScanner,
+  private val skillScanner: ExternalSkillDirectoryScanner,
   private val debounceMillis: Long = 300,
-  private val fallbackIntervalMillis: Long = 3000,
+  private val fallbackIntervalMillis: Long = 60_000,
   private val watchService: WatchService = FileSystems.getDefault().newWatchService(),
 ) {
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillDirectoryWatcher")
-  private val closed: AtomicBoolean = AtomicBoolean(false)
+  private val isClosed: AtomicBoolean = AtomicBoolean(false)
 
   @Volatile
   private var lastFingerprint: String? = null
   private var listenerThread: Thread? = null
 
-  private val scheduler: ScheduledExecutorService =
-    Executors.newSingleThreadScheduledExecutor { runnable ->
-      Thread(runnable, "external-skill-watcher-fallback").apply { isDaemon = true }
+  private val fallbackScheduler: ScheduledExecutorService =
+    Executors.newSingleThreadScheduledExecutor { threadRunnable ->
+      Thread(threadRunnable, "external-skill-watcher-fallback").apply { isDaemon = true }
     }
 
   /** Starts event listening and the periodic fallback task. Idempotent. */
   fun start(): ExternalSkillDirectoryWatcher {
-    if (closed.get()) return this
-    lastFingerprint = scanner.currentFingerprint()
+    if (isClosed.get()) return this
+    lastFingerprint = skillScanner.currentFingerprint()
     registerWatch()
-    scheduler.scheduleWithFixedDelay(
+    fallbackScheduler.scheduleWithFixedDelay(
       { onPeriodicTick() },
       fallbackIntervalMillis,
       fallbackIntervalMillis,
       TimeUnit.MILLISECONDS
     )
-    val thread = Thread({ listen() }, "external-skill-watcher").apply { isDaemon = true }
-    thread.start()
-    listenerThread = thread
-    logger.info("Watching external skills directory {} for hot reload", scanner.skillsDirectory.absolutePath)
+    val watchThread = Thread({ listen() }, "external-skill-watcher").apply { isDaemon = true }
+    watchThread.start()
+    listenerThread = watchThread
+    logger.info("Watching external skills directory {} for hot reload", skillScanner.skillsDirectory.absolutePath)
     return this
   }
 
   /** Stops listening and the periodic task. Idempotent. */
   fun close() {
-    if (!closed.compareAndSet(false, true)) return
+    if (!isClosed.compareAndSet(false, true)) return
     try {
       watchService.close()
-    } catch (ignored: Exception) {
+    } catch (_: Exception) {
       // already closed or not closeable; nothing more to do
     }
-    scheduler.shutdownNow()
-    val thread = listenerThread
-    if (thread != null && thread !== Thread.currentThread()) {
+    fallbackScheduler.shutdownNow()
+    val activeThread = listenerThread
+    if (activeThread != null && activeThread !== Thread.currentThread()) {
       try {
-        thread.join(1_000)
-      } catch (ignored: InterruptedException) {
+        activeThread.join(1_000)
+      } catch (_: InterruptedException) {
         Thread.currentThread().interrupt()
       }
     }
@@ -87,23 +87,23 @@ class ExternalSkillDirectoryWatcher(
    * timing.
    */
   internal fun reconcileNow() {
-    lastFingerprint = scanner.currentFingerprint()
-    scanner.reconcile()
+    lastFingerprint = skillScanner.currentFingerprint()
+    skillScanner.reconcile()
   }
 
   /** Periodic fallback: reload only when the source fingerprint changed. */
   internal fun onPeriodicTick() {
-    if (closed.get()) return
-    val current = scanner.currentFingerprint()
-    if (current != lastFingerprint) {
-      lastFingerprint = current
-      scanner.reconcile()
+    if (isClosed.get()) return
+    val currentFingerprint = skillScanner.currentFingerprint()
+    if (currentFingerprint != lastFingerprint) {
+      lastFingerprint = currentFingerprint
+      skillScanner.reconcile()
     }
   }
 
   private fun registerWatch() {
     try {
-      scanner.skillsDirectory.toPath().register(
+      skillScanner.skillsDirectory.toPath().register(
         watchService,
         ENTRY_CREATE,
         ENTRY_MODIFY,
@@ -116,45 +116,43 @@ class ExternalSkillDirectoryWatcher(
 
   private fun listen() {
     try {
-      while (!closed.get()) {
-        val key: WatchKey =
+      while (!isClosed.get()) {
+        val watchKey: WatchKey =
           try {
             watchService.take()
-          } catch (ignored: ClosedWatchServiceException) {
+          } catch (_: ClosedWatchServiceException) {
             break
-          } catch (ignored: InterruptedException) {
-            if (closed.get()) break else continue
+          } catch (_: InterruptedException) {
+            if (isClosed.get()) break else continue
           }
-        if (closed.get()) break
-        drainAndReload(key)
+        if (isClosed.get()) break
+        drainAndReload(watchKey)
       }
     } catch (listenerError: Exception) {
-      if (!closed.get()) {
+      if (!isClosed.get()) {
         logger.error("External skills watcher loop failed", listenerError)
       }
     }
   }
 
-  private fun drainAndReload(key: WatchKey) {
+  private fun drainAndReload(watchKey: WatchKey) {
     val hasRelevantChange =
-      key.pollEvents().any { event ->
-        val relativeName = (event.context() as? Path)?.fileName?.toString()
+      watchKey.pollEvents().any { watchEvent ->
+        val relativeName = (watchEvent.context() as? Path)?.fileName?.toString()
         relativeName != null && isRelevantSource(relativeName)
       }
-    // reset() returns false once the key is no longer valid (e.g. the watched
-    // directory was deleted); the periodic fallback then owns recovery.
-    if (!hasRelevantChange || !key.reset()) return
 
-    // Coalesce a burst of rapid writes before reloading.
+    if (!hasRelevantChange || !watchKey.reset()) return
+
     if (debounceMillis > 0) {
       try {
         Thread.sleep(debounceMillis)
-      } catch (ignored: InterruptedException) {
-        if (closed.get()) return
+      } catch (_: InterruptedException) {
+        if (isClosed.get()) return
         Thread.currentThread().interrupt()
       }
     }
-    scanner.reconcile()
+    skillScanner.reconcile()
   }
 
   private fun isRelevantSource(fileName: String): Boolean = fileName.endsWith(".kt")

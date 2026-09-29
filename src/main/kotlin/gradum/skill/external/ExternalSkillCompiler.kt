@@ -16,15 +16,15 @@ private const val EXTERNAL_JVM_TARGET: String = "21"
  * The outcome of compiling a set of external `.kt` skill sources.
  *
  * On success [outputDirectory] holds the `.class` files that
- * [ExternalSkillClassLoader] loads from. On failure [errors] carries the
+ * [ExternalSkillClassLoader] loads from. On failure [compileErrors] carries the
  * compiler diagnostics so the caller can log exactly why a skill was skipped.
  */
 internal data class ExternalCompileResult(
-  val errors: List<String>,
+  val compileErrors: List<String>,
   val outputDirectory: File,
-  val warnings: List<String>
+  val compileWarnings: List<String>
 ) {
-  val isSuccess: Boolean get() = errors.isEmpty()
+  val isSuccess: Boolean get() = compileErrors.isEmpty()
 }
 
 /**
@@ -41,36 +41,36 @@ internal class ExternalSkillCompiler {
 
   /**
    * Compiles [sources] into [outputDirectory]. A failed skill never throws:
-   * diagnostics are returned in [errors] and the caller
+   * diagnostics are returned in [compileErrors] and the caller
    * decides how to proceed.
    */
-  fun compile(sources: List<File>, outputDirectory: File, runtimeClasspath: List<String>): ExternalCompileResult {
+  fun compile(sourceFiles: List<File>, outputDirectory: File, runtimeClasspath: List<String>): ExternalCompileResult {
     outputDirectory.mkdirs()
 
-    val arguments = K2JVMCompilerArguments()
-    arguments.freeArgs = sources.map { source -> source.absolutePath }
-    arguments.destination = outputDirectory.absolutePath
-    arguments.classpath = runtimeClasspath.joinToString(File.pathSeparator)
-    arguments.jvmTarget = EXTERNAL_JVM_TARGET
-    arguments.noStdlib = true
-    arguments.noReflect = true
+    val compilerArguments = K2JVMCompilerArguments()
+    compilerArguments.freeArgs = sourceFiles.map { sourceFile -> sourceFile.absolutePath }
+    compilerArguments.destination = outputDirectory.absolutePath
+    compilerArguments.classpath = runtimeClasspath.joinToString(File.pathSeparator)
+    compilerArguments.jvmTarget = EXTERNAL_JVM_TARGET
+    compilerArguments.noStdlib = true
+    compilerArguments.noReflect = true
 
-    val collector = CollectingMessageCollector()
-    val exitCode = K2JVMCompiler().exec(collector, Services.EMPTY, arguments)
+    val messageCollector = CollectingMessageCollector()
+    val exitCode = K2JVMCompiler().exec(messageCollector, Services.EMPTY, compilerArguments)
 
-    val hadErrors = collector.hasErrors() || exitCode != ExitCode.OK
+    val hasCompileErrors = messageCollector.hasErrors() || exitCode != ExitCode.OK
     return ExternalCompileResult(
-      errors = if (hadErrors) collector.errorMessages else emptyList(),
+      compileErrors = if (hasCompileErrors) messageCollector.errorMessages else emptyList(),
       outputDirectory = outputDirectory,
-      warnings = collector.warningMessages,
+      compileWarnings = messageCollector.warningMessages,
     )
   }
 }
 
 /** A single diagnostic captured from the embedded compiler, with its severity. */
 private data class CompilerDiagnostic(
-  val severity: CompilerMessageSeverity,
-  val message: String
+  val diagnosticSeverity: CompilerMessageSeverity,
+  val diagnosticMessage: String
 )
 
 /**
@@ -94,15 +94,15 @@ private class CollectingMessageCollector : MessageCollector {
   }
 
   override fun hasErrors(): Boolean =
-    capturedDiagnostics.any { capturedDiagnostic -> capturedDiagnostic.severity.isError }
+    capturedDiagnostics.any { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isError }
 
   val errorMessages: List<String>
     get() = capturedDiagnostics
-      .filter { capturedDiagnostic -> capturedDiagnostic.severity.isError }
-      .map { capturedDiagnostic -> capturedDiagnostic.message }
+      .filter { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isError }
+      .map { capturedDiagnostic -> capturedDiagnostic.diagnosticMessage }
 
   val warningMessages: List<String>
     get() = capturedDiagnostics
-      .filter { capturedDiagnostic -> capturedDiagnostic.severity.isWarning }
-      .map { capturedDiagnostic -> capturedDiagnostic.message }
+      .filter { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isWarning }
+      .map { capturedDiagnostic -> capturedDiagnostic.diagnosticMessage }
 }

@@ -29,11 +29,11 @@ class ExternalSkillCompilerTest {
 
       val outputDirectory = File(tempRoot, "out")
       val result = ExternalSkillCompiler().compile(
-        sources = listOf(source),
+        sourceFiles = listOf(source),
         outputDirectory = outputDirectory,
         runtimeClasspath = runtimeClasspath(),
       )
-      assertTrue(result.isSuccess, "compiler diagnostics: ${result.errors}")
+      assertTrue(result.isSuccess, "compiler diagnostics: ${result.compileErrors}")
 
       val classLoader = ExternalSkillClassLoader(Skill::class.java.classLoader, outputDirectory)
       val skills = classLoader.loadSkills()

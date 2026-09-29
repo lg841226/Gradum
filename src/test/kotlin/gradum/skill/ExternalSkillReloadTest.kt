@@ -134,7 +134,7 @@ class ExternalSkillReloadTest {
     val tempHome = createTempDir()
     try {
       val store = FakeSkillStore()
-      val scanner = ExternalSkillDirectoryScanner(homeDirectory = tempHome, registry = store)
+      val scanner = ExternalSkillDirectoryScanner(homeDirectory = tempHome, skillStore = store)
       val skillsDir = scanner.skillsDirectory
       skillsDir.mkdirs()
       block(store, skillsDir, scanner)

@@ -19,8 +19,8 @@ import java.nio.file.Files
  * skill without restarting the server.
  */
 internal class ExternalSkillClassLoader(
-  parent: ClassLoader, private val outputDirectory: File
-) : URLClassLoader(arrayOf(outputDirectory.toURI().toURL()), parent) {
+  parentClassLoader: ClassLoader, private val outputDirectory: File
+) : URLClassLoader(arrayOf(outputDirectory.toURI().toURL()), parentClassLoader) {
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillClassLoader")
 
@@ -32,8 +32,8 @@ internal class ExternalSkillClassLoader(
   fun loadSkills(): List<Skill> {
     return loadSkillClasses().mapNotNull { skillClass ->
       try {
-        val instance = skillClass.getDeclaredConstructor().newInstance()
-        if (instance is Skill) instance else null
+        val skillInstance = skillClass.getDeclaredConstructor().newInstance()
+        if (skillInstance is Skill) skillInstance else null
       } catch (instantiationException: Exception) {
         logger.warn("Failed to instantiate external skill class {}", skillClass.name, instantiationException)
         null
@@ -42,31 +42,31 @@ internal class ExternalSkillClassLoader(
   }
 
   private fun loadSkillClasses(): List<Class<out Skill>> {
-    val discovered = mutableListOf<Class<out Skill>>()
+    val discoveredClasses = mutableListOf<Class<out Skill>>()
     val basePath = outputDirectory.toPath()
-    if (!outputDirectory.exists()) return discovered
+    if (!outputDirectory.exists()) return discoveredClasses
 
-    Files.walk(basePath).use { paths ->
-      paths.filter { path -> path.toString().endsWith(".class") }
+    Files.walk(basePath).use { classFilePaths ->
+      classFilePaths.filter { classFilePath -> classFilePath.toString().endsWith(".class") }
         .forEach { classPath ->
           val className = basePath.relativize(classPath).toString()
             .removeSuffix(".class")
             .replace(File.separatorChar, '.')
-          val loaded =
+          val loadedClass =
             try {
               Class.forName(className, true, this)
             } catch (loadException: Throwable) {
               logger.warn("Skipping unloadable external skill class {}", className, loadException)
               null
             }
-          if (loaded != null && Skill::class.java.isAssignableFrom(loaded)
-            && !loaded.isInterface && !Modifier.isAbstract(loaded.modifiers)
+          if (loadedClass != null && Skill::class.java.isAssignableFrom(loadedClass)
+            && !loadedClass.isInterface && !Modifier.isAbstract(loadedClass.modifiers)
           ) {
             @Suppress("UNCHECKED_CAST")
-            discovered += loaded as Class<out Skill>
+            discoveredClasses += loadedClass as Class<out Skill>
           }
         }
     }
-    return discovered
+    return discoveredClasses
   }
 }

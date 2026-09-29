@@ -317,6 +317,7 @@ tasks.register("buildMinimalRuntime") {
         "--output", serverMinimalRuntimeDir.absolutePath
       )
     )
+    serverMinimalRuntimeDir.resolve("lib/ct.sym").takeIf { ctSym -> ctSym.isFile }?.delete()
     logger.lifecycle("Built minimal runtime: $modules -> ${serverMinimalRuntimeDir.absolutePath}")
   }
 }

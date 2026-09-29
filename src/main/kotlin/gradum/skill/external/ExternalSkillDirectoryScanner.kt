@@ -9,7 +9,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /** The subdirectory under `~/.gradum/` that holds drop-in `.kt` skills. */
-internal const val SKILLS_DIR_NAME: String = "skills"
+internal const val SKILLS_DIRECTORY_NAME: String = "skills"
 
 /**
  * Compiles every `.kt` skill under `~/.gradum/skills/` with
@@ -23,15 +23,15 @@ internal const val SKILLS_DIR_NAME: String = "skills"
  * starter so a developer sees the shape of a skill without reading the docs.
  */
 class ExternalSkillDirectoryScanner(
-  private val homeDirectory: File = File(System.getProperty("user.home")),
-  private val registry: SkillStore = SkillRegistry,
+  homeDirectory: File = File(System.getProperty("user.home")),
+  private val skillStore: SkillStore = SkillRegistry
 ) {
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillDirectoryScanner")
-  private val compiler = ExternalSkillCompiler()
+  private val skillCompiler = ExternalSkillCompiler()
 
   /** The skills directory (`~/.gradum/skills/`). */
-  val skillsDirectory: File = homeDirectory.resolve(".gradum").resolve(SKILLS_DIR_NAME)
+  val skillsDirectory: File = homeDirectory.resolve(".gradum").resolve(SKILLS_DIRECTORY_NAME)
 
   /**
    * Skills registered by this scanner, keyed by name. Only these are ever
@@ -66,21 +66,21 @@ class ExternalSkillDirectoryScanner(
       return
     }
 
-    val sources = listKtSources()
+    val sourceFiles = listKtSources()
     val outputDirectory = skillsDirectory.resolve(".build")
-    if (sources.isEmpty()) {
+    if (sourceFiles.isEmpty()) {
       wipeOutputDirectory(outputDirectory)
       unloadAllExternal()
       return
     }
 
     wipeOutputDirectory(outputDirectory)
-    val result = compiler.compile(sources, outputDirectory, runtimeClasspath())
-    result.warnings.forEach { warning -> logger.warn("External skill compile warning: {}", warning) }
-    if (!result.isSuccess) {
+    val compileResult = skillCompiler.compile(sourceFiles, outputDirectory, runtimeClasspath())
+    compileResult.compileWarnings.forEach { compileWarning -> logger.warn("External skill compile warning: {}", compileWarning) }
+    if (!compileResult.isSuccess) {
       logger.error(
         "External .kt skills failed to compile; keeping previously-loaded skills: {}",
-        result.errors.joinToString(separator = "\n")
+        compileResult.compileErrors.joinToString(separator = "\n")
       )
       return
     }
@@ -98,14 +98,14 @@ class ExternalSkillDirectoryScanner(
    */
   internal fun currentFingerprint(): String {
     if (!skillsDirectory.exists()) return ""
-    return listKtSources()
-      .map { file -> "${file.name}:${file.lastModified()}:${file.length()}" }
-      .joinToString("|")
+    return listKtSources().joinToString("|") { sourceFile ->
+      "${sourceFile.name}:${sourceFile.lastModified()}:${sourceFile.length()}"
+    }
   }
 
   private fun listKtSources(): List<File> =
-    skillsDirectory.listFiles { file -> file.isFile && file.extension == "kt" }
-      ?.sortedBy { file -> file.name }
+    skillsDirectory.listFiles { sourceFile -> sourceFile.isFile && sourceFile.extension == "kt" }
+      ?.sortedBy { sourceFile -> sourceFile.name }
       ?.toList()
       .orEmpty()
 
@@ -113,62 +113,63 @@ class ExternalSkillDirectoryScanner(
     val classLoader = ExternalSkillClassLoader(Skill::class.java.classLoader, outputDirectory)
     val loadedByName = mutableMapOf<String, Skill>()
     val seenNames = mutableSetOf<String>()
-    classLoader.loadSkills().forEach { skill ->
-      val skillName = skill.skillName
+
+    classLoader.loadSkills().forEach { loadedSkill ->
+      val skillName = loadedSkill.skillName
       if (skillName in seenNames) {
         logger.warn("External skill '{}' redefined by another .kt file; the latest definition wins", skillName)
       }
       seenNames += skillName
-      loadedByName[skillName] = skill
+      loadedByName[skillName] = loadedSkill
     }
     return loadedByName
   }
 
   /** Unregisters external skills whose source file is no longer present. */
   private fun unloadMissingExternal(loadedNames: Set<String>) {
-    val removedNames = externalOwned.keys.filterNot { name -> name in loadedNames }
-    for (name in removedNames) {
-      val owned = externalOwned[name]
-      if (owned != null && registry.getSkill(name) === owned) {
-        registry.unregister(name)
-        logger.info("Unregistered external skill '{}'", name)
+    val removedNames = externalOwned.keys.filterNot { skillName -> skillName in loadedNames }
+    for (skillName in removedNames) {
+      val ownedSkill = externalOwned[skillName]
+      if (ownedSkill != null && skillStore.getSkill(skillName) === ownedSkill) {
+        skillStore.unregister(skillName)
+        logger.info("Unregistered removed external skill '{}'", skillName)
       }
-      externalOwned.remove(name)
+      externalOwned.remove(skillName)
     }
   }
 
   /** Registers new skills, re-registers reloaded ones, skips name collisions. */
   private fun registerOrSkipLoaded(loadedByName: Map<String, Skill>) {
-    for ((name, skill) in loadedByName) {
+    for ((skillName, registeredSkill) in loadedByName) {
       when {
-        externalOwned.containsKey(name) -> {
-          registry.register(skill)
-          externalOwned[name] = skill
-          logger.info("Reloaded external skill '{}'", name)
+        externalOwned.containsKey(skillName) -> {
+          skillStore.register(registeredSkill)
+          externalOwned[skillName] = registeredSkill
+          logger.info("Reloaded external skill '{}'", skillName)
         }
 
-        registry.getSkill(name) != null -> {
-          logger.warn("Skipping external skill '{}': name collides with an already-registered skill", name)
+        skillStore.getSkill(skillName) != null -> {
+          logger.warn("Skipping external skill '{}': name collides with an already-registered skill", skillName)
         }
 
         else -> {
-          registry.register(skill)
-          externalOwned[name] = skill
-          logger.info("Registered external skill '{}'", name)
+          skillStore.register(registeredSkill)
+          externalOwned[skillName] = registeredSkill
+          logger.info("Registered external skill '{}'", skillName)
         }
       }
     }
   }
 
   private fun unloadAllExternal() {
-    val names = externalOwned.keys.toList()
-    for (name in names) {
-      val owned = externalOwned[name]
-      if (owned != null && registry.getSkill(name) === owned) {
-        registry.unregister(name)
-        logger.info("Unregistered external skill '{}'", name)
+    val ownedNames = externalOwned.keys.toList()
+    for (skillName in ownedNames) {
+      val ownedSkill = externalOwned[skillName]
+      if (ownedSkill != null && skillStore.getSkill(skillName) === ownedSkill) {
+        skillStore.unregister(skillName)
+        logger.info("Unregistered external skill '{}' while unloading all", skillName)
       }
-      externalOwned.remove(name)
+      externalOwned.remove(skillName)
     }
   }
 
@@ -181,13 +182,13 @@ class ExternalSkillDirectoryScanner(
   private fun runtimeClasspath(): List<String> =
     System.getProperty("java.class.path")
       .split(File.pathSeparator)
-      .filter { entry -> entry.isNotBlank() }
+      .filter { classpathEntry -> classpathEntry.isNotBlank() }
       .distinct()
 
   private fun writeStarterSkill(skillsDirectory: File) {
-    val starter = skillsDirectory.resolve("HelloSkill.kt")
-    if (starter.exists()) return
-    starter.writeText(HELLO_SKILL_TEMPLATE)
+    val starterFile = skillsDirectory.resolve("HelloSkill.kt")
+    if (starterFile.exists()) return
+    starterFile.writeText(HELLO_SKILL_TEMPLATE)
   }
 }
 
