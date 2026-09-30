@@ -234,6 +234,55 @@ class LLMClientTest {
   }
 
   @Test
+  fun `openai usage trailer with empty choices is recorded`() = runBlocking {
+    var sentPayload: String = ""
+    val engine: MockEngine = MockEngine { request ->
+      sentPayload = (request.body as io.ktor.http.content.TextContent).text
+      respond(
+        status = HttpStatusCode.OK,
+        content = ByteReadChannel(
+          listOf(
+            """data: {"choices":[{"delta":{"content":"a"}}],"usage":null}""",
+            """data: {"choices":[{"delta":{"content":"b"}}],"usage":null}""",
+            """data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":4,"total_tokens":16}}""",
+            "data: [DONE]",
+          ).joinToString(separator = "\n") + "\n"
+        ),
+        headers = headersOf(name = HttpHeaders.ContentType, value = "text/event-stream"),
+      )
+    }
+    val client = OpenAICompatibleClient(configuration = config(), HttpClient(engine))
+
+    val chunks = client.sendChat(
+      messageHistory = listOf(mapOf("role" to "user", "content" to "x"))
+    ).toList()
+
+    assertTrue(
+      sentPayload.contains("\"stream_options\":{\"include_usage\":true}"),
+      "request must ask the API to report usage; payload was: $sentPayload"
+    )
+    assertEquals(
+      expected = listOf(
+        LLMResponseChunk.TextContent("a"),
+        LLMResponseChunk.TextContent("b"),
+      ),
+      chunks
+    )
+    assertEquals(
+      12,
+      client.tokenUsage.promptTokens
+    )
+    assertEquals(
+      4,
+      client.tokenUsage.completionTokens
+    )
+    assertEquals(
+      16,
+      client.tokenUsage.totalTokens
+    )
+  }
+
+  @Test
   fun `openai stream missing done emits interrupted error`() = runBlocking {
     val engine: MockEngine = sseChunks(
       lines = listOf("""data: {"choices":[{"delta":{"content":"partial"}}]}""")

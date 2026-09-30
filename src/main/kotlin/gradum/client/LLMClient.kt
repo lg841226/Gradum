@@ -408,6 +408,7 @@ class OpenAICompatibleClient(
       "top_p" to configuration.topPValue,
       "model" to configuration.modelName,
       "temperature" to configuration.temperatureValue,
+      "stream_options" to mapOf("include_usage" to true),
       hints.maxTokensFieldName to configuration.maxTokensToGenerate
     )
 
@@ -503,6 +504,21 @@ class OpenAICompatibleClient(
           continue
         }
 
+      /**
+       * Usage is read before the choices guard: per the OpenAI spec the final
+       * usage trailer has an empty choices array and would otherwise be
+       * skipped. Intermediate chunks may carry "usage": null, so the cast
+       * must be nullable-safe.
+       */
+      (parsedPayload["usage"] as? JsonObject)?.let { usageStats ->
+        tokenUsage = recordTokenUsage(
+          usageStats,
+          currentUsage = tokenUsage,
+          promptField = "prompt_tokens",
+          completionField = "completion_tokens"
+        )
+      }
+
       val firstChoice: JsonObject = parsedPayload["choices"]
         ?.jsonArray?.firstOrNull()?.jsonObject ?: continue
 
@@ -527,15 +543,6 @@ class OpenAICompatibleClient(
 
       deltaFields["tool_calls"]?.jsonArray?.let { toolCallsArray ->
         accumulateCallDeltas(toolCallsArray, accumulator = accumulatedCalls)
-      }
-
-      parsedPayload["usage"]?.jsonObject?.let { usageStats ->
-        tokenUsage = recordTokenUsage(
-          usageStats,
-          currentUsage = tokenUsage,
-          promptField = "prompt_tokens",
-          completionField = "completion_tokens"
-        )
       }
     }
 
