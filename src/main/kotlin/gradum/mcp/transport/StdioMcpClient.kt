@@ -15,6 +15,9 @@ import java.util.concurrent.TimeUnit
  *
  * The child's stderr is deliberately kept separate (never merged into
  * stdout) so it cannot corrupt the newline-delimited frame stream.
+ *
+ * start() spawns the child process and the background reader. Safe to call
+ * once.
  */
 internal class StdioMcpClient(
   private val command: List<String>,
@@ -29,7 +32,6 @@ internal class StdioMcpClient(
   lateinit var session: JsonRpcSession
     private set
 
-  /** Starts the child process and the background reader. Safe to call once. */
   fun start() {
     check(process == null) { "MCP transport already started" }
 

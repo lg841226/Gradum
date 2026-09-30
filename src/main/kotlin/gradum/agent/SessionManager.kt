@@ -8,6 +8,13 @@ import gradum.Version
  *
  * Tracks abort/complete state, emits `session_end` events, and provides
  * guardrail escalation helpers ([emitRevoked], [recordGuardrail]).
+ *
+ * reset() resets session state for a new execution. abort(reason) aborts
+ * the session with a descriptive reason and emits a `session_end` event with
+ * `aborted=true`. finish() emits a normal `session_end` event (no abort).
+ * emitRevoked(reason, details) emits a `mission_revoked` event, and
+ * recordGuardrail(type, hitCount, maxAllowed, guardrailDetails) emits a
+ * `guardrail` event.
  */
 class SessionManager(
   private val configuration: AgentConfiguration,
@@ -21,17 +28,12 @@ class SessionManager(
   var startTimeMillis: Long = 0L
     private set
 
-  /** Resets session state for a new execution. */
   fun reset() {
     isAborted = false
     endReason = null
     startTimeMillis = System.currentTimeMillis()
   }
 
-  /**
-   * Aborts the session with a descriptive [reason]. Emits a
-   * `session_end` event with `aborted=true`.
-   */
   fun abort(reason: String = "unknown", tokenUsage: Map<String, Any> = emptyMap()) {
     isAborted = true
     endReason = reason
@@ -39,16 +41,15 @@ class SessionManager(
 
     emitEvent(
       GradumEventType.SESSION_END.wireName, mapOf(
-        "version" to Version.GRADUM_VERSION,
+        "aborted" to true,
+        "tokenUsage" to tokenUsage,
         "elapsedSeconds" to elapsedSeconds,
         "model" to configuration.modelName,
-        "tokenUsage" to tokenUsage,
-        "aborted" to true,
+        "version" to Version.GRADUM_VERSION
       )
     )
   }
 
-  /** Emits a normal `session_end` event (no abort). */
   fun finish() {
     if (!isAborted) {
       val elapsedSeconds: Long = (System.currentTimeMillis() - startTimeMillis) / 1000
@@ -56,23 +57,21 @@ class SessionManager(
         GradumEventType.SESSION_END.wireName, mapOf(
           "version" to Version.GRADUM_VERSION,
           "elapsedSeconds" to elapsedSeconds,
-          "model" to configuration.modelName,
+          "model" to configuration.modelName
         )
       )
     }
   }
 
-  /** Emits a `mission_revoked` event. */
   fun emitRevoked(reason: String, details: Map<String, Any>) {
     emitEvent(
       GradumEventType.MISSION_REVOKED.wireName, mapOf(
         "reason" to reason,
-        "details" to details,
+        "details" to details
       )
     )
   }
 
-  /** Emits a `guardrail` event. */
   fun recordGuardrail(
     type: String,
     hitCount: Int,
@@ -85,7 +84,7 @@ class SessionManager(
         "type" to type,
         "hitCount" to hitCount,
         "maxAllowed" to maxAllowed,
-      ) + guardrailDetails,
+      ) + guardrailDetails
     )
   }
 }

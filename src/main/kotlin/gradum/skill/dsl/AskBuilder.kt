@@ -4,7 +4,13 @@ import gradum.skill.Choice
 import gradum.skill.L10n
 import gradum.skill.L10nText
 
-/** Builder DSL for one [gradum.skill.AskScope.askInteraction] call. */
+/**
+ * Builder DSL for one [gradum.skill.AskScope.askInteraction] call.
+ *
+ * meaningFor(id) resolves the semantic [Choice.Meaning] for a choice id, or
+ * null when unknown. l10n is the `l10n` factory resolved inside an ask
+ * builder block.
+ */
 class AskBuilder {
 
   var default: String? = null
@@ -15,7 +21,6 @@ class AskBuilder {
   private val choiceLabelKeys: MutableMap<String, String> = mutableMapOf()
   private var inputPlaceholder: L10nText? = null
 
-  /** Resolves the semantic [Choice.Meaning] for a choice [id], or null when unknown. */
   fun meaningFor(id: String): Choice.Meaning? = choiceItems[id]
 
   fun choices(block: ChoicesScope.() -> Unit) {
@@ -62,22 +67,22 @@ class AskBuilder {
     return payload
   }
 
-  /** The `l10n` factory resolved inside an ask builder block. */
   val l10n: L10n get() = L10n
 }
 
-/** DSL scope for defining choice options (id → stable semantic code). */
+/**
+ * DSL scope for defining choice options (id → stable semantic code).
+ *
+ * item(id, semantics, labelKey) adds a choice option with a stable id and a
+ * semantics code. An optional labelKey lets the server pin a specific i18n
+ * bundle key for this option's button label (e.g. a `write_file`
+ * authorization card); when absent the plugin falls back to its own
+ * semantic-code mapping.
+ */
 class ChoicesScope internal constructor(
   private val items: LinkedHashMap<String, Choice.Meaning>,
   private val labelKeys: MutableMap<String, String>,
 ) {
-  /**
-   * Adds a choice option with a stable [id] and a [semantics] code. An
-   * optional [labelKey] lets the server pin a specific i18n bundle key
-   * for this option's button label (e.g. a `write_file` authorization
-   * card); when absent the plugin falls back to its own semantic-code
-   * mapping.
-   */
   fun item(id: String, semantics: Choice.Meaning, labelKey: String? = null) {
     require(id.isNotBlank()) { "choice id must not be blank" }
     require(id !in items) { "duplicate choice id '$id'" }

@@ -13,23 +13,34 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Watches the external skills directory for changes and hot-reloads skills
  * without restarting the server.
  *
- * Reloads are driven two ways, both funneling into scanner.reconcile (which
- * is state-based, so a reload always reflects the full current `.kt` set):
+ * Reloads are driven two ways, both funneling into the scanner's
+ * skillScanner.reconcile(), which is state-based, so a reload always reflects
+ * the full current set of .kt sources:
  *
  * - **Event-driven**: a [WatchService] on the directory fires on create or
- *   modify or delete of a top-level `.kt` file, debounced to coalesce bursts.
- * - **Periodic fallback**: a daemon scheduler rechecks currentFingerprint
- *   every [fallbackIntervalMillis] to catch events the platform's watch
- *   service may have missed (a known macOS quirk).
+ *   modify or delete of a top-level .kt file, debounced to coalesce bursts.
+ * - **Periodic fallback**: a daemon scheduler rechecks the currentFingerprint()
+ *   fingerprint every fallbackIntervalMillis to catch events the platform's
+ *   watch service may have missed (a known macOS quirk).
  *
- * Only top-level `.kt` files are relevant; the compiler's own `.build` output
- * is deliberately ignored so a reload can never trigger itself.
+ * Only top-level .kt files are relevant; the compiler's own .build output is
+ * deliberately ignored so a reload can never trigger itself.
+ *
+ * start() begins event listening and the periodic fallback task; close() stops
+ * listening and the periodic task. Both are idempotent: a second call is a
+ * no-op, and closing an already closed or non-closeable watch service is
+ * ignored. Neither call disturbs skills that are already registered.
+ *
+ * reconcileNow() forces a reload and treats the current state as
+ * already-handled, so tests can trigger a reload without depending on real
+ * event timing. onPeriodicTick() is where the periodic fallback lands: it
+ * reloads only when the source fingerprint changed since the last reload.
  */
 class ExternalSkillDirectoryWatcher(
-  private val skillScanner: ExternalSkillDirectoryScanner,
   private val debounceMillis: Long = 300,
   private val fallbackIntervalMillis: Long = 60_000,
-  private val watchService: WatchService = FileSystems.getDefault().newWatchService(),
+  private val skillScanner: ExternalSkillDirectoryScanner,
+  private val watchService: WatchService = FileSystems.getDefault().newWatchService()
 ) {
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillDirectoryWatcher")
@@ -44,31 +55,30 @@ class ExternalSkillDirectoryWatcher(
       Thread(threadRunnable, "external-skill-watcher-fallback").apply { isDaemon = true }
     }
 
-  /** Starts event listening and the periodic fallback task. Idempotent. */
   fun start(): ExternalSkillDirectoryWatcher {
     if (isClosed.get()) return this
     lastFingerprint = skillScanner.currentFingerprint()
     registerWatch()
     fallbackScheduler.scheduleWithFixedDelay(
-      { onPeriodicTick() },
-      fallbackIntervalMillis,
-      fallbackIntervalMillis,
-      TimeUnit.MILLISECONDS
+      { onPeriodicTick() }, fallbackIntervalMillis, fallbackIntervalMillis, TimeUnit.MILLISECONDS
     )
-    val watchThread = Thread({ listen() }, "external-skill-watcher").apply { isDaemon = true }
+    val watchThread = Thread({ listen() }, "external-skill-watcher").apply {
+      isDaemon = true
+    }
     watchThread.start()
     listenerThread = watchThread
-    logger.info("Watching external skills directory {} for hot reload", skillScanner.skillsDirectory.absolutePath)
+    logger.info(
+      "Watching external skills directory {} for hot reload",
+      skillScanner.skillsDirectory.absolutePath
+    )
     return this
   }
 
-  /** Stops listening and the periodic task. Idempotent. */
   fun close() {
     if (!isClosed.compareAndSet(false, true)) return
     try {
       watchService.close()
     } catch (_: Exception) {
-      // already closed or not closeable; nothing more to do
     }
     fallbackScheduler.shutdownNow()
     val activeThread = listenerThread
@@ -81,17 +91,11 @@ class ExternalSkillDirectoryWatcher(
     }
   }
 
-  /**
-   * Forces a reload now and treats the current state as already-handled.
-   * Exposed so tests can trigger a reload without depending on real event
-   * timing.
-   */
   internal fun reconcileNow() {
     lastFingerprint = skillScanner.currentFingerprint()
     skillScanner.reconcile()
   }
 
-  /** Periodic fallback: reload only when the source fingerprint changed. */
   internal fun onPeriodicTick() {
     if (isClosed.get()) return
     val currentFingerprint = skillScanner.currentFingerprint()

@@ -13,20 +13,23 @@ private val SENTENCE_SPLIT_PATTERN: Regex = Regex(pattern = "(?<=[.!?])\\s+")
  *
  * This class is purely about *detection*: escalation (mission revoked,
  * session abort) is handled by [SessionManager] and the main [Agent] loop.
+ *
+ * reset() clears all guardrail counters for a new execution.
+ * isAbnormalResponse(responseText) returns true when the response is
+ * abnormally repetitive (the same sentence repeated 3+ times).
+ * trackRepeatedResponse(responseText) tracks repeated responses and returns
+ * true once the tracker has reached maxRepeatedResponses.
+ * repeatedResponseCount is the number of tracked repeated responses, and
+ * repeatedResponses is the list of them.
  */
 class GuardrailManager(private val configuration: AgentConfiguration) {
 
   private val repeatedResponseTracker: MutableList<String> = mutableListOf()
 
-  /** Resets all guardrail counters for a new execution. */
   fun reset() {
     repeatedResponseTracker.clear()
   }
 
-  /**
-   * Returns true when the response is abnormally repetitive
-   * (same sentence repeated 3+ times).
-   */
   fun isAbnormalResponse(responseText: String?): Boolean {
     if (responseText.isNullOrBlank()) return false
     val trimmedText = responseText.trim()
@@ -38,10 +41,6 @@ class GuardrailManager(private val configuration: AgentConfiguration) {
     }.eachCount().values.any { it >= 3 }
   }
 
-  /**
-   * Tracks repeated responses. Returns true when the tracker has
-   * reached maxRepeatedResponses.
-   */
   fun trackRepeatedResponse(responseText: String?): Boolean {
     val currentResponse: String = (responseText ?: "").trim()
     val isDuplicate: Boolean =
@@ -55,9 +54,7 @@ class GuardrailManager(private val configuration: AgentConfiguration) {
     return false
   }
 
-  /** Returns the number of tracked repeated responses. */
   val repeatedResponseCount: Int get() = repeatedResponseTracker.size
 
-  /** Returns the list of tracked repeated responses. */
   val repeatedResponses: List<String> get() = repeatedResponseTracker.toList()
 }

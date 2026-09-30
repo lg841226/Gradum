@@ -6,6 +6,9 @@ package gradum.agent
  * Reference [wireName] instead of raw string literals so a renamed event
  * fails to compile at every call site at once, instead of silently
  * desyncing the server and whatever consumes the stream.
+ *
+ * SUB_AGENT_EVENT_PREFIX is the prefix for dynamically named sub-agent
+ * events, e.g. `sub_agent:response`.
  */
 enum class GradumEventType(val wireName: String) {
   SESSION_START("session_start"),
@@ -24,7 +27,4 @@ enum class GradumEventType(val wireName: String) {
   ASK_INTERACTION("ask_interaction"),
 }
 
-/**
- * Prefix for dynamically named sub-agent events, e.g. `sub_agent:response`.
- */
 const val SUB_AGENT_EVENT_PREFIX: String = "sub_agent:"

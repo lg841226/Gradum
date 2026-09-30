@@ -22,12 +22,17 @@ import java.util.*
  *
  * The call pushes an `ask_interaction` event to the plugin, parks the
  * executing thread on a [PendingQuestions] entry, and returns the user's
- * answer when the plugin POSTs it back via `POST /events/respond`.
+ * answer when the plugin POSTs it back via POST /events/respond.
  *
  * There is intentionally **no timeout**: a question may stay open
  * indefinitely until the user answers or dismisses the card (see
  * [PendingQuestions]). [Skill.execute] is non-suspend, so the wait is a
  * blocking run on the agent's IO thread rather than a coroutine suspension.
+ *
+ * askInteraction(builder) asks the user a question and blocks until it is
+ * answered. The builder must configure exactly one flavor: either a
+ * `choices` block (→ [AskResult.Case]) or an `input` block (→ [AskResult.Text]).
+ * The card is emitted before the wait so the plugin can resolve it immediately.
  *
  * @property pendingQuestions registry the answer is parked against.
  * @property emitEvent gateway that ships the card over the NDJSON stream.
@@ -38,13 +43,6 @@ class AskScope(
   private val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)?,
 ) {
 
-  /**
-   * Asks the user a question and blocks until it is answered.
-   *
-   * [builder] must configure exactly one flavor: either a `choices` block
-   * (→ [AskResult.Case]) or an `input` block (→ [AskResult.Text]). The card
-   * is emitted before the wait so the plugin can resolve it immediately.
-   */
   fun askInteraction(builder: AskBuilder.() -> Unit): AskResult {
     val request = AskBuilder().apply(builder)
     request.validate()

@@ -13,39 +13,38 @@ package gradum.skill
  * Trimming is a deliberate trade-off: an aged-out tool becomes invisible and
  * uncallable again (see [gradum.agent.ToolExecutor]) until the model searches
  * for it afresh.
+ *
+ * newRound() advances to a new materialization round and trims every tool
+ * whose round is older than the newest maxRounds rounds: call it once per
+ * materializing `mcp_tools` search, before add() registers the matches.
+ * add(name) stamps a tool as materialized in the current round; re-exposing
+ * an already-held tool refreshes its round so it does not age out early.
+ * contains(name) reports whether a tool is within the retention window,
+ * names lists the retained tool names in materialization order, and isEmpty
+ * reports whether nothing is retained. DEFAULT_MAX_ROUNDS (8) is the number
+ * of rounds retained before older tools are trimmed.
  */
 class MaterializedMcpTools(private val maxRounds: Int = DEFAULT_MAX_ROUNDS) {
   private var currentRound: Int = 0
   private val toolsByRound: LinkedHashMap<String, Int> = linkedMapOf()
 
-  /**
-   * Advances to a new materialization round and trims every tool whose round
-   * is older than the newest [maxRounds] rounds. Call once per materializing
-   * `mcp_tools` search, before [add]ing the matches.
-   */
   fun newRound() {
     currentRound += 1
     val oldestKeptRound: Int = currentRound - maxRounds + 1
     toolsByRound.entries.removeIf { entry -> entry.value < oldestKeptRound }
   }
 
-  /** Records [name] as materialized in the current round. Re-exposing an
-   * already-held tool refreshes its round so it does not age out early. */
   fun add(name: String) {
     toolsByRound[name] = currentRound
   }
 
-  /** True when [name] is currently within the retention window. */
   operator fun contains(name: String): Boolean = toolsByRound.containsKey(name)
 
-  /** Tool names currently within the retention window, in materialization order. */
   val names: Set<String> get() = toolsByRound.keys
 
-  /** True when no tool is currently retained. */
   val isEmpty: Boolean get() = toolsByRound.isEmpty()
 
   companion object {
-    /** Number of materialization rounds retained before older tools are trimmed. */
     const val DEFAULT_MAX_ROUNDS: Int = 8
   }
 }

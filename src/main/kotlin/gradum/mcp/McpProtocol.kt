@@ -18,17 +18,21 @@ data class McpTool(
  * High-level client for the Model Context Protocol over a stdio transport.
  * Owns the initialize handshake and the three calls that matter to an agent
  * tool integration: [initialize], [listTools], and [callTool].
+ *
+ * start() spawns the underlying stdio child process. Safe to call once.
+ * initialize(protocolVersion) performs the MCP initialize handshake: sends
+ * `initialize`, waits for the `InitializeResult`, then emits the
+ * `notifications/initialized` notification so the server will start serving
+ * tool requests. listTools() lists the tools the server advertises via
+ * `tools/list`, and callTool(name, arguments) invokes a tool and returns the
+ * raw `tools/call` result element. The companion's TOOLS_CALL_TIMEOUT_MILLIS
+ * is a longer budget for a `tools/call`: an MCP command may take a while to
+ * finish.
  */
 internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable {
 
-  /** Spawns the underlying stdio child process. Safe to call once. */
   fun start() = transport.start()
 
-  /**
-   * Performs the MCP initialize handshake: sends `initialize`, waits for
-   * the `InitializeResult`, then emits the `notifications/initialized`
-   * notification so the server will start serving tool requests.
-   */
   suspend fun initialize(protocolVersion: String = PROTOCOL_VERSION) {
     transport.session.call(
       method = "initialize",
@@ -44,7 +48,6 @@ internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable 
     transport.session.sendNotification("notifications/initialized")
   }
 
-  /** Lists the tools the server advertises via `tools/list`. */
   suspend fun listTools(): List<McpTool> {
     val listToolsResult = transport.session.call("tools/list")
     val toolsArray = listToolsResult.jsonObject["tools"]?.jsonArray ?: return emptyList()
@@ -57,7 +60,6 @@ internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable 
     }
   }
 
-  /** Invokes a tool and returns the raw `tools/call` result element. */
   suspend fun callTool(name: String, arguments: JsonObject): JsonElement =
     transport.session.call(
       method = "tools/call",
@@ -72,8 +74,6 @@ internal class McpClient(private val transport: StdioMcpClient) : AutoCloseable 
 
   companion object {
     const val PROTOCOL_VERSION = "2025-03-26"
-
-    /** Longer budget for a `tools/call`: an MCP command may take a while to finish. */
     const val TOOLS_CALL_TIMEOUT_MILLIS = 180_000L
   }
 }

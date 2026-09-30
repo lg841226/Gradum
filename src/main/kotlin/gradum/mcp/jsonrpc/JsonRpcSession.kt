@@ -21,14 +21,29 @@ private val logger: Logger = LoggerFactory.getLogger("JsonRpcSession")
  * deferred. Because matching is by `id`, never by arrival order, many
  * calls can be in flight at once. Frames that carry no `id` are treated as
  * notifications and routed to [onNotification].
+ *
+ * The internal Json is configured with encodeDefaults so the mandatory
+ * `jsonrpc: "2.0"` member is always emitted, and with explicitNulls off so
+ * absent params are omitted rather than sent as `"params": null` (JSON-RPC
+ * 2.0 params must be an object or array, and servers reject null).
+ *
+ * call(method, params, timeoutMillis) sends a request and awaits its
+ * result: it throws [RpcException] on a JSON-RPC error response and
+ * TimeoutCancellationException if no response arrives within timeoutMillis.
+ * sendNotification(method, params) sends a fire-and-forget notification (a
+ * request with no id). handleFrame(jsonString) feeds one decoded message
+ * body from the transport, non-suspending so a background reader can
+ * dispatch responses as they arrive; a frame that fails to parse as JSON is
+ * dropped rather than crashing the reader coroutine, because the MCP stdio
+ * spec says stdout must carry only newline-delimited JSON-RPC frames but
+ * some servers (e.g. location-mcp) print a startup banner or log line to
+ * stdout anyway.
  */
 internal class JsonRpcSession(
   private val sendFrame: suspend (ByteArray) -> Unit,
   private val onNotification: (RpcNotification) -> Unit = {},
 ) {
-  // encodeDefaults so the mandatory `jsonrpc: "2.0"` member is always emitted;
-  // explicitNulls off so absent params are omitted, not sent as `"params": null`
-  // (JSON-RPC 2.0 params must be an object/array, and servers reject null).
+
   private val json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
@@ -37,11 +52,6 @@ internal class JsonRpcSession(
   private val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonElement>>()
   private val nextId = AtomicLong(0)
 
-  /**
-   * Sends a request and awaits its result. Throws [RpcException] on a
-   * JSON-RPC error response and [kotlinx.coroutines.TimeoutCancellationException]
-   * if no response arrives within [timeoutMillis].
-   */
   suspend fun call(
     method: String, params: JsonObject? = null, timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS
   ): JsonElement {
@@ -57,25 +67,16 @@ internal class JsonRpcSession(
     }
   }
 
-  /** Sends a fire-and-forget notification (a request with no `id`). */
   suspend fun sendNotification(method: String, params: JsonObject? = null) {
     val notification = RpcNotification(method = method, params = params)
     sendFrame(FrameCodec.encode(json.encodeToString(notification)))
   }
 
-  /**
-   * Feeds one decoded message body from the transport. Non-suspending so a
-   * background reader can dispatch responses as they arrive.
-   */
   fun handleFrame(jsonString: String) {
     val message: JsonObject? =
       try {
         json.parseToJsonElement(jsonString).jsonObject
       } catch (decodeException: Exception) {
-        // The MCP stdio spec says stdout must carry only newline-delimited
-        // JSON-RPC frames, but some servers (e.g. location-mcp) print a startup
-        // banner or log line to stdout anyway. Drop such non-JSON frames rather
-        // than crashing the reader coroutine and taking the whole transport down.
         logger.debug("Dropping non-JSON frame from MCP server: $jsonString", decodeException)
         null
       }

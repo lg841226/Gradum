@@ -8,7 +8,7 @@ import java.io.File
 private val logger: Logger = LoggerFactory.getLogger("McpConnectionManager")
 
 /**
- * A configured MCP stdio server the user declared in `settings.json`.
+ * A configured MCP stdio server the user declared in settings.json.
  * [command] is the executable + arguments that spawn the server process;
  * [workingDir] and [env] are passed through to [ProcessBuilder].
  */
@@ -28,11 +28,15 @@ data class McpServerConfig(
  * after the model searches for them and the directory skill materializes them
  * into the current session. A server that fails to connect is logged and
  * skipped: the rest still register. [close] tears down every connection.
+ *
+ * connect(configs) starts each configured server, performs the initialize
+ * handshake, lists its tools, and registers every advertised tool in
+ * [McpToolCatalog]. close() closes every live connection and drops the
+ * catalog: it is safe to call multiple times and when nothing connected.
  */
 class McpConnectionManager {
   private val clients = mutableListOf<McpClient>()
 
-  /** Connects to each [configs] entry and registers every advertised tool in [McpToolCatalog]. */
   suspend fun connect(configs: List<McpServerConfig>) {
     for ((name, command, workingDir, env) in configs) {
       try {
@@ -55,7 +59,6 @@ class McpConnectionManager {
     }
   }
 
-  /** Closes every live connection and drops the catalog. Safe to call multiple times and when nothing connected. */
   fun close() {
     clients.forEach { client -> runCatching { client.close() } }
     clients.clear()

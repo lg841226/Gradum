@@ -18,9 +18,10 @@ private const val INDENT_PROPERTY = "{http://xml.apache.org/xslt}indent-amount"
  *
  * Nesting is tracked by an active-element stack; [buildXml] serializes the
  * whole tree with uniform indentation and automatic escaping. Use [element]
- * to enter a tag, [attribute] to set a property on the current element, and
- * [text] to append an escaped text node. Every text node is escaped
- * automatically, so callers never hand-write indentation or escapes.
+ * to enter a tag (it runs init then closes the tag), [attribute] to set a
+ * property on the currently open element, and [text] to append an escaped
+ * text node to it. Every text node is escaped automatically, so callers
+ * never hand-write indentation or escapes.
  *
  * Example:
  * ```kotlin
@@ -36,7 +37,6 @@ class XmlBuilder internal constructor() {
   private val document: Document = newEmptyDocument()
   private val activeElements: ArrayDeque<Element> = ArrayDeque()
 
-  /** Enters a child [tagName], runs [init] against it, then closes it. */
   fun element(tagName: String, init: XmlBuilder.() -> Unit) {
     val childElement: Element = document.createElement(tagName)
     val parentElement: Element? = activeElements.lastOrNull()
@@ -50,12 +50,10 @@ class XmlBuilder internal constructor() {
     activeElements.removeLast()
   }
 
-  /** Sets an attribute on the currently open element. */
   fun attribute(name: String, value: String) {
     activeElements.lastOrNull()?.setAttribute(name, value)
   }
 
-  /** Appends an escaped text node to the currently open element. */
   fun text(content: String) {
     activeElements.lastOrNull()?.appendChild(
       document.createTextNode(content)

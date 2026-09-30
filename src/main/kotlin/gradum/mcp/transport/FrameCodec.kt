@@ -13,16 +13,21 @@ import java.io.ByteArrayOutputStream
  * complete message at a time, tolerating both half-frames (a message body
  * split across chunks) and coalesced frames (several messages arriving in one
  * chunk). Encoding appends a single `\n` terminator to a JSON string.
+ *
+ * frames(bytes) returns a flow of decoded JSON message bodies in frame
+ * order: a message is emitted only once its full line is buffered, so the
+ * consumer never sees a truncated message. takeNextMessage extracts one
+ * newline-terminated message from the buffer, or null when no complete line
+ * has arrived yet: it drops the consumed line while keeping any trailing
+ * bytes for the next read, strips an optional CR so CRLF peers are handled,
+ * and skips blank lines. The companion encode(json) wraps the JSON into a
+ * newline-delimited message: a single `\n` terminator is appended, and the
+ * JSON itself must be a single line without embedded newlines.
  */
 internal class FrameCodec {
 
   private val buffer = ByteArrayOutputStream()
 
-  /**
-   * Returns a flow of decoded JSON message bodies, emitted in the order their
-   * frames arrived. A message is only emitted once its full line is buffered,
-   * so the consumer never sees a truncated message.
-   */
   fun frames(bytes: Flow<ByteArray>): Flow<String> = flow {
     bytes.collect { chunk ->
       buffer.write(chunk)
@@ -33,24 +38,18 @@ internal class FrameCodec {
     }
   }
 
-  /**
-   * Attempts to extract one newline-terminated message from the buffer, or
-   * `null` if no complete line has arrived yet.
-   */
   private fun takeNextMessage(): String? {
     while (true) {
       val data = buffer.toByteArray()
       val newlineIndex = indexOf(data, LF)
       if (newlineIndex < 0) return null
 
-      // Drop the consumed line, keeping any trailing bytes for the next read.
       val rest = newlineIndex + 1
       buffer.reset()
       if (rest < data.size) {
         buffer.write(data, rest, data.size - rest)
       }
 
-      // Strip an optional CR so CRLF peers are handled, and skip blank lines.
       var length = newlineIndex
       if (length > 0 && data[length - 1] == CR) length -= 1
       if (length > 0) return String(data, 0, length, Charsets.UTF_8)
@@ -67,12 +66,6 @@ internal class FrameCodec {
   companion object {
     private val LF: Byte = '\n'.code.toByte()
     private val CR: Byte = '\r'.code.toByte()
-
-    /**
-     * Wraps [json] into a newline-delimited message ready to be written to the
-     * transport. A single `\n` terminator is appended; the JSON itself must be
-     * a single line without embedded newlines.
-     */
     fun encode(json: String): ByteArray {
       val body = json.toByteArray(Charsets.UTF_8)
       val framed = ByteArray(body.size + 1)
