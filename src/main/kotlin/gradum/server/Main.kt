@@ -22,16 +22,11 @@ fun main(arguments: Array<String>) {
     return
   }
 
-  // Ensure a user-editable settings file + its autocompletion schema exist.
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
 
   CommandFilterRuntime.config = settings.commandFilter
 
-  // Connect any configured MCP servers and register their tools in the catalog.
-  // Individual tools are NOT registered as skills at startup; only the `mcp_tools`
-  // directory skill is, so the model starts with a compact listing and tools are
-  // materialized (with their full schema) only when the model searches for them.
   val mcpManager = McpConnectionManager()
   if (settings.mcpServers.isNotEmpty()) {
     runBlocking {
@@ -39,12 +34,10 @@ fun main(arguments: Array<String>) {
     }
   }
   SkillRegistry.register(McpToolsSkill())
-  // Compile and register any developer-authored `.kt` skills dropped into
-  // `~/.gradum/skills/`, then watch the directory so add/edit/delete hot-reloads
-  // without restarting the server.
+
   val skillScanner = ExternalSkillDirectoryScanner()
   skillScanner.scan()
-  val skillWatcher = ExternalSkillDirectoryWatcher(skillScanner).start()
+  val skillWatcher = ExternalSkillDirectoryWatcher(skillScanner = skillScanner).start()
   logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =
@@ -63,7 +56,6 @@ fun main(arguments: Array<String>) {
   } else
     settings.port
 
-  // Publish resolved port to logging converter
   System.setProperty("gradum.server.port", resolvedPort.toString())
 
   if (resolvedApiKey != null) {
@@ -77,13 +69,13 @@ fun main(arguments: Array<String>) {
 
   val serverConfiguration = ServerConfiguration(
     portNumber = resolvedPort,
+    plugins = settings.plugins,
     hostAddress = settings.host,
     defaultApiKey = resolvedApiKey,
     defaultBaseUrl = settings.defaultBaseUrl,
-    defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled,
-    plugins = settings.plugins,
+    defaultKeepAliveMinutes = settings.defaultKeepAliveMinutes
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)
@@ -112,41 +104,39 @@ private fun apiKeySourceLabel(settings: ServerSettings): String =
 private fun printUsage() {
   println(
     """
-        |Gradum HTTP Server
-        |
-        |Usage: java -jar gradum@<version>.jar [--help]
-        |
-        |All startup parameters are read from ~/.gradum/settings.json
-        |(single source of truth — the old --host/--port/--auto-port/--api-key
-        |flags have been removed). On first start the server writes a default
-        |settings.json and settings.schema.json (editor autocompletion) there.
-        |
-        |Overridable settings:
-        |  server.host          Host to bind (default: ${ServerConfiguration.DEFAULT_HOST_ADDRESS})
-        |  server.port          Port to bind (default: ${ServerConfiguration.DEFAULT_PORT_NUMBER})
-        |  server.autoDetectPort  Auto-find an available port
-        |  server.apiKeyFile    Path to a file holding the bearer token for
-        |                         OpenAI-compatible providers; its first non-blank
-        |                         line is used (falls back to GRADUM_OPENAI_API_KEY /
-        |                         BIGMODEL_API_KEY / DEEPSEEK_API_KEY /
-        |                         MiniMax_API_KEY / OPENAI_API_KEY env)
-        |  llm.baseUrl          Default provider base URL (default: ${gradum.AgentConfiguration.DEFAULT_OLLAMA_BASE_URL})
-        |  llm.model            Default model name (empty = first available)
-        |  llm.think            Enable thinking mode by default (default: off)
-        |  --help               Show this help message
-        |
-        |HTTP Endpoints:
-        |  POST /events          Execute agent, returns NDJSON stream
-        |  POST /stop            Stop current agent task
-        |  POST /session/delete  Delete session
-        |  POST /session/rewind  Rewind session context to before a message id
-        |  POST /provider/probe  Probe provider connectivity
-        |  GET  /health          Liveness probe
-        |  GET  /models          List available models
-        |  GET  /skills          List registered skills
-        |
-        |Note: projectRoot is sent by the plugin on every /events request.
-        |      It is not a server-side configuration.
+    |Gradum HTTP Server
+    |
+    |Usage: java -jar gradum@<version>.jar [--help]
+    |
+    |All startup parameters are read from ~/.gradum/settings.json
+    |(single source of truth; the old --host/--port/--auto-port/--api-key
+    |flags have been removed). On first start the server writes a default
+    |settings.json and settings.schema.json (editor autocompletion) there.
+    |
+    |Common settings:
+    |  server.host / server.port / server.autoDetectPort
+    |      HTTP bind (default: ${ServerConfiguration.DEFAULT_HOST_ADDRESS}:${ServerConfiguration.DEFAULT_PORT_NUMBER})
+    |  server.apiKeyFile
+    |      Bearer-token file for OpenAI-compatible providers (first
+    |      non-blank line wins; env fallback: OPENAI_API_KEY,
+    |      MiniMax_API_KEY, BIGMODEL_API_KEY, DEEPSEEK_API_KEY,
+    |      GRADUM_OPENAI_API_KEY)
+    |  llm.baseUrl / llm.model / llm.think / llm.keepAliveMinutes
+    |      Provider defaults (llm.baseUrl default: ${gradum.AgentConfiguration.DEFAULT_OLLAMA_BASE_URL})
+    |
+    |HTTP Endpoints:
+    |  POST /events           Execute agent, returns NDJSON stream
+    |  POST /events/respond   Answer an open ask card
+    |  POST /stop             Stop current agent task
+    |  POST /session/delete   Delete session
+    |  POST /session/rewind   Rewind session context to before a message id
+    |  POST /provider/probe   Probe provider connectivity
+    |  GET  /health           Liveness probe
+    |  GET  /models           List available models
+    |  GET  /skills           List registered skills
+    |
+    |Note: projectRoot is sent by the plugin on every /events request.
+    |      It is not a server-side configuration.
     """.trimMargin()
   )
 }
