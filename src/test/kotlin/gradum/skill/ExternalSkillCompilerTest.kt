@@ -29,8 +29,8 @@ class ExternalSkillCompilerTest {
 
       val outputDirectory = File(tempRoot, "out")
       val result = ExternalSkillCompiler().compile(
-        sourceFiles = listOf(source),
         outputDirectory = outputDirectory,
+        sourceFiles = listOf(source),
         runtimeClasspath = runtimeClasspath(),
       )
       assertTrue(result.isSuccess, "compiler diagnostics: ${result.compileErrors}")

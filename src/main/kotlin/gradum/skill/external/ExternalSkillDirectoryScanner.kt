@@ -6,21 +6,46 @@ import gradum.skill.SkillStore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
-/** The subdirectory under `~/.gradum/` that holds drop-in `.kt` skills. */
 internal const val SKILLS_DIRECTORY_NAME: String = "skills"
 
 /**
- * Compiles every `.kt` skill under `~/.gradum/skills/` with
+ * Compiles every skill source under ~/.gradum/skills/ with
  * [ExternalSkillCompiler], loads the output with [ExternalSkillClassLoader],
  * and reconciles them into the [SkillStore] so each becomes callable from the
  * next agent turn.
  *
- * [reconcile] is the single idempotent entry point: it is run once at startup
- * (via [scan]) and again by [ExternalSkillDirectoryWatcher] on any change to
- * the directory. First run creates the directory and drops a `HelloSkill.kt`
- * starter so a developer sees the shape of a skill without reading the docs.
+ * Entry points. scan() is the startup pass: it creates ~/.gradum/skills/ when
+ * missing and drops a HelloSkill.kt starter so a developer sees the shape of a
+ * skill without reading the docs, then runs reconcile(). reconcile() is the
+ * single idempotent entry point, called by scan() and again by
+ * [ExternalSkillDirectoryWatcher] on any change to the directory. It
+ * recompiles what changed, loads the result, registers new or changed skills,
+ * and unregisters external skills whose source file disappeared. Only skills
+ * this scanner registered (tracked in externalOwned) are ever unregistered:
+ * built-in and MCP skills are never touched, and a name collision with an
+ * already-registered skill is skipped with a warning.
+ *
+ * Incremental compilation. Two hash tables keyed by source file name drive the
+ * pass: compiledSourceHashes holds the content SHA-256 of every file at its
+ * last successful compile, and outputsBySource holds the .class files that
+ * compile produced. A source whose hash still matches keeps its .class output
+ * untouched; a source whose recorded output went missing, a new source, or an
+ * edited source is recompiled; a deleted source has its output removed. When
+ * nothing changed the compiler is skipped entirely. The first pass inside a
+ * process starts from a clean .build because no output has been attributed
+ * yet. Each changed source is compiled on its own into .build-staging, which
+ * lives outside .build so the classloader never scans it, with .build on the
+ * classpath so unchanged skills still resolve. Only a successful compile is
+ * swapped into .build: a failed compile keeps the previous working .class
+ * files (last-good) instead of dropping every skill. lastCompiledSourceNames
+ * records what the most recent pass compiled, for tests and logs.
+ *
+ * currentFingerprint() is the mtime-based fingerprint the watcher polls to
+ * skip redundant reloads. It only looks at skill sources, never at .build
+ * output, so compiled artifacts cannot re-trigger a reload.
  */
 class ExternalSkillDirectoryScanner(
   homeDirectory: File = File(System.getProperty("user.home")),
@@ -29,20 +54,14 @@ class ExternalSkillDirectoryScanner(
 
   private val logger: Logger = LoggerFactory.getLogger("ExternalSkillDirectoryScanner")
   private val skillCompiler = ExternalSkillCompiler()
-
-  /** The skills directory (`~/.gradum/skills/`). */
   val skillsDirectory: File = homeDirectory.resolve(".gradum").resolve(SKILLS_DIRECTORY_NAME)
-
-  /**
-   * Skills registered by this scanner, keyed by name. Only these are ever
-   * unregistered on reload: built-in and MCP skills are never touched.
-   */
   private val externalOwned: ConcurrentHashMap<String, Skill> = ConcurrentHashMap()
+  private val stagingDirectory: File = skillsDirectory.resolve(".build-staging")
+  private val compiledSourceHashes: MutableMap<String, String> = mutableMapOf()
+  private val outputsBySource: MutableMap<String, MutableSet<String>> = mutableMapOf()
+  internal var lastCompiledSourceNames: List<String> = emptyList()
+    private set
 
-  /**
-   * Runs the startup pass: ensure the directory exists (writing the starter
-   * skill on first run) and then reconcile whatever is present.
-   */
   fun scan() {
     if (!skillsDirectory.exists()) {
       skillsDirectory.mkdirs()
@@ -53,12 +72,6 @@ class ExternalSkillDirectoryScanner(
     reconcile()
   }
 
-  /**
-   * Recompiles the current `.kt` sources and reconciles them into the
-   * registry: registers new/changed skills, and unregisters external skills
-   * whose source file disappeared. A compilation failure leaves the registry
-   * untouched (last-good) rather than dropping every skill.
-   */
   @Synchronized
   fun reconcile() {
     if (!skillsDirectory.exists()) {
@@ -70,32 +83,106 @@ class ExternalSkillDirectoryScanner(
     val outputDirectory = skillsDirectory.resolve(".build")
     if (sourceFiles.isEmpty()) {
       wipeOutputDirectory(outputDirectory)
+      compiledSourceHashes.clear()
+      outputsBySource.clear()
+      lastCompiledSourceNames = emptyList()
       unloadAllExternal()
       return
     }
 
-    wipeOutputDirectory(outputDirectory)
-    val compileResult = skillCompiler.compile(sourceFiles, outputDirectory, runtimeClasspath())
-    compileResult.compileWarnings.forEach { compileWarning -> logger.warn("External skill compile warning: {}", compileWarning) }
-    if (!compileResult.isSuccess) {
-      logger.error(
-        "External .kt skills failed to compile; keeping previously-loaded skills: {}",
-        compileResult.compileErrors.joinToString(separator = "\n")
-      )
-      return
-    }
+    refreshCompiledSources(sourceFiles, outputDirectory)
 
     val loadedByName = loadSkillsByName(outputDirectory)
     unloadMissingExternal(loadedByName.keys)
     registerOrSkipLoaded(loadedByName)
   }
 
-  /**
-   * Returns a stable fingerprint of the current `.kt` sources, used by the
-   * watcher to skip redundant reloads when nothing changed. Only source files
-   * are considered: never the `.build` output, so compiled artifacts cannot
-   * re-trigger a reload.
-   */
+  private fun refreshCompiledSources(sourceFiles: List<File>, outputDirectory: File) {
+    if (compiledSourceHashes.isEmpty()) {
+      wipeOutputDirectory(outputDirectory)
+    }
+
+    val currentHashes = sourceFiles.associate { sourceFile -> sourceFile.name to hashSourceFile(sourceFile) }
+    val currentNames = currentHashes.keys
+    for (staleName in compiledSourceHashes.keys.filterNot { hashName -> hashName in currentNames }) {
+      removeOutputs(outputDirectory, staleName)
+      compiledSourceHashes.remove(staleName)
+      outputsBySource.remove(staleName)
+    }
+
+    val changedSources = sourceFiles.filter { sourceFile ->
+      compiledSourceHashes[sourceFile.name] != currentHashes[sourceFile.name] ||
+        !outputsExist(outputDirectory, sourceFile.name)
+    }
+    lastCompiledSourceNames = changedSources.map { sourceFile -> sourceFile.name }
+    if (changedSources.isEmpty()) {
+      logger.debug("External skills unchanged ({} sources); skipping compile", sourceFiles.size)
+      return
+    }
+
+    logger.info(
+      "Compiling {} of {} external skill sources incrementally",
+      changedSources.size,
+      sourceFiles.size,
+    )
+    for (sourceFile in changedSources) {
+      val sourceHash = currentHashes.getValue(sourceFile.name)
+      compileSourceFile(sourceFile, sourceHash, outputDirectory)
+    }
+  }
+
+  private fun compileSourceFile(sourceFile: File, sourceHash: String, outputDirectory: File): Boolean {
+    wipeOutputDirectory(stagingDirectory)
+    val compileResult = skillCompiler.compile(
+      outputDirectory = stagingDirectory,
+      sourceFiles = listOf(sourceFile),
+      runtimeClasspath = runtimeClasspath(),
+      additionalClasspath = listOf(outputDirectory),
+    )
+    compileResult.compileWarnings.forEach { compileWarning ->
+      logger.warn("External skill compile warning: {}", compileWarning)
+    }
+    if (!compileResult.isSuccess) {
+      logger.error(
+        "External skill '{}' failed to compile; keeping previous version: {}",
+        sourceFile.name,
+        compileResult.compileErrors.joinToString(separator = "\n"),
+      )
+      stagingDirectory.deleteRecursively()
+      return false
+    }
+
+    removeOutputs(outputDirectory, sourceFile.name)
+    val producedOutputs = mutableSetOf<String>()
+    stagingDirectory.walkTopDown().filter { stagedFile -> stagedFile.isFile }.forEach { stagedFile ->
+      val relativePath = stagedFile.relativeTo(stagingDirectory).path
+      val targetFile = outputDirectory.resolve(relativePath)
+      targetFile.parentFile.mkdirs()
+      stagedFile.copyTo(targetFile, overwrite = true)
+      producedOutputs += relativePath
+    }
+    outputsBySource[sourceFile.name] = producedOutputs
+    compiledSourceHashes[sourceFile.name] = sourceHash
+    stagingDirectory.deleteRecursively()
+    return true
+  }
+
+  private fun outputsExist(outputDirectory: File, sourceName: String): Boolean {
+    val producedOutputs = outputsBySource[sourceName] ?: return false
+    return producedOutputs.all { relativePath -> outputDirectory.resolve(relativePath).isFile }
+  }
+
+  private fun removeOutputs(outputDirectory: File, sourceName: String) {
+    for (relativePath in outputsBySource[sourceName].orEmpty()) {
+      val staleOutput = outputDirectory.resolve(relativePath)
+      if (staleOutput.exists()) staleOutput.delete()
+    }
+  }
+
+  private fun hashSourceFile(sourceFile: File): String =
+    MessageDigest.getInstance("SHA-256").digest(sourceFile.readBytes())
+      .joinToString(separator = "") { digestByte -> "%02x".format(digestByte) }
+
   internal fun currentFingerprint(): String {
     if (!skillsDirectory.exists()) return ""
     return listKtSources().joinToString("|") { sourceFile ->
@@ -125,7 +212,6 @@ class ExternalSkillDirectoryScanner(
     return loadedByName
   }
 
-  /** Unregisters external skills whose source file is no longer present. */
   private fun unloadMissingExternal(loadedNames: Set<String>) {
     val removedNames = externalOwned.keys.filterNot { skillName -> skillName in loadedNames }
     for (skillName in removedNames) {
@@ -138,7 +224,6 @@ class ExternalSkillDirectoryScanner(
     }
   }
 
-  /** Registers new skills, re-registers reloaded ones, skips name collisions. */
   private fun registerOrSkipLoaded(loadedByName: Map<String, Skill>) {
     for ((skillName, registeredSkill) in loadedByName) {
       when {
@@ -173,7 +258,6 @@ class ExternalSkillDirectoryScanner(
     }
   }
 
-  /** Empties and recreates [outputDirectory] so stale `.class` files cannot survive a reload. */
   private fun wipeOutputDirectory(outputDirectory: File) {
     if (outputDirectory.exists()) outputDirectory.deleteRecursively()
     outputDirectory.mkdirs()
@@ -192,7 +276,6 @@ class ExternalSkillDirectoryScanner(
   }
 }
 
-/** A minimal, compilable example skill written on first run. */
 private val HELLO_SKILL_TEMPLATE: String = $$"""
   |package external
   |

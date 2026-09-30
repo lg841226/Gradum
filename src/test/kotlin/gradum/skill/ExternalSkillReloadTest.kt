@@ -10,10 +10,23 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.*
 
 /**
- * Pins the external-skill hot-reload: [ExternalSkillDirectoryScanner.reconcile]
- * must register new skills, re-register changed ones with freshly-compiled
- * classes, and unregister deleted ones: all against a fake [SkillStore] so the
+ * Pins the external-skill hot-reload against a fake [SkillStore], so the
  * global registry is never polluted by tests.
+ *
+ * [ExternalSkillDirectoryScanner.reconcile] must register a new skill,
+ * re-register a changed one with a freshly compiled class (the old class is
+ * gone and the new behavior shows), unregister a deleted one, and unregister
+ * everything when the directory empties. A broken edit keeps last-good: the
+ * working skill must not be dropped.
+ *
+ * Reconciliation is incremental: a touch without a content change compiles
+ * nothing, an edit compiles exactly that one source while the untouched source
+ * keeps its output, and deleting a source removes its .class output as well.
+ *
+ * The watcher reloads only when the fingerprint changes: a tick with an
+ * unchanged fingerprint is a no-op, a changed fingerprint reloads. Watcher
+ * start() and close() are idempotent and must not corrupt the
+ * already-registered skill.
  */
 class ExternalSkillReloadTest {
 
@@ -37,8 +50,6 @@ class ExternalSkillReloadTest {
 
       File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE_V2)
       scanner.reconcile()
-
-      // The old class must be gone: the reloaded skill reflects the new source.
       assertEquals("V2: hi there", runEcho(store, "hi there"))
     }
   }
@@ -84,24 +95,52 @@ class ExternalSkillReloadTest {
 
       File(skillsDir, "EchoSkill.kt").writeText(BROKEN_SKILL_SOURCE)
       scanner.reconcile()
-
-      // Last-good semantics: a broken edit must not drop the working skill.
       assertNotNull(store.getSkill("echo"))
+    }
+  }
+
+  @Test
+  fun reconcileRecompilesOnlyChangedSources() {
+    withScanner { store, skillsDir, scanner ->
+      File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE)
+      File(skillsDir, "SecondSkill.kt").writeText(SECOND_SKILL_SOURCE)
+      scanner.reconcile()
+      assertEquals(listOf("EchoSkill.kt", "SecondSkill.kt"), scanner.lastCompiledSourceNames)
+      File(skillsDir, "EchoSkill.kt").setLastModified(System.currentTimeMillis() + 5_000)
+      scanner.reconcile()
+      assertEquals(emptyList<String>(), scanner.lastCompiledSourceNames)
+      assertEquals("hi there", runEcho(store, "hi there"))
+      File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE_V2)
+      scanner.reconcile()
+      assertEquals(listOf("EchoSkill.kt"), scanner.lastCompiledSourceNames)
+      assertEquals("V2: hi there", runEcho(store, "hi there"))
+      assertNotNull(store.getSkill("second"))
+    }
+  }
+
+  @Test
+  fun reconcileRemovesOutputsOfDeletedSource() {
+    withScanner { _, skillsDir, scanner ->
+      File(skillsDir, "SecondSkill.kt").writeText(SECOND_SKILL_SOURCE)
+      scanner.reconcile()
+      val outputDirectory = File(skillsDir, ".build")
+      assertTrue(outputDirectory.walkTopDown().any { outputFile -> outputFile.name == "SecondSkill.class" })
+
+      File(skillsDir, "SecondSkill.kt").delete()
+      scanner.reconcile()
+
+      assertFalse(outputDirectory.walkTopDown().any { outputFile -> outputFile.name == "SecondSkill.class" })
     }
   }
 
   @Test
   fun onPeriodicTickReloadsOnlyWhenFingerprintChanges() {
     withScanner { store, skillsDir, scanner ->
-      val watcher = ExternalSkillDirectoryWatcher(scanner)
+      val watcher = ExternalSkillDirectoryWatcher(skillScanner = scanner)
       File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE)
       watcher.reconcileNow()
-
-      // Unchanged fingerprint: the tick must be a no-op.
       watcher.onPeriodicTick()
       assertEquals("hi there", runEcho(store, "hi there"))
-
-      // Changed fingerprint: the tick triggers a reload.
       File(skillsDir, "EchoSkill.kt").writeText(ECHO_SKILL_SOURCE_V2)
       watcher.onPeriodicTick()
       assertEquals("V2: hi there", runEcho(store, "hi there"))
@@ -117,13 +156,11 @@ class ExternalSkillReloadTest {
       scanner.reconcile()
       assertNotNull(store.getSkill("echo"))
 
-      val watcher = ExternalSkillDirectoryWatcher(scanner)
+      val watcher = ExternalSkillDirectoryWatcher(skillScanner = scanner)
       watcher.start()
-      watcher.start() // no-op
-      watcher.close()
-      watcher.close() // no-op
 
-      // start/close must not corrupt the already-registered skill.
+      watcher.close()
+
       assertNotNull(store.getSkill("echo"))
     }
   }

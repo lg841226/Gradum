@@ -9,16 +9,8 @@ import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
 import java.io.File
 
-/** The JVM bytecode target used for externally compiled `.kt` skills. */
 private const val EXTERNAL_JVM_TARGET: String = "21"
 
-/**
- * The outcome of compiling a set of external `.kt` skill sources.
- *
- * On success [outputDirectory] holds the `.class` files that
- * [ExternalSkillClassLoader] loads from. On failure [compileErrors] carries the
- * compiler diagnostics so the caller can log exactly why a skill was skipped.
- */
 internal data class ExternalCompileResult(
   val compileErrors: List<String>,
   val outputDirectory: File,
@@ -28,29 +20,44 @@ internal data class ExternalCompileResult(
 }
 
 /**
- * Compiles external `.kt` skills into `.class` files with the embeddable
- * Kotlin compiler.
+ * Compiles external skill sources into .class files with the embeddable
+ * Kotlin compiler, and reports the outcome as [ExternalCompileResult]. On
+ * success the output directory holds the .class files that
+ * [ExternalSkillClassLoader] loads from.
+ *
+ * compile() never throws: on failure the compiler diagnostics come back in
+ * compileErrors so the caller can log exactly why a skill was skipped and keep
+ * its last-good version. The additionalClasspath parameter carries previously
+ * compiled output, so an incremental single-source compile can still resolve
+ * skills that were not recompiled.
  *
  * To compile classpath is the server's own runtime classpath, so a dropped-in
- * skill can reference the in-process `gradum.*` API (`Skill`, `SkillContext`,
- * `SkillResult`, the schema DSL) without declaring any dependency. The standard
- * library is intentionally not re-injected ([K2JVMCompilerArguments.noStdlib])
- * because it is already present on that classpath.
+ * skill can reference the in-process gradum.* API (Skill, SkillContext,
+ * SkillResult, the schema DSL) without declaring any dependency. The standard
+ * library is intentionally not re-injected (K2JVMCompilerArguments.noStdlib)
+ * because it is already present on that classpath. Bytecode targets JVM 21
+ * (EXTERNAL_JVM_TARGET).
+ *
+ * Diagnostics are buffered in memory instead of being printed to a stream, and
+ * each one is kept structured as a CompilerDiagnostic (severity + message)
+ * rather than string-tagged, so callers can filter on the severity enum
+ * instead of parsing message prefixes.
  */
 internal class ExternalSkillCompiler {
 
-  /**
-   * Compiles [sources] into [outputDirectory]. A failed skill never throws:
-   * diagnostics are returned in [compileErrors] and the caller
-   * decides how to proceed.
-   */
-  fun compile(sourceFiles: List<File>, outputDirectory: File, runtimeClasspath: List<String>): ExternalCompileResult {
+  fun compile(
+    outputDirectory: File,
+    sourceFiles: List<File>,
+    runtimeClasspath: List<String>,
+    additionalClasspath: List<File> = emptyList()
+  ): ExternalCompileResult {
     outputDirectory.mkdirs()
 
     val compilerArguments = K2JVMCompilerArguments()
     compilerArguments.freeArgs = sourceFiles.map { sourceFile -> sourceFile.absolutePath }
     compilerArguments.destination = outputDirectory.absolutePath
-    compilerArguments.classpath = runtimeClasspath.joinToString(File.pathSeparator)
+    compilerArguments.classpath = (runtimeClasspath + additionalClasspath.map { entry -> entry.absolutePath })
+      .joinToString(File.pathSeparator)
     compilerArguments.jvmTarget = EXTERNAL_JVM_TARGET
     compilerArguments.noStdlib = true
     compilerArguments.noReflect = true
@@ -60,24 +67,20 @@ internal class ExternalSkillCompiler {
 
     val hasCompileErrors = messageCollector.hasErrors() || exitCode != ExitCode.OK
     return ExternalCompileResult(
-      compileErrors = if (hasCompileErrors) messageCollector.errorMessages else emptyList(),
+      compileErrors =
+        if (hasCompileErrors) messageCollector.errorMessages
+        else emptyList(),
       outputDirectory = outputDirectory,
-      compileWarnings = messageCollector.warningMessages,
+      compileWarnings = messageCollector.warningMessages
     )
   }
 }
 
-/** A single diagnostic captured from the embedded compiler, with its severity. */
 private data class CompilerDiagnostic(
   val diagnosticSeverity: CompilerMessageSeverity,
   val diagnosticMessage: String
 )
 
-/**
- * Buffers compiler diagnostics in memory instead of printing to a stream.
- * Diagnostics are kept structured (severity + message) rather than string-tagged,
- * so callers can filter on the severity enum instead of parsing message prefixes.
- */
 private class CollectingMessageCollector : MessageCollector {
 
   private val capturedDiagnostics: MutableList<CompilerDiagnostic> = mutableListOf()
