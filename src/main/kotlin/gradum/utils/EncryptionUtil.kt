@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -23,6 +24,8 @@ private var cachedEncryptionKey: ByteArray? = null
 private var cachedAuthenticationKey: ByteArray? = null
 
 private val classLogger: Logger = LoggerFactory.getLogger("EncryptionUtil")
+
+private val missingKeyWarned = AtomicBoolean(false)
 
 private fun deriveKey(keySource: ByteArray, purpose: String): ByteArray {
   val hmac: Mac = Mac.getInstance("HmacSHA256")
@@ -85,11 +88,9 @@ private fun computeHmac(hmacKey: ByteArray, data: ByteArray): ByteArray {
 
 private fun getKeySource(): ByteArray {
   val environmentKey: String? = System.getenv("GRADUM_CONTEXT_KEY")
-  if (environmentKey.isNullOrEmpty()) {
+  if (environmentKey.isNullOrEmpty() && missingKeyWarned.compareAndSet(false, true)) {
     classLogger.warn(
-      "GRADUM_CONTEXT_KEY is not set — falling back to the built-in key source. " +
-        "Persisted context is still decryptable by anyone with this binary; set " +
-        "GRADUM_CONTEXT_KEY (a stable secret) before writing sensitive context."
+      "GRADUM_CONTEXT_KEY is not set; using the built-in key (context readable by anyone with this binary)"
     )
   }
   return environmentKey?.toByteArray(Charsets.UTF_8) ?: builtinKeySource
