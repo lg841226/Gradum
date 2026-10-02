@@ -79,7 +79,7 @@ class WriteFileSkill : Skill() {
   override val skillName: String = "write_file"
   override val description: String =
     "Replace text in a file, or create/overwrite a file. Provide oldString (exact text to find) and newString (replacement). " +
-      "oldString must be unique — include 2-3 lines of surrounding context for a reliable match. " +
+      "oldString must be unique \u2014 include 2-3 lines of surrounding context for a reliable match. " +
       "Empty newString deletes the matched lines. " +
       "To create a new file or fully overwrite one, omit oldString and pass the entire content as newString. " +
       "The response carries a code: CODE_NOT_FOUND means oldString is absent (re-read the file), " +

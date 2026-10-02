@@ -385,7 +385,7 @@ fun Application.registerAllRoutes(
               val sendResult: ChannelResult<Unit> = eventsChannel.trySend(ndjsonLine)
               if (sendResult.isFailure) {
                 logger.warn(
-                  "Events channel full for session $sessionId — dropping event " +
+                  "Events channel full for session $sessionId \u2014 dropping event " +
                     "'$eventType' (client is not draining; streaming is already stalled)"
                 )
               }

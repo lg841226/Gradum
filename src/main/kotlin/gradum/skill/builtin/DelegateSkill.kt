@@ -47,7 +47,7 @@ class DelegateSkill : Skill() {
       name = "task",
       description = "The task description for the sub-agent. Must be at least 120 characters. " +
         "Be specific and include what information to gather, what questions to answer, " +
-        "and how to structure the result. IMPORTANT: Do not pass the user's message verbatim — " +
+        "and how to structure the result. IMPORTANT: Do not pass the user's message verbatim \u2014 " +
         "rewrite the task in your own words with additional context.",
       required = true,
     )

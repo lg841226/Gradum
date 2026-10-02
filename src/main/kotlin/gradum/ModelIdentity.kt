@@ -537,7 +537,7 @@ object ModelIdentity {
             probeServer(server)
           } catch (any: Throwable) {
             logger.error(
-              "{} {} — {} ({}ms)", branchPrefix, server.name,
+              "{} {} \u2014 {} ({}ms)", branchPrefix, server.name,
               any.javaClass.simpleName, (System.nanoTime() - probeStart) / 1_000_000, any
             )
             ProbeResult.Unreachable
@@ -558,12 +558,12 @@ object ModelIdentity {
         if (isChanged) {
           when (result) {
             is ProbeResult.Ok -> {
-              logger.info("$branchPrefix ${server.name} — ${result.models.size} model(s) in ${probeDurationMs}ms")
+              logger.info("$branchPrefix ${server.name} \u2014 ${result.models.size} model(s) in ${probeDurationMs}ms")
               discovered.addAll(elements = result.models.map { it.copy(available = true) })
             }
 
-            is ProbeResult.HttpError -> logger.warn("{} {} — HTTP {}", branchPrefix, server.name, result.status.value)
-            ProbeResult.Unreachable -> logger.warn("{} {} — unreachable", branchPrefix, server.name)
+            is ProbeResult.HttpError -> logger.warn("{} {} \u2014 HTTP {}", branchPrefix, server.name, result.status.value)
+            ProbeResult.Unreachable -> logger.warn("{} {} \u2014 unreachable", branchPrefix, server.name)
           }
         } else {
           if (result is ProbeResult.Ok)

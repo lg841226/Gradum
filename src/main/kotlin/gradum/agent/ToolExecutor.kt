@@ -351,13 +351,13 @@ class ToolExecutor(
         val oldLen: Int = (arguments["oldString"] as? String)?.length ?: 0
         val newLen: Int = (arguments["newString"] as? String)?.length ?: 0
         val path: String = shortenPath(arguments["path"] as? String ?: "")
-        " $path — $oldLen→$newLen chars"
+        " $path \u2014 $oldLen\u2192$newLen chars"
       }
 
       "read_file" -> {
         val path: String = shortenPath(arguments["path"] as? String ?: "")
         val lines: Int = countLinesInResult(executionResult)
-        if (lines > 0) " $path — $lines lines" else " $path"
+        if (lines > 0) " $path \u2014 $lines lines" else " $path"
       }
 
       "run_cmd" -> {
@@ -368,19 +368,19 @@ class ToolExecutor(
       "grep" -> {
         val pattern: String = truncate(arguments["pattern"] as? String ?: "", 40)
         val results: List<*> = executionResult["results"] as? List<*> ?: emptyList<Any>()
-        " '$pattern' — ${results.size} results"
+        " '$pattern' \u2014 ${results.size} results"
       }
 
       "glob" -> {
         val pattern: String = truncate(arguments["pattern"] as? String ?: "", 40)
         val results: List<*> = executionResult["results"] as? List<*> ?: emptyList<Any>()
-        " $pattern — ${results.size} results"
+        " $pattern \u2014 ${results.size} results"
       }
 
       "search_web" -> {
         val query: String = truncate(arguments["query"] as? String ?: "", 40)
         val results: List<*> = executionResult["results"] as? List<*> ?: emptyList<Any>()
-        " '$query' — ${results.size} results"
+        " '$query' \u2014 ${results.size} results"
       }
 
       "delegate_task" -> {
@@ -409,12 +409,12 @@ class ToolExecutor(
         val output: String = executionResult["output"] as? String ?: ""
         val lineCount: Int = output.lines().size
         if (lineCount > 0) {
-          logger.info("├── output: {} lines", lineCount)
+          logger.info("\u251C\u2500\u2500 output: {} lines", lineCount)
         }
       }
 
       "delegate_task" -> {
-        logger.info("└── sub-agent completed")
+        logger.info("\u2514\u2500\u2500 sub-agent completed")
       }
     }
   }
