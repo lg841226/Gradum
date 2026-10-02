@@ -768,6 +768,15 @@ private fun TabNameEffect(session: GradumChatSession, toolWindow: ToolWindow?) {
   }
 }
 
+/**
+ * Starts session-owned model polling keyed on the provider settings.
+ *
+ * Polling intentionally has no dispose-time stop: with the chat open both in
+ * the tool window and in an editor tab, one host's teardown would otherwise
+ * kill the other host's polling. [GradumChatSession.startModelPolling]
+ * replaces the previous jobs on every (re)start, and the session cancels its
+ * polling scope when the project closes.
+ */
 @Composable
 private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: CoroutineScope) {
   val settings: ProviderSettings = remember { ProviderSettings.getInstance() }
@@ -778,12 +787,7 @@ private fun ModelPollingEffect(session: GradumChatSession, coroutineScope: Corou
     if (!session.modelsLoaded) coroutineScope.launch { session.loadModels() }
     session.startModelPolling(
       autoDetect,
-      pollIntervalMs = pollIntervalSeconds * 1000L, coroutineScope
+      pollIntervalMs = pollIntervalSeconds * 1000L
     )
-  }
-  DisposableEffect(key1 = Unit) {
-    onDispose {
-      session.stopModelPolling()
-    }
   }
 }

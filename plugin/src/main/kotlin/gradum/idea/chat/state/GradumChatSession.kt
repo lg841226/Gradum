@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.delete
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
@@ -36,15 +37,36 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 @Service(Service.Level.PROJECT)
-class GradumChatSession {
+class GradumChatSession : Disposable {
 
   internal val log: Logger = Logger.getInstance(GradumChatSession::class.java)
   internal val WEAVING_FADE_BUFFER_MS: Long = 300L
+  private val hostScopes: MutableList<CoroutineScope> = mutableListOf()
+  var scope: CoroutineScope?
+    get() = synchronized(hostScopes) {
+      hostScopes.firstOrNull { hostScope -> hostScope.isActive }
+    }
+    set(value) {
+      synchronized(hostScopes) {
+        when {
+          value == null -> hostScopes.clear()
+          !hostScopes.contains(value) -> hostScopes.add(element = value)
+        }
+      }
+    }
 
-  var scope: CoroutineScope? = null
+  /**
+   * Detaches [hostScope] when its UI host is disposed, keeping [scope] from
+   * ever resolving to a dead host while other hosts are still open.
+   */
+  fun releaseHostScope(hostScope: CoroutineScope) {
+    synchronized(hostScopes) { hostScopes.remove(element = hostScope) }
+  }
+
   var project: Project? = null
 
   val textState: TextFieldState = TextFieldState()
+
   val messages: SnapshotStateList<ChatMessage> = mutableStateListOf()
   val attachedFiles: SnapshotStateList<AttachedContext> = mutableStateListOf()
   val pendingMessages: SnapshotStateList<PendingMessage> = mutableStateListOf()
@@ -82,8 +104,20 @@ class GradumChatSession {
       val appearance = AppearanceSettings.getInstance().snapshot
       if (appearance.rememberPermission) selectedPermission = appearance.lastPermission
       if (appearance.rememberContext) isExpanded = appearance.lastContextEnabled
-    } catch (_: Throwable) { /* no IntelliJ platform in unit tests */
+    } catch (_: Throwable) {
+      /* no IntelliJ platform in unit tests */
     }
+  }
+
+  /**
+   * Stops polling and detaches every host scope. Called by the platform when
+   * the project closes; any UI host has already released its own scope by
+   * then, so this only guards against polling outliving the service.
+   */
+  override fun dispose() {
+    stopModelPolling()
+    modelPollingScope.cancel()
+    synchronized(hostScopes) { hostScopes.clear() }
   }
 
   val toolMode: String get() = selectedPermission
@@ -127,9 +161,9 @@ class GradumChatSession {
   }
 
   private fun clearSendState() {
+    sendingPhase = ""
     isSending = false
     isWaitingForResponse = false
-    sendingPhase = ""
   }
 
   fun reset() {
@@ -308,6 +342,7 @@ class GradumChatSession {
       hasSentMessage = false
       clearConversationState()
     }
+
     // Refill the withdrawn text back into the input so the user can re-edit
     // and re-send; it is prepended so any freshly typed draft is preserved.
     // Done after the empty-conversation branch above because
@@ -419,10 +454,26 @@ class GradumChatSession {
     }
   }
 
+  /**
+   * Long-lived scope for model polling. Owned by this project service rather
+   * than by any UI host: the tool window tab and the chat editor tab are
+   * created and disposed independently, and cancelling one host's scope must
+   * not stop model polling for the hosts that are still open. Created lazily
+   * so unit tests never touch Dispatchers.Main, and canceled in [dispose]
+   * when the project closes.
+   */
+  private val modelPollingScope: CoroutineScope by lazy {
+    CoroutineScope(context = SupervisorJob() + Dispatchers.Main.immediate)
+  }
+
+  /**
+   * Starts (or restarts) model polling on the session-owned
+   * [modelPollingScope], replacing any previous polling jobs.
+   */
   @OptIn(ExperimentalCoroutinesApi::class)
-  fun startModelPolling(autoDetect: Boolean, pollIntervalMs: Long, scope: CoroutineScope) {
+  fun startModelPolling(autoDetect: Boolean, pollIntervalMs: Long) {
     stopModelPolling()
-    probeRefreshJob = scope.launch {
+    probeRefreshJob = modelPollingScope.launch {
       ProviderCoordinator.probeSucceeded.collect {
         log.info("Provider probe succeeded, refreshing models")
         loadModels()
@@ -432,7 +483,7 @@ class GradumChatSession {
       log.info("Auto-detect disabled, skipping periodic model polling")
       return
     }
-    pollingJob = scope.launch {
+    pollingJob = modelPollingScope.launch {
       tickerFlow(pollIntervalMs)
         .flatMapLatest { fetchModelsOnce() }
         .catch { exception: Throwable ->

@@ -2,9 +2,6 @@
 
 package gradum.idea
 
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -12,26 +9,19 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
+import gradum.idea.chat.editor.openGradumChatInEditor
 import gradum.idea.chat.state.GradumChatSession
-import gradum.idea.chat.ui.markdown.GradumCodeBlockRenderer
-import gradum.idea.chat.ui.markdown.GradumMarkdownProcessor
-import gradum.idea.chat.ui.markdown.rememberGradumMarkdownStyling
-import gradum.idea.editor.EditorUtils
-import gradum.idea.ui.GradumUI
 import gradum.idea.utils.GradumBundle.message
-import kotlinx.coroutines.CoroutineScope
 import org.jetbrains.jewel.bridge.addComposeTab
-import org.jetbrains.jewel.bridge.code.highlighting.CodeHighlighterFactory
-import org.jetbrains.jewel.bridge.theme.SwingBridgeTheme
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
-import org.jetbrains.jewel.foundation.code.highlighting.LocalCodeHighlighter
-import org.jetbrains.jewel.intui.markdown.bridge.ProvideMarkdownStyling
 
 /**
  * Factory for creating the Gradum tool window in IntelliJ IDEA.
  *
- * This factory sets up the Compose-based UI with Markdown rendering,
- * code highlighting, and the main [GradumUI] composable.
+ * Creates the welcome tab hosting the shared [GradumChatContent] tree and
+ * installs the title actions (New Chat, Open in Editor). The same content
+ * can also be shown as an editor tab; see
+ * [gradum.idea.chat.editor.GradumChatFileEditor].
  */
 @OptIn(ExperimentalJewelApi::class)
 class GradumToolWindowFactory : ToolWindowFactory {
@@ -50,32 +40,11 @@ class GradumToolWindowFactory : ToolWindowFactory {
     chatSession.refreshSessions()
 
     toolWindow.addComposeTab(message("gradum.toolwindow.welcome")) {
-      SwingBridgeTheme {
-        val uiCoroutineScope: CoroutineScope = rememberCoroutineScope()
-        chatSession.scope = uiCoroutineScope
-        val codeHighlighter = remember(key1 = project, key2 = uiCoroutineScope) {
-          CodeHighlighterFactory(project, uiCoroutineScope).createHighlighter()
-        }
-        val markdownStyling = rememberGradumMarkdownStyling()
-        val blockRenderer = remember(key1 = markdownStyling) {
-          GradumCodeBlockRenderer(
-            styling = markdownStyling,
-            onInsertAsFile = { code, language ->
-              EditorUtils.openCodeAsNewFile(project, code, language)
-            },
-          )
-        }
-        ProvideMarkdownStyling(
-          markdownStyling = markdownStyling,
-          markdownProcessor = GradumMarkdownProcessor,
-          markdownBlockRenderer = blockRenderer,
-          codeHighlighter = codeHighlighter,
-        ) {
-          CompositionLocalProvider(value = LocalCodeHighlighter provides codeHighlighter) {
-            GradumUI(toolWindow = toolWindow, session = chatSession)
-          }
-        }
-      }
+      GradumChatContent(
+        project = project,
+        toolWindow = toolWindow,
+        session = chatSession,
+      )
     }
 
     val newChatAction = object : AnAction(
@@ -94,6 +63,20 @@ class GradumToolWindowFactory : ToolWindowFactory {
         welcomeTabContent.displayName = message("gradum.toolwindow.welcome")
       }
     }
-    toolWindow.setTitleActions(listOf(newChatAction))
+
+    val openInEditorAction = object : AnAction(
+      message("gradum.toolwindow.openineditor"),
+      message("gradum.toolwindow.openineditor.action.text"),
+      AllIcons.Actions.OpenNewTab
+    ) {
+      override fun actionPerformed(event: AnActionEvent) {
+        val project: Project = event.project ?: return
+        openGradumChatInEditor(project = project)
+      }
+    }
+
+    toolWindow.setTitleActions(listOf(newChatAction, openInEditorAction))
+
+    installToolWindowDragToEditor(project = project, toolWindow = toolWindow)
   }
 }

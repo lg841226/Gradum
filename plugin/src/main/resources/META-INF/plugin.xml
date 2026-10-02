@@ -44,6 +44,14 @@
             factoryClass="gradum.idea.GradumGitAnalysisToolWindowFactory"/>
 
         <!--
+            Hosts the Gradum chat as an editor tab (Open in Editor title
+            action). accept() matches only the GradumChatVirtualFile
+            pseudo-file, so no real project file ever routes through the
+            chat editor.
+        -->
+        <fileEditorProvider implementation="gradum.idea.chat.editor.GradumChatEditorProvider"/>
+
+        <!--
             Project-scoped chat scanState. The IntelliJ Platform disposes tool
             window content when the user collapses the sidebar, so any
             in-Compose scanState is lost on the next expand; holding it in a
