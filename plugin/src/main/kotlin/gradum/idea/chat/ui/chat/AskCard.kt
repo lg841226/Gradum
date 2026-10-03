@@ -2,24 +2,30 @@
 
 package gradum.idea.chat.ui.chat
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import gradum.idea.chat.model.AskChoice
 import gradum.idea.chat.model.AskChoiceMeaning
@@ -39,19 +45,34 @@ import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.typography
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private const val askIconSlotDp: Int = 16
 private const val askArrowSlotDp: Int = 16
 private const val ASK_FADE_IN_MS: Int = 150
+private const val ASK_BORDER_BEAM_MS: Int = 2600
 private const val askInputWidthDp: Int = 160
 private const val askOptionNumberWidthDp: Int = 24
+private val askBorderCorner: Dp = 6.dp
+private val askBeamStroke: Dp = 2.dp
+private val askBeamHalo: Dp = 5.dp
+private const val askBeamHaloAlpha: Float = 0.2f
+private const val askBeamSteps: Int = 24
+private const val askBeamHeadStep: Int = 8
+private const val askBeamHeadAlpha: Float = 0.95f
+private const val askBeamTailDecay: Float = 0.55f
+private const val askBeamFrontFade: Float = 0.47f
+private const val askBeamFrontDecay: Float = 0.30f
 
 /**
  * Renders the agent-initiated question card. Shows title/details, then the
  * interaction body (discrete choice buttons, or a free-text field + send
  * button). A response POSTs the answer back to the server, locks the card
  * against double submission, and invokes [onResponded] so the parent can drop
- * the card from the layout entirely. Fades in quickly when first shown.
+ * the card from the layout entirely. Fades in quickly when first shown; while
+ * awaiting a response a blue beam sweeps around the rounded border.
  */
 @Composable
 fun AskCard(
@@ -80,13 +101,39 @@ fun AskCard(
     alpha.animateTo(targetValue = 1f, animationSpec = tween(durationMillis = ASK_FADE_IN_MS))
   }
 
+  val beamTransition: InfiniteTransition = rememberInfiniteTransition(label = "ask_border_beam")
+  val beamPhase: Float by beamTransition.animateFloat(
+    initialValue = 0f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(durationMillis = ASK_BORDER_BEAM_MS, easing = LinearEasing),
+      repeatMode = RepeatMode.Restart
+    ),
+    label = "ask_beam_phase"
+  )
+
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .graphicsLayer { this.alpha = alpha.value },
+      .graphicsLayer { this.alpha = alpha.value }
+      .border(
+        width = 1.dp,
+        color = globalColors.borders.disabled,
+        shape = RoundedCornerShape(size = askBorderCorner)
+      )
+      .drawWithContent {
+        drawContent()
+        if (!responded) {
+          drawAskBorderBeam(
+            phase = beamPhase,
+            cornerRadiusPx = askBorderCorner.toPx(),
+            beamColor = globalColors.outlines.focused
+          )
+        }
+      }
+      .padding(all = GradumSpacing.md),
     verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
   ) {
-    AskDivider(color = globalColors.text.disabled)
     Row(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sml)
@@ -232,8 +279,6 @@ fun AskCard(
         }
       }
     }
-
-    AskDivider(color = globalColors.text.disabled)
   }
 }
 
@@ -253,23 +298,132 @@ private fun askChoiceLabel(option: AskChoice): String {
   }
 }
 
-/** A 1-dp dashed horizontal divider used to frame the ask card. */
-@Composable
-private fun AskDivider(color: Color) {
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(1.dp)
-      .drawBehind {
-        drawLine(
-          color = color,
-          start = Offset(x = 0f, y = 0f),
-          end = Offset(x = size.width, y = 0f),
-          strokeWidth = 1.dp.toPx(),
-          pathEffect = PathEffect.dashPathEffect(
-            intervals = floatArrayOf(2.dp.toPx(), 2.dp.toPx())
-          )
-        )
+/**
+ * Draws the animated blue beam that travels around the card's rounded
+ * border. A sweep gradient - a compact arc of light anchored at the
+ * card center - is painted onto the border path while the canvas is
+ * rotated by the current phase; the path itself is counter-rotated
+ * point by point so the rounded rectangle stays axis-aligned while the
+ * gradient's bright arc circles the frame. The gradient's color wheel
+ * carries a fading tail behind the head, producing a comet that loops
+ * the border while the card awaits a response.
+ */
+private fun DrawScope.drawAskBorderBeam(
+  phase: Float, cornerRadiusPx: Float, beamColor: Color
+) {
+  val width = size.width
+  val height = size.height
+  val straightW = width - 2f * cornerRadiusPx
+  val straightH = height - 2f * cornerRadiusPx
+  if (straightW <= 0f || straightH <= 0f) return
+
+  val centerX = width / 2f
+  val centerY = height / 2f
+  val angleDegrees = phase * 360f
+  val angleRad: Double = phase * 2.0 * PI
+  val cosA = cos(angleRad).toFloat()
+  val sinA = sin(angleRad).toFloat()
+
+  fun unrotate(x: Float, y: Float): Offset {
+    val dx = x - centerX
+    val dy = y - centerY
+    return Offset(
+      x = centerX + dx * cosA + dy * sinA,
+      y = centerY - dx * sinA + dy * cosA
+    )
+  }
+
+  fun Path.unrotatedMoveTo(x: Float, y: Float) {
+    val point = unrotate(x, y)
+    moveTo(point.x, point.y)
+  }
+
+  fun Path.unrotatedLineTo(x: Float, y: Float) {
+    val point = unrotate(x, y)
+    lineTo(point.x, point.y)
+  }
+
+  fun Path.unrotatedCubicTo(
+    x1: Float, y1: Float,
+    x2: Float, y2: Float,
+    x3: Float, y3: Float
+  ) {
+    val p1 = unrotate(x1, y1)
+    val p2 = unrotate(x2, y2)
+    val p3 = unrotate(x3, y3)
+    cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
+  }
+
+  val k = 0.5523f * cornerRadiusPx
+  val path = Path().apply {
+    unrotatedMoveTo(cornerRadiusPx, 0f)
+    unrotatedLineTo(width - cornerRadiusPx, 0f)
+    unrotatedCubicTo(
+      width - cornerRadiusPx + k, 0f,
+      width, cornerRadiusPx - k,
+      width, cornerRadiusPx
+    )
+    unrotatedLineTo(width, height - cornerRadiusPx)
+    unrotatedCubicTo(
+      width, height - cornerRadiusPx + k,
+      width - cornerRadiusPx + k, height,
+      width - cornerRadiusPx, height
+    )
+    unrotatedLineTo(cornerRadiusPx, height)
+    unrotatedCubicTo(
+      cornerRadiusPx - k, height,
+      0f, height - cornerRadiusPx + k,
+      0f, height - cornerRadiusPx
+    )
+    unrotatedLineTo(0f, cornerRadiusPx)
+    unrotatedCubicTo(
+      0f, cornerRadiusPx - k,
+      cornerRadiusPx - k, 0f,
+      cornerRadiusPx, 0f
+    )
+    close()
+  }
+
+  val beamColors: List<Color> = List(askBeamSteps) { index: Int ->
+    val distance = index - askBeamHeadStep
+    val trailAlpha: Float =
+      when {
+        distance == 0 -> askBeamHeadAlpha
+        distance > 0 -> {
+          var alpha = askBeamHeadAlpha * askBeamFrontFade
+          repeat(times = distance - 1) { alpha *= askBeamFrontDecay }
+          alpha
+        }
+
+        else -> {
+          var alpha = askBeamHeadAlpha * askBeamTailDecay
+          repeat(times = -distance - 1) { alpha *= askBeamTailDecay }
+          alpha
+        }
       }
+    beamColor.copy(alpha = trailAlpha.coerceIn(minimumValue = 0f, maximumValue = 1f))
+  }
+  val beamBrush = Brush.sweepGradient(
+    colors = beamColors,
+    center = Offset(x = centerX, y = centerY)
   )
+
+  drawIntoCanvas { canvas ->
+    canvas.save()
+    canvas.translate(centerX, centerY)
+    canvas.rotate(angleDegrees)
+    canvas.translate(-centerX, -centerY)
+    this@drawAskBorderBeam.drawPath(
+      path = path,
+      brush = beamBrush,
+      alpha = askBeamHaloAlpha,
+      style = Stroke(width = askBeamHalo.toPx())
+    )
+    this@drawAskBorderBeam.drawPath(
+      path = path,
+      brush = beamBrush,
+      style = Stroke(width = askBeamStroke.toPx())
+    )
+    canvas.restore()
+  }
 }

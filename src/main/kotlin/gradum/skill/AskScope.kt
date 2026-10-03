@@ -31,7 +31,7 @@ import java.util.*
  *
  * askInteraction(builder) asks the user a question and blocks until it is
  * answered. The builder must configure exactly one flavor: either a
- * `choices` block (→ [AskResult.Case]) or an `input` block (→ [AskResult.Text]).
+ * `choices` block (to [AskResult.Case]) or an `input` block (to [AskResult.Text]).
  * The card is emitted before the wait so the plugin can resolve it immediately.
  *
  * @property pendingQuestions registry the answer is parked against.

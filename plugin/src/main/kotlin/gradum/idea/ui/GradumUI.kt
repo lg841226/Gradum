@@ -136,7 +136,11 @@ private fun sendPlaybackScenario(
  * Main composable for the Gradum chat interface.
  */
 @Composable
-fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
+fun GradumUI(
+  toolWindow: ToolWindow? = null,
+  session: GradumChatSession,
+  inEditorTab: Boolean = false
+) {
   val editorContext: EditorContext = toolWindow?.project?.let {
     EditorUtils.getEditorContext(project = it)
   } ?: EditorContext.EMPTY
@@ -162,13 +166,15 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
       if (session.hasSentMessage) {
         ChatScreen(
           state = state,
-          modifier = Modifier.fillMaxSize()
+          modifier = Modifier.fillMaxSize(),
+          showMinimap = inEditorTab
         )
       } else {
         WelcomeScreen(
           state = state,
           modifier = Modifier.fillMaxSize(),
-          welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout
+          welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout,
+          inEditorTab = inEditorTab
         )
       }
     }

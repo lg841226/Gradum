@@ -163,115 +163,149 @@ private fun SettingsPanel(
     GroupHeader(
       text = message("gradum.settings.main.and.updates")
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Icon(
-        contentDescription = null,
-        key = GradumIcons.ColorLogo,
-        modifier = Modifier
-          .size(28.dp)
-          .clickable { parentComponent?.let { showWhatsNewDialog() } }
-      )
-      Spacer(Modifier.width(GradumSpacing.lg))
-      val builtAtText: String = remember {
-        val pattern: String = message("gradum.settings.devtools.builtAt.pattern")
-        val formatter = java.time.format.DateTimeFormatter.ofPattern(pattern)
-        formatter.format(java.time.Instant.ofEpochMilli(BuildConfig.buildTimeMillis).atZone(java.time.ZoneId.systemDefault()))
-      }
-      Column(
-        verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs),
-        modifier = Modifier.weight(1f)
-      ) {
-        Text(
-          text = message("gradum.settings.devtools"),
-          fontWeight = FontWeight.SemiBold
+    Column(
+      modifier = Modifier.padding(start = SETTINGS_GROUP_INDENT),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
+    ) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+          contentDescription = null,
+          key = GradumIcons.ColorLogo,
+          modifier = Modifier
+            .size(28.dp)
+            .clickable { parentComponent?.let { showWhatsNewDialog() } }
         )
-        Text(
-          text = message("gradum.settings.devtools.builtAt", builtAtText),
-          color = JewelTheme.globalColors.text.info
-        )
+        Spacer(Modifier.width(GradumSpacing.lg))
+        val builtAtText: String = remember {
+          val pattern: String = message("gradum.settings.devtools.builtAt.pattern")
+          val formatter = java.time.format.DateTimeFormatter.ofPattern(pattern)
+          formatter.format(java.time.Instant.ofEpochMilli(BuildConfig.buildTimeMillis).atZone(java.time.ZoneId.systemDefault()))
+        }
+        Column(
+          verticalArrangement = Arrangement.spacedBy(GradumSpacing.xs),
+          modifier = Modifier.weight(1f)
+        ) {
+          Text(
+            text = message("gradum.settings.devtools"),
+            fontWeight = FontWeight.SemiBold
+          )
+          Text(
+            text = message("gradum.settings.devtools.builtAt", builtAtText),
+            color = JewelTheme.globalColors.text.info
+          )
+        }
+        Tooltip(
+          tooltip = { Text(text = message("gradum.settings.copy.tooltip")) },
+        ) {
+          IconButton(onClick = { onCopyVersions() }) {
+            Icon(
+              key =
+                if (versionsCopied) AllIconsKeys.Actions.Checked
+                else AllIconsKeys.General.Copy,
+              contentDescription = message("gradum.settings.copy.tooltip"),
+            )
+          }
+        }
       }
-      Tooltip(
-        tooltip = { Text(text = message("gradum.settings.copy.tooltip")) },
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
       ) {
-        IconButton(onClick = { onCopyVersions() }) {
-          Icon(
-            key =
-              if (versionsCopied) AllIconsKeys.Actions.Checked
-              else AllIconsKeys.General.Copy,
-            contentDescription = message("gradum.settings.copy.tooltip"),
+        Tooltip(tooltip = { Text(text = message("gradum.settings.oss.tooltip")) }) {
+          ExternalLink(
+            text = message("gradum.settings.oss.link"),
+            onClick = { showThirdPartyNoticesDialog() }
+          )
+        }
+        Tooltip(tooltip = { Text(text = message("gradum.settings.repo.tooltip")) }) {
+          ExternalLink(
+            text = message("gradum.settings.repo.link"),
+            onClick = { BrowserUtil.browse("https://github.com/lg841226/Gradum") }
           )
         }
       }
-    }
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.sm),
-    ) {
-      Tooltip(tooltip = { Text(text = message("gradum.settings.oss.tooltip")) }) {
-        ExternalLink(
-          text = message("gradum.settings.oss.link"),
-          onClick = { showThirdPartyNoticesDialog() }
-        )
+      Column {
+        Text(text = message("gradum.settings.components.title"))
+        Spacer(Modifier.height(GradumSpacing.md))
+        Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
+          SettingCheckboxRow(
+            enabled = true,
+            label = "Gradum Agent (${BuildConfig.version})",
+            checked = appearanceDraft.value.agentEnabled,
+            onCheckedChange = { checked: Boolean ->
+              appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)
+            }
+          )
+          SettingCheckboxRow(
+            enabled = true,
+            label = "Gradum Git Analysis (${BuildConfig.gitStatsVersion})",
+            checked = appearanceDraft.value.gitEnabled,
+            onCheckedChange = { checked: Boolean ->
+              appearanceDraft.value = appearanceDraft.value.copy(gitEnabled = checked)
+            }
+          )
+        }
       }
-      Tooltip(tooltip = { Text(text = message("gradum.settings.repo.tooltip")) }) {
-        ExternalLink(
-          text = message("gradum.settings.repo.link"),
-          onClick = { BrowserUtil.browse("https://github.com/lg841226/Gradum") }
-        )
-      }
-    }
-    Column {
-      Text(text = message("gradum.settings.components.title"))
-      Spacer(Modifier.height(GradumSpacing.md))
-      Column(verticalArrangement = Arrangement.spacedBy(GradumSpacing.sm)) {
-        SettingCheckboxRow(
-          enabled = true,
-          label = "Gradum Agent (${BuildConfig.version})",
-          checked = appearanceDraft.value.agentEnabled,
-          onCheckedChange = { checked: Boolean ->
-            appearanceDraft.value = appearanceDraft.value.copy(agentEnabled = checked)
-          }
-        )
-        SettingCheckboxRow(
-          enabled = true,
-          label = "Gradum Git Analysis (${BuildConfig.gitStatsVersion})",
-          checked = appearanceDraft.value.gitEnabled,
-          onCheckedChange = { checked: Boolean ->
-            appearanceDraft.value = appearanceDraft.value.copy(gitEnabled = checked)
-          }
-        )
-      }
-    }
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
-    ) {
-      OutlinedButton(
-        enabled = !checkingUpdate,
-        onClick = { onCheckForUpdates() }
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(GradumSpacing.lg)
       ) {
-        Text(text = message("gradum.settings.update.now"))
-      }
-      if (checkingUpdate) CircularProgressIndicator(modifier = Modifier.size(16.dp))
+        OutlinedButton(
+          enabled = !checkingUpdate,
+          onClick = { onCheckForUpdates() }
+        ) {
+          Text(text = message("gradum.settings.update.now"))
+        }
+        if (checkingUpdate) CircularProgressIndicator(modifier = Modifier.size(16.dp))
 
-      if (lastCheckedAt > 0L) {
-        Text(
-          color = JewelTheme.globalColors.text.info,
-          text = message("gradum.settings.update.checked", scanCompletedAgo(millis = lastCheckedAt))
-        )
+        if (lastCheckedAt > 0L) {
+          Text(
+            color = JewelTheme.globalColors.text.info,
+            text = message("gradum.settings.update.checked", scanCompletedAgo(millis = lastCheckedAt))
+          )
+        }
       }
+      SettingCheckboxRow(
+        enabled = true,
+        checked = autoOpenInEditor.value,
+        label = message("gradum.settings.autoopen"),
+        onCheckedChange = { autoOpenInEditor.value = it }
+      )
     }
-    SettingCheckboxRow(
-      enabled = true,
-      checked = autoOpenInEditor.value,
-      label = message("gradum.settings.autoopen"),
-      onCheckedChange = { autoOpenInEditor.value = it }
-    )
     ApiProviderSettings()
     GroupHeader(
       text = message("gradum.settings.appearance")
     )
-    AppearanceSection(appearanceDraft)
+    Column(
+      modifier = Modifier.padding(start = SETTINGS_GROUP_INDENT)
+    ) {
+      AppearanceSection(appearanceDraft)
+    }
+    GroupHeader(text = message("gradum.settings.dangerzone"))
+    Column(
+      modifier = Modifier.padding(start = SETTINGS_GROUP_INDENT),
+      verticalArrangement = Arrangement.spacedBy(GradumSpacing.md)
+    ) {
+      OutlinedButton(
+        onClick = {
+          val defaults = AppearanceSettings.State()
+          appearanceDraft.value = defaults
+          AppearanceSettings.getInstance().resetToDefaults()
+          ProviderSettings.getInstance().resetToDefaults()
+          ProviderConfigFile.clearAll()
+        }
+      ) {
+        Text(
+          text = message("gradum.settings.dangerzone.reset"),
+          color = JewelTheme.globalColors.text.error
+        )
+      }
+      Text(
+        text = message("gradum.settings.dangerzone.reset.hint"),
+        color = JewelTheme.globalColors.text.info,
+        style = JewelTheme.typography.labelTextStyle
+      )
+    }
   }
 }
 
@@ -495,28 +529,6 @@ private fun AppearanceSection(draft: MutableState<AppearanceSettings.State>) {
       style = JewelTheme.typography.labelTextStyle
     )
 
-    Spacer(Modifier.height(GradumSpacing.md))
-    GroupHeader(text = message("gradum.settings.dangerzone"))
-    OutlinedButton(
-      onClick = {
-        val defaults = AppearanceSettings.State()
-        draft.value = defaults
-        AppearanceSettings.getInstance().resetToDefaults()
-        ProviderSettings.getInstance().resetToDefaults()
-        ProviderConfigFile.clearAll()
-      }
-    ) {
-      Text(
-        text = message("gradum.settings.dangerzone.reset"),
-        color = JewelTheme.globalColors.text.error
-      )
-    }
-    Text(
-      text = message("gradum.settings.dangerzone.reset.hint"),
-      color = JewelTheme.globalColors.text.info,
-      style = JewelTheme.typography.labelTextStyle
-    )
-    Spacer(Modifier.height(GradumSpacing.md))
   }
 }
 

@@ -50,10 +50,16 @@ private val WelcomeGradient: Brush = Brush.linearGradient(
  * Landing screen shown before the user has sent any message. Renders a
  * centered brand header, the chat input, quick-start suggestions, and (when
  * available) the recent-sessions list.
+ *
+ * [inEditorTab] suppresses the screen's session list UI - the recent-chats
+ * section (with its manage entry) and the merge-mode board, because the
+ * tool window already shows the session history board while the chat lives
+ * in an editor tab.
  */
 @Composable
 fun WelcomeScreen(
   state: ChatSessionState,
+  inEditorTab: Boolean = false,
   modifier: Modifier = Modifier,
   welcomeLayout: WelcomeLayout = WelcomeLayout.QS4_RC2,
 ) {
@@ -78,7 +84,7 @@ fun WelcomeScreen(
     modifier = modifier.fillMaxSize(),
     contentAlignment = Alignment.Center
   ) {
-    if (state.isMergeModeActive) {
+    if (!inEditorTab && state.isMergeModeActive) {
       ManageSessionsBoard(
         initialShowCheckboxes = true,
         onMerge = mergeCallbacks.onMergeSelected,
@@ -137,7 +143,7 @@ fun WelcomeScreen(
             onRefreshSuggestions = state.onRefreshSuggestions
           )
         }
-        if (state.sessions.isNotEmpty()) {
+        if (!inEditorTab && state.sessions.isNotEmpty()) {
           RecentChatsSection(
             sessions = state.sessions.toList(),
             onOpenSession = state.onOpenSession,

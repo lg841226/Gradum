@@ -39,7 +39,8 @@ import javax.swing.JComponent
 fun GradumChatContent(
   project: Project,
   toolWindow: ToolWindow?,
-  session: GradumChatSession
+  session: GradumChatSession,
+  inEditorTab: Boolean = false
 ) {
   @Suppress("UnstableApiUsage")
   SwingBridgeTheme {
@@ -70,7 +71,7 @@ fun GradumChatContent(
       codeHighlighter = codeHighlighter,
     ) {
       CompositionLocalProvider(value = LocalCodeHighlighter provides codeHighlighter) {
-        GradumUI(toolWindow = toolWindow, session = session)
+        GradumUI(toolWindow = toolWindow, session = session, inEditorTab = inEditorTab)
       }
     }
   }
@@ -83,13 +84,18 @@ fun GradumChatContent(
  * (ComposePanel disposes on remove), so restoration always builds a fresh
  * panel instead of reattaching the old one.
  */
-fun createChatComposePanel(project: Project, toolWindow: ToolWindow?): JComponent =
+fun createChatComposePanel(
+  project: Project,
+  toolWindow: ToolWindow?,
+  inEditorTab: Boolean = false
+): JComponent =
   JewelComposePanel {
     val chatSession: GradumChatSession = project.getService(GradumChatSession::class.java)
       ?: error("GradumChatSession is not registered in plugin.xml")
     GradumChatContent(
       project = project,
       session = chatSession,
-      toolWindow = toolWindow
+      toolWindow = toolWindow,
+      inEditorTab = inEditorTab
     )
   }

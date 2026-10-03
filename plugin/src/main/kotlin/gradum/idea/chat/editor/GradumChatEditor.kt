@@ -42,6 +42,7 @@ class GradumChatFileEditor(
 
   private val host: JComponent = createChatComposePanel(
     project = project,
+    inEditorTab = true,
     toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Gradum"),
   )
 

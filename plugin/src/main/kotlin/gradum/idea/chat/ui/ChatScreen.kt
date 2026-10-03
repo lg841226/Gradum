@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.intellij.openapi.diagnostic.Logger
@@ -37,16 +38,25 @@ private val logger = Logger.getInstance("ChatScreen"::class.java)
 
 private val NearBottomThresholdDp: androidx.compose.ui.unit.Dp = 256.dp
 private val FootnoteScrollPadding: androidx.compose.ui.unit.Dp = GradumSpacing.xxl
+private val MinimapJumpPadding: androidx.compose.ui.unit.Dp = GradumSpacing.xxl
+
+private fun ChatMessage.minimapTargetKey(index: Int): String =
+  messageId.ifBlank { "idx:$index" }
 
 /**
  * Active conversation: scrollable history + input pinned to bottom.
  *
  * Auto-scrolls to the bottom when new content arrives and the user was at
  * the bottom; otherwise a `JumpToBottomButton` appears.
+ *
+  * [showMinimap] adds the editor host's [ChatMinimap] navigation strip
+  * flush to the panel's outer edge: equally spaced click-to-jump bars,
+  * one per user message, with the message at the viewport top highlighted
+  * (the latest message when scrolled to the bottom).
  */
 @Composable
 fun ChatScreen(
-  state: ChatSessionState, modifier: Modifier = Modifier
+  state: ChatSessionState, modifier: Modifier = Modifier, showMinimap: Boolean = false
 ) {
   var subChatTitle by remember { mutableStateOf(value = "") }
   var subChatActive by remember { mutableStateOf(value = false) }
@@ -153,127 +163,184 @@ fun ChatScreen(
     modifier = modifier.fillMaxSize(),
     horizontalAlignment = Alignment.CenterHorizontally
   ) {
+    val stickyRegistry: StickySectionRegistry = remember { StickySectionRegistry() }
+    val userMessageOffsets: MutableMap<String, Float> = remember { mutableStateMapOf() }
+    val minimapTargets: List<Float> =
+      if (!showMinimap) emptyList()
+      else displayMessages.mapIndexedNotNull { messageIndex: Int, message: ChatMessage ->
+        if (message.isUserMessage) userMessageOffsets[message.minimapTargetKey(index = messageIndex)]
+        else null
+      }
+
     Box(
       modifier = Modifier
         .weight(1f)
-        .widthIn(max = 680.dp)
+        .fillMaxWidth()
     ) {
-      val stickyRegistry: StickySectionRegistry = remember { StickySectionRegistry() }
+      Box(
+        modifier = Modifier
+          .widthIn(max = 680.dp)
+          .fillMaxHeight()
+          .align(Alignment.TopCenter)
+      ) {
+        CompositionLocalProvider(value = LocalStickySectionRegistry provides stickyRegistry) {
+          Column(
+            modifier = Modifier
+              .verticalScroll(scrollState)
+              .onGloballyPositioned {
+                stickyRegistry.columnOriginInWindow = it.localToWindow(relativeToLocal = Offset.Zero)
+              }
+          ) {
+            displayMessages.forEachIndexed { index: Int, message: ChatMessage ->
+              val shouldShowTimestamp: Boolean = index == 0 || formatTimestamp(message.timestamp) !=
+                formatTimestamp(displayMessages.getOrNull(index - 1)?.timestamp ?: 0L)
+              val isLastAssistant: Boolean =
+                index == displayMessages.lastIndex && !message.isUserMessage && state.isLoading
 
-      CompositionLocalProvider(value = LocalStickySectionRegistry provides stickyRegistry) {
-        Column(
-          modifier = Modifier
-            .verticalScroll(scrollState)
-            .onGloballyPositioned {
-              stickyRegistry.columnOriginInWindow = it.localToWindow(relativeToLocal = Offset.Zero)
-            }
-        ) {
-          displayMessages.forEachIndexed { index: Int, message: ChatMessage ->
-            val shouldShowTimestamp: Boolean = index == 0 || formatTimestamp(message.timestamp) !=
-              formatTimestamp(displayMessages.getOrNull(index - 1)?.timestamp ?: 0L)
-            val isLastAssistant: Boolean =
-              index == displayMessages.lastIndex && !message.isUserMessage && state.isLoading
+              if (LocalShowTimestamp.current && shouldShowTimestamp) {
+                MessageTimestamp(
+                  timestamp = message.timestamp,
+                  modifier = Modifier.padding(vertical = GradumSpacing.lg)
+                )
+              }
 
-            if (LocalShowTimestamp.current && shouldShowTimestamp) {
-              MessageTimestamp(
-                timestamp = message.timestamp,
-                modifier = Modifier.padding(vertical = GradumSpacing.lg)
-              )
-            }
+              when {
+                message.isUserMessage ->
+                  if (!showMinimap) {
+                    UserChatBubble(
+                      message = message,
+                      onCopyAsContext = state.onCopyAsContext,
+                      onAttachmentClick = state.onAttachmentClick,
+                      onDeleteMessage = { state.onDeleteMessage(index) }
+                    )
+                  } else {
+                    val targetKey: String = message.minimapTargetKey(index = index)
+                    DisposableEffect(key1 = targetKey) {
+                      onDispose { userMessageOffsets.remove(targetKey) }
+                    }
+                    Box(
+                      modifier = Modifier.onGloballyPositioned { coordinates ->
+                        val offsetPx: Float = coordinates.positionInParent().y
+                        if (userMessageOffsets[targetKey] != offsetPx) {
+                          userMessageOffsets[targetKey] = offsetPx
+                        }
+                      }
+                    ) {
+                      UserChatBubble(
+                        message = message,
+                        onCopyAsContext = state.onCopyAsContext,
+                        onAttachmentClick = state.onAttachmentClick,
+                        onDeleteMessage = { state.onDeleteMessage(index) }
+                      )
+                    }
+                  }
 
-            when {
-              message.isUserMessage -> UserChatBubble(
-                message = message,
-                onCopyAsContext = state.onCopyAsContext,
-                onAttachmentClick = state.onAttachmentClick,
-                onDeleteMessage = { state.onDeleteMessage(index) }
-              )
-
-              else -> {
-                val footnoteRegistry: FootnoteRegistry = remember(key1 = message) {
-                  FootnoteRegistry(
-                    getColumnOrigin = { stickyRegistry.columnOriginInWindow },
-                    getCurrentScrollOffset = { scrollState.value.toFloat() },
-                  ).also { registry: FootnoteRegistry ->
-                    registry.scrollToPosition = { position: Float, label: String ->
-                      coroutineScope.launch {
-                        val paddingPx: Float = with(receiver = density) { FootnoteScrollPadding.toPx() }
-                        scrollState.animateScrollTo(
-                          value = (position - paddingPx).toInt().coerceAtLeast(minimumValue = 0)
-                        )
-                        registry.onJumpComplete(label)
+                else -> {
+                  val footnoteRegistry: FootnoteRegistry = remember(key1 = message) {
+                    FootnoteRegistry(
+                      getColumnOrigin = { stickyRegistry.columnOriginInWindow },
+                      getCurrentScrollOffset = { scrollState.value.toFloat() },
+                    ).also { registry: FootnoteRegistry ->
+                      registry.scrollToPosition = { position: Float, label: String ->
+                        coroutineScope.launch {
+                          val paddingPx: Float = with(receiver = density) { FootnoteScrollPadding.toPx() }
+                          scrollState.animateScrollTo(
+                            value = (position - paddingPx).toInt().coerceAtLeast(minimumValue = 0)
+                          )
+                          registry.onJumpComplete(label)
+                        }
                       }
                     }
                   }
-                }
-                CompositionLocalProvider(value = LocalFootnoteRegistry provides footnoteRegistry) {
-                  AssistantChatBubble(
-                    message = message,
-                    sendingPhase =
-                      if (index == displayMessages.lastIndex && !message.isUserMessage &&
-                        (state.isLoading || state.sendingPhase.isNotBlank())
-                      ) state.sendingPhase
-                      else "",
-                    onRetry = { state.onRetryMessage(index) },
-                    isLoading = isLastAssistant,
-                    actionsEnabled = !state.isWaitingForResponse,
-                    onUrlClick = { url: String ->
-                      try {
-                        Desktop.getDesktop().browse(URI(url))
-                      } catch (iOException: IOException) {
-                        logger.warn("Failed to open URL: $url", iOException)
-                      }
-                    },
-                    onViewDiff = state.onViewDiff,
-                    onSubChatClick = onSubChatClick,
-                    onOpenInEditor = state.onOpenInEditor,
-                    selectedPermission = state.selectedPermission,
-                    onRespondToAsk = state.onRespondToAsk,
-                    dismissedAskRequestIds = state.dismissedAskRequestIds,
-                    onDismissAsk = state.onDismissAsk
-                  )
+                  CompositionLocalProvider(value = LocalFootnoteRegistry provides footnoteRegistry) {
+                    AssistantChatBubble(
+                      message = message,
+                      sendingPhase =
+                        if (index == displayMessages.lastIndex && !message.isUserMessage &&
+                          (state.isLoading || state.sendingPhase.isNotBlank())
+                        ) state.sendingPhase
+                        else "",
+                      onRetry = { state.onRetryMessage(index) },
+                      isLoading = isLastAssistant,
+                      actionsEnabled = !state.isWaitingForResponse,
+                      onUrlClick = { url: String ->
+                        try {
+                          Desktop.getDesktop().browse(URI(url))
+                        } catch (iOException: IOException) {
+                          logger.warn("Failed to open URL: $url", iOException)
+                        }
+                      },
+                      onViewDiff = state.onViewDiff,
+                      onSubChatClick = onSubChatClick,
+                      onOpenInEditor = state.onOpenInEditor,
+                      selectedPermission = state.selectedPermission,
+                      onRespondToAsk = state.onRespondToAsk,
+                      dismissedAskRequestIds = state.dismissedAskRequestIds,
+                      onDismissAsk = state.onDismissAsk
+                    )
+                  }
                 }
               }
             }
           }
         }
-      }
 
-      val enableStickySections: Boolean = LocalEnableStickySections.current
+        val enableStickySections: Boolean = LocalEnableStickySections.current
 
-      val activeSection: StickySectionEntry? =
+        val activeSection: StickySectionEntry? =
+          if (enableStickySections) {
+            stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
+              scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
+            }
+          } else null
+
         if (enableStickySections) {
-          stickyRegistry.entries.firstOrNull { entry: StickySectionEntry ->
-            scrollState.value >= entry.topInColumn && scrollState.value < entry.bottomInColumn
-          }
-        } else null
+          StickyOverlay(
+            activeSection = activeSection,
+            sections = stickyRegistry.entries,
+            modifier = Modifier.fillMaxWidth(),
+            scrollOffset = scrollState.value.toFloat()
+          )
+        }
 
-      if (enableStickySections) {
-        StickyOverlay(
-          activeSection = activeSection,
-          sections = stickyRegistry.entries,
-          modifier = Modifier.fillMaxWidth(),
-          scrollOffset = scrollState.value.toFloat()
+        JumpToBottomButton(
+          isAtTop = isNearTop,
+          isAtBottom = isNearBottom,
+          onClick = {
+            coroutineScope.launch {
+              scrollState.animateScrollTo(scrollState.maxValue)
+            }
+          },
+          onJumpToTop = {
+            coroutineScope.launch {
+              scrollState.animateScrollTo(value = 0)
+            }
+          },
+          modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = GradumSpacing.lg)
         )
       }
 
-      JumpToBottomButton(
-        isAtTop = isNearTop,
-        isAtBottom = isNearBottom,
-        onClick = {
-          coroutineScope.launch {
-            scrollState.animateScrollTo(scrollState.maxValue)
-          }
-        },
-        onJumpToTop = {
-          coroutineScope.launch {
-            scrollState.animateScrollTo(value = 0)
-          }
-        },
-        modifier = Modifier
-          .align(Alignment.BottomCenter)
-          .padding(bottom = GradumSpacing.lg)
-      )
+      if (showMinimap) {
+        ChatMinimap(
+          scrollState = scrollState,
+          modifier = Modifier
+            .fillMaxHeight()
+            .width(GradumSpacing.xl)
+            .align(Alignment.CenterEnd),
+          jumpPadding = MinimapJumpPadding,
+          onJumpToOffset = { offsetPx: Float ->
+            coroutineScope.launch {
+              val paddingPx: Float = with(receiver = density) { MinimapJumpPadding.toPx() }
+              scrollState.animateScrollTo(
+                value = (offsetPx - paddingPx).toInt().coerceAtLeast(minimumValue = 0)
+              )
+            }
+          },
+          userMessageOffsets = minimapTargets
+        )
+      }
     }
 
     ChatInputSection(

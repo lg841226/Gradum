@@ -6,13 +6,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.ui.Outline
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.TextField
 
 internal const val POLL_FIELD_WIDTH_DP = 70
 internal const val MESSAGE_LOAD_FIELD_WIDTH_DP = 70
+
+internal val SETTINGS_GROUP_INDENT: Dp = GradumSpacing.xl
 
 internal fun formatFontSize(value: Float): String =
   if (value % 1f == 0f) value.toInt().toString() else value.toString()

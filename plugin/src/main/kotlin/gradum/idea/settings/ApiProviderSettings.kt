@@ -65,115 +65,119 @@ internal fun ApiProviderSettings() {
       modifier = Modifier.fillMaxWidth(),
       text = message("gradum.settings.provider.section")
     )
-    Spacer(Modifier.height(GradumSpacing.md))
-    AutoDetectRow(
-      enabled = state.autoDetectEnabled,
-      checked = state.autoDetectEnabled,
-      intervalSeconds = state.pollIntervalSeconds,
-      onCheckedChange = { isChecked ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.autoDetectEnabled = isChecked
-        }
-        settings.update(transform, persistToDisk = false)
-        pushAllKindsToCoordinator(settings)
-      },
-      onIntervalChange = { seconds ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.pollIntervalSeconds = seconds
-        }
-        settings.update(transform, persistToDisk = false)
-        pushAllKindsToCoordinator(settings)
-      },
-    )
-    Spacer(Modifier.height(GradumSpacing.ml))
-    ApiProviderRow(
-      kind = ProviderKind.OLLAMA,
-      apiKeyState = ollamaKeyState,
-      baseUrlState = ollamaUrlState,
-      onUrlChange = { newUrl ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setBaseUrl(kind = ProviderKind.OLLAMA, value = newUrl)
-        }
-        settings.update(transform)
-        pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
-      },
-      onApiKeyChange = { newKey ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setApiKey(kind = ProviderKind.OLLAMA, value = newKey)
-        }
-        settings.update(transform)
-        pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
-      },
-      extraToggle = ExtraToggle(
-        checked = state.ollamaAutoFilter,
-        messageKey = "gradum.settings.provider.ollama.autofilter"
-      ),
-    ) { isChecked ->
-      val transform: (ProviderSettings.State) -> Unit = { s ->
-        s.ollamaAutoFilter = isChecked
-      }
-      settings.update(transform, persistToDisk = false)
-    }
-
-    Spacer(Modifier.height(GradumSpacing.md))
-
-    KeepAliveRow(
-      checked = state.keepAliveEnabled,
-      onCheckedChange = { isChecked ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.keepAliveEnabled = isChecked
-        }
-        settings.update(transform, persistToDisk = false)
-      },
-      state = keepAliveState,
-      onKeepAliveChange = { value ->
-        value.toIntOrNull()?.let { minutes ->
+    Column(
+      modifier = Modifier.padding(start = SETTINGS_GROUP_INDENT)
+    ) {
+      Spacer(Modifier.height(GradumSpacing.md))
+      AutoDetectRow(
+        enabled = state.autoDetectEnabled,
+        checked = state.autoDetectEnabled,
+        intervalSeconds = state.pollIntervalSeconds,
+        onCheckedChange = { isChecked ->
           val transform: (ProviderSettings.State) -> Unit = { s ->
-            s.keepAliveMinutes = minutes
+            s.autoDetectEnabled = isChecked
           }
           settings.update(transform, persistToDisk = false)
-        }
-      }
-    )
-
-    Spacer(Modifier.height(GradumSpacing.ml))
-
-    ApiProviderRow(
-      kind = ProviderKind.LM_STUDIO,
-      apiKeyState = lmStudioKeyState,
-      baseUrlState = lmStudioUrlState,
-      onUrlChange = { newUrl ->
+          pushAllKindsToCoordinator(settings)
+        },
+        onIntervalChange = { seconds ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.pollIntervalSeconds = seconds
+          }
+          settings.update(transform, persistToDisk = false)
+          pushAllKindsToCoordinator(settings)
+        },
+      )
+      Spacer(Modifier.height(GradumSpacing.ml))
+      ApiProviderRow(
+        kind = ProviderKind.OLLAMA,
+        apiKeyState = ollamaKeyState,
+        baseUrlState = ollamaUrlState,
+        onUrlChange = { newUrl ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.setBaseUrl(kind = ProviderKind.OLLAMA, value = newUrl)
+          }
+          settings.update(transform)
+          pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
+        },
+        onApiKeyChange = { newKey ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.setApiKey(kind = ProviderKind.OLLAMA, value = newKey)
+          }
+          settings.update(transform)
+          pushKindToCoordinator(settings, kind = ProviderKind.OLLAMA)
+        },
+        extraToggle = ExtraToggle(
+          checked = state.ollamaAutoFilter,
+          messageKey = "gradum.settings.provider.ollama.autofilter"
+        ),
+      ) { isChecked ->
         val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setBaseUrl(kind = ProviderKind.LM_STUDIO, value = newUrl)
+          s.ollamaAutoFilter = isChecked
         }
-        settings.update(transform)
-        pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
-      },
-      onApiKeyChange = { newKey ->
-        val transform: (ProviderSettings.State) -> Unit = { s ->
-          s.setApiKey(kind = ProviderKind.LM_STUDIO, value = newKey)
-        }
-        settings.update(transform)
-        pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
-      },
-      extraToggle = ExtraToggle(
-        messageKey = "gradum.settings.provider.lmstudio.allowremote",
-        checked = state.lmStudioAllowRemote,
-      ),
-    ) { isChecked ->
-      val transform: (ProviderSettings.State) -> Unit = { s ->
-        s.lmStudioAllowRemote = isChecked
+        settings.update(transform, persistToDisk = false)
       }
-      settings.update(transform, persistToDisk = false)
-      ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", allowRemote = isChecked)
+
+      Spacer(Modifier.height(GradumSpacing.md))
+
+      KeepAliveRow(
+        checked = state.keepAliveEnabled,
+        onCheckedChange = { isChecked ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.keepAliveEnabled = isChecked
+          }
+          settings.update(transform, persistToDisk = false)
+        },
+        state = keepAliveState,
+        onKeepAliveChange = { value ->
+          value.toIntOrNull()?.let { minutes ->
+            val transform: (ProviderSettings.State) -> Unit = { s ->
+              s.keepAliveMinutes = minutes
+            }
+            settings.update(transform, persistToDisk = false)
+          }
+        }
+      )
+
+      Spacer(Modifier.height(GradumSpacing.ml))
+
+      ApiProviderRow(
+        kind = ProviderKind.LM_STUDIO,
+        apiKeyState = lmStudioKeyState,
+        baseUrlState = lmStudioUrlState,
+        onUrlChange = { newUrl ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.setBaseUrl(kind = ProviderKind.LM_STUDIO, value = newUrl)
+          }
+          settings.update(transform)
+          pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
+        },
+        onApiKeyChange = { newKey ->
+          val transform: (ProviderSettings.State) -> Unit = { s ->
+            s.setApiKey(kind = ProviderKind.LM_STUDIO, value = newKey)
+          }
+          settings.update(transform)
+          pushKindToCoordinator(settings, kind = ProviderKind.LM_STUDIO)
+        },
+        extraToggle = ExtraToggle(
+          messageKey = "gradum.settings.provider.lmstudio.allowremote",
+          checked = state.lmStudioAllowRemote,
+        ),
+      ) { isChecked ->
+        val transform: (ProviderSettings.State) -> Unit = { s ->
+          s.lmStudioAllowRemote = isChecked
+        }
+        settings.update(transform, persistToDisk = false)
+        ProviderConfigFile.updateAllowRemote(configKey = "lmstudio", allowRemote = isChecked)
+      }
+
+      Spacer(Modifier.height(GradumSpacing.ml))
+
+      CloudProviderTabsSection(
+        settings = settings,
+        enabledKinds = ProviderKind.cloudKinds.filter { state.isEnabled(kind = it) },
+      )
     }
-
-    Spacer(Modifier.height(GradumSpacing.ml))
-
-    CloudProviderTabsSection(
-      settings = settings,
-      enabledKinds = ProviderKind.cloudKinds.filter { state.isEnabled(kind = it) },
-    )
   }
 }
 
