@@ -80,6 +80,7 @@ fun WelcomeScreen(
   ) {
     if (state.isMergeModeActive) {
       ManageSessionsBoard(
+        initialShowCheckboxes = true,
         onMerge = mergeCallbacks.onMergeSelected,
         onBack = mergeCallbacks.onCancelMerge,
         selectedIds = state.mergeSelectedIds,

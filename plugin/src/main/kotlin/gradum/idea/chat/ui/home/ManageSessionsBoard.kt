@@ -41,23 +41,30 @@ import java.time.ZoneId
 
 /**
  * Full-screen session manager, opened from the "Manage" gear on the Welcome
- * screen. Replaces the whole Welcome column so the user can focus on the
+ * screen (and shown in the tool window while the chat lives in an editor
+ * tab). Replaces the whole Welcome column so the user can focus on the
  * session list.
  *
- * Every row is a selection entry: a checkbox on the leading edge (outside the
- * clickable sub-entry) plus the row itself both toggle the merge/delete
- * selection. A hover reveal offers rename (inline, pen becomes a checkmark +
- * cancel while editing) and delete. The bottom action bar only appears for
- * multi-selection (≥[GradumChatSession.MIN_MERGE_SESSIONS]) and offers a
- * merge of everything selected plus a bulk delete.
+ * Rows open their session on click by default. Selection checkboxes are
+ * hidden until the toggle next to the search field's match-case button is
+ * switched on ([initialShowCheckboxes] starts the mode for the Welcome
+ * screen's merge entry); in selection mode a checkbox on the leading edge
+ * (outside the clickable sub-entry) plus the row itself both toggle the
+ * merge/delete selection, and turning the mode off clears it. A hover reveal offers
+ * rename (inline, pen becomes a checkmark and cancel while editing) and
+ * delete. The bottom action bar only appears for multi-selection
+ * (≥[GradumChatSession.MIN_MERGE_SESSIONS]) and offers a merge of
+ * everything selected plus a bulk delete.
  *
- * A top search field filters the list by title. Sessions are grouped by age:
- * Today, Yesterday, This Week, This Month, Older.
+ * A top search field filters the list by title; the match-case button
+ * narrows it to an exact title. Sessions are grouped by age: Today,
+ * Yesterday, This Week, This Month, Older.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ManageSessionsBoard(
   onMerge: () -> Unit,
+  initialShowCheckboxes: Boolean = false,
   onBack: () -> Unit = {},
   selectedIds: Set<String>,
   sessions: List<SessionMeta>,
@@ -72,6 +79,7 @@ fun ManageSessionsBoard(
   val selectedCount: Int = selectedIds.size
   val searchState: TextFieldState = remember { TextFieldState() }
   var exactMatch: Boolean by remember { mutableStateOf(value = false) }
+  var showCheckboxes: Boolean by remember { mutableStateOf(value = initialShowCheckboxes) }
   val searchQuery: String = searchState.text.toString().trim()
   val filteredSessions: List<SessionMeta> = sessions.filter {
     when {
@@ -132,6 +140,21 @@ fun ManageSessionsBoard(
           )
         }
       }
+      Spacer(modifier = Modifier.width(GradumSpacing.sm))
+      Tooltip(tooltip = { Text(text = message("gradum.manage.select.toggle")) }) {
+        ToggleableIconButton(
+          value = showCheckboxes,
+          onValueChange = { enabled ->
+            showCheckboxes = enabled
+            if (!enabled) onClearSelection()
+          }
+        ) {
+          Icon(
+            key = AllIconsKeys.Actions.Selectall,
+            contentDescription = message("gradum.manage.select.toggle")
+          )
+        }
+      }
     }
     Spacer(modifier = Modifier.height(GradumSpacing.lg))
     if (filteredSessions.isEmpty()) {
@@ -167,7 +190,9 @@ fun ManageSessionsBoard(
               modifier = Modifier
                 .pointerHoverIcon(PointerIcon.Hand)
                 .clickable {
-                  searchState.edit { replace(start = 0, end = length, text = "") }
+                  searchState.edit {
+                    replace(start = 0, end = length, text = "")
+                  }
                 }
             )
           }
@@ -201,6 +226,7 @@ fun ManageSessionsBoard(
                 isSelected = session.sessionId in selectedIds,
                 isRenaming = session.sessionId == renamingSessionId,
                 renamingTitle = renamingTitle,
+                showCheckbox = showCheckboxes,
                 onToggle = { onToggleSelection(session.sessionId) },
                 onStartRename = { renamingSessionId = session.sessionId },
                 onCommitRename = { newTitle: String ->
@@ -268,6 +294,7 @@ private fun ManageSessionRow(
   isSelected: Boolean,
   isRenaming: Boolean,
   renamingTitle: TextFieldState,
+  showCheckbox: Boolean,
   onToggle: () -> Unit,
   onDelete: () -> Unit,
   onStartRename: () -> Unit,
@@ -285,11 +312,13 @@ private fun ManageSessionRow(
       .onPointerEvent(eventType = PointerEventType.Enter) { isHovered = true }
       .onPointerEvent(eventType = PointerEventType.Exit) { isHovered = false }
   ) {
-    Checkbox(
-      checked = isSelected,
-      onCheckedChange = { onToggle() }
-    )
-    Spacer(modifier = Modifier.width(GradumSpacing.sml))
+    if (showCheckbox) {
+      Checkbox(
+        checked = isSelected,
+        onCheckedChange = { onToggle() }
+      )
+      Spacer(modifier = Modifier.width(GradumSpacing.sml))
+    }
     Row(
       verticalAlignment = Alignment.CenterVertically,
       modifier = Modifier
@@ -300,7 +329,9 @@ private fun ManageSessionRow(
             if (isHovered || isSelected) JewelTheme.globalColors.text.info.copy(alpha = 0.08f)
             else Color.Transparent
         )
-        .clickable(onClick = onToggle)
+        .clickable {
+          if (showCheckbox) onToggle() else onOpenSession()
+        }
         .padding(
           horizontal = GradumSpacing.md,
           vertical = GradumSpacing.sml
@@ -398,9 +429,7 @@ private fun ManageSessionRow(
   }
 }
 
-private fun groupSessionsByAge(
-  sessions: List<SessionMeta>
-): List<Pair<String, List<SessionMeta>>> {
+private fun groupSessionsByAge(sessions: List<SessionMeta>): List<Pair<String, List<SessionMeta>>> {
   val zone: ZoneId = ZoneId.systemDefault()
   val today: LocalDate = LocalDate.now(zone)
   val yesterday: LocalDate = today.minusDays(1)
