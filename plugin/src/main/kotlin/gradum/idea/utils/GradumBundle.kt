@@ -33,7 +33,7 @@ object GradumBundle : DynamicBundle(BUNDLE_NAME) {
    * marker if the key is not present in the active locale's bundle.
    *
    * Substituted parameters use the standard Java `MessageFormat` syntax
-   * (`{0}`, `{1}`, …). The fallback marker is `???<key>???` so a missing
+   * (`{0}`, `{1}`, etc.). The fallback marker is `???<key>???` so a missing
    * key is obvious in the UI without breaking layout.
    */
   @JvmStatic

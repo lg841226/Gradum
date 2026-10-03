@@ -19,7 +19,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 
 /**
- * HTTP client for the Gradum backend REST API (models + streaming NDJSON at `POST /events`).
+ * HTTP client for the Gradum backend REST API (models and streaming NDJSON at `POST /events`).
  *
  * NDJSON parsing is centralized here: each line is JSON-decoded independently;
  * malformed lines are logged at WARN and skipped without aborting the stream.
@@ -59,21 +59,16 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    */
   data class SendMessageRequest(
     val message: String,
-    val modelName: String? = null,
-    val modelParams: Map<String, String>? = null,
-    val loadContext: Boolean = true,
     val toolMode: String? = null,
-    val promptVariant: String? = null,
-    val projectRoot: String? = null,
-    val imageAttachments: List<ApiImageAttachment> = emptyList(),
-    val toolCallXml: String? = null,
+    val modelName: String? = null,
     val sessionId: String? = null,
-    /**
-     * Plugin-generated message id forwarded to the server. The server stamps
-     * it onto the user message it stores in `context.json`, keeping the
-     * plugin transcript and the server context referencing the same message.
-     */
-    val messageId: String? = null
+    val messageId: String? = null,
+    val projectRoot: String? = null,
+    val toolCallXml: String? = null,
+    val loadContext: Boolean = true,
+    val promptVariant: String? = null,
+    val modelParams: Map<String, String>? = null,
+    val imageAttachments: List<ApiImageAttachment> = emptyList()
   )
 
   /** Lenient parser used for NDJSON lines so a missing `type` field does not throw. */
@@ -145,8 +140,8 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   suspend fun respondToAsk(
     sessionId: String,
     requestId: String,
-    choice: String? = null,
     text: String? = null,
+    choice: String? = null,
     cancelled: Boolean = false
   ): Boolean = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject {

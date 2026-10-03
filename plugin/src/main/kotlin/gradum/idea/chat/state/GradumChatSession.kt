@@ -400,7 +400,7 @@ class GradumChatSession : Disposable {
           userMessage = next.content,
           next.attachments,
           contextPath = "",
-          messageId = messageId
+          messageId = messageId,
         )
       }
     }
@@ -511,13 +511,14 @@ class GradumChatSession : Disposable {
   }
 
   private fun fetchModelsOnce(): Flow<String> = flow {
-    val json: String = try {
-      withContext(Dispatchers.IO) { apiClient.getModels() }
-    } catch (exception: CancellationException) {
-      throw exception
-    } catch (exception: Exception) {
-      log.debug("Polling /models failed: ${exception.message}"); return@flow
-    }
+    val json: String =
+      try {
+        withContext(Dispatchers.IO) { apiClient.getModels() }
+      } catch (exception: CancellationException) {
+        throw exception
+      } catch (exception: Exception) {
+        log.debug("Polling /models failed: ${exception.message}"); return@flow
+      }
     emit(value = json)
   }
 

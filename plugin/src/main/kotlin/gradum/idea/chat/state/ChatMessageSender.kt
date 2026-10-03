@@ -167,15 +167,15 @@ internal suspend fun GradumChatSession.sendMessage(
     apiClient.sendMessage(
       request = GradumApiClient.SendMessageRequest(
         message = messageWithHint,
-        modelName = selectedModel?.name,
-        modelParams = modelConfig,
-        loadContext = loadContext,
         toolMode = toolMode,
-        projectRoot = project?.basePath,
-        imageAttachments = imageAttachments,
-        toolCallXml = toolCallXml,
+        modelName = selectedModel?.name,
         sessionId = activeSessionId,
-        messageId = messageId
+        messageId = messageId,
+        projectRoot = project?.basePath,
+        toolCallXml = toolCallXml,
+        loadContext = loadContext,
+        modelParams = modelConfig,
+        imageAttachments = imageAttachments
       )
     ).catch { exception: Throwable ->
       if (exception is CancellationException) {
