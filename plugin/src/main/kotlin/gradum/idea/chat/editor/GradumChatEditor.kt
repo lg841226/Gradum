@@ -21,7 +21,8 @@ import javax.swing.JComponent
 /**
  * FileEditor that hosts the same chat tree as the Gradum tool window. It is
  * the destination of the move performed by [openGradumChatInEditor]: while
- * the tab is open, the tool window shows a ChatInEditorPlaceholder instead,
+ * the tab is open, the tool window shows the session history manager
+ * (ChatInEditorHistoryPanel) instead,
  * so only one chat instance exists at a time. The session picks its work
  * scope from whichever hosts are still alive.
  *

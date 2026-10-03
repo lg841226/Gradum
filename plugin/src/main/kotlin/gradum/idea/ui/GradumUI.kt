@@ -1,10 +1,14 @@
 package gradum.idea.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.delete
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,7 @@ import gradum.idea.utils.GradumBundle.message
 import kotlinx.coroutines.*
 import kotlinx.io.IOException
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
+import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -149,6 +154,7 @@ fun GradumUI(toolWindow: ToolWindow? = null, session: GradumChatSession) {
 
   Box(
     modifier = Modifier.fillMaxSize()
+      .background(color = JewelTheme.globalColors.toolwindowBackground)
       .padding(horizontal = 16.dp),
     contentAlignment = Alignment.Center
   ) {
@@ -722,8 +728,8 @@ private fun rememberChatSessionState(
         session.apiClient.respondToAsk(
           sessionId = sessionId,
           requestId = requestId,
-          choice = choice,
           text = text,
+          choice = choice,
           cancelled = cancelled
         )
       }

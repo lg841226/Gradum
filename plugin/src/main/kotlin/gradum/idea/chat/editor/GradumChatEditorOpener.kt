@@ -30,11 +30,11 @@ internal val CHAT_DISPLACEMENT_KEY: Key<ChatDisplacement> =
  * Moves (or focuses) the single Gradum chat editor tab for [project].
  *
  * This is a move, not a copy: on the first open the tool window content is
- * replaced with a [ChatInEditorPlaceholder] and the tool window is hidden,
- * so exactly one chat instance exists at a time. Closing the editor tab
- * restores the tool window content (see [restoreChatToToolWindow]); while
- * the placeholder is visible its links jump to the editor or restore the
- * chat directly. Repeated invocations just focus the already-open tab.
+ * replaced with a [ChatInEditorHistoryPanel] (the session history manager),
+ * so exactly one chat instance exists at a time while the tool window stays
+ * useful beside the editor. Closing the editor tab restores the chat into
+ * the tool window (see [restoreChatToToolWindow]). Repeated invocations just
+ * focus the already-open tab.
  */
 fun openGradumChatInEditor(project: Project) {
   val chatSession: GradumChatSession = project.getService(GradumChatSession::class.java)
@@ -52,9 +52,12 @@ fun openGradumChatInEditor(project: Project) {
   val file = GradumChatVirtualFile()
   val toolWindow: ToolWindow? = ToolWindowManager.getInstance(project).getToolWindow("Gradum")
   val content: Content? = toolWindow?.contentManager?.contents?.firstOrNull()
-  val placeholder = content?.component as? ChatInEditorPlaceholder
-  if (toolWindow == null || content == null || placeholder != null) {
-    editorManager.openFile(placeholder?.file ?: file, true)
+  val historyPanel = content?.component as? ChatInEditorHistoryPanel
+  if (toolWindow == null || content == null || historyPanel != null) {
+    // The history-panel branch reuses its file: a second invocation can land
+    // here before the first one's openFile ran, and two distinct
+    // pseudo-files would stack two editor tabs.
+    editorManager.openFile(historyPanel?.file ?: file, true)
     return
   }
 
@@ -63,9 +66,9 @@ fun openGradumChatInEditor(project: Project) {
     CHAT_DISPLACEMENT_KEY,
     ChatDisplacement(toolWindow = toolWindow, content = content),
   )
-  content.component = ChatInEditorPlaceholder(file = file, project = project)
+  content.component = ChatInEditorHistoryPanel(file = file, project = project)
   disposeComposeHost(component = displacedComponent)
-  toolWindow.hide { editorManager.openFile(file, true) }
+  editorManager.openFile(file, true)
 }
 
 /**
