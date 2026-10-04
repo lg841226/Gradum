@@ -5,7 +5,8 @@
     <conversionRule conversionWord="gradumLevel" converterClass="gradum.logging.GradumLevelConverter"/>
     <conversionRule conversionWord="gradumPort" converterClass="gradum.logging.GradumPortConverter"/>
 
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
         <encoder>
             <charset>UTF-8</charset>
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %gradumPort %gradumLevel %logger{0} %msg%n</pattern>
@@ -13,7 +14,7 @@
     </appender>
 
     <root level="info">
-        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="STDERR"/>
     </root>
 
     <logger name="org.eclipse.jetty" level="warn"/>

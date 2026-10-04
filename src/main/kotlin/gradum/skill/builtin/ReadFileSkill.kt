@@ -144,38 +144,39 @@ class ReadFileSkill : Skill() {
         )
       }
 
-      val (startLineNumber, endLineNumber, selectedLines) = if (lineRange.isBlank()) {
-        val allLines = targetFile.readLines(Charsets.UTF_8)
-        if (allLines.size > MAXIMUM_LINES) {
-          return makeFailure(
-            code = ErrorCode.FILE_TOO_LARGE,
+      val (startLineNumber, endLineNumber, selectedLines) =
+        if (lineRange.isBlank()) {
+          val allLines = targetFile.readLines(Charsets.UTF_8)
+          if (allLines.size > MAXIMUM_LINES) {
+            return makeFailure(
+              code = ErrorCode.FILE_TOO_LARGE,
+              message = buildXmlError(
+                code = "FILE_TOO_LARGE",
+                message = "File has ${allLines.size} lines (max: $MAXIMUM_LINES).",
+                fixHint = "Use lineRange to read specific sections of the file."
+              ),
+              context = mapOf("path" to targetPath.toString(), "totalLines" to allLines.size)
+            )
+          }
+          Triple(1, allLines.size, allLines)
+        } else {
+          val range: LineRange = parseLineRange(rawValue = lineRange) ?: return makeFailure(
+            code = ErrorCode.INVALID_PARAMETER,
             message = buildXmlError(
-              code = "FILE_TOO_LARGE",
-              message = "File has ${allLines.size} lines (max: $MAXIMUM_LINES).",
-              fixHint = "Use lineRange to read specific sections of the file."
+              code = "INVALID_PARAMETER",
+              message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
+              fixHint = "Provide lineRange in the format 'start-end' with numeric values."
             ),
-            context = mapOf("path" to targetPath.toString(), "totalLines" to allLines.size)
+            context = mapOf("path" to targetPath.toString(), "lineRange" to lineRange)
           )
-        }
-        Triple(1, allLines.size, allLines)
-      } else {
-        val range: LineRange = parseLineRange(rawValue = lineRange) ?: return makeFailure(
-          code = ErrorCode.INVALID_PARAMETER,
-          message = buildXmlError(
-            code = "INVALID_PARAMETER",
-            message = "Invalid lineRange format. Use 'start-end' (e.g., '12-22').",
-            fixHint = "Provide lineRange in the format 'start-end' with numeric values."
-          ),
-          context = mapOf("path" to targetPath.toString(), "lineRange" to lineRange)
-        )
 
-        val lines = targetFile.useLines {
-          it.drop(n = range.start - 1).take(n = range.end - range.start + 1).toList()
-        }
-        val actualEndLine = range.start + lines.size - 1
+          val lines = targetFile.useLines {
+            it.drop(n = range.start - 1).take(n = range.end - range.start + 1).toList()
+          }
+          val actualEndLine = range.start + lines.size - 1
 
-        Triple(range.start, actualEndLine, lines)
-      }
+          Triple(range.start, actualEndLine, lines)
+        }
 
       if (useSimpleOutput) {
         val numberedContent = selectedLines.mapIndexed { index, line ->

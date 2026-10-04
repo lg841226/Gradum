@@ -1,6 +1,8 @@
 package gradum.server
 
 import gradum.BuildConfig
+import gradum.GradumRuntime
+import gradum.acp.AcpServer
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
@@ -16,12 +18,17 @@ import java.net.BindException
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
 fun main(arguments: Array<String>) {
-  printStartupBanner()
-  if (arguments.any { it == "--help" || it == "-h" }) {
-    printUsage()
-    return
-  }
+  if (arguments.firstOrNull() == "acp") startAcp()
+  else startHttp(arguments)
+}
 
+/**
+ * Shared startup block: loads settings, initializes MCP manager, scans
+ * external skills, starts the directory watcher, and resolves the API key.
+ * HTTP and ACP entry points both call this so the long-lived runtime
+ * components are constructed exactly once per process.
+ */
+private fun initRuntime(): GradumRuntime {
   ServerSettingsStore.releaseDefaultsIfMissing()
   val settings: ServerSettings = ServerSettingsStore.load()
 
@@ -33,33 +40,57 @@ fun main(arguments: Array<String>) {
       mcpManager.connect(settings.mcpServers)
     }
   }
+
   SkillRegistry.register(McpToolsSkill())
 
   val skillScanner = ExternalSkillDirectoryScanner()
-  skillScanner.scan()
   val skillWatcher = ExternalSkillDirectoryWatcher(skillScanner = skillScanner).start()
+
+  skillScanner.scan()
   logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
 
   val resolvedApiKey: String? =
     ServerSettingsStore.resolveApiKeyFromFile(settings.apiKeyFile)
       ?: ServerConfiguration.resolveDefaultApiKeyFromEnv()
 
+  return GradumRuntime(
+    settings = settings,
+    mcpManager = mcpManager,
+    skillScanner = skillScanner,
+    skillWatcher = skillWatcher,
+    resolvedApiKey = resolvedApiKey
+  )
+}
+
+private fun startHttp(arguments: Array<String>) {
+  printStartupBanner()
+
+  if (arguments.any { it == "--help" || it == "-h" }) {
+    printUsage()
+    return
+  }
+
+  val runtime = initRuntime()
+  val settings = runtime.settings
+
   val resolvedPort: Int = if (settings.autoDetectPort) {
-    val detectedPort: Int? = findAvailablePort(startPort = settings.port)
-
-    checkNotNull(value = detectedPort) {
-      "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+    run {
+      val detectedPort = findAvailablePort(startPort = settings.port)
+      checkNotNull(detectedPort) {
+        "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+      }
+      logger.info("Using auto-detected port: $detectedPort")
+      detectedPort
     }
-
-    logger.info("Using auto-detected port: $detectedPort")
-    detectedPort
-  } else
+  } else {
     settings.port
+  }
 
   System.setProperty("gradum.server.port", resolvedPort.toString())
 
-  if (resolvedApiKey != null) {
-    val keyPreview: String = resolvedApiKey.take(n = 4) + "\u00B7\u00B7\u00B7" + resolvedApiKey.takeLast(n = 4)
+  if (runtime.resolvedApiKey != null) {
+    val keyPreview: String = runtime.resolvedApiKey.take(n = 4) +
+      "\u00B7\u00B7\u00B7" + runtime.resolvedApiKey.takeLast(n = 4)
     logger.info(
       "Hosted providers will use API key $keyPreview (src: ${apiKeySourceLabel(settings)})"
     )
@@ -71,7 +102,7 @@ fun main(arguments: Array<String>) {
     portNumber = resolvedPort,
     plugins = settings.plugins,
     hostAddress = settings.host,
-    defaultApiKey = resolvedApiKey,
+    defaultApiKey = runtime.resolvedApiKey,
     defaultBaseUrl = settings.defaultBaseUrl,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled,
@@ -81,8 +112,8 @@ fun main(arguments: Array<String>) {
   val server: GradumServer = createServerInstance(serverConfiguration)
 
   Runtime.getRuntime().addShutdownHook(Thread {
-    skillWatcher.close()
-    mcpManager.close()
+    runtime.skillWatcher.close()
+    runtime.mcpManager.close()
     server.stop(gracePeriodMillis = 3000, timeoutMillis = 5000)
     logger.info("Gradum Server has been shut down successfully")
   })
@@ -90,7 +121,7 @@ fun main(arguments: Array<String>) {
   try {
     server.start(wait = true)
   } catch (bindException: BindException) {
-    skillWatcher.close()
+    runtime.skillWatcher.close()
     logger.error(
       "Port $resolvedPort on ${settings.host} is already in use (${bindException.message}). " +
         "Stop that process or set another port / autoDetectPort in ~/.gradum/settings.json, then restart."
@@ -98,8 +129,17 @@ fun main(arguments: Array<String>) {
   }
 }
 
+private fun startAcp() {
+  val runtime = initRuntime()
+  AcpServer(runtime).runBlocking()
+  runtime.skillWatcher.close()
+  runtime.mcpManager.close()
+  logger.info("Gradum ACP server has been shut down")
+}
+
 private fun apiKeySourceLabel(settings: ServerSettings): String =
-  if (settings.apiKeyFile != null) "settings.json (apiKeyFile)" else "environment"
+  if (settings.apiKeyFile != null) "settings.json (apiKeyFile)"
+  else "environment"
 
 private fun printUsage() {
   println(
