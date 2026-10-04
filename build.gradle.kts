@@ -244,6 +244,10 @@ tasks.register("buildMinimalRuntime") {
   group = "distribution"
   description = "Build a minimal JVM runtime (jlink) containing only the server's required modules"
   dependsOn("buildFatJar")
+  // The module set is computed inside the action, so it cannot be declared as an
+  // input. Force a re-run: a stale runtime silently drops modules that are only
+  // loaded reflectively (e.g. jdk.zipfs used by SkillRegistry's jar scan).
+  outputs.upToDateWhen { false }
   outputs.dir(serverMinimalRuntimeDir)
   doLast {
     val javaHome: String = System.getProperty("java.home")

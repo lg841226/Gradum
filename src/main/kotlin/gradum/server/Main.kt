@@ -219,9 +219,13 @@ private fun abbreviatePath(path: String): String {
   val homeDirectory: String = System.getProperty("user.home") ?: return path
   if (!path.startsWith(prefix = homeDirectory)) return path
 
-  val relativePath: String = path.removePrefix(homeDirectory).trimStart('/')
-  val pathSegments = relativePath.split("/")
+  val relativeSegments: List<String> = path.removePrefix(homeDirectory)
+    .split('/', '\\')
+    .filter { it.isNotEmpty() }
 
-  return if (pathSegments.size >= 2) "~/${pathSegments.takeLast(n = 2).joinToString(separator = "/")}"
-  else "~/$relativePath"
+  return when {
+    relativeSegments.isEmpty() -> "~"
+    relativeSegments.size == 1 -> "~/${relativeSegments.first()}"
+    else -> "~/${relativeSegments.takeLast(n = 2).joinToString(separator = "/")}"
+  }
 }

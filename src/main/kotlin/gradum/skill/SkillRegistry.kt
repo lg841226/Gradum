@@ -170,12 +170,7 @@ object SkillRegistry : SkillStore {
     val discoveredClasses = mutableListOf<Class<*>>()
 
     try {
-      val jarPathString = jarUri.toString().removePrefix("jar:").removePrefix("file:")
-      val jarFilePath = jarPathString.substringBeforeLast(delimiter = "!")
-
-      FileSystems.newFileSystem(
-        Paths.get(jarFilePath), emptyMap<String, Nothing>()
-      ).use { fileSystem ->
+      FileSystems.newFileSystem(jarUri, emptyMap<String, Nothing>()).use { fileSystem ->
         val pathInJar = fileSystem.getPath(packagePath)
         Files.walk(pathInJar).use { paths ->
           paths.filter { it.toString().endsWith(suffix = ".class") }
@@ -190,7 +185,7 @@ object SkillRegistry : SkillStore {
         }
       }
     } catch (jarScanException: Exception) {
-      logger.debug("Failed to scan JAR for skills", jarScanException)
+      logger.warn("Failed to scan JAR for skills (${jarUri}): ${jarScanException.message}")
     }
 
     return discoveredClasses
