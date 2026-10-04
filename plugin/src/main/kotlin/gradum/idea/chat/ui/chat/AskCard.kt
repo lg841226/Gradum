@@ -165,8 +165,11 @@ fun AskCard(
 
     when (val prompt: AskPrompt = block.prompt) {
       is AskPrompt.Choices -> {
-        val defaultIndex: Int = prompt.choices.indexOfFirst { it.id == block.default }
-          .coerceAtLeast(0)
+        val defaultIndex: Int =
+          (prompt.choices.indexOfFirst { it.id == block.default }
+            .takeIf { index -> index >= 0 }
+            ?: prompt.choices.indexOfFirst { it.semantics == AskChoiceMeaning.REJECT })
+            .coerceAtLeast(0)
         var selectedIndex: Int by remember { mutableStateOf(defaultIndex) }
         val submit: (AskChoice) -> Unit = { option: AskChoice ->
           if (!responded) {
