@@ -28,3 +28,21 @@ enum class GradumEventType(val wireName: String) {
 }
 
 const val SUB_AGENT_EVENT_PREFIX: String = "sub_agent:"
+
+/** Payload key carrying an [ErrorScope.wireName] on an `ERROR` event. */
+const val ERROR_SCOPE_KEY: String = "scope"
+
+/**
+ * Where an `ERROR` event originated, so consumers can tell a recoverable
+ * per-tool failure apart from a turn-fatal one.
+ *
+ * [TOOL]: a single skill invocation failed. The agent loop continues and the
+ * model may retry, so consumers must not escalate it to a failed turn.
+ *
+ * [TURN]: the turn itself could not proceed (e.g. the LLM client errored); no
+ * final answer will be produced.
+ */
+enum class ErrorScope(val wireName: String) {
+  TOOL("tool"),
+  TURN("turn"),
+}

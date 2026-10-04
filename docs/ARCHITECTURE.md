@@ -448,7 +448,7 @@ flowchart TD
         - Call `skill.execute(convertedArguments, skillContext)` → `SkillResult`
         - Map to `Map { success, ...result fields or error }`
         - Emit a `tool_call` event: `{tool, alias, arguments, toolCallId, success, result}`
-        - If `success=false`: emit an `error` event: `{code, message, tool, toolCallId}`
+        - If `success=false`: emit an `error` event: `{code, message, tool, toolCallId, scope=tool}`
         - **History pruning**: `recordAndCompactHistory(result)` strips the skill's `historyVolatileKeys` from its older
           tool messages in-place and returns the current result to store
         - **Todo Reminder Injection**: Call `getTodoManagerInstance().getTaskReminder()`, and if not null, append the
@@ -552,7 +552,7 @@ consumes the stream.
 | `sub_agent:tool_call`   | Sub-agent tool call and result                | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
 | `sub_agent:error`       | Sub-agent error                               | `code`, `message`, `sessionId`                                                            |
 | `sub_agent:session_end` | Sub-agent session ended                       | `sessionId`, `elapsedSeconds`, `result`, `error`                                          |
-| `error`                 | Error (LLM or tool)                           | `code`, `message`, `source` (LLM) or `tool`+`toolCallId` (tool)                           |
+| `error`                 | Error (LLM or tool)                           | `code`, `message`, `scope` (`turn`/`tool`), `source` (turn) or `tool`+`toolCallId` (tool) |
 | `playback_start`        | Debug scenario started                        | `mode`, `scenario`, `steps`, `toolCalls`                                                  |
 | `tool_expect_mismatch`  | Debug scenario assertion failure              | `tool`, `index`, `expectSuccess`, `actualSuccess`, `result`, `errorCode`, `errorMessage`  |
 | `playback_end`          | Debug scenario finished                       | `scenario`, `executedCalls`, `mismatchCount`                                              |

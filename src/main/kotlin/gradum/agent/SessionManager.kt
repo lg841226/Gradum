@@ -4,6 +4,13 @@ import gradum.AgentConfiguration
 import gradum.Version
 
 /**
+ * [SessionManager.endReason] set when the user cancels the run. Every other
+ * abort reason (`tool_runaway`, `repetitive_loop`, ...) means the turn stopped
+ * because it could not produce a result.
+ */
+const val USER_ABORT_REASON: String = "user_abort"
+
+/**
  * Manages the lifecycle of an agent session.
  *
  * Tracks abort/complete state, emits `session_end` events, and provides

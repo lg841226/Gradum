@@ -1,9 +1,7 @@
 package gradum.acp
 
 import gradum.*
-import gradum.agent.Agent
-import gradum.agent.GradumEventType
-import gradum.agent.contextOutputDirectory
+import gradum.agent.*
 import gradum.mcp.McpServerConfig
 import gradum.mcp.jsonrpc.RpcError
 import gradum.mcp.jsonrpc.RpcResponse
@@ -241,8 +239,13 @@ internal suspend fun AcpServer.handleSessionPrompt(requestId: Long, params: Json
       }
     } else {
       if (eventType == GradumEventType.ERROR.wireName) {
-        eventData["message"]?.toString()?.takeIf { it.isNotBlank() }?.let { message ->
-          turnErrorMessage.compareAndSet(null, message)
+        // Only turn-fatal errors may fail the whole prompt. A per-tool failure
+        // is recoverable (the model can retry) and is already surfaced to the
+        // client as a failed tool_call_update, so it must not poison the turn.
+        if (eventData[ERROR_SCOPE_KEY] == ErrorScope.TURN.wireName) {
+          eventData["message"]?.toString()?.takeIf { it.isNotBlank() }?.let { message ->
+            turnErrorMessage.compareAndSet(null, message)
+          }
         }
       }
       val update: JsonObject? = mapGradumEventToAcpUpdate(sessionId, eventType, eventData)
@@ -272,8 +275,15 @@ internal suspend fun AcpServer.handleSessionPrompt(requestId: Long, params: Json
 
   sessionState.currentAgent = null
 
+  val endReason: String? = agent.getSessionEndReason()
+  val userCancelled: Boolean = agent.isSessionAborted() && endReason == USER_ABORT_REASON
+
   val failureMessage: String? = turnErrorMessage.get()
-  if (!agent.isSessionAborted() && failureMessage != null) {
+    ?: if (agent.isSessionAborted() && !userCancelled)
+      "Agent stopped without producing a result ($endReason)"
+    else null
+
+  if (!userCancelled && failureMessage != null) {
     logger.info("ACP session/prompt failed: sessionId=$sessionId message=$failureMessage")
     return RpcResponse(
       id = requestId,
@@ -282,7 +292,7 @@ internal suspend fun AcpServer.handleSessionPrompt(requestId: Long, params: Json
   }
 
   val stopReason: String =
-    if (agent.isSessionAborted()) "cancelled"
+    if (userCancelled) "cancelled"
     else "end_turn"
 
   return RpcResponse(

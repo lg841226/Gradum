@@ -213,7 +213,8 @@ class Agent(
           mapOf(
             "code" to ErrorCode.CLIENT_ERROR,
             "message" to error.trim(),
-            "source" to "${configuration.provider.name.lowercase()}_client"
+            "source" to "${configuration.provider.name.lowercase()}_client",
+            ERROR_SCOPE_KEY to ErrorScope.TURN.wireName
           )
         )
       }
@@ -278,7 +279,7 @@ class Agent(
 
   fun getSessionEndReason(): String? = sessionManager.endReason
 
-  fun abort(reason: String = "user_abort") {
+  fun abort(reason: String = USER_ABORT_REASON) {
     val tokenUsage = mapOf(
       "promptTokens" to activeClient.tokenUsage.promptTokens,
       "completionTokens" to activeClient.tokenUsage.completionTokens,
@@ -411,7 +412,8 @@ class Agent(
           mapOf(
             "code" to ErrorCode.INVALID_SCENARIO_XML.name,
             "message" to (scenarioException.message ?: "Failed to parse tool-call scenario"),
-            "source" to "debug_playback"
+            "source" to "debug_playback",
+            ERROR_SCOPE_KEY to ErrorScope.TURN.wireName
           )
         )
         return

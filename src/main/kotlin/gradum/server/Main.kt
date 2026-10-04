@@ -3,6 +3,7 @@ package gradum.server
 import gradum.BuildConfig
 import gradum.GradumRuntime
 import gradum.acp.AcpServer
+import gradum.logging.routeAcpLogsToFile
 import gradum.mcp.McpConnectionManager
 import gradum.mcp.McpToolCatalog
 import gradum.mcp.McpToolsSkill
@@ -73,18 +74,19 @@ private fun startHttp(arguments: Array<String>) {
   val runtime = initRuntime()
   val settings = runtime.settings
 
-  val resolvedPort: Int = if (settings.autoDetectPort) {
-    run {
-      val detectedPort = findAvailablePort(startPort = settings.port)
-      checkNotNull(detectedPort) {
-        "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+  val resolvedPort: Int =
+    if (settings.autoDetectPort) {
+      run {
+        val detectedPort = findAvailablePort(startPort = settings.port)
+        checkNotNull(detectedPort) {
+          "No available port in range ${settings.port} ~ ${settings.port + 10}; aborting server start"
+        }
+        logger.info("Using auto-detected port: $detectedPort")
+        detectedPort
       }
-      logger.info("Using auto-detected port: $detectedPort")
-      detectedPort
+    } else {
+      settings.port
     }
-  } else {
-    settings.port
-  }
 
   System.setProperty("gradum.server.port", resolvedPort.toString())
 
@@ -130,6 +132,7 @@ private fun startHttp(arguments: Array<String>) {
 }
 
 private fun startAcp() {
+  routeAcpLogsToFile()
   logger.info("Gradum ACP server is starting (stdio JSON-RPC)")
   val runtime = initRuntime()
   logger.info("Gradum ACP server has been started, awaiting client frames on stdin")
@@ -183,37 +186,67 @@ private fun printUsage() {
   )
 }
 
-private const val BANNER_BLUE = "\u001B[1;34m"
 private const val BANNER_RESET = "\u001B[0m"
-private const val BANNER_BLOCK = "\u2588"
-private const val BANNER_TL = "\u2554"
-private const val BANNER_TR = "\u2557"
-private const val BANNER_BL = "\u255A"
-private const val BANNER_BR = "\u255D"
-private const val BANNER_HORIZ = "\u2550"
-private const val BANNER_VERT = "\u2551"
 
+/** Start of the logo gradient, left edge (blue). */
+private val BANNER_GRADIENT_FROM: IntArray = intArrayOf(59, 130, 246)
+
+/** End of the logo gradient, right edge (violet). */
+private val BANNER_GRADIENT_TO: IntArray = intArrayOf(168, 85, 247)
+
+/** Block-glyph logo; [renderGradientBanner] paints the colors. */
+private val BANNER_ART: List<String> = listOf(
+  "   ██████  ██████    ██████  ██████   ██    ██ ██      ██",
+  "  ██       ██   ██  ██    ██ ██   ██  ██    ██ ███    ███",
+  "  ██       ██   ██  ██    ██ ██    ██ ██    ██ ██ ████ ██",
+  "  ██   ███ ██████   ████████ ██    ██ ██    ██ ██  ██  ██",
+  "  ██    ██ ██  ██   ██    ██ ██   ██  ██    ██ ██      ██",
+  "   ██████  ██   ██  ██    ██ ██████    ██████  ██      ██"
+)
+
+/** Prints the startup logo to stdout; HTTP mode only, since ACP stays silent. */
 private fun printStartupBanner() {
   val workDir: String = abbreviatePath(System.getProperty("user.dir") ?: "?")
 
-  println(
-    """
-      |
-      |
-      |$BANNER_BLUE   $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR  $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR $BANNER_BLOCK$BANNER_BLOCK$BANNER_TR   $BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR   $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_RESET
-      |$BANNER_BLUE  $BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_BR $BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT   $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_RESET
-      |$BANNER_BLUE  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT  $BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BR$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT   $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_RESET
-      |$BANNER_BLUE  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT   $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_BLOCK$BANNER_BLOCK$BANNER_TR$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_HORIZ$BANNER_HORIZ$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT   $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BL$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BR$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_RESET
-      |$BANNER_BLUE  $BANNER_BL$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BR$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT  $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BR$BANNER_BL$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_BLOCK$BANNER_TL$BANNER_BR$BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT $BANNER_BL$BANNER_HORIZ$BANNER_BR $BANNER_BLOCK$BANNER_BLOCK$BANNER_VERT$BANNER_RESET
-      |$BANNER_BLUE   $BANNER_BL$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_BR $BANNER_BL$BANNER_HORIZ$BANNER_BR  $BANNER_BL$BANNER_HORIZ$BANNER_BR$BANNER_BL$BANNER_HORIZ$BANNER_BR  $BANNER_BL$BANNER_HORIZ$BANNER_BR$BANNER_BL$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_BR  $BANNER_BL$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_HORIZ$BANNER_BR $BANNER_BL$BANNER_HORIZ$BANNER_BR     $BANNER_BL$BANNER_HORIZ$BANNER_BR$BANNER_RESET
-      |
-      |  Copyright (c) 2026 Gradum Authors, software version ${BuildConfig.version}
-      |
-      |  (Working Directory $workDir)
-      |
-    """.trimMargin()
-  )
+  println()
+  println()
+  println(renderGradientBanner(BANNER_ART))
+  println()
+  println("  Copyright (c) 2026 Gradum Authors, software version ${BuildConfig.version}")
+  println()
+  println("  (Working Directory $workDir)")
+  println()
 }
+
+/**
+ * Paints [art] with a left-to-right truecolor gradient so the logo fades from
+ * [BANNER_GRADIENT_FROM] to [BANNER_GRADIENT_TO] across the full width. Spaces
+ * are left uncolored so only the glyphs carry the gradient.
+ */
+private fun renderGradientBanner(art: List<String>): String {
+  val lastColumn: Int = (art.maxOf { line -> line.length } - 1).coerceAtLeast(1)
+
+  return art.joinToString(separator = "\n") { line ->
+    buildString {
+      line.forEachIndexed { column, glyph ->
+        if (glyph == ' ') append(' ')
+        else append(gradientColor(column.toFloat() / lastColumn)).append(glyph)
+      }
+      append(BANNER_RESET)
+    }
+  }
+}
+
+/** 24-bit ANSI foreground for [ratio] in `0f..1f` between the two brand stops. */
+private fun gradientColor(ratio: Float): String {
+  val red: Int = interpolateChannel(BANNER_GRADIENT_FROM[0], BANNER_GRADIENT_TO[0], ratio)
+  val green: Int = interpolateChannel(BANNER_GRADIENT_FROM[1], BANNER_GRADIENT_TO[1], ratio)
+  val blue: Int = interpolateChannel(BANNER_GRADIENT_FROM[2], BANNER_GRADIENT_TO[2], ratio)
+  return "\u001B[38;2;$red;$green;${blue}m"
+}
+
+private fun interpolateChannel(from: Int, to: Int, ratio: Float): Int =
+  (from + (to - from) * ratio).toInt().coerceIn(0, 255)
 
 private fun abbreviatePath(path: String): String {
   val homeDirectory: String = System.getProperty("user.home") ?: return path

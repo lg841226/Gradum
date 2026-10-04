@@ -313,7 +313,8 @@ class ToolExecutor(
             "tool" to functionName,
             "toolCallId" to processedCall.callIdentifier,
             "code" to (errorInfo["code"] ?: "EXECUTION_ERROR"),
-            "message" to (errorInfo["message"] ?: "Unknown error")
+            "message" to (errorInfo["message"] ?: "Unknown error"),
+            ERROR_SCOPE_KEY to ErrorScope.TOOL.wireName
           )
         )
       }
