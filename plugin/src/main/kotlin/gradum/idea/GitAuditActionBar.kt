@@ -11,7 +11,6 @@ import androidx.compose.ui.unit.dp
 import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.chat.ui.common.IconTooltipButton
 import gradum.idea.utils.GradumBundle.message
-import gradum.idea.utils.GradumIcons
 import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.ui.component.*
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -86,10 +85,12 @@ internal fun GitAuditActionBar(
         modifier = Modifier.iconButtonPadding()
       )
       IconTooltipButton(
-        tooltip = currentTooltip,
-        iconKey = if (isAllExpanded) GradumIcons.CollapseAll else GradumIcons.ExpandAll,
-        onClick = onToggleExpandAll,
         enabled = enabled,
+        tooltip = currentTooltip,
+        iconKey =
+          if (isAllExpanded) AllIconsKeys.Actions.Collapseall
+          else AllIconsKeys.Actions.Expandall,
+        onClick = onToggleExpandAll,
         contentDescription = currentTooltip,
         modifier = Modifier.iconButtonPadding()
       )

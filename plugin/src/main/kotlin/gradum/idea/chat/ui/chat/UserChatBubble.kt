@@ -172,8 +172,8 @@ fun UserChatBubble(
                     if (isExpanded) message("gradum.collapse")
                     else message("gradum.expand"),
                   key =
-                    if (isExpanded) GradumIcons.CollapseAll
-                    else GradumIcons.ExpandAll
+                    if (isExpanded) AllIconsKeys.Actions.Collapseall
+                    else AllIconsKeys.Actions.Expandall
                 )
               }
             }

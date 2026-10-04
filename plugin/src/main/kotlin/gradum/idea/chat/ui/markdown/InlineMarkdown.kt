@@ -34,7 +34,6 @@ import com.hrm.latex.renderer.model.LatexConfig
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
 import gradum.idea.settings.LocalParagraphFontSize
-import gradum.idea.utils.GradumIcons
 import kotlinx.coroutines.delay
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -44,6 +43,7 @@ import org.commonmark.parser.Parser
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import org.jetbrains.jewel.ui.theme.linkStyle
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -129,7 +129,7 @@ fun rememberInlineMarkdownRender(plainText: String, thinkingMode: Boolean = fals
   if (plainText.isBlank()) return InlineMarkdownRenderResult(render = null, bailReason = null)
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  val codeColor: Color = JewelTheme.globalColors.text.info
+  val codeColor: Color = rememberInlineCodeTextColor(thinkingMode = thinkingMode)
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val latexMeasurer: LatexMeasurerState = rememberLatexMeasurer()
   val density: Density = androidx.compose.ui.platform.LocalDensity.current
@@ -161,10 +161,11 @@ fun rememberInlineMarkdownRender(plainText: String, thinkingMode: Boolean = fals
 fun rememberInlineMarkdownRenderFromNode(parentNode: Node): InlineMarkdownRenderResult {
   val imageAltColor: Color = resolveImageAltColor()
   val fontSizeSp: Float = resolveEditorFontSizeSp()
-  val codeColor: Color = JewelTheme.globalColors.text.info
+  val thinkingMode: Boolean = LocalThinkingMode.current
+  val codeColor: Color = rememberInlineCodeTextColor(thinkingMode = thinkingMode)
   val linkColor: Color = JewelTheme.linkStyle.colors.content
   val editorFontFamily: FontFamily = JewelTheme.editorTextStyle.fontFamily ?: FontFamily.Default
-  return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily, codeColor) {
+  return remember(parentNode, linkColor, imageAltColor, fontSizeSp, editorFontFamily, thinkingMode, codeColor) {
     parseInlineNodes(
       codeColor = codeColor,
       linkColor = linkColor,
@@ -556,8 +557,8 @@ private class RenderState(
     )
     inlineContent[placeholder] = InlineTextContent(placeholder = placeholderShape) {
       Icon(
-        key = GradumIcons.Image,
         contentDescription = null,
+        key = AllIconsKeys.FileTypes.Image,
         modifier = Modifier.size(iconSize.dp)
       )
     }

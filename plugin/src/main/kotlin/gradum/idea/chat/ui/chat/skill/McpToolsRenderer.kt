@@ -18,6 +18,7 @@ import gradum.idea.chat.ui.chat.skill.spi.ToolCallContent
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderContext
 import gradum.idea.chat.ui.chat.skill.spi.ToolCallRenderer
 import gradum.idea.chat.ui.chat.skill.spi.string
+import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
 import gradum.idea.utils.GradumIcons
@@ -119,11 +120,10 @@ class McpToolsRenderer : ToolCallRenderer {
           )
         }
         Text(
-          maxLines = 1,
           style = bodyStyle,
           color = disabledColor,
           overflow = TextOverflow.Ellipsis,
-          text = message(key = LABEL_KEY_DISPLAY, total)
+          text = message(key = displayCountKey(total = total), total)
         )
         Icon(
           key =
@@ -140,6 +140,10 @@ class McpToolsRenderer : ToolCallRenderer {
             .fillMaxWidth()
             .then(
               if (capHeight) Modifier.heightIn(max = MCP_LIST_MAX_HEIGHT_DP)
+              else Modifier
+            )
+            .then(
+              if (capHeight) Modifier.verticalEdgeFade(fadeLength = MCP_LIST_EDGE_FADE_DP)
               else Modifier
             )
         ) {
@@ -233,11 +237,13 @@ class McpToolsRenderer : ToolCallRenderer {
     const val ALIAS: String = "MCP Tools"
     const val LABEL_KEY: String = "gradum.tool.mcp"
     const val LABEL_KEY_DISPLAY: String = "gradum.tool.mcp.tools.display"
+    const val LABEL_KEY_DISPLAY_ONE: String = "gradum.tool.mcp.tools.display.one"
 
-    /** Height cap for the expanded tool list; taller lists scroll with a native scrollbar. */
+    fun displayCountKey(total: Int): String =
+      if (total == 1) LABEL_KEY_DISPLAY_ONE else LABEL_KEY_DISPLAY
+
+    val MCP_LIST_EDGE_FADE_DP: Dp = 28.dp
     val MCP_LIST_MAX_HEIGHT_DP: Dp = 560.dp
-
-    /** The height cap and scrollbar only engage once the tool count exceeds this. */
     const val MCP_LIST_SCROLL_THRESHOLD: Int = 20
   }
 }

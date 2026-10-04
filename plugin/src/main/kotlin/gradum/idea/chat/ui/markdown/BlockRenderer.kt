@@ -804,7 +804,7 @@ fun RenderInlineTextWithChips(
     if (colorValue == Color.Unspecified) JewelTheme.contentColor else colorValue
   }
   val linkColor: Color = JewelTheme.linkStyle.colors.content
-  val codeColor: Color = JewelTheme.globalColors.text.info
+  val codeColor: Color = textColor
   val imageAltColor: Color = textColor.copy(alpha = MarkdownStyle.Image.ALT_COLOR_ALPHA)
   val parseOutcome: InlineMarkdownRenderResult = remember(key1 = text) {
     parseInlineMarkdown(

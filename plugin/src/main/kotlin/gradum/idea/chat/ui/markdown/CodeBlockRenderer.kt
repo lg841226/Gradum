@@ -430,7 +430,7 @@ private fun CodeBlockToolbar(
     ) {
       IconButton(onClick = onSoftWrapToggle) {
         Icon(
-          key = GradumIcons.SoftWarp,
+          key = AllIconsKeys.Actions.ToggleSoftWrap,
           contentDescription = message("gradum.soft.wrap")
         )
       }

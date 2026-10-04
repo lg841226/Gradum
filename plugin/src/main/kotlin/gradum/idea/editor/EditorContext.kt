@@ -7,6 +7,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import gradum.idea.chat.editor.GradumChatVirtualFile
 import gradum.idea.utils.GradumIcons
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
@@ -33,7 +34,7 @@ fun getLanguageIconKey(extension: String?): IconKey? {
     "json" -> AllIconsKeys.FileTypes.Json
     "yaml", "yml" -> AllIconsKeys.FileTypes.Yaml
     "txt" -> AllIconsKeys.FileTypes.Text
-    "md" -> GradumIcons.Markdown
+    "md" -> AllIconsKeys.FileTypes.Markdown
     "kt", "kts" -> GradumIcons.Kotlin
     "py" -> GradumIcons.Python
     "http" -> AllIconsKeys.FileTypes.Http
@@ -42,7 +43,7 @@ fun getLanguageIconKey(extension: String?): IconKey? {
     "python" -> GradumIcons.Python
     "javascript" -> AllIconsKeys.FileTypes.JavaScript
     "typescript" -> GradumIcons.TypeScript
-    "markdown" -> GradumIcons.Markdown
+    "markdown" -> AllIconsKeys.FileTypes.Markdown
     "bash", "shell", "sh", "zsh" -> GradumIcons.Ran
     // "go" -> AllIconsKeys.FileTypes.Go
     // "rs" -> AllIconsKeys.FileTypes.Rust
@@ -84,25 +85,23 @@ object EditorUtils {
   fun getEditorContext(project: Project): EditorContext {
     return ReadAction.compute<EditorContext, RuntimeException> {
       val fileEditorManager = FileEditorManager.getInstance(project)
-      val allFiles = fileEditorManager.openFiles.toList()
-      val currentFile = fileEditorManager.selectedFiles.firstOrNull()
+      // The chat's own pseudo-file is an editor tab once the chat lives in
+      // one; it must never show up as attachable context (the chat would
+      // upload itself), and a selected chat tab means no real file is focused.
+      val allFiles: List<VirtualFile> =
+        fileEditorManager.openFiles.filterNot { openFile -> openFile is GradumChatVirtualFile }
+      val currentFile: VirtualFile? = fileEditorManager.selectedFiles
+        .firstOrNull()
+        ?.takeIf { selectedFile -> selectedFile !is GradumChatVirtualFile }
       val projectDir = project.basePath?.let {
         LocalFileSystem.getInstance().findFileByPath(it)
       }
 
-      if (currentFile != null) {
-        EditorContext(
-          projectDir = projectDir,
-          currentFile = currentFile,
-          allOpenFiles = allFiles
-        )
-      } else {
-        EditorContext(
-          projectDir = projectDir,
-          currentFile = null,
-          allOpenFiles = allFiles
-        )
-      }
+      EditorContext(
+        projectDir = projectDir,
+        currentFile = currentFile,
+        allOpenFiles = allFiles
+      )
     }
   }
 

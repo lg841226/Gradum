@@ -11,7 +11,6 @@ object GradumIcons {
   val Dislike = PathIconKey("/icons/dislike/dislike.svg", GradumIcons::class.java)
   val DislikeSelected = PathIconKey("/icons/dislike-selected/dislike-selected.svg", GradumIcons::class.java)
   val Search = PathIconKey("/icons/search/search.svg", GradumIcons::class.java)
-  val Markdown = PathIconKey("/icons/markdown/markdown.svg", GradumIcons::class.java)
   val Table = PathIconKey("/icons/table/table.svg", GradumIcons::class.java)
   val Kotlin = PathIconKey("/icons/file-type/kotlin/kotlin.svg", GradumIcons::class.java)
   val Python = PathIconKey("/icons/file-type/python/python.svg", GradumIcons::class.java)
@@ -29,7 +28,6 @@ object GradumIcons {
   val Ran = PathIconKey("/icons/cmd/cmd.svg", GradumIcons::class.java)
   val Explore = PathIconKey("/icons/explore/explore.svg", GradumIcons::class.java)
   val Build = PathIconKey("/icons/build/build.svg", GradumIcons::class.java)
-  val Save = PathIconKey("/icons/save/save.svg", GradumIcons::class.java)
   val ScrollDown = PathIconKey("icons/scroll-down/scroll-down.svg", GradumIcons::class.java)
   val ScrollUp = PathIconKey("icons/scroll-up/scroll-up.svg", GradumIcons::class.java)
   val ProviderAlibaba = PathIconKey("/icons/model-provider/alibaba.svg", GradumIcons::class.java)
@@ -44,14 +42,10 @@ object GradumIcons {
   val ProviderXiaomi = PathIconKey("/icons/model-provider/xiaomi.svg", GradumIcons::class.java)
   val ProviderZhipuai = PathIconKey("/icons/model-provider/zhipuai.svg", GradumIcons::class.java)
   val ColorLogo = PathIconKey("/icons/logo/color_logo.svg", GradumIcons::class.java)
-  val SoftWarp = PathIconKey("/icons/soft-wrap/softwrap.svg", GradumIcons::class.java)
-  val CollapseAll = PathIconKey("/icons/collapse-all/collapse-all.svg", GradumIcons::class.java)
-  val ExpandAll = PathIconKey("/icons/expand-all/expand-all.svg", GradumIcons::class.java)
   val BulletList = PathIconKey("/icons/bullet-list/bullet-list.svg", GradumIcons::class.java)
   val Chat = PathIconKey("/icons/chat-mode/chat-mode.svg", GradumIcons::class.java)
   val Web = PathIconKey("/icons/web/web.svg", GradumIcons::class.java)
   val Github = PathIconKey("/icons/github/github.svg", GradumIcons::class.java)
-
   val Mcp = PathIconKey("/icons/mcp/mcp.svg", GradumIcons::class.java)
 
   private val PROVIDER_KEYWORD_MAP = mapOf(

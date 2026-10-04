@@ -110,7 +110,7 @@ fun AddContextPopup(
           ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
               Icon(
-                key = GradumIcons.Image,
+                key = AllIconsKeys.FileTypes.Image,
                 contentDescription = message("gradum.add.popup.upload.image"),
                 modifier = Modifier.size(GradumSpacing.lrl)
               )

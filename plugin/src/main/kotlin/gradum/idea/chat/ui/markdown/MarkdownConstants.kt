@@ -15,7 +15,7 @@ internal object MarkdownStyle {
     val PADDING_VERTICAL: Dp = GradumSpacing.xs
     val PADDING_HORIZONTAL: Dp = GradumSpacing.sm
     val CHIP_PADDING_HORIZONTAL: Dp = 1.dp
-    const val BACKGROUND_ALPHA: Float = 0.16f
+    const val BACKGROUND_ALPHA: Float = 0.10f
     const val CHIP_BORDER_ALPHA: Float = 0.3f
     const val CHIP_BASELINE_RATIO: Float = 0.75f
     const val PLACEHOLDER_PADDING_SP: Float = 10f
@@ -62,6 +62,25 @@ internal object MarkdownStyle {
       )
     const val LIST_CHILD_INDENT_COLUMNS: Int = 4
     const val BODY_LINE_HEIGHT_MULTIPLIER: Float = 1.3f
+  }
+
+  /** Paragraph and heading typography. */
+  object Typography {
+    const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
+    const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
+    const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
+    const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
+    const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
+    const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
+    const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f
+    const val HEADING_H4_SIZE_MULTIPLIER: Float = 1.1f
+    const val HEADING_H5_SIZE_MULTIPLIER: Float = 1.0f
+    const val HEADING_H6_SIZE_MULTIPLIER: Float = 1.0f
+  }
+
+  /** Block-quote rendering. */
+  object BlockQuote {
+    val LINE_WIDTH: Dp = 3.dp
   }
 
   /** Table rendering. */

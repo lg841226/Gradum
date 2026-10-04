@@ -38,19 +38,6 @@ import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createListSty
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createOrderedListStyling
 import org.jetbrains.jewel.intui.markdown.bridge.styling.create as createUnorderedListStyling
 
-private const val BLOCKQUOTE_LINE_WIDTH_DP: Float = 3f
-private const val BODY_FONT_SIZE_FALLBACK_SP: Float = 13f
-
-private const val HEADING_H1_SIZE_MULTIPLIER: Float = 1.6f
-private const val HEADING_H2_SIZE_MULTIPLIER: Float = 1.4f
-private const val HEADING_H3_SIZE_MULTIPLIER: Float = 1.2f
-private const val HEADING_H4_SIZE_MULTIPLIER: Float = 1.1f
-private const val HEADING_H5_SIZE_MULTIPLIER: Float = 1.0f
-private const val HEADING_H6_SIZE_MULTIPLIER: Float = 1.0f
-private const val DEFAULT_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
-private const val TITLE_LINE_HEIGHT_MULTIPLIER: Float = 1.25f
-private const val THINKING_LINE_HEIGHT_MULTIPLIER: Float = 1.5f
-
 /**
  * Padding applied to every heading block (H1–H6).
  *
@@ -95,13 +82,25 @@ fun rememberGradumParagraphTextStyle(): TextStyle {
     configuredFontSize.value
   } else {
     (labelTextStyle.fontSize.value.takeIf { it > 0f }
-      ?: BODY_FONT_SIZE_FALLBACK_SP) + 1f
+      ?: MarkdownStyle.Typography.BODY_FONT_SIZE_FALLBACK_SP) + 1f
   }
   val resolvedTextStyle: TextStyle = labelTextStyle.copy(
     fontSize = fontSizeValue.sp,
-    lineHeight = (fontSizeValue * DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
+    lineHeight = (fontSizeValue * MarkdownStyle.Typography.DEFAULT_LINE_HEIGHT_MULTIPLIER).sp
   )
   return resolvedTextStyle
+}
+
+/**
+ * Foreground color for inline code chips. Uses the default body text color
+ * (chips read as regular text, not muted) and collapses to the same muted
+ * gray as every other inline color in thinking mode.
+ */
+@Composable
+internal fun rememberInlineCodeTextColor(thinkingMode: Boolean): Color {
+  if (thinkingMode) return LocalGlobalColors.current.text.info
+  val bodyColor: Color = LocalMarkdownBodyTextStyle.current?.color ?: JewelTheme.contentColor
+  return if (bodyColor == Color.Unspecified) JewelTheme.contentColor else bodyColor
 }
 
 /**
@@ -123,7 +122,7 @@ internal fun LinkColors.withContent(newContent: Color): LinkColors = LinkColors(
 
 /**
  * Build an [InlinesStyling] for the [MarkdownStyling] used by
- * [BlockRenderer]'s non-prose block rendering. Link colors are
+ * BlockRenderer's non-prose block rendering. Link colors are
  * pulled directly from [linkColors]: the official Jewel API
  * already provides 6 scanState-aware Color fields (`content` /
  * `contentDisabled` / `contentFocused` / `contentHovered` /
@@ -175,7 +174,7 @@ fun rememberBadgeBlueColor(): Color =
 /**
  * Creates a [MarkdownStyling] customized with Gradum-specific colors and typography.
  *
- * @param thinkingMode When `true`, all colors collapse to muted gray for streaming reasoning blocks.
+ * thinkingMode When `true`, all colors collapse to muted gray for streaming reasoning blocks.
  */
 @Suppress("UnstableApiUsage")
 @OptIn(ExperimentalJewelApi::class)
@@ -198,26 +197,27 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
 
   val thinkingGray: Color = globalColors.text.info
   val inlineTint: Color = thinkingGray
+  val inlineCodeTextColor: Color = rememberInlineCodeTextColor(thinkingMode = thinkingMode)
   val inlineCodeTextStyle: TextStyle = editorTextStyle.copy(
-    color = inlineTint,
+    color = inlineCodeTextColor,
     background = inlineTint.copy(alpha = MarkdownStyle.InlineCode.BACKGROUND_ALPHA),
-    lineHeight = editorTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER
+    lineHeight = editorTextStyle.fontSize * MarkdownStyle.Typography.THINKING_LINE_HEIGHT_MULTIPLIER
   )
 
   val paragraphTextStyle: TextStyle = if (thinkingMode) {
     bodyTextStyle.copy(
-      lineHeight = bodyTextStyle.fontSize * THINKING_LINE_HEIGHT_MULTIPLIER,
+      lineHeight = bodyTextStyle.fontSize * MarkdownStyle.Typography.THINKING_LINE_HEIGHT_MULTIPLIER,
       color = thinkingGray
     )
   } else {
     bodyTextStyle.copy(
-      lineHeight = bodyTextStyle.fontSize * DEFAULT_LINE_HEIGHT_MULTIPLIER
+      lineHeight = bodyTextStyle.fontSize * MarkdownStyle.Typography.DEFAULT_LINE_HEIGHT_MULTIPLIER
     )
   }
 
   return remember(
     globalColors, editorTextStyle, linkStyle,
-    inlineTint, paragraphTextStyle, thinkingMode, codeBlockTextStyle
+    inlineTint, inlineCodeTextColor, paragraphTextStyle, thinkingMode, codeBlockTextStyle
   ) {
     val chatLinkColors: LinkColors =
       if (thinkingMode)
@@ -233,7 +233,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
 
     fun headingStyle(fontSizeMultiplier: Float, fontWeight: FontWeight, italic: Boolean = false): TextStyle {
       val headingFontSize: TextUnit = paragraphTextStyle.fontSize * fontSizeMultiplier
-      val headingLineHeight: TextUnit = headingFontSize * TITLE_LINE_HEIGHT_MULTIPLIER
+      val headingLineHeight: TextUnit = headingFontSize * MarkdownStyle.Typography.TITLE_LINE_HEIGHT_MULTIPLIER
       return paragraphTextStyle.copy(
         fontWeight = fontWeight,
         fontSize = headingFontSize,
@@ -255,12 +255,12 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       )
     }
 
-    val h1Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H1_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h2Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H2_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h3Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
-    val h4Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H4_SIZE_MULTIPLIER, FontWeight.Medium)
-    val h5Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
-    val h6Style: TextStyle = headingStyle(fontSizeMultiplier = HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
+    val h1Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H1_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h2Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H2_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h3Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H3_SIZE_MULTIPLIER, FontWeight.SemiBold)
+    val h4Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H4_SIZE_MULTIPLIER, FontWeight.Medium)
+    val h5Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H5_SIZE_MULTIPLIER, FontWeight.Medium)
+    val h6Style: TextStyle = headingStyle(fontSizeMultiplier = MarkdownStyle.Typography.HEADING_H6_SIZE_MULTIPLIER, FontWeight.Medium, italic = true)
 
     val numberStyle: TextStyle = paragraphTextStyle.copy(
       color =
@@ -291,7 +291,7 @@ fun rememberGradumMarkdownStyling(): MarkdownStyling {
       strokeCap = StrokeCap.Round,
       lineColor = blockQuoteLineColor,
       textColor = blockQuoteTextColor,
-      lineWidth = BLOCKQUOTE_LINE_WIDTH_DP.dp
+      lineWidth = MarkdownStyle.BlockQuote.LINE_WIDTH
     )
 
     MarkdownStyling.createCodeStyling(
