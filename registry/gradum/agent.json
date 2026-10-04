@@ -1,0 +1,39 @@
+{
+  "id": "gradum",
+  "name": "Gradum",
+  "version": "1.0.2",
+  "description": "Local-first coding agent that runs on your machine and speaks ACP to your editor.",
+  "repository": "https://github.com/lg841226/Gradum",
+  "authors": ["Ge Wangyang"],
+  "license": "MIT",
+  "icon": "icon.svg",
+  "distribution": {
+    "binary": {
+      "darwin-aarch64": {
+        "archive": "https://github.com/lg841226/Gradum/releases/latest/download/gradum-darwin-arm64.zip",
+        "cmd": "GradumServer.app/Contents/MacOS/GradumServerBin",
+        "args": ["acp"]
+      },
+      "darwin-x86_64": {
+        "archive": "https://github.com/lg841226/Gradum/releases/latest/download/gradum-darwin-x64.zip",
+        "cmd": "GradumServer.app/Contents/MacOS/GradumServerBin",
+        "args": ["acp"]
+      },
+      "linux-aarch64": {
+        "archive": "https://github.com/lg841226/Gradum/releases/latest/download/gradum-linux-arm64.zip",
+        "cmd": "GradumServer/bin/GradumServer",
+        "args": ["acp"]
+      },
+      "linux-x86_64": {
+        "archive": "https://github.com/lg841226/Gradum/releases/latest/download/gradum-linux-x64.zip",
+        "cmd": "GradumServer/bin/GradumServer",
+        "args": ["acp"]
+      },
+      "windows-x86_64": {
+        "archive": "https://github.com/lg841226/Gradum/releases/latest/download/gradum-windows-x64.zip",
+        "cmd": "GradumServer/GradumServer.exe",
+        "args": ["acp"]
+      }
+    }
+  }
+}

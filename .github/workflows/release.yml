@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-aarch64, runner: macos-14,         archive: gradum-darwin-arm64.zip }
+          - { target: darwin-x86_64,  runner: macos-13,         archive: gradum-darwin-x64.zip }
+          - { target: linux-x86_64,   runner: ubuntu-latest,    archive: gradum-linux-x64.zip }
+          - { target: linux-aarch64,  runner: ubuntu-24.04-arm, archive: gradum-linux-arm64.zip }
+          - { target: windows-x86_64, runner: windows-latest,   archive: gradum-windows-x64.zip }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # jpackage cannot cross-compile: each runner builds the self-contained
+      # app image (bundled minimal JRE) for its own OS/arch only.
+      - name: Build self-contained app image
+        shell: bash
+        run: ./gradlew serverPackage --console=plain -Pgradum.skipPlugin
+
+      - name: Archive (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent build/gradum-server/GradumServer.app "${{ matrix.archive }}"
+
+      - name: Archive (Linux)
+        if: runner.os == 'Linux'
+        working-directory: build/gradum-server
+        run: zip -r "../../${{ matrix.archive }}" GradumServer
+
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path build/gradum-server/GradumServer -DestinationPath "${{ matrix.archive }}"
+
+      - name: Attach archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.archive }}
