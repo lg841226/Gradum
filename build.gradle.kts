@@ -251,19 +251,24 @@ tasks.register("buildMinimalRuntime") {
       runAndCapture(
         listOf("$javaHome/bin/jdeps", "--ignore-missing-deps", "--print-module-deps", serverFatJarFile.absolutePath)
       ).replace(Regex("\\s"), "")
+    // jdeps misses service-provider modules loaded reflectively: SkillRegistry
+    // opens the fat jar via FileSystems.newFileSystem, which needs jdk.zipfs.
+    // Without it the classpath scan silently finds no skills in the packaged app.
+    val requiredModules: String =
+      if ("jdk.zipfs" in modules.split(",")) modules else "$modules,jdk.zipfs"
     serverMinimalRuntimeDir.deleteRecursively()
     runAndCapture(
       listOf(
         "$javaHome/bin/jlink",
         "--module-path", "$javaHome/jmods",
-        "--add-modules", modules,
+        "--add-modules", requiredModules,
         "--strip-debug", "--no-header-files", "--no-man-pages",
         "--compress", "zip-6",
         "--output", serverMinimalRuntimeDir.absolutePath
       )
     )
     serverMinimalRuntimeDir.resolve("lib/ct.sym").takeIf { ctSym -> ctSym.isFile }?.delete()
-    logger.lifecycle("Built minimal runtime: $modules -> ${serverMinimalRuntimeDir.absolutePath}")
+    logger.lifecycle("Built minimal runtime: $requiredModules -> ${serverMinimalRuntimeDir.absolutePath}")
   }
 }
 
@@ -300,6 +305,8 @@ tasks.register("serverPackage", Exec::class.java) {
   doFirst {
     stagingDir.mkdirs()
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
+
+    destDir.deleteRecursively()
 
     val osName: String = System.getProperty("os.name").lowercase()
     val jpackageVersion: String =
