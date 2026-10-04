@@ -8,7 +8,7 @@ package gradum;
  */
 public final class Version {
 
-    public static final String GRADUM_VERSION = "1.0.2-experimental";
+    public static final String GRADUM_VERSION = "1.0.2";
 
     private Version() {
     }

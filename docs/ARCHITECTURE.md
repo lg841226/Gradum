@@ -6,7 +6,7 @@
 
 | Field              | Value                                                                        |
 |--------------------|------------------------------------------------------------------------------|
-| **Version**        | 1.0.2-experimental                                                           |
+| **Version**        | 1.0.2                                                                        |
 | **Status**         | Active Development                                                           |
 | **Language**       | Kotlin 2.3.0 (JVM 21)                                                        |
 | **HTTP Framework** | Ktor 3.0.3 + Netty                                                           |
@@ -1837,7 +1837,7 @@ plugin (IntelliJ Plugin)
 | Compose for Desktop        | bundled            | UI framework                   |
 | Jewel                      | bundled            | IntelliJ-themed UI components  |
 | kotlinx-serialization-json | 1.7.3              | JSON parsing for API responses |
-| Gradum Server (runtime)    | 1.0.2-experimental | AI agent backend (HTTP only)   |
+| Gradum Server (runtime)    | 1.0.2              | AI agent backend (HTTP only)   |
 
 ### 8.6 Git Analysis Tool Window Subsystem
 

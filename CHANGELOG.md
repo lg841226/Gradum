@@ -2,10 +2,10 @@
 
 All notable changes to Gradum are tracked here, roughly following
 [Keep a Changelog](https://keepachangelog.com/). The version number stays at
-`1.0.2-experimental` while the project is still maturing; see the README for
+`1.0.2` while the project is still maturing; see the README for
 how to download the packaged distributions.
 
-## [1.0.2-experimental] - 2026-09-25
+## [1.0.2] - 2026-09-25
 
 Command authorization and security-model rework.
 

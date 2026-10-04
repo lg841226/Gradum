@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "com.gradum"
-version = providers.gradleProperty("gradum.version").getOrElse("1.0.2-experimental")
+version = providers.gradleProperty("gradum.version").getOrElse("1.0.2")
 
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   description = "Generate a BuildConfig.kt that exposes the project version at compile time"

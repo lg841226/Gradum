@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "1.0.2-experimental"
+version = "1.0.2"
 
 val gitStatsVersion: String = "1.1.0"
 
