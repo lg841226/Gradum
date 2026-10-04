@@ -7,36 +7,35 @@
   "authors": ["Ge Wangyang"],
   "license": "MIT",
   "license_url": "https://github.com/lg841226/Gradum/blob/master/LICENSE",
-  "icon": "icon.svg",
   "distribution": {
     "binary": {
       "darwin-aarch64": {
         "archive": "https://github.com/lg841226/Gradum/releases/download/v1.0.2/gradum-darwin-arm64.zip",
-        "sha256": "f0b7c2e54feb5cdd009fd2de15789050f1c97d15d2e55a868c26ec2c117e57ae",
+        "sha256": "d70fd3e5556199ad54d50a363e80018c7203a0eefd8882711eb14017bb060d94",
         "cmd": "GradumServer.app/Contents/MacOS/GradumServerBin",
         "args": ["acp"]
       },
       "darwin-x86_64": {
         "archive": "https://github.com/lg841226/Gradum/releases/download/v1.0.2/gradum-darwin-x64.zip",
-        "sha256": "2cb1eec4f888f656829f8ba1f8313c0ac776f6d413799c5d4b72c52d1a8d5934",
+        "sha256": "ad4a41509719024f740e956aa4eb94545c79436ada7fd95eb733a86497deab55",
         "cmd": "GradumServer.app/Contents/MacOS/GradumServerBin",
         "args": ["acp"]
       },
       "linux-aarch64": {
         "archive": "https://github.com/lg841226/Gradum/releases/download/v1.0.2/gradum-linux-arm64.zip",
-        "sha256": "b2e54d2ed3c3f31f7649fef29eab501e5ab88285ad865a71439d8232d47a4658",
+        "sha256": "15caaab5ee28ecb790a64a428729278e8fc47eaba7f53ece5538822dc7fcfdca",
         "cmd": "GradumServer/bin/GradumServer",
         "args": ["acp"]
       },
       "linux-x86_64": {
         "archive": "https://github.com/lg841226/Gradum/releases/download/v1.0.2/gradum-linux-x64.zip",
-        "sha256": "a491014ec87b131cdebd5ec81162689cd2275070b805aeea01482ed17188df8d",
+        "sha256": "775d50c05b0fc10cfd4fbfa51cdc62ba594ef7df78a3dce5e848bf17efe94711",
         "cmd": "GradumServer/bin/GradumServer",
         "args": ["acp"]
       },
       "windows-x86_64": {
         "archive": "https://github.com/lg841226/Gradum/releases/download/v1.0.2/gradum-windows-x64.zip",
-        "sha256": "8c9c2bdbd949e1f06249956b0763acd44f496c131eaf93fabaa2e2aef37dfa82",
+        "sha256": "bb688bcd97684671163b6b33b9921cf6605cee64c78bb83d7d36a2be0f1d1988",
         "cmd": "GradumServer/GradumServer.exe",
         "args": ["acp"]
       }
