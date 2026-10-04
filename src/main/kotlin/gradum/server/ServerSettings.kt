@@ -353,7 +353,7 @@ object ServerSettingsStore {
     val defaultConfig: CommandFilterConfig = CommandFilterConfig.DEFAULT
     var resolvedProtectedPaths: ProtectedPathsConfig = defaultConfig.protectedPaths
 
-    warnUnknownKeys(sectionRaw, COMMAND_FILTER_KEYS, "commandFilter", issues)
+    warnUnknownKeys(sectionRaw, COMMAND_FILTER_KEYS + RETIRED_COMMAND_FILTER_KEYS, "commandFilter", issues)
 
     val protectedSectionRaw: Any? = sectionRaw["protectedPaths"]
     if (protectedSectionRaw != null) {
@@ -476,6 +476,15 @@ object ServerSettingsStore {
   }
 
   private val COMMAND_FILTER_KEYS: Set<String> = setOf("blockedExecutables", "protectedPaths")
+
+  /**
+   * Properties that earlier releases wrote into `settings.json` but that the
+   * current code no longer reads. An existing file released before the upgrade
+   * still carries them, and [warnUnknownKeys] would flag them as typos on every
+   * startup. They are accepted and ignored instead, so an old file loads clean.
+   */
+  private val RETIRED_COMMAND_FILTER_KEYS: Set<String> = setOf("readOnlyAllowedExecutables")
+
   private val PROTECTED_PATHS_KEYS: Set<String> =
     setOf("systemPrefixes", "protectedHomeSubdirectories", "safePathPrefixes", "exactProtectedPaths")
 
