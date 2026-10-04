@@ -16,7 +16,7 @@ import java.util.*
  *         item("always", Choice.Meaning.ALLOW_ALWAYS)
  *         item("no",     Choice.Meaning.REJECT)
  *     }
- *     default = "no"
+ *     default = Choice.Meaning.REJECT
  * }
  * ```
  *

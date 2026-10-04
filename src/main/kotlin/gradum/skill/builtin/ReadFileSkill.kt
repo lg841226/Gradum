@@ -103,7 +103,7 @@ class ReadFileSkill : Skill() {
               item("always", Choice.Meaning.ALLOW_ALWAYS)
               item("no", Choice.Meaning.REJECT)
             }
-            default = "no"
+            default = Choice.Meaning.REJECT
           }
         val allowedToRead: Boolean = when (pathDecision) {
           is AskResult.Case ->

@@ -13,7 +13,23 @@ import gradum.skill.L10nText
  */
 class AskBuilder {
 
-  var default: String? = null
+  /**
+   * Choice to pre-select on a choices-flavor card, expressed as the stable
+   * semantic [Choice.Meaning] instead of a free id: a typo cannot compile,
+   * and [validate] rejects a meaning the card does not offer. The old string
+   * form shipped any literal to the wire, and the card silently fell back to
+   * index 0 — the first choice, which is the ALLOW option on every
+   * permission card.
+   */
+  var default: Choice.Meaning? = null
+
+  /**
+   * Initial text for an input-flavor card. Both flavors serialize to the
+   * wire `default` field but mean different things (choice id vs. free
+   * text), so they are separate properties here.
+   */
+  var prefill: String? = null
+
   var title: L10nText? = null
   var details: L10nText? = null
 
@@ -43,6 +59,18 @@ class AskBuilder {
     require(title != null) {
       "ask_interaction requires a title"
     }
+    require(default == null || choiceItems.isNotEmpty()) {
+      "ask_interaction default (choice pre-select) requires choices { ... }"
+    }
+    default?.let { wanted: Choice.Meaning ->
+      require(wanted in choiceItems.values) {
+        "ask_interaction default $wanted matches no declared choice, " +
+          "declared semantics = ${choiceItems.values}"
+      }
+    }
+    require(prefill == null || inputPlaceholder != null) {
+      "ask_interaction prefill requires input { ... }"
+    }
   }
 
   internal fun toWire(requestId: String, sessionId: String): Map<String, Any> {
@@ -50,7 +78,14 @@ class AskBuilder {
     payload["requestId"] = requestId
     payload["sessionId"] = sessionId
     payload["title"] = requireNotNull(title).toWire()
-    payload["default"] = default ?: choiceItems.keys.firstOrNull().orEmpty()
+    payload["default"] =
+      if (choiceItems.isNotEmpty()) {
+        default?.let { wanted: Choice.Meaning ->
+          choiceItems.entries.firstOrNull { it.value == wanted }?.key
+        } ?: choiceItems.keys.firstOrNull().orEmpty()
+      } else {
+        prefill.orEmpty()
+      }
     details?.let { payload["details"] = it.toWire() }
 
     if (choiceItems.isNotEmpty()) {

@@ -58,7 +58,7 @@ private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsA
       item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.run_cmd.choice.always")
       item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.run_cmd.choice.reject")
     }
-    default = "no"
+    default = Choice.Meaning.REJECT
   }
   return when (decision) {
     is AskResult.Case -> when (decision.meaning) {

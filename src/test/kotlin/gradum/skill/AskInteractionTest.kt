@@ -103,12 +103,13 @@ class AskInteractionTest {
         item("always", Choice.Meaning.ALLOW_ALWAYS)
         item("no", Choice.Meaning.REJECT)
       }
-      default = "no"
+      default = Choice.Meaning.REJECT
     }
 
     assertEquals(1, h.emitted.size)
     val (eventType, wire) = h.emitted.single()
     assertEquals("ask_interaction", eventType)
+    assertEquals("no", wire["default"], "REJECT resolves to its choice id on the wire")
     assertTrue(h.requestId.isNotBlank(), "card must carry a requestId")
 
     h.pending.completeChoice(h.sessionId, h.requestId, "always")
@@ -174,11 +175,50 @@ class AskInteractionTest {
   }
 
   @Test
+  fun `default meaning must match a declared choice on the same flavor`() {
+    assertFailsWith<IllegalArgumentException> {
+      AskBuilder().apply {
+        title = L10n.raw("t")
+        choices { item("once", Choice.Meaning.ALLOW_ONCE) }
+        default = Choice.Meaning.REJECT
+      }.validate()
+    }
+    assertFailsWith<IllegalArgumentException> {
+      AskBuilder().apply {
+        title = L10n.raw("t")
+        input { placeholder = L10n.raw("p") }
+        default = Choice.Meaning.REJECT
+      }.validate()
+    }
+    assertFailsWith<IllegalArgumentException> {
+      AskBuilder().apply {
+        title = L10n.raw("t")
+        choices { item("a", Choice.Meaning.REJECT) }
+        prefill = "free text"
+      }.validate()
+    }
+  }
+
+  @Test
+  fun `default meaning resolves to its choice id on the wire`() {
+    val wire = AskBuilder().apply {
+      title = L10n.raw("t")
+      choices {
+        item("once", Choice.Meaning.ALLOW_ONCE)
+        item("no", Choice.Meaning.REJECT)
+      }
+      default = Choice.Meaning.REJECT
+    }.toWire(requestId = "r", sessionId = "s")
+
+    assertEquals("no", wire["default"])
+  }
+
+  @Test
   fun `input flavor emits a placeholder and resolves to a text answer`() {
     val h = AskHarness()
     val (blocker, holder) = h.startAsk {
       title = l10n.key("gradum.ask.commit.title")
-      default = "initial text"
+      prefill = "initial text"
       input { placeholder = l10n.raw("commit message…") }
     }
 

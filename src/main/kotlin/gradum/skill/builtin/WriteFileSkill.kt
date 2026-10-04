@@ -51,7 +51,7 @@ private fun authorizeWrite(filePath: String, projectRoot: String, context: Skill
       item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.write.choice.always")
       item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.write.choice.reject")
     }
-    default = "no"
+    default = Choice.Meaning.REJECT
   }
   return when (decision) {
     is AskResult.Case ->

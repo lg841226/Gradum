@@ -122,7 +122,7 @@ internal class McpSkillAdapter(
         item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.mcp_tool.choice.always")
         item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.mcp_tool.choice.reject")
       }
-      default = "no"
+      default = Choice.Meaning.REJECT
     }
     return when (decision) {
       is AskResult.Case ->
