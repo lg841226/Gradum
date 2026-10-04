@@ -18,8 +18,11 @@ import java.net.BindException
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
+/** First CLI argument that switches the entry point to the ACP stdio server. */
+private const val ACP_ARGUMENT: String = "acp"
+
 fun main(arguments: Array<String>) {
-  if (arguments.firstOrNull() == "acp") startAcp()
+  if (arguments.firstOrNull() == ACP_ARGUMENT) startAcp()
   else startHttp(arguments)
 }
 
@@ -212,7 +215,7 @@ private fun printStartupBanner() {
   println()
   println(renderGradientBanner(BANNER_ART))
   println()
-  println("  Copyright (c) 2026 Gradum Authors, software version ${BuildConfig.version}")
+  println("  Copyright (c) 2026 Gradum Authors, version ${BuildConfig.version}")
   println()
   println("  (Working Directory $workDir)")
   println()

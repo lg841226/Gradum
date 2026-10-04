@@ -10,7 +10,7 @@
         <encoder>
             <!-- Follow the console's native encoding so Windows (CP936) does not mojibake UTF-8 box drawing -->
             <charset>${native.encoding:-UTF-8}</charset>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %gradumPort %gradumLevel %logger{0} %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %gradumPort %gradumLevel [%logger{0}] %msg%n</pattern>
         </encoder>
     </appender>
 
