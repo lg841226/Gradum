@@ -54,6 +54,10 @@ fun routeAcpLogsToFile(): Path? {
     encoder = layoutEncoder
     this.rollingPolicy = timeRollingPolicy
   }
+  // logback wires the two together in this order when it reads the same
+  // appender from XML: the policy needs a parent before it starts, and the
+  // appender refuses to start until its triggering policy has.
+  timeRollingPolicy.setParent(fileAppender)
   timeRollingPolicy.start()
   fileAppender.start()
 
