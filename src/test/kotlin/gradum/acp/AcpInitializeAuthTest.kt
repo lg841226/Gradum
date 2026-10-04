@@ -1,5 +1,6 @@
 package gradum.acp
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -33,5 +34,16 @@ class AcpInitializeAuthTest {
   fun `omits declared methods when none are configured`() {
     val result = acpInitialize { protocolVersion = 1 }
     assertEquals(0, result["authMethods"]!!.jsonArray.size)
+  }
+
+  @Test
+  fun `gates terminal auth on the client capability`() {
+    val enabled = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":true}}}""").jsonObject
+    val disabled = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":false}}}""").jsonObject
+
+    assertEquals(true, clientSupportsTerminalAuth(enabled))
+    assertEquals(false, clientSupportsTerminalAuth(disabled))
+    assertEquals(false, clientSupportsTerminalAuth(Json.parseToJsonElement("{}").jsonObject))
+    assertEquals(false, clientSupportsTerminalAuth(null))
   }
 }

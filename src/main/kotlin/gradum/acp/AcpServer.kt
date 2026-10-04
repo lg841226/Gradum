@@ -170,7 +170,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
 
   private suspend fun handleRequest(requestId: Long, method: String, params: JsonObject?): RpcResponse {
     return when (method) {
-      "initialize" -> handleInitialize(requestId)
+      "initialize" -> handleInitialize(requestId, params)
       "session/new" -> handleSessionNew(requestId, params)
       "session/load" -> handleSessionLoad(requestId, params)
       "session/prompt" -> handleSessionPrompt(requestId, params)
@@ -243,19 +243,22 @@ class AcpServer(internal val runtime: GradumRuntime) {
     }
   }
 
-  private fun handleInitialize(requestId: Long): RpcResponse {
+  private fun handleInitialize(requestId: Long, params: JsonObject?): RpcResponse {
+    val supportsTerminalAuth: Boolean = clientSupportsTerminalAuth(params)
     val initializeResult = acpInitialize {
       protocolVersion = 1
       agentInfo {
         name = "Gradum"
         version = BuildConfig.version
       }
-      authMethod {
-        id = "terminal"
-        name = "Configure provider"
-        description = "Run interactive setup in a terminal"
-        type = "terminal"
-        args = listOf("setup")
+      if (supportsTerminalAuth) {
+        authMethod {
+          id = "terminal"
+          name = "Configure provider"
+          description = "Run interactive setup in a terminal"
+          type = "terminal"
+          args = listOf("setup")
+        }
       }
       agentCapabilities {
         loadSession = true
@@ -283,3 +286,13 @@ class AcpServer(internal val runtime: GradumRuntime) {
     private const val MODEL_PROBE_INTERVAL_MS = 1_000L
   }
 }
+
+/**
+ * The client's `clientCapabilities.auth.terminal` opt-in. ACP requires the
+ * terminal auth method to be advertised only when the client reproduces the
+ * agent invocation in an interactive terminal; an omitted flag means unsupported.
+ */
+internal fun clientSupportsTerminalAuth(params: JsonObject?): Boolean =
+  params?.get("clientCapabilities")?.jsonObject
+    ?.get("auth")?.jsonObject
+    ?.get("terminal")?.jsonPrimitive?.booleanOrNull == true
