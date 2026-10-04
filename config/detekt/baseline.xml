@@ -334,13 +334,6 @@
         <ID>FunctionNaming:ChatInputSection.kt$@Composable fun ChatInputSection( state: ChatInputState, actions:
             ChatInputActions, textState: TextFieldState, modifier: Modifier = Modifier )
         </ID>
-        <ID>FunctionNaming:ChatMessageList.kt$@Composable fun ChatMessageList( messages: List&lt;ChatMessage>, modifier:
-            Modifier = Modifier, isLoading: Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit =
-            {},
-            onRetryMessage: (Int) -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile)
-            ->
-            Unit = {} )
-        </ID>
         <ID>FunctionNaming:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading: Boolean,
             isWaitingForResponse: Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState,
             inputActions: ChatInputActions, onDeleteMessage: (Int) -> Unit, onRetryMessage: (Int) -> Unit,
@@ -516,14 +509,6 @@
         </ID>
         <ID>FunctionSignature:ChatInputSection.kt$@Composable fun ChatInputSection( state: ChatInputState, actions:
             ChatInputActions, textState: TextFieldState, modifier: Modifier = Modifier )
-        </ID>
-        <ID>FunctionSignature:ChatMessageList.kt$@Composable fun ChatMessageList( messages: List&lt;ChatMessage>,
-            modifier:
-            Modifier = Modifier, isLoading: Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit =
-            {},
-            onRetryMessage: (Int) -> Unit = {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile)
-            ->
-            Unit = {} )
         </ID>
         <ID>FunctionSignature:ChatScreen.kt$@Composable fun ChatScreen( messages: List&lt;ChatMessage>, isLoading:
             Boolean,
@@ -830,7 +815,6 @@
         <ID>Indentation:ChatMessage.kt$RenderBlock.ToolCall$</ID>
         <ID>Indentation:ChatMessage.kt$TokenUsage$</ID>
         <ID>Indentation:ChatMessage.kt$ToolCallInfo$</ID>
-        <ID>Indentation:ChatMessageList.kt$</ID>
         <ID>Indentation:ChatScreen.kt$</ID>
         <ID>Indentation:ChatToolbar.kt$</ID>
         <ID>Indentation:CommonActionButtons.kt$</ID>
@@ -1032,12 +1016,6 @@
         </ID>
         <ID>LongParameterList:ChatInputPanel.kt$( state: ChatInputState, actions: ChatInputActions, roundedCornerShape:
             RoundedCornerShape, textState: TextFieldState, modifier: Modifier = Modifier )
-        </ID>
-        <ID>LongParameterList:ChatMessageList.kt$( messages: List&lt;ChatMessage>, modifier: Modifier = Modifier,
-            isLoading:
-            Boolean = false, sendingPhase: String = "", onDeleteMessage: (Int) -> Unit = {}, onRetryMessage: (Int) ->
-            Unit =
-            {}, onCopyAsContext: (String) -> Unit = {}, onAttachmentClick: (VirtualFile) -> Unit = {} )
         </ID>
         <ID>LongParameterList:ChatScreen.kt$( messages: List&lt;ChatMessage>, isLoading: Boolean, isWaitingForResponse:
             Boolean, sendingPhase: String, textState: TextFieldState, inputState: ChatInputState, inputActions:

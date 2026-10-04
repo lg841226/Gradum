@@ -742,7 +742,7 @@ private fun rememberChatSessionState(
     },
     dismissedAskRequestIds = session.dismissedAskRequestIds.value,
     onDismissAsk = { session.dismissAsk(requestId = it) },
-  ) {}
+  )
 }
 
 @Composable

@@ -74,5 +74,4 @@ data class ChatSessionState(
 
   val dismissedAskRequestIds: Set<String>,
   val onDismissAsk: (String) -> Unit,
-  val onSubChatClick: (String) -> Unit,
 )
