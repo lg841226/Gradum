@@ -166,7 +166,7 @@ fun AskCard(
     when (val prompt: AskPrompt = block.prompt) {
       is AskPrompt.Choices -> {
         val defaultIndex: Int =
-          (prompt.choices.indexOfFirst { it.id == block.default }
+          (prompt.choices.indexOfFirst { it.semantics == block.default }
             .takeIf { index -> index >= 0 }
             ?: prompt.choices.indexOfFirst { it.semantics == AskChoiceMeaning.REJECT })
             .coerceAtLeast(0)
@@ -176,7 +176,7 @@ fun AskCard(
             responded = true
             onResponded()
             scope.launch {
-              onRespondToAsk(block.sessionId, block.requestId, option.id, null, false)
+              onRespondToAsk(block.sessionId, block.requestId, option.semantics, null, false)
             }
           }
         }

@@ -77,7 +77,7 @@ class RunCommandSkillSecurityTest {
     val outside = File(projectRoot.parentFile, fileName)
     outside.writeText("to be removed\n")
     val (ctx, pending, emitted) = askContext()
-    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "once")
+    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "allow_once")
     assertTrue("one-time allow should succeed: $result", result is SkillResult.Success)
     assertTrue("target file should have been removed", !outside.exists())
     assertTrue("once must not remember the category", ctx.authorizedCommandCategories.isEmpty())
@@ -90,7 +90,7 @@ class RunCommandSkillSecurityTest {
     outside.writeText("first\n")
     val (ctx, pending, emitted) = askContext()
 
-    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "always")
+    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "allow_always")
     assertTrue("always allow should succeed: $result", result is SkillResult.Success)
     assertTrue("rm:delete" in ctx.authorizedCommandCategories)
 
@@ -116,7 +116,7 @@ class RunCommandSkillSecurityTest {
     val outside = File(projectRoot.parentFile, fileName)
     outside.writeText("keep me\n")
     val (ctx, pending, emitted) = askContext()
-    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "no")
+    val result = runAskWith(ctx, pending, emitted, "rm ../$fileName", "reject")
     assertTrue(result is SkillResult.Failure)
     assertEquals(ErrorCode.PERMISSION_DENIED.code, (result as SkillResult.Failure).code)
     assertTrue("rejected command must not run", outside.exists())

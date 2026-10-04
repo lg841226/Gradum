@@ -12,9 +12,9 @@ import java.util.*
  *     title   = l10n.key("gradum.ask.run_cmd.confirm")
  *     details = l10n.raw("rm -rf build/", source = Lang.EN)
  *     choices {
- *         item("once",   Choice.Meaning.ALLOW_ONCE)
- *         item("always", Choice.Meaning.ALLOW_ALWAYS)
- *         item("no",     Choice.Meaning.REJECT)
+ *         item(Choice.Meaning.ALLOW_ONCE)
+ *         item(Choice.Meaning.ALLOW_ALWAYS)
+ *         item(Choice.Meaning.REJECT)
  *     }
  *     default = Choice.Meaning.REJECT
  * }

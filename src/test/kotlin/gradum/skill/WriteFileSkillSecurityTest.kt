@@ -89,7 +89,7 @@ class WriteFileSkillSecurityTest {
     val result = runAskWith(
       ctx, pending, emitted,
       mapOf("path" to "../$fileName", "newString" to "written\n"),
-      "once"
+      "allow_once"
     )
     assertTrue("one-time allow should succeed: $result", result is SkillResult.Success)
     assertEquals("written\n", outside.readText())
@@ -106,7 +106,7 @@ class WriteFileSkillSecurityTest {
     val result = runAskWith(
       ctx, pending, emitted,
       mapOf("path" to "../$fileName", "newString" to "first\n"),
-      "always"
+      "allow_always"
     )
     assertTrue("always allow should succeed: $result", result is SkillResult.Success)
     assertTrue(outside.absolutePath in ctx.authorizedWritePaths)
@@ -133,7 +133,7 @@ class WriteFileSkillSecurityTest {
     val result = runAskWith(
       ctx, pending, emitted,
       mapOf("path" to "../$fileName", "newString" to "nope\n"),
-      "no"
+      "reject"
     )
     assertTrue(result is SkillResult.Failure)
     assertEquals(ErrorCode.PERMISSION_DENIED.code, (result as SkillResult.Failure).code)

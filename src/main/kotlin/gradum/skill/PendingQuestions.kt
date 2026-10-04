@@ -51,8 +51,8 @@ class PendingQuestions {
     return runBlocking { entry.deferred.await() }
   }
 
-  fun completeChoice(sessionId: String, requestId: String, choiceId: String): AskResult? =
-    resolve(sessionId, requestId, AskResult.Case(choiceId))
+  fun completeChoice(sessionId: String, requestId: String, choice: String): AskResult? =
+    resolve(sessionId, requestId, AskResult.Case(choice))
 
   fun completeText(sessionId: String, requestId: String, value: String): AskResult? =
     resolve(sessionId, requestId, AskResult.Text(value))

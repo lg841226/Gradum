@@ -24,7 +24,7 @@ class AskInteractionEndpointTest {
 
     val response: HttpResponse = client.post("/events/respond") {
       contentType(ContentType.Application.Json)
-      setBody("""{"sessionId":"s","requestId":"never-asked","choice":"once"}""")
+      setBody("""{"sessionId":"s","requestId":"never-asked","choice":"allow_once"}""")
     }
 
     assertEquals(HttpStatusCode.NotFound, response.status)
@@ -73,7 +73,7 @@ class AskInteractionEndpointTest {
 
       val first = client.post("/events/respond") {
         contentType(ContentType.Application.Json)
-        setBody("""{"sessionId":"sess","requestId":"req-1","choice":"always"}""")
+        setBody("""{"sessionId":"sess","requestId":"req-1","choice":"allow_always"}""")
       }
       assertEquals(HttpStatusCode.OK, first.status)
       assertContains(first.bodyAsText(), "delivered")
@@ -87,7 +87,7 @@ class AskInteractionEndpointTest {
     }
 
     blocker.join(2000)
-    assertEquals("always", assertIs<AskResult.Case>(holder[0]).id)
+    assertEquals("allow_always", assertIs<AskResult.Case>(holder[0]).id)
   }
 
   @Test

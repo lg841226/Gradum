@@ -456,10 +456,9 @@ internal fun GradumChatSession.handleAskInteractionEvent(eventData: JsonObject?)
       eventData["choices"]?.jsonArray != null -> {
         val choiceOptions: List<AskChoice> = eventData["choices"]!!.jsonArray.mapNotNull { choiceElement: JsonElement ->
           val choiceObject: JsonObject = choiceElement as? JsonObject ?: return@mapNotNull null
-          val choiceId: String = choiceObject["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-          val semanticCode: String = choiceObject["semantics"]?.jsonPrimitive?.contentOrNull ?: ""
+          val semanticCode: String = choiceObject["semantics"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
           val labelKey: String? = choiceObject["labelKey"]?.jsonPrimitive?.contentOrNull
-          AskChoice(id = choiceId, semantics = semanticCode, labelKey = labelKey)
+          AskChoice(semantics = semanticCode, labelKey = labelKey)
         }
         if (choiceOptions.isEmpty()) return
         AskPrompt.Choices(choiceOptions)

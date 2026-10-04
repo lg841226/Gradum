@@ -54,9 +54,9 @@ private fun authorizeCommand(commandText: String, verdict: CommandVerdict.NeedsA
     title = l10n.key("gradum.ask.run_cmd.title")
     details = l10n.raw("$commandText\n(${verdict.description})", source = Lang.EN)
     choices {
-      item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.run_cmd.choice.once")
-      item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.run_cmd.choice.always")
-      item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.run_cmd.choice.reject")
+      item(Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.run_cmd.choice.once")
+      item(Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.run_cmd.choice.always")
+      item(Choice.Meaning.REJECT, labelKey = "gradum.ask.run_cmd.choice.reject")
     }
     default = Choice.Meaning.REJECT
   }

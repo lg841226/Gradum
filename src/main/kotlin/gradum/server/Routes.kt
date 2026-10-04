@@ -151,7 +151,7 @@ data class RespondRequestBody(
   val sessionId: String,
   /** Unique id carried by the `ask_interaction` event this answers. */
   val requestId: String,
-  /** One of the choice ids offered by the ask (choices flavor). */
+  /** One of the semantic codes offered by the ask (choices flavor). */
   val choice: String? = null,
   /** Free text the user submitted (input flavor). */
   val text: String? = null,

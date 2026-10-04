@@ -47,9 +47,9 @@ private fun authorizeWrite(filePath: String, projectRoot: String, context: Skill
     title = l10n.key("gradum.ask.write.title")
     details = l10n.raw(externalPath.toString(), source = Lang.EN)
     choices {
-      item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.write.choice.once")
-      item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.write.choice.always")
-      item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.write.choice.reject")
+      item(Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.write.choice.once")
+      item(Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.write.choice.always")
+      item(Choice.Meaning.REJECT, labelKey = "gradum.ask.write.choice.reject")
     }
     default = Choice.Meaning.REJECT
   }

@@ -2298,7 +2298,7 @@ sequenceDiagram
     participant PendingQuestions
     participant Plugin as Plugin (AskCard)
     participant Routes
-    Skill ->> AskScope: scope.askInteraction { title, choices { once / always / no } }
+    Skill ->> AskScope: scope.askInteraction { title, choices { ALLOW_ONCE / ALLOW_ALWAYS / REJECT } }
     AskScope ->> PendingQuestions: await(sessionId, requestId) — register + block (no timeout)
     AskScope ->> Plugin: NDJSON {type: "ask_interaction", requestId, sessionId, title, details?, default, choices[]}
     Plugin ->> AskCard: render localized card (semantic codes, optional labelKey)
@@ -2314,7 +2314,7 @@ sequenceDiagram
 | Component                                            | File                            | Role                                                                                                                                    |
 |------------------------------------------------------|---------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | `AskScope`                                           | `AskScope.kt`                   | Entry point `context.scope.askInteraction { ... }`; builder DSL (`choices {}` **xor** `input {}`, `title` required)                     |
-| `AskBuilder` / `ChoicesScope` / `InputScope`         | `AskScope.kt`                   | Wire assembly: `{requestId, sessionId, title, details?, default, choices[]                                                              | 
+| `AskBuilder` / `ChoicesScope` / `InputScope`         | `dsl/AskBuilder.kt`             | Wire assembly: `{requestId, sessionId, title, details?, default, choices[] or input}`; every choice is keyed by its semantic code alone |
 | `L10nText` / `L10n` / `Choice.Meaning` / `AskResult` | `InteractionTypes.kt`           | `key(bundleKey, args)` vs `raw(text, lang)`; semantics `allow_once` / `allow_always` / `reject`; outcomes `Case` / `Text` / `Cancelled` |
 | `PendingQuestions`                                   | `PendingQuestions.kt`           | `ConcurrentHashMap<sessionId::requestId, CompletableDeferred>`; registration precedes blocking; resolution removes the entry            |
 | Route handler                                        | `Routes.kt` (`/events/respond`) | Validates `sessionId`/`requestId`, requires exactly one of `choice`/`text`/`cancelled`, resolves or 404s                                |
@@ -2357,7 +2357,7 @@ never reach the ask stage — they are refused outright with `COMMAND_BLOCKED`.
 `GradumApiClient.respondToAsk(sessionId, requestId, choice?, text?, cancelled?)`. The card stays in the transcript after
 resolution, so the authorization trail is visible next to the tool call it unlocked.
 
-Pinned by `AskInteractionTest` (12 cases: parking/unblocking, choice / text / canceled resolution, unknown-or-duplicate
+Pinned by `AskInteractionTest` (14 cases: parking/unblocking, choice / text / canceled resolution, unknown-or-duplicate
 key no-op, session-key isolation, DSL validation, wire shape incl. the `L10nText` forms) and
 `AskInteractionEndpointTest` (5 cases: `/events/respond` contract).
 

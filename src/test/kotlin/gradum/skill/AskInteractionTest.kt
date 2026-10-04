@@ -20,12 +20,12 @@ class AskInteractionTest {
     blocker.start()
     waitUntil { pending.isPending("s", "r") }
 
-    val delivered = pending.completeChoice("s", "r", "once")
+    val delivered = pending.completeChoice("s", "r", "allow_once")
 
     blocker.join(2000)
     assertFalse(blocker.isAlive, "await should unblock after completeChoice")
-    assertEquals("once", assertIs<AskResult.Case>(delivered).id)
-    assertEquals("once", assertIs<AskResult.Case>(holder[0]).id)
+    assertEquals("allow_once", assertIs<AskResult.Case>(delivered).id)
+    assertEquals("allow_once", assertIs<AskResult.Case>(holder[0]).id)
     assertEquals(0, pending.size(), "entry should be removed after delivery")
   }
 
@@ -59,10 +59,10 @@ class AskInteractionTest {
     val blocker = Thread { pending.await("s", "r") }
     blocker.start()
     waitUntil { pending.isPending("s", "r") }
-    pending.completeChoice("s", "r", "once")
+    pending.completeChoice("s", "r", "allow_once")
 
     // Second delivery for the same key is a duplicate no-op.
-    assertNull(pending.completeChoice("s", "r", "once"))
+    assertNull(pending.completeChoice("s", "r", "allow_once"))
     assertNull(pending.completeCancelled("s", "r"))
     blocker.join(2000)
   }
@@ -79,12 +79,12 @@ class AskInteractionTest {
     waitUntil { pending.isPending("sessionA", "r") && pending.isPending("sessionB", "r") }
     assertEquals(2, pending.size())
 
-    pending.completeChoice("sessionA", "r", "once")
+    pending.completeChoice("sessionA", "r", "allow_once")
     threadA.join(2000)
 
     // Only sessionA was resolved; sessionB stays parked.
     assertTrue(pending.isPending("sessionB", "r"))
-    assertEquals("once", assertIs<AskResult.Case>(holderA[0]).id)
+    assertEquals("allow_once", assertIs<AskResult.Case>(holderA[0]).id)
     pending.completeText("sessionB", "r", "hi")
     threadB.join(2000)
     assertEquals("hi", assertIs<AskResult.Text>(holderB[0]).value)
@@ -99,9 +99,9 @@ class AskInteractionTest {
       title = l10n.key("gradum.ask.run_cmd.confirm")
       details = l10n.raw("rm -rf build/", source = Lang.EN)
       choices {
-        item("once", Choice.Meaning.ALLOW_ONCE)
-        item("always", Choice.Meaning.ALLOW_ALWAYS)
-        item("no", Choice.Meaning.REJECT)
+        item(Choice.Meaning.ALLOW_ONCE)
+        item(Choice.Meaning.ALLOW_ALWAYS)
+        item(Choice.Meaning.REJECT)
       }
       default = Choice.Meaning.REJECT
     }
@@ -109,13 +109,13 @@ class AskInteractionTest {
     assertEquals(1, h.emitted.size)
     val (eventType, wire) = h.emitted.single()
     assertEquals("ask_interaction", eventType)
-    assertEquals("no", wire["default"], "REJECT resolves to its choice id on the wire")
+    assertEquals("reject", wire["default"], "REJECT resolves to its semantic code on the wire")
     assertTrue(h.requestId.isNotBlank(), "card must carry a requestId")
 
-    h.pending.completeChoice(h.sessionId, h.requestId, "always")
+    h.pending.completeChoice(h.sessionId, h.requestId, "allow_always")
 
     blocker.join(2000)
-    assertEquals("always", assertIs<AskResult.Case>(holder[0]).id)
+    assertEquals("allow_always", assertIs<AskResult.Case>(holder[0]).id)
   }
 
   @Test
@@ -123,36 +123,29 @@ class AskInteractionTest {
     val wire = AskBuilder().apply {
       title = L10n.raw("Proceed?")
       choices {
-        item("once", Choice.Meaning.ALLOW_ONCE)
-        item("always", Choice.Meaning.ALLOW_ALWAYS)
+        item(Choice.Meaning.ALLOW_ONCE)
+        item(Choice.Meaning.ALLOW_ALWAYS)
       }
     }.toWire(requestId = "r", sessionId = "s")
 
     @Suppress("UNCHECKED_CAST")
     val choices = wire["choices"] as List<Map<String, Any>>
-    assertEquals(listOf("once", "always"), choices.map { it["id"] })
     assertEquals(listOf("allow_once", "allow_always"), choices.map { it["semantics"] })
-    assertEquals("once", wire["default"], "default falls back to the first choice")
+    assertEquals("allow_once", wire["default"], "default falls back to the first choice")
     assertEquals("s", wire["sessionId"])
     assertEquals("r", wire["requestId"])
     assertEquals("raw", assertIs<Map<String, Any>>(wire["title"])["kind"])
   }
 
   @Test
-  fun `duplicate or blank choice id is rejected`() {
+  fun `duplicate choice semantics are rejected`() {
     assertFailsWith<IllegalArgumentException> {
       AskBuilder().apply {
         title = L10n.raw("t")
         choices {
-          item("once", Choice.Meaning.ALLOW_ONCE)
-          item("once", Choice.Meaning.REJECT)
+          item(Choice.Meaning.ALLOW_ONCE)
+          item(Choice.Meaning.ALLOW_ONCE)
         }
-      }.validate()
-    }
-    assertFailsWith<IllegalArgumentException> {
-      AskBuilder().apply {
-        title = L10n.raw("t")
-        choices { item("", Choice.Meaning.ALLOW_ONCE) }
       }.validate()
     }
   }
@@ -163,13 +156,13 @@ class AskInteractionTest {
     assertFailsWith<IllegalArgumentException> {
       AskBuilder().apply {
         title = L10n.raw("t")
-        choices { item("a", Choice.Meaning.REJECT) }
+        choices { item(Choice.Meaning.REJECT) }
         input { placeholder = L10n.raw("p") }
       }.validate()
     }
     assertFailsWith<IllegalArgumentException> {
       AskBuilder().apply {
-        choices { item("a", Choice.Meaning.REJECT) }
+        choices { item(Choice.Meaning.REJECT) }
       }.validate()
     }
   }
@@ -179,7 +172,7 @@ class AskInteractionTest {
     assertFailsWith<IllegalArgumentException> {
       AskBuilder().apply {
         title = L10n.raw("t")
-        choices { item("once", Choice.Meaning.ALLOW_ONCE) }
+        choices { item(Choice.Meaning.ALLOW_ONCE) }
         default = Choice.Meaning.REJECT
       }.validate()
     }
@@ -193,24 +186,24 @@ class AskInteractionTest {
     assertFailsWith<IllegalArgumentException> {
       AskBuilder().apply {
         title = L10n.raw("t")
-        choices { item("a", Choice.Meaning.REJECT) }
+        choices { item(Choice.Meaning.REJECT) }
         prefill = "free text"
       }.validate()
     }
   }
 
   @Test
-  fun `default meaning resolves to its choice id on the wire`() {
+  fun `default meaning resolves to its semantic code on the wire`() {
     val wire = AskBuilder().apply {
       title = L10n.raw("t")
       choices {
-        item("once", Choice.Meaning.ALLOW_ONCE)
-        item("no", Choice.Meaning.REJECT)
+        item(Choice.Meaning.ALLOW_ONCE)
+        item(Choice.Meaning.REJECT)
       }
       default = Choice.Meaning.REJECT
     }.toWire(requestId = "r", sessionId = "s")
 
-    assertEquals("no", wire["default"])
+    assertEquals("reject", wire["default"])
   }
 
   @Test

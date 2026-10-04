@@ -118,9 +118,9 @@ internal class McpSkillAdapter(
       title = l10n.key("gradum.ask.mcp_tool.title")
       details = l10n.raw("${tool.name}$argumentsText", source = Lang.EN)
       choices {
-        item("once", Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.mcp_tool.choice.once")
-        item("always", Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.mcp_tool.choice.always")
-        item("no", Choice.Meaning.REJECT, labelKey = "gradum.ask.mcp_tool.choice.reject")
+        item(Choice.Meaning.ALLOW_ONCE, labelKey = "gradum.ask.mcp_tool.choice.once")
+        item(Choice.Meaning.ALLOW_ALWAYS, labelKey = "gradum.ask.mcp_tool.choice.always")
+        item(Choice.Meaning.REJECT, labelKey = "gradum.ask.mcp_tool.choice.reject")
       }
       default = Choice.Meaning.REJECT
     }

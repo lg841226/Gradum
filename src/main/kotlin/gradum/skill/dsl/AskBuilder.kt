@@ -7,25 +7,25 @@ import gradum.skill.L10nText
 /**
  * Builder DSL for one [gradum.skill.AskScope.askInteraction] call.
  *
- * meaningFor(id) resolves the semantic [Choice.Meaning] for a choice id, or
- * null when unknown. l10n is the `l10n` factory resolved inside an ask
- * builder block.
+ * meaningFor(choice) resolves the semantic [Choice.Meaning] for a posted
+ * semantic code, or null when this card did not declare it. l10n is the
+ * `l10n` factory resolved inside an ask builder block.
  */
 class AskBuilder {
 
   /**
    * Choice to pre-select on a choices-flavor card, expressed as the stable
-   * semantic [Choice.Meaning] instead of a free id: a typo cannot compile,
-   * and [validate] rejects a meaning the card does not offer. The old string
-   * form shipped any literal to the wire, and the card silently fell back to
-   * index 0 — the first choice, which is the ALLOW option on every
-   * permission card.
+   * semantic [Choice.Meaning]: a typo cannot compile, and [validate]
+   * rejects a meaning the card does not offer. The wire carries its
+   * semantic code (e.g. `reject`), which is also the token the card
+   * pre-selects and the user answers with — there is no second id to keep
+   * in sync.
    */
   var default: Choice.Meaning? = null
 
   /**
    * Initial text for an input-flavor card. Both flavors serialize to the
-   * wire `default` field but mean different things (choice id vs. free
+   * wire `default` field but mean different things (semantic code vs. free
    * text), so they are separate properties here.
    */
   var prefill: String? = null
@@ -33,14 +33,14 @@ class AskBuilder {
   var title: L10nText? = null
   var details: L10nText? = null
 
-  private val choiceItems: LinkedHashMap<String, Choice.Meaning> = LinkedHashMap()
-  private val choiceLabelKeys: MutableMap<String, String> = mutableMapOf()
+  private val choiceItems: LinkedHashMap<Choice.Meaning, String?> = LinkedHashMap()
   private var inputPlaceholder: L10nText? = null
 
-  fun meaningFor(id: String): Choice.Meaning? = choiceItems[id]
+  fun meaningFor(choice: String): Choice.Meaning? =
+    choiceItems.keys.firstOrNull { it.wire == choice }
 
   fun choices(block: ChoicesScope.() -> Unit) {
-    ChoicesScope(choiceItems, choiceLabelKeys).block()
+    ChoicesScope(choiceItems).block()
   }
 
   fun input(block: InputScope.() -> Unit) {
@@ -63,9 +63,9 @@ class AskBuilder {
       "ask_interaction default (choice pre-select) requires choices { ... }"
     }
     default?.let { wanted: Choice.Meaning ->
-      require(wanted in choiceItems.values) {
-        "ask_interaction default $wanted matches no declared choice, " +
-          "declared semantics = ${choiceItems.values}"
+      require(wanted in choiceItems) {
+        "ask_interaction default ${wanted.wire} matches no declared choice, " +
+          "declared semantics = ${choiceItems.keys.map { it.wire }}"
       }
     }
     require(prefill == null || inputPlaceholder != null) {
@@ -80,20 +80,17 @@ class AskBuilder {
     payload["title"] = requireNotNull(title).toWire()
     payload["default"] =
       if (choiceItems.isNotEmpty()) {
-        default?.let { wanted: Choice.Meaning ->
-          choiceItems.entries.firstOrNull { it.value == wanted }?.key
-        } ?: choiceItems.keys.firstOrNull().orEmpty()
+        (default ?: choiceItems.keys.first()).wire
       } else {
         prefill.orEmpty()
       }
     details?.let { payload["details"] = it.toWire() }
 
     if (choiceItems.isNotEmpty()) {
-      payload["choices"] = choiceItems.map { (id: String, meaning: Choice.Meaning) ->
+      payload["choices"] = choiceItems.map { (meaning: Choice.Meaning, labelKey: String?) ->
         buildMap {
-          put("id", id)
           put("semantics", meaning.wire)
-          choiceLabelKeys[id]?.let { put("labelKey", it) }
+          labelKey?.let { put("labelKey", it) }
         }
       }
     } else {
@@ -106,23 +103,21 @@ class AskBuilder {
 }
 
 /**
- * DSL scope for defining choice options (id → stable semantic code).
+ * DSL scope for defining choice options, keyed by their stable semantic
+ * code: that code is the wire's only identity for a choice (the answer
+ * token, the pre-select key), so nothing here is hand-written twice.
  *
- * item(id, semantics, labelKey) adds a choice option with a stable id and a
- * semantics code. An optional labelKey lets the server pin a specific i18n
- * bundle key for this option's button label (e.g. a `write_file`
- * authorization card); when absent the plugin falls back to its own
- * semantic-code mapping.
+ * item(semantics, labelKey) adds one option. An optional labelKey lets the
+ * server pin a specific i18n bundle key for this option's button label
+ * (e.g. a `write_file` authorization card); when absent the plugin falls
+ * back to its own semantic-code mapping. Duplicate semantics are rejected.
  */
 class ChoicesScope internal constructor(
-  private val items: LinkedHashMap<String, Choice.Meaning>,
-  private val labelKeys: MutableMap<String, String>,
+  private val items: LinkedHashMap<Choice.Meaning, String?>,
 ) {
-  fun item(id: String, semantics: Choice.Meaning, labelKey: String? = null) {
-    require(id.isNotBlank()) { "choice id must not be blank" }
-    require(id !in items) { "duplicate choice id '$id'" }
-    items[id] = semantics
-    labelKey?.let { labelKeys[id] = it }
+  fun item(semantics: Choice.Meaning, labelKey: String? = null) {
+    require(semantics !in items) { "duplicate choice ${semantics.wire}" }
+    items[semantics] = labelKey
   }
 }
 

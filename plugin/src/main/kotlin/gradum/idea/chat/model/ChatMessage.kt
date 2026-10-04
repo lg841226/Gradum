@@ -41,9 +41,8 @@ object AskChoiceMeaning {
   const val REJECT: String = "reject"
 }
 
-/** A single choice option in an ask card (echoes the server `Choice` type). */
+/** A single choice option in an ask card, identified by its stable semantic code (echoes the server `Choice` type). */
 data class AskChoice(
-  val id: String,
   val semantics: String,
   val labelKey: String? = null
 )
