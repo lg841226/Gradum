@@ -26,6 +26,6 @@ jobs:
       # `-Pgradum.skipPlugin` excludes the plugin module from the build graph
       # entirely (see settings.gradle.kts): it targets JDK 25 and resolves its
       # IntelliJ SDK from an aliyun mirror that is unreliable on CI. The `:`
-      # prefixes keep detekt/test pinned to the root project for good measure.
-      - name: Detekt and tests
-        run: ./gradlew :detekt :test --console=plain -Pgradum.skipPlugin -Dorg.gradle.java.home="$JAVA_HOME"
+      # prefix keeps tests pinned to the root project for good measure.
+      - name: Tests
+        run: ./gradlew :test --console=plain -Pgradum.skipPlugin -Dorg.gradle.java.home="$JAVA_HOME"

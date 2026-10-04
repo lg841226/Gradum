@@ -27,9 +27,6 @@ CONSOLE = Console()
 GRADLE_PROPERTIES_REQUIRED = {"org.gradle.daemon=true", "kotlin.incremental=true"}
 GRADLE_PROPERTIES_BANNED = "org.gradle.configuration-cache=true"
 
-# Deterministic detekt failure threshold on JDK major version.
-DETEKT_BAD_JDK_MAJOR = 25
-
 PROVIDER_DOTTED_KEYS = {
     "ollama": ("http://localhost:11434", "http://localhost:11434"),
     "lmstudio": ("http://localhost:1234", "http://localhost:1234"),
@@ -199,7 +196,7 @@ def probe_build(project_root):
     if not gradlew.exists():
         return Finding(Status.FAIL, "gradlew script is missing",
                        f"expected at {gradlew}")
-    args = [str(gradlew), ":compileKotlin", "-x", "detekt", "--console", "plain"]
+    args = [str(gradlew), ":compileKotlin", "--console", "plain"]
 
     started = time.time()
     try:
@@ -221,7 +218,7 @@ def probe_build(project_root):
     detail = f"exit code {code} in {elapsed}s\n" + (proc.stdout or "") + (proc.stderr or "")
 
     status = Status.PASS if code == 0 else Status.FAIL
-    return Finding(status, f"probe build :compileKotlin -x detekt (exit {code} in {elapsed}s)",
+    return Finding(status, f"probe build :compileKotlin (exit {code} in {elapsed}s)",
                    detail)
 
 
@@ -252,18 +249,6 @@ def main():
         print_node(f.status, f.title, lead=False)
     findings.append(f)
 
-    if major is not None and major >= DETEKT_BAD_JDK_MAJOR:
-        f = Finding(Status.WARN, f"detekt may fail on JDK {major}",
-                    f"detekt is known to fail on JDK {DETEKT_BAD_JDK_MAJOR}+ (reports 25.0.4.1). "
-                    "Build with `-x detekt` or switch to JDK 21.")
-    elif major is None:
-        f = Finding(Status.FAIL, "detekt compatibility cannot be assessed", "no JDK detected")
-    else:
-        f = Finding(Status.PASS, f"detekt is compatible with JDK {major}",
-                    f"below the problematic threshold JDK {DETEKT_BAD_JDK_MAJOR}")
-    print_node(f.status, f.title)
-    findings.append(f)
-
     f = check_gradle_properties(project_root)
     print_node(f.status, f.title)
     findings.append(f)
@@ -283,8 +268,6 @@ def main():
     recommendations = []
     if major is None:
         recommendations.append("Install a JDK (project targets JDK 21) and set JAVA_HOME")
-    elif major >= DETEKT_BAD_JDK_MAJOR:
-        recommendations.append(f"Switch JDK to 21 (current JDK {major} breaks detekt)")
 
     for fd in findings:
         if fd.status == Status.FAIL and "gradle.properties" in fd.title:

@@ -34,7 +34,6 @@ IDE installation (IntelliJ IDEA 2026.2, build `IU-262.8665.258`) and copied into
 | MockK                            | 1.13.13              | Apache License 2.0 | Oleksiy Shmalko                    |
 | JUnit                            | 4.13.2               | EPL-1.0            | Kent Beck, Erich Gamma, David Saff |
 | kotlin-test / kotlin-test-junit5 | 2.1.0                | Apache License 2.0 | JetBrains s.r.o.                   |
-| Detekt                           | 1.23.7               | Apache License 2.0 | Artur Bosch                        |
 | IntelliJ Platform                | 2026.2               | Apache License 2.0 | JetBrains s.r.o.                   |
 | Compose Multiplatform            | 1.7.3                | Apache License 2.0 | JetBrains s.r.o.                   |
 | Jewel                            | Bundled with the IDE | Apache License 2.0 | JetBrains s.r.o.                   |
@@ -48,7 +47,7 @@ IDE installation (IntelliJ IDEA 2026.2, build `IU-262.8665.258`) and copied into
 ### 3.1 Apache License 2.0
 
 Components licensed under the Apache License, Version 2.0 (the "Apache License"): Kotlin, Ktor, kotlinx-coroutines-core,
-kotlinx-serialization-json, Netty, Jackson, MockK, kotlin-test, Detekt, IntelliJ Platform, Compose Multiplatform, Jewel,
+kotlinx-serialization-json, Netty, Jackson, MockK, kotlin-test, IntelliJ Platform, Compose Multiplatform, Jewel,
 Skiko, JetBrains Changelog Plugin, and the Ktor Gradle Plugin.
 
 You may obtain a copy of the Apache License at

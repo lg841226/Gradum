@@ -122,9 +122,6 @@ the IDE's own copies. This avoids `LinkageError: loader constraint violation` on
 
 # Output: plugin/build/distributions/gradum-*.zip
 
-# Run code quality checks
-./gradlew :plugin:detekt
-
 # Run plugin tests
 ./gradlew :plugin:test
 ```

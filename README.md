@@ -81,28 +81,18 @@ them). A missing JDK 21 surfaces as:
 Cannot find a Java installation ... {languageVersion=21}
 ```
 
-### 2. detekt 1.23.7 does not understand JDK 25
-
-detekt 1.23.7 cannot parse JVM 25 class files: the `:detekt` task fails, printing the raw JDK version as the "error"
-(`> 25.0.4.1`). Skip it while building/testing server code:
-
-```bash
-./gradlew compileKotlin -x detekt   # compile server only
-./gradlew test -x detekt            # run unit tests
-```
-
-### 3. The server fat-jar task conflicts with Gradle 9.5.1
+### 2. The server fat-jar task conflicts with Gradle 9.5.1
 
 The `io.ktor.plugin` fat-jar task (`:shadowDistTar`) uses a `mainClassName` property that Gradle 9.5.1 removed, so a
 full `./gradlew build` can fail at the packaging step. The tasks you usually want (`compileKotlin`, `test`, `run`)
 never touch the shadow jar and work fine.
 
-### 4. Do not enable Gradle configuration-cache
+### 3. Do not enable Gradle configuration-cache
 
 Setting `org.gradle.configuration-cache=true` breaks the `:plugin:generateBuildConfig` task, which closes over
 non-serializable Gradle script objects. It is already off in `gradle.properties`; leave it that way.
 
-### 5. Missing `plugin/libs/` jars are warnings, not errors
+### 4. Missing `plugin/libs/` jars are warnings, not errors
 
 `plugin/build.gradle.kts` loads the IDE's Jewel / Compose / Skiko jars from `plugin/libs/*.jar`, copied from the IDE's
 `Contents/lib/`. On non-macOS those files don't exist, so you'll see a list like:

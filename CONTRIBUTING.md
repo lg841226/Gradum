@@ -125,13 +125,6 @@ The fat JAR will be at `build/libs/gradum@0.9.2.jar`.
 The plugin requires vendored JARs from IntelliJ IDEA 2026.2. See the
 [plugin README](plugin/README.md#special-build-setup) for detailed instructions.
 
-### Step 6: Run Code Quality Checks
-
-```bash
-./gradlew :detekt
-./gradlew :plugin:detekt
-```
-
 ## Coding Standards
 
 All Kotlin code must follow the conventions in:

@@ -5,7 +5,6 @@ plugins {
   id("org.jetbrains.intellij.platform") version "2.16.0"
   id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
   id("org.jetbrains.changelog") version "2.3.0"
-  id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
 group = "com.gradum.idea"
@@ -144,35 +143,6 @@ tasks.buildSearchableOptions {
 tasks.prepareJarSearchableOptions {
   enabled = false
 }
-
-dependencies {
-  detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
-}
-
-detekt {
-  buildUponDefaultConfig = true
-  allRules = false
-  config.setFrom(file("../config/detekt/detekt.yml"))
-  baseline = file("../config/detekt/baseline.xml")
-  autoCorrect = false
-}
-
-/**
- * Mirror the root module's quality-gate wiring. The IntelliJ
- * plugin compiles through `compileKotlin` (single-target JVM
- * module, no `-jvm` variant) and runs `check` during
- * `gradlew build`. Both must run detekt: see the long-form
- * rationale in the root `build.gradle.kts`; the short version
- * is "code cleanliness: no path through Gradle produces a
- * class file without detekt passing first".
- *
- * Same `-Pgradum.skipDetektGate=true` opt-out as the root
- * module. The `check.dependsOn(detekt)` wiring is unconditional.
- */
-val gradumSkipDetektGate: String =
-  (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
-
-tasks.named("detekt") { enabled = false }
 
 val generateBuildConfig = tasks.register("generateBuildConfig") {
   val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/main/kotlin")

@@ -83,7 +83,7 @@ fun load(): AgentConfiguration = ...   // loadProperties what?
 catch (e: IOException) { ... }         // 'e' / 'ex' are forbidden
 ```
 
-**Allowed exceptions** (linted via `NamingRules.allowShortNames`):
+**Allowed exceptions**:
 
 - Loop indices in tight `for (i in 0..n)` numeric iteration: `i`, `j`, `k`
 
@@ -115,8 +115,7 @@ fun retry(): Boolean = retryCount < MAX_RETRY
 val autoScroll: Boolean = isNearBottom
 ```
 
-Linted by detekt's `BooleanPropertyNaming` /
-`TopLevelPropertyNaming` rules (`allowedPattern = "^(is|has|can|should|will|must|need)"`).
+Boolean properties must start with one of `is` / `has` / `can` / `should` / `will` / `must` / `need`.
 
 ***
 
@@ -759,7 +758,7 @@ try {
 ```
 
 **Rule 1:** Every `catch` block in domain code MUST log via `logger.warn` /
-`logger.error` / `logger.info`. Bare `return makeFailure(...)` without logging silently swallows the cause and is a lint
+`logger.error` / `logger.info`. Bare `return makeFailure(...)` without logging silently swallows the cause and is a
 violation.
 
 **Rule 2: Never silently swallow exceptions.** An empty `catch` block, or a catch that only logs at `debug` level
@@ -843,9 +842,9 @@ fun processItem(item: Item): Result {
 
 ## 21. Class Public-Method Count
 
-A single class exposes **at most 20 public methods / properties** (detekt
-`TooManyFunctions.thresholdInClasses = 20`, restrict to public visibility via
-`@Suppress("MemberVisibilityCanBePrivate")` carve-outs only).
+A single class exposes **at most 20 public methods / properties** (restrict to
+public visibility via `@Suppress("MemberVisibilityCanBePrivate")` carve-outs
+only).
 
 When a class grows beyond 20 public surface members, the cause is almost always one of:
 
@@ -857,42 +856,6 @@ When a class grows beyond 20 public surface members, the cause is almost always 
 
 - **`object`** **used as a namespace**: promote to a top-level file with private internal helpers.
 
-Lint-enforced by detekt `TooManyFunctions`. A class that legitimately needs more (e.g. a sealed-class hierarchy of 30
-narrow `when` cases)
-should annotate the class with `@Suppress("TooManyFunctions")` and a KDoc explaining why.
-
-***
-
-## 22. Lint Enforcement
-
-The rules in this document are enforced automatically by **detekt**
-(via the `detekt-formatting` plugin), running in `gradlew detekt` and
-`gradlew check`. Configured by `config/detekt/detekt.yml`.
-
-- **detekt (core)**: naming (`BooleanPropertyNaming` /
-  `FunctionNaming` / `VariableMinLength` / `TopLevelPropertyNaming`), complexity (cyclomatic / nested depth / function
-  count via
-  `TooManyFunctions`), error-handling antipatterns (`SwallowedException` / `TooGenericExceptionCaught` /
-  `PrintStackTrace`), style (`MagicNumber` / `WildcardImport` /
-  `UnusedImports`), comments (`UndocumentedPublicClass` /
-  `UndocumentedPublicFunction`).
-
-- **detekt-formatting**: formatting subset equivalent to ktlint standard rules: indent, import order, line length,
-  brace placement on single-line `if` / `for` / `while` (we disable the
-  `BracesOnIfStatements` rule, see §8), trailing comma, etc.
-
-**Why not ktlint as a separate tool?** ktlint's bundled parser does not understand Kotlin 2.1+ syntax (guarded `when`
-patterns), so running it produces hard parse errors against our existing code (`utils/ContextManager.kt`).
-detekt-formatting covers the same ground with a much wider rule set and our chosen detekt baseline format, so the second
-tool is redundant.
-
-CI must run `gradlew detekt`. New code must produce **zero** new violations; legacy violations are recorded in
-`config/detekt/baseline.xml` and tracked down by `// detekt:ignore` /
-`@Suppress` only when there is a real reason.
-
-Adding a new lint rule is a **two-step change**:
-
-1. Add the rule + a recommended-fix section to this document.
-2. Update `config/detekt/detekt.yml` with the rule, regenerate the baseline (`gradlew detektBaseline`) if the codebase
-   has many pre-existing violations, and add a unit test under
-   `src/test/kotlin/.../lint/` that exercises the new rule on a positive and negative example.
+A class that legitimately needs more (e.g. a sealed-class hierarchy of 30 narrow
+`when` cases) should annotate the class with `@Suppress("TooManyFunctions")` and
+a KDoc explaining why.

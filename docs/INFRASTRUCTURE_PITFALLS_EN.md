@@ -23,7 +23,7 @@
 | Skiko                           | 0.9.x                                     | IDE bundled                                               |
 | IntelliJ Platform Gradle Plugin | 2.x                                       | `plugin/build.gradle.kts:6-7`                             |
 | Gradle                          | 9.5.1                                     | -                                                         |
-| JVM Target                      | 25                                        | Supported by Kotlin 2.3.0; not supported by detekt 1.23.7 |
+| JVM Target                      | 25                                        | Supported by Kotlin 2.3.0                                 |
 
 **Project directory**: `/Users/xxx/Documents/Code_Project/Gradum`
 **Plugin submodule**: `/Users/xxx/Documents/Code_Project/Gradum/plugin`
@@ -75,7 +75,7 @@ StackOverflow chain.
    // Same 9 lines for latex-parser and latex-renderer
    ```
 
-2. **Keep** the Compose copy in `plugin/libs/` (see Section 7 for the decision record).
+2. **Keep** the Compose copy in `plugin/libs/` (see Section 6 for the decision record).
 
 ### Verification
 
@@ -302,44 +302,7 @@ implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.ja
 
 ---
 
-## 6. detekt 1.23.7 Does Not Recognize JVM Target 25
-
-### Symptoms
-
-```
-* What went wrong:
-Execution failed for task ':detekt' (registered by plugin 'io.gitlab.arturbosch.detekt').
-> Invalid value (25) passed to -jvm-target, must be one of [1.6, 1.8, 9, 10, 11, 12, 13, 14]
-```
-
-`./gradlew :plugin:buildPlugin` fails (detekt is indirectly triggered by `buildPlugin` via
-`compileKotlin.dependsOn(detekt)`).
-
-### Root Cause
-
-- Kotlin 2.3.0 compiler supports `JvmTarget.JVM_25` (used by the project, `plugin/build.gradle.kts:213`)
-- detekt 1.23.7's built-in `JvmTarget` enum only goes up to 14
-- They're incompatible
-
-### Fix (Short-term)
-
-- `./gradlew :plugin:buildPlugin -Pgradum.skipDetektGate=true`: skip the detekt gate (project's built-in escape hatch,
-  see `build.gradle.kts:99-138`)
-
-### Fix (Long-term)
-
-Upgrade detekt to >= 1.24.x (stable versions that support JDK 25). Modify `build.gradle.kts:14`,
-`plugin/build.gradle.kts:15`, `plugin/build.gradle.kts:226`.
-
-> **Note**: detekt 2.0.0-alpha.x supports JDK 25 but requires Kotlin 2.4.0. The stable 1.23.x line maxes out at JDK 21.
-
-### Verification
-
-`./gradlew :plugin:buildPlugin -Pgradum.skipDetektGate=true` succeeds.
-
----
-
-## 7. Why We Ultimately Chose Shadow (Not bundledModule) — Decision Record
+## 6. Why We Ultimately Chose Shadow (Not bundledModule) — Decision Record
 
 IDE 2026.2's `Contents/lib/` has 15 jars related to Jewel/Compose/Skiko. JetBrains' official README offers two paths:
 
@@ -417,7 +380,7 @@ dependencies {
 
 ---
 
-## 8. One-Line Summary
+## 7. One-Line Summary
 
 - **Compile**: `bundledModule` works fine.
 - **Runtime**: Use `plugin/libs/` + `implementation(files(...))` to copy IDE same-name jars.
@@ -425,13 +388,13 @@ dependencies {
 - **Three LaTeX artifacts**: Exclude all Compose / Skiko / kotlinx / kotlin-stdlib transitive dependencies.
 - **plugin.xml `<depends>`**: Keep only `com.intellij.modules.platform` + `com.intellij.modules.compose`.
 - **Job.cancel ()**: Always pass an explicit `CancellationException("...")`, never `null` and never no-arg. Wrapped in
-  try-catch. Defends against both `NoSuchMethodError: cancel$default` and arbitrary coroutines version drift. See § 10.
+  try-catch. Defends against both `NoSuchMethodError: cancel$default` and arbitrary coroutines version drift. See § 9.
 - **runIde caveat**: `./gradlew :plugin:runIde` does NOT hot-reload plugin classes. After code changes, stop and restart
-  the task. See § 10.
+  the task. See § 9.
 
 ---
 
-## 9. Timeline (Single Day: 2026-07-20)
+## 8. Timeline (Single Day: 2026-07-20)
 
 | Time      | Event                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 |-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -446,12 +409,11 @@ dependencies {
 | 15:45     | `InlinesStyling` error gone; `NoClassDefFoundError: AutolinkProcessorExtension` appeared                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 16:00     | Moved 5 markdown extensions to `implementation` (previously via `composedJar.from`, nested inside main jar, invisible to classloader)                                                                                                                                                                                                                                                                                                                                                            |
 | 16:15     | Plugin finally loads! Chat / Markdown / LaTeX all work                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 16:30     | detekt fails because 1.23.7 doesn't support jvm-target 25 → bypassed with `-Pgradum.skipDetektGate=true`; wrote this document                                                                                                                                                                                                                                                                                                                                                                    |
-| 17:00     | User clicked stop button / Gradum tool window icon → `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`. Initial fix: pass `null` explicitly at the 3 call sites. Final fix (after deeper investigation in § 10): the real root cause is the runIde process serving a **stale plugin class**; the IDE's coroutines rebuild DOES contain the synthetic. Source now uses explicit `CancellationException("...")` + try-catch as defense-in-depth. |
+| 17:00     | User clicked stop button / Gradum tool window icon → `NoSuchMethodError: kotlinx.coroutines.Job.cancel$default(Job, CancellationException, int, Object)`. Initial fix: pass `null` explicitly at the 3 call sites. Final fix (after deeper investigation in § 9): the real root cause is the runIde process serving a **stale plugin class**; the IDE's coroutines rebuild DOES contain the synthetic. Source now uses explicit `CancellationException("...")` + try-catch as defense-in-depth. |
 
 ---
 
-## 10. NoSuchMethodError: kotlinx.coroutines.Job.cancel$default
+## 9. NoSuchMethodError: kotlinx.coroutines.Job.cancel$default
 
 ### Symptoms
 
@@ -571,9 +533,9 @@ verified clean.
 
 ---
 
-## 11. Compose / Jewel Integration Traps
+## 10. Compose / Jewel Integration Traps
 
-### 11.1 Inline Content Chip Registration — Silent Drop
+### 10.1 Inline Content Chip Registration — Silent Drop
 
 `Text(annotated, inlineContent = map)` requires `StringAnnotation.item` == map key **AND** a fixed internal tag. Compose
 looks up chips via
@@ -592,7 +554,7 @@ pop). Hardcode the tag string `"androidx.compose.foundation.text.inlineContent"`
 Always pair the `INLINE_CONTENT_TAG` annotation with an `INLINE_CODE_TEXT` annotation (or similar) for the raw code
 text; that one CAN have a user-defined tag and is needed for click-to-copy.
 
-### 11.2 Badge Style Color Trap — Transparent Tint
+### 10.2 Badge Style Color Trap — Transparent Tint
 
 `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)` for the default outlined badge style.
 Don't use it as a tint source; `tint.copy(alpha = X)` of transparent is still transparent.
@@ -604,13 +566,13 @@ fallback.
 > test didn't catch it because tests pass `tint` explicitly instead of resolving it from the theme. Any `@Composable`
 > theme resolver should have a non-zero-alpha guard AND log the resolved value to the IDE log for sanity check.
 
-### 11.3 Unit Tests Miss Theme Bugs
+### 10.3 Unit Tests Miss Theme Bugs
 
 Unit tests that skip `@Composable` theme resolution miss theme bugs. Pass a real (or fake) `JewelTheme.contentColor` /
 `linkStyle` to the resolver under test, or add a Compose-rendered test that mounts a real `JewelTheme` and asserts the
 chip is visible.
 
-### 11.4 `Markdown(...)` Ignores `ProvideMarkdownStyling` Unless Explicitly Wired
+### 10.4 `Markdown(...)` Ignores `ProvideMarkdownStyling` Unless Explicitly Wired
 
 `Markdown(...)` (Jewel) does NOT read `markdownStyling` / `blockRenderer` / `processor` from
 `LocalMarkdownStyling` / `LocalMarkdownBlockRenderer` / `LocalMarkdownProcessor`. The parameter defaults are
@@ -627,19 +589,19 @@ If you want the chat panel's `ProvideMarkdownStyling` to apply, you must either:
 > overrides the local with the Jewel-default renderer, making headings / lists / fenced code render with default colors.
 > This cost 3 hours of debugging before the fix.
 
-### 11.5 `AnnotatedString.Builder` Has No No-Arg Constructor
+### 10.5 `AnnotatedString.Builder` Has No No-Arg Constructor
 
 `AnnotatedString.Builder` in Compose 1.7.3 has no no-arg constructor. Use
 `buildAnnotatedString { val builder = this; ... }` to grab the builder as the receiver.
 
-### 11.6 CommonMark API Gotchas
+### 10.6 CommonMark API Gotchas
 
 - `Document` from `org.commonmark.node` has no `children()` method. Walk via `firstChild` + `next` directly.
 - `withStyle` is an extension function on `AnnotatedString.Builder`: must
   `import androidx.compose.ui.text.withStyle`.
 - `TextUnit` is a value class. Construct via `.sp` / `.em` extensions; do not write `TextUnit(value, type)`.
 
-### 11.7 `LayoutCoordinates.getOffsetForPosition` Does NOT Exist
+### 10.7 `LayoutCoordinates.getOffsetForPosition` Does NOT Exist
 
 `LayoutCoordinates.getOffsetForPosition(offset)` does NOT exist on this Compose version (verified by `javap` on
 `LayoutCoordinates.class` from `intellij.libraries.compose.foundation.desktop.jar`, the only public methods are
@@ -651,15 +613,15 @@ instead, and capture the result via the `Text` composable's `onTextLayout: (Text
 The correct path: hold a `MutableState<TextLayoutResult?>` filled by `onTextLayout`, read it inside
 `detectTapGestures`, and call `.getOffsetForPosition(offset)` on the layout result.
 
-### 11.8 `GlobalColors.editorBackground` Does NOT Exist
+### 10.8 `GlobalColors.editorBackground` Does NOT Exist
 
 `GlobalColors.editorBackground` does NOT exist; use `GlobalColors.panelBackground` for the LaTeX chip background tint.
 
 ---
 
-## 12. LaTeX Rendering Pitfalls (LANDED 2026-07-21, 7 Debug Rounds)
+## 11. LaTeX Rendering Pitfalls (LANDED 2026-07-21, 7 Debug Rounds)
 
-### 12.1 User's "Aha Moment": Block vs Inline LaTeX
+### 11.1 User's "Aha Moment": Block vs Inline LaTeX
 
 The first 4 rounds were adjusting the block-level `$$…$$` `Box` container (48dp vertical padding + heightIn to lock the
 first frame), but the user's test samples were all single-line `$…$`, **inline formulas, not block**. The block
@@ -669,7 +631,7 @@ modifications had zero effect on the inline path.
 > Box/Placeholder fix. `$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$` that appears on its own line is STILL inline; it goes
 > through `RenderInlineLatex` → PUA Placeholder in the text line, NOT `RenderLatexBlock` → standalone Box.
 
-### 12.2 Internal Padding from huarangmeng Library
+### 11.2 Internal Padding from huarangmeng Library
 
 Constants in `com.hrm.latex.renderer.utils.MathConstants`:
 
@@ -686,7 +648,7 @@ NOT visible to parent layout (part of Canvas size, not separate Modifier padding
 
 The user's-eye gap is exactly `BLOCK_LATEX_VERTICAL_PADDING_DP` (48.dp) between formula glyphs and surrounding text.
 
-### 12.3 Async Parsing with Layout Shift
+### 11.3 Async Parsing with Layout Shift
 
 The `Latex` composable uses `LaunchedEffect(latex) + withContext(Dispatchers.Default)` to parse the formula. First frame
 has `document = LatexNode.Document(emptyList())` → `LatexDocument.measure(empty)` returns tiny
@@ -701,7 +663,7 @@ height after parse. Text below visibly jumps.
 `Modifier.heightIn(min = BLOCK_LATEX_MIN_CONTENT_HEIGHT_DP.dp + BLOCK_LATEX_VERTICAL_PADDING_DP.dp * 2)` (currently
 44.dp + 48.dp×2 = 140.dp outer) so the Box is a stable size on the first frame.
 
-### 12.4 Inline LaTeX Placeholder Too Short → Formula Overflows Line
+### 11.4 Inline LaTeX Placeholder Too Short → Formula Overflows Line
 
 `RenderState.allocateLatex(formulaText)` was using the same `PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 1.0f` as the
 chip/footnote, giving `placeholderHeight = fontSizeSp × 1.0 + 2sp`. For a single line of text that's correct, but for a
@@ -713,7 +675,7 @@ text.
 **Fix**: dedicated `INLINE_LATEX_PLACEHOLDER_LINE_HEIGHT_MULTIPLIER = 2.2f` and `INLINE_LATEX_PLACEHOLDER_PADDING_SP`
 (2sp) used only by `allocateLatex`. 2.2× is a safe default that fits single-line formulas with one small fraction.
 
-### 12.5 Placeholder Vertical Alignment: Center vs TextCenter
+### 11.5 Placeholder Vertical Alignment: Center vs TextCenter
 
 | Mode                   | Behavior                                                           | Problem                                                                                             |
 |------------------------|--------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
@@ -721,7 +683,7 @@ text.
 | `AboveBaseline`        | Placeholder bottom = baseline                                      | Formula visual center at baseline + 1.25×fontSize: still elevated                                   |
 | `TextCenter` [CORRECT] | Placeholder center = x-height (baseline + 0.5×fontSize)            | Matches formula visual center: this is what LaTeX `\textstyle` does                                 |
 
-### 12.6 Block-Level LaTeX Rendering Structure (Final)
+### 11.6 Block-Level LaTeX Rendering Structure (Final)
 
 ```
 RenderLatexBlock(formula)
@@ -735,7 +697,7 @@ RenderLatexBlock(formula)
 Parent layout: `AssistantChatBubble`'s `Column` has no `verticalArrangement` (inter-block spacing determined by
 `padding(vertical=48dp)`), no horizontal padding (formula centered on the full chat panel content area).
 
-### 12.7 Library Canvas Horizontal Padding Side Effect
+### 11.7 Library Canvas Horizontal Padding Side Effect
 
 `MathConstants.CANVAS_HORIZONTAL_PADDING = 0.15f` (proportional to fontSize) is folded into `renderResult.canvasWidth`,
 so the Latex Canvas width = formula visible width + 2×0.15×fontSize (~5.4dp transparent padding at 18sp). The user
@@ -743,7 +705,7 @@ perceiving "large right margin" is actually a visual illusion from the panel con
 formula; left and right are perfectly symmetric. Cannot be eliminated externally (hardcoded in library); the only way
 to reduce perceived "right margin" is to narrow the chat panel content area (`maxContentWidth`).
 
-### 12.8 PUA Placeholder Allocation Table
+### 11.8 PUA Placeholder Allocation Table
 
 | Codepoint       | Usage                                                     |
 |-----------------|-----------------------------------------------------------|
@@ -757,7 +719,7 @@ to reduce perceived "right margin" is to narrow the chat panel content area (`ma
 Within one chip type, the key is `base.toString().repeat(counter + 1)`; counter resets per `parseInlineMarkdown`
 call (each call creates a fresh `RenderState`).
 
-### 12.9 LaTeX Rendering Debug Timeline
+### 11.9 LaTeX Rendering Debug Timeline
 
 | Round | User Feedback                                                                   | Root Cause                                                                                                                                                                            | Fix                                                                                                                                 |
 |-------|---------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
@@ -769,7 +731,7 @@ call (each call creates a fresh `RenderState`).
 | 6     | Increased default + wrote memory file + reported new bug                        | 2.2× still insufficient                                                                                                                                                               | → 2.5×                                                                                                                              |
 | 7     | Inline formula baseline rises                                                   | `PlaceholderVerticalAlign.Center` centers by line-height, formula visual center is at x-height                                                                                        | → `PlaceholderVerticalAlign.TextCenter` (aligns by x-height)                                                                        |
 
-### 12.10 Inline LaTeX Placeholder Width — From Estimation to Real Measurement
+### 11.10 Inline LaTeX Placeholder Width — From Estimation to Real Measurement
 
 **Problem**: `allocateLatex()` used `estimateLatexWidth()`, a per-character heuristic (letters 0.45em, narrow symbols
 0.25em, digits 0.45em, CJK 1.0em), to set the `Placeholder` width. This produced visible right-side whitespace on
@@ -823,9 +785,9 @@ fall back to the estimation heuristic, acceptable because heading text rarely co
 
 ---
 
-## 13. Inline Markdown Engineering (LANDED 2026-07-14, v2.1)
+## 12. Inline Markdown Engineering (LANDED 2026-07-14, v2.1)
 
-### 13.1 Inline Code Chip — Key Pitfalls
+### 12.1 Inline Code Chip — Key Pitfalls
 
 **Chip lineHeight clips glyphs**: the chip's internal `Text` must explicitly set `lineHeight = fontSize` (1.0x).
 Inheriting the editor style's `lineHeight` (1.5x) clips the glyphs to ~0 visible pixels.
@@ -866,7 +828,7 @@ Use `parseInlineNodes` + `rememberInlineMarkdownRenderFromNode` to directly proc
 `Paragraph`. Fixes: cast to `ListItem`, use `panelBackground` with fallback, replace divider with styled `Box`, access
 `inlinesStyling.textStyle`. These errors caused IDE to use old renderer version with default styles.
 
-### 13.2 Architecture Summary
+### 12.2 Architecture Summary
 
 The inline Markdown system uses a two-layer architecture:
 
@@ -890,9 +852,9 @@ Key design decisions (see `plugin/src/main/kotlin/gradum/idea/chat/ui/markdown/`
 
 ---
 
-## 14. Core Principles
+## 13. Core Principles
 
-### 15.1 Read the Source Code — Don't Guess
+### 13.1 Read the Source Code — Don't Guess
 
 When you encounter an unsolvable problem, **read the actual source code**. Do not guess based on error messages,
 documentation, or blog posts. This document itself was born from guessing:
@@ -903,7 +865,6 @@ documentation, or blog posts. This document itself was born from guessing:
   doesn't.
 - We assumed `GlobalColors.editorBackground` existed: reading the Jewel source would have shown it's
   `panelBackground`.
-- We assumed detekt 1.23.7 supported JVM 25: checking the compatibility table would have saved an hour.
 
 **The source code is the single source of truth.** Documentation is often outdated, blog posts are often wrong, and AI
 assistants (including this one) can hallucinate API names. When in doubt:
@@ -913,16 +874,16 @@ assistants (including this one) can hallucinate API names. When in doubt:
 3. Check the library's `pom.xml` for transitive dependencies
 4. Verify with `unzip -l` what's actually in the built artifact
 
-### 15.2 Don't Blindly Trust Unit Tests
+### 13.2 Don't Blindly Trust Unit Tests
 
 Unit tests can pass while the production code is completely broken. This document records multiple cases:
 
-- **Badge tint trap (§11.2)**: Tests passed `tint` explicitly instead of resolving it from the theme. Every chip was
+- **Badge tint trap (§10.2)**: Tests passed `tint` explicitly instead of resolving it from the theme. Every chip was
   invisible in production because `JewelTheme.badgeStyle.*.colors.background` is `SolidColor(Color.Transparent)`. The
   test didn't catch it because it never resolved the theme.
-- **Inline content chip (§11.1)**: v1 and v2 both had silent chip drops. No test caught it because tests don't mount a
+- **Inline content chip (§10.1)**: v1 and v2 both had silent chip drops. No test caught it because tests don't mount a
   real `JewelTheme`; they just call the function with synthetic inputs.
-- **`Markdown(...)` defaults (§11.4)**: Tests passed `markdownStyling` explicitly, so they never discovered that the
+- **`Markdown(...)` defaults (§10.4)**: Tests passed `markdownStyling` explicitly, so they never discovered that the
   production code's `ProvideMarkdownStyling` was being overridden by Jewel's theme defaults.
 
 **Rules for trustworthy tests:**
@@ -935,7 +896,7 @@ Unit tests can pass while the production code is completely broken. This documen
    `ProvideMarkdownStyling` with test values.
 4. Always test the **integration path**: not just the unit in isolation.
 
-### 15.3 Other Principles
+### 13.3 Other Principles
 
 - **Verify with `javap`, not with docs.** If you need to know whether a method exists on a class, inspect the bytecode.
   Documentation lies; bytecode doesn't.
@@ -950,7 +911,7 @@ Unit tests can pass while the production code is completely broken. This documen
 
 ---
 
-## 15. `applicationConfigurable` extension: `implementation` is silently ignored — use `instance`
+## 14. `applicationConfigurable` extension: `implementation` is silently ignored — use `instance`
 
 > **LANDED 2026-08-15, debugging round 1. The whole Configurable was missing from the Settings tree.**
 
@@ -1040,7 +1001,7 @@ project when only the application is available). The provider variant requires a
 
 ---
 
-## 16. ComposePanel under `JewelComposePanel` — `Modifier.fillMaxSize()` triggers a 32766×32766 Skia texture request
+## 15. ComposePanel under `JewelComposePanel` — `Modifier.fillMaxSize()` triggers a 32766×32766 Skia texture request
 
 > **LANDED 2026-08-15. Three debugging rounds: (1) `IllegalArgumentException`, (2) plain `Configurable` workarounds
 > via `preferredSize` / `.fillMaxSize` removal, (3) the real "back door", `Configurable.NoScroll`, discovered by
@@ -1128,7 +1089,7 @@ because your settings page really is long enough to need scrolling):
 ```kotlin
 @Composable
 private fun HelloPanel() {
-  // Intentionally NOT using Modifier.fillMaxSize(): see §16.
+  // Intentionally NOT using Modifier.fillMaxSize(): see §15.
   Box(
     modifier = Modifier.padding(16.dp),  // ← was: .fillMaxSize().padding(16.dp)
     contentAlignment = Alignment.Center
@@ -1185,7 +1146,7 @@ override fun createComponent(): JComponent = JewelComposePanel {
 
 ---
 
-## 17. Ktor `HttpClient.post()` Buffers the Entire Response Body — Streaming Broken
+## 16. Ktor `HttpClient.post()` Buffers the Entire Response Body — Streaming Broken
 
 > **LANDED 2026-08-22. A "thousand-year-old bug", the Ollama streaming response (thinking tokens) appeared to be
 > "sprayed out" all at once instead of token-by-token. Root cause: Ktor `post()` caches the response body in memory;
@@ -1282,7 +1243,7 @@ httpClient.preparePost(requestUrl) {
 > streaming correctly, but the Ktor client still received everything at once. The Ktor documentation's "Streaming data"
 > section is the key reference, but it's easy to miss when you're focused on the `bodyAsChannel()` function name.
 
-## 18. Inline Code Chip Height — Unreliable Dynamic Measurement vs Formula-Based Approach
+## 17. Inline Code Chip Height — Unreliable Dynamic Measurement vs Formula-Based Approach
 
 > **Date**: 2026-08-24 (3:00 AM, 4 hours of debugging, 12+ iterations)
 > **Files**: `BlockRenderer.kt`, `GradumMarkdown.kt`, `Styling.kt`

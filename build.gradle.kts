@@ -7,7 +7,6 @@ plugins {
   kotlin("jvm") version "2.3.0"
   kotlin("plugin.serialization") version "2.3.0"
   id("io.ktor.plugin") version "3.0.3"
-  id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
 group = "com.gradum"
@@ -96,9 +95,8 @@ dependencies {
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
   implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.0")
-  implementation("ch.qos.logback:logback-classic:1.5.25")
+  implementation("ch.qos.logback:logback-classic:1.6.3")
   testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.3")
-  detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
   testImplementation("io.ktor:ktor-server-test-host:3.0.3")
   testImplementation("io.ktor:ktor-client-mock:3.0.3")
   testImplementation("org.jetbrains.kotlin:kotlin-test:2.1.0")
@@ -114,59 +112,6 @@ dependencies {
 
 tasks.test {
   useJUnitPlatform()
-}
-
-detekt {
-  buildUponDefaultConfig = true
-  allRules = false
-  config.setFrom(file("config/detekt/detekt.yml"))
-  baseline = file("config/detekt/baseline.xml")
-  autoCorrect = false
-}
-
-/**
- * Force the quality gate into every code path that produces a
- * Gradle artifact. Two wirings, both belt-and-suspenders:
- *
- * 1. `compileKotlin.dependsOn(detekt)`: any explicit
- *    `gradlew compileKotlin` (root or JVM variant) and the IDE
- *    background compile that flows through it runs detekt first.
- *    Lint failures block the compile: no half-built class files,
- *    no `--no-detekt` escape hatch. This is the "code cleanliness"
- *    gate: by the time `compileKotlin` finishes, every line of
- *    new code is detekt-clean.
- * 2. `check.dependsOn(detekt)`: the standard `gradlew build`
- *    (which runs `assemble + check`) also enforces detekt. The
- *    detekt 1.23.x plugin *usually* auto-wires this, but pinning
- *    it explicitly in the build file means a future plugin update
- *    can't silently drop the wiring.
- *
- * The real cost is small: Gradle's task-up-to-date cache skips
- * `detekt` when no tracked source file changed, so an unchanged
- * file pays zero. When a source file *does* change, detekt runs
- * once on the changed file set (~3-8s for this module), then
- * the cache marks it up-to-date until the next change. The IDE
- * background compile that runs on every save also benefits from
- * the cache: only the first save after an edit pays the cost.
- *
- * Emergency opt-out (don't use it for code review, only for
- * unblocking a local repro): pass `-Pgradum.skipDetektGate=true`
- * to bypass the `compileKotlin` wiring. The `check.dependsOn`
- * wiring is unconditional: drop it here if you really need to
- * ship a half-clean build, and add a `// detekt:disable-next-line`
- * with a justification on the offending lines.
- */
-val gradumSkipDetektGate: String =
-  (project.findProperty("gradum.skipDetektGate") as? String).orEmpty()
-
-if (gradumSkipDetektGate.isBlank()) {
-  tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    dependsOn("detekt")
-  }
-}
-
-tasks.named("check") {
-  dependsOn("detekt")
 }
 
 kotlin {
@@ -427,7 +372,6 @@ tasks.register("dev") {
       val ideProcess: Process = ProcessBuilder(
         gradleWrapper.absolutePath,
         ":plugin:runIde",
-        "-Pgradum.skipDetektGate=true",
       )
         .inheritIO()
         .start()
