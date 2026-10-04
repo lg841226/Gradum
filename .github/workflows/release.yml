@@ -16,7 +16,7 @@ jobs:
       matrix:
         include:
           - { target: darwin-aarch64, runner: macos-14,         archive: gradum-darwin-arm64.zip }
-          - { target: darwin-x86_64,  runner: macos-13,         archive: gradum-darwin-x64.zip }
+          - { target: darwin-x86_64,  runner: macos-15-intel,   archive: gradum-darwin-x64.zip }
           - { target: linux-x86_64,   runner: ubuntu-latest,    archive: gradum-linux-x64.zip }
           - { target: linux-aarch64,  runner: ubuntu-24.04-arm, archive: gradum-linux-arm64.zip }
           - { target: windows-x86_64, runner: windows-latest,   archive: gradum-windows-x64.zip }
