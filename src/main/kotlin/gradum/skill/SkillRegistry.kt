@@ -92,6 +92,7 @@ object SkillRegistry : SkillStore {
    * LLM and humans see.
    */
   private fun annotateToolAvailability(schema: Map<String, Any>, skillInstance: Skill): Map<String, Any> {
+    @Suppress("UNCHECKED_CAST")
     val functionBlock: Map<String, Any> = schema["function"] as? Map<String, Any> ?: return schema
     val existingDescription: String = functionBlock["description"] as? String ?: return schema
 

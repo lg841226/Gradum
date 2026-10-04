@@ -33,7 +33,7 @@ import kotlinx.serialization.json.*
  */
 object JsonUtil {
 
-  private val compactJson: Json = Json { }
+  private val compactJson: Json = Json.Default
 
   private val prettyJson: Json = Json { prettyPrint = true }
 

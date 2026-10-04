@@ -270,6 +270,7 @@ class SearchSkillsEndToEndTest {
       context = simpleContext(),
     )
     val totalMatches = result.fields(key = "total_matches") as Int
+    @Suppress("UNCHECKED_CAST")
     val matches = result.fields(key = "matches") as List<Map<*, *>>
     assertTrue(
       totalMatches >= 1,
