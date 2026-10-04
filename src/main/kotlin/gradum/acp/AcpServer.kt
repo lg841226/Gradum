@@ -51,6 +51,13 @@ class AcpServer(internal val runtime: GradumRuntime) {
   internal val activeSessions: ConcurrentHashMap<String, AcpSessionState> = ConcurrentHashMap()
 
   /**
+   * Whether the connected client opted into terminal auth methods, captured at
+   * `initialize`. `session/new` only answers `auth_required` when the client can
+   * actually run the setup wizard, so the user is never left without a way out.
+   */
+  internal var clientTerminalAuthEnabled: Boolean = false
+
+  /**
    * In-flight agent→client requests (today: `session/request_permission`),
    * keyed by the outbound id. Outbound ids are negative so they can never
    * collide with the client's own request ids; [sendClientRequest] parks on
@@ -245,6 +252,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
 
   private fun handleInitialize(requestId: Long, params: JsonObject?): RpcResponse {
     val supportsTerminalAuth: Boolean = clientSupportsTerminalAuth(params)
+    clientTerminalAuthEnabled = supportsTerminalAuth
     val initializeResult = acpInitialize {
       protocolVersion = 1
       agentInfo {
@@ -253,11 +261,11 @@ class AcpServer(internal val runtime: GradumRuntime) {
       }
       if (supportsTerminalAuth) {
         authMethod {
-          id = "terminal"
-          name = "Configure provider"
-          description = "Run interactive setup in a terminal"
+          id = TERMINAL_AUTH_METHOD_ID
+          name = TERMINAL_AUTH_METHOD_NAME
+          description = TERMINAL_AUTH_METHOD_DESCRIPTION
           type = "terminal"
-          args = listOf("setup")
+          args = listOf(TERMINAL_AUTH_ARGUMENT)
         }
       }
       agentCapabilities {
@@ -287,12 +295,34 @@ class AcpServer(internal val runtime: GradumRuntime) {
   }
 }
 
+internal const val TERMINAL_AUTH_METHOD_ID: String = "terminal"
+internal const val TERMINAL_AUTH_METHOD_NAME: String = "Configure provider"
+internal const val TERMINAL_AUTH_METHOD_DESCRIPTION: String = "Run interactive setup in a terminal"
+internal const val TERMINAL_AUTH_ARGUMENT: String = "setup"
+
 /**
- * The client's `clientCapabilities.auth.terminal` opt-in. ACP requires the
- * terminal auth method to be advertised only when the client reproduces the
- * agent invocation in an interactive terminal; an omitted flag means unsupported.
+ * The terminal auth method payload, shared by the `initialize` result and the
+ * `auth_required` error so both describe the same entry the client renders.
  */
-internal fun clientSupportsTerminalAuth(params: JsonObject?): Boolean =
-  params?.get("clientCapabilities")?.jsonObject
-    ?.get("auth")?.jsonObject
+internal fun buildTerminalAuthMethod(): JsonObject = buildJsonObject {
+  put("id", TERMINAL_AUTH_METHOD_ID)
+  put("name", TERMINAL_AUTH_METHOD_NAME)
+  put("description", TERMINAL_AUTH_METHOD_DESCRIPTION)
+  put("type", "terminal")
+  putJsonArray("args") { add(TERMINAL_AUTH_ARGUMENT) }
+}
+
+/**
+ * Whether the client opted into terminal auth methods. ACP v1 signals this with
+ * `clientCapabilities.auth.terminal`; older clients, including the ACP registry
+ * validator, put `terminal-auth` under `clientCapabilities._meta`. Either counts,
+ * so a client that omits both never sees a terminal method it cannot run.
+ */
+internal fun clientSupportsTerminalAuth(params: JsonObject?): Boolean {
+  val clientCapabilities: JsonObject = params?.get("clientCapabilities")?.jsonObject ?: return false
+  val authOptIn: Boolean = clientCapabilities["auth"]?.jsonObject
     ?.get("terminal")?.jsonPrimitive?.booleanOrNull == true
+  val legacyOptIn: Boolean = clientCapabilities["_meta"]?.jsonObject
+    ?.get("terminal-auth")?.jsonPrimitive?.booleanOrNull == true
+  return authOptIn || legacyOptIn
+}

@@ -25,9 +25,9 @@ private const val ACP_ARGUMENT: String = "acp"
 private const val SETUP_ARGUMENT: String = "setup"
 
 fun main(arguments: Array<String>) {
-  when (arguments.firstOrNull()) {
-    ACP_ARGUMENT -> startAcp()
-    SETUP_ARGUMENT -> if (!runTuiSetup()) runSetup()
+  when {
+    arguments.contains(SETUP_ARGUMENT) -> if (!runTuiSetup()) runSetup()
+    arguments.firstOrNull() == ACP_ARGUMENT -> startAcp()
     else -> startHttp(arguments)
   }
 }

@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 private const val PROMPT_FAILED = -32603
 
+/** ACP "Authentication required": the client should run the advertised auth flow. */
+private const val AUTH_REQUIRED = -32000
+
 /**
  * `session` request handlers plus the helpers they depend on. These are
  * AcpServer extension functions so the transport class in AcpServer.kt stays
@@ -25,6 +28,17 @@ private const val PROMPT_FAILED = -32603
  */
 
 internal suspend fun AcpServer.handleSessionNew(requestId: Long, params: JsonObject?): RpcResponse {
+  if (!runtime.settings.isConfigured && clientTerminalAuthEnabled) {
+    return RpcResponse(
+      id = requestId,
+      error = RpcError(
+        code = AUTH_REQUIRED,
+        message = "Authentication required: run the Gradum setup wizard to pick a provider",
+        data = buildJsonObject { putJsonArray("authMethods") { add(buildTerminalAuthMethod()) } }
+      )
+    )
+  }
+
   val cwd: String = params?.get("projectRoot")?.jsonPrimitive?.contentOrNull
     ?: params?.get("cwd")?.jsonPrimitive?.contentOrNull
     ?: System.getProperty("user.dir")

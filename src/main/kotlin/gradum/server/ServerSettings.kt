@@ -42,6 +42,12 @@ data class ServerSettings(
    * with the type it declared. Empty when the user configures nothing.
    */
   val plugins: Map<String, Map<String, Any?>>,
+  /**
+   * Whether the user has completed the interactive setup wizard at least once.
+   * Written as a top-level `configured` flag on the first successful setup; the
+   * ACP transport uses it to ask a fresh install to run setup before a session.
+   */
+  val isConfigured: Boolean,
 )
 
 /**
@@ -57,6 +63,13 @@ object ServerSettingsStore {
 
   private const val SETTINGS_FILE_NAME: String = "settings.json"
   private const val SCHEMA_FILE_NAME: String = "settings.schema.json"
+
+  /**
+   * Top-level settings key the setup wizards write once the user finishes. Its
+   * absence is the "never configured" signal, which survives a user who keeps
+   * the default provider URL or configures a local model without an API key.
+   */
+  const val CONFIGURED_KEY: String = "configured"
 
   /**
    * Directory holding the server settings. Overridable via the
@@ -222,6 +235,7 @@ object ServerSettingsStore {
     val commandFilter: CommandFilterConfig = parseCommandFilter(sectionRaw = root["commandFilter"], issues = issues)
     val mcpServers: List<McpServerConfig> = parseMcpServers(sectionRaw = root["mcpServers"], issues = issues)
     val plugins: Map<String, Map<String, Any?>> = parsePlugins(sectionRaw = root["plugins"], issues = issues)
+    val isConfigured: Boolean = root[CONFIGURED_KEY] as? Boolean ?: false
 
     logIssues(issues)
     if (issues.isEmpty()) {
@@ -243,7 +257,8 @@ object ServerSettingsStore {
       defaultModelName = defaultModelName,
       defaultThinkEnabled = defaultThinkEnabled,
       defaultKeepAliveMinutes = defaultKeepAliveMinutes,
-      plugins = plugins
+      plugins = plugins,
+      isConfigured = isConfigured
     )
   }
 
@@ -278,7 +293,7 @@ object ServerSettingsStore {
 
   private val PORT_RANGE: IntRange = 1024..65535
   private val TOP_LEVEL_KEYS: Set<String> = setOf(
-    $$"$schema", "server", "llm", "commandFilter", "mcpServers", "plugins",
+    $$"$schema", CONFIGURED_KEY, "server", "llm", "commandFilter", "mcpServers", "plugins",
     "ollama.baseUrl", "ollama.apiKey", "ollama.allowRemote",
     "lmstudio.baseUrl", "lmstudio.apiKey", "lmstudio.allowRemote",
     "zhipu.baseUrl", "zhipu.apiKey", "zhipu.allowRemote",

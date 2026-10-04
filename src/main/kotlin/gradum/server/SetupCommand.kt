@@ -93,6 +93,7 @@ internal fun runSetup() {
     settingsRoot["${selectedProvider.key}.apiKey"] = apiKey
 
   dropLegacyFlatLlmKeys(settingsRoot)
+  settingsRoot[ServerSettingsStore.CONFIGURED_KEY] = true
   writeSettingsRoot(settingsFile, settingsRoot)
   printFooter(settingsFile, useColor)
 }

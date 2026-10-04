@@ -128,6 +128,7 @@ internal fun runTuiSetup(): Boolean {
       root["${state.provider.key}.baseUrl"] = state.baseUrl
       if (state.apiKey.isNotBlank()) root["${state.provider.key}.apiKey"] = state.apiKey
       dropLegacyFlatLlmKeys(root)
+      root[ServerSettingsStore.CONFIGURED_KEY] = true
       writeSettingsRoot(settingsFile, root)
       printFooter(settingsFile, colored)
     }

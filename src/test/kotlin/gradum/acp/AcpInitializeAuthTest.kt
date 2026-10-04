@@ -37,12 +37,26 @@ class AcpInitializeAuthTest {
   }
 
   @Test
-  fun `gates terminal auth on the client capability`() {
-    val enabled = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":true}}}""").jsonObject
-    val disabled = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":false}}}""").jsonObject
+  fun `builds the terminal auth payload the setup entry needs`() {
+    val method = buildTerminalAuthMethod()
+    assertEquals("terminal", method["type"]!!.jsonPrimitive.content)
+    assertEquals(TERMINAL_AUTH_METHOD_ID, method["id"]!!.jsonPrimitive.content)
+    assertEquals("setup", method["args"]!!.jsonArray[0].jsonPrimitive.content)
+  }
 
-    assertEquals(true, clientSupportsTerminalAuth(enabled))
-    assertEquals(false, clientSupportsTerminalAuth(disabled))
+  @Test
+  fun `gates terminal auth on the client capability`() {
+    val specOptIn = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":true}}}""").jsonObject
+    val specOptOut = Json.parseToJsonElement("""{"clientCapabilities":{"auth":{"terminal":false}}}""").jsonObject
+    val legacyOptIn = Json.parseToJsonElement("""{"clientCapabilities":{"_meta":{"terminal-auth":true}}}""").jsonObject
+    val registryValidator = Json.parseToJsonElement(
+      """{"clientCapabilities":{"terminal":true,"fs":{"readTextFile":true},"_meta":{"terminal_output":true,"terminal-auth":true}}}"""
+    ).jsonObject
+
+    assertEquals(true, clientSupportsTerminalAuth(specOptIn))
+    assertEquals(false, clientSupportsTerminalAuth(specOptOut))
+    assertEquals(true, clientSupportsTerminalAuth(legacyOptIn))
+    assertEquals(true, clientSupportsTerminalAuth(registryValidator))
     assertEquals(false, clientSupportsTerminalAuth(Json.parseToJsonElement("{}").jsonObject))
     assertEquals(false, clientSupportsTerminalAuth(null))
   }
