@@ -279,6 +279,11 @@ tasks.register("buildMinimalRuntime") {
  * macOS:  build/gradum-server/GradumServer.app/Contents/MacOS/GradumServer
  * Windows: build/gradum-server/GradumServer/GradumServer.exe
  * Linux:  build/gradum-server/bin/GradumServer
+ *
+ * Icons are optional and read from `packaging/<os>/`: `GradumServer.icns`
+ * (macOS) or `GradumServer.ico` (Windows). On Windows the launcher is built
+ * with `--win-console`, and the bundled JVM forces UTF-8 stdio, so the
+ * server logs stay visible and readable in the console window.
  */
 tasks.register("serverPackage", Exec::class.java) {
   group = "distribution"
@@ -295,6 +300,7 @@ tasks.register("serverPackage", Exec::class.java) {
     stagingDir.mkdirs()
     serverFatJarFile.copyTo(packagedFatJar, overwrite = true)
 
+    val osName: String = System.getProperty("os.name").lowercase()
     val jpackageVersion: String =
       project.version.toString().replaceFirst(Regex("[-].*$"), "")
     val jpackageArgs: MutableList<String> = mutableListOf(
@@ -305,12 +311,18 @@ tasks.register("serverPackage", Exec::class.java) {
       "--vendor", "Gradum",
       "--copyright", "Copyright (c) 2026 Gradum Authors"
     )
-    if (System.getProperty("os.name").lowercase().contains("mac")) {
-      val macIcon: File = rootDir.resolve("packaging/mac/GradumServer.icns")
-      if (macIcon.isFile) {
-        jpackageArgs += "--icon"
-        jpackageArgs += macIcon.absolutePath
+    val platformIcon: File? =
+      when {
+        osName.contains("mac") -> rootDir.resolve("packaging/mac/GradumServer.icns")
+        osName.contains("win") -> rootDir.resolve("packaging/win/GradumServer.ico")
+        else -> null
       }
+    if (platformIcon != null && platformIcon.isFile) {
+      jpackageArgs += "--icon"
+      jpackageArgs += platformIcon.absolutePath
+    }
+    if (osName.contains("win")) {
+      jpackageArgs += "--win-console"
     }
     if (serverMinimalRuntimeDir.isDirectory) {
       jpackageArgs += "--runtime-image"
@@ -322,6 +334,9 @@ tasks.register("serverPackage", Exec::class.java) {
       "--main-class", "gradum.server.MainKt",
       "--java-options", "-Xmx2048m",
       "--java-options", "-Xms512m",
+      "--java-options", "-Dfile.encoding=UTF-8",
+      "--java-options", "-Dstdout.encoding=UTF-8",
+      "--java-options", "-Dstderr.encoding=UTF-8",
       "--dest", destDir.absolutePath
     )
     commandLine(jpackageArgs)
