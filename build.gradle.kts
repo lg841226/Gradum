@@ -282,8 +282,9 @@ tasks.register("buildMinimalRuntime") {
  *
  * Icons are optional and read from `packaging/<os>/`: `GradumServer.icns`
  * (macOS) or `GradumServer.ico` (Windows). On Windows the launcher is built
- * with `--win-console`, and the bundled JVM forces UTF-8 stdio, so the
- * server logs stay visible and readable in the console window.
+ * with `--win-console`, and stdio is left at the JVM default (the console's
+ * native encoding), so the server logs stay visible and readable instead of
+ * turning into mojibake on CP936 consoles.
  */
 tasks.register("serverPackage", Exec::class.java) {
   group = "distribution"
@@ -334,9 +335,6 @@ tasks.register("serverPackage", Exec::class.java) {
       "--main-class", "gradum.server.MainKt",
       "--java-options", "-Xmx2048m",
       "--java-options", "-Xms512m",
-      "--java-options", "-Dfile.encoding=UTF-8",
-      "--java-options", "-Dstdout.encoding=UTF-8",
-      "--java-options", "-Dstderr.encoding=UTF-8",
       "--dest", destDir.absolutePath
     )
     commandLine(jpackageArgs)
