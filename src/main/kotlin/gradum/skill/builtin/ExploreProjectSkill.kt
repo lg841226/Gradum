@@ -42,7 +42,7 @@ class ExploreProjectSkill : Skill() {
     "Scan project and categorize files. Returns config files, code files (with line counts), and other files."
 
   override val toolDisplay: ToolDisplay =
-    ToolDisplay(label = "Explore project", paramKey = "projectRoot", kind = ToolDisplayKind.READ)
+    ToolDisplay(label = "Explore project", paramKey = "projectRoot", kind = ToolDisplayKind.OTHER)
 
   override val allowedToolModes: Set<ToolMode> = setOf(
     ToolMode.AGENT, ToolMode.READ_ONLY, ToolMode.EDIT
@@ -81,12 +81,13 @@ class ExploreProjectSkill : Skill() {
 
   private fun compactMessageContent(message: Map<String, Any>): Map<String, Any> {
     val content: String = message["content"] as? String ?: return message
-    val parsed: Map<String, Any?> = try {
-      decodeMap(content)
-    } catch (jsonParseException: Exception) {
-      logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
-      return message
-    }
+    val parsed: Map<String, Any?> =
+      try {
+        decodeMap(content)
+      } catch (jsonParseException: Exception) {
+        logger.debug("Message content is not a JSON object, leaving as-is: ${jsonParseException.message}", jsonParseException)
+        return message
+      }
 
     @Suppress("UNCHECKED_CAST")
     val configCount: Int = (parsed["config_files"] as? List<*>)?.size ?: 0
@@ -137,11 +138,12 @@ class ExploreProjectSkill : Skill() {
     val projectRoot: String = context.projectRoot
     val useSimpleOutput = context.isSimpleModel
 
-    val requestedDepth: Int = when (val depthValue: Any? = arguments["depth"]) {
-      is Number -> depthValue.toInt()
-      is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH
-      else -> DEFAULT_DEPTH
-    }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
+    val requestedDepth: Int =
+      when (val depthValue: Any? = arguments["depth"]) {
+        is Number -> depthValue.toInt()
+        is String -> depthValue.toIntOrNull() ?: DEFAULT_DEPTH
+        else -> DEFAULT_DEPTH
+      }.coerceIn(MINIMUM_DEPTH, MAXIMUM_DEPTH)
 
     val excludePattern: String = (
       arguments["exclude"] as? String ?: arguments["exclude_pattern"] as? String ?: ""
@@ -434,23 +436,24 @@ private fun scanDirectory(
 ) {
   if (remainingDepth <= 0) return
 
-  val directoryEntries: List<File> = try {
-    targetDirectory.toFile().listFiles()?.toList() ?: emptyList()
-  } catch (securityException: SecurityException) {
-    val reason: String = securityException.message
-      ?: securityException::class.simpleName
-      ?: "access denied"
-    logger.warn("SecurityException listing $targetDirectory: $reason")
+  val directoryEntries: List<File> =
+    try {
+      targetDirectory.toFile().listFiles()?.toList() ?: emptyList()
+    } catch (securityException: SecurityException) {
+      val reason: String = securityException.message
+        ?: securityException::class.simpleName
+        ?: "access denied"
+      logger.warn("SecurityException listing $targetDirectory: $reason")
 
-    val relativePath: String = try {
-      scanResult.relativeRoot.relativize(targetDirectory).toString()
-    } catch (relativizeException: IllegalArgumentException) {
-      logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message)
-      targetDirectory.toString()
+      val relativePath: String = try {
+        scanResult.relativeRoot.relativize(targetDirectory).toString()
+      } catch (relativizeException: IllegalArgumentException) {
+        logger.debug("Failed to relativize {}: {}", targetDirectory, relativizeException.message)
+        targetDirectory.toString()
+      }
+      scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
+      return
     }
-    scanResult.failedPaths.add(linkedMapOf("path" to relativePath, "reason" to reason))
-    return
-  }
 
   val sortedEntries: List<File> = directoryEntries
     .sortedWith(comparator = compareBy({ !it.isDirectory }, { it.name.lowercase() }))
@@ -478,15 +481,16 @@ private fun scanDirectory(
       scanResult.totalSize += directoryEntry.length()
 
       val relativePath: String = run {
-        val candidate: String = try {
-          scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
-        } catch (relativizeException: IllegalArgumentException) {
-          logger.debug(
-            "Failed to relativize {} against root: {}",
-            directoryEntry, relativizeException.message, relativizeException
-          )
-          targetDirectory.relativize(directoryEntry.toPath()).toString()
-        }
+        val candidate: String =
+          try {
+            scanResult.relativeRoot.relativize(directoryEntry.toPath()).toString()
+          } catch (relativizeException: IllegalArgumentException) {
+            logger.debug(
+              "Failed to relativize {} against root: {}",
+              directoryEntry, relativizeException.message, relativizeException
+            )
+            targetDirectory.relativize(directoryEntry.toPath()).toString()
+          }
         candidate.ifBlank { directoryEntry.name }
       }
 
@@ -533,11 +537,12 @@ private fun applyCodeFilters(files: List<Map<String, Any>>, config: FilterConfig
     }
   }
 
-  filtered = when (config.sortBy) {
-    "lines" -> filtered.sortedByDescending { (it["lines"] as? Int) ?: 0 }
-    "size" -> filtered.sortedByDescending { (it["path"] as? String)?.length ?: 0 }
-    else -> filtered.sortedBy { it["path"] as? String ?: "" }
-  }
+  filtered =
+    when (config.sortBy) {
+      "lines" -> filtered.sortedByDescending { (it["lines"] as? Int) ?: 0 }
+      "size" -> filtered.sortedByDescending { (it["path"] as? String)?.length ?: 0 }
+      else -> filtered.sortedBy { it["path"] as? String ?: "" }
+    }
 
   return filtered
 }

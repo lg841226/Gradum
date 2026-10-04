@@ -2,19 +2,13 @@ package gradum.acp
 
 import gradum.ModelEntry
 import gradum.ModelIdentity
+import gradum.Provider
 import gradum.ToolMode
 import gradum.mcp.jsonrpc.RpcError
 import gradum.mcp.jsonrpc.RpcResponse
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
-
-/**
- * Session config-option builders plus the `session/set_config_option`
- * handler. Config options are stateless JSON shapes derived from the
- * session's current selections, so the builders are plain top-level
- * functions; only the handler needs the AcpServer receiver.
- */
 
 
 /**
@@ -31,17 +25,17 @@ internal fun buildSessionConfigOptions(sessionState: AcpSessionState): List<Json
 private fun buildModelConfigOption(selectedModel: String): JsonObject = acpConfigOption {
   id = "model"
   name = "Model"
-  category = "model"
   type = "select"
+  category = "model"
   currentValue = selectedModel
   options = buildModelOptionValues()
 }
 
 private fun buildModeConfigOption(selectedMode: ToolMode): JsonObject = acpConfigOption {
   id = "mode"
-  name = "Select permissions"
-  category = "mode"
   type = "select"
+  category = "mode"
+  name = "Select permissions"
   currentValue = modeId(selectedMode)
   options = ToolMode.entries.map { mode -> acpOptionValue(modeId(mode), modeLabel(mode), modeDescription(mode)) }
 }
@@ -53,8 +47,22 @@ private fun buildModelOptionValues(): List<JsonObject> {
   }
 }
 
+/**
+ * Model option description, e.g. `The local model from Ollama`. A model is
+ * "local" only when its provider is OLLAMA and its name is not cloud-tagged
+ * (Ollama also serves `-cloud` models); every other provider is "cloud".
+ * The name shown is the server's own display name so multiple
+ * OpenAI-compatible endpoints (DeepSeek, Zhipu BigModel, ...) stay
+ * distinguishable.
+ */
 private fun buildOptionValue(modelName: String, serverName: String, providerType: String): JsonObject {
-  val description: String? = serverName.takeIf { it.isNotBlank() }?.let { "$providerType @ $it" }
+  val provider: Provider = Provider.fromStringOrDefault(providerType)
+  val isLocalModel: Boolean = provider == Provider.OLLAMA && !ModelIdentity.isCloudTagged(modelName)
+  val location: String =
+    if (isLocalModel) "local"
+    else "cloud"
+
+  val description: String? = serverName.takeIf { it.isNotBlank() }?.let { "The $location model from $it" }
   return acpOptionValue(modelName, modelName, description)
 }
 
@@ -69,17 +77,19 @@ private fun modeId(mode: ToolMode): String = mode.name.lowercase()
  * (gradum.select.permissions, gradum.*.mode, gradum.*.info) so the ACP
  * selector reads identically to the plugin's own permission selector.
  */
-private fun modeLabel(mode: ToolMode): String = when (mode) {
-  ToolMode.AGENT -> "Agent Mode"
-  ToolMode.EDIT -> "Edit Permissions"
-  ToolMode.READ_ONLY -> "Read-only Permissions"
-}
+private fun modeLabel(mode: ToolMode): String =
+  when (mode) {
+    ToolMode.AGENT -> "Agent"
+    ToolMode.EDIT -> "Edit"
+    ToolMode.READ_ONLY -> "Read"
+  }
 
-private fun modeDescription(mode: ToolMode): String = when (mode) {
-  ToolMode.AGENT -> "Reads, writes, executes complex tasks"
-  ToolMode.EDIT -> "Edit files and code by hand"
-  ToolMode.READ_ONLY -> "Read, explore and run diagnostics"
-}
+private fun modeDescription(mode: ToolMode): String =
+  when (mode) {
+    ToolMode.AGENT -> "Reads, writes, executes complex tasks"
+    ToolMode.EDIT -> "Edit files and code by hand"
+    ToolMode.READ_ONLY -> "Read, explore and run diagnostics"
+  }
 
 internal fun AcpServer.handleSetConfigOption(requestId: Long, params: JsonObject?): RpcResponse {
   val sessionId: String = params?.get("sessionId")?.jsonPrimitive?.contentOrNull

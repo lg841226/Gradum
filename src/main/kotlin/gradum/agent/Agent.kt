@@ -14,6 +14,7 @@ import gradum.skill.builtin.getTodoManagerInstance
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -334,7 +335,9 @@ class Agent(
     // blocked while streaming. Not safe to convert until `processLlmTurn` and all 9 skill
     // execute() paths are suspend-clean; tracked as the "Agent.runBlocking removal" item.
     runBlocking {
-      responseFlow.collect { chunk ->
+      // Stop mid-stream once canceled; without this the whole answer keeps
+      // streaming to completion before the outer loop notices isAborted.
+      responseFlow.takeWhile { !sessionManager.isAborted }.collect { chunk ->
         when (chunk) {
           is LLMResponseChunk.TextContent -> {
             contentParts.add(chunk.text)

@@ -21,6 +21,7 @@ class SessionManager(
   private val emitEvent: (eventType: String, eventData: Map<String, Any>) -> Unit
 ) {
 
+  @Volatile
   var isAborted: Boolean = false
     private set
   var endReason: String? = null

@@ -217,6 +217,19 @@ object ModelIdentity {
   fun discoverModels(): List<ModelEntry> = Discovery.probe()
 
   /**
+   * Bearer token the chat request should use for [modelName], derived from
+   * the model's server with the same precedence the discovery probe uses
+   * (per-server config, then the server's own env var, then the shared
+   * cloud fallback). Returns null when the model is unknown or its server
+   * is local / unauthenticated, in which case the caller falls back to its
+   * own default and the request goes out header-less.
+   */
+  fun resolveApiKeyForModel(modelName: String): String? {
+    val entry: ModelEntry = discoverModels().firstOrNull { it.modelName == modelName } ?: return null
+    return Discovery.resolveApiKeyForServer(serverName = entry.serverName)
+  }
+
+  /**
    * Result of a single one-shot provider probe, driven from the plugin
    * settings page. Mirrors the plugin's `ProviderStatus` so the UI can
    * render a latency badge and a localized error reason without the
@@ -693,6 +706,27 @@ object ModelIdentity {
       for (envVarName in cloudApiKeyEnvCandidates)
         resolveEnvVar(envVarName)?.let { return it }
       return null
+    }
+
+    /**
+     * Bearer token for [serverName], resolved with the same precedence
+     * [doProbe] uses so chat and discovery never disagree: per-server
+     * config value, then the server's own `apiKeyEnvVar`, then the
+     * shared [cloudApiKeyEnvCandidates] fallback. Returns null for
+     * local / unauthenticated servers, which must stay header-less.
+     */
+    fun resolveApiKeyForServer(serverName: String): String? {
+      val server: ServerDef = baseKnownServers.firstOrNull { it.name == serverName } ?: return null
+      server.apiKey?.let { return it }
+
+      if (server.providerType != Provider.OPENAI.wireType) return null
+
+      val providerEnv: Properties = ProviderConfigStore.load()
+      val providerKey: String? = ProviderConfigStore.apiKeyKey(server.configKey)
+        ?.let { providerEnv.getProperty(it) }?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: server.apiKeyEnvVar?.let { resolveEnvVar(envVarName = it) }
+      return providerKey ?: resolveCloudApiKey()
     }
 
     private fun resolveEnvVar(envVarName: String): String? {

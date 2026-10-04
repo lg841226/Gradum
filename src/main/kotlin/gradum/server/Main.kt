@@ -130,7 +130,9 @@ private fun startHttp(arguments: Array<String>) {
 }
 
 private fun startAcp() {
+  logger.info("Gradum ACP server is starting (stdio JSON-RPC)")
   val runtime = initRuntime()
+  logger.info("Gradum ACP server has been started, awaiting client frames on stdin")
   AcpServer(runtime).runBlocking()
   runtime.skillWatcher.close()
   runtime.mcpManager.close()

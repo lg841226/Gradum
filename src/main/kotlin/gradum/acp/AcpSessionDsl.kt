@@ -1,5 +1,6 @@
 package gradum.acp
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.*
 
 /**
@@ -43,6 +44,12 @@ internal class AcpSessionNewScope {
 }
 
 internal fun acpConfigOptions(options: List<JsonObject>): JsonObject = buildJsonObject {
+  put("configOptions", buildJsonArray { options.forEach { add(it) } })
+}
+
+/** A `config_option_update` session update: the full option set with fresh values. */
+internal fun acpConfigOptionUpdate(options: List<JsonObject>): JsonObject = buildJsonObject {
+  put("sessionUpdate", JsonPrimitive("config_option_update"))
   put("configOptions", buildJsonArray { options.forEach { add(it) } })
 }
 
@@ -131,22 +138,54 @@ internal class AcpToolCallUpdateScope {
   }
 }
 
+/**
+ * One `session/request_permission` option. `optionId` is the stable semantic
+ * code echoed back by the client (and the token the ask card resolves on);
+ * `kind` is the ACP permission kind (`allow_once` / `allow_always` /
+ * `reject_once` / `reject_always`).
+ */
+internal fun acpPermissionOption(optionId: String, name: String, kind: String): JsonObject =
+  buildJsonObject {
+    put("optionId", JsonPrimitive(optionId))
+    put("name", JsonPrimitive(name))
+    put("kind", JsonPrimitive(kind))
+  }
+
+/**
+ * Params for the agent→client `session/request_permission` request. The
+ * `toolCall` field is a partial ToolCallUpdate: `toolCallId` is required, and
+ * `title` echoes the same display text used when the tool call was announced,
+ * so clients that bind permission buttons to a known tool call can resolve it.
+ */
+internal fun acpRequestPermissionParams(
+  title: String?,
+  sessionId: String,
+  toolCallId: String,
+  options: List<JsonObject>
+): JsonObject = buildJsonObject {
+  put("sessionId", JsonPrimitive(sessionId))
+  put("toolCall", buildJsonObject {
+    put("toolCallId", JsonPrimitive(toolCallId))
+    title?.let { put("title", JsonPrimitive(it)) }
+  })
+  put("options", buildJsonArray { options.forEach { add(it) } })
+}
+
 /** Converts event-map payloads (arguments / result) into arbitrary JsonElement trees. */
+@OptIn(ExperimentalSerializationApi::class)
 private fun jsonAnyToJson(value: Any?): JsonElement =
   when (value) {
     null -> JsonNull
-    is String -> JsonPrimitive(value)
-    is Number -> JsonPrimitive(value)
-    is Boolean -> JsonPrimitive(value)
     is Map<*, *> -> buildJsonObject {
       for ((rawKey, rawValue) in value) {
         if (rawKey is String) put(rawKey, jsonAnyToJson(rawValue))
       }
     }
-
     is List<*> -> buildJsonArray {
       value.forEach { add(jsonAnyToJson(it)) }
     }
-
+    // Number/Boolean stay unquoted (wire-identical to JsonPrimitive(Number/Boolean));
+    // String and other scalars go through toString, a no-op for String itself.
+    is Number, is Boolean -> JsonUnquotedLiteral(value.toString())
     else -> JsonPrimitive(value.toString())
   }

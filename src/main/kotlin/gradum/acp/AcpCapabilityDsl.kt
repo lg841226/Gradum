@@ -6,11 +6,15 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 
 /**
- * Type-safe builder DSL for ACP v2 draft initialize response objects.
+ * Type-safe builder DSL for the ACP v1 initialize response objects.
  *
  * Produces JsonObject directly (no intermediate data class and conversion
  * step), and eliminates every `put("key", JsonPrimitive(value))` call site
  * so the initialize handler reads as a plain declarative block.
+ *
+ * Field names mirror the ACP v1 schema: `loadSession`, `promptCapabilities`,
+ * `mcpCapabilities` (`http`/`sse`). There is no agent-side permission
+ * capability — `session/request_permission` is a core method.
  *
  * Usage:
  *
@@ -23,9 +27,8 @@ import kotlinx.serialization.json.buildJsonObject
  *       authMethods = emptyList()
  *       agentCapabilities {
  *         loadSession = false
- *         prompt { image = true }
- *         tools { requestPermission = true }
- *         mcpCapabilities { /* none */ }
+ *         promptCapabilities { image = true }
+ *         mcpCapabilities { /* stdio only: http/sse stay false */ }
  *       }
  *     }
  */
@@ -70,17 +73,11 @@ internal class AcpAgentInfoScope {
 
 internal class AcpAgentCapabilitiesScope {
   var loadSession: Boolean = false
-  var modes: List<String> = emptyList()
-  private var toolsBuilder: AcpToolsScope? = null
   private var promptBuilder: AcpPromptScope? = null
   private var mcpCapabilitiesBuilder: AcpMcpCapabilitiesScope? = null
 
-  fun prompt(block: AcpPromptScope.() -> Unit) {
+  fun promptCapabilities(block: AcpPromptScope.() -> Unit) {
     promptBuilder = AcpPromptScope().apply(block)
-  }
-
-  fun tools(block: AcpToolsScope.() -> Unit) {
-    toolsBuilder = AcpToolsScope().apply(block)
   }
 
   fun mcpCapabilities(block: AcpMcpCapabilitiesScope.() -> Unit) {
@@ -90,9 +87,7 @@ internal class AcpAgentCapabilitiesScope {
   internal fun toJsonObject(): JsonObject =
     buildJsonObject {
       put("loadSession", JsonPrimitive(loadSession))
-      promptBuilder?.let { put("prompt", it.toJsonObject()) }
-      put("modes", buildJsonArray { modes.forEach { add(JsonPrimitive(it)) } })
-      toolsBuilder?.let { put("tools", it.toJsonObject()) }
+      promptBuilder?.let { put("promptCapabilities", it.toJsonObject()) }
       mcpCapabilitiesBuilder?.let { put("mcpCapabilities", it.toJsonObject()) }
     }
 }
@@ -110,41 +105,17 @@ internal class AcpPromptScope {
     }
 }
 
-internal class AcpToolsScope {
-  var terminal: Boolean = false
-  var requestPermission: Boolean = false
-  var preview: List<String> = emptyList()
-  private var fsBuilder: AcpFsScope? = null
-
-  fun fs(block: AcpFsScope.() -> Unit) {
-    fsBuilder = AcpFsScope().apply(block)
-  }
-
-  internal fun toJsonObject(): JsonObject =
-    buildJsonObject {
-      put("requestPermission", JsonPrimitive(requestPermission))
-      fsBuilder?.let { put("fs", it.toJsonObject()) }
-      put("terminal", JsonPrimitive(terminal))
-      put("preview", buildJsonArray { preview.forEach { add(JsonPrimitive(it)) } })
-    }
-}
-
-internal class AcpFsScope {
-  var readTextFile: Boolean = false
-  var writeTextFile: Boolean = false
-
-  internal fun toJsonObject(): JsonObject =
-    buildJsonObject {
-      put("readTextFile", JsonPrimitive(readTextFile))
-      put("writeTextFile", JsonPrimitive(writeTextFile))
-    }
-}
-
+/**
+ * The agent's MCP transport support. Gradum only connects client-provided
+ * MCP servers over stdio, so http/sse are false and not advertised.
+ */
 internal class AcpMcpCapabilitiesScope {
-  var enabled: Boolean = true
+  var http: Boolean = false
+  var sse: Boolean = false
 
   internal fun toJsonObject(): JsonObject =
     buildJsonObject {
-      put("enabled", JsonPrimitive(enabled))
+      put("http", JsonPrimitive(http))
+      put("sse", JsonPrimitive(sse))
     }
 }

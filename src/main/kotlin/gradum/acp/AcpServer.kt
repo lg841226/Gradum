@@ -2,30 +2,25 @@ package gradum.acp
 
 import gradum.BuildConfig
 import gradum.GradumRuntime
+import gradum.ModelIdentity
 import gradum.mcp.jsonrpc.RpcError
 import gradum.mcp.jsonrpc.RpcNotification
+import gradum.mcp.jsonrpc.RpcRequest
 import gradum.mcp.jsonrpc.RpcResponse
 import gradum.mcp.transport.FrameCodec
 import gradum.skill.PendingQuestions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * ACP v1 server running over stdio as a JSON-RPC 2.0 agent.
@@ -55,25 +50,95 @@ class AcpServer(internal val runtime: GradumRuntime) {
   internal val pendingQuestions: PendingQuestions = PendingQuestions()
   internal val activeSessions: ConcurrentHashMap<String, AcpSessionState> = ConcurrentHashMap()
 
+  /**
+   * In-flight agent→client requests (today: `session/request_permission`),
+   * keyed by the outbound id. Outbound ids are negative so they can never
+   * collide with the client's own request ids; [sendClientRequest] parks on
+   * the matching deferred and [completeOutboundRequest] resolves it when the
+   * client's response frame arrives on the read loop.
+   */
+  private val outboundRequests: ConcurrentHashMap<Long, CompletableDeferred<JsonObject>> =
+    ConcurrentHashMap()
+  private val outboundIdCounter: AtomicLong = AtomicLong(0L)
+
   fun runBlocking(): Unit = runBlocking(Dispatchers.IO) {
     val frameReader = BufferedReader(InputStreamReader(System.`in`, Charsets.UTF_8))
     val frameWriter = System.out.bufferedWriter()
+
+    val probeJob: Job = launch { runConfigOptionProbe(frameWriter) }
 
     frameReader.lineSequence().forEach { frameLine ->
       val trimmedFrame: String = frameLine.trim()
       if (trimmedFrame.isEmpty()) return@forEach
 
+      launch {
+        try {
+          dispatchFrame(trimmedFrame, frameWriter)
+        } catch (parseException: Exception) {
+          logger.warn("Failed to parse incoming ACP frame", parseException)
+          writeRpcResponse(
+            frameWriter,
+            RpcResponse(
+              id = null,
+              error = RpcError(code = -32700, message = "Parse error: ${parseException.message}")
+            )
+          )
+        }
+      }
+    }
+
+    // stdin closed: the client is gone, so stop probing before runBlocking waits on children.
+    probeJob.cancel()
+  }
+
+  /**
+   * Watches model availability on a fixed interval and, when the set of usable
+   * models changes (e.g. a local server such as LM Studio was started or
+   * stopped), pushes a `config_option_update` to every active session so ACP
+   * clients refresh their model picker without polling.
+   *
+   * The first tick only records a baseline: nothing is pushed until a change is
+   * actually observed. A probe that throws keeps the last snapshot, so a single
+   * transient failure never looks like "all models disappeared".
+   */
+  private suspend fun runConfigOptionProbe(frameWriter: BufferedWriter) {
+    var lastSnapshot: List<String>? = null
+    while (currentCoroutineContext().isActive) {
+      delay(MODEL_PROBE_INTERVAL_MS)
+      val snapshot: List<String> = availableModelKeys() ?: continue
+      if (lastSnapshot != null && snapshot != lastSnapshot) {
+        logger.info("Model availability changed ({} -> {} models); notifying sessions", lastSnapshot.size, snapshot.size)
+        broadcastConfigOptions(frameWriter)
+      }
+      lastSnapshot = snapshot
+    }
+  }
+
+  /** Stable identity of the currently usable models, or null when the probe itself failed. */
+  private fun availableModelKeys(): List<String>? =
+    try {
+      ModelIdentity.discoverModels()
+        .filter { it.available }
+        .map { "${it.providerType}|${it.serverName}|${it.modelName}" }
+        .sorted()
+    } catch (probeException: Exception) {
+      logger.debug("Model availability probe failed; keeping last snapshot", probeException)
+      null
+    }
+
+  private suspend fun broadcastConfigOptions(frameWriter: BufferedWriter) {
+    for (sessionState in activeSessions.values) {
       try {
-        dispatchFrame(trimmedFrame, frameWriter)
-      } catch (parseException: Exception) {
-        logger.warn("Failed to parse incoming ACP frame", parseException)
-        writeRpcResponse(
+        sendNotification(
           frameWriter,
-          RpcResponse(
-            id = null,
-            error = RpcError(code = -32700, message = "Parse error: ${parseException.message}")
+          "session/update",
+          acpSessionUpdate(
+            sessionId = sessionState.sessionId,
+            update = acpConfigOptionUpdate(buildSessionConfigOptions(sessionState))
           )
         )
+      } catch (sendException: Exception) {
+        logger.warn("Failed to push config_option_update for session ${sessionState.sessionId}", sendException)
       }
     }
   }
@@ -85,11 +150,11 @@ class AcpServer(internal val runtime: GradumRuntime) {
       val method: String? = requestObject["method"]?.jsonPrimitive?.contentOrNull
 
       if (method == null) {
+        if (requestId != null && completeOutboundRequest(requestObject)) {
+          return@withContext
+        }
         if (requestId != null) {
-          writeRpcResponse(
-            frameWriter,
-            RpcResponse(id = requestId, error = RpcError(code = -32600, message = "Invalid Request"))
-          )
+          logger.warn("Unmatched response frame (no pending outbound request): id=$requestId")
         }
         return@withContext
       }
@@ -107,6 +172,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
     return when (method) {
       "initialize" -> handleInitialize(requestId)
       "session/new" -> handleSessionNew(requestId, params)
+      "session/load" -> handleSessionLoad(requestId, params)
       "session/prompt" -> handleSessionPrompt(requestId, params)
       "session/cancel" -> handleSessionCancelRequest(requestId, params)
       "session/set_config_option" -> handleSetConfigOption(requestId, params)
@@ -136,6 +202,40 @@ class AcpServer(internal val runtime: GradumRuntime) {
     writeFrame(frameWriter, rpcJson.encodeToString(notification))
   }
 
+  /**
+   * Sends an agent→client JSON-RPC request and parks until the client answers.
+   *
+   * There is deliberately **no timeout**: the caller blocks however long the
+   * client takes (matching [PendingQuestions]' no-timeout ask channel). The
+   * response frame is matched by its outbound id on the read loop and handed
+   * back here via [completeOutboundRequest].
+   */
+  internal suspend fun sendClientRequest(
+    frameWriter: BufferedWriter, method: String, params: JsonObject
+  ): JsonObject {
+    val outboundId: Long = outboundIdCounter.decrementAndGet()
+    val response: CompletableDeferred<JsonObject> = CompletableDeferred()
+    outboundRequests[outboundId] = response
+    try {
+      val request = RpcRequest(id = outboundId, method = method, params = params)
+      writeFrame(frameWriter, rpcJson.encodeToString(request))
+      return response.await()
+    } finally {
+      outboundRequests.remove(outboundId)
+    }
+  }
+
+  /**
+   * Routes a method-less frame to an in-flight outbound request. Returns true
+   * when the id matched a live request (the deferred now holds the response),
+   * false when the frame is an orphan response the server never asked for.
+   */
+  private fun completeOutboundRequest(responseObject: JsonObject): Boolean {
+    val responseId: Long = responseObject["id"]?.jsonPrimitive?.longOrNull ?: return false
+    val pending: CompletableDeferred<JsonObject> = outboundRequests.remove(responseId) ?: return false
+    return pending.complete(responseObject)
+  }
+
   private suspend fun writeFrame(frameWriter: BufferedWriter, jsonLine: String) {
     frameWriteMutex.withLock {
       frameWriter.write(FrameCodec.encode(jsonLine).decodeToString())
@@ -152,23 +252,13 @@ class AcpServer(internal val runtime: GradumRuntime) {
       }
       authMethods = emptyList()
       agentCapabilities {
-        loadSession = false
-        prompt {
+        loadSession = true
+        promptCapabilities {
           image = true
           audio = false
           embeddedContext = false
         }
-        modes = emptyList()
-        tools {
-          requestPermission = true
-          fs {
-            readTextFile = false
-            writeTextFile = false
-          }
-          terminal = false
-          preview = emptyList()
-        }
-        mcpCapabilities { enabled = true }
+        mcpCapabilities { /* stdio only: http/sse stay false */ }
       }
     }
     return RpcResponse(id = requestId, result = initializeResult)
@@ -182,5 +272,8 @@ class AcpServer(internal val runtime: GradumRuntime) {
 
   companion object {
     private const val METHOD_NOT_FOUND = -32601
+
+    /** Model-availability probe cadence; 1s keeps the client's model picker near-live. */
+    private const val MODEL_PROBE_INTERVAL_MS = 1_000L
   }
 }

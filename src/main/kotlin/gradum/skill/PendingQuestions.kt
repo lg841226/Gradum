@@ -60,6 +60,25 @@ class PendingQuestions {
   fun completeCancelled(sessionId: String, requestId: String): AskResult? =
     resolve(sessionId, requestId, AskResult.Cancelled)
 
+  /**
+   * Cancels every pending question belonging to [sessionId], resolving each
+   * blocked [await] with [AskResult.Cancelled]. Used by a transport's cancel
+   * path: a turn parked on a user question must be woken, otherwise the abort
+   * flag alone can never unblock it and the turn hangs until a forced stop.
+   * Returns the number of questions that were still pending.
+   */
+  fun cancelSession(sessionId: String): Int {
+    var cancelledCount = 0
+    for ((entryKey, entry) in entries) {
+      if (entry.sessionId != sessionId) continue
+      if (entries.remove(entryKey, entry)) {
+        entry.deferred.complete(AskResult.Cancelled)
+        cancelledCount++
+      }
+    }
+    return cancelledCount
+  }
+
   fun size(): Int = entries.size
 
   fun isPending(sessionId: String, requestId: String): Boolean =
