@@ -1,9 +1,7 @@
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.buildXmlError
+import gradum.skill.*
 import gradum.skill.dsl.IntConstraints
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.integer
@@ -42,6 +40,9 @@ class ExploreProjectSkill : Skill() {
   override val skillName: String = "explore_project"
   override val description: String =
     "Scan project and categorize files. Returns config files, code files (with line counts), and other files."
+
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Explore project", paramKey = "projectRoot", kind = ToolDisplayKind.READ)
 
   override val allowedToolModes: Set<ToolMode> = setOf(
     ToolMode.AGENT, ToolMode.READ_ONLY, ToolMode.EDIT

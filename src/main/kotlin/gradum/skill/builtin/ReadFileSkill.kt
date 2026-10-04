@@ -39,6 +39,9 @@ class ReadFileSkill : Skill() {
   override val skillName: String = "read_file"
   override val description: String = "Read file content. Use line_range to read a section."
 
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Read file", paramKey = "path", kind = ToolDisplayKind.READ)
+
   override val historyKeepCount: Int = Int.MAX_VALUE
   override val historyVolatileKeys: List<String> = emptyList()
 

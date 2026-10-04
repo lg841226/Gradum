@@ -259,12 +259,13 @@ private fun resolveAbsolute(pathString: String): String {
 
 /** Resolves [pathString] against [projectRoot] when it is relative, so an in-project relative path stays inside. */
 private fun resolveRelativeTo(pathString: String, projectRoot: String): String {
-  val path = try {
-    Paths.get(pathString)
-  } catch (pathException: Exception) {
-    logger.debug("Failed to parse path '$pathString': ${pathException.message}", pathException)
-    return pathString
-  }
+  val path =
+    try {
+      Paths.get(pathString)
+    } catch (pathException: Exception) {
+      logger.debug("Failed to parse path '$pathString': ${pathException.message}", pathException)
+      return pathString
+    }
   return try {
     if (path.isAbsolute) path.normalize().toString()
     else Paths.get(projectRoot).resolve(path).normalize().toAbsolutePath().toString()

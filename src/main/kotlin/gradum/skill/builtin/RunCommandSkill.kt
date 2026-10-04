@@ -137,6 +137,9 @@ class RunCommandSkill : Skill() {
       "Use detached=true for background execution. " +
       "Timeout defaults to ${DEFAULT_TIMEOUT_SECONDS}s, max ${MAX_TIMEOUT_SECONDS}s."
 
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Run command", paramKey = "command", kind = ToolDisplayKind.EXECUTE)
+
   override val historyKeepCount: Int = 3
   override val historyVolatileKeys: List<String> = listOf("output")
 

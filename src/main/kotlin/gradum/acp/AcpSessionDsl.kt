@@ -11,7 +11,7 @@ import kotlinx.serialization.json.*
  * every `put` lives here, in one `toJsonObject()` (or builder function) per
  * payload shape.
  *
- * Shapes with named or optional fields are scope blocks (`acpModelConfigOption
+ * Shapes with named or optional fields are scope blocks (`acpConfigOption
  * { ... }`); fixed-arity shapes are plain builder functions
  * (`acpPromptResult("end_turn")`).
  *
@@ -46,11 +46,11 @@ internal fun acpConfigOptions(options: List<JsonObject>): JsonObject = buildJson
   put("configOptions", buildJsonArray { options.forEach { add(it) } })
 }
 
-/** The `model` select config option: every field maps straight to its wire key. */
-internal fun acpModelConfigOption(block: AcpModelConfigOptionScope.() -> Unit): JsonObject =
-  AcpModelConfigOptionScope().apply(block).toJsonObject()
+/** A `select` config option (model, mode, ...): every field maps straight to its wire key. */
+internal fun acpConfigOption(block: AcpConfigOptionScope.() -> Unit): JsonObject =
+  AcpConfigOptionScope().apply(block).toJsonObject()
 
-internal class AcpModelConfigOptionScope {
+internal class AcpConfigOptionScope {
   var id: String = ""
   var name: String = ""
   var category: String = ""
@@ -68,10 +68,10 @@ internal class AcpModelConfigOptionScope {
   }
 }
 
-/** One entry of a select config option; `name` mirrors `value`, `description` is optional. */
-internal fun acpOptionValue(value: String, description: String?): JsonObject = buildJsonObject {
+/** One entry of a select config option: wire `value`, display `name`, optional `description`. */
+internal fun acpOptionValue(value: String, name: String, description: String?): JsonObject = buildJsonObject {
   put("value", JsonPrimitive(value))
-  put("name", JsonPrimitive(value))
+  put("name", JsonPrimitive(name))
   description?.let { put("description", JsonPrimitive(it)) }
 }
 
@@ -101,14 +101,16 @@ internal fun acpToolCallStart(block: AcpToolCallStartScope.() -> Unit): JsonObje
 internal class AcpToolCallStartScope {
   var toolCallId: String = ""
   var name: String = ""
+  var title: String = ""
+  var kind: String = "other"
   var rawInput: Any? = null
 
   internal fun toJsonObject(): JsonObject = buildJsonObject {
     put("sessionUpdate", JsonPrimitive("tool_call"))
     put("toolCallId", JsonPrimitive(toolCallId))
-    put("title", JsonPrimitive("Executing $name"))
+    put("title", JsonPrimitive(title.ifBlank { "Executing $name" }))
     put("name", JsonPrimitive(name))
-    put("kind", JsonPrimitive("other"))
+    put("kind", JsonPrimitive(kind))
     put("rawInput", jsonAnyToJson(rawInput))
   }
 }

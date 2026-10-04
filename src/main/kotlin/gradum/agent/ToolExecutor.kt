@@ -8,6 +8,7 @@ import gradum.mcp.McpToolCatalog
 import gradum.skill.Skill
 import gradum.skill.SkillContext
 import gradum.skill.SkillRegistry
+import gradum.skill.ToolDisplay
 import gradum.skill.builtin.getTodoManagerInstance
 import gradum.utils.JsonUtil
 import kotlinx.serialization.json.JsonElement
@@ -254,13 +255,17 @@ class ToolExecutor(
       "Emitting tool_call_start: tool={}, alias={}, toolCallId={}",
       functionName, toolAlias, toolCallId
     )
+    val toolDisplay: ToolDisplay? = skillInstance?.toolDisplay
     emitEvent(
       GradumEventType.TOOL_CALL_START.wireName,
       mapOf(
         "alias" to toolAlias,
         "tool" to functionName,
         "toolCallId" to toolCallId,
-        "arguments" to convertedArguments
+        "arguments" to convertedArguments,
+        "displayKind" to (toolDisplay?.kind?.wireName ?: ""),
+        "displayLabel" to (toolDisplay?.label ?: ""),
+        "displayParamKey" to (toolDisplay?.paramKey ?: "")
       )
     )
   }

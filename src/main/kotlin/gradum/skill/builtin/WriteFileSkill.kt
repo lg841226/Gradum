@@ -86,6 +86,9 @@ class WriteFileSkill : Skill() {
       "MULTIPLE_MATCHES means it is ambiguous (add more context), FILE_NOT_FOUND means the path is missing. " +
       "After editing, read the syntaxErrors field and fix any issues."
 
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Write file", paramKey = "path", kind = ToolDisplayKind.EDIT)
+
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT)
 
   override val historyKeepCount: Int = 5

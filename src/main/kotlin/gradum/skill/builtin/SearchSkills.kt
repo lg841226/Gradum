@@ -192,6 +192,9 @@ class GrepSkill : Skill() {
   override val description: String = "Search file contents by regular expression pattern." +
     "Returns matched lines with file path and line number."
 
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Search files", paramKey = "pattern", kind = ToolDisplayKind.SEARCH)
+
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 
@@ -429,6 +432,9 @@ class GlobSkill : Skill() {
   override val skillName: String = "glob"
   override val alias: String = "Glob"
   override val description: String = "Find files matching a glob pattern. Returns a list of matching file paths."
+
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Find files", paramKey = "pattern", kind = ToolDisplayKind.SEARCH)
 
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)

@@ -8,6 +8,29 @@ import gradum.skill.dsl.SkillParameter
 import gradum.utils.JsonUtil.decodeMap
 import gradum.utils.JsonUtil.encodeMap
 
+/**
+ * Coarse semantic category of a tool call, used by clients to pick an icon
+ * and color. The enum name is the single source of truth for the wire value
+ * (ACP `kind`): call sites must not hard-code the lowercase strings.
+ */
+enum class ToolDisplayKind {
+  READ, EDIT, EXECUTE, SEARCH, FETCH, OTHER;
+
+  val wireName: String get() = name.lowercase()
+}
+
+/**
+ * How a skill's tool call should be presented in a client UI (e.g. the ACP
+ * tool-call capsule). Skills override [Skill.toolDisplay] to declare this;
+ * every field is optional so an undeclared skill (notably an external one)
+ * still gets a readable fallback derived from its tool name and arguments.
+ */
+data class ToolDisplay(
+  val label: String? = null,
+  val paramKey: String? = null,
+  val kind: ToolDisplayKind = ToolDisplayKind.OTHER
+)
+
 abstract class Skill {
   abstract val alias: String
   abstract val skillName: String
@@ -137,9 +160,16 @@ abstract class Skill {
    * progress events during execution) and should NOT receive the
    * standard `tool_call_start` / `tool_call` events from the agent
    * loop. Default `false`; override to `true` for skills like
-   * [DelegateSkill] that use their own event namespace.
+   * [gradum.skill.builtin.DelegateSkill] that use their own event namespace.
    */
   open val manageOwnEventStream: Boolean = false
+
+  /**
+   * Presentation metadata for this skill's tool-call capsule. Defaults are
+   * intentionally empty so external skills need no declaration; the ACP layer
+   * falls back to a humanized tool name and the first string argument.
+   */
+  open val toolDisplay: ToolDisplay = ToolDisplay()
 
   /**
    * How many recent calls of this skill keep their result fields in
@@ -194,7 +224,7 @@ abstract class Skill {
    * just produced.
    *
    * Override ONLY when the current result carries data too large for
-   * the LLM's view of THIS turn. e.g. [WriteFileSkill] strips diff
+   * the LLM's view of THIS turn. e.g. [gradum.skill.builtin.WriteFileSkill] strips diff
    * payloads that would blow the response context.
    *
    * **Do not** override to strip based on [historyKeepCount] /

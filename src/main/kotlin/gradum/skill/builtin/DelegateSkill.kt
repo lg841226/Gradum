@@ -6,6 +6,7 @@ import gradum.agent.GradumEventType
 import gradum.agent.SUB_AGENT_EVENT_PREFIX
 import gradum.skill.Skill
 import gradum.skill.SkillContext
+import gradum.skill.ToolDisplay
 import gradum.skill.buildXmlError
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.string
@@ -35,6 +36,9 @@ class DelegateSkill : Skill() {
       "then returns a structured result. Use this for large tasks that would benefit from " +
       "focused, isolated execution. The task description must be at least 120 characters " +
       "to ensure the sub-agent has enough context to work with."
+
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Delegate task", paramKey = "title")
 
   override val allowedToolModes: Set<ToolMode> = setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
 

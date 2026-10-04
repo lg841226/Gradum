@@ -6,6 +6,7 @@ import gradum.makeFailure
 import gradum.makeSuccess
 import gradum.skill.Skill
 import gradum.skill.SkillContext
+import gradum.skill.ToolDisplay
 import gradum.skill.buildXmlError
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.integer
@@ -23,6 +24,9 @@ class TodoSkill : Skill() {
   override val skillName: String = "to_do"
   override val alias: String = "Planned"
   override val description: String = "Initialize a task list"
+
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Update todos", paramKey = "task")
 
   /**
    * Available in AGENT mode only. Task planning drives the agent's

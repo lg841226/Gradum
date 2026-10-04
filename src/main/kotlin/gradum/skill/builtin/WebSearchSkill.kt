@@ -1,9 +1,7 @@
 package gradum.skill.builtin
 
 import gradum.*
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.buildXmlError
+import gradum.skill.*
 import gradum.skill.dsl.IntConstraints
 import gradum.skill.dsl.SchemaBuilder
 import gradum.skill.dsl.integer
@@ -35,6 +33,9 @@ class WebSearchSkill : Skill() {
   override val description: String =
     "Search the web for information. Use this when you need up-to-date information, " +
       "documentation, or answers to questions about current events, libraries, or APIs."
+
+  override val toolDisplay: ToolDisplay =
+    ToolDisplay(label = "Search web", paramKey = "query", kind = ToolDisplayKind.FETCH)
 
   override val allowedToolModes: Set<ToolMode> =
     setOf(ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY)
