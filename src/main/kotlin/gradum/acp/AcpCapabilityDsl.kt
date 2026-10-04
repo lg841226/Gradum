@@ -24,7 +24,13 @@ import kotlinx.serialization.json.buildJsonObject
  *         name = "Gradum"
  *         version = "1.0.2"
  *       }
- *       authMethods = emptyList()
+ *       authMethod {
+ *         id = "terminal"
+ *         name = "Configure provider"
+ *         description = "Run interactive setup in a terminal"
+ *         type = "terminal"
+ *         args = listOf("setup")
+ *       }
  *       agentCapabilities {
  *         loadSession = false
  *         promptCapabilities { image = true }
@@ -40,11 +46,15 @@ internal fun acpInitialize(block: AcpInitializeScope.() -> Unit): JsonObject {
 internal class AcpInitializeScope {
   var protocolVersion: Int = 1
   private var agentInfoBuilder: AcpAgentInfoScope? = null
-  var authMethods: List<String> = emptyList()
+  private val authMethodBuilders: MutableList<AcpAuthMethodScope> = mutableListOf()
   private var agentCapabilitiesBuilder: AcpAgentCapabilitiesScope? = null
 
   fun agentInfo(block: AcpAgentInfoScope.() -> Unit) {
     agentInfoBuilder = AcpAgentInfoScope().apply(block)
+  }
+
+  fun authMethod(block: AcpAuthMethodScope.() -> Unit) {
+    authMethodBuilders += AcpAuthMethodScope().apply(block)
   }
 
   fun agentCapabilities(block: AcpAgentCapabilitiesScope.() -> Unit) {
@@ -55,7 +65,7 @@ internal class AcpInitializeScope {
     buildJsonObject {
       put("protocolVersion", JsonPrimitive(protocolVersion))
       agentInfoBuilder?.let { put("agentInfo", it.toJsonObject()) }
-      put("authMethods", buildJsonArray { authMethods.forEach { add(JsonPrimitive(it)) } })
+      put("authMethods", buildJsonArray { authMethodBuilders.forEach { add(it.toJsonObject()) } })
       agentCapabilitiesBuilder?.let { put("agentCapabilities", it.toJsonObject()) }
     }
 }
@@ -68,6 +78,38 @@ internal class AcpAgentInfoScope {
     buildJsonObject {
       put("name", JsonPrimitive(name))
       put("version", JsonPrimitive(version))
+    }
+}
+
+/**
+ * One entry of the initialize response's `authMethods` array. Clients render
+ * these as login/setup entries; the ACP registry requires at least one method
+ * whose [type] is `agent` or `terminal`.
+ *
+ * [type] defaults to `agent` (the OAuth flow the agent runs itself). A
+ * `terminal` entry points the client at [args]/[env] to launch the agent's
+ * interactive setup instead, e.g. `args = listOf("setup")` runs `gradum setup`.
+ */
+internal class AcpAuthMethodScope {
+  var id: String = ""
+  var name: String = ""
+  var type: String = "agent"
+  var description: String = ""
+  var args: List<String> = emptyList()
+  var env: Map<String, String> = emptyMap()
+
+  internal fun toJsonObject(): JsonObject =
+    buildJsonObject {
+      put("id", JsonPrimitive(id))
+      put("name", JsonPrimitive(name))
+      put("description", JsonPrimitive(description))
+      put("type", JsonPrimitive(type))
+      if (args.isNotEmpty()) {
+        put("args", buildJsonArray { args.forEach { add(JsonPrimitive(it)) } })
+      }
+      if (env.isNotEmpty()) {
+        put("env", buildJsonObject { env.forEach { (key, value) -> put(key, JsonPrimitive(value)) } })
+      }
     }
 }
 

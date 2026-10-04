@@ -250,7 +250,13 @@ class AcpServer(internal val runtime: GradumRuntime) {
         name = "Gradum"
         version = BuildConfig.version
       }
-      authMethods = emptyList()
+      authMethod {
+        id = "terminal"
+        name = "Configure provider"
+        description = "Run interactive setup in a terminal"
+        type = "terminal"
+        args = listOf("setup")
+      }
       agentCapabilities {
         loadSession = true
         promptCapabilities {
