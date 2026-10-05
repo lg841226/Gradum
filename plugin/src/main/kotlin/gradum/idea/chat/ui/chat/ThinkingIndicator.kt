@@ -7,10 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import gradum.idea.chat.ui.common.verticalEdgeFade
 import gradum.idea.chat.ui.markdown.GradumMarkdown
 import gradum.idea.chat.ui.markdown.rememberGradumParagraphTextStyle
 import gradum.idea.utils.GradumBundle.message
@@ -18,6 +21,7 @@ import gradum.idea.utils.GradumSpacing
 import org.jetbrains.jewel.foundation.LocalGlobalColors
 import org.jetbrains.jewel.ui.component.Icon
 import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.ui.component.VerticalScrollbar
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 
 /**
@@ -101,13 +105,34 @@ fun ThinkingIndicator(
     }
 
     AnimatedVisibility(visible = isExpanded) {
-      Column {
-        Spacer(modifier = Modifier.height(GradumSpacing.md))
+      val capHeight: Boolean = thinking.trim().length > PREVIEW_MAX_CHARS
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .then(if (capHeight) Modifier.heightIn(max = THINKING_MAX_HEIGHT) else Modifier)
+          .then(if (capHeight) Modifier.verticalEdgeFade() else Modifier)
+      ) {
+        val scrollState = rememberScrollState()
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .then(if (capHeight) Modifier.verticalScroll(scrollState) else Modifier)
+        ) {
+          Spacer(modifier = Modifier.height(GradumSpacing.md))
 
-        GradumMarkdown(text = thinking) {
-          thinkingMode = true
-          animationEnabled = false
-          paragraphStyle = previewStyle
+          GradumMarkdown(text = thinking) {
+            thinkingMode = true
+            animationEnabled = false
+            paragraphStyle = previewStyle
+          }
+        }
+        if (capHeight) {
+          VerticalScrollbar(
+            scrollState = scrollState,
+            modifier = Modifier
+              .align(Alignment.CenterEnd)
+              .fillMaxHeight()
+          )
         }
       }
     }
@@ -115,3 +140,9 @@ fun ThinkingIndicator(
 }
 
 private const val PREVIEW_WINDOW = 400
+
+/** Expanded content beyond this length gets a capped height with a scrollbar. */
+private const val PREVIEW_MAX_CHARS = 600
+
+/** Max height of the expanded thinking block once it exceeds [PREVIEW_MAX_CHARS]. */
+private val THINKING_MAX_HEIGHT = 300.dp

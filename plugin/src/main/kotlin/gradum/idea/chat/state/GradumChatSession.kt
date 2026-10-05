@@ -129,6 +129,17 @@ class GradumChatSession : Disposable {
   var modelsLoaded: Boolean by mutableStateOf(false)
   var suggestionVariants: List<Int> by mutableStateOf(List(4) { Random.nextInt(5) })
 
+  /**
+   * True when the last /models request failed, i.e. the local Gradum runtime
+   * cannot be reached. Drives the "runtime unreachable" banner.
+   */
+  var runtimeUnreachable: Boolean by mutableStateOf(false)
+    private set
+
+  /** Diagnostic text of the last runtime failure, shown when copied. */
+  var runtimeErrorMessage: String by mutableStateOf("")
+    private set
+
   val isAttachmentLimitReached: Boolean
     get() = attachedFiles.size >= MAX_ATTACHMENTS
   val isPendingQueueFull: Boolean
@@ -411,11 +422,29 @@ class GradumChatSession : Disposable {
       val json: String = apiClient.getModels()
       val response: ModelsListResponse = jsonFormat.decodeFromString<ModelsListResponse>(json)
       applyModelList(newModels = response.models)
-
+      markRuntimeReachable()
     } catch (loadException: Exception) {
       if (loadException is CancellationException) throw loadException
       log.warn("Failed to load models from ${apiClient.baseUrl}", loadException)
-      models.clear(); modelsLoaded = false
+      models.clear()
+      modelsLoaded = false
+      markRuntimeUnreachable(loadException)
+    }
+  }
+
+  private fun markRuntimeReachable() {
+    if (runtimeUnreachable) {
+      runtimeUnreachable = false
+      runtimeErrorMessage = ""
+    }
+  }
+
+  private fun markRuntimeUnreachable(exception: Exception) {
+    runtimeUnreachable = true
+    runtimeErrorMessage = buildString {
+      append("Failed to connect to Gradum Runtime at ${apiClient.baseUrl}")
+      val reason: String? = exception.message
+      if (!reason.isNullOrBlank()) append(": ").append(reason)
     }
   }
 
@@ -517,8 +546,11 @@ class GradumChatSession : Disposable {
       } catch (exception: CancellationException) {
         throw exception
       } catch (exception: Exception) {
-        log.debug("Polling /models failed: ${exception.message}"); return@flow
+        log.debug("Polling /models failed: ${exception.message}")
+        markRuntimeUnreachable(exception)
+        return@flow
       }
+    markRuntimeReachable()
     emit(value = json)
   }
 

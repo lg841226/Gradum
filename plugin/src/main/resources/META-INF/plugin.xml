@@ -5,7 +5,16 @@
 
     <idea-version since-build="251.2"/>
 
-    <change-notes><![CDATA[N/A]]></change-notes>
+    <change-notes><![CDATA[
+        <h3>1.0.3</h3>
+        <ul>
+            <li>Chat with Ollama and any OpenAI-compatible server.</li>
+            <li>Agentic tool calling: file, search, and process tools.</li>
+            <li>Project-aware context with per-session history.</li>
+            <li>MCP server support.</li>
+            <li>Git history analysis tool window.</li>
+        </ul>
+    ]]></change-notes>
 
     <description><![CDATA[
         Local-first AI code assistant for IntelliJ IDEA.

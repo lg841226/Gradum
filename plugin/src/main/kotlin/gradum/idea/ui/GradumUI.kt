@@ -2,11 +2,16 @@ package gradum.idea.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.input.delete
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -24,6 +29,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
+import gradum.idea.BannerSeverity
+import gradum.idea.GradumBanner
 import gradum.idea.GradumToolWindowFactory
 import gradum.idea.PluginConfig
 import gradum.idea.chat.input.ChatInputActions
@@ -37,6 +44,7 @@ import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.chat.state.GradumChatSession.Companion.MAX_ATTACHMENTS
 import gradum.idea.chat.state.sendMessage
 import gradum.idea.chat.ui.ChatScreen
+import gradum.idea.chat.ui.chat.copyToClipboard
 import gradum.idea.chat.ui.common.DiffViewer.showFileDiff
 import gradum.idea.chat.ui.home.WelcomeScreen
 import gradum.idea.chat.ui.input.PermissionMode
@@ -46,11 +54,14 @@ import gradum.idea.provider.ProviderSettings
 import gradum.idea.settings.AppearanceSettings
 import gradum.idea.settings.ProvideAppearance
 import gradum.idea.utils.GradumBundle.message
+import gradum.idea.utils.GradumSpacing
 import kotlinx.coroutines.*
 import kotlinx.io.IOException
 import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.markdown.processing.MarkdownProcessor
+import org.jetbrains.jewel.ui.component.Icon
+import org.jetbrains.jewel.ui.component.Link
 import org.jetbrains.jewel.ui.icon.IconKey
 import org.jetbrains.jewel.ui.icons.AllIconsKeys
 import java.io.File
@@ -156,29 +167,76 @@ fun GradumUI(
     coroutineScope = coroutineScope,
   )
 
-  Box(
+  Column(
     modifier = Modifier.fillMaxSize()
       .background(color = JewelTheme.globalColors.toolwindowBackground)
-      .padding(horizontal = 16.dp),
-    contentAlignment = Alignment.Center
   ) {
-    ProvideAppearance {
-      if (session.hasSentMessage) {
-        ChatScreen(
-          state = state,
-          modifier = Modifier.fillMaxSize(),
-          showMinimap = inEditorTab
-        )
-      } else {
-        WelcomeScreen(
-          state = state,
-          modifier = Modifier.fillMaxSize(),
-          welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout,
-          inEditorTab = inEditorTab
-        )
+    if (session.runtimeUnreachable) {
+      Spacer(modifier = Modifier.height(GradumSpacing.md))
+      RuntimeUnreachableBanner(runtimeErrorMessage = session.runtimeErrorMessage)
+    }
+    Box(
+      modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+      contentAlignment = Alignment.Center
+    ) {
+      ProvideAppearance {
+        if (session.hasSentMessage) {
+          ChatScreen(
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            showMinimap = inEditorTab
+          )
+        } else {
+          WelcomeScreen(
+            state = state,
+            modifier = Modifier.fillMaxSize(),
+            welcomeLayout = AppearanceSettings.getInstance().snapshot.welcomeLayout,
+            inEditorTab = inEditorTab
+          )
+        }
       }
     }
   }
+}
+
+/**
+ * Error banner shown when the local Gradum runtime is unreachable, with a
+ * "copy error" entry that puts the failure diagnostics on the clipboard.
+ */
+@Composable
+private fun RuntimeUnreachableBanner(runtimeErrorMessage: String) {
+  val coroutineScope: CoroutineScope = rememberCoroutineScope()
+  val isCopied = remember { mutableStateOf(false) }
+
+  GradumBanner(
+    text = message("gradum.runtime.unreachable"),
+    modifier = Modifier.fillMaxWidth().padding(horizontal = GradumSpacing.sml),
+    severity = BannerSeverity.Error,
+    icon = {
+      Icon(contentDescription = null, key = AllIconsKeys.General.Error)
+    },
+    linkContent = {
+      Box(
+        modifier = Modifier.height(GradumSpacing.xxl),
+        contentAlignment = Alignment.Center
+      ) {
+        Link(
+          text = if (isCopied.value) message("gradum.error.copied")
+          else message("gradum.runtime.copy.error"),
+          onClick = {
+            if (!isCopied.value && runtimeErrorMessage.isNotBlank()) {
+              copyToClipboard(
+                text = runtimeErrorMessage,
+                scope = coroutineScope,
+                onCopied = { isCopied.value = true },
+                onReset = { isCopied.value = false }
+              )
+            }
+          }
+        )
+      }
+    }
+  )
 }
 
 @Composable

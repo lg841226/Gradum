@@ -33,3 +33,4 @@ fun Modifier.verticalEdgeFade(fadeLength: Dp = GradumSpacing.xl): Modifier =
         blendMode = BlendMode.DstOut
       )
     }
+

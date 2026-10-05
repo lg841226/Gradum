@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.gradum.idea"
-version = "1.0.2"
+version = "1.0.3"
 
 val gitStatsVersion: String = "1.1.0"
 
@@ -133,14 +133,13 @@ intellijPlatform {
     name = "Gradum"
     version = "${project.version}"
     changeNotes = """
+      <h3>1.0.3</h3>
       <ul>
-        <li>Markdown: add footnote syntax support and improve rendering</li>
-        <li>Markdown: preserve inline bold inside headings, list items, and blockquotes</li>
-        <li>Markdown: add nested code block tests and clean up existing test suite</li>
-        <li>Style: use editor fontFamily for thinking and response text</li>
-        <li>Style: normalize list spacing and use default font for headings</li>
-        <li>Fix: resolve KDoc link warnings in Agent.kt</li>
-        <li>Refactor: extract GradumUI into separate files</li>
+        <li>Chat with Ollama and any OpenAI-compatible server.</li>
+        <li>Agentic tool calling: file, search, and process tools.</li>
+        <li>Project-aware context with per-session history.</li>
+        <li>MCP server support.</li>
+        <li>Git history analysis tool window.</li>
       </ul>
     """.trimIndent()
   }
