@@ -51,9 +51,8 @@ private fun buildModelOptionValues(): List<JsonObject> {
  * Model option description, e.g. `The local model from Ollama`. A model is
  * "local" only when its provider is OLLAMA and its name is not cloud-tagged
  * (Ollama also serves `-cloud` models); every other provider is "cloud".
- * The name shown is the server's own display name so multiple
- * OpenAI-compatible endpoints (DeepSeek, Zhipu BigModel, ...) stay
- * distinguishable.
+ * The description carries the server name so multiple OpenAI-compatible
+ * endpoints (DeepSeek, Zhipu BigModel, ...) stay distinguishable.
  */
 private fun buildOptionValue(modelName: String, serverName: String, providerType: String): JsonObject {
   val provider: Provider = Provider.fromStringOrDefault(providerType)
@@ -63,7 +62,7 @@ private fun buildOptionValue(modelName: String, serverName: String, providerType
     else "cloud"
 
   val description: String? = serverName.takeIf { it.isNotBlank() }?.let { "The $location model from $it" }
-  return acpOptionValue(modelName, modelName, description)
+  return acpOptionValue(modelName, modelDisplayLabel(modelName), description)
 }
 
 /**

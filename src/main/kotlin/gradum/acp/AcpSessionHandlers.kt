@@ -468,19 +468,21 @@ private fun extractMessageContent(params: JsonObject?): String? {
 private fun AcpServer.buildAgentConfiguration(sessionState: AcpSessionState): AgentConfiguration {
   val settings = runtime.settings
 
-  val selectedModel: ModelEntry? = ModelIdentity.discoverModels()
-    .firstOrNull { it.modelName == sessionState.selectedModelName }
+  // Shared with the HTTP `/events` route so ACP and the plugin always pick
+  // the same provider / base URL / key for the same model.
+  val resolvedTarget: ModelIdentity.ResolvedModelTarget = ModelIdentity.resolveModelTarget(
+    modelName = sessionState.selectedModelName,
+    fallbackProvider = Provider.OLLAMA.wireType,
+    fallbackBaseUrl = settings.defaultBaseUrl,
+    fallbackApiKey = runtime.resolvedApiKey
+  )
 
-  val provider: Provider = Provider.fromStringOrDefault(selectedModel?.providerType)
+  val provider: Provider = Provider.fromStringOrDefault(resolvedTarget.providerType)
   val promptVariant: PromptVariant = PromptVariant.resolveAuto(provider)
-  val baseUrl: String = selectedModel?.serverUrl?.takeIf { it.isNotBlank() }
-    ?: settings.defaultBaseUrl
-  val apiKey: String? = ModelIdentity.resolveApiKeyForModel(sessionState.selectedModelName)
-    ?: runtime.resolvedApiKey
 
   return AgentConfiguration(
-    apiKey = apiKey,
-    baseUrl = baseUrl,
+    apiKey = resolvedTarget.apiKey,
+    baseUrl = resolvedTarget.baseUrl,
     provider = provider,
     taskDescription = null,
     promptVariant = promptVariant,

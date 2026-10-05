@@ -21,6 +21,7 @@ import java.io.BufferedWriter
 import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * ACP v1 server running over stdio as a JSON-RPC 2.0 agent.
@@ -40,11 +41,12 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class AcpServer(internal val runtime: GradumRuntime) {
   internal val logger: Logger = LoggerFactory.getLogger("AcpServer")
-  internal val rpcJson: Json = Json {
-    encodeDefaults = true
-    explicitNulls = false
-    ignoreUnknownKeys = true
-  }
+  internal val rpcJson: Json =
+    Json {
+      encodeDefaults = true
+      explicitNulls = false
+      ignoreUnknownKeys = true
+    }
 
   private val frameWriteMutex: Mutex = Mutex()
   internal val pendingQuestions: PendingQuestions = PendingQuestions()
@@ -111,7 +113,7 @@ class AcpServer(internal val runtime: GradumRuntime) {
   private suspend fun runConfigOptionProbe(frameWriter: BufferedWriter) {
     var lastSnapshot: List<String>? = null
     while (currentCoroutineContext().isActive) {
-      delay(MODEL_PROBE_INTERVAL_MS)
+      delay(MODEL_PROBE_INTERVAL_MS.milliseconds)
       val snapshot: List<String> = availableModelKeys() ?: continue
       if (lastSnapshot != null && snapshot != lastSnapshot) {
         logger.info("Model availability changed ({} -> {} models); notifying sessions", lastSnapshot.size, snapshot.size)

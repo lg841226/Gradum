@@ -311,25 +311,38 @@ fun Application.registerAllRoutes(
       val resolvedSessionId: String? = requestBody.sessionId?.trim()?.takeIf { it.isNotEmpty() }
       val eventsChannel: Channel<String> = Channel(capacity = EVENTS_CHANNEL_CAPACITY)
       val configOverrides: ConfigOverrides = fromRequestMap(requestBody.config)
-      val resolvedProvider: Provider = Provider.fromStringOrDefault(configOverrides.provider)
       val resolvedToolMode: ToolMode =
         if (requestBody.toolCallXml != null) ToolMode.AGENT
         else requestBody.toolMode?.let { ToolMode.fromStringOrDefault(it) } ?: ToolMode.AGENT
 
-      val resolvedBaseUrl: String =
-        configOverrides.baseUrl ?: serverConfiguration.defaultBaseUrl
-
       val serverDefaultModel: String? =
         serverConfiguration.defaultModelName.trim().takeIf { it.isNotEmpty() }
 
+      val resolvedModelName: String = requestBody.model
+        ?: serverDefaultModel
+        ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
+        ?: ""
+
+      // Same resolver the ACP path uses, so both ends pick the same
+      // provider / base URL / key from one config. Explicit request config
+      // wins, then the model's own server entry, then the server defaults.
+      val resolvedTarget: ModelIdentity.ResolvedModelTarget = ModelIdentity.resolveModelTarget(
+        modelName = resolvedModelName,
+        overrideApiKey = configOverrides.apiKey,
+        overrideBaseUrl = configOverrides.baseUrl,
+        overrideProvider = configOverrides.provider,
+        fallbackApiKey = serverConfiguration.defaultApiKey,
+        fallbackBaseUrl = serverConfiguration.defaultBaseUrl,
+        fallbackProvider = Provider.fromStringOrDefault(configOverrides.provider).wireType
+      )
+      val resolvedProvider: Provider = Provider.fromStringOrDefault(resolvedTarget.providerType)
+      val resolvedBaseUrl: String = resolvedTarget.baseUrl
+
       val agentConfiguration = AgentConfiguration(
-        modelName = requestBody.model
-          ?: serverDefaultModel
-          ?: ModelIdentity.discoverModels().firstOrNull { it.available }?.modelName
-          ?: "",
+        modelName = resolvedModelName,
         provider = resolvedProvider,
         baseUrl = resolvedBaseUrl,
-        apiKey = configOverrides.apiKey ?: serverConfiguration.defaultApiKey,
+        apiKey = resolvedTarget.apiKey,
         chatCompletionsPath = configOverrides.chatCompletionsPath
           ?: inferChatCompletionsPath(resolvedBaseUrl),
         topPValue = configOverrides.topP ?: AgentConfiguration.DEFAULT_TOP_P,
@@ -442,18 +455,19 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      val (action, toResult) = when {
-        requestBody.cancelled ->
-          "cancelled" to pendingQuestions.completeCancelled(sessionId, requestId)
+      val (action, toResult) =
+        when {
+          requestBody.cancelled ->
+            "cancelled" to pendingQuestions.completeCancelled(sessionId, requestId)
 
-        requestBody.choice != null ->
-          "choice" to pendingQuestions.completeChoice(sessionId, requestId, requestBody.choice)
+          requestBody.choice != null ->
+            "choice" to pendingQuestions.completeChoice(sessionId, requestId, requestBody.choice)
 
-        requestBody.text != null ->
-          "text" to pendingQuestions.completeText(sessionId, requestId, requestBody.text)
+          requestBody.text != null ->
+            "text" to pendingQuestions.completeText(sessionId, requestId, requestBody.text)
 
-        else -> "" to null
-      }
+          else -> "" to null
+        }
 
       if (action.isEmpty()) {
         call.respondText(
@@ -464,9 +478,6 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      // A null result means no live pending question matched this key: either
-      // an unknown id (nothing was ever asked) or a duplicate response for an
-      // already-resolved ask. Both are idempotent no-ops for the client.
       if (toResult == null) {
         call.respondText(
           text = JsonUtil.encodeMap(mapOf("status" to "not_found", "sessionId" to sessionId, "requestId" to requestId)),
@@ -488,9 +499,6 @@ fun Application.registerAllRoutes(
       val targetEntry = activeSessions.remove(sessionId)
 
       if (targetEntry != null) {
-        // Cascade abort to all descendant sessions (sub-agents).
-        // Collect recursively so that deeply nested sub-agents are also
-        // terminated, not just the immediate children.
         val agentsToStop: MutableList<Agent> = mutableListOf(targetEntry.agent)
         val childIdsToRemove: MutableList<String> = mutableListOf()
 
@@ -506,8 +514,6 @@ fun Application.registerAllRoutes(
         }
         collectDescendants(targetEntry)
 
-        // Remove child references from the parent entry (already removed
-        // from activeSessions, but keep the hierarchy clean).
         targetEntry.childSessionIds.removeAll(childIdsToRemove.toSet())
 
         for (agent: Agent in agentsToStop)
@@ -557,9 +563,6 @@ fun Application.registerAllRoutes(
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
 
-      // `sessionKey="."` normalizes to sessionsRoot itself: a bare
-      // startsWith check passes and deleteRecursively() would wipe every
-      // session. Require a strict child: parent must be sessionsRoot.
       if (sessionKey == "." || sessionKey == ".." || !sessionDir.startsWith(sessionsRoot) ||
         sessionDir.parent != sessionsRoot
       ) {

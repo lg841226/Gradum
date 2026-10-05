@@ -217,17 +217,57 @@ object ModelIdentity {
   fun discoverModels(): List<ModelEntry> = Discovery.probe()
 
   /**
-   * Bearer token the chat request should use for [modelName], derived from
-   * the model's server with the same precedence the discovery probe uses
-   * (per-server config, then the server's own env var, then the shared
-   * cloud fallback). Returns null when the model is unknown or its server
-   * is local / unauthenticated, in which case the caller falls back to its
-   * own default and the request goes out header-less.
+   * Effective provider / base URL / bearer token for one chat request. Both
+   * the HTTP `/events` route and the ACP session handler resolve through this
+   * function so the two paths can never disagree on which key to send.
+   *
+   * Precedence, highest first:
+   *  1. the per-request overrides ([overrideProvider] / [overrideBaseUrl] /
+   *     [overrideApiKey]) sent by the plugin;
+   *  2. the [ModelEntry] discovered for [modelName]: its server URL plus the
+   *     server's key read from the provider config file / env var;
+   *  3. the server-wide [fallbackProvider] / [fallbackBaseUrl] /
+   *     [fallbackApiKey].
+   *
+   * The model lookup goes through [discoverModels], which is TTL-cached, so
+   * resolving on every message does not re-probe the provider.
    */
-  fun resolveApiKeyForModel(modelName: String): String? {
-    val entry: ModelEntry = discoverModels().firstOrNull { it.modelName == modelName } ?: return null
-    return Discovery.resolveApiKeyForServer(serverName = entry.serverName)
+  fun resolveModelTarget(
+    modelName: String?,
+    fallbackProvider: String,
+    fallbackBaseUrl: String,
+    fallbackApiKey: String?,
+    overrideProvider: String? = null,
+    overrideBaseUrl: String? = null,
+    overrideApiKey: String? = null
+  ): ResolvedModelTarget {
+    val entry: ModelEntry? = modelName
+      ?.takeIf { it.isNotBlank() }
+      ?.let { name -> discoverModels().firstOrNull { it.modelName == name } }
+
+    return ResolvedModelTarget(
+      providerType = overrideProvider?.takeIf { it.isNotBlank() }
+        ?: entry?.providerType
+        ?: fallbackProvider,
+      baseUrl = overrideBaseUrl?.takeIf { it.isNotBlank() }
+        ?: entry?.serverUrl?.takeIf { it.isNotBlank() }
+        ?: fallbackBaseUrl,
+      apiKey = overrideApiKey?.takeIf { it.isNotBlank() }
+        ?: entry?.let { Discovery.resolveApiKeyForServer(serverName = it.serverName) }
+        ?: fallbackApiKey
+    )
   }
+
+  /**
+   * Result of [resolveModelTarget]: the provider wire type, base URL and
+   * bearer token (null for local / unauthenticated servers, whose request
+   * must go out header-less).
+   */
+  data class ResolvedModelTarget(
+    val providerType: String,
+    val baseUrl: String,
+    val apiKey: String?
+  )
 
   /**
    * Result of a single one-shot provider probe, driven from the plugin

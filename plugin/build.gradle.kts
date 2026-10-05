@@ -25,23 +25,47 @@ dependencies {
   intellijPlatform {
     create("IU", "2026.2")
     bundledPlugin("com.intellij.modules.platform")
+    composeUI()
   }
 
-  implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
-  implementation(files("libs/intellij.libraries.compose.runtime.desktop.jar"))
-  implementation(files("libs/intellij.libraries.skiko.jar"))
-  implementation(files("libs/intellij.platform.compose.jar"))
-  implementation(files("libs/intellij.platform.compose.markdown.jar"))
+  // Jewel must be shipped as one consistent set, for two reasons. First, the
+  // Compose resources runtime (`org.jetbrains.compose.resources`) lives inside
+  // `intellij.platform.jewel.ui` and resolves resources through its own
+  // classloader, so it must run on the plugin classloader to see resources
+  // inside plugin jars (e.g. the LaTeX fonts bundled in latex-renderer).
+  // Second, the Jewel theme is exposed through CompositionLocals, so the theme
+  // provider (`SwingBridgeTheme`, in jewel.ideLafBridge) and the readers must
+  // come from the same classloader; mixing plugin and platform copies leaves
+  // the locals unset ("No LinkStyle provided").
   implementation(files("libs/intellij.platform.jewel.foundation.jar"))
   implementation(files("libs/intellij.platform.jewel.ui.jar"))
   implementation(files("libs/intellij.platform.jewel.ideLafBridge.jar"))
+
+  // Jewel is compiled against the Compose runtime, so Compose has to sit on the
+  // same classloader as Jewel. If it does not, a Jewel class calling into
+  // Compose resolves `androidx.compose.*` through the platform loader while its
+  // own signature types (e.g. `kotlin.jvm.internal.IntCompanionObject`) resolve
+  // through the plugin loader, and the JVM refuses to link the two copies
+  // ("loader constraint violation"). `composeUI()` still provides the
+  // `com.intellij.modules.compose` dependency; these jars provide the classes.
+  implementation(files("libs/intellij.libraries.compose.runtime.desktop.jar"))
+  implementation(files("libs/intellij.libraries.compose.foundation.desktop.jar"))
+
+  // Jewel's markdown modules are internal content modules of IDEA CORE: they
+  // are not exposed through `com.intellij.modules.compose`, they can only be
+  // declared as `<depends>` if registered as `<module value="...">` (which
+  // they are not), and the platform ships no plugin gateway for them. So the
+  // platform cannot provide them to a third-party plugin at runtime and they
+  // must be shipped with the plugin.
   implementation(files("libs/intellij.platform.jewel.markdown.core.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.ideLafBridgeStyling.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.extensions.autolink.jar"))
-  implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmAlerts.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmStrikethrough.jar"))
+  implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmAlerts.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.extensions.gfmTables.jar"))
   implementation(files("libs/intellij.platform.jewel.markdown.extensions.images.jar"))
+  implementation(files("libs/intellij.platform.compose.markdown.jar"))
+
   compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
   compileOnly("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
