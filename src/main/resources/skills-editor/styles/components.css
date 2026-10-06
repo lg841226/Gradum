@@ -1,0 +1,539 @@
+/* Component styles. Each component factory in ui/components renders markup with
+   semantic attributes (data-variant, data-tone, aria-selected) and is styled
+   only here, so features never re-declare component appearance. */
+
+/* --- Icon ----------------------------------------------------------------- */
+
+.icon {
+    flex: 0 0 auto;
+    display: block;
+}
+
+/* --- Panel header --------------------------------------------------------- */
+
+.panel-title {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-ui);
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+    white-space: nowrap;
+}
+
+/* --- Button --------------------------------------------------------------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    height: var(--control-height);
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.btn[data-variant="ghost"]:hover {
+    background: var(--bg-raised);
+    color: var(--text);
+}
+
+.btn[data-variant="ghost"]:active {
+    background: var(--accent-selection);
+}
+
+.btn[data-variant="icon"] {
+    width: var(--control-height);
+    padding: 0;
+    color: var(--text-mute);
+}
+
+.btn[data-variant="icon"]:hover {
+    background: var(--bg-raised);
+    color: var(--text);
+}
+
+.btn[data-variant="icon"]:active {
+    background: var(--accent-selection);
+}
+
+/* Header icon buttons keep the control height, so in the 36px header the
+   (36 - 28) / 2 = 4px above them matches the 4px of horizontal padding the
+   header carries on that side. */
+.panel-header .btn[data-variant="icon"] {
+    width: var(--control-height);
+    height: var(--control-height);
+}
+
+/* Menu item: a plain text label against the canvas. Hovering lifts it onto a
+   raised surface and the current view stays on that same surface, so the bar
+   reads like a window's menu instead of a solid block of colour. */
+.btn[data-variant="menu"] {
+    height: calc(var(--menubar-height) - var(--space-1));
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-control);
+    color: var(--text-dim);
+}
+
+.btn[data-variant="menu"]:hover {
+    background: var(--bg-menu);
+    color: var(--text);
+}
+
+/* The current view is marked by weight rather than a fill, so the bar stays
+   quiet against the canvas and only the type changes. */
+.btn[data-variant="menu"][aria-pressed="true"] {
+    font-weight: var(--weight-semibold);
+    color: var(--text);
+}
+
+/* Icon buttons in the bar shrink to its height instead of the control height,
+   so the actions never grow taller than the menu they sit in. */
+.menubar .btn[data-variant="icon"] {
+    width: calc(var(--menubar-height) - var(--space-1));
+    height: calc(var(--menubar-height) - var(--space-1));
+}
+
+/* Run widget: the skill it would run beside its run action, grouped as one bare
+   cluster in the middle of the bar. */
+.run-widget {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: calc(var(--menubar-height) - var(--space-1));
+}
+
+.run-widget-name {
+    font-size: var(--font-size-ui);
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.btn:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.btn:disabled:hover {
+    background: transparent;
+    color: var(--text-mute);
+}
+
+/* --- Tabs ----------------------------------------------------------------- */
+
+.tab-strip {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+    height: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.tab-strip::-webkit-scrollbar {
+    display: none;
+}
+
+/* One tab style for file and tool window labels: a rounded chip whose active
+   state is a blue fill with a blue outline. */
+.tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 0 auto;
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-tab);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.tab:hover {
+    background: var(--bg-raised);
+    color: var(--text);
+}
+
+.tab[aria-selected="true"] {
+    background: var(--accent-selection);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--accent-outline);
+}
+
+.tab-label {
+    font-size: var(--font-size-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tab-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.tab-dot {
+    display: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.tab[data-dirty="true"]:not(:hover) .tab-dot {
+    display: block;
+}
+
+.tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-mute);
+    cursor: pointer;
+}
+
+.tab-close:hover {
+    color: var(--text);
+}
+
+.tab[data-dirty="true"]:not(:hover) .tab-close {
+    display: none;
+}
+
+/* --- Text field ----------------------------------------------------------- */
+
+/* Inline rename only: the field replaces a label, so JS sizes it to the label's
+   width and the padding stays at zero, otherwise the box would be wider than the
+   title it stands in for. The box itself is invisible (no border, no background,
+   no focus ring), so the padding was never doing any visible work. */
+.text-field {
+    width: 120px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-size: var(--font-size-ui);
+}
+
+.text-field:focus {
+    outline: none;
+}
+
+/* --- List ----------------------------------------------------------------- */
+
+.list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    overflow: auto;
+    min-height: 0;
+    padding: var(--space-1);
+}
+
+.list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 24px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.list-item:hover {
+    background: var(--bg-raised);
+}
+
+.list-item[aria-selected="true"] {
+    background: var(--accent-selection);
+}
+
+.list-item[data-muted="true"] .list-item-label {
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.list-item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Tree root ------------------------------------------------------------ */
+
+/* The root row stands for the skills directory, so it reads as a heading over
+   the branch: dim, short, and with no selection of its own. The treeitem wraps
+   the row and its branch so the group nests correctly. */
+.tree-item {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.tree-row {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 24px;
+    padding: 0 var(--space-2);
+    color: var(--text-dim);
+}
+
+.tree-row-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-twisty {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--text-mute);
+    cursor: pointer;
+}
+
+.tree-twisty:hover {
+    color: var(--text);
+}
+
+.tree-twisty .icon {
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.tree-item[aria-expanded="false"] .tree-twisty .icon {
+    transform: rotate(-90deg);
+}
+
+/* The branch indents past the root's twisty, so the skills line up under the
+   folder label rather than under its arrow, and stacks its rows with the same
+   gap the list uses — a plain block would leave them flush. */
+.tree-children {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-left: var(--space-4);
+}
+
+/* --- Editor status bar ---------------------------------------------------- */
+
+/* Closes the editor island the way the platform's status bar closes the frame:
+   a thin dimmed strip holding the active skill's error and warning counts. The
+   severity lives in the hollow icon's colour, so the numbers stay quiet. */
+.editor-status {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: var(--control-height);
+    padding: 0 var(--space-3);
+    /* Fainter than the island border it is derived from, so the strip reads as a
+       quiet footer instead of a hard cut across the code. */
+    border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+    color: var(--text-dim);
+    font-size: var(--font-size-small);
+}
+
+.status-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.status-count[data-tone="error"] .icon {
+    color: var(--error);
+}
+
+.status-count[data-tone="warning"] .icon {
+    color: var(--warning);
+}
+
+/* --- Empty state ---------------------------------------------------------- */
+
+.empty-state {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    height: 100%;
+    padding: 0 var(--space-6);
+    text-align: center;
+    font-family: var(--font-mono);
+}
+
+.empty-state-title {
+    font-size: var(--font-size-ui);
+    color: var(--text-dim);
+}
+
+.empty-state-hint {
+    font-size: var(--font-size-small);
+    color: var(--text-mute);
+}
+
+/* A placeholder standing in for a failed action takes that action's colour, so a
+   rejected rename does not read like the ordinary "nothing to show" message. */
+.empty-state[data-tone="ok"] .empty-state-title {
+    color: var(--ok);
+}
+
+.empty-state[data-tone="error"] .empty-state-title {
+    color: var(--error);
+}
+
+.empty-state[data-tone="busy"] .empty-state-title {
+    color: var(--accent);
+}
+
+/* --- Diagnostics ---------------------------------------------------------- */
+
+/* The wave is a monochrome mask tinted by the marker's own colour, so the two
+   severities share one asset instead of hard-coding each stroke colour. */
+.squiggle {
+    position: absolute;
+    background-color: currentColor;
+    -webkit-mask-image: var(--squiggle);
+    mask-image: var(--squiggle);
+    -webkit-mask-repeat: repeat-x;
+    mask-repeat: repeat-x;
+    -webkit-mask-position: left bottom;
+    mask-position: left bottom;
+    -webkit-mask-size: 6px 3px;
+    mask-size: 6px 3px;
+}
+
+.squiggle.error {
+    color: var(--error);
+}
+
+.squiggle.warning {
+    color: var(--warning);
+}
+
+/* Stretched to the body so an empty-state child can center in the whole panel
+   instead of collapsing to the height of its own text. */
+.problem-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.problem {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-2);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.problem:hover {
+    background: var(--bg-raised);
+}
+
+/* A coloured platform status icon now carries the severity, so only its
+   vertical placement against the first message line is left to style. */
+.problem-severity {
+    align-self: center;
+}
+
+.problem-location {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-small);
+    color: var(--text-mute);
+    font-variant-numeric: tabular-nums;
+}
+
+.problem-message {
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* --- Console -------------------------------------------------------------- */
+
+/* The log is monospace content like the editor, so it takes the code size rather
+   than the smaller UI size it used to carry. That also lines it up with the
+   placeholder shown in the other tab of this same tool window. */
+.output {
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-code);
+}
+
+.output-line {
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text-dim);
+}
+
+.output-line[data-tone="ok"] {
+    color: var(--ok);
+}
+
+.output-line[data-tone="error"] {
+    color: var(--error);
+}
+
+.output-line[data-tone="busy"] {
+    color: var(--accent);
+}
+
+.output-time {
+    margin-right: var(--space-2);
+    color: var(--text-mute);
+}
+
+/* --- Run button spinner --------------------------------------------------- */
+
+.btn.is-busy .icon {
+    animation: spin 1s linear infinite;
+    transform-origin: center;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

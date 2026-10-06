@@ -1,0 +1,58 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg-canvas);
+    color: var(--text);
+    font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient glow: a soft blue wash behind the whole window, centred on the seam
+   between the rail and the editor, partway down from the top and fading down and
+   out. It is fixed at the bottom of the stack, so the translucent islands let it
+   bleed through while still reading as solid panes. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+            560px 460px at calc(var(--island-gap) + var(--rail-width) + var(--island-gap) * .5) 180px,
+            var(--glow),
+            transparent 70%
+    );
+}
+
+button,
+input,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+.spacer {
+    flex: 1;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.is-dragging {
+    user-select: none;
+}

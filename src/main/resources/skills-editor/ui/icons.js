@@ -1,0 +1,119 @@
+// Inline SVG sprite. Icons are stored as inner markup for a 16x16 viewBox and
+// rendered by the Icon component, so no network font or CDN script is needed.
+//
+// Vendored from the IntelliJ platform, all under Apache 2.0,
+// Copyright 2000-2025 JetBrains s.r.o. and contributors:
+//   lib/intellij.platform.ide.jar          expui/{toolwindows,general,status,run}/*
+//   plugins/Kotlin/lib/intellij.kotlin.base.resources.jar
+//                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
+//
+// Monochrome icons have their grey rewritten to currentColor so they follow
+// hover and selected states, drawn at the platform stroke width of 1. The
+// Kotlin brand mark is a filled sprite, so its two stops read the
+// --icon-kotlin-* tokens (via inline fill, since a presentation attribute
+// cannot hold var()) and flip with the theme; the coloured status icons keep
+// their own palette.
+
+export const icons = {
+  // expui/general/add.svg
+  plus: '<path fill-rule="evenodd" clip-rule="evenodd" d="M7.5 1C7.77614 1 8 1.22386 8 1.5V7H13.5'
+    + 'C13.7761 7 14 7.22386 14 7.5C14 7.77614 13.7761 8 13.5 8H8V13.5C8 13.7761 7.77614 14 7.5 14'
+    + 'C7.22386 14 7 13.7761 7 13.5V8H1.5C1.22386 8 1 7.77614 1 7.5C1 7.22386 1.22386 7 1.5 7H7V1.5'
+    + 'C7 1.22386 7.22386 1 7.5 1Z" fill="currentColor" stroke="none"/>',
+
+  // expui/general/chevronDown.svg
+  "chevron-down": '<path d="M11.5 6.25L8 9.75L4.5 6.25" stroke-width="1" stroke-linecap="round"/>',
+
+  // expui/general/hide_dark.svg
+  hide: '<path fill-rule="evenodd" clip-rule="evenodd" d="M1 7.5C1 7.77614 1.22386 8 1.5 8L13.5 8'
+    + 'C13.7761 8 14 7.77614 14 7.5C14 7.22386 13.7761 7 13.5 7L1.5 7C1.22386 7 1 7.22386 1 7.5Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
+  // expui/general/closeSmall.svg
+  close: '<path fill-rule="evenodd" clip-rule="evenodd" d="M11.4939 4.48784C11.3002 4.28007'
+    + ' 10.9724 4.27548 10.7729 4.47775L8.00074 7.28849L5.22871 4.47788C5.02922 4.27561'
+    + ' 4.70143 4.2802 4.50768 4.48797C4.32506 4.68382 4.32933 4.98882 4.51736 5.17947'
+    + 'L7.29908 7.99991L4.51756 10.8201C4.32953 11.0108 4.32526 11.3158 4.50788 11.5116'
+    + 'C4.70163 11.7194 5.02942 11.724 5.22892 11.5217L8.00074 8.71133L10.7727 11.5219'
+    + 'C10.9722 11.7241 11.3 11.7196 11.4937 11.5118C11.6764 11.3159 11.6721 11.0109'
+    + ' 11.484 10.8203L8.7024 7.99991L11.4843 5.17934C11.6723 4.98869 11.6766 4.68368'
+    + ' 11.4939 4.48784Z" fill="currentColor" stroke="none"/>',
+
+  // expui/toolwindows/run.svg, drawn at the platform's own stroke width.
+  run: '<path d="M13.5 7.13397C14.1667 7.51888 14.1667 8.48113 13.5 8.86603L4.5 14.0622'
+    + 'C3.83333 14.4471 3 13.966 3 13.1962L3 2.80385C3 2.03405 3.83333 1.55292 4.5 1.93782'
+    + 'L13.5 7.13397Z" stroke-width="1" stroke-linejoin="miter"/>',
+
+  // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
+  // the light variant (expui/kotlin.svg) supplies the other token values.
+  kotlin: '<path d="M13.3337 12.6314C13.6699 12.9396 13.4519 13.5 12.9958 13.5H3C2.72386 13.5'
+    + ' 2.5 13.2761 2.5 13V3C2.5 2.72386 2.72386 2.5 3 2.5H12.9958C13.4519 2.5 13.6699 3.06044'
+    + ' 13.3337 3.36858L8.68333 7.63142C8.46715 7.82959 8.46715 8.17041 8.68333 8.36858'
+    + 'L13.3337 12.6314Z" stroke="none" style="fill:var(--icon-kotlin-wedge)"/>'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M2 3C2 2.44772 2.44771 2 3 2H12.9958'
+    + 'C13.9079 2 14.3439 3.12089 13.6716 3.73715L9.0212 8L13.6716 12.2628C14.3439 12.8791'
+    + ' 13.9079 14 12.9958 14H3C2.44771 14 2 13.5523 2 13V3ZM12.9958 3L3 3V13H12.9958'
+    + 'L8.34547 8.73715C7.91311 8.34082 7.9131 7.65918 8.34547 7.26285L12.9958 3Z"'
+    + ' stroke="none" style="fill:var(--icon-kotlin-body)"/>',
+
+  // expui/toolwindows/project.svg, the folder glyph the platform draws for tree
+  // roots.
+  folder: '<path d="M8.15132 4.35836L8.29689 4.5H8.5H13C13.8284 4.5 14.5 5.17157 14.5 6V12.1333'
+    + 'C14.5 12.919 13.9104 13.5 13.25 13.5H2.75C2.08955 13.5 1.5 12.919 1.5 12.1333V3.86667'
+    + 'C1.5 3.08099 2.08955 2.5 2.75 2.5H6.03823C6.16847 2.5 6.29357 2.55082 6.38691 2.64164'
+    + 'L8.15132 4.35836Z" stroke-width="1" stroke-linejoin="miter"/>',
+
+  // expui/status/error_dark.svg
+  error: '<circle cx="8" cy="8" r="7" fill="#DB5C5C" stroke="none"/>'
+    + '<path d="M9 5C9 4.44772 8.55228 4 8 4C7.44772 4 7 4.44772 7 5V7.5C7 8.05229 7.44772 8.5'
+    + ' 8 8.5C8.55229 8.5 9 8.05228 9 7.5L9 5Z" fill="#FFFFFF" stroke="none"/>'
+    + '<path d="M8 12C8.55228 12 9 11.5523 9 11C9 10.4477 8.55228 10 8 10C7.44772 10 7 10.4477'
+    + ' 7 11C7 11.5523 7.44772 12 8 12Z" fill="#FFFFFF" stroke="none"/>',
+
+  // expui/status/warning_dark.svg
+  warning: '<path fill-rule="evenodd" clip-rule="evenodd" d="M1.27603 10.8634L6.3028 1.98903'
+    + 'C7.04977 0.670323 8.94893 0.670326 9.69589 1.98903L14.7227 10.8634C15.516 12.2639'
+    + ' 14.5047 14 12.8956 14H3.10308C1.494 14 0.482737 12.2639 1.27603 10.8634Z"'
+    + ' fill="#F2C55C" stroke="none"/>'
+    + '<path d="M9 5C9 4.44772 8.55228 4 8 4C7.44772 4 7 4.44772 7 5V7.5C7 8.05229 7.44772 8.5'
+    + ' 8 8.5C8.55229 8.5 9 8.05228 9 7.5L9 5Z" fill="#5E4D33" stroke="none"/>'
+    + '<path d="M8 12C8.55228 12 9 11.5523 9 11C9 10.4477 8.55228 10 8 10C7.44772 10 7 10.4477'
+    + ' 7 11C7 11.5523 7.44772 12 8 12Z" fill="#5E4D33" stroke="none"/>',
+
+  // expui/status/errorOutline.svg and warningOutline.svg, the hollow severity
+  // marks the status bar counts with. The platform grays them per theme; the
+  // gray is rewritten to currentColor so each count can take its severity token.
+  "warning-outline": '<path fill-rule="evenodd" clip-rule="evenodd" d="M7.17283 2.48224L2.14605 11.3566'
+    + 'C1.73052 12.0902 2.26023 12.9996 3.10308 12.9996H12.8956C13.7385 12.9996 14.2682 12.0902'
+    + ' 13.8526 11.3566L8.82587 2.48224C8.46196 1.83979 7.53673 1.8398 7.17283 2.48224ZM1.27603 10.8634'
+    + 'L6.3028 1.98903C7.04977 0.670323 8.94893 0.670326 9.69589 1.98903L14.7227 10.8634'
+    + 'C15.516 12.2639 14.5047 14 12.8956 14H3.10308C1.494 14 0.482737 12.2639 1.27603 10.8634Z"'
+    + ' fill="currentColor" stroke="none"/>'
+    + '<path d="M9 5C9 4.44772 8.55228 4 8 4C7.44772 4 7 4.44772 7 5V8C7 8.55229 7.44772 9 8 9'
+    + 'C8.55229 9 9 8.55228 9 8L9 5Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M8 12C8.55228 12 9 11.5523 9 11C9 10.4477 8.55228 10 8 10C7.44772 10 7 10.4477'
+    + ' 7 11C7 11.5523 7.44772 12 8 12Z" fill="currentColor" stroke="none"/>',
+
+  "error-outline": '<circle cx="8" cy="8" r="6.5" stroke-width="1"/>'
+    + '<path d="M9 5C9 4.44772 8.55228 4 8 4C7.44772 4 7 4.44772 7 5V8C7 8.55229 7.44772 9 8 9'
+    + 'C8.55229 9 9 8.55228 9 8L9 5Z" fill="currentColor" stroke="none"/>'
+    + '<path d="M8 12C8.55228 12 9 11.5523 9 11C9 10.4477 8.55228 10 8 10C7.44772 10 7 10.4477'
+    + ' 7 11C7 11.5523 7.44772 12 8 12Z" fill="currentColor" stroke="none"/>',
+
+  // Theme toggle: a sun for Light, a crescent for Dark. Drawn to the same 16x16
+  // grid as the rest of the set.
+  "theme-light": '<circle cx="8" cy="8" r="3" stroke-width="1.2"/>'
+    + '<path d="M8 1.2V2.6" stroke-width="1.2"/>'
+    + '<path d="M8 13.4V14.8" stroke-width="1.2"/>'
+    + '<path d="M1.2 8H2.6" stroke-width="1.2"/>'
+    + '<path d="M13.4 8H14.8" stroke-width="1.2"/>'
+    + '<path d="M3.3 3.3L4.3 4.3" stroke-width="1.2"/>'
+    + '<path d="M11.7 11.7L12.7 12.7" stroke-width="1.2"/>'
+    + '<path d="M12.7 3.3L11.7 4.3" stroke-width="1.2"/>'
+    + '<path d="M4.3 11.7L3.3 12.7" stroke-width="1.2"/>',
+
+  "theme-dark": '<path d="M14 8.53A6 6 0 1 1 7.47 2A4.67 4.67 0 0 0 14 8.53Z" stroke-width="1.2"'
+    + ' stroke-linejoin="round"/>',
+
+  spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23"/>',
+};
