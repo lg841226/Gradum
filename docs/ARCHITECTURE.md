@@ -4,18 +4,19 @@
 
 ### Technical Architecture White Paper
 
-| Field              | Value                                                                        |
-|--------------------|------------------------------------------------------------------------------|
-| **Version**        | 1.0.2                                                                        |
-| **Status**         | Active Development                                                           |
-| **Language**       | Kotlin 2.3.0 (JVM 21)                                                        |
-| **HTTP Framework** | Ktor 3.0.3 + Netty                                                           |
-| **Serialization**  | kotlinx-serialization-json 1.7.3                                             |
-| **Coroutines**     | kotlinx-coroutines 1.9.0                                                     |
-| **Logging**        | Logback Classic 1.5.25                                                       |
-| **LLM Backend**    | Ollama + OpenAI-compatible (LM Studio, vLLM, LocalAI) + Zhipu BigModel (GLM) |
-| **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                            |
-| **Last Updated**   | 2026-09-25                                                                   |
+| Field              | Value                                                                              |
+|--------------------|------------------------------------------------------------------------------------|
+| **Version**        | Server 1.0.2 / Plugin 1.0.3                                                        |
+| **Status**         | Active Development                                                                 |
+| **Language**       | Kotlin 2.3.0 (JVM 21; plugin JVM 25)                                               |
+| **HTTP Framework** | Ktor 3.0.3 + Netty                                                                 |
+| **Serialization**  | kotlinx-serialization-json 1.7.3                                                   |
+| **Coroutines**     | kotlinx-coroutines 1.9.0                                                           |
+| **Logging**        | Logback Classic 1.6.3                                                              |
+| **TUI**            | JLine 3.30.17 (setup wizard)                                                       |
+| **LLM Backend**    | Ollama and OpenAI-compatible (LM Studio, vLLM, LocalAI) + Zhipu, DeepSeek, MiniMax |
+| **Encryption**     | Java Security API (custom HMAC-CTR + HMAC-SHA256)                                  |
+| **Last Updated**   | 2026-10-05                                                                         |
 
 ---
 
@@ -31,8 +32,10 @@ full shell privileges, the system has a structured command safety filter (`Comma
 implementation layer. This filter examines every shell command (parsing executable file names, parameters, and paths)
 and rejects dangerous operations before they reach `ProcessBuilder`.
 
-Gradum is implemented using Kotlin 2.3.0, provides an HTTP API based on Ktor 3.0.3, and manages streaming responses
-through kotlinx-coroutines. Conversation context is encrypted and persisted to `<projectRoot>/.gradum/context.json`
+Gradum is implemented using Kotlin 2.3.0, exposes its streaming API over Ktor 3.0.3 HTTP, and manages streaming
+responses through kotlinx-coroutines. Besides HTTP, the same agent core is reachable through an **ACP stdio server**
+(`gradum acp`, Agent Client Protocol for IDE agents) and configured through an **interactive setup wizard**
+(`gradum setup`). Conversation context is encrypted and persisted to `<projectRoot>/.gradum/context.json`
 using a custom HMAC-CTR scheme on the local filesystem, ensuring cross-run continuity while preventing context
 injection.
 
@@ -51,6 +54,10 @@ injection.
 9. [Three-Tier Permission Model and SkillContext](#9-three-tier-permission-model-and-skillcontext)
 10. [Glossary](#10-glossary)
 
+Sections most readers look for first: [§2.9 Model Identity](#29-model-identity-discovery-probing-and-capability),
+[§2.10 HTTP Server Layer](#210-http-server-layer), [§2.11 ACP stdio Server](#211-acp-stdio-server),
+[§2.12 Setup Wizard](#212-setup-wizard), and [§2.13 Packaging and Release](#213-packaging-and-release).
+
 ---
 
 ## 1. Design Principles and Goals
@@ -62,8 +69,9 @@ injection.
 2. **Observable by default**: Every state transition emits a structured NDJSON event, enabling log replay, debug
    tracing, and downstream UI rendering without internal state coupling.
 3. **Tools as code**: Each skill is a Kotlin implementation of the `Skill` abstract class, centrally registered by
-   `SkillRegistry`. No DSLs, no plugin manifests, no remote registries, the skill surface is simply the project source
-   directory.
+   `SkillRegistry`. The skill surface has three entry points — built-in classes in the project source, external `.kt`
+   files dropped into `~/.gradum/skills/` (compiled and hot-reloaded at runtime), and MCP tools materialized from
+   `settings.json` through the `mcp_tools` skill. No plugin manifests, no remote registries.
 4. **Security at the skill layer**: The system prompt only provides guidance and must not be trusted as a security
    boundary. Security-critical enforcement behaviors are implemented inside skills (especially the `classifyCommand`
    pre-check in `RunCommandSkill`), not in the prompt.
@@ -96,7 +104,7 @@ and [§9.11](#911-askscope-interactive-authorization)).
 
 ### 2.1 Module Layer Architecture
 
-Gradum has six collaborating layers. The diagram shows the dependency direction (top layers
+Gradum has seven collaborating layers. The diagram shows the dependency direction (top layers
 depend on bottom layers):
 
 ```mermaid
@@ -104,10 +112,19 @@ flowchart TB
     subgraph SERVER["Server Layer"]
         direction LR
         S1["App.kt<br/>(server instance creation)"]
-        S2["Main.kt<br/>(CLI argument parsing)"]
+        S2["Main.kt<br/>(CLI: http / acp / setup)"]
         S3["Routes.kt<br/>(HTTP endpoints + session registry)"]
         S4["PortUtil.kt<br/>(port availability check)"]
         S5["ServerConfiguration.kt<br/>(host/port defaults)"]
+        S6["ServerSettings.kt<br/>(settings.json load + validation)"]
+        S7["SetupCommand.kt / SetupWizard.kt / TerminalStyle.kt<br/>(gradum setup wizard)"]
+    end
+
+    subgraph ACPS["ACP Transport"]
+        direction LR
+        P1["AcpServer.kt<br/>(stdio JSON-RPC framing)"]
+        P2["AcpSessionHandlers.kt / AcpConfigHandlers.kt<br/>(session prompts, permission bridge, config options)"]
+        P3["AcpCapabilityDsl.kt / AcpSessionDsl.kt / AcpEventMapper.kt<br/>(initialize + NDJSON→ACP mapping)"]
     end
 
     subgraph APP["Application Layer"]
@@ -115,7 +132,7 @@ flowchart TB
     end
 
     subgraph LLM["LLM I/O Layer"]
-        L1["LLMClient.kt<br/>(Ollama + OpenAI compatible<br/>+ Zhipu BigModel<br/>streaming clients, shared HttpClient)"]
+        L1["LLMClient.kt<br/>(Ollama + OpenAI compatible<br/>+ Zhipu / DeepSeek / MiniMax<br/>streaming clients, shared HttpClient)"]
     end
 
     subgraph DEBUG["Debug Layer"]
@@ -132,6 +149,8 @@ flowchart TB
         SK7["PathResolver.kt / XmlError.kt / SchemaDsl.kt"]
         SK8["AskScope.kt / PendingQuestions.kt<br/>(interactive authorization)"]
         SK9["DelegateSkill.kt<br/>(sub-agent delegation)"]
+        SK10["McpToolsSkill.kt + gradum/mcp/*<br/>(MCP server tools, stdio JSON-RPC)"]
+        SK11["skill/external/*<br/>(~/.gradum/skills/*.kt compile + hot reload)"]
     end
 
     subgraph UTIL["Utility Layer"]
@@ -143,12 +162,14 @@ flowchart TB
 
     subgraph CORE["Core Types"]
         C1["AgentConfiguration.kt (Provider / ToolMode / PromptVariant)"]
-        C2["ModelIdentity.kt (discovery + probing,<br/>supports Zhipu BigModel)"]
+        C2["ModelIdentity.kt (discovery + probing,<br/>7 built-in servers + resolveModelTarget)"]
         C3["SchemaVariant.kt / Annotations.kt / SkillResult.kt"]
         C4["Version.java (GRADUM_VERSION)"]
     end
 
     SERVER --> APP
+    SERVER --> ACPS
+    ACPS --> APP
     APP --> LLM
     APP --> DEBUG
     APP --> SKILLS
@@ -245,7 +266,7 @@ sessionDir(projectRoot, sessionId) = <projectRoot>/.gradum/sessions/<sessionId>
 
 ```mermaid
 flowchart TD
-    U["User / IDE Plugin<br/>POST /events<br/>{message, projectRoot, toolMode?,<br/>promptVariant?, loadContext?,<br/>attachments?, config?}"] --> R[Routes.kt<br/>registerAllRoutes]
+    U["User / IDE Plugin<br/>POST /events<br/>{message, projectRoot, toolMode?,<br/>promptVariant?, loadContext?,<br/>attachments?, config?, model?,<br/>sessionId?, messageId?, toolCallXml?}"] --> R[Routes.kt<br/>registerAllRoutes]
     R -->|"/events"| REQ[validate projectRoot → 400 if missing/invalid]
     REQ --> R1["AgentConfiguration<br/>+ Agent instantiation"]
     R -->|"/events/respond"| RESP["complete pending ask<br/>(choice / text / cancelled)"]
@@ -537,26 +558,26 @@ The dynamic `sub_agent:response` / `sub_agent:tool_call` / `sub_agent:error` eve
 so a renamed event fails to compile at every call site at once rather than silently desyncing the server from whatever
 consumes the stream.
 
-| `type`                  | Description                                   | Typical `data` fields                                                                     |
-|-------------------------|-----------------------------------------------|-------------------------------------------------------------------------------------------|
-| `session_start`         | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                           |
-| `thinking`              | LLM thinking content (if thinking is enabled) | `content`                                                                                 |
-| `response`              | LLM text output with token usage              | `content`, `promptTokens`, `completionTokens`, `totalTokens`                              |
-| `guardrail`             | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response), `hitCount`, `maxAllowed` + per-type details                   |
-| `mission_revoked`       | Session revoked (conversation must be erased) | `reason` (repetitive_loop / tool_runaway), `details`                                      |
-| `tool_call_start`       | A tool call started (before execution)        | `tool`, `alias`, `arguments`, `toolCallId`                                                |
-| `tool_call`             | A single tool call and its result             | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
-| `ask_interaction`       | Agent-initiated question (session pauses)     | `requestId`, `sessionId`, `title`, `details`, `default`, `choices[]` or `input`           |
-| `sub_agent:start`       | Sub-agent session started                     | `task`, `toolMode`, `sessionId`                                                           |
-| `sub_agent:response`    | Sub-agent LLM response chunk                  | `content`                                                                                 |
-| `sub_agent:tool_call`   | Sub-agent tool call and result                | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                           |
-| `sub_agent:error`       | Sub-agent error                               | `code`, `message`, `sessionId`                                                            |
-| `sub_agent:session_end` | Sub-agent session ended                       | `sessionId`, `elapsedSeconds`, `result`, `error`                                          |
-| `error`                 | Error (LLM or tool)                           | `code`, `message`, `scope` (`turn`/`tool`), `source` (turn) or `tool`+`toolCallId` (tool) |
-| `playback_start`        | Debug scenario started                        | `mode`, `scenario`, `steps`, `toolCalls`                                                  |
-| `tool_expect_mismatch`  | Debug scenario assertion failure              | `tool`, `index`, `expectSuccess`, `actualSuccess`, `result`, `errorCode`, `errorMessage`  |
-| `playback_end`          | Debug scenario finished                       | `scenario`, `executedCalls`, `mismatchCount`                                              |
-| `session_end`           | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}` |
+| `type`                  | Description                                   | Typical `data` fields                                                                                                                                                                                         |
+|-------------------------|-----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `session_start`         | Session started                               | `version`, `model`, `think`, `contextLoaded`, `contextMessages`                                                                                                                                               |
+| `thinking`              | LLM thinking content (if thinking is enabled) | `content`                                                                                                                                                                                                     |
+| `response`              | LLM text output with token usage              | `content`, `promptTokens`, `completionTokens`, `totalTokens`                                                                                                                                                  |
+| `guardrail`             | Guardrail warning (non-fatal anomaly)         | `type` (repeated_response), `hitCount`, `maxAllowed` + per-type details                                                                                                                                       |
+| `mission_revoked`       | Session revoked (conversation must be erased) | `reason` (repetitive_loop / tool_runaway), `details`                                                                                                                                                          |
+| `tool_call_start`       | A tool call started (before execution)        | `tool`, `alias`, `arguments`, `toolCallId`, plus display metadata `displayKind`, `displayLabel`, `displayParamKey` (from `Skill.toolDisplay`; the ACP mapper turns these into the tool call's `title`/`kind`) |
+| `tool_call`             | A single tool call and its result             | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                                                                                                                                               |
+| `ask_interaction`       | Agent-initiated question (session pauses)     | `requestId`, `sessionId`, `title`, `details`, `default`, `choices[]` or `input`                                                                                                                               |
+| `sub_agent:start`       | Sub-agent session started                     | `task`, `toolMode`, `sessionId`                                                                                                                                                                               |
+| `sub_agent:response`    | Sub-agent LLM response chunk                  | `content`                                                                                                                                                                                                     |
+| `sub_agent:tool_call`   | Sub-agent tool call and result                | `tool`, `alias`, `arguments`, `toolCallId`, `success`, `result`                                                                                                                                               |
+| `sub_agent:error`       | Sub-agent error                               | `code`, `message`, `sessionId`                                                                                                                                                                                |
+| `sub_agent:session_end` | Sub-agent session ended                       | `sessionId`, `elapsedSeconds`, `result`, `error`                                                                                                                                                              |
+| `error`                 | Error (LLM or tool)                           | `code`, `message`, `scope` (`turn`/`tool`), `source` (turn) or `tool`+`toolCallId` (tool)                                                                                                                     |
+| `playback_start`        | Debug scenario started                        | `mode`, `scenario`, `steps`, `toolCalls`                                                                                                                                                                      |
+| `tool_expect_mismatch`  | Debug scenario assertion failure              | `tool`, `index`, `expectSuccess`, `actualSuccess`, `result`, `errorCode`, `errorMessage`                                                                                                                      |
+| `playback_end`          | Debug scenario finished                       | `scenario`, `executedCalls`, `mismatchCount`                                                                                                                                                                  |
+| `session_end`           | Session ended                                 | `version`, `elapsedSeconds`, `model`, `tokenUsage: {promptTokens, completionTokens, ...}`                                                                                                                     |
 
 #### Event Order Invariants
 
@@ -725,16 +746,19 @@ object plus the capability inference used for schema variant resolution.
 flowchart TD
     START["ModelIdentity.discoverModels()"] --> CACHE{HealthCache fresh?<br/>TTL 60s}
     CACHE -- Yes --> CACHED["return cached snapshot"]
-    CACHE -- No --> PROBE[Probe known servers]
-    PROBE --> P1[Ollama<br/>port 11434<br/>GET /api/tags<br/>provider: ollama]
-    PROBE --> P2[LM Studio<br/>port 1234<br/>GET /v1/models<br/>provider: openai]
-    PROBE --> P3[vLLM<br/>port 8000<br/>GET /v1/models<br/>provider: openai]
-    PROBE --> P4[LocalAI<br/>port 8080<br/>GET /v1/models<br/>provider: openai]
-    PROBE --> P5["Zhipu BigModel<br/>open.bigmodel.cn<br/>GET /models<br/>provider: openai"]
-    P1 --> R1["5s timeout per probe<br/>classify HTTP errors / unreachable"]
+    CACHE -- No --> PROBE["Probe seven known servers<br/>(probe URL = settings.json '&lt;provider&gt;.baseUrl'<br/>if set, else the built-in default;<br/>blank URL → skipped)"]
+    PROBE --> P1[Ollama<br/>default http://localhost:11434<br/>GET /api/tags<br/>provider: ollama]
+    PROBE --> P2[LM Studio<br/>default http://localhost:1234<br/>GET /api/v0/models<br/>provider: openai]
+    PROBE --> P3["vLLM / LocalAI<br/>no built-in default:<br/>probed only when configured<br/>GET /v1/models"]
+    PROBE --> P5["Zhipu BigModel<br/>open.bigmodel.cn/api/coding/paas/v4<br/>GET /models<br/>provider: openai"]
+    PROBE --> P6["DeepSeek<br/>api.deepseek.com/v1<br/>GET /models<br/>provider: openai"]
+    PROBE --> P7["MiniMax<br/>api.minimaxi.com/v1<br/>GET /models<br/>provider: openai"]
+    P1 --> R1["5s timeout per probe<br/>classify HTTP errors / unreachable<br/>(cloud skipped when its key is blank)"]
     P2 --> R1
     P3 --> R1
-    P4 --> R1
+    P5 --> R1
+    P6 --> R1
+    P7 --> R1
 
     R1 --> CLOUD["Ollama cloud models<br/>(name contains 'cloud'):<br/>live availability probe<br/>POST /api/chat (5s)<br/>classify → UnavailableReason"]
     CLOUD --> RESULT["List<ModelEntry><br/>{modelName, providerType, serverUrl,<br/>serverName, available, contextLimit, ...}"]
@@ -744,14 +768,32 @@ flowchart TD
     style P1 fill: #c1daf4
     style P2 fill: #c1f4c1
     style P3 fill: #f4e1c1
-    style P4 fill: #f4c1c1
     style P5 fill: #e1c1f4
+    style P6 fill: #f4c1c1
+    style P7 fill: #fff4c1
     style CLOUD fill: #fff4c1
 ```
 
-- **Discovery** (`Discovery.probe()`): probes the five well-known servers (four local + Zhipu BigModel cloud) with a 5s
-  timeout, classifies failures as `HttpError` (skipped, `debug` log) or `Unreachable`, and returns reachable models.
-  Results are cached by `HealthCache` with a 60-second TTL (a single snapshot for concurrent `/models` requests).
+- **Discovery** (`Discovery.probe()`): probes seven well-known servers (Ollama, LM Studio, vLLM, LocalAI locally;
+  Zhipu BigModel, DeepSeek, MiniMax as cloud) with a 5s timeout, classifies failures as `HttpError` (skipped, `debug`
+  log) or `Unreachable`, and returns reachable models. Results are cached by `HealthCache` with a 60-second TTL (a
+  single snapshot for concurrent `/models` requests). Local servers are probed at their configured
+  `<provider>.baseUrl` (or the built-in default for Ollama/LM Studio); cloud servers are skipped when their API key
+  resolves to blank.
+- **Model target resolution** (`resolveModelTarget` → `ResolvedModelTarget`): the one precedence chain both the HTTP
+  `/events` route and the ACP session handler use to decide `providerType / baseUrl / apiKey` for a request — (1)
+  per-request overrides sent by the client (`config.provider/baseUrl/apiKey`), (2) the `ModelEntry` discovered for
+  the requested model (its server URL plus that server's key), (3) the server-wide `llm.*` fallbacks. The model lookup
+  goes through the TTL-cached discovery, so resolving per message never re-probes. `ModelDisplayLabel` formats the
+  resulting provider/model pair for display.
+- **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`,
+  where
+  provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
+  `zhipu.allowRemote`, ...). The legacy `~/.gradum/provider.env` was migrated into settings.json once on first access.
+  `HealthCache` compares it on every request; when the file changes (URL / API key edited on the settings page), the
+  cache is dropped and the next `/models` call re-probes the providers, so a URL edit surfaces in the model list within
+  one poll cycle instead of waiting out the 60s TTL. The `configured` flag in settings.json gates the first ACP
+  session until `gradum setup` (or the plugin settings page) has written a provider.
 - **Cache invalidation**: `ProviderConfigStore.fingerprint()` derives `"mtime:length"` from `~/.gradum/settings.json`,
   where
   provider overrides live as VS Code style dotted top-level keys (`ollama.baseUrl`, `lmstudio.apiKey`,
@@ -764,8 +806,10 @@ flowchart TD
   (`AUTH / QUOTA_EXCEEDED / RATE_LIMIT / NETWORK / OTHER`).
 - **Settings probe** (`probeProvider`, wired to `POST /provider/probe`): a real-time, uncached one-shot check the plugin
   issues on the settings page "检测" button. The server (not the plugin) dials the provider so settings checks share the
-  server's network stack and auth handling; returns `{status: ok|unreachable|auth|failed, latencyMs, error}`. Local
-  (Ollama) endpoints are probed without a token; cloud endpoints get a bearer token when an API key is present.
+  server's network stack and auth handling; it first validates the URL shape (`isWellFormedProviderUrl` /
+  `isValidHost`), then returns a `ProviderProbeResult` `{status: ok|unreachable|auth|failed, latencyMs, error}` that the
+  plugin renders as its latency badge. Local (Ollama) endpoints are probed without a token; cloud endpoints get a
+  bearer token when an API key is present.
 - **Shared HTTP dial** (`httpProbe`): one GET helper with a 5s timeout, optional bearer token, and latency measurement
   used by both `probeProvider` and `Discovery.probeServer`.
 - **Capability inference** (used by `SchemaVariant.resolve`): `parameterCountInBillions(modelName)` parses
@@ -779,16 +823,20 @@ flowchart TD
 - `createServerInstance(config)`: Call `embeddedServer(Netty, host, port) { module(config) }` to create a Ktor
   application
 - `Application.module(config)`: Call `registerAllRoutes()`
-- `main(args)`: Load all startup parameters from `~/.gradum/settings.json` (`ServerSettings` / `ServerSettingsStore`),
-  the single source of truth — the old `--host/--port/--auto-port/--api-key` CLI flags have been removed (only
-  `--help` remains). On first start `releaseDefaultsIfMissing()` copies the bundled `settings.json` +
-  `settings.schema.json` (editor autocompletion) into `~/.gradum/`. `host`/`port` bind the Netty server;
-  `autoDetectPort` calls `findAvailablePort()`; the API key resolves from `apiKeyFile`, falling back to env.
-- Add JVM shutdown hook to call `server.stop(grace = 3000)`
+- `main(args)`: dispatches on the first argument — `setup` → interactive setup wizard,
+  `acp` → ACP stdio server (see [§2.11](#211-acp-stdio-server) and [§2.12](#212-setup-wizard)), anything else (including
+  `--help`) → HTTP mode. All three paths share `initRuntime()`: load `ServerSettings` from
+  `~/.gradum/settings.json` (the single source of truth — the old `--host/--port/--auto-port/--api-key` CLI flags have
+  been removed), apply `commandFilter` overrides, start the MCP connection manager, scan and watch the external skill
+  directory (`~/.gradum/skills/`), and build the `GradumRuntime`. On first start `releaseDefaultsIfMissing()` copies the
+  bundled `settings.json` + `settings.schema.json` (editor autocompletion) into `~/.gradum/`. `host`/`port` bind the
+  Netty server; `autoDetectPort` calls `findAvailablePort()`; the API key resolves from `apiKeyFile`, falling back to
+  env. HTTP mode prints the gradient startup banner; `--help` prints the command/usage overview.
+- Add JVM shutdown hook to call `server.stop(grace = 3000)` and close the skill watcher + MCP manager
 
 #### Routes.kt
 
-`registerAllRoutes()` registers nine routes:
+`registerAllRoutes()` registers fourteen routes:
 
 ```mermaid
 flowchart TD
@@ -801,21 +849,31 @@ flowchart TD
     R --> GM[GET /models]
     R --> PP[POST /provider/probe]
     R --> GS[GET /skills]
-    POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, sessionId?, promptVariant?,<br/>attachments?, toolCallXml?, config?}"]
+    R --> SSRC[GET /skills/sources]
+    R --> SSN[GET /skills/source]
+    R --> SDEP[POST /skills/deploy]
+    R --> SED[GET /skills/editor]
+    R --> SEDA["GET /skills/editor/{asset...}"]
+    POST --> P1["Deserialize EventsRequestBody<br/>{message, projectRoot, loadContext, model?,<br/>toolMode?, sessionId?, messageId?, promptVariant?,<br/>attachments?, toolCallXml?, config?}"]
     P1 --> P2["Validate projectRoot: required,<br/>absolute, existing directory → else 400"]
-    P2 --> P3["Build AgentConfiguration from config:<br/>provider, baseUrl, think, temperature, topP,<br/>numCtx, numPredict, timeout; model default =<br/>first available from ModelIdentity"]
+    P2 --> P3["Build AgentConfiguration from config:<br/>provider, baseUrl, think, temperature, topP,<br/>numCtx, numPredict, timeout, keepAliveMinutes;<br/>model default = requestBody.model →<br/>llm.model → first available;<br/>resolveModelTarget() picks provider/url/key"]
     P3 --> P4["Create Channel(UNLIMITED)<br/>launch(Dispatchers.IO):<br/>Agent(config, emitEvent) → executeTask()<br/>NDJSON formatting + trySend"]
     P4 --> P5["Stream response:<br/>Content-Type: application/x-ndjson<br/>WriteChannelContent<br/>flush per line"]
     RESP --> RP1["PendingQuestions.complete{Choice,Text,Cancelled}<br/>unblocks the waiting skill<br/>{status: delivered|not_found} (400 on bad body)"]
     PS --> S1["abort active session by sessionId<br/>{status: stopped|not_found}"]
     SD --> SD1["delete .gradum/sessions/{sessionId}<br/>strict-child path-traversal guard"]
-    SR --> SR1["truncate session context to messageId<br/>rewrites context.json + conversation.md"]
+    SR --> SR1["truncate session context to messageId<br/>rewrites .gradum/context.json<br/>(conversation.md is plugin-side only)"]
     GH --> H1["Return JSON<br/>{status: 'healthy', version, uptimeSeconds, timestamp}"]
     GM --> M1["ModelIdentity.discoverModels()<br/>HealthCache TTL 60s,<br/>config-fingerprint invalidation"]
     M1 --> M2["Return JSON<br/>{models: [...]}"]
     PP --> P6["ModelIdentity.probeProvider(kind, baseUrl, apiKey)<br/>real-time, uncached<br/>httpProbe with 5s timeout"]
     P6 --> P7["Return JSON<br/>{status: ok|unreachable|auth|failed,<br/>latencyMs, error}"]
     GS --> S2["Return JSON<br/>{skills: [{name, description, alias}]}"]
+    SSRC --> X1["Return JSON<br/>{sources: [...]} — sorted ~/.gradum/skills/*.kt names"]
+    SSN --> X2["Return JSON {name, source}<br/>404 on unknown name<br/>normalizeSourceName() blocks traversal"]
+    SDEP --> X3["400 bad body/name · 503 scanner missing<br/>write source + synchronous reconcile<br/>→ {fileName, compiled, diagnostics}"]
+    SED --> X4["Serve bundled skills-editor/index.html<br/>auth: valid ?token= sets HttpOnly cookie,<br/>else 401 with recovery hint"]
+    SEDA --> X5["Serve bundled css/js/svg/html asset<br/>per-segment traversal guard · 404 else"]
     style POST fill: #d4f1d4
     style RESP fill: #d4f1d4
     style PS fill: #f4d4c1
@@ -825,7 +883,91 @@ flowchart TD
     style GM fill: #f4e1c1
     style PP fill: #e1c1f4
     style GS fill: #c1f4c1
+    style SSRC fill: #c1f4c1
+    style SSN fill: #c1f4c1
+    style SDEP fill: #d4f1d4
+    style SED fill: #c1daf4
+    style SEDA fill: #c1daf4
 ```
+
+### 2.11 ACP stdio Server
+
+`gradum acp` starts an **Agent Client Protocol** server on stdin/stdout so IDE agents (Zed, VS Code agent mode,
+registry-aware clients) can drive Gradum without HTTP. Frames are JSON-RPC 2.0, newline-delimited, using the same
+`FrameCodec` as the MCP stdio transport.
+
+```mermaid
+flowchart LR
+    IDE["ACP client (IDE)"] <-->|"stdin/stdout<br/>newline-delimited JSON-RPC"| T["AcpServer.kt<br/>(transport: framing,<br/>request correlation, pendingRequests)"]
+    T --> SH["AcpSessionHandlers.kt<br/>session/new · session/prompt ·<br/>session/cancel · session/load"]
+    T --> CH["AcpConfigHandlers.kt<br/>session/update_config:<br/>options 'model' + 'mode'"]
+    T --> CD["AcpCapabilityDsl.kt<br/>initialize response"]
+    SH --> MAP["AcpEventMapper.kt<br/>NDJSON events → ACP notifications"]
+    MAP -->|"agent_message_chunk / agent_thought_chunk /<br/>tool call start / tool result"| IDE
+    SH -->|"session/request_permission<br/>(agent → client request)"| IDE
+    IDE -->|"session/update_permission"| SH
+    SH --> AGENT["Agent.executeTask<br/>(same loop as HTTP)"]
+```
+
+- **Initialize** (`AcpCapabilityDsl.acpInitialize`): `protocolVersion = 1`, agent info (`Gradum` + `BuildConfig`
+  version), `agentCapabilities { loadSession = true; promptCapabilities.image = true }`, `mcpCapabilities { http = false,
+  sse = false }`, and an `authMethods` array of **objects** — a single `terminal` entry
+  (`{id: "terminal", type: "terminal", args: ["setup"]}`) that tells the client it can launch `gradum setup` in the
+  user's terminal to configure a provider.
+- **Setup gate**: if `settings.json` has no `configured: true` flag and the client advertised the terminal auth
+  capability, `session/new` fails fast with `AUTH_REQUIRED = -32000` and the `authMethods` payload instead of starting a
+  doomed turn.
+- **Permission bridge**: the agent's `ask_interaction` events are converted into outbound `session/request_permission`
+  requests (negative IDs — the agent is the caller), with options mapped to ACP outcomes
+  (`allow_once / allow_always / reject_once / reject_always`). The client's `session/update_permission` answer is
+  written back to the parked `AskScope`, so tool approval round-trips work identically to the HTTP
+  `/events/respond` path.
+- **Event mapping** (`AcpEventMapper`): `response → agent_message_chunk`, `thinking → agent_thought_chunk`,
+  `tool_call_start → tool call start` (title/kind from the skill's `toolDisplay` metadata); ANSI escape sequences in
+  tool output are wrapped in `<pre>` blocks; `error` events surface with their `turn`/`tool` scope.
+- **Config options**: the client sees `model` (select from discovered models, labeled via `ModelDisplayLabel`) and
+  `mode` (tool mode) options; each change must return the full config, and model changes are broadcast to other
+  sessions as `config_option_update`.
+- **Model probe loop**: `AcpServer` re-runs discovery every `MODEL_PROBE_INTERVAL_MS = 1000` ms so newly started local
+  providers show up in the client's model list without a restart.
+- **Logging**: ACP mode stays silent on stdout (it *is* the protocol channel); logs go to stderr plus a rolling
+  `~/.gradum/logs/acp.log` (started only after its parent logger is attached, see `logging/`).
+
+### 2.12 Setup Wizard
+
+`gradum setup` writes the provider configuration both entry points read (`~/.gradum/settings.json`):
+
+- **TUI path** (`SetupWizard.kt`, JLine): when `System.console()` exists, a full-screen four-step wizard (Provider →
+  Credentials → Connection → Review) runs in raw mode on the alternate screen so the scrollback is
+  untouched; a shutdown hook restores the terminal even on crash. Keys: arrows/Tab move, Enter edits/saves, Esc quits.
+  API keys are masked while editing. The model is *not* configured here — the server auto-discovers it.
+- **Line path** (`SetupCommand.kt`): the fallback when there is no pty (piped output, ACP terminal auth without a
+  terminal), and also what the client runs for the `terminal` auth method. Same prompts, plain line I/O.
+- **Shared contract**: both paths read the file through `readSettingsRoot` (a parse failure aborts with an error
+  instead of overwriting the file), write provider keys flat (`<provider>.baseUrl` / `.apiKey`) and server-wide
+  defaults into the **nested `llm` object** that `ServerSettings.load` reads, drop legacy flat `llm.*` keys, and write
+  exactly once at the end so Ctrl-C never leaves a half-written config. Saving sets `configured: true`, which lifts the
+  ACP setup gate.
+- **Presentation** (`TerminalStyle.kt`): the gradient banner and ANSI palette are shared with the HTTP startup banner
+  and degrade to plain text under `NO_COLOR` or non-console output.
+
+### 2.13 Packaging and Release
+
+- **`./gradlew buildFatJar`**: cross-platform fat jar at `build/libs/gradum@<version>.jar` (Ktor shadow jar). The
+  `:shadowDistTar` distribution task is broken on Gradle 9.5.1 (removed `mainClassName`) — avoid plain `./gradlew
+  build` for packaging.
+- **`./gradlew serverPackage`**: self-contained app via `jpackage` — jlink runtime (with `jdk.zipfs` forced in, since
+  jdeps misses it), staged input jar, platform icon (`packaging/`), then per-platform finishing: macOS gets a Terminal
+  wrapper script plus ad-hoc signing; Windows gets `--win-console`, the `.ico` icon, and UTF-8 stdio. The staging
+  directory is cleaned first so renamed inputs never leave stale files behind.
+- **CI** (`.github/workflows/ci.yml`): push to `master` + PRs, JDK 21, `./gradlew :test -Pgradum.skipPlugin` (the
+  plugin needs JDK 25 and is not exercised on every push).
+- **Release** (`.github/workflows/release.yml`): tag `v*` builds a five-target matrix (`darwin-aarch64`, `darwin-x86_64`
+  on `macos-15-intel`, `linux-x86_64`, `linux-aarch64`, `windows-x64`) with
+  `serverPackage -Pgradum.skipPlugin`, zips each output as `gradum-<os>-<arch>.zip`, computes sha256 digests, and
+  publishes the GitHub release. jpackage cannot cross-compile, hence the per-OS runners.
+- **ACP registry card** (`registry/gradum/agent.json`): version, repository link, per-platform archive URLs with the
+  sha256 digests from the release, and `"args": ["acp"]` so registry-aware clients can install and launch Gradum.
 
 ---
 
@@ -905,8 +1047,9 @@ stateDiagram-v2
 - **Cloud mode** (FULL schema): Batch `edits[]` array, multiple edits per call. Designed for cloud models.
 - **2-step matching**: Step 1 exact match (ignore trailing whitespace and line endings), Step 2 stripped-whitespace
   match (`filterNot { it.isWhitespace() }`).
-- **Sequential edits**: each `EditOperation` in a batch is applied sequentially; failure to match an edit aborts with
-  `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` before any partial write is committed.
+- **Sequential edits**: each `EditOperation` in a batch is applied sequentially; the write commits as it goes, and a
+  later mismatch returns `CODE_NOT_FOUND` / `MULTIPLE_MATCHES` carrying `appliedCount`, so the result reports exactly
+  how many edits landed (there is no all-or-nothing rollback).
 - **Concurrency guard**: an in-process `Mutex` (keyed by resolved path) serializes edits to the same file; a detected
   concurrent modification returns `CONCURRENT_MODIFICATION`.
 - **Out-of-project authorization**: a target path outside `projectRoot` first goes through
@@ -977,7 +1120,14 @@ flowchart TD
 ```
 
 **BLOCKED_EXECUTABLES set** (always-on, independent of `toolMode`):
-`sudo, su, doas, pkexec, shutdown, reboot, halt, poweroff, init, mkfs, mkfs.ext2/3/4, mkfs.xfs, mkfs.btrfs, mkfs.vfat, mkfs.ntfs, mkswap, fdisk, sfdisk, parted, gdisk`
+`mkfs, mkfs.ext2/3/4, mkfs.xfs, mkfs.btrfs, mkfs.vfat, mkfs.ntfs, mkswap, fdisk, sfdisk, parted, gdisk, shutdown, reboot, poweroff`
+
+Privilege escalators (`sudo, su, doas, pkexec`) are **not** blocked — they are recognized structurally
+(`PRIVILEGE_ESCALATORS`) so the classifier can look through them to the real command underneath.
+
+Both the blocked set and the protected-path lists are **user-overridable** through `settings.json`:
+`commandFilter.blockedExecutables` and `commandFilter.protectedPaths` (loaded by `CommandFilterRuntime.config`;
+shipped defaults preserve the behavior above, and `dd`/`rm`/`chmod` rules stay in code).
 
 **systemPrefixes** (in `ProtectedPaths`):
 `/etc, /usr, /var, /boot, /bin, /sbin, /lib, /lib64, /opt, /System, /Library, /Applications, /private`
@@ -1205,6 +1355,7 @@ classDiagram
         +alias: String
         +allowedToolModes: Set<ToolMode>
         +manageOwnEventStream: Boolean
+        +toolDisplay: ToolDisplay
         +execute(arguments: Map<String, Any>, context: SkillContext) SkillResult
         +getSchema(context: SkillContext?) Map<String, Any>
         +allows(toolMode: ToolMode) Boolean
@@ -1230,6 +1381,7 @@ classDiagram
     class SkillRegistry {
         -registeredSkills: Map<String, Skill>
         +init discoverSkills() // gradum.skill package scan (dir + JAR)
+        +register(skill: Skill) / unregister(name)
         +getSkill(name: String) Skill?
         +getAllSkills() Collection<Skill>
         +getSchemas(modelName: String, toolMode: ToolMode, provider: Provider) List<Map<String, Any>>
@@ -1243,6 +1395,7 @@ classDiagram
     class CompletePlanSkill
     class WebSearchSkill
     class DelegateSkill
+    class McpToolsSkill
 
     SkillResult <|-- Success
     SkillResult <|-- Failure
@@ -1254,6 +1407,7 @@ classDiagram
     Skill <|-- CompletePlanSkill
     Skill <|-- WebSearchSkill
     Skill <|-- DelegateSkill
+    Skill <|-- McpToolsSkill
     SkillRegistry o-- Skill
 
     class Agent {
@@ -1277,6 +1431,10 @@ abstract class Skill {
     // Skills that stream their own progress events (e.g. DelegateSkill)
     // opt out of the agent's standard tool_call_start / tool_call pair.
     open val manageOwnEventStream: Boolean = false
+
+    // Display metadata carried by tool_call_start (displayKind/displayLabel/
+    // displayParamKey); the ACP mapper renders it as the tool call's title/kind.
+    open val toolDisplay: ToolDisplay = ToolDisplay(...)
 
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
@@ -1405,28 +1563,38 @@ Skills are discovered by **reflection over the `gradum.skill` package**, not by 
 `ServiceLoader`: any concrete public class extending `Skill` with a no-argument constructor (e.g. `ReadFileSkill`,
 `WriteFileSkill`, `RunCommandSkill`, `ExploreProjectSkill`, `TodoSkill`, `CompletePlanSkill`) is
 instantiated and registered. External plugin JARs on the classpath that contain a `gradum/skill/*.class` tree are picked
-up by the `jar`-scheme scanner automatically.
+up by the `jar`-scheme scanner automatically. On top of that, `initRuntime()` registers `McpToolsSkill` (backed by the
+`servers` declared in `settings.json`), and external `.kt` files from `~/.gradum/skills/` are compiled at runtime and
+registered through the `SkillStore` path.
 
-**Adding a skill** is therefore a three-step process:
+**Adding a skill** is therefore a four-step process — three of which need no registration file:
 
 1. Create a class extending `Skill` in the `gradum.skill` package with a no-argument constructor
 2. Build it into the server classpath (own module or an external plugin JAR)
 3. It is discovered automatically at init time; no registration file to maintain
+4. *Or skip the build entirely*: drop a `.kt` file into `~/.gradum/skills/` — `ExternalSkillCompiler` compiles it with
+   the embeddable K2 compiler, `ExternalSkillDirectoryScanner` caches by SHA-256, and
+   `ExternalSkillDirectoryWatcher` hot-reloads the directory on change (deleting a file unregisters only externally
+   owned skills; the first scan seeds a commented `HelloSkill.kt` template)
 
 ### 4.3 Skill Overview
 
-| Skill               | Input Parameters                                              | Output Fields                                                                                                                                                                                                              | Error Codes                                                                                                                               | Limits                                                                                                    |
-|---------------------|---------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| ReadFileSkill       | `path`, `lineRange?`/`line_range?`                            | FULL: `path, lineRange, totalLines, contentHashShort, content` <br/> SIMPLE: `path, content: {lineNumber: lineText}`                                                                                                       | `FILE_NOT_FOUND, FILE_TOO_LARGE, PERMISSION_DENIED, INVALID_PARAMETER, IO_ERROR`                                                          | Size ≤ 1MB, lines ≤ 10000; out-of-project paths require an `ask_interaction` approval                     |
-| WriteFileSkill      | `path, edits[]` (cloud); `path, oldString, newString` (local) | replace: `path, linesAdded, linesRemoved, editsApplied, totalEdits`; create: `path, created, bytesWritten, totalLines`                                                                                                     | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, CONCURRENT_MODIFICATION, PERMISSION_DENIED, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Local: 1 edit per call; cloud: batch `edits[]`; blank `oldString` creates/overwrites, auto mkdirs parents |
-| RunCommandSkill     | `command, reason?, detached?, timeout?`                       | blocking: `timeout, exitCode, command, output, truncated` (SIMPLE: `exitCode, command, output`) <br/> detached: `command, detached, processId, logPath, message`                                                           | `COMMAND_BLOCKED, PERMISSION_DENIED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                                                | Timeout 120s default / 600s max; output ≤ 16 KiB (`truncated` flag); CommandFilter pre-check              |
-| GrepSkill           | `pattern, path?, include?, limit?`                            | `pattern, search_path, total_matches, matches, files_searched, limit_applied`                                                                                                                                              | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Concurrent scan; match + result limits                                                                    |
-| GlobSkill           | `pattern, path?, limit?`                                      | `pattern, search_path, total_files, files, limit_applied`                                                                                                                                                                  | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Concurrent scan; result limit                                                                             |
-| ExploreProjectSkill | `path?, depth?`                                               | SIMPLE: `depth, code_files, other_files, project_root, config_files, total_size, code_file_details, unreadable_paths` <br/> FULL: adds `config_files`/`code_files`/`other_files` lists + `filter_applied` + `result_count` | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Depth 5–14 (default 8); truncated build/dependency directories                                            |
-| TodoSkill           | `tasks[]`                                                     | `currentIndex, tasks, totalTasks, currentTask`                                                                                                                                                                             | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                                                                  | Singleton; cannot be reset after initialization                                                           |
-| CompletePlanSkill   | `task?, count?, action?` (`complete`/`skip`)                  | `{completed, totalTasks, tasks, message?}` or `{completed, totalTasks, tasks, currentTask, currentIndex}`                                                                                                                  | `NOT_INITIALIZED, ALL_COMPLETED`                                                                                                          | Advance task pointer                                                                                      |
-| WebSearchSkill      | `query, max_results?, search_depth?`                          | `query, max_results, search_depth, results: [{title, snippet, url}]`                                                                                                                                                       | `INVALID_PARAMETER, SEARCH_FAILED`                                                                                                        | Requires `TAVILY_API_KEY` env var; max 10 results                                                         |
-| DelegateSkill       | `task` (≥120 chars), `title?`                                 | `{result}` — progress streams as `sub_agent:*` events                                                                                                                                                                      | `INVALID_PARAMETER, CLIENT_ERROR`                                                                                                         | Sub-agent timeout 600s; task must not echo the user's message verbatim                                    |
+| Skill               | Input Parameters                                              | Output Fields                                                                                                                                                                                                              | Error Codes                                                                                                                               | Limits                                                                                                                |
+|---------------------|---------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| ReadFileSkill       | `path`, `lineRange?`/`line_range?`                            | FULL: `path, lineRange, totalLines, contentHashShort, content` <br/> SIMPLE: `path, content: {lineNumber: lineText}`                                                                                                       | `FILE_NOT_FOUND, FILE_TOO_LARGE, PERMISSION_DENIED, INVALID_PARAMETER, IO_ERROR`                                                          | Size ≤ 1MB, lines ≤ 10000; out-of-project paths require an `ask_interaction` approval                                 |
+| WriteFileSkill      | `path, edits[]` (cloud); `path, oldString, newString` (local) | replace: `path, linesAdded, linesRemoved, editsApplied, totalEdits`; create: `path, created, bytesWritten, totalLines`                                                                                                     | `CODE_NOT_FOUND, MULTIPLE_MATCHES, EMPTY_RESULT, CONCURRENT_MODIFICATION, PERMISSION_DENIED, FILE_NOT_FOUND, INVALID_PARAMETER, IO_ERROR` | Local: 1 edit per call; cloud: batch `edits[]`; blank `oldString` creates/overwrites, auto mkdirs parents             |
+| RunCommandSkill     | `command, reason?, detached?, timeout?`                       | blocking: `timeout, exitCode, command, output, truncated` (SIMPLE: `exitCode, command, output`) <br/> detached: `command, detached, processId, logPath, message`                                                           | `COMMAND_BLOCKED, PERMISSION_DENIED, TIMEOUT, INVALID_PARAMETER, IO_ERROR`                                                                | Timeout 120s default / 600s max; output ≤ 16 KiB (`truncated` flag); CommandFilter pre-check                          |
+| GrepSkill           | `pattern, path?, include?, limit?`                            | `pattern, search_path, total_matches, matches, files_searched, limit_applied`                                                                                                                                              | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Concurrent scan; match + result limits                                                                                |
+| GlobSkill           | `pattern, path?, limit?`                                      | `pattern, search_path, total_files, files, limit_applied`                                                                                                                                                                  | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Concurrent scan; result limit                                                                                         |
+| ExploreProjectSkill | `path?, depth?`                                               | SIMPLE: `depth, code_files, other_files, project_root, config_files, total_size, code_file_details, unreadable_paths` <br/> FULL: adds `config_files`/`code_files`/`other_files` lists + `filter_applied` + `result_count` | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | Depth 5–14 (default 8); truncated build/dependency directories                                                        |
+| TodoSkill           | `tasks[]`                                                     | `currentIndex, tasks, totalTasks, currentTask`                                                                                                                                                                             | `ALREADY_INITIALIZED, INVALID_PARAMETER`                                                                                                  | Singleton; cannot be reset after initialization                                                                       |
+| CompletePlanSkill   | `task?, count?, action?` (`complete`/`skip`)                  | `{completed, totalTasks, tasks, message?}` or `{completed, totalTasks, tasks, currentTask, currentIndex}`                                                                                                                  | `NOT_INITIALIZED, ALL_COMPLETED`                                                                                                          | Advance task pointer                                                                                                  |
+| WebSearchSkill      | `query, max_results?, search_depth?`                          | `query, max_results, search_depth, results: [{title, snippet, url}]`                                                                                                                                                       | `INVALID_PARAMETER, SEARCH_FAILED`                                                                                                        | Requires `TAVILY_API_KEY` env var; max 10 results                                                                     |
+| DelegateSkill       | `task` (≥120 chars), `title?`                                 | `{result}` — progress streams as `sub_agent:*` events                                                                                                                                                                      | `INVALID_PARAMETER, CLIENT_ERROR`                                                                                                         | Sub-agent timeout 600s; task must not echo the user's message verbatim                                                |
+| McpToolsSkill       | materialized tool name + tool arguments                       | whatever the backing MCP server returns (wrapped as a `SkillResult`)                                                                                                                                                       | `INVALID_PARAMETER, IO_ERROR`                                                                                                             | One materialized skill per remote tool; round cap `DEFAULT_MAX_ROUNDS = 8`; servers from `settings.json` `mcpServers` |
+
+External skills (`~/.gradum/skills/*.kt`) appear in the same registry with whatever schema their source declares —
+`GET /skills` and `getSchemas` cannot tell them apart from built-ins.
 
 ---
 
@@ -1523,10 +1691,10 @@ flowchart TB
 
 #### Revocation Reasons
 
-| Reason            | Trigger                                            | Response                             |
-|-------------------|----------------------------------------------------|--------------------------------------|
-| `repetitive_loop` | Model repeats the same output ≥ N times            | Mission revoked, conversation erased |
-| `tool_runaway`    | Reserved for future use (tool call loop detection) | Mission revoked, conversation erased |
+| Reason            | Trigger                                                               | Response                             |
+|-------------------|-----------------------------------------------------------------------|--------------------------------------|
+| `repetitive_loop` | Model repeats the same output ≥ N times                               | Mission revoked, conversation erased |
+| `tool_runaway`    | Repeated identical tool calls / responses beyond the guardrail limits | Mission revoked, conversation erased |
 
 #### `mission_revoked` Event Contract
 
@@ -1563,7 +1731,7 @@ mindmap
     File Destruction
       Accidental emptying of files via write_file
       Defense: EMPTY_RESULT check
-      Defense: Atomic mode rollback
+      Defense: appliedCount reporting (edits commit sequentially)
       Defense: per-path concurrent-edit Mutex
     Context Leakage
       Source code visible in context file
@@ -1643,7 +1811,7 @@ gantt
         Audio / voice: active, 2026-01-01, 1d
     section Skill loading
         Package-scan registration: done, 2026-01-01, 1d
-        IDE-hot plugin loading: active, 2026-01-01, 1d
+        External skill hot loading: done, 2026-01-01, 1d
     section Context
         Encrypted user/assistant only: done, 2026-01-01, 1d
         Cross-device sync: active, 2026-01-01, 1d
@@ -1657,9 +1825,10 @@ gantt
 - Single-user, single-session, no multi-tenant
 - No sandboxed execution environment
 - Text + image attachments supported; no audio input
-- Skill registry discovers the `gradum.skill` package reflectively (directory + JAR scanning); adding a skill only
+- Skill registry discovers the `gradum.skill` package reflectively (directory + JAR scanning); adding a built-in only
   requires a concrete `Skill` subclass with a no-argument constructor on the classpath, there is no registration file
-  to maintain, and hot plugin loading in the IDE sense isn't supported
+  to maintain, and dropping a `.kt` file into `~/.gradum/skills/` hot-loads an external skill at runtime (no rebuild).
+  A packaged, IDE-managed plugin marketplace still isn't supported.
 - Session context persistence only encrypts user/assistant messages, tool messages aren't encrypted (for audit
   convenience)
 - ContextManager doesn't support multi-device synchronization
@@ -1714,7 +1883,7 @@ flowchart TB
 
     subgraph CLI["Native CLI Experience"]
         CLI1["gradum 'task' direct invocation without HTTP"]
-        CLI2["Interactive terminal UI"]
+        CLI2["Interactive terminal UI (setup wizard delivered; full chat TUI not yet)"]
         CLI3["Shell integration (bash/zsh plugins)"]
     end
 
@@ -1745,6 +1914,12 @@ and a self-contained Git-analysis tool window in a bottom tool window. The chat 
 server over HTTP at runtime. There is **no compile-time dependency** between the plugin and the server module. The
 Git-analysis tool window (see [§8.6](#86-git-analysis-tool-window-subsystem)) is independent of the server.
 
+Notable chat features: message minimap for quick navigation (`ChatMinimap.kt`), runtime-unreachable error banner with
+copyable diagnostics (`RuntimeUnreachableBanner` in `GradumUI.kt`, driven by `GradumChatSession.runtimeUnreachable`),
+capped thinking preview with edge fade + scrollbar (`ThinkingIndicator.kt`), model selector with live provider
+discovery, permission mode selector, attachments, and a Markdown pipeline (tables, footnotes, LaTeX, task lists).
+Version: **1.0.3** (the server reports 1.0.2).
+
 ### 8.2 Module Dependencies
 
 ```
@@ -1753,18 +1928,16 @@ plugin (IntelliJ Plugin)
     ├─── IntelliJ Platform SDK (IU 2026.2)
     │       └── com.intellij.modules.platform (bundled)
     │
-    ├─── Compose for Desktop (local JARs)
-    │       ├── intellij.libraries.compose.foundation.desktop.jar
-    │       ├── intellij.libraries.compose.runtime.desktop.jar
-    │       └── intellij.libraries.skiko.jar
+    ├─── Compose for Desktop
+    │       ├── composeUI() from Maven (com.intellij.modules.compose)
+    │       ├── intellij.libraries.compose.runtime.desktop.jar   (plugin/libs)
+    │       └── intellij.libraries.compose.foundation.desktop.jar (plugin/libs)
     │
-    ├─── Jewel UI Framework (local JARs)
+    ├─── Jewel UI Framework (local JARs, plugin/libs — shipped with the plugin)
     │       ├── intellij.platform.jewel.foundation.jar
     │       ├── intellij.platform.jewel.ui.jar
-    │       └── intellij.platform.jewel.ideLafBridge.jar
-    │
-    ├─── IntelliJ Compose Bridge
-    │       └── intellij.platform.compose.jar
+    │       ├── intellij.platform.jewel.ideLafBridge.jar
+    │       └── intellij.platform.jewel.markdown.*.jar + intellij.platform.compose.markdown.jar
     │
     ├─── kotlinx-serialization-json 1.7.3
     │
@@ -1772,6 +1945,12 @@ plugin (IntelliJ Plugin)
             └── POST /events, POST /events/respond, POST /stop, POST /session/delete,
                 POST /session/rewind, GET /health, GET /models, GET /skills, POST /provider/probe
 ```
+
+Jewel and Compose are deliberately shipped **on the plugin classloader** (see the comments in
+`plugin/build.gradle.kts`): the Compose resources runtime must see resources inside plugin jars, the Jewel theme
+`CompositionLocal`s must be read by the same loader that provides them, and mixing platform/plugin copies of
+`androidx.compose.*` causes loader-constraint violations. IDEA's internal Markdown content modules cannot be exposed
+to third-party plugins at all, so they ship too.
 
 ### 8.3 Runtime Communication
 
@@ -1781,11 +1960,13 @@ plugin (IntelliJ Plugin)
 │                     │                                 │  (Ktor + Netty)     │
 │  ChatInputSection   │   POST /events (NDJSON stream)  │                     │
 │  ModelSelectorBar   │ <══════════════════════════════>│  Agent + Skills     │
-│  AssistantChatBubble │   POST /events/respond (ask)   │  LLM Client         │
+│  AssistantChatBubble│   POST /events/respond (ask)    │  LLM Client         │
 │  AskCard            │ <───────────────────────────────│  CommandFilter      │
 │  GradumApiClient    │   GET /models, GET /skills      │  AskScope           │
 │  ProviderProbe      │   POST /provider/probe          │                     │
-│                     │   POST /stop, POST /session/delete, POST /session/rewind │
+│                     │   POST /stop,                   │                     │
+│                     │   POST /session/delete,         │                     │
+│                     │   POST /session/rewind          │                     │
 │                     │   GET /health                   │                     │
 └─────────────────────┘                                 └─────────────────────┘
 ```
@@ -1831,13 +2012,13 @@ plugin (IntelliJ Plugin)
 
 ### 8.5 Key Dependencies Summary
 
-| Dependency                 | Version            | Purpose                        |
-|----------------------------|--------------------|--------------------------------|
-| IntelliJ Platform (IU)     | 2026.2             | IDE SDK                        |
-| Compose for Desktop        | bundled            | UI framework                   |
-| Jewel                      | bundled            | IntelliJ-themed UI components  |
-| kotlinx-serialization-json | 1.7.3              | JSON parsing for API responses |
-| Gradum Server (runtime)    | 1.0.2              | AI agent backend (HTTP only)   |
+| Dependency                 | Version                               | Purpose                                           |
+|----------------------------|---------------------------------------|---------------------------------------------------|
+| IntelliJ Platform (IU)     | 2026.2                                | IDE SDK                                           |
+| Compose for Desktop        | Maven `composeUI()` and vendored jars | UI framework (shipped in plugin)                  |
+| Jewel                      | vendored jars                         | IntelliJ-themed UI components (shipped in plugin) |
+| kotlinx-serialization-json | 1.7.3                                 | JSON parsing for API responses                    |
+| Gradum Server (runtime)    | 1.0.2                                 | AI agent backend (HTTP + ACP)                     |
 
 ### 8.6 Git Analysis Tool Window Subsystem
 
@@ -1926,6 +2107,7 @@ Severity ranking: critical > alert > watch > normal.
 | `S1002` | critical    | Net reduction: global deletions/additions ≥ 1.0.                               |
 | `S1003` | critical    | Single-author project (≤ 1 non-bot author, ≥ 10 commits).                      |
 | `S1004` | critical    | Mass rewrite: one commit ≥ 50% of total lines (> 1000 lines).                  |
+| `S1005` | critical    | Zero activity: repository has no commits.                                      |
 | `S2001` | alert       | Deletion cluster: ≥ 3 consecutive heavy-deletion commits.                      |
 | `S2002` | alert       | Mature-project churn: ≥ 3 heavy deletions in the last 90 days.                 |
 | `S2003` | alert       | Core net deletion: heavy deletion of core source files.                        |
@@ -2200,6 +2382,9 @@ object ModelIdentity {
 }
 ```
 
+`ModelIdentity` also owns provider discovery/probing, key resolution, and `resolveModelTarget` — see
+[§2.9](#29-model-identity-discovery-probing-and-capability); the heuristics above are only its schema-variant corner.
+
 **Detection logic:**
 
 1. Cloud/API indicators (cloud, gpt, claude, gemini, etc.) → large
@@ -2257,7 +2442,7 @@ flowchart LR
 | `SkillRegistry.getSchemas` agrees with `allowedToolModes`    | `SkillRegistrySchemaTest`                                                                                    | 5     |
 | `ToolMode.fromStringOrDefault` parses wire format correctly  | `AgentConfigurationTest`                                                                                     | 7     |
 | Command safety: `Blocked` / `NeedsApproval` classification   | `CommandFilterTest`                                                                                          | 12    |
-| Ask flow: `ask_interaction` → pause → respond → resume       | `AskInteractionTest`                                                                                         | 12    |
+| Ask flow: `ask_interaction` → pause → respond → resume       | `AskInteractionTest`                                                                                         | 14    |
 | `/events/respond` endpoint contract                          | `AskInteractionEndpointTest`                                                                                 | 5     |
 | `/session/delete` endpoint contract (path-traversal guarded) | `SessionDeleteEndpointTest`                                                                                  | 4     |
 | Out-of-project read/write and command denial                 | `ReadFileSkillSecurityTest`, `WriteFileSkillSecurityTest`, `RunCommandSkillSecurityTest`, `PathResolverTest` | —     |
@@ -2318,7 +2503,7 @@ sequenceDiagram
 | `L10nText` / `L10n` / `Choice.Meaning` / `AskResult` | `InteractionTypes.kt`           | `key(bundleKey, args)` vs `raw(text, lang)`; semantics `allow_once` / `allow_always` / `reject`; outcomes `Case` / `Text` / `Cancelled` |
 | `PendingQuestions`                                   | `PendingQuestions.kt`           | `ConcurrentHashMap<sessionId::requestId, CompletableDeferred>`; registration precedes blocking; resolution removes the entry            |
 | Route handler                                        | `Routes.kt` (`/events/respond`) | Validates `sessionId`/`requestId`, requires exactly one of `choice`/`text`/`cancelled`, resolves or 404s                                |
-| Wiring                                               | `Agent.kt:120`                  | Constructs one `AskScope(sessionId, askScopeHolder, emitEvent)` per session; `askScopeHolder` is `null` for tests and sub-agents        |
+| Wiring                                               | `Agent.kt:127`                  | Constructs one `AskScope(sessionId, askScopeHolder, emitEvent)` per session; `askScopeHolder` is `null` for tests and sub-agents        |
 
 **Contract details that matter:**
 
@@ -2365,29 +2550,35 @@ key no-op, session-key isolation, DSL validation, wire shape incl. the `L10nText
 
 ## 10. Glossary
 
-| Term                     | Definition                                                                                                                                                                                                                                                                                                     |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                                                                                                                                                                                             |
-| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                                                                                                                                                                                          |
-| **SkillContext**         | Per-session data class passed to every `Skill.execute`: constructor `(toolMode, projectRoot, modelName, provider, agentConfiguration, conversationHistory, emitEvent, register/unregisterChildSession, scope)` plus session-scoped `authorizedRead/WritePaths`, `authorizedCommandCategories`, `isSimpleModel` |
-| **SchemaVariant**        | Enum (`FULL`/`SIMPLE`) determining tool schema complexity based on model capability                                                                                                                                                                                                                            |
-| **ModelIdentity**        | Object that infers model identity/size from name heuristics (parameter count, cloud keywords); exposes `isSmallModel(...)` and `schemaVariant(...)`                                                                                                                                                            |
-| **AskScope**             | Per-session ask capability (`scope.askInteraction { ... }`): pauses the agent loop, emits an `ask_interaction` event, and resumes only when the plugin answers via `POST /events/respond` (null when no user is available)                                                                                     |
-| **ToolMode**             | Three-tier permission model: `READ_ONLY` (inspect only) / `EDIT` (no task planning) / `AGENT` (everything); wire values `read_only` / `edit` / `agent` (legacy aliases `write` / `single_step` still parse)                                                                                                    |
-| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                                                                                                                                                                                        |
-| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                                                                                                                                                                                               |
-| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                                                                                                                                                                                       |
-| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary)                                                                                                                                                                             |
-| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                                                                                                                                                                                                       |
-| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                                                                                                                                                                                             |
-| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                                                                                                                                                                                                    |
-| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                                                                                                                                                                                                          |
-| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                                                                                                                                                                                                     |
-| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                                                                                                                                                                                                    |
-| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)                                                                                                                                                                                |
-| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                                                                                                                                                                                      |
-| **Guardrail**            | Output monitoring system that detects anomalous model behavior (repetitive loops) and can terminate the session                                                                                                                                                                                                |
-| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                                                                                                                                                                                                   |
-| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                                                                                                                                                                                                |
-| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                                                                                                                                                                                    |
-| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`                                                                                                                                                                                    |
+| Term                     | Definition                                                                                                                                                                                                                                                                                                                  |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Agent**                | Core of Gradum, manages conversation history, LLM interaction, and tool scheduling                                                                                                                                                                                                                                          |
+| **Skill**                | Individual tool capability (read file, edit, run commands, etc.), inherits the `Skill` abstract class                                                                                                                                                                                                                       |
+| **SkillContext**         | Per-session data class passed to every `Skill.execute`: constructor `(toolMode, projectRoot, modelName, provider, agentConfiguration, conversationHistory, emitEvent, register/unregisterChildSession, scope)` plus session-scoped `authorizedRead/WritePaths`, `authorizedCommandCategories`, `isSimpleModel`              |
+| **SchemaVariant**        | Enum (`FULL`/`SIMPLE`) determining tool schema complexity based on model capability                                                                                                                                                                                                                                         |
+| **ModelIdentity**        | Single authority for model lifecycle: TTL-cached discovery/probing of seven known servers, URL validation, per-server key resolution, vision detection, and `resolveModelTarget` (the override → discovered entry → fallback precedence shared by HTTP and ACP); also the name heuristics (`isSmallModel`, `schemaVariant`) |
+| **ACP**                  | Agent Client Protocol — JSON-RPC 2.0 over stdin/stdout (`gradum acp`) that lets IDE agents drive Gradum; see [§2.11](#211-acp-stdio-server)                                                                                                                                                                                 |
+| **MCP**                  | Model Context Protocol servers declared in `settings.json` `mcpServers[]`; their tools are materialized as the `mcp_tools` skill over stdio JSON-RPC (framing shared with ACP)                                                                                                                                              |
+| **gradum setup**         | Interactive provider wizard (`gradum setup`): JLine full-screen TUI with a line-based fallback; writes `<provider>.*` flat keys, the nested `llm` group, and the `configured` flag; see [§2.12](#212-setup-wizard)                                                                                                          |
+| **settings.json**        | `~/.gradum/settings.json` — single source of truth for server, `llm`, `commandFilter`, `mcpServers`, `plugins`, and flat `<provider>.baseUrl/apiKey/allowRemote` keys (JSON Schema shipped alongside)                                                                                                                       |
+| **ToolDisplay**          | Per-skill display metadata (`displayKind` / `displayLabel` / `displayParamKey`) carried on `tool_call_start`; the ACP mapper renders it as the tool call's title/kind                                                                                                                                                       |
+| **External skills**      | `.kt` files in `~/.gradum/skills/`, compiled at runtime by `ExternalSkillCompiler` and hot-reloaded by `ExternalSkillDirectoryWatcher` without a rebuild                                                                                                                                                                    |
+| **AskScope**             | Per-session ask capability (`scope.askInteraction { ... }`): pauses the agent loop, emits an `ask_interaction` event, and resumes only when the plugin answers via `POST /events/respond` (null when no user is available)                                                                                                  |
+| **ToolMode**             | Three-tier permission model: `READ_ONLY` (inspect only) / `EDIT` (no task planning) / `AGENT` (everything); wire values `read_only` / `edit` / `agent` (legacy aliases `write` / `single_step` still parse)                                                                                                                 |
+| **Tool Call**            | A function call requested by the LLM, forwarded by the Agent to the corresponding Skill                                                                                                                                                                                                                                     |
+| **Function Calling**     | The LLM's ability to request tool calls in structured JSON beyond text responses                                                                                                                                                                                                                                            |
+| **NDJSON**               | Newline Delimited JSON, one independent JSON object per line. Gradum uses it as the output stream format                                                                                                                                                                                                                    |
+| **System Prompt**        | The first message sent to the LLM, defining behavior rules (note: it is only guidance, must not be trusted as a security boundary)                                                                                                                                                                                          |
+| **Conversation History** | `List<Map<String, Any>>`, a list of messages containing system/user/assistant/tool roles                                                                                                                                                                                                                                    |
+| **CommandFilter**        | Command safety classifier executed before `ProcessBuilder.start()`                                                                                                                                                                                                                                                          |
+| **Critical Path**        | Path prefixes considered non-deletable/non-recursive chmod by CommandFilter                                                                                                                                                                                                                                                 |
+| **Detached Mode**        | Background execution mode of `run_cmd`, immediately returns PID instead of waiting for process to end                                                                                                                                                                                                                       |
+| **TodoManager**          | Task list singleton, used to maintain planning intent across multiple rounds of tool calls                                                                                                                                                                                                                                  |
+| **TokenUsageSnapshot**   | `{promptTokens, completionTokens, totalTokens}`, accumulated in real-time by the LLM client                                                                                                                                                                                                                                 |
+| **HMAC-CTR**             | Custom authenticated encryption scheme Gradum uses for context file encryption (HMAC-SHA256 in CTR-like mode + HMAC-SHA256 tag)                                                                                                                                                                                             |
+| **Provider**             | LLM backend type, currently supports `"ollama"` and `"openai"` (compatible with any OpenAI-format server)                                                                                                                                                                                                                   |
+| **Guardrail**            | Output monitoring system that detects anomalous model behavior (repetitive loops) and can terminate the session                                                                                                                                                                                                             |
+| **mission_revoked**      | NDJSON event signaling that a session has been revoked; the client MUST erase all traces of the conversation                                                                                                                                                                                                                |
+| **SSE**                  | Server-Sent Events, the streaming protocol adopted by OpenAI-compatible servers                                                                                                                                                                                                                                             |
+| **TOOL_NOT_PERMITTED**   | Error code returned by the agent when an LLM tool call hits a `Skill.allowedToolModes` gate                                                                                                                                                                                                                                 |
+| **projectRoot**          | Absolute path to the project the IDE has open; flows `Project.basePath` → HTTP body → `AgentConfiguration` → `SkillContext`                                                                                                                                                                                                 |
