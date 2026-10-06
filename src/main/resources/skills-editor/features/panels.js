@@ -35,7 +35,11 @@ export function mountPanels(store, {canvas}) {
   title.className = "panel-title";
   title.textContent = copy.bottom.title;
 
-  header.append(title, problemsTab, outputTab, spacer, collapseButton);
+  const actions = document.createElement("div");
+  actions.className = "panel-actions";
+  actions.append(collapseButton);
+
+  header.append(title, problemsTab, outputTab, spacer, actions);
 
   const outputBody = document.createElement("div");
   const problemsBody = document.createElement("div");

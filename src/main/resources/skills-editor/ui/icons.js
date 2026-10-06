@@ -3,7 +3,7 @@
 //
 // Vendored from the IntelliJ platform, all under Apache 2.0,
 // Copyright 2000-2025 JetBrains s.r.o. and contributors:
-//   lib/intellij.platform.ide.jar          expui/{toolwindows,general,status,run,build}/*
+//   lib/intellij.platform.ide.jar          expui/{actions,toolwindows,general,status,run,build}/*
 //   plugins/Kotlin/lib/intellij.kotlin.base.resources.jar
 //                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
 //
@@ -60,6 +60,23 @@ export const icons = {
     + 'C5.75975 2.94728 5.63261 3 5.5 3H4.5C4.36739 3 4.24025 2.94728 4.14648 2.85352'
     + 'L3.29297 2H2V5Z"'
     + ' fill="currentColor" stroke="none"/>',
+
+  // expui/actions/split_dark.svg. Two columns, the left outlined and the right
+  // solid, which is the platform's "split right" mark.
+  split: '<path fill-rule="evenodd" clip-rule="evenodd" d="M8.5 3H12C12.5523 3 13 3.44772 13 4V12'
+    + 'C13 12.5523 12.5523 13 12 13H8.5V3ZM7.5 2H8.5H12C13.1046 2 14 2.89543 14 4V12'
+    + 'C14 13.1046 13.1046 14 12 14H8.5H7.5H4C2.89543 14 2 13.1046 2 12V4C2 2.89543'
+    + ' 2.89543 2 4 2H7.5ZM7.5 13H4C3.44772 13 3 12.5523 3 12V4C3 3.44772 3.44772 3 4 3H7.5V13Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
+  // The same mark turned a quarter turn, so the solid column comes to rest along
+  // the bottom: the platform's "split down" reading.
+  "split-down": '<g transform="rotate(90 8 8)">'
+    + '<path fill-rule="evenodd" clip-rule="evenodd" d="M8.5 3H12'
+    + 'C12.5523 3 13 3.44772 13 4V12C13 12.5523 12.5523 13 12 13H8.5V3ZM7.5 2H8.5H12'
+    + 'C13.1046 2 14 2.89543 14 4V12C14 13.1046 13.1046 14 12 14H8.5H7.5H4C2.89543 14 2 13.1046'
+    + ' 2 12V4C2 2.89543 2.89543 2 4 2H7.5ZM7.5 13H4C3.44772 13 3 12.5523 3 12V4C3 3.44772'
+    + ' 3.44772 3 4 3H7.5V13Z" fill="currentColor" stroke="none"/></g>',
 
   // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
   // the light variant (expui/kotlin.svg) supplies the other token values.
@@ -134,5 +151,7 @@ export const icons = {
   "theme-dark": '<path d="M14 8.53A6 6 0 1 1 7.47 2A4.67 4.67 0 0 0 14 8.53Z" stroke-width="1.2"'
     + ' stroke-linejoin="round"/>',
 
-  spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23"/>',
+  // Drawn at the same 1 stroke as the run icon it stands in for, so swapping one
+  // for the other does not read as a change in weight.
+  spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23" stroke-width="1"/>',
 };

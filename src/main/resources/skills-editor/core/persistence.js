@@ -1,7 +1,8 @@
 // The editor's layout choices outlive a reload: which view is selected, which
-// tool window sits at the bottom, whether the rail and the tree are folded, and
-// how wide and tall the user dragged them. Keeping them is what makes a refreshed
-// page look the way it was left.
+// tool window sits at the bottom, whether the rail and the tree are folded,
+// whether the editor is split into two views, and how wide and tall the user
+// dragged the panels. Keeping them is what makes a refreshed page look the way it
+// was left.
 //
 // Only choices are kept. The size-driven overrides (autoRail / autoBottom) are
 // recomputed from the window on every boot, and the documents come back from the
@@ -18,7 +19,9 @@ const LAYOUT_KEYS = {
   collapsed: "boolean",
   bottomHeight: "number",
   treeCollapsed: "boolean",
-  railCollapsed: "boolean"
+  railCollapsed: "boolean",
+  split: "boolean",
+  splitDirection: "string"
 };
 
 function pickLayout(source) {

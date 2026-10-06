@@ -1,7 +1,9 @@
 import {activeDoc} from "../core/store.js";
 
 // The minimap: a scaled clone of the syntax overlay in a fixed-width strip on
-// the editor's right edge, the way a desktop editor parks its overview ruler.
+// the pane's right edge, the way a desktop editor parks its overview ruler. One
+// is mounted per editor pane, each bound to that pane's source and overlay, so
+// each side scrolls its own code through its own map.
 //
 // The scale fits the visible code width to the strip, so a line that fills the
 // code pane reaches the far edge of the strip and longer lines clip. The strip
@@ -10,7 +12,7 @@ import {activeDoc} from "../core/store.js";
 // pointer. The clone refreshes on every keystroke and on document switches;
 // squiggle bands are carried over as overview markers while the current-line
 // band is dropped, because it belongs to the editor pane alone.
-export function mountMinimap(store, {body, source, highlightCode}) {
+export function mountMinimap(store, {container, source, highlightCode}) {
   const strip = document.createElement("div");
   strip.className = "minimap";
 
@@ -21,7 +23,7 @@ export function mountMinimap(store, {body, source, highlightCode}) {
   viewport.className = "minimap-viewport";
 
   strip.append(content, viewport);
-  body.appendChild(strip);
+  container.appendChild(strip);
 
   let scale = 1;
   let grabOffset = 0;
@@ -111,14 +113,19 @@ export function mountMinimap(store, {body, source, highlightCode}) {
 
   let renderedDocId;
   let renderedDiagnostics;
+  let renderedRevision = -1;
   const render = (state) => {
     const doc = activeDoc(state);
     strip.hidden = !doc;
+
     const id = doc ? doc.id : null;
     const diagnostics = doc ? doc.diagnostics : [];
-    if (id !== renderedDocId || diagnostics !== renderedDiagnostics) {
+    const revisionChanged = state.sourceRevision !== renderedRevision;
+
+    if (id !== renderedDocId || diagnostics !== renderedDiagnostics || revisionChanged) {
       renderedDocId = id;
       renderedDiagnostics = diagnostics;
+      renderedRevision = state.sourceRevision;
       clone();
     }
   };

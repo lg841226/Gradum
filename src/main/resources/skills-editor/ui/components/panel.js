@@ -15,13 +15,16 @@ export function createPanelHeader({title, actions = []} = {}) {
 
   if (actions.length > 0) {
     const spacer = document.createElement("span");
+    const group = document.createElement("div");
+
     spacer.className = "spacer";
     header.appendChild(spacer);
-    const group = document.createElement("div");
     group.className = "panel-actions";
+
     for (const action of actions) {
       group.appendChild(action);
     }
+
     header.appendChild(group);
   }
   return header;

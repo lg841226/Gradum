@@ -8,7 +8,7 @@ import {createTheme} from "../core/theme.js";
 // and Console also drive the bottom tool window, while Explorer toggles the rail
 // the way the platform toggles a tool window from its own bar button. The run
 // widget sits in the middle and names the skill it would run.
-export function mountMenubar(store, {canvas, onRun, onBuild}) {
+export function mountMenubar(store, {canvas, onRun, onBuild, onToggleSplit}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -113,9 +113,6 @@ export function mountMenubar(store, {canvas, onRun, onBuild}) {
   leftGroup.className = "menubar-group menubar-left";
   leftGroup.append(brand, viewsGroup);
 
-  // The theme toggle closes the bar on the right, the way the platform parks
-  // view options at the far edge of a tool window bar. It cycles Light -> Dark
-  // and shows the preference it is currently on.
   const theme = createTheme();
   const themeIcons = {light: "theme-light", dark: "theme-dark"};
 
@@ -125,9 +122,24 @@ export function mountMenubar(store, {canvas, onRun, onBuild}) {
     onClick: () => theme.cycle(),
   });
 
+  // The split toggles sit beside the theme toggle: one opens a second view to the
+  // right, the other stacks it below. They share the one split the editor keeps,
+  // so the pressed one is always the direction in force.
+  const splitButton = createIconButton({
+    icon: "split",
+    tooltip: copy.tooltip.split,
+    onClick: () => onToggleSplit?.("right"),
+  });
+
+  const splitDownButton = createIconButton({
+    icon: "split-down",
+    tooltip: copy.tooltip.splitDown,
+    onClick: () => onToggleSplit?.("down"),
+  });
+
   const rightGroup = document.createElement("div");
   rightGroup.className = "menubar-group menubar-right";
-  rightGroup.append(themeButton);
+  rightGroup.append(splitButton, splitDownButton, themeButton);
 
   bar.append(leftGroup, widget, rightGroup);
   canvas.appendChild(bar);
@@ -216,6 +228,24 @@ export function mountMenubar(store, {canvas, onRun, onBuild}) {
     buildButton.disabled = !actionable;
     runButton.disabled = !actionable;
 
+    // The split toggles follow the open document, not the busy state: a compile
+    // does not forbid looking at the buffer twice. Each button is pressed when
+    // its own direction is the one in force, and its tooltip turns into the way
+    // out while pressed.
+    const direction = state.splitDirection === "down" ? "down" : "right";
+    const splitOn = Boolean(state.split) && Boolean(activeName);
+    const splitRightOn = splitOn && direction === "right";
+    const splitDownOn = splitOn && direction === "down";
+
+    splitButton.disabled = !activeName;
+    splitDownButton.disabled = !activeName;
+    setToggle(splitButton, splitRightOn, splitRightOn ? copy.tooltip.unsplit : copy.tooltip.split);
+    setToggle(
+      splitDownButton,
+      splitDownOn,
+      splitDownOn ? copy.tooltip.unsplit : copy.tooltip.splitDown,
+    );
+
     if (!measured) {
       measure();
     }
@@ -241,12 +271,23 @@ export function mountMenubar(store, {canvas, onRun, onBuild}) {
   return {bar};
 }
 
+// A toggle button's pressed look and its tooltip move together, and the tooltip
+// is only rewritten when it actually changes, so the pointer sitting on the
+// button is not disturbed by a render that did not touch it.
+function setToggle(button, pressed, tooltip) {
+  button.setAttribute("aria-pressed", pressed ? "true" : "false");
+  if (button.dataset.tooltip !== tooltip) {
+    button.dataset.tooltip = tooltip;
+    button.setAttribute("aria-label", tooltip);
+  }
+}
+
 // The label's mnemonic letter carries the underline, the way a desktop menu
 // marks its access key. The character stays plain text inside the span, so the
 // width the fold measures does not change.
 function underlineMnemonic(button, index) {
-  const text = span.textContent;
   const span = button.querySelector("span");
+  const text = span.textContent;
   const mark = document.createElement("span");
 
   mark.className = "mnemonic";

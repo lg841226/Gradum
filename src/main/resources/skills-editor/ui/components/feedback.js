@@ -1,5 +1,5 @@
 // Centered placeholder shown when a panel has nothing to display. The tone lets
-// a panel colour the placeholder when it stands in for a failed action rather
+// a panel color the placeholder when it stands in for a failed action rather
 // than a genuinely empty list.
 export function createEmptyState({title, hint, tone = "neutral"} = {}) {
   const state = document.createElement("div");

@@ -17,42 +17,47 @@ export function mountDiagnostics(store, {body, editor}) {
   let renderedRevision = -1;
 
   function clearMarks() {
-    editor.markers.replaceChildren();
-    editor.highlightCode
-      .querySelectorAll(".errline, .warnline")
-      .forEach((node) => node.classList.remove("errline", "warnline"));
+    for (const pane of editor.panes) {
+      pane.markers.replaceChildren();
+      pane.highlightCode
+        .querySelectorAll(".errline, .warnline")
+        .forEach((node) => node.classList.remove("errline", "warnline"));
+    }
   }
 
-  function renderMarks(diagnostics) {
+  function renderMarks(diagnostics, text) {
     clearMarks();
 
-    const {padTop, padLeft, lineHeight} = editor.metrics;
-    const lines = editor.source.value.split("\n");
+    const lines = text.split("\n");
 
-    for (const diagnostic of diagnostics) {
-      if (!diagnostic.line) {
-        continue;
+    for (const pane of editor.panes) {
+      const {padTop, padLeft, lineHeight} = pane.metrics;
+
+      for (const diagnostic of diagnostics) {
+        if (!diagnostic.line) {
+          continue;
+        }
+
+        const lineNode = pane.highlightCode.querySelector(`.line[data-line="${diagnostic.line}"]`);
+        if (lineNode) {
+          const severityClass = diagnostic.severity === "error" ? "errline" : "warnline";
+          lineNode.classList.add(severityClass);
+        }
+
+        const line = lines[diagnostic.line - 1] || "";
+        const column = Math.max(1, diagnostic.column || 1);
+        const start = pane.advance(diagnostic.line, Math.min(column - 1, line.length));
+        const end = pane.advance(diagnostic.line, line.length);
+
+        const isError = diagnostic.severity === "error";
+        const marker = document.createElement("div");
+        marker.className = `squiggle ${isError ? "error" : "warning"}`;
+        marker.style.top = `${padTop + (diagnostic.line - 1) * lineHeight}px`;
+        marker.style.left = `${padLeft + start}px`;
+        marker.style.width = `${Math.max(1, end - start)}px`;
+        marker.style.height = `${lineHeight}px`;
+        pane.markers.appendChild(marker);
       }
-
-      const lineNode = editor.highlightCode.querySelector(`.line[data-line="${diagnostic.line}"]`);
-      if (lineNode) {
-        const severityClass = diagnostic.severity === "error" ? "errline" : "warnline";
-        lineNode.classList.add(severityClass);
-      }
-
-      const text = lines[diagnostic.line - 1] || "";
-      const column = Math.max(1, diagnostic.column || 1);
-      const start = editor.advance(diagnostic.line, Math.min(column - 1, text.length));
-      const end = editor.advance(diagnostic.line, text.length);
-
-      const isError = diagnostic.severity === "error";
-      const marker = document.createElement("div");
-      marker.className = `squiggle ${isError ? "error" : "warning"}`;
-      marker.style.top = `${padTop + (diagnostic.line - 1) * lineHeight}px`;
-      marker.style.left = `${padLeft + start}px`;
-      marker.style.width = `${Math.max(1, end - start)}px`;
-      marker.style.height = `${lineHeight}px`;
-      editor.markers.appendChild(marker);
     }
   }
 
@@ -126,7 +131,10 @@ export function mountDiagnostics(store, {body, editor}) {
       return;
     }
 
-    const source = editor.source;
+    // The problem row steals focus from the textarea, so the pane the user was
+    // last in is the one to scroll — that is what `activePane()` falls back to.
+    const pane = editor.activePane();
+    const source = pane.source;
     let offset = 0;
 
     for (let line = 1; line < lineNumber; line++) {
@@ -146,9 +154,9 @@ export function mountDiagnostics(store, {body, editor}) {
     const caret = Math.min(offset + Math.max(0, (column || 1) - 1), end);
     source.focus();
     source.setSelectionRange(caret, end);
-    source.scrollTop = Math.max(0, (lineNumber - 3) * editor.metrics.lineHeight);
-    editor.syncScroll();
-    editor.updateActiveLine();
+    source.scrollTop = Math.max(0, (lineNumber - 3) * pane.metrics.lineHeight);
+    pane.syncScroll();
+    pane.updateActiveLine();
   }
 
   const render = (state) => {
@@ -162,7 +170,7 @@ export function mountDiagnostics(store, {body, editor}) {
     if (docChanged) {
       renderedDocId = id;
       renderedDiagnostics = diagnostics;
-      renderMarks(diagnostics);
+      renderMarks(diagnostics, doc ? doc.source : "");
       renderedRevision = state.sourceRevision;
     } else if (state.sourceRevision !== renderedRevision) {
       renderedRevision = state.sourceRevision;

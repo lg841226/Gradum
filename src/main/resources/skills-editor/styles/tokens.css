@@ -3,8 +3,8 @@
 :root {
     /* Surfaces: the backdrop is lighter, the panels are darker. The panels are
        slightly translucent so the ambient glow behind them bleeds through. */
-    --bg-canvas: #2b2d30;
-    --bg-island: color-mix(in srgb, #17181b 78%, transparent);
+    --bg-canvas: #212327;
+    --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --bg-raised: #393b40;
     --bg-popup: #43454a;
     /* Popups sit on top of an island of the same family, so a border alone
@@ -114,7 +114,7 @@
     --statusbar-height: 20px;
     --rail-width: 208px;
     --bottom-height: 200px;
-    --minimap-width: 160px;
+    --minimap-width: 128px;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks

@@ -1,5 +1,3 @@
-import {copy} from "../ui/copy.js";
-
 const RAIL_MIN = 150;
 const RAIL_MAX = 480;
 const BOTTOM_MIN = 80;
@@ -24,10 +22,9 @@ function dragPointer(cursor, onMove) {
   window.addEventListener("pointercancel", stop);
 }
 
-function createSplitter(variant, orientation, tooltip) {
+function createSplitter(variant, orientation) {
   const splitter = document.createElement("div");
   splitter.className = `splitter ${variant}`;
-  splitter.dataset.tooltip = tooltip;
   splitter.setAttribute("role", "separator");
   splitter.setAttribute("aria-orientation", orientation);
   return splitter;
@@ -37,8 +34,8 @@ function createSplitter(variant, orientation, tooltip) {
 // width is applied here; the bottom height is applied by the panels feature so
 // a single writer controls that grid track.
 export function mountSplitters(store, {canvas, rail, bottom}) {
-  const railSplitter = createSplitter("splitter-v", "vertical", copy.tooltip.resize);
-  const bottomSplitter = createSplitter("splitter-h", "horizontal", copy.tooltip.resize);
+  const railSplitter = createSplitter("splitter-v", "vertical");
+  const bottomSplitter = createSplitter("splitter-h", "horizontal");
   canvas.append(railSplitter, bottomSplitter);
 
   railSplitter.addEventListener("pointerdown", (event) => {

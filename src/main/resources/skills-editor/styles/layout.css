@@ -100,6 +100,7 @@ html.is-booting * {
     flex: 1 1 0;
     min-width: max-content;
     justify-content: flex-end;
+    gap: var(--space-2);
 }
 
 .menubar-brand {
@@ -141,13 +142,13 @@ html.is-booting * {
 }
 
 .menubar .btn[data-variant="menu"].is-folded {
+    opacity: 0;
     max-width: 0;
     padding-left: 0;
     padding-right: 0;
+    pointer-events: none;
     /* Cancels the flex gap the folded entry would otherwise leave behind. */
     margin-left: calc(-1 * var(--space-1));
-    opacity: 0;
-    pointer-events: none;
 }
 
 /* Measured with every entry at the selected weight — the widest any of them can
@@ -165,13 +166,13 @@ html.is-booting * {
 }
 
 .editor {
-    grid-column: 3;
     grid-row: 3;
+    grid-column: 3;
 }
 
 .bottom {
-    grid-column: 3;
     grid-row: 5;
+    grid-column: 3;
 }
 
 /* Status bar: a plain text strip along the bottom, mirroring the view menu on
@@ -199,13 +200,13 @@ html.is-booting * {
    never gets any harder the thinner the bar becomes. */
 .statusbar-item {
     display: flex;
-    align-items: center;
-    height: calc(var(--control-height) - var(--space-2)); /* 24px */
-    padding: 0 var(--space-2);
-    border-radius: var(--radius-control);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
     cursor: pointer;
+    align-items: center;
+    white-space: nowrap;
+    padding: 0 var(--space-2);
+    font-variant-numeric: tabular-nums;
+    border-radius: var(--radius-control);
+    height: calc(var(--control-height) - var(--space-2)); /* 24px */
     transition: background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
@@ -268,8 +269,6 @@ body.is-dragging .splitter {
     pointer-events: none;
 }
 
-/* --- Splitters ------------------------------------------------------------ */
-
 .splitter {
     position: relative;
     z-index: 5;
@@ -302,12 +301,24 @@ body.is-dragging .splitter {
     inset: -3px 0;
 }
 
-/* --- Editor surface ------------------------------------------------------- */
+/* Every panel header's icon actions read at the title's own brightness rather
+   than the muted default, so the whole header sits at one level. The actions
+   themselves stay out of the way until the pointer is anywhere over the panel,
+   not just its header — the whole group is revealed by opacity alone, so the bar
+   rests as a plain title and no action shifts the others as it comes forward.
+   Keyboard focus brings the group back the same way. */
+.panel-header .btn[data-variant="icon"] {
+    color: var(--text);
+}
 
-/* Equal top and left insets: the control-height tab centers in the 36px header,
-   leaving the same 4px above it as the 4px of horizontal padding. */
-.editor .panel-header {
-    padding: 0 var(--space-1);
+.panel-header .panel-actions {
+    opacity: 0;
+    transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.panel:hover .panel-actions,
+.panel-header .panel-actions:focus-within {
+    opacity: 1;
 }
 
 /* Panels that lead with a title keep the title inset wider than a tab, but the
@@ -338,6 +349,103 @@ body.is-dragging .splitter {
     flex: 1;
     display: flex;
     min-height: 0;
+}
+
+/* A code pane is one column of the split: its own tab strip above its own
+   gutter, code area and minimap. The right pane is mounted from the start and
+   folded away here rather than added on demand, so both panes can be measured
+   and drawn at any time. */
+.code-pane {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* Each pane lists the open documents at its own top, the way a split editor
+   group keeps its own tab bar. The inset matches the 4px the tab centres in. */
+.code-pane-tabs {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    height: var(--header-height);
+    padding: 0 var(--space-1);
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* The row under the tabs: the gutter and code area, with the pane's own minimap
+   appended to it by the minimap feature. */
+.code-pane-main {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+}
+
+.code-pane[data-pane="right"] {
+    flex-basis: 0;
+    flex-grow: 0;
+    opacity: 0;
+    visibility: hidden;
+    overflow: hidden;
+    transition: flex-basis var(--motion-fast) var(--ease-standard),
+        flex-grow var(--motion-fast) var(--ease-standard),
+        opacity var(--motion-fast) var(--ease-standard),
+        visibility var(--motion-fast) var(--ease-standard);
+}
+
+.editor-body.is-split .code-pane[data-pane="right"] {
+    flex-basis: 0;
+    flex-grow: 1;
+    opacity: 1;
+    visibility: visible;
+}
+
+/* The split runs left to right by default; the "down" direction stacks the two
+   panes instead. Everything else — the folded second pane, the hairline, the
+   even share — is unchanged, only the axis the flex lines are laid on turns. */
+.editor-body.is-split-down {
+    flex-direction: column;
+}
+
+.editor-body.is-split-down .code-pane {
+    min-height: 0;
+}
+
+.editor-body.is-split-down .pane-divider::after {
+    inset: -3px 0;
+}
+
+/* A static hairline between the two panes, drawn only while the split is on. It
+   is not draggable; the panes share the width evenly. */
+.pane-divider {
+    position: relative;
+    flex: 0 0 0;
+    align-self: stretch;
+    visibility: hidden;
+    background: color-mix(in srgb, var(--border) 45%, transparent);
+    transition: flex-basis var(--motion-fast) var(--ease-standard),
+        visibility var(--motion-fast) var(--ease-standard);
+}
+
+.editor-body.is-split .pane-divider {
+    flex-basis: 1px;
+    visibility: visible;
+}
+
+.pane-divider::after {
+    content: "";
+    position: absolute;
+    inset: 0 -3px;
+}
+
+/* With no document open the panes would each halve the empty state, so they are
+   taken out of the flow and the placeholder takes the whole body. */
+.editor-body.is-empty .code-pane,
+.editor-body.is-empty .pane-divider {
+    display: none;
 }
 
 .gutter {
@@ -522,12 +630,15 @@ body.is-dragging .splitter {
 
 
 /* The strip rides the right edge of the editor body with no seam or floor of its
-   own, so the scaled code and the slider are the only things drawn in it. */
+   own, so the scaled code and the slider are the only things drawn in it. It
+   casts a soft shadow off its left edge, onto the code, so the strip reads as a
+   surface lifted above the text rather than an outlined block. */
 .minimap {
     cursor: pointer;
     overflow: hidden;
     position: relative;
     flex: 0 0 var(--minimap-width);
+    box-shadow: -6px 0 9px -6px rgba(0, 0, 0, .25);
 }
 
 /* The clone carries .highlight for the overlay typography and line rules;

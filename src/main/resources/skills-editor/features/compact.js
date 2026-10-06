@@ -21,7 +21,8 @@ export function mountCompact(store, {canvas}) {
   const evaluate = () => {
     const state = store.getState();
     const editorWidth = canvas.clientWidth - gap * 3 - state.railWidth;
-    const editorHeight = canvas.clientHeight - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight;
+    const editorHeight = canvas.clientHeight
+      - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight;
 
     const autoRail = editorWidth < EDITOR_MIN_WIDTH;
     const autoBottom = editorHeight < EDITOR_MIN_HEIGHT;

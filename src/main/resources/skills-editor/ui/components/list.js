@@ -30,8 +30,8 @@ export function createListItem({label, icon, active = false, muted = false, onCl
 
 // The tree root: a twisty that folds a branch, and a label. It stands for the
 // directory the skills live in rather than a skill, so it is purely
-// presentational — no selection, no open callback, only the fold. The branch is
-// nested inside the treeitem, as ARIA requires, so a collapsed root still owns
+// presentational: no selection, no open callback, only the fold. The branch is
+// nested inside the tree item, as ARIA requires, so a collapsed root still owns
 // its group; the group is what hides.
 export function createTreeRow({label, expanded = true, onToggle, children} = {}) {
   const item = document.createElement("div");

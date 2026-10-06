@@ -114,6 +114,21 @@
     color: var(--text);
 }
 
+/* The split toggle holds its pressed state, so the bar shows at a glance that
+   the editor is divided. The rule is scoped to the bar to outrank the dim
+   resting colour above by source order. */
+.menubar .btn[data-variant="icon"][aria-pressed="true"] {
+    background: var(--accent-selection);
+    color: var(--text);
+}
+
+/* The toggles at the far edge carry a slightly larger glyph than the 16px
+   default, so the split and theme marks read clearly at the bar's width. */
+.menubar-right .btn[data-variant="icon"] .icon {
+    width: 18px;
+    height: 18px;
+}
+
 /* Run widget: the skill it would run beside its build and run actions. It is
    held at its content size, so a narrow window closes the menu onto it rather
    than squeezing the name; the two side groups in the bar take the space evenly
@@ -131,7 +146,7 @@
 .run-widget-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: 6px;
     height: 100%;
     padding-left: var(--space-2);
     border-left: 1px solid var(--border);
@@ -380,8 +395,9 @@
 /* --- Editor status bar ---------------------------------------------------- */
 
 /* Closes the editor island the way the platform's status bar closes the frame:
-   a thin dimmed strip holding the active skill's error and warning counts. The
-   severity lives in the hollow icon's colour, so the numbers stay quiet. */
+   a thin dimmed strip holding the active skill's error and warning counts. Both
+   marks are drawn in the strip's own grey rather than a severity colour, so the
+   counts stay quiet and the shape alone tells the two apart. */
 .editor-status {
     flex: 0 0 auto;
     display: flex;
@@ -402,12 +418,8 @@
     gap: var(--space-1);
 }
 
-.status-count[data-tone="error"] .icon {
-    color: var(--error);
-}
-
-.status-count[data-tone="warning"] .icon {
-    color: var(--warning);
+.status-count .icon {
+    color: var(--text-dim);
 }
 
 /* --- Empty state ---------------------------------------------------------- */

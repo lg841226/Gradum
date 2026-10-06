@@ -21,9 +21,6 @@ export function mountTooltip({root = document} = {}) {
   const bubble = document.createElement("div");
   bubble.className = "tooltip";
   bubble.setAttribute("role", "tooltip");
-  // The controls carry their own accessible name through aria-label, so this
-  // bubble is the sighted-user copy of it; announcing it as well would read
-  // every label twice.
   bubble.setAttribute("aria-hidden", "true");
   root.body.appendChild(bubble);
 
@@ -68,19 +65,16 @@ export function mountTooltip({root = document} = {}) {
 
   function show(target) {
     timer = 0;
-    // The rail and the tab strip rebuild on every state change, so the control
-    // may have been replaced during the delay and left with no box to hang the
-    // bubble off.
+
     if (!target.isConnected) {
       hide();
       return;
     }
+
     bubble.textContent = target.dataset.tooltip;
-    // The bubble is laid out while still invisible, so its size is known before
-    // the first painted frame: showing it first and moving it after would flash
-    // it at the window's corner.
-    place(target);
     bubble.classList.add("is-visible");
+
+    place(target);
   }
 
   function targetOf(node) {
@@ -90,26 +84,24 @@ export function mountTooltip({root = document} = {}) {
   root.addEventListener("pointerover", (event) => {
     const target = targetOf(event.target);
     const skip = !target || !target.dataset.tooltip || target === anchor;
+
     if (skip) {
       return;
     }
+
     hide();
     anchor = target;
     timer = setTimeout(() => show(target), SHOW_DELAY);
   });
 
   root.addEventListener("pointerout", (event) => {
-    // Moving between a control and its own icon stays inside the control, so it
-    // is not a reason to take the bubble away.
     if (!anchor || anchor.contains(event.relatedTarget)) {
       return;
     }
+
     hide();
   });
 
-  // Anything that moves the page out from under the anchor, or takes the
-  // pointer's attention elsewhere, dismisses the bubble. Scroll is caught in the
-  // capture phase: it does not bubble, but a scroll of any pane has to count.
   root.addEventListener("pointerdown", hide, true);
   root.addEventListener("keydown", hide, true);
   root.addEventListener("scroll", hide, true);

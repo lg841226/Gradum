@@ -24,8 +24,8 @@ export const copy = {
 
   control: {
     all: "All",
-    output: "Console",
     editor: "Editor",
+    output: "Console",
     explorer: "Explorer",
     problems: "Problems",
   },
@@ -42,13 +42,15 @@ export const copy = {
     expandTree: "Expand",
     run: "Run and install",
     newSkill: "Create skill",
-    resize: "Drag to resize panel",
+    unsplit: "Unsplit editor",
+    split: "Split editor right",
+    splitDown: "Split editor down",
     build: "Build without installing",
     collapseTree: "Collapse this folder",
   },
 
   status: {
-    noSkill: "No skill is open",
+    noSkill: "No opened skill",
     invalidName: "Invalid name",
     unreachable: "Server not responding",
     nameTaken: (name) => `${name} already exists`,

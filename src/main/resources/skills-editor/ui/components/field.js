@@ -2,10 +2,10 @@
 // cancels, and blur commits so the field never stays open by accident.
 export function createTextField({value = "", onCommit, onCancel} = {}) {
   const input = document.createElement("input");
-  input.type = "text";
-  input.className = "text-field";
   input.spellcheck = false;
+  input.type = "text";
   input.autocomplete = "off";
+  input.className = "text-field";
   input.value = value;
 
   let settled = false;

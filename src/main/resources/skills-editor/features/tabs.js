@@ -16,8 +16,10 @@ function isNameTaken(state, name, exceptId = null) {
 }
 
 // Owns the open documents: open, create, close, activate and rename. The tab
-// strip container belongs to the editor island and is handed in by main.js.
-export function mountTabs(store, {strip}) {
+// strip containers belong to the editor island and are handed in by main.js —
+// one per editor pane, all listing the same documents. Each view may bring its
+// own close handler; a pane without one closes the document itself.
+export function mountTabs(store, {strips}) {
   const starter = document.getElementById("starterTemplate")?.textContent ?? "";
 
   function activate(id) {
@@ -164,28 +166,38 @@ export function mountTabs(store, {strip}) {
     }
     signature = next;
 
-    renderTabStrip(
-      strip,
-      state.docs.map((doc) => ({
-        id: doc.id,
-        label: doc.name,
-        icon: "kotlin",
-        variant: "file",
-        active: doc.id === state.activeId,
-        dirty: doc.dirty,
-        tooltip: doc.name,
-      })),
-      {
-        onActivate: (tab) => activate(Number(tab.dataset.id)),
-        onClose: (tab) => close(Number(tab.dataset.id)),
-        onRename: (tab) => {
-          const doc = findDoc(store.getState(), Number(tab.dataset.id));
-          if (doc) {
-            beginRename(tab, doc);
-          }
-        },
+    const tabModels = state.docs.map((doc) => ({
+      id: doc.id,
+      label: doc.name,
+      icon: "kotlin",
+      variant: "file",
+      active: doc.id === state.activeId,
+      dirty: doc.dirty,
+      tooltip: doc.name,
+    }));
+    const handlers = {
+      onActivate: (tab) => activate(Number(tab.dataset.id)),
+      onClose: (tab) => close(Number(tab.dataset.id)),
+      onRename: (tab) => {
+        const doc = findDoc(store.getState(), Number(tab.dataset.id));
+        if (doc) {
+          beginRename(tab, doc);
+        }
       },
-    );
+    };
+
+    // Each pane lists the same documents, but the close button is not the same
+    // gesture on both: in the primary pane it closes the document, while in the
+    // copy it only takes the split down, so the copy can never close a tab the
+    // primary pane still holds.
+    for (const view of strips) {
+      renderTabStrip(view.strip, tabModels, {
+        onActivate: handlers.onActivate,
+        onClose: view.onClose ?? handlers.onClose,
+        onRename: handlers.onRename,
+        closeTooltip: view.closeTooltip,
+      });
+    }
   };
 
   store.subscribe(render);
