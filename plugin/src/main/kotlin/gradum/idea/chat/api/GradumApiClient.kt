@@ -2,6 +2,7 @@ package gradum.idea.chat.api
 
 import com.intellij.openapi.diagnostic.Logger
 import gradum.idea.PluginConfig
+import gradum.idea.server.ServerTokenStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -33,6 +34,35 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   private val client: HttpClient = HttpClient.newBuilder()
     .connectTimeout(PluginConfig.API_CONNECT_TIMEOUT)
     .build()
+
+  /**
+   * Builds a request for [url] with the embedded server's bearer token
+   * attached when one is published. The token is read lazily per request
+   * (cached by file mtime in [ServerTokenStore]) so a server restart that
+   * rotates the token is picked up without restarting the IDE.
+   */
+  private fun newRequest(url: String): HttpRequest.Builder {
+    val builder: HttpRequest.Builder = HttpRequest.newBuilder().uri(URI.create(url))
+    ServerTokenStore.currentToken()?.let { token ->
+      builder.header("Authorization", "Bearer $token")
+    }
+    return builder
+  }
+
+  /**
+   * Sends the request built by [buildRequest]. On 401 the token cache is
+   * invalidated and the request is rebuilt and sent once more, so a token
+   * rotated after this client last read the file still succeeds.
+   */
+  private fun <T> sendWithAuthRetry(
+    bodyHandler: HttpResponse.BodyHandler<T>,
+    buildRequest: () -> HttpRequest
+  ): HttpResponse<T> {
+    val firstResponse: HttpResponse<T> = client.send(buildRequest(), bodyHandler)
+    if (firstResponse.statusCode() != 401) return firstResponse
+    ServerTokenStore.invalidate()
+    return client.send(buildRequest(), bodyHandler)
+  }
 
   /**
    * Wire-shaped image attachment for [sendMessage]. Mirrors the
@@ -87,14 +117,10 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
    * @throws java.net.ConnectException If the server is not running.
    */
   suspend fun getModels(): String = withContext(Dispatchers.IO) {
-    val request: HttpRequest = HttpRequest.newBuilder()
-      .uri(URI.create("$baseUrl/models"))
-      .GET()
-      .build()
-
     val response: HttpResponse<String> =
-      client.send(request, HttpResponse.BodyHandlers.ofString())
-
+      sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+        newRequest("$baseUrl/models").GET().build()
+      }
 
     if (response.statusCode() !in 200..299) {
       val bodyPreview: String = response.body().take(n = 200)
@@ -116,14 +142,13 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
   suspend fun stopSession(sessionId: String): String = withContext(Dispatchers.IO) {
     val requestBody: JsonObject = buildJsonObject { put("sessionId", sessionId) }
 
-    val request: HttpRequest = HttpRequest.newBuilder()
-      .uri(URI.create("$baseUrl/stop"))
-      .header("Content-Type", "application/json")
-      .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-      .build()
-
     val response: HttpResponse<String> =
-      client.send(request, HttpResponse.BodyHandlers.ofString())
+      sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+        newRequest("$baseUrl/stop")
+          .header("Content-Type", "application/json")
+          .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+          .build()
+      }
 
     response.body()
   }
@@ -154,15 +179,14 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       }
     }
 
-    val request: HttpRequest = HttpRequest.newBuilder()
-      .uri(URI.create("$baseUrl/events/respond"))
-      .header("Content-Type", "application/json")
-      .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-      .build()
-
     try {
       val response: HttpResponse<String> =
-        client.send(request, HttpResponse.BodyHandlers.ofString())
+        sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+          newRequest("$baseUrl/events/respond")
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+            .build()
+        }
       response.statusCode() == 200
     } catch (respondException: Exception) {
       log.warn("Failed to respond to ask $requestId on server", respondException)
@@ -187,15 +211,14 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         put("messageId", messageId)
       }
 
-      val request: HttpRequest = HttpRequest.newBuilder()
-        .uri(URI.create("$baseUrl/session/rewind"))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-        .build()
-
       try {
         val response: HttpResponse<String> =
-          client.send(request, HttpResponse.BodyHandlers.ofString())
+          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+            newRequest("$baseUrl/session/rewind")
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+              .build()
+          }
         response.statusCode() == 200
       } catch (rewindException: Exception) {
         log.warn("Failed to rewind session $sessionId on server", rewindException)
@@ -219,15 +242,14 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
         put("sessionId", sessionId)
       }
 
-      val request: HttpRequest = HttpRequest.newBuilder()
-        .uri(URI.create("$baseUrl/session/delete"))
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-        .build()
-
       try {
         val response: HttpResponse<String> =
-          client.send(request, HttpResponse.BodyHandlers.ofString())
+          sendWithAuthRetry(HttpResponse.BodyHandlers.ofString()) {
+            newRequest("$baseUrl/session/delete")
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+              .build()
+          }
         response.statusCode() == 200
       } catch (deleteException: Exception) {
         log.warn("Failed to delete session $sessionId on server", deleteException)
@@ -288,15 +310,14 @@ class GradumApiClient(val baseUrl: String = "http://localhost:8765") {
       }
     }
 
-    val request: HttpRequest = HttpRequest.newBuilder()
-      .uri(URI.create("$baseUrl/events"))
-      .header("Content-Type", "application/json")
-      .timeout(PluginConfig.API_REQUEST_TIMEOUT)
-      .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-      .build()
-
     val response: HttpResponse<InputStream> =
-      client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+      sendWithAuthRetry(HttpResponse.BodyHandlers.ofInputStream()) {
+        newRequest("$baseUrl/events")
+          .header("Content-Type", "application/json")
+          .timeout(PluginConfig.API_REQUEST_TIMEOUT)
+          .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+          .build()
+      }
 
     response.body().bufferedReader().use { reader: BufferedReader ->
       reader.useLines { lines ->

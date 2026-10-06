@@ -1,6 +1,7 @@
 package gradum.idea.provider
 
 import gradum.idea.PluginConfig
+import gradum.idea.server.ServerTokenStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -52,12 +53,15 @@ class ProviderProbe(
       put("baseUrl", baseUrl.trim())
       if (apiKey.isNotBlank()) put("apiKey", apiKey.trim())
     }
-    val request: HttpRequest = HttpRequest.newBuilder()
+    val requestBuilder: HttpRequest.Builder = HttpRequest.newBuilder()
       .uri(URI.create("${serverBaseUrl.trimEnd('/')}/provider/probe"))
       .header("Content-Type", "application/json")
       .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
       .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
-      .build()
+    ServerTokenStore.currentToken()?.let { token ->
+      requestBuilder.header("Authorization", "Bearer $token")
+    }
+    val request: HttpRequest = requestBuilder.build()
     try {
       val response: HttpResponse<String> =
         client.send(request, HttpResponse.BodyHandlers.ofString())

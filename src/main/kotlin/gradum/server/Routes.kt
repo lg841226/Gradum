@@ -5,6 +5,8 @@ import gradum.Version
 import gradum.agent.Agent
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
+import gradum.skill.external.ExternalDiagnosticSeverity
+import gradum.skill.external.ExternalSkillHost
 import gradum.utils.ContextManager
 import gradum.utils.JsonUtil
 import io.ktor.http.*
@@ -264,6 +266,9 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
   }
 }
 
+@Serializable
+internal data class SkillDeployRequest(val name: String, val source: String)
+
 /**
  * Registers every HTTP route the Gradum server exposes:
  * - `POST /events`: streams an agent run as NDJSON.
@@ -271,6 +276,11 @@ internal fun inferChatCompletionsPath(baseUrl: String): String {
  * - `GET /health` : liveness probe.
  * - `GET /models` : discovered LLM models.
  * - `GET /skills` : registered Skill implementations.
+ * - `POST /skills/deploy` : write one external skill source and return compile diagnostics.
+ * - `GET /skills/sources` : list the external skill source names.
+ * - `GET /skills/source`  : read one external skill source.
+ * - `GET /skills/editor`  : the bundled skill editor page.
+ * - `GET /skills/editor/{asset...}` : static assets for the editor page.
  */
 fun Application.registerAllRoutes(
   serverConfiguration: ServerConfiguration = ServerConfiguration(),
@@ -715,7 +725,7 @@ fun Application.registerAllRoutes(
             "error" to result.error,
           )
         ),
-        contentType = ContentType.Application.Json,
+        contentType = ContentType.Application.Json
       )
     }
 
@@ -736,5 +746,162 @@ fun Application.registerAllRoutes(
         contentType = ContentType.Application.Json
       )
     }
+
+    get("/skills/sources") {
+      val sourceNames: List<String> = ExternalSkillHost.scanner?.listSourceNames().orEmpty()
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("sources" to sourceNames)),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    get("/skills/source") {
+      val requestedName: String? = call.request.queryParameters["name"]
+      val source: String? = requestedName?.let { name -> ExternalSkillHost.scanner?.readSource(name) }
+      if (requestedName.isNullOrBlank() || source == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "Unknown skill source: $requestedName")),
+          status = HttpStatusCode.NotFound,
+          contentType = ContentType.Application.Json,
+        )
+        return@get
+      }
+      call.respondText(
+        text = JsonUtil.encodeMap(mapOf("name" to requestedName, "source" to source)),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    post("/skills/deploy") {
+      val scanner = ExternalSkillHost.scanner
+      if (scanner == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "External skills directory is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val request: SkillDeployRequest =
+        try {
+          call.receive<SkillDeployRequest>()
+        } catch (malformedBody: Exception) {
+          call.respondText(
+            text = JsonUtil.encodeMap(mapOf("error" to "Invalid deploy request body: ${malformedBody.message}")),
+            status = HttpStatusCode.BadRequest,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        }
+      val deployResult =
+        try {
+          scanner.deploy(request.name, request.source)
+        } catch (invalidName: IllegalArgumentException) {
+          call.respondText(
+            text = JsonUtil.encodeMap(mapOf("error" to (invalidName.message ?: "Invalid skill name"))),
+            status = HttpStatusCode.BadRequest,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        } catch (deployFailure: Exception) {
+          logger.error("Skill deploy failed for {}", request.name, deployFailure)
+          call.respondText(
+            text = JsonUtil.encodeMap(
+              mapOf("error" to "Deploy failed: ${deployFailure.message ?: deployFailure.toString()}")
+            ),
+            status = HttpStatusCode.InternalServerError,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        }
+      call.respondText(
+        text = JsonUtil.encodeMap(
+          mapOf(
+            "fileName" to deployResult.fileName,
+            "compiled" to deployResult.compiled,
+            "diagnostics" to deployResult.diagnostics
+              .filter { diagnostic -> diagnostic.severity != ExternalDiagnosticSeverity.INFO }
+              .map { diagnostic ->
+                mapOf(
+                  "severity" to diagnostic.severity.name.lowercase(),
+                  "message" to diagnostic.message,
+                  "line" to diagnostic.line,
+                  "column" to diagnostic.column,
+                )
+              },
+          )
+        ),
+        contentType = ContentType.Application.Json,
+      )
+    }
+
+    get("/skills/editor") {
+      val editorHtml: String? = readBundledResource("/skills-editor/index.html")
+      if (editorHtml == null) {
+        call.respondText(
+          text = "Skill editor page is missing from the server resources",
+          status = HttpStatusCode.NotFound,
+        )
+        return@get
+      }
+      val authToken: String? = serverConfiguration.authToken?.takeIf { it.isNotEmpty() }
+      if (authToken != null) {
+        val queryToken: String? = call.request.queryParameters[ServerAuth.TOKEN_QUERY_PARAM]
+        val cookieToken: String? = call.request.cookies[ServerAuth.TOKEN_COOKIE_NAME]
+        if (ServerAuth.tokenMatches(queryToken, authToken)) {
+          call.response.header(
+            HttpHeaders.SetCookie,
+            "${ServerAuth.TOKEN_COOKIE_NAME}=$authToken; Path=/; HttpOnly; SameSite=Strict"
+          )
+        } else if (!ServerAuth.tokenMatches(cookieToken, authToken)) {
+          call.respondText(
+            text = editorUnauthorizedMessage(),
+            status = HttpStatusCode.Unauthorized,
+            contentType = ContentType.Text.Plain,
+          )
+          return@get
+        }
+      }
+      call.respondText(text = editorHtml, contentType = ContentType.Text.Html)
+    }
+
+    get("/skills/editor/{asset...}") {
+      val segments: List<String> = call.parameters.getAll("asset").orEmpty()
+      val asset: String = segments.joinToString("/")
+      val contentType: ContentType? = when {
+        asset.endsWith(".css") -> ContentType.Text.CSS
+        asset.endsWith(".js") -> ContentType.Text.JavaScript
+        asset.endsWith(".svg") -> ContentType.Image.SVG
+        asset.endsWith(".html") -> ContentType.Text.Html
+        else -> null
+      }
+      val isSafe: Boolean = segments.isNotEmpty() && segments.all { segment ->
+        segment.isNotBlank() && segment != "." && segment != ".." && !segment.contains('\\')
+      }
+      val body: String? = if (isSafe) readBundledResource("/skills-editor/$asset") else null
+      if (body == null || contentType == null) {
+        call.respondText(
+          text = "Unknown editor asset: $asset",
+          status = HttpStatusCode.NotFound,
+        )
+        return@get
+      }
+      call.respondText(text = body, contentType = contentType)
+    }
   }
 }
+
+private fun readBundledResource(resourcePath: String): String? =
+  SkillDeployRequest::class.java.getResourceAsStream(resourcePath)
+    ?.bufferedReader()
+    ?.use { reader -> reader.readText() }
+
+/** Plain-text body shown when the editor page is opened without a token. */
+private fun editorUnauthorizedMessage(): String =
+  """
+  |Unauthorized. Open the skill editor with a valid token, for example:
+  |  http://localhost:8765/skills/editor?token=<token>
+  |
+  |The token is stored at ~/.gradum/server.token; read it with:
+  |  cat ~/.gradum/server.token
+  """.trimMargin()

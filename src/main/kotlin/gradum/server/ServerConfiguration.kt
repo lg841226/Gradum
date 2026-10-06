@@ -46,6 +46,15 @@ data class ServerConfiguration(
   val defaultApiKey: String? = null,
 
   /**
+   * Bearer token every HTTP request must present (see [ServerAuth]).
+   * `null` disables auth, which is the default for tests and embedded
+   * callers; the production HTTP entry point (gradum.server.Main)
+   * always supplies the resolved token, so a real server is never
+   * unauthenticated.
+   */
+  val authToken: String? = null,
+
+  /**
    * Server-wide default LLM base URL. Applied when a `/events` request does
    * not supply its own `baseUrl`. Mirrors
    * `AgentConfiguration.DEFAULT_OLLAMA_BASE_URL`.

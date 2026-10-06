@@ -11,12 +11,38 @@ import java.io.File
 
 private const val EXTERNAL_JVM_TARGET: String = "21"
 
+enum class ExternalDiagnosticSeverity { ERROR, WARNING, INFO }
+
+/**
+ * One compiler diagnostic with an optional 1-based source position.
+ *
+ * The position is what lets an editor underline the offending line; the
+ * embeddable compiler hands it to us as a CompilerMessageSourceLocation, and
+ * it is kept here instead of being folded into the message text.
+ */
+data class ExternalDiagnostic(
+  val severity: ExternalDiagnosticSeverity,
+  val message: String,
+  val line: Int?,
+  val column: Int?
+)
+
 internal data class ExternalCompileResult(
-  val compileErrors: List<String>,
-  val outputDirectory: File,
-  val compileWarnings: List<String>
+  val diagnostics: List<ExternalDiagnostic>,
+  val outputDirectory: File
 ) {
-  val isSuccess: Boolean get() = compileErrors.isEmpty()
+  val isSuccess: Boolean
+    get() = diagnostics.none { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.ERROR }
+
+  val compileErrors: List<String>
+    get() = diagnostics
+      .filter { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.ERROR }
+      .map { diagnostic -> diagnostic.message }
+
+  val compileWarnings: List<String>
+    get() = diagnostics
+      .filter { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.WARNING }
+      .map { diagnostic -> diagnostic.message }
 }
 
 /**
@@ -39,9 +65,10 @@ internal data class ExternalCompileResult(
  * (EXTERNAL_JVM_TARGET).
  *
  * Diagnostics are buffered in memory instead of being printed to a stream, and
- * each one is kept structured as a CompilerDiagnostic (severity + message)
- * rather than string-tagged, so callers can filter on the severity enum
- * instead of parsing message prefixes.
+ * each one is kept structured as an [ExternalDiagnostic] (severity, message,
+ * and the 1-based source line/column when the compiler supplies them) rather
+ * than string-tagged, so callers can filter on the severity enum and an editor
+ * can place the diagnostic on the right line instead of parsing message text.
  */
 internal class ExternalSkillCompiler {
 
@@ -65,31 +92,38 @@ internal class ExternalSkillCompiler {
     val messageCollector = CollectingMessageCollector()
     val exitCode = K2JVMCompiler().exec(messageCollector, Services.EMPTY, compilerArguments)
 
-    val hasCompileErrors = messageCollector.hasErrors() || exitCode != ExitCode.OK
+    val diagnostics = messageCollector.diagnostics
+    val failedWithoutDiagnostic =
+      exitCode != ExitCode.OK && diagnostics.none { it.severity == ExternalDiagnosticSeverity.ERROR }
     return ExternalCompileResult(
-      compileErrors =
-        if (hasCompileErrors) messageCollector.errorMessages
-        else emptyList(),
+      diagnostics =
+        if (failedWithoutDiagnostic) {
+          diagnostics + ExternalDiagnostic(
+            severity = ExternalDiagnosticSeverity.ERROR,
+            message = "Compilation failed with exit code $exitCode",
+            line = null,
+            column = null,
+          )
+        } else diagnostics,
       outputDirectory = outputDirectory,
-      compileWarnings = messageCollector.warningMessages
     )
   }
 }
 
-private data class CompilerDiagnostic(
-  val diagnosticSeverity: CompilerMessageSeverity,
-  val diagnosticMessage: String
-)
-
 private class CollectingMessageCollector : MessageCollector {
 
-  private val capturedDiagnostics: MutableList<CompilerDiagnostic> = mutableListOf()
+  private val capturedDiagnostics: MutableList<ExternalDiagnostic> = mutableListOf()
 
   override fun report(
     severity: CompilerMessageSeverity,
     message: String, location: CompilerMessageSourceLocation?
   ) {
-    capturedDiagnostics += CompilerDiagnostic(severity, message)
+    capturedDiagnostics += ExternalDiagnostic(
+      severity = severity.toExternalSeverity(),
+      message = message,
+      line = location?.line?.takeIf { lineNumber -> lineNumber > 0 },
+      column = location?.column?.takeIf { columnNumber -> columnNumber > 0 },
+    )
   }
 
   override fun clear() {
@@ -97,15 +131,14 @@ private class CollectingMessageCollector : MessageCollector {
   }
 
   override fun hasErrors(): Boolean =
-    capturedDiagnostics.any { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isError }
+    capturedDiagnostics.any { diagnostic -> diagnostic.severity == ExternalDiagnosticSeverity.ERROR }
 
-  val errorMessages: List<String>
-    get() = capturedDiagnostics
-      .filter { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isError }
-      .map { capturedDiagnostic -> capturedDiagnostic.diagnosticMessage }
+  val diagnostics: List<ExternalDiagnostic>
+    get() = capturedDiagnostics.toList()
+}
 
-  val warningMessages: List<String>
-    get() = capturedDiagnostics
-      .filter { capturedDiagnostic -> capturedDiagnostic.diagnosticSeverity.isWarning }
-      .map { capturedDiagnostic -> capturedDiagnostic.diagnosticMessage }
+private fun CompilerMessageSeverity.toExternalSeverity(): ExternalDiagnosticSeverity = when {
+  isError -> ExternalDiagnosticSeverity.ERROR
+  isWarning -> ExternalDiagnosticSeverity.WARNING
+  else -> ExternalDiagnosticSeverity.INFO
 }

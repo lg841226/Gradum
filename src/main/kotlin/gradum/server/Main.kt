@@ -10,6 +10,7 @@ import gradum.mcp.McpToolsSkill
 import gradum.skill.SkillRegistry
 import gradum.skill.external.ExternalSkillDirectoryScanner
 import gradum.skill.external.ExternalSkillDirectoryWatcher
+import gradum.skill.external.ExternalSkillHost
 import gradum.utils.CommandFilterRuntime
 import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
@@ -55,6 +56,7 @@ private fun initRuntime(): GradumRuntime {
 
   val skillScanner = ExternalSkillDirectoryScanner()
   val skillWatcher = ExternalSkillDirectoryWatcher(skillScanner = skillScanner).start()
+  ExternalSkillHost.scanner = skillScanner
 
   skillScanner.scan()
   logger.info("Registered {} MCP tool(s) in catalog", McpToolCatalog.toolCount())
@@ -83,6 +85,17 @@ private fun startHttp(arguments: Array<String>) {
   val runtime = initRuntime()
   val settings = runtime.settings
 
+  if (!ServerAuth.isLoopbackBindHost(settings.host)) {
+    logger.error(
+      "server.host is set to '${settings.host}', which is not a loopback address. " +
+        "Gradum serves the local machine only; set server.host to localhost, 127.0.0.1, " +
+        "or ::1 in ~/.gradum/settings.json and restart."
+    )
+    runtime.skillWatcher.close()
+    runtime.mcpManager.close()
+    return
+  }
+
   val resolvedPort: Int =
     if (settings.autoDetectPort) {
       run {
@@ -109,11 +122,14 @@ private fun startHttp(arguments: Array<String>) {
     logger.info("No hosted-provider API key; Zhipu / DeepSeek / MiniMax probes skipped")
   }
 
+  val authToken: String = ServerAuth.resolveToken()
+
   val serverConfiguration = ServerConfiguration(
     portNumber = resolvedPort,
     plugins = settings.plugins,
     hostAddress = settings.host,
     defaultApiKey = runtime.resolvedApiKey,
+    authToken = authToken,
     defaultBaseUrl = settings.defaultBaseUrl,
     defaultModelName = settings.defaultModelName,
     defaultThinkEnabled = settings.defaultThinkEnabled,
@@ -121,6 +137,12 @@ private fun startHttp(arguments: Array<String>) {
   )
 
   val server: GradumServer = createServerInstance(serverConfiguration)
+
+  val editorHost: String = if (settings.host.contains(':')) "[${settings.host}]" else settings.host
+  logger.info(
+    "Skill editor: http://$editorHost:$resolvedPort/skills/editor" +
+      "?${ServerAuth.TOKEN_QUERY_PARAM}=$authToken"
+  )
 
   Runtime.getRuntime().addShutdownHook(Thread {
     runtime.skillWatcher.close()

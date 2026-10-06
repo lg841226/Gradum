@@ -28,10 +28,11 @@ internal const val SKILLS_DIRECTORY_NAME: String = "skills"
  * built-in and MCP skills are never touched, and a name collision with an
  * already-registered skill is skipped with a warning.
  *
- * Incremental compilation. Two hash tables keyed by source file name drive the
- * pass: compiledSourceHashes holds the content SHA-256 of every file at its
- * last successful compile, and outputsBySource holds the .class files that
- * compile produced. A source whose hash still matches keeps its .class output
+ * Incremental compilation. Three maps keyed by source file name drive the pass:
+ * compiledSourceHashes holds the content SHA-256 of every file at its last
+ * compile attempt, outputsBySource holds the .class files a successful compile
+ * produced, and diagnosticsBySource holds what the latest attempt reported. A
+ * source whose hash still matches keeps its .class output and its diagnostics
  * untouched; a source whose recorded output went missing, a new source, or an
  * edited source is recompiled; a deleted source has its output removed. When
  * nothing changed the compiler is skipped entirely. The first pass inside a
@@ -40,8 +41,12 @@ internal const val SKILLS_DIRECTORY_NAME: String = "skills"
  * lives outside .build so the classloader never scans it, with .build on the
  * classpath so unchanged skills still resolve. Only a successful compile is
  * swapped into .build: a failed compile keeps the previous working .class
- * files (last-good) instead of dropping every skill. lastCompiledSourceNames
- * records what the most recent pass compiled, for tests and logs.
+ * files (last-good) instead of dropping every skill. A failed attempt records
+ * its hash too, so the hash always describes the diagnostics stored beside it;
+ * recording only successes would let an edit back to the last text that did
+ * compile match the old hash, skip the compile, and report the diagnostics the
+ * broken text left behind. lastCompiledSourceNames records what the most recent
+ * pass compiled, for tests and logs.
  *
  * currentFingerprint() is the mtime-based fingerprint the watcher polls to
  * skip redundant reloads. It only looks at skill sources, never at .build
@@ -59,6 +64,7 @@ class ExternalSkillDirectoryScanner(
   private val stagingDirectory: File = skillsDirectory.resolve(".build-staging")
   private val compiledSourceHashes: MutableMap<String, String> = mutableMapOf()
   private val outputsBySource: MutableMap<String, MutableSet<String>> = mutableMapOf()
+  private val diagnosticsBySource: MutableMap<String, List<ExternalDiagnostic>> = mutableMapOf()
   internal var lastCompiledSourceNames: List<String> = emptyList()
     private set
 
@@ -70,6 +76,52 @@ class ExternalSkillDirectoryScanner(
       return
     }
     reconcile()
+  }
+
+  /**
+   * Writes [sourceText] to ~/.gradum/skills/<fileName> and reconciles
+   * immediately, then returns the compiler diagnostics for that file. This is
+   * the deployment path behind the editor's Run button: it runs the same reconcile
+   * loop the directory watcher uses, but synchronously, so the caller gets
+   * feedback in one request instead of waiting for a watcher tick.
+   *
+   * [fileName] is normalized to a bare `*.kt` name and rejected when it is not
+   * a plain identifier, so a caller can never escape the skills' directory.
+   */
+  fun deploy(fileName: String, sourceText: String): DeployResult {
+    val safeName = normalizeSourceName(fileName)
+    skillsDirectory.mkdirs()
+    skillsDirectory.resolve(safeName).writeText(sourceText)
+    reconcile()
+
+    val diagnostics = diagnosticsBySource[safeName].orEmpty()
+    return DeployResult(
+      fileName = safeName,
+      diagnostics = diagnostics,
+      compiled = diagnostics.none { it.severity == ExternalDiagnosticSeverity.ERROR }
+    )
+  }
+
+  /** Names of the `.kt` sources currently in ~/.gradum/skills/, sorted. */
+  fun listSourceNames(): List<String> = listKtSources().map { sourceFile -> sourceFile.name }
+
+  /** Reads the text of a skill source, or null when it does not exist. */
+  fun readSource(fileName: String): String? {
+    val safeName = try {
+      normalizeSourceName(fileName)
+    } catch (_: IllegalArgumentException) {
+      return null
+    }
+    val sourceFile = skillsDirectory.resolve(safeName)
+    return if (sourceFile.isFile) sourceFile.readText() else null
+  }
+
+  private fun normalizeSourceName(fileName: String): String {
+    val bareName = fileName.trim().removeSuffix(".kt")
+    require(SOURCE_NAME_PATTERN.matches(bareName)) {
+      "Invalid skill source name: '$fileName' (expected [A-Za-z_][A-Za-z0-9_]*)"
+    }
+    return "$bareName.kt"
   }
 
   @Synchronized
@@ -85,6 +137,7 @@ class ExternalSkillDirectoryScanner(
       wipeOutputDirectory(outputDirectory)
       compiledSourceHashes.clear()
       outputsBySource.clear()
+      diagnosticsBySource.clear()
       lastCompiledSourceNames = emptyList()
       unloadAllExternal()
       return
@@ -108,6 +161,7 @@ class ExternalSkillDirectoryScanner(
       removeOutputs(outputDirectory, staleName)
       compiledSourceHashes.remove(staleName)
       outputsBySource.remove(staleName)
+      diagnosticsBySource.remove(staleName)
     }
 
     val changedSources = sourceFiles.filter { sourceFile ->
@@ -142,6 +196,11 @@ class ExternalSkillDirectoryScanner(
     compileResult.compileWarnings.forEach { compileWarning ->
       logger.warn("External skill compile warning: {}", compileWarning)
     }
+    // Recorded together, because a skip is decided by the hash alone: the two
+    // must describe the same attempt, or a skip would serve the previous
+    // attempt's diagnostics.
+    diagnosticsBySource[sourceFile.name] = compileResult.diagnostics
+    compiledSourceHashes[sourceFile.name] = sourceHash
     if (!compileResult.isSuccess) {
       logger.error(
         "External skill '{}' failed to compile; keeping previous version: {}",
@@ -162,7 +221,6 @@ class ExternalSkillDirectoryScanner(
       producedOutputs += relativePath
     }
     outputsBySource[sourceFile.name] = producedOutputs
-    compiledSourceHashes[sourceFile.name] = sourceHash
     stagingDirectory.deleteRecursively()
     return true
   }
@@ -274,6 +332,26 @@ class ExternalSkillDirectoryScanner(
     if (starterFile.exists()) return
     starterFile.writeText(HELLO_SKILL_TEMPLATE)
   }
+}
+
+private val SOURCE_NAME_PATTERN: Regex = Regex("[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+/** Result of [ExternalSkillDirectoryScanner.deploy]: what was written and why it did or did not compile. */
+data class DeployResult(
+  val fileName: String,
+  val compiled: Boolean,
+  val diagnostics: List<ExternalDiagnostic>
+)
+
+/**
+ * Process-wide handle to the scanner built at startup, so the HTTP routes can
+ * deploy sources and read the skills directory. Mirrors the [gradum.skill.SkillRegistry]
+ * singleton pattern; it stays null in unit tests that construct their own
+ * scanner, and routes treat that as "skills directory not initialized".
+ */
+object ExternalSkillHost {
+  @Volatile
+  var scanner: ExternalSkillDirectoryScanner? = null
 }
 
 private val HELLO_SKILL_TEMPLATE: String = $$"""
