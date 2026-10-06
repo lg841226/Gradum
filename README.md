@@ -29,8 +29,8 @@ JDK from your `JAVA_HOME` or the Gradle JVM you select in your IDE. CI provision
 ### Option A: run the server
 
 Grab the latest server build from the
-[Releases](https://github.com/lg841226/Gradum/releases/latest) page. Each release ships five self-contained archives
-(no Java installation needed), one per platform:
+[Releases](https://github.com/lg841226/Gradum/releases/latest) page. Each release ships five self-contained archives (no
+Java installation needed), one per platform:
 
 - `gradum-darwin-arm64.zip` / `gradum-darwin-x64.zip` (macOS; double-clicking opens a Terminal window that streams the
   server logs)
@@ -46,11 +46,11 @@ java -jar build/libs/gradum@1.0.2.jar
 
 The server has three entry points, selected by the first argument:
 
-| Command         | What it does                                                              |
-|-----------------|---------------------------------------------------------------------------|
-| *(none)*        | Start the HTTP server (NDJSON `/events` streaming API)                    |
-| `setup`         | Interactive provider configuration wizard (full-screen TUI in a terminal) |
-| `acp`           | Start the ACP stdio server for IDE agent clients                          |
+| Command  | What it does                                                              |
+|----------|---------------------------------------------------------------------------|
+| *(none)* | Start the HTTP server (NDJSON `/events` streaming API)                    |
+| `setup`  | Interactive provider configuration wizard (full-screen TUI in a terminal) |
+| `acp`    | Start the ACP stdio server for IDE agent clients                          |
 
 ```bash
 java -jar gradum@1.0.2.jar --help   # usage + configuration overview + endpoint list
@@ -144,7 +144,7 @@ w: Specified Dependency Does Not Exist ... intellij.libraries.compose.foundation
 ```
 
 These are **warnings**; the plugin still compiles. Jewel and Compose are shipped *inside* the plugin so that the theme
-bridge, markdown modules, and Compose resources all resolve on the plugin classloader (see the comments in
+bridge, Markdown modules, and Compose resources all resolve on the plugin classloader (see the comments in
 `plugin/build.gradle.kts`); the IDE only supplies the platform APIs.
 
 ## Features
@@ -183,25 +183,6 @@ cloud dependencies. Plugin version 1.0.3.
 - **Dark/Light themes**: integrated with IntelliJ's theme system via Jewel
 - **Git analysis**: a bottom tool window audits local Git history, surfaces risk findings by theme or severity, and
   computes a project quality band
-
-## Built-in Skills
-
-| Skill               | Description                                                                         |
-|---------------------|-------------------------------------------------------------------------------------|
-| `read_file`         | Read file content (whole file or line range)                                        |
-| `write_file`        | Search-replace editing, or create/overwrite a whole file (parent dirs auto-created) |
-| `run_cmd`           | Execute shell commands (blocking or detached)                                       |
-| `explore_project`   | Explore project structure with depth control and file stats                         |
-| `grep`              | Content regex search across project files                                           |
-| `glob`              | Glob path matcher for file discovery                                                |
-| `to_do`             | Initialize a task list                                                              |
-| `finish_to_do_item` | Mark tasks complete                                                                 |
-| `search_web`        | Web search via Tavily API (requires API key, see below)                             |
-| `delegate_task`     | Spawn a sub-agent for a focused task (its events stream under `sub_agent:*`)        |
-| `mcp_tools`         | Materialized tools from the MCP servers declared in `settings.json`                 |
-
-External skills can also be dropped into `~/.gradum/skills/*.kt` — they are compiled at runtime and hot-reloaded when
-the directory changes, no rebuild required.
 
 ## LLM Backend Setup
 
@@ -264,4 +245,4 @@ MIT License - see [LICENSE](LICENSE)
 
 ## Gradum Version
 
-Server 1.0.2 · Plugin 1.0.3
+Server 1.0.2 and Plugin 1.0.3

@@ -1,6 +1,8 @@
 # Gradum Skill Development Guide
 
-How to develop new skills for Gradum
+How to develop new skills for Gradum. New **external** skills are best developed in **Gradum Workspace** — the
+server's bundled web editor — rather than by editing `~/.gradum/skills/` in your own IDE; see the guide in
+[§6](#6-developing-a-new-skill-step-by-step-guide).
 
 ---
 
@@ -10,7 +12,7 @@ How to develop new skills for Gradum
 2. [Skill Type System](#2-skill-type-system)
 3. [Skill Abstract Base Class](#3-skill-abstract-base-class)
 4. [SkillResult Output Format](#4-skillresult-output-format)
-5. [getSchema () Format](#5-getschema--format)
+5. [Declaring Parameters with the SchemaBuilder DSL](#5-declaring-parameters-with-the-schemabuilder-dsl)
 6. [Developing a New Skill: Step-by-Step Guide](#6-developing-a-new-skill-step-by-step-guide)
 7. [Complete Example: File Counter Skill](#7-complete-example-file-counter-skill)
 8. [Best Practices](#8-best-practices)
@@ -21,19 +23,26 @@ How to develop new skills for Gradum
 12. [Conversation History Management](#12-conversation-history-management)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Coding Style](#14-coding-style)
+15. [SchemaVariant API Reference](#15-schemavariant-api-reference)
+16. [Extending the plugin's tool call UI](#16-extending-the-plugins-tool-call-ui)
 
 ## 1. Architecture Overview
 
-Gradum uses **classpath scanning** for automatic skill discovery. Skills are NOT hardcoded and require NO manual
-registration. A skill is a Kotlin class that extends the `Skill` abstract base class and lives under
-`src/main/kotlin/gradum/skill/`.
+Gradum discovers skills at runtime; nothing is hardcoded and there is no manual registration step. A skill is a Kotlin
+class that extends the `Skill` abstract base class, and it can live in one of two places:
+
+| Where                                | Package              | Discovery                                          | Rebuild?                                     |
+|--------------------------------------|----------------------|----------------------------------------------------|----------------------------------------------|
+| In-repo (ships with Gradum)          | `gradum.skill.builtin` | classpath scan by `SkillRegistry` at startup       | Yes (`./gradlew run`)                        |
+| External (`~/.gradum/skills/*.kt`)   | `external`           | directory scanner, compiled at runtime, hot-reloaded | No — deploy it from Gradum Workspace (§6)    |
 
 **Key characteristics:**
 
 - Skills are fully decoupled from each other
-- All skills share a unified `SkillResult` output shape
-- Skills are discovered automatically by scanning the `gradum.skill` package
-- Just create a class extending `Skill`: no configuration needed
+- All skills share a unified `SkillResult` output shape, built with the `makeSuccess` / `makeFailure` factories
+- Built-in skills are discovered automatically by scanning the `gradum.skill.builtin` package
+- External skills compile at runtime and hot-reload when the file changes — no rebuild, no restart
+- Parameters are declared once with the `gradum.skill.dsl` SchemaBuilder DSL (§5)
 
 **Registration flow (classpath scanning):**
 
@@ -41,7 +50,7 @@ registration. A skill is a Kotlin class that extends the `Skill` abstract base c
 flowchart TD
     subgraph Registry["SkillRegistry (singleton)"]
         Init["init { discoverSkills() }"]
-        Init --> SCAN["Scan gradum.skill package"]
+        Init --> SCAN["Scan gradum.skill.builtin package"]
         SCAN --> R1["ReadFileSkill"]
         SCAN --> R2["WriteFileSkill"]
         SCAN --> R3["RunCommandSkill"]
@@ -72,24 +81,44 @@ flowchart TD
     style Agent fill: #f59e0b
 ```
 
-### Adding a New Skill (Fully Automatic)
+### Adding a New Skill
 
-No code changes, no configuration files, just create the class:
+1. **External skill (recommended while iterating)** — develop it in Gradum Workspace (§6): the Run button writes the
+   file to `~/.gradum/skills/`, compiles it synchronously, and the scanner registers it without a restart.
+2. **Built-in skill (ships with Gradum)** — create the class in `src/main/kotlin/gradum/skill/builtin/`; the classpath
+   scan picks it up at startup. No configuration files either way.
 
-1. Create your skill class extending `Skill` in `src/main/kotlin/gradum/skill/`
-2. That's it! The skill is automatically discovered at startup
+Both start from the same skeleton:
 
 ```kotlin
-package gradum.skill
+package gradum.skill.builtin
+
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.string
 
 class YourCustomSkill : Skill() {
     override val skillName: String = "your_tool"
     override val alias: String = "Done"
-    override val description: String = "What your skill does"
+    override val description: String = "What your skill does, when to use it, and its constraints."
 
-    override fun getSchema(): Map<String, Any> = /* ... */
-        override
-    fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult = /* ... */
+    override val schemaProperties: SchemaBuilder.() -> Unit = {
+        string(name = "input", description = "What the input means.", required = true)
+    }
+
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+        val input: String = arguments["input"] as? String ?: ""
+        if (input.isBlank()) {
+            return makeFailure("INVALID_PARAMETER", "Missing 'input' parameter")
+        }
+        return makeSuccess {
+            string("echo", input)
+        }
+    }
 }
 ```
 
@@ -102,8 +131,12 @@ classDiagram
         +skillName: String
         +description: String
         +alias: String
-        +execute(arguments: Map) SkillResult
-        +getSchema() Map
+        +allowedToolModes: Set~ToolMode~ // tier gate, see §10
+        +schemaProperties // abstract SchemaBuilder DSL block, §5
+        +simpleDescription: String?
+        +execute(arguments: Map, context: SkillContext) SkillResult
+        +getSchema(context: SkillContext?) Map // open template method
+        +allows(toolMode: ToolMode) Boolean
         +historyKeepCount: Int // Recent N results keep volatile keys
         +historyVolatileKeys: List~String~ // Keys stripped from older results
         +prepareHistoryResult(result: Map) Map
@@ -127,7 +160,7 @@ classDiagram
         -registeredSkills: Map
         +getSkill(name: String) Skill?
         +getAllSkills() Collection
-        +getSchemas() List
+        +getSchemas(toolMode: ToolMode) List
     }
 
     class ReadFileSkill
@@ -150,7 +183,7 @@ classDiagram
 
 ## 3. Skill Abstract Base Class
 
-All skills extend `skill/Skill.kt`:
+All skills extend `skill/Skill.kt`. The listing below is condensed (KDoc trimmed) but matches the real class:
 
 ```kotlin
 abstract class Skill {
@@ -159,107 +192,101 @@ abstract class Skill {
     abstract val alias: String
 
     /**
-     * The set of ToolMode tiers under which this skill is allowed to
-     * execute. The agent enforces this both at schema-filter time
-     * (hides the tool from the LLM in modes where it is not allowed)
-     * and at runtime (rejects the call with TOOL_NOT_PERMITTED if the
-     * model hallucinates a forbidden call). The default is "all three".
+     * Tiers under which this skill may execute (default: all three).
+     * The schema filter and the runtime gate both go through [allows],
+     * so the two checks can never disagree. See §10.
      */
     open val allowedToolModes: Set<ToolMode> = setOf(
         ToolMode.AGENT, ToolMode.EDIT, ToolMode.READ_ONLY,
     )
 
-    /**
-     * When true, the skill streams its own progress events (as
-     * DelegateSkill does) and the agent skips the standard
-     * tool_call_start / tool_call pair for it.
-     */
-    open val manageOwnEventStream: Boolean = false
+    /** The single authority for the tool-mode gate. */
+    fun allows(toolMode: ToolMode): Boolean = toolMode in allowedToolModes
 
     /**
-     * Execute the skill with the LLM-supplied arguments and the
-     * per-session SkillContext (tool mode + project root).
-     *
-     * @param arguments LLM-supplied tool-call arguments.
-     * @param context per-session scanState owned by the agent — see §11.
+     * Single source of truth for this skill's parameters, declared with
+     * the SchemaBuilder DSL (§5). One declaration is rendered into both
+     * the simple and the cloud schema.
+     */
+    protected abstract val schemaProperties: SchemaBuilder.() -> Unit
+
+    /**
+     * Optional shorter description used for simple (local) model
+     * schemas. When null, [description] is reused for both tiers.
+     */
+    protected open val simpleDescription: String? = null
+
+    /**
+     * Main entry point. @param context per-session SkillContext — see §11.
      */
     abstract fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult
 
     /**
-     * Returns the OpenAI-compatible function schema for this skill.
-     *
-     * @param context optional session context. When provided, skills
-     *   that offer different parameter structures for local vs cloud
-     *   models can check SchemaVariant.resolve(context.modelName)
-     *   and return the appropriate schema. Skills that don't need
-     *   provider-aware schemas may ignore this parameter.
+     * Template method: reads [SkillContext.isSimpleModel], renders
+     * [schemaProperties] through the DSL, drops parameters whose
+     * ParameterLevel does not fit the tier, and wraps everything in the
+     * OpenAI function-schema envelope. Override ONLY when the DSL cannot
+     * express your schema (e.g. MCP tool wrappers).
      */
-    abstract fun getSchema(context: SkillContext? = null): Map<String, Any>
+    open fun getSchema(context: SkillContext? = null): Map<String, Any> = /* render schemaProperties via the DSL */
 
-    /**
-     * How many recent results keep their [historyVolatileKeys] in conversation history.
-     * Older results beyond this count will have those keys stripped to save context.
-     * Default [Int.MAX_VALUE] keeps all results intact (no stripping).
-     */
+    /** Opt out of the agent's standard tool_call pair; emit your own events. */
+    open val manageOwnEventStream: Boolean = false
+
+    /** Presentation metadata for the tool-call capsule in client UIs. */
+    open val toolDisplay: ToolDisplay = ToolDisplay()
+
+    /** How many recent calls keep their volatile keys in history. */
     open val historyKeepCount: Int = Int.MAX_VALUE
 
-    /**
-     * Keys to strip from history result when exceeding [historyKeepCount].
-     * Only relevant when [historyKeepCount] is not [Int.MAX_VALUE].
-     */
+    /** Keys removed from OLDER history entries beyond [historyKeepCount]. */
     open val historyVolatileKeys: List<String> = emptyList()
 
-    private var prepareHistoryCallCount: Int = 0
+    /**
+     * Post-process the CURRENT result before it is stored. Do not use it
+     * to strip volatile keys — that is recordAndCompactHistory's job.
+     */
+    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> = result
 
     /**
-     * Resets the internal history call counter.
-     * Should be called at the start of each session to ensure
-     * [historyKeepCount] behaves correctly across sessions.
+     * The only sanctioned per-call history hook: bumps the session call
+     * count, compacts OLDER entries, and applies prepareHistoryResult
+     * to the current result.
      */
-    fun resetHistoryCount() {
-        prepareHistoryCallCount = 0
-    }
-
-    open fun prepareHistoryResult(result: Map<String, Any>): Map<String, Any> {
-        prepareHistoryCallCount++
-        if (historyKeepCount == Int.MAX_VALUE || historyVolatileKeys.isEmpty()) {
-            return result
-        }
-        return if (prepareHistoryCallCount <= historyKeepCount) {
-            result
-        } else {
-            result.filterKeys { it !in historyVolatileKeys }
-        }
-    }
+    fun recordAndCompactHistory(
+        ownMessageIndices: List<Int>,
+        currentResult: Map<String, Any>,
+        conversationHistory: MutableList<Map<String, Any>>,
+    ): Map<String, Any> /* bump counter, compact older entries, apply prepareHistoryResult */
 }
 ```
 
-> **Heads up: signature change.** `execute` now takes a second argument
-> `context: SkillContext`. The previous single-argument signature
-> `execute(arguments: Map<String, Any>)` is gone.
-> See [§11](#11-using-skillcontext-for-project-root-mode-and-model-info).
-
 ### Required Class Properties
 
-| Property      | Type     | Purpose                                 | Example                               |
-|---------------|----------|-----------------------------------------|---------------------------------------|
-| `skillName`   | `String` | Unique name used for LLM function calls | `"write_file"`                        |
-| `description` | `String` | Description shown to the LLM            | `"Atomic find-and-replace in a file"` |
-| `alias`       | `String` | Verb (past-tense) used in NDJSON events | `"Ran"`, `"Planned"`                  |
+| Property            | Type                      | Purpose                                          | Example                  |
+|---------------------|---------------------------|--------------------------------------------------|--------------------------|
+| `skillName`         | `String`                  | Unique name used for LLM function calls          | `"write_file"`           |
+| `description`       | `String`                  | Description shown to the LLM (the schema's description) | `"Atomic find-and-replace in a file"` |
+| `alias`             | `String`                  | Verb (past-tense) used in NDJSON events          | `"Ran"`, `"Planned"`     |
+| `schemaProperties`  | `SchemaBuilder.() -> Unit` | Declares every parameter with the DSL — see [§5](#5-declaring-parameters-with-the-schemabuilder-dsl) | `{ string(name = "path", ...) }` |
 
 ### Required Methods
 
-| Method                                                        | Return                                       | Purpose                                               |
-|---------------------------------------------------------------|----------------------------------------------|-------------------------------------------------------|
-| `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point for skill logic             | Dispatched by the Agent when the LLM invokes the tool |
-| `getSchema(context: SkillContext? = null): Map<String, Any>`  | Returns an OpenAI-compatible function schema | Determines what parameters the LLM sees               |
+| Method                                                       | Purpose                                               |
+|--------------------------------------------------------------|-------------------------------------------------------|
+| `execute(arguments: Map<String, Any>, context: SkillContext)` | Main entry point, dispatched by the Agent when the LLM invokes the tool |
+
+`getSchema(context)` is **not** required: the base class implements it as a template method over `schemaProperties`.
+Override it only to emit a native schema envelope the DSL cannot express (MCP adapters do this).
 
 ### Optional Properties
 
 | Property               | Type            | Default                    | Purpose                                                                                                                        |
 |------------------------|-----------------|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `allowedToolModes`     | `Set<ToolMode>` | `{AGENT, EDIT, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model). |
+| `allowedToolModes`     | `Set<ToolMode>` | `{AGENT, EDIT, READ_ONLY}` | The tiers under which this skill is allowed to run. See [§10](#10-declaring-allowedtoolmodes-the-three-tier-permission-model).  |
+| `simpleDescription`    | `String?`       | `null`                     | Shorter skill description used when rendering the simple (local) model schema                                                  |
 | `manageOwnEventStream` | `Boolean`       | `false`                    | Opt out of the agent's standard `tool_call_start` / `tool_call` pair and emit your own events.                                 |
+| `toolDisplay`          | `ToolDisplay`   | `ToolDisplay()`            | Label / parameter key / icon kind for the tool-call capsule in client UIs                                                      |
 | `historyKeepCount`     | `Int`           | `Int.MAX_VALUE`            | Keep this many recent results intact; strip volatile keys beyond                                                               |
 | `historyVolatileKeys`  | `List<String>`  | `emptyList()`              | Keys to remove from history result when exceeding `historyKeepCount`                                                           |
 
@@ -267,7 +294,8 @@ abstract class Skill {
 
 | Method                                                             | Return                                            | Purpose                                                                                              |
 |--------------------------------------------------------------------|---------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process the **current** result before saving | Default returns it unchanged; per-call pruning lives in `recordAndCompactHistory` / `compactHistory` |
+| `getSchema(context: SkillContext? = null): Map<String, Any>`       | Emit a native schema envelope                     | The DSL-built default covers nearly everything; override for MCP-style adapters                       |
+| `prepareHistoryResult(result: Map<String, Any>): Map<String, Any>` | Post-process the **current** result before saving | Default returns it unchanged; per-call pruning lives in `recordAndCompactHistory` / `compactHistory`  |
 
 ---
 
@@ -291,12 +319,25 @@ The project ships two factory functions, always use them:
 ```kotlin
 makeSuccess(mapOf("path" to resolvedPath.toString(), "bytesWritten" to bytesWritten))
 
+// Type-safe builder DSL for the same map (insertion order is preserved,
+// so the LLM sees a stable field sequence):
+makeSuccess {
+    string("path", resolvedPath.toString())
+    integer("bytesWritten", bytesWritten)
+}
+
 makeFailure(
     "FILE_NOT_FOUND",
     "File not found: $path",
     mapOf("path" to resolvedPath.toString())
 )
+
+// or the typed overload:
+makeFailure(ErrorCode.FILE_NOT_FOUND, "File not found: $path")
 ```
+
+The builder (`gradum.skill.dsl.SkillResponseBuilder`) offers `string`, `integer`, `long`, `boolean`, `stringList`,
+`objectList`, `set`, and nested `` object(key) { ... } `` helpers.
 
 The Agent flattens `SkillResult` into this shape before writing to the conversation history and NDJSON:
 
@@ -325,76 +366,163 @@ flowchart LR
 
 ### Standard Error Codes
 
-| Error Code            | Applicable Scenario                                              |
-|-----------------------|------------------------------------------------------------------|
-| `INVALID_PARAMETER`   | Missing or malformed parameter                                   |
-| `FILE_NOT_FOUND`      | Target file does not exist                                       |
-| `FILE_TOO_LARGE`      | File size or line count exceeds limits                           |
-| `IO_ERROR`            | Filesystem or process exception                                  |
-| `CODE_NOT_FOUND`      | Edit search text does not appear in the file                     |
-| `MULTIPLE_MATCHES`    | Edit search text appears multiple times in the file              |
-| `EMPTY_RESULT`        | The file becomes empty after editing, prevents accidental wiping |
-| `COMMAND_BLOCKED`     | Command rejected by the safety filter                            |
-| `TIMEOUT`             | Operation timed out                                              |
-| `ALREADY_INITIALIZED` | Duplicate initialization (e.g. to_do)                            |
-| `NOT_INITIALIZED`     | Operation requires initialization that has not happened          |
-| `ALL_COMPLETED`       | All tasks are already completed                                  |
-| `CLIENT_ERROR`        | Plugin-side error (e.g. model validation failed)                 |
+| Error Code               | Applicable Scenario                                                       |
+|--------------------------|---------------------------------------------------------------------------|
+| `INVALID_PARAMETER`      | Missing or malformed parameter                                            |
+| `FILE_NOT_FOUND`         | Target file does not exist                                                |
+| `FILE_TOO_LARGE`         | File size or line count exceeds limits                                    |
+| `IO_ERROR`               | Filesystem or process exception                                           |
+| `CODE_NOT_FOUND`         | Edit search text does not appear in the file                              |
+| `MULTIPLE_MATCHES`       | Edit search text appears multiple times in the file                       |
+| `EMPTY_RESULT`           | The file becomes empty after editing, prevents accidental wiping          |
+| `COMMAND_BLOCKED`        | Command rejected by the safety filter                                     |
+| `PERMISSION_DENIED`      | The user rejected an `ask_interaction` authorization card                 |
+| `TOOL_NOT_PERMITTED`     | Runtime gate rejected the call (skill's `allowedToolModes` excludes the active tier) |
+| `TIMEOUT`                | Operation timed out                                                       |
+| `INTERRUPTED`            | Execution was interrupted (e.g. session stop)                             |
+| `ALREADY_INITIALIZED`    | Duplicate initialization (e.g. to_do)                                     |
+| `NOT_INITIALIZED`        | Operation requires initialization that has not happened                   |
+| `ALL_COMPLETED`          | All tasks are already completed                                           |
+| `CONCURRENT_MODIFICATION`| Another writer changed the target while this call ran                     |
+| `INVALID_SCENARIO_XML`   | Malformed scenario XML payload                                            |
+| `CLIENT_ERROR`           | Plugin-side error (e.g. model validation failed)                          |
 
 ---
 
-## 5. getSchema () Format
+## 5. Declaring Parameters with the SchemaBuilder DSL
 
-Return a Kotlin `Map<String, Any>` whose structure is fully compatible with the OpenAI function calling schema. Use
-Kotlin Map literals, do not embed a JSON string:
+Every skill declares its parameters once in `schemaProperties`, a `SchemaBuilder.() -> Unit` block (an abstract member
+of `Skill`, see §3). The base class's `getSchema(context)` template method renders the block into the OpenAI
+function-schema envelope — you never hand-roll `mapOf("type" to "function", ...)` yourself.
 
 ```kotlin
-override fun getSchema(): Map<String, Any> {
-    return mapOf(
-        "type" to "function",
-        "function" to mapOf(
-            "name" to skillName,
-            "description" to "What the skill does. Include when to use and constraints.",
-            "parameters" to mapOf(
-                "type" to "object",
-                "properties" to mapOf(
-                    "path" to mapOf(
-                        "type" to "string",
-                        "description" to "File path to read. Use relative path."
-                    ),
-                    "lineRange" to mapOf(
-                        "type" to "string",
-                        "description" to "Optional. Line range to read. Format: '10-50'."
-                    )
-                ),
-                "required" to listOf("path")
-            )
-        )
+override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(
+        name = "path",
+        description = "File path to read. Use a path relative to the project root.",
+    )
+    string(
+        name = "lineRange",
+        description = "Optional line range to read, format '10-50'.",
+    )
+    integer(
+        name = "maxLines",
+        description = "Cap on returned lines.",
+        constraints = IntConstraints(default = 200, minimum = 1, maximum = 10_000),
+    )
+    string(
+        name = "encoding",
+        description = "Character encoding override.",
+        enumValues = listOf("utf-8", "utf-16"),
+    )
+    stringArray(
+        name = "globs",
+        description = "Glob patterns to match against.",
     )
 }
 ```
 
-The `description` field is the primary mechanism for guiding the LLM to use the tool correctly. Include:
+### Helpers
 
-- When to use the skill
-- Limitations and constraints
-- Usage examples
-- Hints about related skills
+All helpers live in `gradum.skill.dsl` and share the shape
+`(name, description, required = false, ...)`:
+
+| Helper                                                              | Emits                                                        |
+|---------------------------------------------------------------------|--------------------------------------------------------------|
+| `string(name, description, required, enumValues)`                   | `"type": "string"` (plus `enum` when `enumValues` is non-empty) |
+| `integer(name, description, required, constraints = IntConstraints())` | `"type": "integer"` (plus `default` / `minimum` / `maximum`) |
+| `boolean(name, description, required)`                              | `"type": "boolean"`                                          |
+| `stringArray(name, description, required)`                          | `"type": "array"` of strings                                 |
+| `objectArray(name, description, required, itemRequired) { ... }`    | `"type": "array"` of objects shaped by the inner `items { }` block |
+
+Notes:
+
+- **`required` defaults to `false`** — pass `required = true` for mandatory parameters.
+- `IntConstraints(default, minimum, maximum)` attaches numeric bounds to `integer`.
+- The skill's `description` becomes the schema's `description`; it is the primary mechanism for guiding the LLM, so
+  include when to use the skill, its constraints, and hints about related skills (§8.4).
+
+### Model tiers: `cloudOnly` / `simpleOnly`
+
+One declaration serves both model tiers. The base class reads
+`SkillContext.isSimpleModel` and drops parameters whose level does not fit:
+
+```kotlin
+override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(name = "path", description = "File path.")          // ParameterLevel.ALL: both tiers
+
+    cloudOnly {
+        string(name = "edits", description = "Batch edits; cloud models only.")
+    }
+    simpleOnly {
+        string(name = "note", description = "Free-form note; simple models only.")
+    }
+}
+```
+
+`cloudOnly { }` sets `ParameterLevel.CLOUD_ONLY`, `simpleOnly { }` sets `ParameterLevel.SIMPLE_ONLY`, and everything
+declared outside both blocks stays `ParameterLevel.ALL`. When simple models also need a shorter skill description, set
+`simpleDescription` (§3).
+
+### Overriding `getSchema`
+
+Only override `getSchema(context)` when the DSL cannot faithfully express your schema — the canonical case is an MCP
+tool wrapper that must emit its native JSON Schema envelope. Everything else should stay on `schemaProperties`.
 
 ---
 
 ## 6. Developing a New Skill: Step-by-Step Guide
 
+Skills come in two flavors: **built-in** skills that live in Gradum's own classpath (`src/main/kotlin/gradum/skill/builtin/`,
+rebuilt with the project) and **external** skills dropped into `~/.gradum/skills/*.kt`, which the server compiles at
+runtime and hot-reloads whenever the file changes. For anything you are iterating on, develop the external skill **in
+Gradum Workspace**; the guide starts there, and the numbered steps that follow cover the built-in path.
+
+### Develop in Gradum Workspace (recommended)
+
+Gradum Workspace is the skill editor the server bundles at `GET /skills/editor`. It gives a Kotlin surface with
+syntax highlighting, a Problems panel that shows compile diagnostics with click-to-jump line positions, and a Run
+button that writes the source into `~/.gradum/skills/` and compiles it synchronously — no rebuild, no restart.
+
+1. Start the server (see the README's Getting Started). The startup log prints the editor URL together with its
+   token:
+
+   ```
+   Skill editor: http://localhost:8765/skills/editor?token=<token>
+   ```
+
+   The token is generated once and stored in `~/.gradum/server.token` (mode 0600).
+2. Open that URL in a browser. The token is exchanged for an `HttpOnly` cookie that the editor's own requests ride
+   on; if the page answers 401 later, reopen it with `?token=` followed by the contents of `~/.gradum/server.token`.
+3. Press **+** in the Skill Explorer to create a skill: a new tab opens with the `HelloSkill` starter template,
+   named `NewSkill1.kt`.
+4. Write the skill. Double-click the tab to rename it — the name becomes the file deployed to
+   `~/.gradum/skills/<Name>.kt`.
+5. Press **Run** (menubar button or Cmd/Ctrl+Enter). The source is written and compiled in the same request; errors
+   come back into the Problems panel as rows and squiggles with `Ln x:y` positions you can click to jump to.
+6. On success the class registers immediately — verify it with `curl -H "Authorization: Bearer
+   $(cat ~/.gradum/server.token)" http://localhost:8765/skills` or just ask the agent to use it. Edit and Run again
+   to redeploy.
+
+When the skill should **ship inside Gradum itself** as a built-in, follow the in-repo steps instead.
+
 ### 6.1 Create the File
 
-Create `src/main/kotlin/gradum/skill/YourSkill.kt`:
+The in-repo path for a built-in skill. Create
+`src/main/kotlin/gradum/skill/builtin/YourSkill.kt` (an external skill instead goes to
+`~/.gradum/skills/YourSkill.kt` with `package external` — normally deployed through Gradum Workspace, see the guide
+above):
 
 ```kotlin
-package gradum.skill
+package gradum.skill.builtin
 
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.string
 import java.io.File
 import java.nio.file.Path
 
@@ -410,23 +538,11 @@ class YourSkill : Skill() {
     override val description: String =
         "What this skill does. Include when to use it, constraints, and output format."
 
-    override fun getSchema(): Map<String, Any> {
-        return mapOf(
-            "type" to "function",
-            "function" to mapOf(
-                "name" to skillName,
-                "description" to description,
-                "parameters" to mapOf(
-                    "type" to "object",
-                    "properties" to mapOf(
-                        "input" to mapOf(
-                            "type" to "string",
-                            "description" to "What this parameter means."
-                        )
-                    ),
-                    "required" to listOf("input")
-                )
-            )
+    override val schemaProperties: SchemaBuilder.() -> Unit = {
+        string(
+            name = "input",
+            description = "What this parameter means.",
+            required = true,
         )
     }
 
@@ -434,7 +550,7 @@ class YourSkill : Skill() {
      * @param arguments LLM-supplied tool-call arguments. The
      *   `projectRoot` is provided by the agent; do NOT read it from
      *   here — use [context].projectRoot instead.
-     * @param context per-session scanState (tool mode + project root).
+     * @param context per-session context (tool mode + project root).
      */
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
         val inputValue: String = arguments["input"] as? String ?: ""
@@ -452,12 +568,10 @@ class YourSkill : Skill() {
         return try {
             val fileContent: String = targetFile.readText(Charsets.UTF_8)
             // your logic here
-            makeSuccess(
-                mapOf(
-                    "path" to resolvedPath.toString(),
-                    "size" to fileContent.length
-                )
-            )
+            makeSuccess {
+                string("path", resolvedPath.toString())
+                integer("size", fileContent.length)
+            }
         } catch (exception: Exception) {
             makeFailure("IO_ERROR", exception.message ?: "Unknown error", mapOf("path" to resolvedPath.toString()))
         }
@@ -467,9 +581,12 @@ class YourSkill : Skill() {
 
 ### 6.2 Register the Skill
 
-**No registration required!** The `SkillRegistry` automatically discovers all classes in the `gradum.skill` package that
-extend `Skill`. Just place your class file in
-`src/main/kotlin/gradum/skill/` and it will be found at startup.
+**No registration required!**
+
+- **Built-in**: the `SkillRegistry` scans the `gradum.skill.builtin` package for concrete `Skill` subclasses at
+  startup — placing the class file under `src/main/kotlin/gradum/skill/builtin/` is enough.
+- **External**: the directory scanner compiles every `~/.gradum/skills/*.kt` file (package `external`) at runtime and
+  hot-reloads the class whenever the file changes. The Gradum Workspace Run button deploys there for you.
 
 ### 6.3 Build and Test
 
@@ -478,87 +595,8 @@ extend `Skill`. Just place your class file in
 ./gradlew run            # or launch the server to test
 
 # after launch, call the skills endpoint to verify registration
-curl http://localhost:8765/skills | jq
-```
-
----
-
-## 7. Complete Example: File Counter Skill
-
-```kotlin
-package gradum.skill
-
-import gradum.SkillResult
-import gradum.makeFailure
-import gradum.makeSuccess
-import java.io.File
-import java.nio.file.Path
-
-class FileCounterSkill : Skill() {
-
-    override val skillName: String = "file_counter"
-    override val alias: String = "Counted"
-    override val description: String =
-        "Count lines, words, and characters in a file. Use when you need to know file size or complexity."
-
-    override fun getSchema(): Map<String, Any> {
-        return mapOf(
-            "type" to "function",
-            "function" to mapOf(
-                "name" to skillName,
-                "description" to description,
-                "parameters" to mapOf(
-                    "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf(
-                            "type" to "string",
-                            "description" to "File path to analyze"
-                        )
-                    ),
-                    "required" to listOf("path")
-                )
-            )
-        )
-    }
-
-    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-        val filePath: String = arguments["path"] as? String ?: ""
-
-        if (filePath.isBlank()) {
-            return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
-        }
-
-        // Resolve relative to the session's projectRoot (NOT the server CWD).
-        val projectRoot: String = context.projectRoot
-        val resolvedPath: Path = Path.of(projectRoot, filePath).toAbsolutePath().normalize()
-        val targetFile: File = resolvedPath.toFile()
-
-        val fileContent: String = try {
-            targetFile.readText(Charsets.UTF_8)
-        } catch (_: java.io.FileNotFoundException) {
-            return makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
-        } catch (exception: Exception) {
-            return makeFailure(
-                "IO_ERROR",
-                exception.message ?: "Failed to read file",
-                mapOf("path" to resolvedPath.toString())
-            )
-        }
-
-        val lines: Int = fileContent.lines().size
-        val words: Int = fileContent.split("\\s+".toRegex()).filter { it.isNotBlank() }.size
-        val chars: Int = fileContent.length
-
-        return makeSuccess(
-            mapOf(
-                "path" to resolvedPath.toString(),
-                "lines" to lines,
-                "words" to words,
-                "characters" to chars
-            )
-        )
-    }
-}
+# (every route except /health now needs the bearer token)
+curl -H "Authorization: Bearer $(cat ~/.gradum/server.token)" http://localhost:8765/skills | jq
 ```
 
 ---
@@ -655,6 +693,79 @@ automatically after each tool call to keep the model on track.
 
 ---
 
+## 7. Complete Example: File Counter Skill
+
+```kotlin
+package gradum.skill.builtin
+
+import gradum.SkillResult
+import gradum.makeFailure
+import gradum.makeSuccess
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.string
+import java.io.File
+import java.nio.file.Path
+
+class FileCounterSkill : Skill() {
+
+    override val skillName: String = "file_counter"
+    override val alias: String = "Counted"
+    override val description: String =
+        "Count lines, words, and characters in a file. Use when you need to know file size or complexity."
+
+    override val schemaProperties: SchemaBuilder.() -> Unit = {
+        string(
+            name = "path",
+            description = "File path to analyze.",
+            required = true,
+        )
+    }
+
+    override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
+        val filePath: String = arguments["path"] as? String ?: ""
+
+        if (filePath.isBlank()) {
+            return makeFailure("INVALID_PARAMETER", "Missing 'path' parameter")
+        }
+
+        // Resolve relative to the session's projectRoot (NOT the server CWD).
+        val projectRoot: String = context.projectRoot
+        val resolvedPath: Path = Path.of(projectRoot, filePath).toAbsolutePath().normalize()
+        val targetFile: File = resolvedPath.toFile()
+
+        val fileContent: String = try {
+            targetFile.readText(Charsets.UTF_8)
+        } catch (_: java.io.FileNotFoundException) {
+            return makeFailure("FILE_NOT_FOUND", "File not found: $filePath", mapOf("path" to resolvedPath.toString()))
+        } catch (exception: Exception) {
+            return makeFailure(
+                "IO_ERROR",
+                exception.message ?: "Failed to read file",
+                mapOf("path" to resolvedPath.toString())
+            )
+        }
+
+        val lines: Int = fileContent.lines().size
+        val words: Int = fileContent.split("\\s+".toRegex()).filter { it.isNotBlank() }.size
+        val chars: Int = fileContent.length
+
+        return makeSuccess {
+            string("path", resolvedPath.toString())
+            integer("lines", lines)
+            integer("words", words)
+            integer("characters", chars)
+        }
+    }
+}
+```
+
+The skill needs no registration on either path: drop it into `gradum/skill/builtin/` for a rebuild, or into
+`~/.gradum/skills/` (via Gradum Workspace) to run it without one.
+
+---
+
 ## 8. Best Practices
 
 ### 8.1 Parameter Handling
@@ -696,7 +807,8 @@ return try {
 
 ### 8.4 LLM Guidance
 
-The `description` field in `getSchema()` is the key mechanism for guiding the LLM to use the tool correctly. Include:
+The skill's `description` is the key mechanism for guiding the LLM to use the tool correctly (the base class places it
+into the schema). Include:
 
 - When to use the skill
 - Scenarios where it should not be used
@@ -713,7 +825,7 @@ If your skill involves `ProcessBuilder` or `Runtime.exec()`:
 
 ```kotlin
 @OptIn(DangerousOperation::class)
-override fun execute(arguments: Map<String, Any>): SkillResult {
+override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
     val commandText: String = arguments["command"] as? String ?: ""
     val classification: CommandVerdict = classifyCommand(commandText)
     if (classification is CommandVerdict.Blocked) {
@@ -749,13 +861,23 @@ fun getTodoManagerInstance(): TodoManager = sharedTodoManager
 
 ## 9. Existing Skills Reference
 
-| Skill Class         | skillName           | Purpose                                                |
-|---------------------|---------------------|--------------------------------------------------------|
-| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)             |
-| `WriteFileSkill`    | `write_file`        | Search-and-replace editing, or create/overwrite a file |
-| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)          |
-| `TodoSkill`         | `to_do`             | Initialize a task list                                 |
-| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                               |
+Built-in skills live under `src/main/kotlin/gradum/skill/builtin/` (plus `mcp_tools` in `gradum/mcp/`):
+
+| Skill Class         | skillName           | Purpose                                                             |
+|---------------------|---------------------|---------------------------------------------------------------------|
+| `ReadFileSkill`     | `read_file`         | Read a file (full content or a line range)                          |
+| `WriteFileSkill`    | `write_file`        | Search-and-replace editing, or create/overwrite a file              |
+| `RunCommandSkill`   | `run_cmd`           | Execute a shell command (blocking / detached)                       |
+| `TodoSkill`         | `to_do`             | Initialize a task list                                              |
+| `CompletePlanSkill` | `finish_to_do_item` | Mark a task as completed                                            |
+| `ExploreProjectSkill` | `explore_project` | Explore the project tree with depth control and file stats          |
+| `GrepSkill`         | `grep`              | Content regex search across project files                           |
+| `GlobSkill`         | `glob`              | Glob path matcher for file discovery                                |
+| `WebSearchSkill`    | `search_web`        | Web search via the Tavily API (needs `TAVILY_API_KEY`)              |
+| `DelegateSkill`     | `delegate_task`     | Spawn a sub-agent for a focused task                                |
+| `McpToolsSkill`     | `mcp_tools`         | Materialize tools from the MCP servers declared in `settings.json`  |
+
+External skills (`~/.gradum/skills/*.kt`) appear in the same registry after the directory scanner compiles them.
 
 ---
 
@@ -813,9 +935,9 @@ The agent runs the same `toolMode in skill.allowedToolModes` check at two points
 
 1. **Schema filter** (LLM side). `SkillRegistry.getSchemas(toolMode)` returns only the tools whose `allowedToolModes`
    includes the active tier. The LLM is never told the tool exists in modes where it is forbidden.
-2. **Runtime gate** (Agent side). `Agent.executeSingleTool` does the same check before dispatch. If the LLM hallucinates
-   an `write_file` call in
-   `READ_ONLY`, the agent returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
+2. **Runtime gate** (agent side). `ToolExecutor.executeSingleTool` does the same check before dispatch. If the LLM
+   hallucinates an `write_file` call in
+   `READ_ONLY`, the executor returns `TOOL_NOT_PERMITTED` and the file on disk is byte-for-byte unchanged.
 
 For a `READ_ONLY` `run_cmd`, the agent also runs `CommandFilter.classifyCommand(...)`
 before `ProcessBuilder.start()`: `Blocked` commands return `COMMAND_BLOCKED`, and `NeedsApproval` commands pause for an
@@ -839,6 +961,54 @@ if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.EDIT, ToolM
 }
 ```
 
+### 10.6 Runtime authorization with `AskScope`
+
+`allowedToolModes` decides *which mode* a skill may run in. The second half of the permission story is runtime
+authorization: when a call is legal for the active mode but touches something the user has not approved yet (paths
+outside the project root, dangerous command categories, MCP tools), the skill itself asks — through the `AskScope` block
+DSL handed to it in `context.scope`:
+
+```kotlin
+// null in tests / sub-agents that must not block: fall back, don't assume.
+val askScope: AskScope = context.scope
+    ?: return makeFailure("PERMISSION_DENIED", "No ask capability in this session")
+val decision: AskResult = askScope.askInteraction {
+    title = l10n.key("gradum.ask.run_cmd.title")
+    details = l10n.raw(commandText, source = Lang.EN)
+    choices {
+        item(Choice.Meaning.ALLOW_ONCE)
+        item(Choice.Meaning.ALLOW_ALWAYS)
+        item(Choice.Meaning.REJECT)
+    }
+    default = Choice.Meaning.REJECT
+}
+if (decision !is AskResult.Case || decision.meaning == Choice.Meaning.REJECT) {
+    return makeFailure("PERMISSION_DENIED", "User rejected the request")
+}
+// decision.meaning is ALLOW_ONCE here; on ALLOW_ALWAYS, cache it (below) and proceed.
+```
+
+- `askInteraction` pushes an `ask_interaction` card to the plugin and **blocks** the calling thread until the user
+  answers — there is intentionally no timeout (see `AskScope`; `execute` is non-suspend).
+- Exactly one flavor per card, enforced by `validate()`: a `choices { }` block (returns `AskResult.Case`) **or** an
+  `input { }` block (returns `AskResult.Text`). `title` is required; `default` must be one of the declared choices.
+- The answer carries a semantic `Choice.Meaning` — `ALLOW_ONCE` / `ALLOW_ALWAYS` / `REJECT` (wire values
+  `allow_once` / `allow_always` / `reject`). There is no separate choice id to keep in sync.
+- `l10n.key(...)` / `l10n.raw(...)` build the title/details text inside the builder block.
+- On `ALLOW_ALWAYS`, remember the approval for the session in the matching `SkillContext` cache and skip the ask next
+  time; all caches are in-memory only, so a restart asks again:
+
+| Cache                            | Populated by                                              |
+|----------------------------------|-----------------------------------------------------------|
+| `context.authorizedReadPaths`    | `read_file` targets outside the project root              |
+| `context.authorizedWritePaths`   | `write_file` targets outside the project root             |
+| `context.authorizedCommandCategories` | `run_cmd` `NeedsApproval` categories (e.g. `rm:delete`) |
+| `context.authorizedMcpTools`     | MCP tools the user allowed every time                     |
+
+See `ReadFileSkill` (path authorization) and `RunCommandSkill.authorizeCommand` (command categories) for canonical
+implementations, and [§8.5](#85-shell-command-safety) for the `@OptIn(DangerousOperation::class)` marker that
+accompanies irreversible process calls.
+
 ---
 
 ## 11. Using `SkillContext` for Project Root, Mode, and Model Info
@@ -849,14 +1019,31 @@ if (yourSkill.allowedToolModes == setOf(ToolMode.READ_ONLY, ToolMode.EDIT, ToolM
 data class SkillContext(
     val toolMode: ToolMode,
     val projectRoot: String,
-    val provider: Provider = Provider.OLLAMA,
     val modelName: String = "",
-)
+    val provider: Provider = Provider.OLLAMA,
+    val agentConfiguration: AgentConfiguration? = null,       // for skills spawning sub-agents
+    val conversationHistory: () -> List<Map<String, Any>> = { emptyList() },
+    val emitEvent: ((eventType: String, eventData: Map<String, Any>) -> Unit)? = null,
+    val registerChildSession: ((childSessionId: String, agent: Agent) -> Unit)? = null,
+    val unregisterChildSession: ((childSessionId: String) -> Unit)? = null,
+    val scope: AskScope? = null,                              // ask DSL, §10.6
+    val plugins: Map<String, Map<String, Any?>> = emptyMap(), // per-skill settings slice
+) {
+    // Session caches (not part of the constructor/equality, §10.6):
+    val authorizedReadPaths: MutableSet<String> = mutableSetOf()
+    val authorizedWritePaths: MutableSet<String> = mutableSetOf()
+    val authorizedCommandCategories: MutableSet<String> = mutableSetOf()
+    val authorizedMcpTools: MutableSet<String> = mutableSetOf()
+    val materializedMcpTools: MaterializedMcpTools = MaterializedMcpTools()
+
+    /** SchemaVariant.resolve(modelName) == SIMPLE — single source of truth for tier checks. */
+    val isSimpleModel: Boolean get() = /* SchemaVariant.resolve(modelName) == SchemaVariant.SIMPLE */
+}
 ```
 
 It replaces the legacy process-global `ProjectPaths.setProjectRoot` (and removes the previous blind spot: Skills had no
-way to read `toolMode` at all). The four properties are immutable for the lifetime of the session, and the agent
-guarantees every Skill in that session sees the same instance.
+way to read `toolMode` at all). The core properties (`toolMode`, `projectRoot`, `provider`, `modelName`) are immutable
+for the lifetime of the session, and the agent guarantees every Skill in that session sees the same instance.
 
 ### 11.1 Why a parameter, not a global
 
@@ -887,7 +1074,7 @@ sequenceDiagram
     Plugin ->> Server: POST /events {message, projectRoot: basePath, toolMode: "read_only"}
     Note over Server: Routes validates projectRoot is non-empty<br/>+ points to an existing directory
     Server ->> Agent: new Agent(AgentConfiguration(toolMode, projectRoot))
-    Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot, provider, modelName)
+    Note over Agent: ContextManager(<root>/.gradum)<br/>+ SkillContext(toolMode, projectRoot, modelName, provider)
     Agent ->> Skill: skill.execute(arguments, skillContext)
     Note over Skill: read context.projectRoot for file ops<br/>read context.modelName for schema adaptation
 ```
@@ -938,75 +1125,42 @@ val projectRoot: String = System.getProperty("user.dir")
 val projectRoot: String = context.projectRoot
 ```
 
-### 11.5 Using `provider` and `modelName` for Schema Adaptation
+### 11.5 Adapting schemas and output to the model tier
 
-The `provider` and `modelName` fields allow Skills to adapt their behavior based on the model's capabilities:
+`context.isSimpleModel` (backed by `SchemaVariant.resolve(modelName)`) is the single source of truth for "is this a
+small / local model".
+
+**The schema half is automatic.** Declare tier-scoped parameters in `schemaProperties` (§5) and the base-class
+`getSchema` template drops the wrong-tier ones; add `simpleDescription` when simple models also need a shorter skill
+description:
 
 ```kotlin
-override fun getSchema(context: SkillContext?): Map<String, Any> {
-    val isSmallModel = context != null &&
-            SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
+override val simpleDescription: String? = "Read a file."
 
-    return if (isSmallModel) {
-        // Simplified schema: fewer parameters, simpler output
-        mapOf(
-            "type" to "function",
-            "function" to mapOf(
-                "name" to skillName,
-                "description" to description,
-                "parameters" to mapOf(
-                    "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf("type" to "string"),
-                        "content" to mapOf("type" to "string")
-                    ),
-                    "required" to listOf("path", "content")
-                )
-            )
-        )
-    } else {
-        // Full schema: all parameters, advanced features
-        mapOf(
-            "type" to "function",
-            "function" to mapOf(
-                "name" to skillName,
-                "description" to description,
-                "parameters" to mapOf(
-                    "type" to "object",
-                    "properties" to mapOf(
-                        "path" to mapOf("type" to "string"),
-                        "content" to mapOf("type" to "string"),
-                        "mode" to mapOf(
-                            "type" to "string",
-                            "enum" to listOf("overwrite", "append")
-                        ),
-                        "encoding" to mapOf("type" to "string")
-                    ),
-                    "required" to listOf("path", "content")
-                )
-            )
-        )
+override val schemaProperties: SchemaBuilder.() -> Unit = {
+    string(name = "path", description = "File path to read.")
+    cloudOnly {
+        string(name = "edits", description = "Batch edits; cloud models only.")
     }
 }
 ```
 
-You can also branch on `modelName` in `execute()`:
+**The output half stays in `execute()`** when the payload shape itself must differ:
 
 ```kotlin
 override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-
-    val result = if (useSimpleOutput) {
-        // Simplified output: counts + flat list
-        mapOf("totalLines" to lines, "files" to flatList)
-    } else {
-        // Full output: nested tree structure
-        mapOf("totalLines" to lines, "entries" to nestedTree)
-    }
-
+    val result: Map<String, Any> =
+        if (context.isSimpleModel) {
+            mapOf("totalLines" to lines, "files" to flatList)     // counts + flat list
+        } else {
+            mapOf("totalLines" to lines, "entries" to nestedTree)  // nested structure
+        }
     return makeSuccess(result)
 }
 ```
+
+Override `getSchema` by hand only when the DSL cannot express the split (§5). Detection rules for the tier itself are
+in [§15](#15-schemavariant-api-reference).
 
 ---
 
@@ -1016,10 +1170,10 @@ override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillR
 
 History is retained **indefinitely**. There is no time-based expiry. The only constraint is message count:
 
-| Layer                            | Constant               | Limit | File & Line            |
-|----------------------------------|------------------------|-------|------------------------|
-| **Persistence** (ContextManager) | `MAX_CONTEXT_MESSAGES` | 30    | `ContextManager.kt:19` |
-| **Runtime** (Agent)              | `maxHistoryMessages`   | 20    | `Agent.kt:113`         |
+| Layer                            | Constant               | Limit | Source                                              |
+|----------------------------------|------------------------|-------|-----------------------------------------------------|
+| **Persistence** (ContextManager) | `MAX_CONTEXT_MESSAGES` | 30    | `ContextManager.kt:21` (= `GradumConfig.MAX_HISTORY_MESSAGES`) |
+| **Runtime** (Agent)              | `maxHistoryMessages`   | 30    | `Agent.kt:142` (same shared constant)               |
 
 ### 12.2 How History is Cleaned
 
@@ -1043,8 +1197,8 @@ History is encrypted using custom **HMAC-CTR + HMAC-SHA256**:
 
 ### 12.4 Agent-Side Truncation
 
-Before each LLM turn, `Agent.truncateHistory()` trims to 20 messages + system prompt, preserving the most recent
-messages. That keeps local LLMs from getting overwhelmed.
+Before each LLM turn, `Agent` truncates the conversation history to `maxHistoryMessages` (30) plus the system prompt,
+preserving the most recent messages. That keeps local LLMs from getting overwhelmed.
 
 ---
 
@@ -1052,8 +1206,9 @@ messages. That keeps local LLMs from getting overwhelmed.
 
 ### The skill is never called by the LLM
 
-- Verify the `description` in `getSchema()` clearly explains the purpose and when to use the tool
-- Confirm the skill is registered in `SkillRegistry.discoverSkills()`
+- Verify the skill's `description` clearly explains the purpose and when to use the tool
+- Confirm the skill is registered in `SkillRegistry.discoverSkills()` (built-in) or compiled by the external directory
+  scanner (`~/.gradum/skills/*.kt`)
 - Check that parameter names are clear and reasonable
 - Inspect server logs (INFO level should show `Registered skill: ...`)
 
@@ -1187,15 +1342,18 @@ are kept only when `SchemaVariant` is `FULL`.
 | `RunCommandSkill`     | Supports `detached` param, full output | No `detached`, output truncated to 2000 chars        |
 | `ExploreProjectSkill` | Returns nested `entries` tree          | Returns counts + flat `["path:lines", ...]` list     |
 
-### 15.5 Complete Plugin Example
+### 15.5 Complete Example: adaptive schema with the DSL
 
 ```kotlin
-package gradum.skill
+package gradum.skill.builtin
 
-import gradum.SchemaVariant
 import gradum.SkillResult
 import gradum.makeFailure
 import gradum.makeSuccess
+import gradum.skill.Skill
+import gradum.skill.SkillContext
+import gradum.skill.dsl.SchemaBuilder
+import gradum.skill.dsl.string
 import java.nio.file.Path
 
 class AdaptiveFileWriterSkill : Skill() {
@@ -1204,63 +1362,34 @@ class AdaptiveFileWriterSkill : Skill() {
     override val alias: String = "Wrote"
     override val description: String =
         "Write content to a file. Adapts schema for small/large models."
+    override val simpleDescription: String? = "Write content to a file."
 
-    override fun getSchema(context: SkillContext?): Map<String, Any> {
-        val isSmallModel = context != null &&
-                SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-
-        return if (isSmallModel) {
-            // SIMPLE: minimal parameters
-            mapOf(
-                "type" to "function",
-                "function" to mapOf(
-                    "name" to skillName,
-                    "description" to description,
-                    "parameters" to mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "path" to mapOf("type" to "string"),
-                            "content" to mapOf("type" to "string")
-                        ),
-                        "required" to listOf("path", "content")
-                    )
-                )
+    // One declaration feeds both tiers: the base class's getSchema
+    // drops the cloudOnly block for simple models, and keeps it for
+    // cloud models. No hand-rolled envelopes anywhere.
+    override val schemaProperties: SchemaBuilder.() -> Unit = {
+        string(name = "path", description = "File path to write.", required = true)
+        string(name = "content", description = "Content to write.", required = true)
+        cloudOnly {
+            string(
+                name = "mode",
+                description = "Write mode.",
+                enumValues = listOf("overwrite", "append"),
             )
-        } else {
-            // FULL: all parameters
-            mapOf(
-                "type" to "function",
-                "function" to mapOf(
-                    "name" to skillName,
-                    "description" to description,
-                    "parameters" to mapOf(
-                        "type" to "object",
-                        "properties" to mapOf(
-                            "path" to mapOf("type" to "string"),
-                            "content" to mapOf("type" to "string"),
-                            "mode" to mapOf(
-                                "type" to "string",
-                                "enum" to listOf("overwrite", "append")
-                            ),
-                            "encoding" to mapOf("type" to "string")
-                        ),
-                        "required" to listOf("path", "content")
-                    )
-                )
-            )
+            string(name = "encoding", description = "Character encoding override.")
         }
     }
 
     override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-        val path = arguments["path"] as? String ?: ""
-        val content = arguments["content"] as? String ?: ""
-        val mode = arguments["mode"] as? String ?: "overwrite"
+        val path: String = arguments["path"] as? String ?: ""
+        val content: String = arguments["content"] as? String ?: ""
+        val mode: String = arguments["mode"] as? String ?: "overwrite"
 
         if (path.isBlank() || content.isBlank()) {
             return makeFailure("INVALID_PARAMETER", "Missing 'path' or 'content'")
         }
 
-        val resolved = Path.of(context.projectRoot, path).toAbsolutePath().normalize()
+        val resolved: Path = Path.of(context.projectRoot, path).toAbsolutePath().normalize()
 
         return try {
             val file = resolved.toFile()
@@ -1270,20 +1399,21 @@ class AdaptiveFileWriterSkill : Skill() {
                 file.writeText(content, Charsets.UTF_8)
             }
 
-            // Adapt output based on model capability
-            val useSimpleOutput = SchemaVariant.resolve(context.modelName) == SchemaVariant.SIMPLE
-            val result = if (useSimpleOutput) {
-                mapOf("path" to resolved.toString(), "bytesWritten" to content.toByteArray().size)
+            // The schema half is handled by cloudOnly above; only the
+            // PAYLOAD shape is branched here.
+            if (context.isSimpleModel) {
+                makeSuccess {
+                    string("path", resolved.toString())
+                    integer("bytesWritten", content.toByteArray().size)
+                }
             } else {
-                mapOf(
-                    "path" to resolved.toString(),
-                    "bytesWritten" to content.toByteArray().size,
-                    "created" to !file.exists(),
-                    "mode" to mode
-                )
+                makeSuccess {
+                    string("path", resolved.toString())
+                    integer("bytesWritten", content.toByteArray().size)
+                    boolean("created", !file.exists())
+                    string("mode", mode)
+                }
             }
-
-            makeSuccess(result)
         } catch (e: Exception) {
             makeFailure("IO_ERROR", e.message ?: "Unknown error", mapOf("path" to resolved.toString()))
         }
