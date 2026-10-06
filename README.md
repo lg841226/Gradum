@@ -1,13 +1,5 @@
 <h2 align="center">Gradum</h2>
 
-> [!WARNING]
-> **Gradum is currently experimental.** This project is evolving rapidly, and while we do test it along the way, there
-> will be rough edges. You may run into bugs that don't yet have an obvious explanation, behavior or configuration that
-> changes without prior notice, or features that are still incomplete. Treat it as a work in progress. If something
-> surprises you, please open an issue and tell us what you saw; every report helps us smooth things out. Ready-to-run
-> server packages are built for macOS (Apple Silicon and Intel), Linux (x64 and ARM64), and Windows; the cross-platform
-> jar runs anywhere Java 21 is available.
-
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-brightgreen?style=flat" alt="MIT License"/>
   <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin"/>

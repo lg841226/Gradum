@@ -49,6 +49,9 @@ main.txt
 # Internal DSL spec + roadmap for the un-shipped AWF feature; not shown to contributors
 docs/AWF_ROADMAP.md
 
+# Draft skill-api toolchain proposal; local until it stabilises
+docs/SKILL_API_PROPOSAL.md
+
 # Secrets / sensitive config
 *.secret
 *.key
