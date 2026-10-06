@@ -21,7 +21,8 @@ const LAYOUT_KEYS = {
   treeCollapsed: "boolean",
   railCollapsed: "boolean",
   split: "boolean",
-  splitDirection: "string"
+  splitDirection: "string",
+  splitRatio: "number"
 };
 
 function pickLayout(source) {

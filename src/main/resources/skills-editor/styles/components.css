@@ -392,36 +392,6 @@
     padding-left: var(--space-4);
 }
 
-/* --- Editor status bar ---------------------------------------------------- */
-
-/* Closes the editor island the way the platform's status bar closes the frame:
-   a thin dimmed strip holding the active skill's error and warning counts. Both
-   marks are drawn in the strip's own grey rather than a severity colour, so the
-   counts stay quiet and the shape alone tells the two apart. */
-.editor-status {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    height: var(--control-height);
-    padding: 0 var(--space-3);
-    /* Fainter than the island border it is derived from, so the strip reads as a
-       quiet footer instead of a hard cut across the code. */
-    border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
-    color: var(--text-dim);
-    font-size: var(--font-size-small);
-}
-
-.status-count {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-}
-
-.status-count .icon {
-    color: var(--text-dim);
-}
-
 /* --- Empty state ---------------------------------------------------------- */
 
 .empty-state {

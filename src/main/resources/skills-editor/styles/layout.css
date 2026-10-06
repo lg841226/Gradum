@@ -232,11 +232,30 @@ html.is-booting * {
     margin-left: auto;
 }
 
+/* The problem counts lead the strip at its far left, ahead of everything the
+   document reports at the right end. */
+.statusbar-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.status-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.status-count .icon {
+    color: var(--text-dim);
+}
+
 /* Splitter drag must be immediate — each pixel writes a new track size and a
    transition lag would feel slippery. Only fold/unfold toggles animate. */
 body.is-dragging .canvas,
 body.is-dragging .panel,
-body.is-dragging .splitter {
+body.is-dragging .splitter,
+body.is-dragging .code-pane {
     transition: none;
 }
 
@@ -398,14 +417,21 @@ body.is-dragging .splitter {
 
 .editor-body.is-split .code-pane[data-pane="right"] {
     flex-basis: 0;
-    flex-grow: 1;
+    flex-grow: calc(1 - var(--split-ratio, 0.5));
     opacity: 1;
     visibility: visible;
 }
 
+/* Both panes grow from a zero basis, so they divide the body by their grow
+   factors alone and the pair always fills it. Dragging the divider only rewrites
+   --split-ratio, which both of these read. */
+.editor-body.is-split .code-pane[data-pane="left"] {
+    flex-grow: var(--split-ratio, 0.5);
+}
+
 /* The split runs left to right by default; the "down" direction stacks the two
-   panes instead. Everything else — the folded second pane, the hairline, the
-   even share — is unchanged, only the axis the flex lines are laid on turns. */
+   panes instead. Only the axis the flex lines are laid on turns — the folded
+   second pane, the hairline and the share all read the same either way. */
 .editor-body.is-split-down {
     flex-direction: column;
 }
@@ -418,16 +444,24 @@ body.is-dragging .splitter {
     inset: -3px 0;
 }
 
-/* A static hairline between the two panes, drawn only while the split is on. It
-   is not draggable; the panes share the width evenly. */
+/* The hairline between the two panes, drawn only while the split is on, and the
+   handle that re-shares the body when it is dragged. Its grab area is the wider
+   strip the pseudo-element lays over it, so the line itself stays a hairline.
+   The axis the split is on sets which way the pointer reads it. */
 .pane-divider {
     position: relative;
     flex: 0 0 0;
     align-self: stretch;
     visibility: hidden;
     background: color-mix(in srgb, var(--border) 45%, transparent);
+    cursor: col-resize;
+    touch-action: none;
     transition: flex-basis var(--motion-fast) var(--ease-standard),
         visibility var(--motion-fast) var(--ease-standard);
+}
+
+.editor-body.is-split-down .pane-divider {
+    cursor: row-resize;
 }
 
 .editor-body.is-split .pane-divider {

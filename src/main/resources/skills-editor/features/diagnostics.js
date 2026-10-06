@@ -103,7 +103,10 @@ export function mountDiagnostics(store, {body, editor}) {
     clear(list);
 
     if (!doc) {
-      list.appendChild(createEmptyState({title: copy.status.noSkill}));
+      list.appendChild(createEmptyState({
+        title: copy.status.noSkill,
+        hint: copy.problems.noSkillHint,
+      }));
       return;
     }
 
@@ -114,9 +117,16 @@ export function mountDiagnostics(store, {body, editor}) {
       const current = status && status.tone === "error";
       if (current) {
         list.appendChild(createEmptyState({title: status.text, tone: "error"}));
+      } else if (doc.dirty) {
+        list.appendChild(createEmptyState({
+          title: copy.problems.stale,
+          hint: copy.problems.staleHint,
+        }));
       } else {
-        const title = doc.dirty ? copy.problems.stale : copy.problems.empty(doc.name);
-        list.appendChild(createEmptyState({title}));
+        list.appendChild(createEmptyState({
+          title: copy.problems.empty(doc.name),
+          hint: copy.problems.emptyHint,
+        }));
       }
       return;
     }

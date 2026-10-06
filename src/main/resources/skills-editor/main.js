@@ -43,6 +43,7 @@ const store = createStore({
   bottomHeight: 200,
   split: false,
   splitDirection: "right",
+  splitRatio: 0.5,
   ...loadLayout(),
 });
 

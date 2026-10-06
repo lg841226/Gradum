@@ -2,10 +2,10 @@ import {codeMetrics, escapeHtml, FALLBACK_METRICS} from "../core/dom.js";
 import {activeDoc, withDoc} from "../core/store.js";
 import {buildSkill, deploySkill, listSkills} from "../data/skillsApi.js";
 import {createEmptyState} from "../ui/components/feedback.js";
-import {createIcon} from "../ui/components/icon.js";
 import {createPanel} from "../ui/components/panel.js";
 import {createTabStrip} from "../ui/components/tab.js";
 import {copy} from "../ui/copy.js";
+import {dragPointer} from "./splitter.js";
 
 const KOTLIN_KEYWORDS = [
   "package", "import", "class", "object", "interface", "fun", "val", "var",
@@ -30,6 +30,12 @@ const TOKEN_CLASS = {
 // Compiler output caps the diagnostics it prints inline; anything past this
 // count lives in the Problems panel, which lists them all.
 const MAX_LOG_PROBLEMS = 6;
+
+// The share of the body the first pane keeps when the divider is dragged. Held
+// between a fifth and four fifths, so neither pane can be dragged shut — closing
+// one outright is what the split toggle is for.
+const MIN_SHARE = 0.2;
+const MAX_SHARE = 0.8;
 
 const TOKEN_PATTERN = new RegExp(
   [
@@ -70,30 +76,6 @@ function tokenize(text) {
     tokens.push({text: text.slice(cursor), cls: null});
   }
   return tokens;
-}
-
-// A status-bar entry: a hollow severity icon beside its count, tinted by tone.
-function createCount({tone, icon}) {
-  const item = document.createElement("span");
-  item.className = "status-count";
-  item.dataset.tone = tone;
-
-  const value = document.createElement("span");
-  value.className = "status-count-value";
-
-  item.append(createIcon({name: icon}), value);
-  return {item, value};
-}
-
-// Counts only change on a compile, so the DOM is left alone unless the number
-// actually differs.
-function updateCount(count, value, label) {
-  const text = String(value);
-  if (count.value.textContent === text) {
-    return;
-  }
-  count.value.textContent = text;
-  count.item.setAttribute("aria-label", label);
 }
 
 // East Asian wide and fullwidth ranges. These are the glyphs a monospace grid
@@ -554,14 +536,6 @@ export function mountEditor(store, {canvas, showPanel}) {
     hint: copy.editor.emptyHint,
   });
 
-  // The bar closes the island, counting the active skill's errors and warnings.
-  const statusBar = document.createElement("footer");
-  statusBar.className = "editor-status";
-
-  const errorCount = createCount({tone: "error", icon: "error-outline"});
-  const warningCount = createCount({tone: "warning", icon: "warning-outline"});
-  statusBar.append(errorCount.item, warningCount.item);
-
   // The pane the user last put the caret in. `activePane()` prefers whatever
   // holds focus right now and falls back to this, so a focus lost to a click on
   // the gutter or a panel still leaves a sensible pane behind.
@@ -590,9 +564,32 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   const divider = document.createElement("div");
   divider.className = "pane-divider";
+  divider.setAttribute("role", "separator");
+
+  // The divider is a handle, not just a hairline: pressing it re-shares the body
+  // between the two panes along whichever axis the split is on. The share is a
+  // fraction of the body's own length, so it stays right through a resize, and
+  // it lives in the store so a re-render does not drop it. While the split is
+  // closed the divider has no width and is hidden, so it takes no pointer.
+  divider.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const bounds = body.getBoundingClientRect();
+    const down = store.getState().splitDirection === "down";
+    const span = down ? bounds.height : bounds.width;
+    const start = down ? bounds.top : bounds.left;
+    if (!span) {
+      return;
+    }
+
+    dragPointer(down ? "row-resize" : "col-resize", (moveEvent) => {
+      const offset = (down ? moveEvent.clientY : moveEvent.clientX) - start;
+      const share = Math.min(Math.max(offset / span, MIN_SHARE), MAX_SHARE);
+      store.setState({splitRatio: share});
+    });
+  });
 
   body.append(leftPane.root, divider, rightPane.root, emptyState);
-  panel.append(body, statusBar);
+  panel.append(body);
   canvas.appendChild(panel);
 
   function activePane() {
@@ -762,7 +759,7 @@ export function mountEditor(store, {canvas, showPanel}) {
   // The pane the user typed in redraws its own overlay here — a keystroke has
   // already mutated its textarea natively, so only the derived layers need to
   // catch up. The other pane is reconciled by `render`, which sees the store
-  // change the write just produced.
+  // change to write just produced.
   function onInput(pane) {
     const state = store.getState();
     const doc = activeDoc(state);
@@ -852,15 +849,15 @@ export function mountEditor(store, {canvas, showPanel}) {
     body.classList.toggle("is-empty", !doc);
     emptyState.hidden = Boolean(doc);
 
-    const diagnostics = (doc && doc.diagnostics) || [];
-    const errors = diagnostics.filter((item) => item.severity === "error").length;
-    const warnings = diagnostics.filter((item) => item.severity === "warning").length;
-    // With no document open there is nothing to count, so the whole strip goes —
-    // counters and its top rule alike — rather than closing an empty island with
-    // a line across it.
-    statusBar.hidden = !doc;
-    updateCount(errorCount, errors, copy.statusBar.errors(errors));
-    updateCount(warningCount, warnings, copy.statusBar.warnings(warnings));
+    // The share the divider was last dragged to, read by the two panes' flex
+    // rules. Written as a length-less number, so the pair always adds to one
+    // whole however wide the body becomes.
+    const share = state.splitRatio ?? 0.5;
+    body.style.setProperty("--split-ratio", String(share));
+    // A separator lying between two columns is vertical; stacked rows make it
+    // horizontal. Screen readers read the orientation off this attribute.
+    const orientation = state.splitDirection === "down" ? "horizontal" : "vertical";
+    divider.setAttribute("aria-orientation", orientation);
 
     if (state.focusToken !== renderedFocus) {
       renderedFocus = state.focusToken;

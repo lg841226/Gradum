@@ -85,7 +85,10 @@ export const copy = {
 
   problems: {
     stale: "Edited since the last run.",
+    staleHint: "Build or run the skill to check the edited text.",
     empty: (name) => `The skill ${name} has no problems.`,
+    emptyHint: "Edit the buffer, then build or run the skill, to check a new version.",
+    noSkillHint: "Open a skill to see its problems here.",
   },
 
   log: {
