@@ -92,13 +92,19 @@ export function mountStatusBar(store, {canvas}) {
     }
 
     const {line, column} = state.cursor;
-    // The strip shows the bare "line:column" a code window uses; the label
-    // spells it out for screen readers, which the shorthand does not convey.
-    position.textContent = copy.statusBar.position(line, column);
-    position.setAttribute("aria-label", copy.statusBar.positionLabel(line, column));
+    // The strip shows the bare "line:column" a code window uses, followed by
+    // the selection's size in parentheses while a range is selected. The label
+    // spells the position out for screen readers, which the shorthand does not
+    // convey, and carries the counts beside it the same way the strip does.
+    const {selection} = state;
+    const summary = selection
+      ? ` (${copy.statusBar.selection(selection.characters, selection.newlines)})`
+      : "";
+    position.textContent = copy.statusBar.position(line, column) + summary;
+    position.setAttribute("aria-label", copy.statusBar.positionLabel(line, column) + summary);
     // The tip follows the caret, so it always spells out the position the
     // strip currently shows.
-    position.dataset.tooltip = copy.statusBar.positionTip(line, column);
+    position.dataset.tooltip = copy.statusBar.positionTip(line, column) + summary;
   };
 
   store.subscribe(render);

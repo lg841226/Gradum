@@ -180,16 +180,16 @@ html.is-booting * {
    counts and connection state. The row is addressed from the end (-2), so it
    keeps its place if more rows are ever stacked above it. */
 .statusbar {
-    grid-column: 1 / -1;
     grid-row: -2;
+    grid-column: 1 / -1;
     display: flex;
+    user-select: none;
     align-items: center;
     gap: var(--space-3);
-    height: var(--statusbar-height);
-    padding: 0 var(--space-2);
     color: var(--text-dim);
+    padding: 0 var(--space-2);
     font-size: var(--font-size-ui);
-    user-select: none;
+    height: var(--statusbar-height);
 }
 
 /* Items read as something to aim at rather than bare text: each carries its own
@@ -410,9 +410,9 @@ body.is-dragging .code-pane {
     visibility: hidden;
     overflow: hidden;
     transition: flex-basis var(--motion-fast) var(--ease-standard),
-        flex-grow var(--motion-fast) var(--ease-standard),
-        opacity var(--motion-fast) var(--ease-standard),
-        visibility var(--motion-fast) var(--ease-standard);
+    flex-grow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    visibility var(--motion-fast) var(--ease-standard);
 }
 
 .editor-body.is-split .code-pane[data-pane="right"] {
@@ -457,7 +457,7 @@ body.is-dragging .code-pane {
     cursor: col-resize;
     touch-action: none;
     transition: flex-basis var(--motion-fast) var(--ease-standard),
-        visibility var(--motion-fast) var(--ease-standard);
+    visibility var(--motion-fast) var(--ease-standard);
 }
 
 .editor-body.is-split-down .pane-divider {
@@ -497,25 +497,25 @@ body.is-dragging .code-pane {
 }
 
 .gutter-line {
-    display: block;
-    text-align: right;
-    padding-right: var(--space-3);
-    color: var(--text-mute);
     opacity: .75;
+    display: block;
     white-space: pre;
+    text-align: right;
+    color: var(--text-mute);
+    padding-right: var(--space-3);
     font-variant-numeric: tabular-nums;
 }
 
 .gutter-line.active {
-    color: var(--text-dim);
     opacity: 1;
+    color: var(--text-dim);
 }
 
 .code {
-    position: relative;
     flex: 1;
     min-width: 0;
     overflow: hidden;
+    position: relative;
 }
 
 .highlight,
@@ -596,9 +596,9 @@ body.is-dragging .code-pane {
 }
 
 .markers {
+    z-index: 2;
     overflow: hidden;
     pointer-events: none;
-    z-index: 2;
 }
 
 .source {

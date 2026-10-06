@@ -81,14 +81,16 @@ export const copy = {
     warnings: (count) => `${count} ${plural(count, "warning")}`,
     positionLabel: (line, column) => `Line ${line}, column ${column}`,
     positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
+    selection: (count, lineCount) =>
+      `${count} ${plural(count, "character")}, ${lineCount} ${plural(lineCount, "newline")}`,
   },
 
   problems: {
     stale: "Edited since the last run.",
-    staleHint: "Build or run the skill to check the edited text.",
-    empty: (name) => `The skill ${name} has no problems.`,
-    emptyHint: "Edit the buffer, then build or run the skill, to check a new version.",
     noSkillHint: "Open a skill to see its problems here.",
+    staleHint: "Build or run the skill to check the edited text.",
+    emptyHint: "Edit the buffer, then build or run the skill, to check a new version.",
+    empty: (name) => `The skill ${name} has no problems.`,
   },
 
   log: {

@@ -2,14 +2,10 @@
    semantic attributes (data-variant, data-tone, aria-selected) and is styled
    only here, so features never re-declare component appearance. */
 
-/* --- Icon ----------------------------------------------------------------- */
-
 .icon {
     flex: 0 0 auto;
     display: block;
 }
-
-/* --- Panel header --------------------------------------------------------- */
 
 .panel-title {
     display: inline-flex;
@@ -19,8 +15,6 @@
     color: var(--text);
     white-space: nowrap;
 }
-
-/* --- Button --------------------------------------------------------------- */
 
 .btn {
     display: inline-flex;
@@ -168,8 +162,6 @@
     color: var(--text-mute);
 }
 
-/* --- Tabs ----------------------------------------------------------------- */
-
 .tab-strip {
     flex: 1;
     display: flex;
@@ -188,18 +180,18 @@
 /* One tab style for file and tool window labels: a rounded chip whose active
    state is a blue fill with a blue outline. */
 .tab {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    flex: 0 0 auto;
-    height: var(--control-height);
-    padding: 0 var(--space-2);
     border: 0;
-    border-radius: var(--radius-tab);
-    background: transparent;
-    color: var(--text-dim);
+    flex: 0 0 auto;
     cursor: pointer;
+    align-items: center;
     white-space: nowrap;
+    display: inline-flex;
+    background: transparent;
+    gap: var(--space-1);
+    color: var(--text-dim);
+    padding: 0 var(--space-2);
+    height: var(--control-height);
+    border-radius: var(--radius-tab);
     transition: background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
@@ -210,30 +202,30 @@
 }
 
 .tab[aria-selected="true"] {
-    background: var(--accent-selection);
     color: var(--text);
+    background: var(--accent-selection);
     box-shadow: inset 0 0 0 1px var(--accent-outline);
 }
 
 .tab-label {
-    font-size: var(--font-size-ui);
     overflow: hidden;
     text-overflow: ellipsis;
+    font-size: var(--font-size-ui);
 }
 
 .tab-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 16px;
     height: 16px;
     flex: 0 0 auto;
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
 }
 
 .tab-dot {
-    display: none;
     width: 8px;
     height: 8px;
+    display: none;
     border-radius: 50%;
     background: var(--accent);
 }
@@ -243,17 +235,17 @@
 }
 
 .tab-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    border: 0;
+    padding: 0;
     width: 16px;
     height: 16px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-control);
-    background: transparent;
-    color: var(--text-mute);
     cursor: pointer;
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    color: var(--text-mute);
+    background: transparent;
+    border-radius: var(--radius-control);
 }
 
 .tab-close:hover {
@@ -264,17 +256,15 @@
     display: none;
 }
 
-/* --- Text field ----------------------------------------------------------- */
-
 /* Inline rename only: the field replaces a label, so JS sizes it to the label's
    width and the padding stays at zero, otherwise the box would be wider than the
    title it stands in for. The box itself is invisible (no border, no background,
    no focus ring), so the padding was never doing any visible work. */
 .text-field {
+    border: 0;
+    padding: 0;
     width: 120px;
     height: 22px;
-    padding: 0;
-    border: 0;
     background: transparent;
     color: var(--text);
     font-size: var(--font-size-ui);
@@ -284,26 +274,24 @@
     outline: none;
 }
 
-/* --- List ----------------------------------------------------------------- */
-
 .list {
     flex: 1;
+    min-height: 0;
     display: flex;
+    overflow: auto;
     flex-direction: column;
     gap: var(--space-1);
-    overflow: auto;
-    min-height: 0;
     padding: var(--space-1);
 }
 
 .list-item {
+    height: 24px;
     display: flex;
+    cursor: pointer;
     align-items: center;
     gap: var(--space-2);
-    height: 24px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-control);
-    cursor: pointer;
     transition: background var(--motion-fast) var(--ease-standard);
 }
 
@@ -322,51 +310,49 @@
 
 .list-item-label {
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
-/* --- Tree root ------------------------------------------------------------ */
-
 /* The root row stands for the skills directory, so it reads as a heading over
-   the branch: dim, short, and with no selection of its own. The treeitem wraps
+   the branch: dim, short, and with no selection of its own. The tree item wraps
    the row and its branch so the group nests correctly. */
 .tree-item {
-    flex: 0 0 auto;
     display: flex;
+    flex: 0 0 auto;
     flex-direction: column;
     gap: var(--space-1);
 }
 
 .tree-row {
-    flex: 0 0 auto;
+    height: 24px;
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--space-1);
-    height: 24px;
-    padding: 0 var(--space-2);
     color: var(--text-dim);
+    padding: 0 var(--space-2);
 }
 
 .tree-row-label {
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .tree-twisty {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    border: 0;
+    padding: 0;
     width: 16px;
     height: 16px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-control);
+    flex: 0 0 auto;
+    cursor: pointer;
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
     background: transparent;
     color: var(--text-mute);
-    cursor: pointer;
+    border-radius: var(--radius-control);
 }
 
 .tree-twisty:hover {
@@ -385,14 +371,12 @@
    folder label rather than under its arrow, and stacks its rows with the same
    gap the list uses — a plain block would leave them flush. */
 .tree-children {
-    flex: 0 0 auto;
     display: flex;
+    flex: 0 0 auto;
     flex-direction: column;
     gap: var(--space-1);
     padding-left: var(--space-4);
 }
-
-/* --- Empty state ---------------------------------------------------------- */
 
 .empty-state {
     flex: 1;
@@ -431,21 +415,19 @@
     color: var(--accent);
 }
 
-/* --- Diagnostics ---------------------------------------------------------- */
-
 /* The wave is a monochrome mask tinted by the marker's own colour, so the two
    severities share one asset instead of hard-coding each stroke colour. */
 .squiggle {
-    position: absolute;
-    background-color: currentColor;
-    -webkit-mask-image: var(--squiggle);
-    mask-image: var(--squiggle);
-    -webkit-mask-repeat: repeat-x;
-    mask-repeat: repeat-x;
-    -webkit-mask-position: left bottom;
-    mask-position: left bottom;
-    -webkit-mask-size: 6px 3px;
     mask-size: 6px 3px;
+    position: absolute;
+    mask-repeat: repeat-x;
+    -webkit-mask-size: 6px 3px;
+    mask-position: left bottom;
+    background-color: currentColor;
+    -webkit-mask-repeat: repeat-x;
+    -webkit-mask-position: left bottom;
+    mask-image: var(--squiggle);
+    -webkit-mask-image: var(--squiggle);
 }
 
 .squiggle.error {
@@ -472,13 +454,13 @@
    identical across rows. */
 .problem {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
     flex: 0 0 auto;
-    align-items: baseline;
-    column-gap: var(--space-3);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-control);
     cursor: pointer;
+    align-items: baseline;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+    border-radius: var(--radius-control);
+    padding: var(--space-1) var(--space-2);
     transition: background var(--motion-fast) var(--ease-standard);
 }
 
@@ -517,8 +499,6 @@
     white-space: pre-wrap;
     word-break: break-word;
 }
-
-/* --- Console -------------------------------------------------------------- */
 
 /* The log is monospace content like the editor, so it takes the code size rather
    than the smaller UI size it used to carry. That also lines it up with the
@@ -563,8 +543,6 @@
     color: var(--text-mute);
 }
 
-/* --- Run button spinner --------------------------------------------------- */
-
 .btn.is-busy .icon {
     animation: spin 1s linear infinite;
     transform-origin: center;
@@ -575,8 +553,6 @@
         transform: rotate(360deg);
     }
 }
-
-/* --- Tooltip -------------------------------------------------------------- */
 
 /* One bubble, moved from control to control. It is fixed to the viewport rather
    than to the control, so a control inside a scrolling pane cannot clip it. It

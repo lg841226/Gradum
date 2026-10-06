@@ -28,6 +28,7 @@ const store = createStore({
   focusToken: 0,
   sourceRevision: 0,
   cursor: {line: 1, column: 1},
+  selection: null,
   status: {text: "", tone: "neutral"},
   view: "problems",
   panel: "problems",

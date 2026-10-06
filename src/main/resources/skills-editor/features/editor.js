@@ -129,14 +129,11 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
   const root = document.createElement("div");
   root.className = "code-pane";
 
-  // Each pane carries its own tab strip, the way a split editor group does: the
-  // two panes show the same open documents, listed at the top of each.
   const tabStrip = createTabStrip();
   const tabs = document.createElement("header");
   tabs.className = "code-pane-tabs";
   tabs.append(tabStrip);
 
-  // The gutter and its inner column that scrolls with the text layer.
   const gutter = document.createElement("div");
   gutter.className = "gutter";
 
@@ -144,8 +141,6 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
   gutterInner.className = "gutter-inner";
   gutter.appendChild(gutterInner);
 
-  // The code surface: a highlight overlay, a marker layer for squiggles, the
-  // drawn caret, and the native textarea that owns the real caret and selection.
   const code = document.createElement("div");
   code.className = "code";
 
@@ -171,8 +166,6 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
 
   code.append(highlight, markers, caret, source);
 
-  // The scrollable row under the tabs: the gutter, the code area and, once the
-  // minimap mounts, its strip at the pane's own right edge.
   const main = document.createElement("div");
   main.className = "code-pane-main";
   main.append(gutter, code);
@@ -236,8 +229,6 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
     return Math.max(0, rangeEnd - lineStart);
   }
 
-  // Lines currently carrying a selection band, so the next pass clears only what
-  // it has to instead of sweeping the whole document.
   let selectedLines = [];
 
   function clearSelection() {
@@ -310,6 +301,7 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
 
   let caretOffset = -1;
   let publishedCursor = null;
+  let publishedSelection = null;
 
   // The native caret can drift against the syntax overlay because the two
   // layers round their fractional line boxes apart, so it is hidden and this
@@ -324,6 +316,8 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
     // The status bar reads the caret position from the store, so every caret
     // move publishes it — but only for the pane the user is actually in, so the
     // readout follows the focused view rather than whichever pane drew last.
+    // The selection rides along in the same patch: the strip appends its length
+    // in characters and newlines while a range is selected.
     if (focused) {
       const position = {line: lineIndex + 1, column: column + 1};
       const changed = !publishedCursor
@@ -331,7 +325,30 @@ function createCodePane(store, {onInput, onFocus, onRun}) {
         || publishedCursor.column !== position.column;
       if (changed) {
         publishedCursor = position;
-        store.setState({cursor: position});
+      }
+
+      const start = source.selectionStart;
+      const end = source.selectionEnd;
+      const selectionChanged = !publishedSelection
+        || publishedSelection.start !== start
+        || publishedSelection.end !== end;
+      if (selectionChanged) {
+        publishedSelection = {start, end};
+      }
+
+      if (changed || selectionChanged) {
+        const patch = {};
+        if (changed) {
+          patch.cursor = position;
+        }
+        if (selectionChanged) {
+          const selected = source.value.slice(start, end);
+          patch.selection = start === end ? null : {
+            characters: selected.length,
+            newlines: selected.split("\n").length - 1,
+          };
+        }
+        store.setState(patch);
       }
     }
 
@@ -841,21 +858,13 @@ export function mountEditor(store, {canvas, showPanel}) {
 
     const splitOn = Boolean(state.split) && Boolean(doc);
     body.classList.toggle("is-split", splitOn);
-    // The axis follows the direction alone, not the on/off flag: the pane's own
-    // grow and fade are animated, so flipping the axis in the same frame the
-    // split closes would send the folded pane across the body — a flash from the
-    // stack position to the side — before it shrank away.
     body.classList.toggle("is-split-down", state.splitDirection === "down");
     body.classList.toggle("is-empty", !doc);
     emptyState.hidden = Boolean(doc);
 
-    // The share the divider was last dragged to, read by the two panes' flex
-    // rules. Written as a length-less number, so the pair always adds to one
-    // whole however wide the body becomes.
     const share = state.splitRatio ?? 0.5;
     body.style.setProperty("--split-ratio", String(share));
-    // A separator lying between two columns is vertical; stacked rows make it
-    // horizontal. Screen readers read the orientation off this attribute.
+
     const orientation = state.splitDirection === "down" ? "horizontal" : "vertical";
     divider.setAttribute("aria-orientation", orientation);
 
@@ -899,7 +908,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     highlightCode: leftPane.highlightCode,
     run,
     build,
-    toggleSplit,
     unsplit,
+    toggleSplit,
   };
 }
