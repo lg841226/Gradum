@@ -64,8 +64,8 @@ internal class FrameCodec {
   }
 
   companion object {
-    private val LF: Byte = '\n'.code.toByte()
-    private val CR: Byte = '\r'.code.toByte()
+    private const val LF: Byte = '\n'.code.toByte()
+    private const val CR: Byte = '\r'.code.toByte()
     fun encode(json: String): ByteArray {
       val body = json.toByteArray(Charsets.UTF_8)
       val framed = ByteArray(body.size + 1)

@@ -1,5 +1,3 @@
-@file:OptIn(ExperimentalJewelApi::class)
-
 package gradum.idea
 
 import com.intellij.icons.AllIcons
@@ -13,7 +11,6 @@ import gradum.idea.chat.editor.openGradumChatInEditor
 import gradum.idea.chat.state.GradumChatSession
 import gradum.idea.utils.GradumBundle.message
 import org.jetbrains.jewel.bridge.addComposeTab
-import org.jetbrains.jewel.foundation.ExperimentalJewelApi
 
 /**
  * Factory for creating the Gradum tool window in IntelliJ IDEA.
@@ -23,10 +20,8 @@ import org.jetbrains.jewel.foundation.ExperimentalJewelApi
  * can also be shown as an editor tab; see
  * [gradum.idea.chat.editor.GradumChatFileEditor].
  */
-@OptIn(ExperimentalJewelApi::class)
 class GradumToolWindowFactory : ToolWindowFactory {
 
-  @Suppress("UnstableApiUsage")
   override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
     val settings = gradum.idea.settings.AppearanceSettings.getInstance()
     if (!settings.snapshot.agentEnabled) {

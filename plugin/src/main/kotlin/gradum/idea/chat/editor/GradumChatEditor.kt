@@ -71,13 +71,12 @@ class GradumChatFileEditor(
 }
 
 /** Locates the [ComposePanel] inside the Jewel wrapper (or the panel itself). */
-internal fun findComposePanel(component: Component): ComposePanel? = when {
-  component is ComposePanel -> component
-  component is Container ->
-    component.components.firstNotNullOfOrNull { child -> findComposePanel(child) }
-
-  else -> null
-}
+internal fun findComposePanel(component: Component): ComposePanel? =
+  when (component) {
+    is ComposePanel -> component
+    is Container -> component.components.firstNotNullOfOrNull { child -> findComposePanel(child) }
+    else -> null
+  }
 
 /** Disposes the Compose host so its composition and host scope go away. */
 @OptIn(ExperimentalComposeUiApi::class)

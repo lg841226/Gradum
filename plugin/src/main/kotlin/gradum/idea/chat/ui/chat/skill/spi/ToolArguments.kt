@@ -36,14 +36,6 @@ fun Map<String, Any?>.boolean(key: String, defaultValue: Boolean = false): Boole
 fun Map<String, Any?>.double(key: String, defaultValue: Double = 0.0): Double =
   (get(key) as? Number)?.toDouble() ?: defaultValue
 
-/** Extract a list of strings, returning empty list if missing or wrong type. */
-fun Map<String, Any?>.stringList(key: String): List<String> {
-  val raw = get(key) ?: return emptyList()
-  if (raw is List<*>) return raw.filterIsInstance<String>()
-  if (raw is String) return listOf(raw)
-  return emptyList()
-}
-
 /** Extract a nested map, returning empty map if missing or wrong type. */
 fun Map<String, Any?>.nested(key: String): Map<String, Any?> {
   val raw = get(key)
