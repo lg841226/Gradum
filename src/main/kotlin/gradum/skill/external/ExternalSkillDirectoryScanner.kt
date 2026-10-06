@@ -6,10 +6,14 @@ import gradum.skill.SkillStore
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 internal const val SKILLS_DIRECTORY_NAME: String = "skills"
+
+/** Subdirectory of the skills directory that holds the deployed .class output. */
+internal const val BUILD_DIRECTORY_NAME: String = ".build"
 
 /**
  * Compiles every skill source under ~/.gradum/skills/ with
@@ -44,7 +48,7 @@ internal const val SKILLS_DIRECTORY_NAME: String = "skills"
  * files (last-good) instead of dropping every skill. A failed attempt records
  * its hash too, so the hash always describes the diagnostics stored beside it;
  * recording only successes would let an edit back to the last text that did
- * compile match the old hash, skip the compile, and report the diagnostics the
+ * compile match the old hash, skip to compile, and report the diagnostics the
  * broken text left behind. lastCompiledSourceNames records what the most recent
  * pass compiled, for tests and logs.
  *
@@ -102,6 +106,40 @@ class ExternalSkillDirectoryScanner(
     )
   }
 
+  /**
+   * Compiles [sourceText] as [fileName] without touching the skills directory:
+   * the source and the compiler output both go to a throwaway directory that is
+   * removed before returning. Nothing is written to ~/.gradum/skills/, nothing
+   * is loaded, and the registry is left alone, so this is the editor's Build
+   * action: it answers "does this compile?" without making the skill callable.
+   * Only the diagnostics are reported back.
+   */
+  fun compileOnly(fileName: String, sourceText: String): DeployResult {
+    val safeName = normalizeSourceName(fileName)
+    val buildRoot = Files.createTempDirectory("gradum-skill-build").toFile()
+    try {
+      val sourceFile = buildRoot.resolve(safeName)
+      sourceFile.writeText(sourceText)
+      // The previously deployed output sits on the classpath so a source that
+      // references another installed skill still resolves, exactly as it would
+      // during a deployment compile.
+      val previousOutput = skillsDirectory.resolve(BUILD_DIRECTORY_NAME)
+      val compileResult = skillCompiler.compile(
+        outputDirectory = buildRoot.resolve("out"),
+        sourceFiles = listOf(sourceFile),
+        runtimeClasspath = runtimeClasspath(),
+        additionalClasspath = if (previousOutput.isDirectory) listOf(previousOutput) else emptyList(),
+      )
+      return DeployResult(
+        fileName = safeName,
+        diagnostics = compileResult.diagnostics,
+        compiled = compileResult.isSuccess,
+      )
+    } finally {
+      buildRoot.deleteRecursively()
+    }
+  }
+
   /** Names of the `.kt` sources currently in ~/.gradum/skills/, sorted. */
   fun listSourceNames(): List<String> = listKtSources().map { sourceFile -> sourceFile.name }
 
@@ -132,7 +170,7 @@ class ExternalSkillDirectoryScanner(
     }
 
     val sourceFiles = listKtSources()
-    val outputDirectory = skillsDirectory.resolve(".build")
+    val outputDirectory = skillsDirectory.resolve(BUILD_DIRECTORY_NAME)
     if (sourceFiles.isEmpty()) {
       wipeOutputDirectory(outputDirectory)
       compiledSourceHashes.clear()

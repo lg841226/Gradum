@@ -7,6 +7,12 @@
     --bg-island: color-mix(in srgb, #17181b 78%, transparent);
     --bg-raised: #393b40;
     --bg-popup: #43454a;
+    /* Popups sit on top of an island of the same family, so a border alone
+       reads flat; the shadow is what lifts them off. Tinted navy rather than
+       black: a neutral black over a blue-grey surface reads as a smudge, where a
+       shadow carrying the surface's own hue reads as depth. The light theme
+       takes a cooler, fainter ink, since paper shows a hard shadow as dirt. */
+    --shadow-popup: 0 4px 12px rgb(9 13 24 / 40%);
 
     /* Menubar menu highlight. The bar sits straight on the canvas rather than on
        an island, so a solid fill would read as a hard block; a translucent wash
@@ -121,6 +127,7 @@
     --bg-island: color-mix(in srgb, #ffffff 80%, transparent);
     --bg-raised: #e4e6ea;
     --bg-popup: #ffffff;
+    --shadow-popup: 0 4px 12px rgb(43 53 76 / 14%);
 
     --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
 

@@ -24,13 +24,17 @@ export function mountMinimap(store, {body, source, highlightCode}) {
   body.appendChild(strip);
 
   let scale = 1;
+  let grabOffset = 0;
   let windowOffset = 0;
   let dragging = false;
-  let grabOffset = 0;
 
   function clone() {
     content.innerHTML = highlightCode.innerHTML;
-    content.querySelectorAll(".active").forEach((lineNode) => lineNode.classList.remove("active"));
+    content.querySelectorAll(".active, .has-selection").forEach((lineNode) => {
+      lineNode.classList.remove("active", "has-selection");
+      lineNode.style.removeProperty("--selection-left");
+      lineNode.style.removeProperty("--selection-width");
+    });
     update();
   }
 
@@ -38,19 +42,23 @@ export function mountMinimap(store, {body, source, highlightCode}) {
     const codeWidth = source.clientWidth;
     const stripWidth = strip.clientWidth;
     const stripHeight = strip.clientHeight;
-    if (strip.hidden || !codeWidth || !stripWidth || !stripHeight) return;
+    if (strip.hidden || !codeWidth || !stripWidth || !stripHeight) {
+      return;
+    }
     scale = stripWidth / codeWidth;
 
     const scaledContent = source.scrollHeight * scale;
     const viewTop = source.scrollTop * scale;
     const viewHeight = source.clientHeight * scale;
 
-    windowOffset = scaledContent <= stripHeight
-      ? 0
-      : Math.max(0, Math.min(
-        viewTop - (stripHeight - viewHeight) / 2,
-        scaledContent - stripHeight,
-      ));
+    if (scaledContent <= stripHeight) {
+      windowOffset = 0;
+    } else {
+      windowOffset = Math.max(
+        0,
+        Math.min(viewTop - (stripHeight - viewHeight) / 2, scaledContent - stripHeight),
+      );
+    }
     content.style.transform = `translateY(${-windowOffset}px) scale(${scale})`;
 
     const rectTop = Math.min(Math.max(0, viewTop - windowOffset), stripHeight - 2);
@@ -68,7 +76,9 @@ export function mountMinimap(store, {body, source, highlightCode}) {
   }
 
   strip.addEventListener("mousedown", (event) => {
-    if (strip.hidden) return;
+    if (strip.hidden) {
+      return;
+    }
     event.preventDefault();
     dragging = true;
     document.body.classList.add("is-dragging");
@@ -77,17 +87,19 @@ export function mountMinimap(store, {body, source, highlightCode}) {
     scrollToPointer(event.clientY);
   });
   window.addEventListener("mousemove", (event) => {
-    if (dragging) scrollToPointer(event.clientY);
+    if (dragging) {
+      scrollToPointer(event.clientY);
+    }
   });
   window.addEventListener("mouseup", () => {
     dragging = false;
     document.body.classList.remove("is-dragging");
   });
 
-  // The wheel over the strip scrolls the editor, so the map stays put and the
-  // text moves under the viewport rectangle.
   strip.addEventListener("wheel", (event) => {
-    if (strip.hidden) return;
+    if (strip.hidden) {
+      return;
+    }
     event.preventDefault();
     source.scrollTop += event.deltaY;
   }, {passive: false});
@@ -95,8 +107,6 @@ export function mountMinimap(store, {body, source, highlightCode}) {
   source.addEventListener("input", () => clone());
   source.addEventListener("scroll", () => update());
 
-  // Splitter and rail drags resize the code pane without a window resize, so
-  // the strip watches the text layer instead of the window.
   new ResizeObserver(() => update()).observe(source);
 
   let renderedDocId;

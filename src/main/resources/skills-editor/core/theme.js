@@ -16,7 +16,6 @@ function readPreference() {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     return PREFERENCES.includes(stored) ? stored : "dark";
   } catch (storageError) {
-    // Private mode or a blocked storage API: fall back to dark for this session.
     return "dark";
   }
 }
@@ -31,7 +30,9 @@ export function createTheme() {
 
   const notify = () => {
     const value = {preference, resolved: preference};
-    for (const listener of listeners) listener(value);
+    for (const listener of listeners) {
+      listener(value);
+    }
   };
 
   return {

@@ -1,4 +1,5 @@
 import {formatTime} from "./core/dom.js";
+import {createLayoutWriter, loadLayout} from "./core/persistence.js";
 import {createStore} from "./core/store.js";
 import {listSkills} from "./data/skillsApi.js";
 import {mountCompact} from "./features/compact.js";
@@ -12,6 +13,7 @@ import {mountRail} from "./features/rail.js";
 import {mountSplitters} from "./features/splitter.js";
 import {mountStatusBar} from "./features/statusbar.js";
 import {mountTabs} from "./features/tabs.js";
+import {mountTooltip} from "./ui/components/tooltip.js";
 import {copy} from "./ui/copy.js";
 
 const DEFAULT_SKILL = "HelloSkill.kt";
@@ -30,6 +32,7 @@ const store = createStore({
   view: "problems",
   panel: "problems",
   busy: false,
+  busyTask: null,
   activeId: null,
   autoRail: false,
   collapsed: false,
@@ -38,7 +41,12 @@ const store = createStore({
   treeCollapsed: false,
   railWidth: 208,
   bottomHeight: 200,
+  // Whatever the user last chose for the layout wins over the defaults above;
+  // the size-driven flags stay derived, so they are deliberately not stored.
+  ...loadLayout(),
 });
+
+store.subscribe(createLayoutWriter());
 
 // Features are wired here so they never import each other. The editor island
 // exposes its tab strip and code-surface API; the panels island exposes the two
@@ -66,12 +74,22 @@ mountMinimap(store, {
 mountMenubar(store, {
   canvas,
   onRun: () => void editor.run(),
+  onBuild: () => void editor.build(),
 });
 mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});
 mountStatusBar(store, {canvas});
 
+// Not a feature: one document-wide bubble that reads [data-tooltip], so it has
+// no state to subscribe to and nothing to pass down. Mounted last, since it only
+// has to be listening before the first pointer arrives.
+mountTooltip();
+
 window.addEventListener("keydown", (event) => {
-  if (!(event.metaKey || event.ctrlKey)) return;
+  const command = event.metaKey || event.ctrlKey;
+  if (!command) {
+    return;
+  }
+
   if (event.key === "n") {
     event.preventDefault();
     tabs.create();
@@ -98,3 +116,10 @@ listSkills()
   });
 
 void tabs.open(DEFAULT_SKILL);
+
+// Everything above has run synchronously, so the restored layout is already in
+// the grid. Two frames let the browser paint that first frame with animation
+// suppressed, and only then is the guard lifted so later changes animate.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => document.documentElement.classList.remove("is-booting"));
+});

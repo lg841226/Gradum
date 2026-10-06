@@ -1,6 +1,6 @@
 import {codeMetrics, escapeHtml, FALLBACK_METRICS} from "../core/dom.js";
 import {activeDoc, withDoc} from "../core/store.js";
-import {deploySkill, listSkills} from "../data/skillsApi.js";
+import {buildSkill, deploySkill, listSkills} from "../data/skillsApi.js";
 import {createEmptyState} from "../ui/components/feedback.js";
 import {createIcon} from "../ui/components/icon.js";
 import {createPanel} from "../ui/components/panel.js";
@@ -17,7 +17,15 @@ const KOTLIN_KEYWORDS = [
   "external", "annotation", "actual", "expect", "tailrec",
 ];
 
-const TOKEN_CLASS = {1: "com", 2: "str", 3: "ann", 4: "num", 5: "kw", 6: "type", 7: "fn"};
+const TOKEN_CLASS = {
+  1: "com",
+  2: "str",
+  3: "ann",
+  4: "num",
+  5: "kw",
+  6: "type",
+  7: "fn",
+};
 
 // Compiler output caps the diagnostics it prints inline; anything past this
 // count lives in the Problems panel, which lists them all.
@@ -38,7 +46,9 @@ const TOKEN_PATTERN = new RegExp(
 
 function classOf(match) {
   for (let group = 1; group < match.length; group++) {
-    if (match[group] !== undefined) return TOKEN_CLASS[group];
+    if (match[group] !== undefined) {
+      return TOKEN_CLASS[group];
+    }
   }
   return null;
 }
@@ -47,13 +57,18 @@ function tokenize(text) {
   const tokens = [];
   let cursor = 0;
   let match;
+
   TOKEN_PATTERN.lastIndex = 0;
   while ((match = TOKEN_PATTERN.exec(text)) !== null) {
-    if (match.index > cursor) tokens.push({text: text.slice(cursor, match.index), cls: null});
+    if (match.index > cursor) {
+      tokens.push({text: text.slice(cursor, match.index), cls: null});
+    }
     tokens.push({text: match[0], cls: classOf(match)});
     cursor = match.index + match[0].length;
   }
-  if (cursor < text.length) tokens.push({text: text.slice(cursor), cls: null});
+  if (cursor < text.length) {
+    tokens.push({text: text.slice(cursor), cls: null});
+  }
   return tokens;
 }
 
@@ -62,8 +77,10 @@ function createCount({tone, icon}) {
   const item = document.createElement("span");
   item.className = "status-count";
   item.dataset.tone = tone;
+
   const value = document.createElement("span");
   value.className = "status-count-value";
+
   item.append(createIcon({name: icon}), value);
   return {item, value};
 }
@@ -72,7 +89,9 @@ function createCount({tone, icon}) {
 // actually differs.
 function updateCount(count, value, label) {
   const text = String(value);
-  if (count.value.textContent === text) return;
+  if (count.value.textContent === text) {
+    return;
+  }
   count.value.textContent = text;
   count.item.setAttribute("aria-label", label);
 }
@@ -87,24 +106,28 @@ export function mountEditor(store, {canvas, showPanel}) {
   header.className = "panel-header";
 
   const tabStrip = createTabStrip();
-
   header.append(tabStrip);
 
   const body = document.createElement("div");
   body.className = "editor-body";
 
+  // The gutter and its inner column that scrolls with the text layer.
   const gutter = document.createElement("div");
   gutter.className = "gutter";
+
   const gutterInner = document.createElement("div");
   gutterInner.className = "gutter-inner";
   gutter.appendChild(gutterInner);
 
+  // The code surface: a highlight overlay, a marker layer for squiggles, the
+  // drawn caret, and the native textarea that owns the real caret and selection.
   const code = document.createElement("div");
   code.className = "code";
 
   const highlight = document.createElement("pre");
   highlight.className = "highlight";
   highlight.setAttribute("aria-hidden", "true");
+
   const highlightCode = document.createElement("code");
   highlight.appendChild(highlightCode);
 
@@ -131,6 +154,7 @@ export function mountEditor(store, {canvas, showPanel}) {
   // The bar closes the island, counting the active skill's errors and warnings.
   const statusBar = document.createElement("footer");
   statusBar.className = "editor-status";
+
   const errorCount = createCount({tone: "error", icon: "error-outline"});
   const warningCount = createCount({tone: "warning", icon: "warning-outline"});
   statusBar.append(errorCount.item, warningCount.item);
@@ -161,8 +185,11 @@ export function mountEditor(store, {canvas, showPanel}) {
   function textPositionAt(lineNode, index) {
     let remaining = index;
     const walker = document.createTreeWalker(lineNode, NodeFilter.SHOW_TEXT);
+
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (remaining <= node.data.length) return {node, offset: remaining};
+      if (remaining <= node.data.length) {
+        return {node, offset: remaining};
+      }
       remaining -= node.data.length;
     }
     return null;
@@ -172,15 +199,79 @@ export function mountEditor(store, {canvas, showPanel}) {
   // measured from the line's own left edge. Tabs, wide glyphs and fallback runs
   // are all handled by the layout engine, so the number matches the glyphs.
   function advance(lineNumber, charCount) {
-    if (charCount <= 0) return 0;
+    if (charCount <= 0) {
+      return 0;
+    }
     const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
-    if (!lineNode) return 0;
+    if (!lineNode) {
+      return 0;
+    }
     const position = textPositionAt(lineNode, charCount);
-    if (!position) return 0;
+    if (!position) {
+      return 0;
+    }
+
     const range = document.createRange();
     range.setStart(lineNode, 0);
     range.setEnd(position.node, position.offset);
-    return Math.max(0, range.getBoundingClientRect().right - lineNode.getBoundingClientRect().left);
+
+    const rangeEnd = range.getBoundingClientRect().right;
+    const lineStart = lineNode.getBoundingClientRect().left;
+    return Math.max(0, rangeEnd - lineStart);
+  }
+
+  // Lines currently carrying a selection band, so the next pass clears only what
+  // it has to instead of sweeping the whole document.
+  let selectedLines = [];
+
+  function clearSelection() {
+    for (const lineNode of selectedLines) {
+      lineNode.classList.remove("has-selection");
+      lineNode.style.removeProperty("--selection-left");
+      lineNode.style.removeProperty("--selection-width");
+    }
+    selectedLines = [];
+  }
+
+  // The band is drawn per line from the same measured offsets the caret uses, so
+  // it lines up with the glyphs rather than the line box. A selection that runs
+  // past a line's end simply stops there: the band is the selected characters,
+  // and a line break holds no characters of its own.
+  function updateSelection() {
+    clearSelection();
+
+    const start = source.selectionStart;
+    const end = source.selectionEnd;
+    if (end <= start) {
+      return;
+    }
+
+    const text = source.value;
+    const head = text.slice(0, start).split("\n");
+    let lineNumber = head.length;
+    let lineStart = start - head[head.length - 1].length;
+
+    while (lineStart < end) {
+      let lineEnd = text.indexOf("\n", lineStart);
+      if (lineEnd === -1) {
+        lineEnd = text.length;
+      }
+
+      const from = Math.max(start, lineStart) - lineStart;
+      const to = Math.min(end, lineEnd) - lineStart;
+      const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
+
+      if (lineNode && to > from) {
+        const left = advance(lineNumber, from);
+        lineNode.style.setProperty("--selection-left", `${left}px`);
+        lineNode.style.setProperty("--selection-width", `${advance(lineNumber, to) - left}px`);
+        lineNode.classList.add("has-selection");
+        selectedLines.push(lineNode);
+      }
+
+      lineStart = lineEnd + 1;
+      lineNumber += 1;
+    }
   }
 
   // macOS elastic overscroll can report a negative offset for a moment when a
@@ -204,7 +295,15 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   // East Asian wide and fullwidth ranges. These are the glyphs a monospace grid
   // draws two cells wide, which is how a column is counted for the status bar.
-  const WIDE_GLYPH = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+  // The class is assembled from fragments so no single line runs past the
+  // column limit.
+  const WIDE_GLYPH = new RegExp(
+    [
+      String.raw`[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF`,
+      String.raw`\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3`,
+      String.raw`\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]`,
+    ].join(""),
+  );
 
   // Column the caret sits in, counted the way a monospace grid counts rather
   // than by character: a wide glyph holds two columns, and a tab runs to the
@@ -212,8 +311,15 @@ export function mountEditor(store, {canvas, showPanel}) {
   // deliberately not the same number as the pixel offset `advance` returns.
   function displayColumns(text) {
     let column = 0;
+
     for (const char of text) {
-      column += char === "\t" ? 4 - (column % 4) : WIDE_GLYPH.test(char) ? 2 : 1;
+      if (char === "\t") {
+        column += 4 - (column % 4);
+      } else if (WIDE_GLYPH.test(char)) {
+        column += 2;
+      } else {
+        column += 1;
+      }
     }
     return column;
   }
@@ -233,9 +339,10 @@ export function mountEditor(store, {canvas, showPanel}) {
     // The status bar reads the caret position from the store, so every caret
     // move publishes it — only when it changed, or each blink would render.
     const position = {line: lineIndex + 1, column: column + 1};
-    if (!publishedCursor
+    const changed = !publishedCursor
       || publishedCursor.line !== position.line
-      || publishedCursor.column !== position.column) {
+      || publishedCursor.column !== position.column;
+    if (changed) {
       publishedCursor = position;
       store.setState({cursor: position});
     }
@@ -244,7 +351,6 @@ export function mountEditor(store, {canvas, showPanel}) {
       && source.selectionStart === source.selectionEnd
       && !source.readOnly
       && !code.hidden;
-
     if (!visible) {
       caret.classList.remove("is-visible");
       caretOffset = -1;
@@ -256,12 +362,16 @@ export function mountEditor(store, {canvas, showPanel}) {
     // vertical offset, which it owns.
     const lineNode = highlightCode.querySelector(`.line[data-line="${lineIndex + 1}"]`);
     const {top} = scrollOffset();
-    const x = lineNode
-      ? Math.round(lineNode.getBoundingClientRect().left
-        + advance(lineIndex + 1, linePrefix.length)
-        - code.getBoundingClientRect().left)
-      : 0;
+
+    let x = 0;
+    if (lineNode) {
+      const lineLeft = lineNode.getBoundingClientRect().left;
+      const codeLeft = code.getBoundingClientRect().left;
+      const caretRight = lineLeft + advance(lineIndex + 1, linePrefix.length);
+      x = Math.round(caretRight - codeLeft);
+    }
     const y = Math.round(metrics.padTop + lineIndex * metrics.lineHeight - top);
+
     caret.style.transform = `translate(${x}px, ${y}px)`;
     caret.classList.add("is-visible");
 
@@ -281,14 +391,24 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   function updateActiveLine() {
     const line = lineNumberAt(source.selectionStart);
+
     const previousCode = highlightCode.querySelector(".line.active");
-    if (previousCode) previousCode.classList.remove("active");
+    if (previousCode) {
+      previousCode.classList.remove("active");
+    }
     const previousGutter = gutterInner.querySelector(".gutter-line.active");
-    if (previousGutter) previousGutter.classList.remove("active");
+    if (previousGutter) {
+      previousGutter.classList.remove("active");
+    }
+
     const codeLine = highlightCode.querySelector(`.line[data-line="${line}"]`);
-    if (codeLine) codeLine.classList.add("active");
+    if (codeLine) {
+      codeLine.classList.add("active");
+    }
     const gutterLine = gutterInner.querySelector(`.gutter-line[data-line="${line}"]`);
-    if (gutterLine) gutterLine.classList.add("active");
+    if (gutterLine) {
+      gutterLine.classList.add("active");
+    }
   }
 
   // Anything outside ASCII is boxed in the overlay, so a fullwidth （ is not read
@@ -297,33 +417,41 @@ export function mountEditor(store, {canvas, showPanel}) {
   // added here are never themselves boxed and an entity's ASCII characters are
   // left alone — only the glyphs the file actually holds are wrapped.
   function markGlyphs(text) {
-    return escapeHtml(text).replace(/[^\x00-\x7F]+/g, (run) => `<span class="glyph-box">${run}</span>`);
+    return escapeHtml(text).replace(
+      /[^\x00-\x7F]+/g,
+      (run) => `<span class="glyph-box">${run}</span>`,
+    );
   }
 
   function renderHighlight(text) {
     const lines = [];
     let line = "";
+
     for (const token of tokenize(text)) {
       token.text.split("\n").forEach((part, index) => {
         if (index > 0) {
           lines.push(line);
           line = "";
         }
-        if (part) {
-          line += token.cls
-            ? `<span class="${token.cls}">${markGlyphs(part)}</span>`
-            : markGlyphs(part);
+        if (!part) {
+          return;
+        }
+        if (token.cls) {
+          line += `<span class="${token.cls}">${markGlyphs(part)}</span>`;
+        } else {
+          line += markGlyphs(part);
         }
       });
     }
     lines.push(line);
 
-    highlightCode.innerHTML = lines
-      .map((content, index) => `<span class="line" data-line="${index + 1}">${content}</span>`)
-      .join("");
-    gutterInner.innerHTML = lines
-      .map((_content, index) => `<span class="gutter-line" data-line="${index + 1}">${index + 1}</span>`)
-      .join("");
+    const codeLineHtml = (content, index) =>
+      `<span class="line" data-line="${index + 1}">${content}</span>`;
+    const gutterLineHtml = (_content, index) =>
+      `<span class="gutter-line" data-line="${index + 1}">${index + 1}</span>`;
+
+    highlightCode.innerHTML = lines.map(codeLineHtml).join("");
+    gutterInner.innerHTML = lines.map(gutterLineHtml).join("");
     updateActiveLine();
   }
 
@@ -333,9 +461,14 @@ export function mountEditor(store, {canvas, showPanel}) {
     gutter.hidden = !doc;
     code.hidden = !doc;
     emptyState.hidden = Boolean(doc);
+
     renderHighlight(source.value);
+    updateSelection();
     syncScroll();
-    if (doc) source.focus();
+
+    if (doc) {
+      source.focus();
+    }
   }
 
   function patchDoc(id, patch) {
@@ -359,13 +492,16 @@ export function mountEditor(store, {canvas, showPanel}) {
   async function run() {
     const state = store.getState();
     const doc = activeDoc(state);
-    if (!doc) return;
+    if (!doc) {
+      return;
+    }
+
     const name = doc.name;
     const text = source.value;
     const lines = text.split("\n").length;
     const bytes = new TextEncoder().encode(text).length;
 
-    store.setState({busy: true});
+    store.setState({busy: true, busyTask: "run"});
     showPanel?.("output");
     logLine(copy.log.deploying(name, {lines, bytes}), "busy");
 
@@ -390,6 +526,7 @@ export function mountEditor(store, {canvas, showPanel}) {
       const diagnostics = result.body.diagnostics || [];
       const errors = diagnostics.filter((item) => item.severity === "error").length;
       const warnings = diagnostics.filter((item) => item.severity === "warning").length;
+
       patchDoc(doc.id, {
         name: result.body.fileName,
         baseline: source.value,
@@ -410,6 +547,7 @@ export function mountEditor(store, {canvas, showPanel}) {
         logLine(copy.log.fixHint, null);
         showPanel?.("problems");
       }
+
       void refreshFiles();
     } catch (error) {
       patchDoc(doc.id, {
@@ -418,45 +556,127 @@ export function mountEditor(store, {canvas, showPanel}) {
       logLine(copy.log.unreachable(), "error");
       showPanel?.("problems");
     } finally {
-      store.setState({busy: false});
+      store.setState({busy: false, busyTask: null});
+    }
+  }
+
+  // Compile-only sibling of run(). It asks the server to compile the buffer and
+  // nothing else: nothing is written to the skills directory, the registry is not
+  // touched, and no panel is opened, so the workspace stays exactly where it is.
+  // Only the diagnostics come back, which is what redraws the squiggles and the
+  // status bar counts.
+  async function build() {
+    const state = store.getState();
+    const doc = activeDoc(state);
+    if (!doc) {
+      return;
+    }
+
+    const name = doc.name;
+    const text = source.value;
+    const lines = text.split("\n").length;
+    const bytes = new TextEncoder().encode(text).length;
+
+    store.setState({busy: true, busyTask: "build"});
+    logLine(copy.log.building(name, {lines, bytes}), "busy");
+
+    const startedAt = performance.now();
+    try {
+      const result = await buildSkill(name, text);
+      const ms = Math.round(performance.now() - startedAt);
+
+      if (!result.ok || !result.body) {
+        const detail = (result.body && result.body.error) || result.raw || `HTTP ${result.status}`;
+        patchDoc(doc.id, {
+          diagnostics: [{severity: "error", message: detail, line: null, column: null}],
+        });
+        logLine(
+          result.ok ? copy.log.malformed(detail) : copy.log.rejected(result.status, detail),
+          "error",
+        );
+        return;
+      }
+
+      const diagnostics = result.body.diagnostics || [];
+      const errors = diagnostics.filter((item) => item.severity === "error").length;
+      const warnings = diagnostics.filter((item) => item.severity === "warning").length;
+
+      // Nothing was deployed, so the baseline and the dirty flag stay as they
+      // are: the buffer is still unsaved and the loaded skill is unchanged.
+      patchDoc(doc.id, {diagnostics});
+
+      if (errors === 0) {
+        logLine(copy.log.built(result.body.fileName, warnings, ms), "ok");
+      } else {
+        logLine(copy.log.buildFailed(result.body.fileName, errors, warnings, ms), "error");
+        for (const item of diagnostics.slice(0, MAX_LOG_PROBLEMS)) {
+          logLine(copy.log.problem(item), "detail");
+        }
+        if (diagnostics.length > MAX_LOG_PROBLEMS) {
+          logLine(copy.log.moreProblems(diagnostics.length - MAX_LOG_PROBLEMS), "detail");
+        }
+      }
+    } catch (error) {
+      patchDoc(doc.id, {
+        diagnostics: [{severity: "error", message: error.message, line: null, column: null}],
+      });
+      logLine(copy.log.unreachable(), "error");
+    } finally {
+      store.setState({busy: false, busyTask: null});
     }
   }
 
   function onInput() {
     const state = store.getState();
     const doc = activeDoc(state);
+
     if (doc) {
       const value = source.value;
       const dirty = value !== doc.baseline;
       const patch = {source: value};
-      if (dirty !== doc.dirty) patch.dirty = dirty;
+
+      if (dirty !== doc.dirty) {
+        patch.dirty = dirty;
+      }
       // Diagnostics are the last run's verdict on the text as it was then, so an
       // edit leaves them describing lines that moved or that the edit already
       // fixed. Drop them here; the next run repopulates them.
-      if (doc.diagnostics.length > 0) patch.diagnostics = [];
-      store.setState({...withDoc(state, doc.id, patch), sourceRevision: state.sourceRevision + 1});
+      if (doc.diagnostics.length > 0) {
+        patch.diagnostics = [];
+      }
+
+      const next = {...withDoc(state, doc.id, patch), sourceRevision: state.sourceRevision + 1};
+      store.setState(next);
     } else {
       store.setState({sourceRevision: state.sourceRevision + 1});
     }
+
     renderHighlight(source.value);
+    updateSelection();
     syncScroll();
   }
 
   source.addEventListener("input", onInput);
   source.addEventListener("scroll", syncScroll);
+
   // Holding an arrow key repeats keydown but fires neither keyup nor input, and
-  // the text layer only scrolls once the caret reaches an edge — so a caret
+  // the text layer only scrolls once the caret reaches an edge: so a caret
   // redrawn on those events alone would sit still through the whole repeat and
   // then jump on release. The caret moves on every repeat, and selectionchange
   // is the one event that reports it, so it replaces the click/keyup/select
   // trio rather than standing beside them.
   document.addEventListener("selectionchange", () => {
-    if (document.activeElement !== source) return;
+    if (document.activeElement !== source) {
+      return;
+    }
     updateActiveLine();
     updateCaret();
+    updateSelection();
   });
+
   source.addEventListener("focus", updateCaret);
   source.addEventListener("blur", updateCaret);
+
   source.addEventListener("keydown", (event) => {
     if (event.key === "Tab") {
       event.preventDefault();
@@ -487,14 +707,18 @@ export function mountEditor(store, {canvas, showPanel}) {
       renderedId = id;
       loadDoc(doc);
     }
+
     const diagnostics = (doc && doc.diagnostics) || [];
     const errors = diagnostics.filter((item) => item.severity === "error").length;
     const warnings = diagnostics.filter((item) => item.severity === "warning").length;
     updateCount(errorCount, errors, copy.statusBar.errors(errors));
     updateCount(warningCount, warnings, copy.statusBar.warnings(warnings));
+
     if (state.focusToken !== renderedFocus) {
       renderedFocus = state.focusToken;
-      if (doc) source.focus();
+      if (doc) {
+        source.focus();
+      }
     }
   };
 
@@ -505,14 +729,15 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   return {
     body,
-    tabStrip,
     source,
-    highlightCode,
     markers,
     metrics,
-    advance,
+    tabStrip,
+    highlightCode,
     run,
+    build,
+    advance,
     syncScroll,
-    updateActiveLine,
+    updateActiveLine
   };
 }

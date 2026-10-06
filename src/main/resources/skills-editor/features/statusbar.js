@@ -14,11 +14,14 @@ export function mountStatusBar(store, {canvas}) {
 
   // Line ending and encoding. Both hold fixed text for now because nothing on
   // the document carries either one yet, and neither is wired to a click: this
-  // is the space and the hit area they will take.
+  // is the space and the hit area they will take. The hover tips come from the
+  // copy, read by the document-wide [data-tooltip] bubble.
   const lineEnding = document.createElement("span");
   lineEnding.className = "statusbar-item";
+  lineEnding.dataset.tooltip = copy.statusBar.lineEndingTip;
   const encoding = document.createElement("span");
   encoding.className = "statusbar-item";
+  encoding.dataset.tooltip = copy.statusBar.encodingTip;
 
   // Every reported value sits at the right end, leaving the left one for counts
   // and connection state.
@@ -38,13 +41,18 @@ export function mountStatusBar(store, {canvas}) {
     if (!doc) {
       position.textContent = "";
       position.removeAttribute("aria-label");
+      position.removeAttribute("data-tooltip");
       return;
     }
+
     const {line, column} = state.cursor;
     // The strip shows the bare "line:column" a code window uses; the label
     // spells it out for screen readers, which the shorthand does not convey.
     position.textContent = copy.statusBar.position(line, column);
     position.setAttribute("aria-label", copy.statusBar.positionLabel(line, column));
+    // The tip follows the caret, so it always spells out the position the
+    // strip currently shows.
+    position.dataset.tooltip = copy.statusBar.positionTip(line, column);
   };
 
   store.subscribe(render);

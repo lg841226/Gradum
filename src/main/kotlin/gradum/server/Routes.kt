@@ -5,6 +5,7 @@ import gradum.Version
 import gradum.agent.Agent
 import gradum.server.ConfigOverrides.Companion.fromRequestMap
 import gradum.skill.SkillRegistry
+import gradum.skill.external.DeployResult
 import gradum.skill.external.ExternalDiagnosticSeverity
 import gradum.skill.external.ExternalSkillHost
 import gradum.utils.ContextManager
@@ -277,6 +278,7 @@ internal data class SkillDeployRequest(val name: String, val source: String)
  * - `GET /models` : discovered LLM models.
  * - `GET /skills` : registered Skill implementations.
  * - `POST /skills/deploy` : write one external skill source and return compile diagnostics.
+ * - `POST /skills/build` : compile one external skill source without writing or loading it.
  * - `GET /skills/sources` : list the external skill source names.
  * - `GET /skills/source`  : read one external skill source.
  * - `GET /skills/editor`  : the bundled skill editor page.
@@ -632,9 +634,6 @@ fun Application.registerAllRoutes(
         return@post
       }
 
-      // Strict-child guard reused from POST /session/delete: a bare `startsWith`
-      // check would let `sessionId="."` normalize to the sessions root itself
-      // and truncate every session's context on a single request.
       val projectRootPath: Path = Paths.get(rawProjectRoot).toAbsolutePath().normalize()
       val sessionsRoot: Path = projectRootPath.resolve(".gradum").resolve("sessions").normalize()
       val sessionDir: Path = sessionsRoot.resolve(sessionKey).normalize()
@@ -814,25 +813,52 @@ fun Application.registerAllRoutes(
           )
           return@post
         }
-      call.respondText(
-        text = JsonUtil.encodeMap(
-          mapOf(
-            "fileName" to deployResult.fileName,
-            "compiled" to deployResult.compiled,
-            "diagnostics" to deployResult.diagnostics
-              .filter { diagnostic -> diagnostic.severity != ExternalDiagnosticSeverity.INFO }
-              .map { diagnostic ->
-                mapOf(
-                  "severity" to diagnostic.severity.name.lowercase(),
-                  "message" to diagnostic.message,
-                  "line" to diagnostic.line,
-                  "column" to diagnostic.column,
-                )
-              },
+      call.respondSkillCompileResult(deployResult)
+    }
+
+    post("/skills/build") {
+      val scanner = ExternalSkillHost.scanner
+      if (scanner == null) {
+        call.respondText(
+          text = JsonUtil.encodeMap(mapOf("error" to "External skills directory is not initialized")),
+          status = HttpStatusCode.ServiceUnavailable,
+          contentType = ContentType.Application.Json,
+        )
+        return@post
+      }
+      val request: SkillDeployRequest =
+        try {
+          call.receive<SkillDeployRequest>()
+        } catch (malformedBody: Exception) {
+          call.respondText(
+            text = JsonUtil.encodeMap(mapOf("error" to "Invalid build request body: ${malformedBody.message}")),
+            status = HttpStatusCode.BadRequest,
+            contentType = ContentType.Application.Json,
           )
-        ),
-        contentType = ContentType.Application.Json,
-      )
+          return@post
+        }
+      val buildResult =
+        try {
+          scanner.compileOnly(request.name, request.source)
+        } catch (invalidName: IllegalArgumentException) {
+          call.respondText(
+            text = JsonUtil.encodeMap(mapOf("error" to (invalidName.message ?: "Invalid skill name"))),
+            status = HttpStatusCode.BadRequest,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        } catch (buildFailure: Exception) {
+          logger.error("Skill build failed for {}", request.name, buildFailure)
+          call.respondText(
+            text = JsonUtil.encodeMap(
+              mapOf("error" to "Build failed: ${buildFailure.message ?: buildFailure.toString()}")
+            ),
+            status = HttpStatusCode.InternalServerError,
+            contentType = ContentType.Application.Json,
+          )
+          return@post
+        }
+      call.respondSkillCompileResult(buildResult)
     }
 
     get("/skills/editor") {
@@ -889,6 +915,33 @@ fun Application.registerAllRoutes(
       call.respondText(text = body, contentType = contentType)
     }
   }
+}
+
+/**
+ * The single place that shapes a compile outcome for the wire. Both deploy and
+ * build answer with this body, so the editor parses one result shape whichever
+ * request it sent.
+ */
+private suspend fun ApplicationCall.respondSkillCompileResult(result: DeployResult) {
+  respondText(
+    text = JsonUtil.encodeMap(
+      mapOf(
+        "fileName" to result.fileName,
+        "compiled" to result.compiled,
+        "diagnostics" to result.diagnostics
+          .filter { diagnostic -> diagnostic.severity != ExternalDiagnosticSeverity.INFO }
+          .map { diagnostic ->
+            mapOf(
+              "severity" to diagnostic.severity.name.lowercase(),
+              "message" to diagnostic.message,
+              "line" to diagnostic.line,
+              "column" to diagnostic.column,
+            )
+          },
+      )
+    ),
+    contentType = ContentType.Application.Json,
+  )
 }
 
 private fun readBundledResource(resourcePath: String): String? =

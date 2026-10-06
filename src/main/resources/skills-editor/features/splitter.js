@@ -27,7 +27,7 @@ function dragPointer(cursor, onMove) {
 function createSplitter(variant, orientation, tooltip) {
   const splitter = document.createElement("div");
   splitter.className = `splitter ${variant}`;
-  splitter.title = tooltip;
+  splitter.dataset.tooltip = tooltip;
   splitter.setAttribute("role", "separator");
   splitter.setAttribute("aria-orientation", orientation);
   return splitter;
@@ -44,6 +44,7 @@ export function mountSplitters(store, {canvas, rail, bottom}) {
   railSplitter.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const left = rail.getBoundingClientRect().left;
+
     dragPointer("col-resize", (moveEvent) => {
       const width = clamp(moveEvent.clientX - left, RAIL_MIN, RAIL_MAX);
       store.setState({railWidth: width});
@@ -53,8 +54,10 @@ export function mountSplitters(store, {canvas, rail, bottom}) {
   bottomSplitter.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const edge = bottom.getBoundingClientRect().bottom;
+
     dragPointer("row-resize", (moveEvent) => {
-      const height = clamp(edge - moveEvent.clientY, BOTTOM_MIN, window.innerHeight * BOTTOM_MAX_RATIO);
+      const max = window.innerHeight * BOTTOM_MAX_RATIO;
+      const height = clamp(edge - moveEvent.clientY, BOTTOM_MIN, max);
       store.setState({bottomHeight: height});
     });
   });
@@ -62,6 +65,7 @@ export function mountSplitters(store, {canvas, rail, bottom}) {
   const apply = (state) => {
     canvas.style.setProperty("--rail-width", `${state.railWidth}px`);
   };
+
   store.subscribe(apply);
   apply(store.getState());
 

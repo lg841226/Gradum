@@ -4,12 +4,15 @@ function createLine({message, tone, time}) {
   const line = document.createElement("div");
   line.className = "output-line";
   line.dataset.tone = tone || "neutral";
+
   const stamp = document.createElement("span");
   stamp.className = "output-time";
   stamp.textContent = time || formatTime();
+
   const text = document.createElement("span");
   text.className = "output-text";
   text.textContent = message;
+
   line.append(stamp, text);
   return line;
 }
@@ -27,8 +30,11 @@ export function mountConsole(store, {body}) {
       container.appendChild(createLine(state.log[index]));
       appended++;
     }
+
     rendered = state.log.length;
-    if (appended > 0) body.scrollTop = body.scrollHeight;
+    if (appended > 0) {
+      body.scrollTop = body.scrollHeight;
+    }
   };
 
   store.subscribe(render);

@@ -6,7 +6,9 @@ export function createStore(initialState) {
   const listeners = new Set();
 
   const emit = () => {
-    for (const listener of listeners) listener(state);
+    for (const listener of listeners) {
+      listener(state);
+    }
   };
 
   return {

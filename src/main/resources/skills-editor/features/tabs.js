@@ -9,7 +9,9 @@ const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 // A name is taken when it is already on disk or open in a tab. Renaming ignores
 // the tab being renamed so a no-op rename stays valid.
 function isNameTaken(state, name, exceptId = null) {
-  if (state.files.includes(name)) return true;
+  if (state.files.includes(name)) {
+    return true;
+  }
   return state.docs.some((doc) => doc.id !== exceptId && doc.name === name);
 }
 
@@ -39,7 +41,9 @@ export function mountTabs(store, {strip}) {
 
   function nextName(state) {
     let index = 1;
-    while (isNameTaken(state, `NewSkill${index}.kt`)) index++;
+    while (isNameTaken(state, `NewSkill${index}.kt`)) {
+      index++;
+    }
     return `NewSkill${index}.kt`;
   }
 
@@ -49,6 +53,7 @@ export function mountTabs(store, {strip}) {
       activate(existing.id);
       return;
     }
+
     let remote = null;
     try {
       remote = await loadSkill(name);
@@ -57,6 +62,7 @@ export function mountTabs(store, {strip}) {
       // dropping the open request.
       store.setState({status: {text: copy.status.unreachable, tone: "error"}});
     }
+
     const source = remote === null ? starter : remote;
     addDoc({
       id: store.getState().nextId,
@@ -83,7 +89,10 @@ export function mountTabs(store, {strip}) {
   function close(id) {
     const state = store.getState();
     const index = state.docs.findIndex((doc) => doc.id === id);
-    if (index === -1) return;
+    if (index === -1) {
+      return;
+    }
+
     const docs = state.docs.filter((doc) => doc.id !== id);
     let activeId = state.activeId;
     if (activeId === id) {
@@ -95,7 +104,9 @@ export function mountTabs(store, {strip}) {
 
   function closeActive() {
     const activeId = store.getState().activeId;
-    if (activeId != null) close(activeId);
+    if (activeId != null) {
+      close(activeId);
+    }
   }
 
   function rename(id, rawName) {
@@ -104,12 +115,14 @@ export function mountTabs(store, {strip}) {
       store.setState({status: {text: copy.status.invalidName, tone: "error"}});
       return false;
     }
+
     const name = `${bare}.kt`;
     const state = store.getState();
     if (isNameTaken(state, name, id)) {
       store.setState({status: {text: copy.status.nameTaken(name), tone: "error"}});
       return false;
     }
+
     store.setState({
       ...withDoc(state, id, {name}),
       status: {text: "", tone: "neutral"},
@@ -119,7 +132,10 @@ export function mountTabs(store, {strip}) {
 
   function beginRename(tab, doc) {
     const label = tab.querySelector(".tab-label");
-    if (!label) return;
+    if (!label) {
+      return;
+    }
+
     // Match the label it replaces, so the tab keeps its size while renaming
     // instead of jumping to the field's default width.
     const width = label.getBoundingClientRect().width;
@@ -143,7 +159,9 @@ export function mountTabs(store, {strip}) {
       state.docs.map((doc) => [doc.id, doc.name, doc.dirty]),
       state.activeId,
     ]);
-    if (next === signature) return;
+    if (next === signature) {
+      return;
+    }
     signature = next;
 
     renderTabStrip(
@@ -162,7 +180,9 @@ export function mountTabs(store, {strip}) {
         onClose: (tab) => close(Number(tab.dataset.id)),
         onRename: (tab) => {
           const doc = findDoc(store.getState(), Number(tab.dataset.id));
-          if (doc) beginRename(tab, doc);
+          if (doc) {
+            beginRename(tab, doc);
+          }
         },
       },
     );

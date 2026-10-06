@@ -19,7 +19,9 @@ export function createPanelHeader({title, actions = []} = {}) {
     header.appendChild(spacer);
     const group = document.createElement("div");
     group.className = "panel-actions";
-    for (const action of actions) group.appendChild(action);
+    for (const action of actions) {
+      group.appendChild(action);
+    }
     header.appendChild(group);
   }
   return header;

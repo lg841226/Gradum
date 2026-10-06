@@ -2,6 +2,16 @@
    gaps. A view menu runs across the top and a status strip along the bottom;
    the rail spans the height between them and the bottom tool window sits under
    the editor only. Splitter tracks double as the gaps and as drag handles. */
+
+/* First-frame guard. The pre-paint script in index.html sets this class before
+   anything is styled; it stays until the restored layout has been written to the
+   grid, so the panels do not animate from their CSS defaults into the stored
+   sizes on load. Animation is suppressed for one frame, then the class is
+   dropped in main.js. */
+html.is-booting * {
+    transition: none !important;
+}
+
 .canvas {
     height: 100vh;
     padding: var(--island-gap);
@@ -45,11 +55,14 @@
 
 /* View menu: the views as plain text in a bar across the top, the way a desktop
    window lists its menus. It sits straight on the canvas, not an island. The bar
-   is one row, not a centred three-column grid: the brand and the view menu, then
-   the run widget right after them, then the theme toggle held at the far edge.
-   Only the menu gives way as the window narrows, so the entries fold instead of
-   the bar carrying a wasted half-column that let the menu run out of room early
-   and spill over the widget. */
+   is one row, not a centred three-column grid: the brand and the view menu, the
+   theme toggle held at the far edge, and the run widget floating between them.
+   The widget sits exactly at the middle because the two side groups take equal
+   shares of the space, not because it is centred in what is left over; as the
+   window narrows the menu's share gives way and the widget slides left with it,
+   coming to rest against the menu instead of over it. Only the menu gives way,
+   so the entries fold instead of the bar carrying a wasted half-column that let
+   the menu run out of room early and spill over the widget. */
 .menubar {
     grid-column: 1 / -1;
     grid-row: 1;
@@ -68,19 +81,25 @@
 
 /* The brand unit sits further from the view menu than the menu items sit from
    each other, so the two groups read as separate. The group is also the only
-   part of the bar that gives way, so it is held at its content size and clipped:
-   anything the fold has not caught up with yet is cut off at the widget's edge
-   rather than drawn over it. */
+   part of the bar that gives way: it takes an equal share of the space the widget
+   leaves and clips whatever the fold has not caught up with, so nothing is ever
+   drawn over the widget. */
 .menubar-left {
     gap: var(--space-3);
     overflow: hidden;
+    flex: 1 1 0;
 }
 
-/* The run widget keeps its own size so it is never squeezed, and the theme
-   toggle is pushed past it to the far edge. */
+/* The two side groups take an equal share of the space, which is what puts the
+   widget's own track at the middle of the bar — auto margins would centre it in
+   the room left over instead, and the menu is far wider than the toggle, so that
+   reads as off-centre to the right. The toggle's group cannot shrink past its
+   button, so as the window narrows the menu's share gives way first and the
+   widget slides left with it rather than closing over the toggle. */
 .menubar-right {
-    flex: 0 0 auto;
-    margin-left: auto;
+    flex: 1 1 0;
+    min-width: max-content;
+    justify-content: flex-end;
 }
 
 .menubar-brand {
@@ -381,9 +400,35 @@ body.is-dragging .splitter {
     display: block;
 }
 
+/* A line is its own stacking context, so the selection band below can be pushed
+   behind the line's text with a negative z-index while still sitting on top of
+   the line's own background — the one slot between "line is painted" and "line's
+   glyphs are painted". */
 .highlight .line {
     display: block;
+    position: relative;
+    z-index: 0;
     min-height: var(--line-height-code);
+}
+
+/* The selection band. Drawn as a pseudo-element rather than laid out as markup,
+   so it never touches the text nodes the caret measures against, and sized by
+   the editor from one line's pixel offsets. It takes the caret's own height from
+   the caret's own token, so the two are always exactly as tall as each other. */
+.highlight .line::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    display: none;
+    top: 0;
+    height: var(--line-height-code);
+    left: var(--selection-left, 0);
+    width: var(--selection-width, 0);
+    background: var(--accent-selection);
+}
+
+.highlight .line.has-selection::before {
+    display: block;
 }
 
 .highlight .line.active {
@@ -435,7 +480,10 @@ body.is-dragging .splitter {
 }
 
 .source::selection {
-    background: var(--accent-selection);
+    /* The platform paints the selection across the whole line box, so the band
+       stands taller than the glyphs and drifts with the fallback font's metrics.
+       Silenced here; the editor draws the band itself, at a height it picks. */
+    background: transparent;
 }
 
 .source[readonly] {

@@ -9,7 +9,9 @@ export function createListItem({label, icon, active = false, muted = false, onCl
   item.setAttribute("aria-selected", active ? "true" : "false");
   item.dataset.muted = muted ? "true" : "false";
   item.title = label;
-  if (icon) item.appendChild(createIcon({name: icon}));
+  if (icon) {
+    item.appendChild(createIcon({name: icon}));
+  }
 
   const name = document.createElement("span");
   name.className = "list-item-label";
@@ -45,7 +47,7 @@ export function createTreeRow({label, expanded = true, onToggle, children} = {})
   twisty.type = "button";
   twisty.className = "tree-twisty";
   const tip = expanded ? copy.tooltip.collapseTree : copy.tooltip.expandTree;
-  twisty.title = tip;
+  twisty.dataset.tooltip = tip;
   twisty.setAttribute("aria-label", tip);
   twisty.appendChild(createIcon({name: "chevron-down"}));
   twisty.addEventListener("click", () => onToggle?.());
@@ -56,6 +58,8 @@ export function createTreeRow({label, expanded = true, onToggle, children} = {})
 
   row.append(twisty, createIcon({name: "folder"}), name);
   item.appendChild(row);
-  if (children) item.appendChild(children);
+  if (children) {
+    item.appendChild(children);
+  }
   return item;
 }

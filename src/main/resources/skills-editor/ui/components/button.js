@@ -14,18 +14,24 @@ export function createButton({
   button.type = "button";
   button.classList.add("btn");
   button.dataset.variant = variant;
-  if (tooltip) button.title = tooltip;
+  if (tooltip) {
+    button.dataset.tooltip = tooltip;
+  }
   if (ariaLabel || (variant === "icon" && tooltip)) {
     button.setAttribute("aria-label", ariaLabel || tooltip);
   }
-  if (icon) button.appendChild(createIcon({name: icon}));
+  if (icon) {
+    button.appendChild(createIcon({name: icon}));
+  }
   if (label) {
     const span = document.createElement("span");
     span.textContent = label;
     button.appendChild(span);
   }
   button.disabled = disabled;
-  if (onClick) button.addEventListener("click", onClick);
+  if (onClick) {
+    button.addEventListener("click", onClick);
+  }
   return button;
 }
 

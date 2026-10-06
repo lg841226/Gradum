@@ -20,16 +20,12 @@ export function mountCompact(store, {canvas}) {
 
   const evaluate = () => {
     const state = store.getState();
-    // clientWidth and clientHeight take in the canvas padding, so the gaps come
-    // off both sides of the canvas first, then the ones the tracks use around
-    // the editor: one to its left, three above and below it.
     const editorWidth = canvas.clientWidth - gap * 3 - state.railWidth;
-    const editorHeight = canvas.clientHeight
-      - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight;
+    const editorHeight = canvas.clientHeight - gap * 5 - menubarHeight - statusbarHeight - state.bottomHeight;
+
     const autoRail = editorWidth < EDITOR_MIN_WIDTH;
     const autoBottom = editorHeight < EDITOR_MIN_HEIGHT;
-    // Written only on a change, so the subscription that calls this cannot feed
-    // itself.
+
     if (autoRail !== state.autoRail || autoBottom !== state.autoBottom) {
       store.setState({autoRail, autoBottom});
     }

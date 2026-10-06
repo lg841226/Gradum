@@ -3,7 +3,7 @@
 //
 // Vendored from the IntelliJ platform, all under Apache 2.0,
 // Copyright 2000-2025 JetBrains s.r.o. and contributors:
-//   lib/intellij.platform.ide.jar          expui/{toolwindows,general,status,run}/*
+//   lib/intellij.platform.ide.jar          expui/{toolwindows,general,status,run,build}/*
 //   plugins/Kotlin/lib/intellij.kotlin.base.resources.jar
 //                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
 //
@@ -44,6 +44,23 @@ export const icons = {
     + 'C3.83333 14.4471 3 13.966 3 13.1962L3 2.80385C3 2.03405 3.83333 1.55292 4.5 1.93782'
     + 'L13.5 7.13397Z" stroke-width="1" stroke-linejoin="miter"/>',
 
+  // expui/build/build.svg
+  build: '<path fill-rule="evenodd" clip-rule="evenodd" d="M3.5 1C3.63261 1 3.75975 1.05272'
+    + ' 3.85352 1.14648'
+    + 'L4.70703 2H5.29297L6.14648 1.14648L6.22266 1.08398C6.30419 1.02963 6.40056 1 6.5 1H10.5'
+    + 'C13.3162 1 15 3.2657 15 5.5C15 5.67329 14.9101 5.83468 14.7627 5.92578C14.6153 6.01669'
+    + ' 14.4312 6.02471 14.2764 5.94727L12.3818 5H10.707L10 5.70703V14.5C10 14.7761 9.77614 15'
+    + ' 9.5 15H6.5C6.22386 15 6 14.7761 6 14.5V5.70703L5.29297 5H4.70703L3.85352 5.85352'
+    + 'C3.75975 5.94728 3.63261 6 3.5 6H1.5C1.22386 6 1 5.77614 1 5.5V1.5C1 1.22386 1.22386 1'
+    + ' 1.5 1H3.5ZM7 14H9V6H7V14ZM2 5H3.29297L4.14648 4.14648L4.22266 4.08398C4.30419 4.02963'
+    + ' 4.40056 4 4.5 4H5.5C5.63261 4 5.75975 4.05272 5.85352 4.14648L6.70703 5H9.29297'
+    + 'L10.1465 4.14648L10.2227 4.08398C10.3042 4.02963 10.4006 4 10.5 4H12.5'
+    + 'C12.5776 4 12.6542 4.01802'
+    + ' 12.7236 4.05273L13.8936 4.6377C13.5415 3.21018 12.324 2 10.5 2H6.70703L5.85352 2.85352'
+    + 'C5.75975 2.94728 5.63261 3 5.5 3H4.5C4.36739 3 4.24025 2.94728 4.14648 2.85352'
+    + 'L3.29297 2H2V5Z"'
+    + ' fill="currentColor" stroke="none"/>',
+
   // Kotlin plugin. The dark variant (expui/kotlin_dark.svg) shapes the sprite;
   // the light variant (expui/kotlin.svg) supplies the other token values.
   kotlin: '<path d="M13.3337 12.6314C13.6699 12.9396 13.4519 13.5 12.9958 13.5H3C2.72386 13.5'
@@ -83,9 +100,11 @@ export const icons = {
   // expui/status/errorOutline.svg and warningOutline.svg, the hollow severity
   // marks the status bar counts with. The platform grays them per theme; the
   // gray is rewritten to currentColor so each count can take its severity token.
-  "warning-outline": '<path fill-rule="evenodd" clip-rule="evenodd" d="M7.17283 2.48224L2.14605 11.3566'
+  "warning-outline": '<path fill-rule="evenodd" clip-rule="evenodd" d="M7.17283 2.48224'
+    + 'L2.14605 11.3566'
     + 'C1.73052 12.0902 2.26023 12.9996 3.10308 12.9996H12.8956C13.7385 12.9996 14.2682 12.0902'
-    + ' 13.8526 11.3566L8.82587 2.48224C8.46196 1.83979 7.53673 1.8398 7.17283 2.48224ZM1.27603 10.8634'
+    + ' 13.8526 11.3566L8.82587 2.48224C8.46196 1.83979 7.53673 1.8398'
+    + ' 7.17283 2.48224ZM1.27603 10.8634'
     + 'L6.3028 1.98903C7.04977 0.670323 8.94893 0.670326 9.69589 1.98903L14.7227 10.8634'
     + 'C15.516 12.2639 14.5047 14 12.8956 14H3.10308C1.494 14 0.482737 12.2639 1.27603 10.8634Z"'
     + ' fill="currentColor" stroke="none"/>'

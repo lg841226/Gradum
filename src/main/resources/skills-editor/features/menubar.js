@@ -5,10 +5,10 @@ import {createTheme} from "../core/theme.js";
 
 // The view menu: the three views as plain text in a bar across the top, the way
 // a desktop window lists its menus. The menu owns the selected view; Problems
-// and Output also drive the bottom tool window, while Explorer toggles the rail
+// and Console also drive the bottom tool window, while Explorer toggles the rail
 // the way the platform toggles a tool window from its own bar button. The run
 // widget sits in the middle and names the skill it would run.
-export function mountMenubar(store, {canvas, onRun}) {
+export function mountMenubar(store, {canvas, onRun, onBuild}) {
   const bar = document.createElement("nav");
   bar.className = "menubar";
 
@@ -16,27 +16,35 @@ export function mountMenubar(store, {canvas, onRun}) {
     {
       name: "explorer",
       label: copy.control.explorer,
+      mnemonic: 0,
       select: (state) => ({view: "explorer", railCollapsed: !state.railCollapsed}),
     },
     {
       name: "problems",
       label: copy.control.problems,
+      mnemonic: 0,
       select: () => ({view: "problems", panel: "problems", collapsed: false}),
     },
     {
       name: "output",
       label: copy.control.output,
+      mnemonic: 0,
       select: () => ({view: "output", panel: "output", collapsed: false}),
     },
     // Two layout presets close the list: the editor alone, and everything back.
+    // Editor skips its first letter: the E already belongs to Explorer, so its
+    // access key falls to the next letter, the way a desktop menu resolves a
+    // duplicate.
     {
       name: "editor",
       label: copy.control.editor,
+      mnemonic: 1,
       select: () => ({view: "editor", railCollapsed: true, collapsed: true}),
     },
     {
       name: "all",
       label: copy.control.all,
+      mnemonic: 0,
       select: () => ({view: "all", railCollapsed: false, collapsed: false}),
     },
   ];
@@ -47,13 +55,15 @@ export function mountMenubar(store, {canvas, onRun}) {
   // The brand leads the bar, the way a desktop window titles itself before
   // listing its menus.
   const brand = document.createElement("div");
-  brand.className = "menubar-brand";
   const logo = document.createElement("img");
-  logo.className = "menubar-logo";
-  logo.src = "/skills/editor/assets/color_logo.svg";
+  const brandName = document.createElement("span");
+
   logo.alt = "";
   logo.setAttribute("aria-hidden", "true");
-  const brandName = document.createElement("span");
+  logo.src = "/skills/editor/assets/color_logo.svg";
+
+  logo.className = "menubar-logo";
+  brand.className = "menubar-brand";
   brandName.className = "menubar-brand-name";
   brandName.textContent = copy.brand.name;
   brand.append(logo, brandName);
@@ -64,7 +74,7 @@ export function mountMenubar(store, {canvas, onRun}) {
       variant: "menu",
       onClick: () => store.setState(view.select(store.getState())),
     });
-    underlineMnemonic(button);
+    underlineMnemonic(button, view.mnemonic);
     viewsGroup.appendChild(button);
     return {name: view.name, button};
   });
@@ -75,13 +85,29 @@ export function mountMenubar(store, {canvas, onRun}) {
   const widgetName = document.createElement("span");
   widgetName.className = "run-widget-name";
 
+  // The widget carries both actions in the order the platform lists them: build
+  // compiles the buffer without installing it, run compiles and installs. They
+  // sit in fixed-size icon buttons, so swapping an icon for the spinner while one
+  // of them works never shifts the other.
+  const buildButton = createIconButton({
+    icon: "build",
+    tooltip: copy.tooltip.build,
+    onClick: () => onBuild?.(),
+  });
+
   const runButton = createIconButton({
     icon: "run",
     tooltip: copy.tooltip.run,
     onClick: () => onRun?.(),
   });
 
-  widget.append(createIcon({name: "kotlin"}), widgetName, runButton);
+  // The actions are their own zone rather than loose siblings of the label, so
+  // the stylesheet can split them from the name with a rule and a wider gap.
+  const actions = document.createElement("div");
+  actions.className = "run-widget-actions";
+  actions.append(buildButton, runButton);
+
+  widget.append(createIcon({name: "kotlin"}), widgetName, actions);
 
   const leftGroup = document.createElement("div");
   leftGroup.className = "menubar-group menubar-left";
@@ -92,11 +118,10 @@ export function mountMenubar(store, {canvas, onRun}) {
   // and shows the preference it is currently on.
   const theme = createTheme();
   const themeIcons = {light: "theme-light", dark: "theme-dark"};
-  const themeNames = {light: copy.theme.light, dark: copy.theme.dark};
 
   const themeButton = createIconButton({
     icon: themeIcons[theme.preference()],
-    tooltip: copy.theme.tooltip(themeNames[theme.preference()]),
+    tooltip: copy.theme.tooltip,
     onClick: () => theme.cycle(),
   });
 
@@ -107,7 +132,7 @@ export function mountMenubar(store, {canvas, onRun}) {
   bar.append(leftGroup, widget, rightGroup);
   canvas.appendChild(bar);
 
-  let busy = null;
+  let busyKey = null;
 
   // The bar folds its view entries away as the room shrinks, rather than at
   // fixed breakpoints: it measures once how much space everything else needs,
@@ -117,25 +142,20 @@ export function mountMenubar(store, {canvas, onRun}) {
   let measured = false;
   let entryWidths = [];
   let entryGap = 0;
-  let reserved = 0;
+  let leftGap = 0;
 
   // Read with every entry still unfolded, so the numbers are their natural
   // size. The entries never shrink — the stylesheet holds them at their content
-  // width — so nothing is squeezed while this runs.
+  // width: so nothing is squeezed while this runs.
   function measure() {
     bar.classList.add("is-measuring");
     entryWidths = items.map((item) => item.button.offsetWidth);
     bar.classList.remove("is-measuring");
+
     // Gaps are read rather than assumed, so a change to the spacing tokens needs
     // no matching change here.
     entryGap = parseFloat(getComputedStyle(viewsGroup).columnGap) || 0;
-    const leftGap = parseFloat(getComputedStyle(leftGroup).columnGap) || 0;
-    const barGap = parseFloat(getComputedStyle(bar).columnGap) || 0;
-    // Everything the bar carries besides the entries: the brand, the gap after
-    // it, the theme toggle, and the bar's own gap on each side of the run
-    // widget. Only the widget changes size later — the skill it names follows
-    // the open document — so it is the one term read again on every layout.
-    reserved = brand.offsetWidth + leftGap + themeButton.offsetWidth + barGap * 2;
+    leftGap = parseFloat(getComputedStyle(leftGroup).columnGap) || 0;
     items.forEach((item, index) => {
       item.button.style.setProperty("--menu-entry-width", `${entryWidths[index]}px`);
     });
@@ -143,18 +163,23 @@ export function mountMenubar(store, {canvas, onRun}) {
   }
 
   function layout() {
-    // Read before writing: toggling a class part way through would force a
-    // layout pass per entry.
-    const room = bar.clientWidth - reserved - widget.offsetWidth;
+    // The entries' room is whatever the left track got, less the brand that leads
+    // it. The track is an equal share of the space either side of the widget: it
+    // does not depend on the entries' own widths: so this is stable and the fold
+    // cannot oscillate.
+    const room = leftGroup.clientWidth - brand.offsetWidth - leftGap;
     let used = 0;
     let folding = false;
+
     const folded = items.map((item, index) => {
       const cost = entryWidths[index] + (index > 0 ? entryGap : 0);
-      // Once an entry no longer fits, the ones after it fold with it, so the
-      // visible entries stay a single run from the left. The first entry is the
-      // anchor and keeps its place even when the room runs out.
-      if (!folding && index > 0 && used + cost > room) folding = true;
-      if (!folding) used += cost;
+      const shouldFold = !folding && index > 0 && used + cost > room;
+      if (shouldFold) {
+        folding = true;
+      }
+      if (!folding) {
+        used += cost;
+      }
       return folding;
     });
     items.forEach((item, index) => item.button.classList.toggle("is-folded", folded[index]));
@@ -164,8 +189,6 @@ export function mountMenubar(store, {canvas, onRun}) {
   // highlight without touching the bottom tool window. The widget names the
   // skill it would run, the way the platform run widget names its configuration.
   const render = (state) => {
-    // The size-driven override folds the rail on a narrow window without
-    // clearing the user's own setting, so widening the window brings it back.
     canvas.classList.toggle("rail-collapsed", state.railCollapsed || state.autoRail);
     for (const item of items) {
       item.button.setAttribute("aria-pressed", item.name === state.view ? "true" : "false");
@@ -173,55 +196,62 @@ export function mountMenubar(store, {canvas, onRun}) {
 
     const activeName = state.docs.find((doc) => doc.id === state.activeId)?.name ?? "";
     const label = activeName ? displayName(activeName) : copy.status.noSkill;
-    if (widgetName.textContent !== label) widgetName.textContent = label;
-
-    if (state.busy !== busy) {
-      busy = state.busy;
-      runButton.classList.toggle("is-busy", state.busy);
-      runButton.replaceChildren(createIcon({name: state.busy ? "spinner" : "run"}));
+    if (widgetName.textContent !== label) {
+      widgetName.textContent = label;
     }
 
-    // Nothing to run until a skill is open, and nothing to run while a run is
-    // already in flight, so the action greys out the way the platform does.
-    const runnable = Boolean(activeName) && !state.busy;
-    runButton.disabled = !runnable;
+    const activeTask = state.busy ? state.busyTask : null;
+    if (activeTask !== busyKey) {
+      busyKey = activeTask;
+      buildButton.classList.toggle("is-busy", activeTask === "build");
+      runButton.classList.toggle("is-busy", activeTask === "run");
 
-    // Measured after the selection has been marked, so the semibold weight the
-    // selected entry takes is the one the widths are read at.
-    if (!measured) measure();
+      const buildIcon = activeTask === "build" ? "spinner" : "build";
+      const runIcon = activeTask === "run" ? "spinner" : "run";
+      buildButton.replaceChildren(createIcon({name: buildIcon}));
+      runButton.replaceChildren(createIcon({name: runIcon}));
+    }
+
+    const actionable = Boolean(activeName) && !state.busy;
+    buildButton.disabled = !actionable;
+    runButton.disabled = !actionable;
+
+    if (!measured) {
+      measure();
+    }
     layout();
   };
 
   store.subscribe(render);
   render(store.getState());
 
-  // A window resize changes how much room the bar has but not how wide the
-  // entries are, so only the fold decision is redone.
   new ResizeObserver(layout).observe(bar);
 
   // The button mirrors the preference the theme reports, so a switch repaints
   // the icon and the label without any local bookkeeping.
   theme.subscribe(({preference}) => {
-    const tooltip = copy.theme.tooltip(themeNames[preference]);
-    themeButton.replaceChildren(createIcon({name: themeIcons[preference]}));
-    themeButton.title = tooltip;
+    const tooltip = copy.theme.tooltip;
+
+    themeButton.dataset.tooltip = tooltip;
     themeButton.setAttribute("aria-label", tooltip);
+    themeButton.replaceChildren(createIcon({name: themeIcons[preference]}));
   });
   theme.start();
 
   return {bar};
 }
 
-// The label's first letter carries the underline, the way a desktop menu marks
-// its access key. The character stays plain text inside the span, so the width
-// the fold measures does not change.
-function underlineMnemonic(button) {
-  const span = button.querySelector("span");
+// The label's mnemonic letter carries the underline, the way a desktop menu
+// marks its access key. The character stays plain text inside the span, so the
+// width the fold measures does not change.
+function underlineMnemonic(button, index) {
   const text = span.textContent;
+  const span = button.querySelector("span");
   const mark = document.createElement("span");
+
   mark.className = "mnemonic";
-  mark.textContent = text.slice(0, 1);
-  span.replaceChildren(mark, text.slice(1));
+  mark.textContent = text.slice(index, index + 1);
+  span.replaceChildren(text.slice(0, index), mark, text.slice(index + 1));
 }
 
 // "HelloSkill.kt" reads as "Hello" in the widget: the file icon already says it

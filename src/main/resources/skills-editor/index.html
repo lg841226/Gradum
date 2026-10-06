@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Gradum Skill Editor</title>
+    <title>Gradum Workspace</title>
     <link href="/skills/editor/styles/tokens.css" rel="stylesheet"/>
     <link href="/skills/editor/styles/base.css" rel="stylesheet"/>
     <link href="/skills/editor/styles/layout.css" rel="stylesheet"/>
@@ -18,6 +18,9 @@
         }
         if (preference !== "light" && preference !== "dark") preference = "dark";
         document.documentElement.dataset.theme = preference;
+        // Held until the first frame is painted, so the layout the script
+        // restores from storage does not animate in from the defaults.
+        document.documentElement.classList.add("is-booting");
       })();
     </script>
 </head>

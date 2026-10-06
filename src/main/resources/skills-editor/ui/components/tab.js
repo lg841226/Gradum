@@ -22,10 +22,18 @@ export function createTab({
   tab.setAttribute("role", "tab");
   tab.setAttribute("tabindex", "0");
   tab.setAttribute("aria-selected", active ? "true" : "false");
-  if (id != null) tab.dataset.id = String(id);
-  if (variant === "file") tab.dataset.dirty = dirty ? "true" : "false";
-  if (tooltip) tab.title = tooltip;
-  if (icon) tab.appendChild(createIcon({name: icon}));
+  if (id != null) {
+    tab.dataset.id = String(id);
+  }
+  if (variant === "file") {
+    tab.dataset.dirty = dirty ? "true" : "false";
+  }
+  if (tooltip) {
+    tab.dataset.tooltip = tooltip;
+  }
+  if (icon) {
+    tab.appendChild(createIcon({name: icon}));
+  }
 
   const labelNode = document.createElement("span");
   labelNode.classList.add("tab-label");
@@ -40,7 +48,7 @@ export function createTab({
     const close = document.createElement("button");
     close.type = "button";
     close.className = "tab-close";
-    close.title = copy.tooltip.closeTab;
+    close.dataset.tooltip = copy.tooltip.closeTab;
     close.setAttribute("aria-label", copy.tooltip.closeTab);
     close.appendChild(createIcon({name: "close", size: 16}));
     close.addEventListener("click", (event) => {
@@ -58,7 +66,9 @@ export function createTab({
       onActivate?.(tab);
     }
   });
-  if (onRename) tab.addEventListener("dblclick", () => onRename(tab));
+  if (onRename) {
+    tab.addEventListener("dblclick", () => onRename(tab));
+  }
 
   return tab;
 }
@@ -72,6 +82,8 @@ export function createTabStrip() {
 
 export function renderTabStrip(strip, tabs, handlers = {}) {
   clear(strip);
-  for (const tab of tabs) strip.appendChild(createTab({...tab, ...handlers}));
+  for (const tab of tabs) {
+    strip.appendChild(createTab({...tab, ...handlers}));
+  }
   return strip;
 }

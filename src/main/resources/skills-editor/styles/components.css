@@ -100,21 +100,41 @@
 }
 
 /* Icon buttons in the bar shrink to its height instead of the control height,
-   so the actions never grow taller than the menu they sit in. */
+   so the actions never grow taller than the menu they sit in. They also read a
+   step brighter than icon buttons elsewhere: they head a bar of full-brightness
+   menu text, where the dimmer default reads as a disabled control. The hover
+   rule is restated at this specificity so it still wins over the base colour. */
 .menubar .btn[data-variant="icon"] {
     width: calc(var(--menubar-height) - var(--space-1));
     height: calc(var(--menubar-height) - var(--space-1));
+    color: var(--text-dim);
 }
 
-/* Run widget: the skill it would run beside its run action, grouped as one bare
-   cluster in the middle of the bar. It is held at its content size, so a narrow
-   window closes the menu onto it rather than squeezing the name. */
+.menubar .btn[data-variant="icon"]:hover {
+    color: var(--text);
+}
+
+/* Run widget: the skill it would run beside its build and run actions. It is
+   held at its content size, so a narrow window closes the menu onto it rather
+   than squeezing the name; the two side groups in the bar take the space evenly
+   either side, which is what places it at the middle. */
 .run-widget {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: var(--space-2);
     height: calc(var(--menubar-height) - var(--space-1));
+}
+
+/* The label and the actions are two zones, not one run of siblings: a hairline
+   rule and the wider gap keep the actions from reading as part of the name. */
+.run-widget-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 100%;
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--border);
 }
 
 .run-widget-name {
@@ -572,4 +592,48 @@
     to {
         transform: rotate(360deg);
     }
+}
+
+/* --- Tooltip -------------------------------------------------------------- */
+
+/* One bubble, moved from control to control. It is fixed to the viewport rather
+   than to the control, so a control inside a scrolling pane cannot clip it. It
+   stays laid out while hidden, so its size can be read before the first painted
+   frame and it never flashes at the window's corner before it has been placed.
+   The visibility delay is what lets the exit finish before it is taken out of
+   the hit test.
+   The enter is a short rise out of the anchor edge plus a slight scale-up: the
+   bubble grows out of the control it describes instead of appearing in place.
+   Its offset and origin are written by JS, since only the positioner knows
+   which side it ended up on. */
+.tooltip {
+    top: 0;
+    left: 0;
+    opacity: 0;
+    z-index: 50;
+    line-height: 1.4;
+    position: fixed;
+    visibility: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+    color: var(--text);
+    background: var(--bg-popup);
+    font-size: var(--font-size-ui);
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-control);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-strong);
+    transform-origin: center var(--tooltip-origin, bottom);
+    transform: translateY(var(--tooltip-shift, 0)) scale(.96);
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard),
+    visibility 0s linear var(--motion-fast);
+}
+
+.tooltip.is-visible {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    transition: opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }

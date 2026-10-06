@@ -25,47 +25,58 @@ export function mountDiagnostics(store, {body, editor}) {
 
   function renderMarks(diagnostics) {
     clearMarks();
+
+    const {padTop, padLeft, lineHeight} = editor.metrics;
     const lines = editor.source.value.split("\n");
+
     for (const diagnostic of diagnostics) {
-      if (!diagnostic.line) continue;
+      if (!diagnostic.line) {
+        continue;
+      }
 
       const lineNode = editor.highlightCode.querySelector(`.line[data-line="${diagnostic.line}"]`);
-      if (lineNode) lineNode.classList.add(diagnostic.severity === "error" ? "errline" : "warnline");
+      if (lineNode) {
+        const severityClass = diagnostic.severity === "error" ? "errline" : "warnline";
+        lineNode.classList.add(severityClass);
+      }
 
       const text = lines[diagnostic.line - 1] || "";
       const column = Math.max(1, diagnostic.column || 1);
-      // The underline starts at the reported column and runs to the end of the
-      // line. Both ends are measured off the rendered overlay rather than
-      // counted, so a line holding wide glyphs or tabs still lines up with the
-      // code above.
       const start = editor.advance(diagnostic.line, Math.min(column - 1, text.length));
       const end = editor.advance(diagnostic.line, text.length);
+
+      const isError = diagnostic.severity === "error";
       const marker = document.createElement("div");
-      marker.className = `squiggle ${diagnostic.severity === "error" ? "error" : "warning"}`;
-      marker.style.top = `${editor.metrics.padTop + (diagnostic.line - 1) * editor.metrics.lineHeight}px`;
-      marker.style.left = `${editor.metrics.padLeft + start}px`;
+      marker.className = `squiggle ${isError ? "error" : "warning"}`;
+      marker.style.top = `${padTop + (diagnostic.line - 1) * lineHeight}px`;
+      marker.style.left = `${padLeft + start}px`;
       marker.style.width = `${Math.max(1, end - start)}px`;
-      marker.style.height = `${editor.metrics.lineHeight}px`;
+      marker.style.height = `${lineHeight}px`;
       editor.markers.appendChild(marker);
     }
   }
 
   function createProblemRow(diagnostic) {
+    const isError = diagnostic.severity === "error";
+
     const row = document.createElement("div");
     row.className = "problem";
-    row.dataset.tone = diagnostic.severity === "error" ? "error" : "warning";
+    row.dataset.tone = isError ? "error" : "warning";
     row.dataset.line = diagnostic.line ?? "";
     row.dataset.column = diagnostic.column ?? "";
 
     const severity = document.createElement("span");
     severity.className = "problem-severity";
-    severity.append(createIcon({name: diagnostic.severity === "error" ? "error" : "warning"}));
+    severity.append(createIcon({name: isError ? "error" : "warning"}));
 
     const location = document.createElement("span");
     location.className = "problem-location";
-    location.textContent = diagnostic.line
-      ? `Ln ${diagnostic.line}${diagnostic.column ? `:${diagnostic.column}` : ""}`
-      : "-";
+    if (diagnostic.line) {
+      const column = diagnostic.column ? `:${diagnostic.column}` : "";
+      location.textContent = `Ln ${diagnostic.line}${column}`;
+    } else {
+      location.textContent = "-";
+    }
 
     const message = document.createElement("span");
     message.className = "problem-message";
@@ -82,30 +93,42 @@ export function mountDiagnostics(store, {body, editor}) {
 
   // The list has no row for a rejected action, so a failed action's message takes
   // the placeholder instead of vanishing. Build results are not failed actions:
-  // Output owns those, and this stays the quiet "all clear" note it was.
+  // Console owns those, and this stays the quiet "all clear" note it was.
   function renderList(diagnostics, doc, status) {
     clear(list);
+
     if (!doc) {
       list.appendChild(createEmptyState({title: copy.status.noSkill}));
       return;
     }
+
     if (diagnostics.length === 0) {
       // An edit throws the last run's verdict away, so the all-clear note would
       // be a claim nobody has checked. A rejected rename is a current, real
       // error, so it still outranks the out-of-date note.
       const current = status && status.tone === "error";
-      list.appendChild(createEmptyState(current
-        ? {title: status.text, tone: "error"}
-        : {title: doc.dirty ? copy.problems.stale : copy.problems.empty(doc.name)}));
+      if (current) {
+        list.appendChild(createEmptyState({title: status.text, tone: "error"}));
+      } else {
+        const title = doc.dirty ? copy.problems.stale : copy.problems.empty(doc.name);
+        list.appendChild(createEmptyState({title}));
+      }
       return;
     }
-    for (const diagnostic of diagnostics) list.appendChild(createProblemRow(diagnostic));
+
+    for (const diagnostic of diagnostics) {
+      list.appendChild(createProblemRow(diagnostic));
+    }
   }
 
   function jumpToLine(lineNumber, column) {
-    if (!lineNumber) return;
+    if (!lineNumber) {
+      return;
+    }
+
     const source = editor.source;
     let offset = 0;
+
     for (let line = 1; line < lineNumber; line++) {
       const next = source.value.indexOf("\n", offset);
       if (next === -1) {
@@ -114,8 +137,11 @@ export function mountDiagnostics(store, {body, editor}) {
       }
       offset = next + 1;
     }
+
     let end = source.value.indexOf("\n", offset);
-    if (end === -1) end = source.value.length;
+    if (end === -1) {
+      end = source.value.length;
+    }
 
     const caret = Math.min(offset + Math.max(0, (column || 1) - 1), end);
     source.focus();

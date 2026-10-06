@@ -11,12 +11,17 @@ export function createTextField({value = "", onCommit, onCancel} = {}) {
   let settled = false;
 
   const commit = () => {
-    if (settled) return;
+    if (settled) {
+      return;
+    }
     settled = true;
     onCommit?.(input.value);
   };
+
   const cancel = () => {
-    if (settled) return;
+    if (settled) {
+      return;
+    }
     settled = true;
     onCancel?.();
   };

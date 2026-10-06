@@ -1,12 +1,19 @@
 // Single source of truth for every user-facing string. Descriptive copy is
 // written as complete sentences; control labels stay short verb phrases.
+//
+// Style: lines stay under 100 characters. Long sentences break at clause
+// boundaries inside a parenthesized `+` chain, one clause per line. Branching
+// copy uses if/return instead of a wide ternary, so each variant reads as its
+// own block. The fragments must reassemble to the exact same output string.
 
 function plural(count, noun) {
   return count === 1 ? noun : `${noun}s`;
 }
 
 function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} ${plural(bytes, "byte")}`;
+  if (bytes < 1024) {
+    return `${bytes} ${plural(bytes, "byte")}`;
+  }
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
@@ -17,7 +24,7 @@ export const copy = {
 
   control: {
     all: "All",
-    output: "Output",
+    output: "Console",
     editor: "Editor",
     explorer: "Explorer",
     problems: "Problems",
@@ -26,17 +33,18 @@ export const copy = {
   theme: {
     dark: "Dark",
     light: "Light",
-    tooltip: (name) => `Theme ${name}. Click to change.`,
+    tooltip: "Change theme",
   },
 
   tooltip: {
-    hide: "Hide this panel",
-    newSkill: "Create a new skill",
-    expandTree: "Expand this folder",
-    closeTab: "Close this skill tab",
-    resize: "Drag to resize the panel",
+    hide: "Hide",
+    closeTab: "Close",
+    expandTree: "Expand",
+    run: "Run and install",
+    newSkill: "Create skill",
+    resize: "Drag to resize panel",
+    build: "Build without installing",
     collapseTree: "Collapse this folder",
-    run: "Run this skill and install it into ~/.gradum/skills",
   },
 
   status: {
@@ -64,10 +72,13 @@ export const copy = {
     lineEnding: "LF",
     encoding: "UTF-8",
     label: "Status bar",
+    encodingTip: "Text stored as UTF-8",
+    lineEndingTip: "Lines end with LF (\\n)",
     position: (line, column) => `${line}:${column}`,
     errors: (count) => `${count} ${plural(count, "error")}`,
     warnings: (count) => `${count} ${plural(count, "warning")}`,
     positionLabel: (line, column) => `Line ${line}, column ${column}`,
+    positionTip: (line, column) => `Caret at line ${line}, column ${column}`,
   },
 
   problems: {
@@ -76,25 +87,119 @@ export const copy = {
   },
 
   log: {
-    ready: () => `Workspace connected to the Gradum server at ${location.host}; the editor is ready and ~/.gradum/skills is watched for external skill changes.`,
+    ready: () =>
+      (
+        `Workspace connected to Gradum server at ${location.host}. ` +
+        `Editor is ready, and ~/.gradum/skills is watched for external skill changes.`
+      ),
+
     deploying: (name, {lines, bytes}) =>
-      `Deploying ${name} — writing the editor buffer to ~/.gradum/skills/${name} (${lines} ${plural(lines, "line")}, ${formatBytes(bytes)}), then compiling it with the embedded Kotlin compiler and reloading the external skill registry so the agent can pick the skill up.`,
-    compiled: (fileName, warnings, ms) => warnings > 0
-      ? `The deploy completed in ${ms} ms: ${fileName} compiled with 0 errors and ${warnings} ${plural(warnings, "warning")}, the source was written to ~/.gradum/skills/${fileName}, and the reloaded class is registered for the agent. Review ${warnings === 1 ? "the warning" : "the warnings"} in the Problems panel.`
-      : `The deploy completed in ${ms} ms: ${fileName} compiled with 0 errors and 0 warnings, the source was written to ~/.gradum/skills/${fileName}, and the freshly compiled class is loaded and registered, so the agent can run the skill right now.`,
-    failed: (fileName, errors, warnings, ms) =>
-      `The deploy completed in ${ms} ms, but ${fileName} failed to compile with ${errors} ${plural(errors, "error")}${warnings > 0 ? ` and ${warnings} ${plural(warnings, "warning")}` : ""}. The source was still written to ~/.gradum/skills/${fileName}, while the previously compiled version, if one exists, stays loaded and registered. The compiler reported:`,
-    problem: (item) => item.line != null
-      ? `Line ${item.line}${item.column != null ? `, column ${item.column}` : ""}: ${item.message}`
-      : `Problem: ${item.message}`,
-    moreProblems: (count) => `${count} further ${plural(count, "problem")} ${count === 1 ? "is" : "are"} listed in the Problems panel.`,
-    fixHint: "Fix the reported problems above and run the skill again to recompile it.",
-    rejected: (status, detail) => status === 401
-      ? `The server rejected the deploy request with HTTP 401 (Unauthorized): the editor token is missing or has expired. Reopen the editor URL with a fresh ?token= query parameter and try again.`
-      : `The server rejected the deploy request with HTTP ${status}: ${detail}.`,
+      (
+        `Deploying ${name}: writing editor buffer to ~/.gradum/skills/${name} ` +
+        `(${lines} ${plural(lines, "line")}, ${formatBytes(bytes)}), ` +
+        `compiling with the embedded Kotlin compiler, ` +
+        `then reloading external skill registry so agent can pick it up.`
+      ),
+
+    compiled: (fileName, warnings, ms) => {
+      if (warnings > 0) {
+        return (
+          `Deploy completed in ${ms} ms: ${fileName} compiled with 0 errors and ${warnings} ` +
+          `${plural(warnings, "warning")}, source was written to ~/.gradum/skills/${fileName}, ` +
+          `and reloaded class is registered for agent. ` +
+          `Review ${warnings} ${plural(warnings, "warning")} in Problems panel.`
+        );
+      }
+      return (
+        `Deploy completed in ${ms} ms: ${fileName} compiled with 0 errors and 0 warnings, ` +
+        `source was written to ~/.gradum/skills/${fileName}, ` +
+        `and freshly compiled class is loaded and registered, so agent can run it right now.`
+      );
+    },
+
+    failed: (fileName, errors, warnings, ms) => {
+      const errorCount = `${errors} ${plural(errors, "error")}`;
+      const warningCount = warnings > 0
+        ? ` and ${warnings} ${plural(warnings, "warning")}`
+        : "";
+      return (
+        `Deploy completed in ${ms} ms, but ${fileName} failed to compile with ` +
+        `${errorCount}${warningCount}. ` +
+        `Source was still written to ~/.gradum/skills/${fileName}, ` +
+        `while previously compiled version, if one exists, stays loaded and registered. ` +
+        `Compiler reported:`
+      );
+    },
+
+    problem: (item) => {
+      if (item.line == null) {
+        return `Problem: ${item.message}`;
+      }
+      const column = item.column != null ? `, column ${item.column}` : "";
+      return `Line ${item.line}${column}: ${item.message}`;
+    },
+
+    moreProblems: (count) => {
+      const verb = count === 1 ? "is" : "are";
+      return `${count} further ${plural(count, "problem")} ${verb} listed in Problems panel.`;
+    },
+
+    fixHint: "Fix reported problems above and run skill again to recompile it.",
+
+    building: (name, {lines, bytes}) =>
+      (
+        `Building ${name}: compiling the editor buffer with the embedded Kotlin compiler ` +
+        `(${lines} ${plural(lines, "line")}, ${formatBytes(bytes)}). ` +
+        `Nothing is written to ~/.gradum/skills/ and the loaded skill is left as it is.`
+      ),
+
+    built: (fileName, warnings, ms) => {
+      if (warnings > 0) {
+        return (
+          `Build finished in ${ms} ms: ${fileName} compiled with 0 errors and ${warnings} ` +
+          `${plural(warnings, "warning")}. Nothing was written or installed, ` +
+          `so the agent still runs the previously loaded version.`
+        );
+      }
+      return (
+        `Build finished in ${ms} ms: ${fileName} compiled with 0 errors and 0 warnings. ` +
+        `Nothing was written or installed.`
+      );
+    },
+
+    buildFailed: (fileName, errors, warnings, ms) => {
+      const errorCount = `${errors} ${plural(errors, "error")}`;
+      const warningCount = warnings > 0
+        ? ` and ${warnings} ${plural(warnings, "warning")}`
+        : "";
+      return (
+        `Build finished in ${ms} ms, but ${fileName} failed to compile with ` +
+        `${errorCount}${warningCount}. Nothing was written or installed. ` +
+        `Compiler reported:`
+      );
+    },
+
+    rejected: (status, detail) => {
+      if (status === 401) {
+        return (
+          `Server rejected the request with HTTP 401 (Unauthorized): ` +
+          `editor token is missing or has expired. ` +
+          `Reopen editor URL with a fresh ?token= query parameter and try again.`
+        );
+      }
+      return `Server rejected the request with HTTP ${status}: ${detail}.`;
+    },
+
     malformed: (detail) =>
-      `The server answered the deploy request but its response could not be parsed (${detail}), so the compile result is unknown.`,
+      (
+        `Server answered, but the response could not be parsed (${detail}), ` +
+        `so the compile result is unknown.`
+      ),
+
     unreachable: () =>
-      `The Gradum server at ${location.host} did not answer the deploy request; check that it is still running (for example with ./gradlew run) and reload the workspace.`,
+      (
+        `Gradum server at ${location.host} did not respond. ` +
+        `Check that it is still running (./gradlew run) and reload workspace.`
+      ),
   },
 };
