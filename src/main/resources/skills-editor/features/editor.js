@@ -693,10 +693,10 @@ export function mountEditor(store, {canvas, showPanel}) {
   }
 
   // Compile-only sibling of run(). It asks the server to compile the buffer and
-  // nothing else: nothing is written to the skills directory, the registry is not
-  // touched, and no panel is opened, so the workspace stays exactly where it is.
-  // Only the diagnostics come back, which is what redraws the squiggles and the
-  // status bar counts.
+  // nothing else: nothing is written to the skills directory and the registry is
+  // not touched, so the buffer stays unsaved and the loaded skill unchanged. The
+  // diagnostics that come back are the build's whole result, so the Problems
+  // panel is raised to show them.
   async function build() {
     const state = store.getState();
     const doc = activeDoc(state);
@@ -710,6 +710,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     const bytes = new TextEncoder().encode(text).length;
 
     store.setState({busy: true, busyTask: "build"});
+    showPanel?.("problems");
     logLine(copy.log.building(name, {lines, bytes}), "busy");
 
     const startedAt = performance.now();
