@@ -116,5 +116,5 @@ export function mountMinimap(store, {body, source, highlightCode}) {
   store.subscribe(render);
   render(store.getState());
 
-  return {strip, update};
+  return {strip};
 }

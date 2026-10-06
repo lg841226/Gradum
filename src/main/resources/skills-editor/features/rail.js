@@ -44,7 +44,7 @@ export function mountRail(store, {canvas, onOpen, onCreate}) {
     clear(list);
 
     // The branch folds away whole, so the root row is what stays behind. It is
-    // handed to the tree row so the group nests inside its treeitem.
+    // handed to the tree row so the group nests inside its tree item.
     const branch = document.createElement("div");
     branch.className = "tree-children";
     branch.setAttribute("role", "group");

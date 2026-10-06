@@ -10,10 +10,10 @@ body {
 body {
     margin: 0;
     overflow: hidden;
-    background: var(--bg-canvas);
     color: var(--text);
-    font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
+    background: var(--bg-canvas);
     -webkit-font-smoothing: antialiased;
+    font: var(--weight-regular) var(--font-size-ui) / 1.5 var(--font-ui);
 }
 
 /* Ambient glow: a soft blue wash behind the whole window, centred on the seam
@@ -49,8 +49,8 @@ textarea {
 }
 
 :focus-visible {
-    outline: 2px solid var(--accent);
     outline-offset: 1px;
+    outline: 2px solid var(--accent);
 }
 
 .is-dragging {

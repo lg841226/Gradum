@@ -19,6 +19,10 @@ const KOTLIN_KEYWORDS = [
 
 const TOKEN_CLASS = {1: "com", 2: "str", 3: "ann", 4: "num", 5: "kw", 6: "type", 7: "fn"};
 
+// Compiler output caps the diagnostics it prints inline; anything past this
+// count lives in the Problems panel, which lists them all.
+const MAX_LOG_PROBLEMS = 6;
+
 const TOKEN_PATTERN = new RegExp(
   [
     String.raw`(\/\/[^\n]*|\/\*[\s\S]*?\*\/)`,
@@ -138,7 +142,45 @@ export function mountEditor(store, {canvas, showPanel}) {
   const metrics = {...FALLBACK_METRICS};
 
   function measureMetrics() {
-    Object.assign(metrics, codeMetrics(highlight, highlightCode));
+    Object.assign(metrics, codeMetrics(highlight));
+  }
+
+  // The caret and the squiggles are drawn, not laid out by the text layer, so
+  // their horizontal offsets are read back off the highlight overlay — the very
+  // glyphs on screen — instead of being predicted from a font. Neither counting
+  // columns nor measuring with a canvas survives a fallback: a CJK glyph is
+  // drawn by whatever font the stack falls through to, and its advance is
+  // whatever that font says, which the model has no way to know. A Range over
+  // the line's own text nodes answers exactly, and because the range is read
+  // after the overlay has been scrolled it already carries the horizontal
+  // scroll. Reading a rect does not dirty layout the way a style write would,
+  // so a scroll frame stays cheap.
+
+  // The text node and offset that `index` (in UTF-16 units, matching the text
+  // layer) falls on within a rendered line.
+  function textPositionAt(lineNode, index) {
+    let remaining = index;
+    const walker = document.createTreeWalker(lineNode, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (remaining <= node.data.length) return {node, offset: remaining};
+      remaining -= node.data.length;
+    }
+    return null;
+  }
+
+  // Width, in pixels, of the first `charCount` characters of the rendered line,
+  // measured from the line's own left edge. Tabs, wide glyphs and fallback runs
+  // are all handled by the layout engine, so the number matches the glyphs.
+  function advance(lineNumber, charCount) {
+    if (charCount <= 0) return 0;
+    const lineNode = highlightCode.querySelector(`.line[data-line="${lineNumber}"]`);
+    if (!lineNode) return 0;
+    const position = textPositionAt(lineNode, charCount);
+    if (!position) return 0;
+    const range = document.createRange();
+    range.setStart(lineNode, 0);
+    range.setEnd(position.node, position.offset);
+    return Math.max(0, range.getBoundingClientRect().right - lineNode.getBoundingClientRect().left);
   }
 
   // macOS elastic overscroll can report a negative offset for a moment when a
@@ -160,22 +202,44 @@ export function mountEditor(store, {canvas, showPanel}) {
     updateCaret();
   }
 
-  // Column width in characters, expanding a tab to the next tab stop the same
-  // way the text layer does, so the caret keeps pace with rendered text.
-  function columnWidth(text) {
+  // East Asian wide and fullwidth ranges. These are the glyphs a monospace grid
+  // draws two cells wide, which is how a column is counted for the status bar.
+  const WIDE_GLYPH = /[\u1100-\u115F\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+
+  // Column the caret sits in, counted the way a monospace grid counts rather
+  // than by character: a wide glyph holds two columns, and a tab runs to the
+  // next stop four columns along. This is what the status bar reports, so it is
+  // deliberately not the same number as the pixel offset `advance` returns.
+  function displayColumns(text) {
     let column = 0;
     for (const char of text) {
-      column += char === "\t" ? 4 - (column % 4) : 1;
+      column += char === "\t" ? 4 - (column % 4) : WIDE_GLYPH.test(char) ? 2 : 1;
     }
     return column;
   }
 
   let caretOffset = -1;
+  let publishedCursor = null;
 
   // The native caret can drift against the syntax overlay because the two
   // layers round their fractional line boxes apart, so it is hidden and this
   // caret is placed from the same metrics the overlay and squiggles use.
   function updateCaret() {
+    const before = source.value.slice(0, source.selectionStart);
+    const lineIndex = before.split("\n").length - 1;
+    const linePrefix = before.slice(before.lastIndexOf("\n") + 1);
+    const column = displayColumns(linePrefix);
+
+    // The status bar reads the caret position from the store, so every caret
+    // move publishes it — only when it changed, or each blink would render.
+    const position = {line: lineIndex + 1, column: column + 1};
+    if (!publishedCursor
+      || publishedCursor.line !== position.line
+      || publishedCursor.column !== position.column) {
+      publishedCursor = position;
+      store.setState({cursor: position});
+    }
+
     const visible = document.activeElement === source
       && source.selectionStart === source.selectionEnd
       && !source.readOnly
@@ -187,11 +251,16 @@ export function mountEditor(store, {canvas, showPanel}) {
       return;
     }
 
-    const {left, top} = scrollOffset();
-    const before = source.value.slice(0, source.selectionStart);
-    const lineIndex = before.split("\n").length - 1;
-    const column = columnWidth(before.slice(before.lastIndexOf("\n") + 1));
-    const x = Math.round(metrics.padLeft + column * metrics.charWidth - left);
+    // The overlay is scrolled in lockstep with the text layer, so its left edge
+    // already carries the horizontal scroll: the caret only has to subtract the
+    // vertical offset, which it owns.
+    const lineNode = highlightCode.querySelector(`.line[data-line="${lineIndex + 1}"]`);
+    const {top} = scrollOffset();
+    const x = lineNode
+      ? Math.round(lineNode.getBoundingClientRect().left
+        + advance(lineIndex + 1, linePrefix.length)
+        - code.getBoundingClientRect().left)
+      : 0;
     const y = Math.round(metrics.padTop + lineIndex * metrics.lineHeight - top);
     caret.style.transform = `translate(${x}px, ${y}px)`;
     caret.classList.add("is-visible");
@@ -222,6 +291,15 @@ export function mountEditor(store, {canvas, showPanel}) {
     if (gutterLine) gutterLine.classList.add("active");
   }
 
+  // Anything outside ASCII is boxed in the overlay, so a fullwidth （ is not read
+  // as an ASCII ( at a glance: the two are near-identical at code size and the
+  // glyph shape alone does not separate them. Escaping runs first, so the tags
+  // added here are never themselves boxed and an entity's ASCII characters are
+  // left alone — only the glyphs the file actually holds are wrapped.
+  function markGlyphs(text) {
+    return escapeHtml(text).replace(/[^\x00-\x7F]+/g, (run) => `<span class="glyph-box">${run}</span>`);
+  }
+
   function renderHighlight(text) {
     const lines = [];
     let line = "";
@@ -233,8 +311,8 @@ export function mountEditor(store, {canvas, showPanel}) {
         }
         if (part) {
           line += token.cls
-            ? `<span class="${token.cls}">${escapeHtml(part)}</span>`
-            : escapeHtml(part);
+            ? `<span class="${token.cls}">${markGlyphs(part)}</span>`
+            : markGlyphs(part);
         }
       });
     }
@@ -283,19 +361,28 @@ export function mountEditor(store, {canvas, showPanel}) {
     const doc = activeDoc(state);
     if (!doc) return;
     const name = doc.name;
+    const text = source.value;
+    const lines = text.split("\n").length;
+    const bytes = new TextEncoder().encode(text).length;
 
     store.setState({busy: true});
     showPanel?.("output");
-    logLine(copy.log.deploying(name), "busy");
+    logLine(copy.log.deploying(name, {lines, bytes}), "busy");
 
+    const startedAt = performance.now();
     try {
-      const result = await deploySkill(name, source.value);
+      const result = await deploySkill(name, text);
+      const ms = Math.round(performance.now() - startedAt);
+
       if (!result.ok || !result.body) {
         const detail = (result.body && result.body.error) || result.raw || `HTTP ${result.status}`;
         patchDoc(doc.id, {
           diagnostics: [{severity: "error", message: detail, line: null, column: null}],
         });
-        logLine(detail, "error");
+        logLine(
+          result.ok ? copy.log.malformed(detail) : copy.log.rejected(result.status, detail),
+          "error",
+        );
         showPanel?.("problems");
         return;
       }
@@ -311,9 +398,16 @@ export function mountEditor(store, {canvas, showPanel}) {
       });
 
       if (errors === 0) {
-        logLine(copy.log.compiled(result.body.fileName, warnings), "ok");
+        logLine(copy.log.compiled(result.body.fileName, warnings, ms), "ok");
       } else {
-        logLine(copy.log.failed(result.body.fileName, errors), "error");
+        logLine(copy.log.failed(result.body.fileName, errors, warnings, ms), "error");
+        for (const item of diagnostics.slice(0, MAX_LOG_PROBLEMS)) {
+          logLine(copy.log.problem(item), "detail");
+        }
+        if (diagnostics.length > MAX_LOG_PROBLEMS) {
+          logLine(copy.log.moreProblems(diagnostics.length - MAX_LOG_PROBLEMS), "detail");
+        }
+        logLine(copy.log.fixHint, null);
         showPanel?.("problems");
       }
       void refreshFiles();
@@ -321,7 +415,7 @@ export function mountEditor(store, {canvas, showPanel}) {
       patchDoc(doc.id, {
         diagnostics: [{severity: "error", message: error.message, line: null, column: null}],
       });
-      logLine(copy.status.unreachable, "error");
+      logLine(copy.log.unreachable(), "error");
       showPanel?.("problems");
     } finally {
       store.setState({busy: false});
@@ -350,17 +444,19 @@ export function mountEditor(store, {canvas, showPanel}) {
 
   source.addEventListener("input", onInput);
   source.addEventListener("scroll", syncScroll);
-  source.addEventListener("click", () => {
-    updateActiveLine();
-    updateCaret();
-  });
-  source.addEventListener("keyup", () => {
+  // Holding an arrow key repeats keydown but fires neither keyup nor input, and
+  // the text layer only scrolls once the caret reaches an edge — so a caret
+  // redrawn on those events alone would sit still through the whole repeat and
+  // then jump on release. The caret moves on every repeat, and selectionchange
+  // is the one event that reports it, so it replaces the click/keyup/select
+  // trio rather than standing beside them.
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement !== source) return;
     updateActiveLine();
     updateCaret();
   });
   source.addEventListener("focus", updateCaret);
   source.addEventListener("blur", updateCaret);
-  source.addEventListener("select", updateCaret);
   source.addEventListener("keydown", (event) => {
     if (event.key === "Tab") {
       event.preventDefault();
@@ -414,6 +510,7 @@ export function mountEditor(store, {canvas, showPanel}) {
     highlightCode,
     markers,
     metrics,
+    advance,
     run,
     syncScroll,
     updateActiveLine,

@@ -55,7 +55,9 @@ export function mountPanels(store, {canvas}) {
   }
 
   const apply = (state) => {
-    const hidden = state.collapsed;
+    // The size-driven override folds the tool window on a short window without
+    // clearing the user's own setting, so growing the window brings it back.
+    const hidden = state.collapsed || state.autoBottom;
     // Hiding drops the whole tool window, its splitter included; the menu's
     // Problems and Output items bring it back. --bottom-height keeps its value,
     // so reopening restores the remembered height.

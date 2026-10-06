@@ -1,7 +1,7 @@
 /* Islands layout: a dark canvas with same-colored islands separated by narrow
-   gaps. A view menu runs across the top; the rail spans the height below it and
-   the bottom tool window sits under the editor only. Splitter tracks double as
-   the gaps and as drag handles. */
+   gaps. A view menu runs across the top and a status strip along the bottom;
+   the rail spans the height between them and the bottom tool window sits under
+   the editor only. Splitter tracks double as the gaps and as drag handles. */
 .canvas {
     height: 100vh;
     padding: var(--island-gap);
@@ -10,7 +10,10 @@
         var(--rail-width) var(--island-gap) 1fr;
     grid-template-rows:
         var(--menubar-height) var(--island-gap)
-        1fr var(--island-gap) var(--bottom-height);
+        1fr var(--island-gap) var(--bottom-height)
+        var(--island-gap) var(--statusbar-height);
+    transition: grid-template-columns var(--motion-fast) var(--ease-standard),
+    grid-template-rows var(--motion-fast) var(--ease-standard);
 }
 
 .panel {
@@ -21,6 +24,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .panel-header {
@@ -39,19 +43,22 @@
     overflow: auto;
 }
 
-/* View menu: the three views as plain text in a bar across the top, the way a
-   desktop window lists its menus. It sits straight on the canvas, not an island. */
+/* View menu: the views as plain text in a bar across the top, the way a desktop
+   window lists its menus. It sits straight on the canvas, not an island. The bar
+   is one row, not a centred three-column grid: the brand and the view menu, then
+   the run widget right after them, then the theme toggle held at the far edge.
+   Only the menu gives way as the window narrows, so the entries fold instead of
+   the bar carrying a wasted half-column that let the menu run out of room early
+   and spill over the widget. */
 .menubar {
     grid-column: 1 / -1;
     grid-row: 1;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
     align-items: center;
+    gap: var(--space-4);
     height: var(--menubar-height);
 }
 
-/* Equal side columns keep the middle one, the run widget, centred in the bar no
-   matter how wide the view list is. */
 .menubar-group {
     display: flex;
     align-items: center;
@@ -60,14 +67,20 @@
 }
 
 /* The brand unit sits further from the view menu than the menu items sit from
-   each other, so the two groups read as separate. */
+   each other, so the two groups read as separate. The group is also the only
+   part of the bar that gives way, so it is held at its content size and clipped:
+   anything the fold has not caught up with yet is cut off at the widget's edge
+   rather than drawn over it. */
 .menubar-left {
     gap: var(--space-3);
+    overflow: hidden;
 }
 
-/* The theme toggle sits at the far right of the bar's third column. */
+/* The run widget keeps its own size so it is never squeezed, and the theme
+   toggle is pushed past it to the far edge. */
 .menubar-right {
-    justify-content: flex-end;
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .menubar-brand {
@@ -88,9 +101,48 @@
     white-space: nowrap;
 }
 
+/* A menu entry folds shut on its own rather than vanishing at a breakpoint:
+   the width cap runs to zero while the padding, the gap it holds open and its
+   opacity follow, so the entries to its left slide over as it goes. The cap
+   starts at the entry's own measured width — written from script — so the run
+   covers the entry's real size instead of a guess; the fallback only has to be
+   wider than any label for the first measurement. The entry is taken out of
+   flex shrinking, so only the cap decides its width and the label is never
+   squeezed by the flex algorithm before script gets to fold it. */
+.menubar .btn[data-variant="menu"] {
+    flex: 0 0 auto;
+    max-width: var(--menu-entry-width, 12em);
+    overflow: hidden;
+    transition: max-width var(--motion-fast) var(--ease-standard),
+    padding var(--motion-fast) var(--ease-standard),
+    margin var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.menubar .btn[data-variant="menu"].is-folded {
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    /* Cancels the flex gap the folded entry would otherwise leave behind. */
+    margin-left: calc(-1 * var(--space-1));
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Measured with every entry at the selected weight — the widest any of them can
+   ever get — so a fold cap never clips a label. */
+.menubar.is-measuring .btn[data-variant="menu"] {
+    font-weight: var(--weight-semibold);
+}
+
+/* The rail and its splitter span from the editor row to the bottom tool window
+   — up to the line before the gap above the status strip, which they must not
+   underlap. */
 .rail {
     grid-column: 1;
-    grid-row: 3 / -1;
+    grid-row: 3 / 6;
 }
 
 .editor {
@@ -103,6 +155,71 @@
     grid-row: 5;
 }
 
+/* Status bar: a plain text strip along the bottom, mirroring the view menu on
+   top. The reported values sit at its right end, leaving the left free for
+   counts and connection state. The row is addressed from the end (-2), so it
+   keeps its place if more rows are ever stacked above it. */
+.statusbar {
+    grid-column: 1 / -1;
+    grid-row: -2;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: var(--statusbar-height);
+    padding: 0 var(--space-2);
+    color: var(--text-dim);
+    font-size: var(--font-size-ui);
+    user-select: none;
+}
+
+/* Items read as something to aim at rather than bare text: each carries its own
+   hit area and lifts onto the same translucent wash the view menu uses, so the
+   whole padded box responds, not just the glyphs. Nothing is wired to a click
+   yet; this is the target the handlers will land on. The chip keeps a fixed hit
+   height while the bar the chips sit in shrinks around it, so aiming at a chip
+   never gets any harder the thinner the bar becomes. */
+.statusbar-item {
+    display: flex;
+    align-items: center;
+    height: calc(var(--control-height) - var(--space-2)); /* 24px */
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-control);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.statusbar-item:hover {
+    background: var(--bg-menu);
+    color: var(--text);
+}
+
+/* An empty item still paints its hit area, which would leave a blank chip
+   hovering with nothing in it while no document is open. */
+.statusbar-item:empty {
+    display: none;
+}
+
+/* The reported values, held together at the right end and packed tighter than
+   the bar's own gap: each item already carries padding, and the bar gap would
+   read as a hole between them. */
+.statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+}
+
+/* Splitter drag must be immediate — each pixel writes a new track size and a
+   transition lag would feel slippery. Only fold/unfold toggles animate. */
+body.is-dragging .canvas,
+body.is-dragging .panel,
+body.is-dragging .splitter {
+    transition: none;
+}
+
 /* Collapsing explorer drops the rail and its splitter and zeroes their tracks,
    so the editor takes the full width. --rail-width keeps its value, so
    reopening restores the previous width. */
@@ -112,21 +229,24 @@
 
 .canvas.rail-collapsed .rail,
 .canvas.rail-collapsed .splitter-v {
-    display: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Hiding the bottom tool window drops it and its splitter and zeroes their
    tracks, so the editor takes the full height. --bottom-height keeps its value,
-   so reopening restores the previous height. */
+   so reopening restores the previous height. The gap and status strip below
+   stay in place. */
 .canvas.bottom-hidden {
     grid-template-rows:
         var(--menubar-height) var(--island-gap)
-        1fr 0 0;
+        1fr 0 0 var(--island-gap) var(--statusbar-height);
 }
 
 .canvas.bottom-hidden .bottom,
 .canvas.bottom-hidden .splitter-h {
-    display: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* --- Splitters ------------------------------------------------------------ */
@@ -134,6 +254,7 @@
 .splitter {
     position: relative;
     z-index: 5;
+    transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 /* Invisible hit area widens the narrow grid track so it is easy to grab. */
@@ -144,7 +265,7 @@
 
 .splitter-v {
     grid-column: 2;
-    grid-row: 3 / -1;
+    grid-row: 3 / 6;
     cursor: col-resize;
 }
 
@@ -201,12 +322,12 @@
 }
 
 .gutter {
-    flex: 0 0 auto;
     width: 3.6em;
+    flex: 0 0 auto;
     overflow: hidden;
-    font-family: var(--font-mono);
     font-size: var(--font-size-code);
     line-height: var(--line-height-code);
+    font-family: var(--font-mono), monospace;
 }
 
 .gutter-inner {
@@ -239,21 +360,21 @@
 .highlight,
 .source,
 .markers {
-    position: absolute;
     inset: 0;
     margin: 0;
-    padding: var(--space-3) var(--space-4);
-    font-family: var(--font-mono);
+    tab-size: 4;
+    white-space: pre;
+    position: absolute;
     font-size: var(--font-size-code);
     line-height: var(--line-height-code);
-    white-space: pre;
-    tab-size: 4;
+    padding: var(--space-3) var(--space-4);
+    font-family: var(--font-mono), monospace;
 }
 
 .highlight {
+    z-index: 1;
     overflow: hidden;
     pointer-events: none;
-    z-index: 1;
 }
 
 .highlight code {
@@ -277,6 +398,16 @@
     background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
+/* A non-ASCII glyph in the overlay is outlined, never bordered: a border would
+   widen the glyph and pull the overlay off the text layer's metrics, which the
+   caret and the selection both ride on. An outline is paint only, so the frame
+   costs no advance. The offset tucks it against the glyph instead of leaving a
+   gap the eye reads as spacing. */
+.highlight .glyph-box {
+    outline-offset: -1px;
+    outline: 1px solid var(--glyph-box);
+}
+
 .markers {
     overflow: hidden;
     pointer-events: none;
@@ -284,20 +415,15 @@
 }
 
 .source {
-    z-index: 3;
-    overflow: auto;
-    /* The overlays are synced to scrollTop from JS, so the macOS rubber band at
-       the ends would move the text layer without moving them. Off, so the code
-       pane stays in lockstep. */
-    overscroll-behavior: none;
-    resize: none;
     border: 0;
-    background: transparent;
+    z-index: 3;
+    resize: none;
+    overflow: auto;
     color: transparent;
-    caret-color: transparent;
-    /* The minimap beside the pane doubles as the scrollbar, so the pane hides its
-       own; wheel, keyboard and the textarea's own scrolling all still work. */
     scrollbar-width: none;
+    background: transparent;
+    caret-color: transparent;
+    overscroll-behavior: none;
 }
 
 .source::-webkit-scrollbar {
@@ -320,16 +446,16 @@
    because the two layers round their fractional line boxes apart. The editor
    positions it from the same metrics the overlay and squiggles use. */
 .caret {
-    position: absolute;
     top: 0;
     left: 0;
     width: 1px;
-    height: var(--line-height-code);
-    background: var(--text);
-    pointer-events: none;
     z-index: 4;
     opacity: 0;
+    position: absolute;
+    pointer-events: none;
     will-change: transform;
+    background: var(--text);
+    height: var(--line-height-code);
 }
 
 .caret.is-visible {
@@ -346,15 +472,14 @@
     }
 }
 
-/* --- Minimap --------------------------------------------------------------- */
 
 /* The strip rides the right edge of the editor body with no seam or floor of its
    own, so the scaled code and the slider are the only things drawn in it. */
 .minimap {
+    cursor: pointer;
+    overflow: hidden;
     position: relative;
     flex: 0 0 var(--minimap-width);
-    overflow: hidden;
-    cursor: pointer;
 }
 
 /* The clone carries .highlight for the overlay typography and line rules;
@@ -362,29 +487,32 @@
    scales from the top-left corner instead of tracking the textarea, and they
    reset the origin so the scale stays anchored there. */
 .minimap-content {
-    inset: auto;
     top: 0;
     left: 0;
-    transform-origin: 0 0;
-    /* The overlay's z-index would lift the clone over the viewport rectangle,
-       which is a plain sibling that paints by DOM order. */
     z-index: 0;
+    inset: auto;
+    transform-origin: 0 0;
+}
+
+/* The glyph frames are a reading aid for code at full size; at the map's scale
+   they shrink to a sub-pixel haze over every CJK run, so the clone drops them. */
+.minimap-content .glyph-box {
+    outline: none;
 }
 
 /* The slider over the visible code. It rides above the scaled clone, so it never
    scales with it, and reads as a plain scrollbar thumb: a square translucent grey
    block with no accent tint or outline to compete with the code beneath. */
 .minimap-viewport {
-    position: absolute;
+    top: 0;
     left: 1px;
     right: 1px;
-    top: 0;
     min-height: 2px;
-    background: var(--scroll-thumb);
+    position: absolute;
     pointer-events: none;
+    background: var(--scroll-thumb);
 }
 
-/* --- Syntax highlighting -------------------------------------------------- */
 
 .kw {
     color: var(--syn-keyword);
@@ -395,8 +523,8 @@
 }
 
 .com {
-    color: var(--syn-comment);
     font-style: italic;
+    color: var(--syn-comment);
 }
 
 .num {

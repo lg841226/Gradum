@@ -71,9 +71,9 @@
     height: var(--control-height);
 }
 
-/* Menu item: a plain text label against the canvas. Hovering lifts it onto a
-   raised surface and the current view stays on that same surface, so the bar
-   reads like a window's menu instead of a solid block of colour. */
+/* Menu item: a plain text label against the canvas. Hover lifts the text to
+   full brightness and the current view is marked by weight alone, so the
+   bar never grows a block of colour: selection reads as heavier type only. */
 .btn[data-variant="menu"] {
     height: calc(var(--menubar-height) - var(--space-1));
     padding: 0 var(--space-2);
@@ -82,15 +82,21 @@
 }
 
 .btn[data-variant="menu"]:hover {
-    background: var(--bg-menu);
     color: var(--text);
 }
 
-/* The current view is marked by weight rather than a fill, so the bar stays
-   quiet against the canvas and only the type changes. */
+/* Text-only highlight: full-brightness weight, no colour tint and no
+   background fill. The higher specificity keeps it bright even hovered. */
 .btn[data-variant="menu"][aria-pressed="true"] {
     font-weight: var(--weight-semibold);
     color: var(--text);
+}
+
+/* The underlined first letter of each entry marks its access key, the way a
+   desktop window underlines the key a menu would answer to. */
+.menubar .mnemonic {
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
 
 /* Icon buttons in the bar shrink to its height instead of the control height,
@@ -101,8 +107,10 @@
 }
 
 /* Run widget: the skill it would run beside its run action, grouped as one bare
-   cluster in the middle of the bar. */
+   cluster in the middle of the bar. It is held at its content size, so a narrow
+   window closes the menu onto it rather than squeezing the name. */
 .run-widget {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: var(--space-1);
@@ -385,16 +393,16 @@
 /* --- Empty state ---------------------------------------------------------- */
 
 .empty-state {
-    display: flex;
     flex: 1;
-    flex-direction: column;
+    height: 100%;
+    display: flex;
+    text-align: center;
     align-items: center;
+    flex-direction: column;
     justify-content: center;
     gap: var(--space-1);
-    height: 100%;
     padding: 0 var(--space-6);
-    text-align: center;
-    font-family: var(--font-mono);
+    font-family: var(--font-mono), monospace;
 }
 
 .empty-state-title {
@@ -455,12 +463,18 @@
     padding: var(--space-1) var(--space-2) var(--space-2);
 }
 
+/* Table-style columns: severity | fixed-width location | message. The row is a
+   grid so every message starts at exactly the same x; the location column
+   keeps its width on the child (ch units resolve against its own mono font)
+   because each row is its own grid and only a child-level width is therefore
+   identical across rows. */
 .problem {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
     flex: 0 0 auto;
     align-items: baseline;
-    gap: var(--space-3);
-    padding: var(--space-2);
+    column-gap: var(--space-3);
+    padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-control);
     cursor: pointer;
     transition: background var(--motion-fast) var(--ease-standard);
@@ -470,22 +484,34 @@
     background: var(--bg-raised);
 }
 
-/* A coloured platform status icon now carries the severity, so only its
-   vertical placement against the first message line is left to style. */
+/* Baseline-anchored against the first message line: with a wrapped message the
+   icon stays on line one instead of drifting to the middle of the row. The
+   wrapper exists because a replaced box has no text baseline of its own: the
+   SVG's is its bottom edge, so aligning the SVG directly would drop that edge
+   onto the baseline and ride the icon well above the line. A wrapper holding a
+   line box gives the cell a real baseline to line up with, and the icon centres
+   on that line. */
 .problem-severity {
-    align-self: center;
+    display: inline-block;
+}
+
+.problem-severity .icon {
+    display: inline-block;
+    vertical-align: middle;
 }
 
 .problem-location {
+    width: 11ch;
     flex: 0 0 auto;
-    font-family: var(--font-mono);
-    font-size: var(--font-size-small);
+    white-space: nowrap;
     color: var(--text-mute);
+    font-size: var(--font-size-small);
     font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono), monospace;
 }
 
 .problem-message {
-    flex: 1;
+    min-width: 0;
     white-space: pre-wrap;
     word-break: break-word;
 }
@@ -496,9 +522,9 @@
    than the smaller UI size it used to carry. That also lines it up with the
    placeholder shown in the other tab of this same tool window. */
 .output {
-    padding: var(--space-2) var(--space-3);
-    font-family: var(--font-mono);
     font-size: var(--font-size-code);
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono), monospace;
 }
 
 .output-line {
@@ -518,6 +544,16 @@
 
 .output-line[data-tone="busy"] {
     color: var(--accent);
+}
+
+/* Compiler diagnostics that report individual problems: quieter than the
+   failure line they hang under, indented so they read as its detail. */
+.output-line[data-tone="detail"] {
+    color: var(--text-mute);
+}
+
+.output-line[data-tone="detail"] .output-text {
+    margin-left: 2ch;
 }
 
 .output-time {

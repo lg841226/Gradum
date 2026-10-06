@@ -1,7 +1,7 @@
-// Single source of truth for the editor's colour theme.
+// Single source of truth for the editor's color theme.
 //
 // The preference is either "light" or "dark" and is persisted under
-// [STORAGE_KEY]. The resolved value is written to <html data-theme> so the CSS
+// [STORAGE_KEY]. The resolved value is written to <HTML data-theme> so the CSS
 // only switches on the two concrete palettes in tokens.css.
 //
 // index.html repeats [STORAGE_KEY] in its pre-paint script so the first frame

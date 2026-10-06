@@ -34,11 +34,17 @@ export function mountDiagnostics(store, {body, editor}) {
 
       const text = lines[diagnostic.line - 1] || "";
       const column = Math.max(1, diagnostic.column || 1);
+      // The underline starts at the reported column and runs to the end of the
+      // line. Both ends are measured off the rendered overlay rather than
+      // counted, so a line holding wide glyphs or tabs still lines up with the
+      // code above.
+      const start = editor.advance(diagnostic.line, Math.min(column - 1, text.length));
+      const end = editor.advance(diagnostic.line, text.length);
       const marker = document.createElement("div");
       marker.className = `squiggle ${diagnostic.severity === "error" ? "error" : "warning"}`;
       marker.style.top = `${editor.metrics.padTop + (diagnostic.line - 1) * editor.metrics.lineHeight}px`;
-      marker.style.left = `${editor.metrics.padLeft + (column - 1) * editor.metrics.charWidth}px`;
-      marker.style.width = `${Math.max(1, text.length - column + 1) * editor.metrics.charWidth}px`;
+      marker.style.left = `${editor.metrics.padLeft + start}px`;
+      marker.style.width = `${Math.max(1, end - start)}px`;
       marker.style.height = `${editor.metrics.lineHeight}px`;
       editor.markers.appendChild(marker);
     }
@@ -51,8 +57,9 @@ export function mountDiagnostics(store, {body, editor}) {
     row.dataset.line = diagnostic.line ?? "";
     row.dataset.column = diagnostic.column ?? "";
 
-    const severity = createIcon({name: diagnostic.severity === "error" ? "error" : "warning"});
-    severity.classList.add("problem-severity");
+    const severity = document.createElement("span");
+    severity.className = "problem-severity";
+    severity.append(createIcon({name: diagnostic.severity === "error" ? "error" : "warning"}));
 
     const location = document.createElement("span");
     location.className = "problem-location";

@@ -1,6 +1,7 @@
 import {formatTime} from "./core/dom.js";
 import {createStore} from "./core/store.js";
 import {listSkills} from "./data/skillsApi.js";
+import {mountCompact} from "./features/compact.js";
 import {mountConsole} from "./features/console.js";
 import {mountDiagnostics} from "./features/diagnostics.js";
 import {mountEditor} from "./features/editor.js";
@@ -9,6 +10,7 @@ import {mountMinimap} from "./features/minimap.js";
 import {mountPanels} from "./features/panels.js";
 import {mountRail} from "./features/rail.js";
 import {mountSplitters} from "./features/splitter.js";
+import {mountStatusBar} from "./features/statusbar.js";
 import {mountTabs} from "./features/tabs.js";
 import {copy} from "./ui/copy.js";
 
@@ -17,27 +19,34 @@ const DEFAULT_SKILL = "HelloSkill.kt";
 const canvas = document.getElementById("canvas");
 
 const store = createStore({
-  files: [],
+  log: [],
   docs: [],
-  activeId: null,
+  files: [],
   nextId: 1,
-  sourceRevision: 0,
   focusToken: 0,
+  sourceRevision: 0,
+  cursor: {line: 1, column: 1},
   status: {text: "", tone: "neutral"},
-  busy: false,
-  panel: "problems",
-  collapsed: false,
   view: "problems",
+  panel: "problems",
+  busy: false,
+  activeId: null,
+  autoRail: false,
+  collapsed: false,
+  autoBottom: false,
   railCollapsed: false,
   treeCollapsed: false,
-  bottomHeight: 200,
   railWidth: 208,
-  log: [],
+  bottomHeight: 200,
 });
 
 // Features are wired here so they never import each other. The editor island
 // exposes its tab strip and code-surface API; the panels island exposes the two
 // body elements that diagnostics and the console render into.
+//
+// The compact feature is mounted first so it is the first listener to run: it
+// settles the size-driven flags before the panels render from them.
+mountCompact(store, {canvas});
 const panels = mountPanels(store, {canvas});
 const editor = mountEditor(store, {canvas, showPanel: (name) => panels.show(name)});
 const tabs = mountTabs(store, {strip: editor.tabStrip});
@@ -59,6 +68,7 @@ mountMenubar(store, {
   onRun: () => void editor.run(),
 });
 mountSplitters(store, {canvas, rail: rail.panel, bottom: panels.panel});
+mountStatusBar(store, {canvas});
 
 window.addEventListener("keydown", (event) => {
   if (!(event.metaKey || event.ctrlKey)) return;
@@ -78,7 +88,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 store.setState({
-  log: [...store.getState().log, {time: formatTime(), message: copy.log.ready, tone: null}],
+  log: [...store.getState().log, {time: formatTime(), message: copy.log.ready(), tone: null}],
 });
 
 listSkills()

@@ -21,6 +21,14 @@
     --border: #393b40;
     --border-strong: #4e5157;
 
+    /* Frame drawn around a non-ASCII glyph in the code overlay, so a fullwidth
+       （ is not read as an ASCII ( at a glance. Yellow on purpose: the mark only
+       works if it catches the eye before the glyph does, so it is the one accent
+       in the code pane allowed to out-shout the syntax colours. Kept as its own
+       token rather than aliased to --warning, whose meaning is a problem in the
+       file and has no business restyling how a glyph is framed. */
+    --glyph-box: #e7bc4b;
+
     /* Scrollbar slider over the minimap. A translucent grey block rather than an
        accent tint, so it reads as a scrollbar instead of a highlight on the code
        while still letting the scaled code show through. */
@@ -97,6 +105,7 @@
     --header-height: 36px;
     --control-height: 28px;
     --menubar-height: 24px;
+    --statusbar-height: 20px;
     --rail-width: 208px;
     --bottom-height: 200px;
     --minimap-width: 160px;

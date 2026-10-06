@@ -9,9 +9,6 @@
     <link href="/skills/editor/styles/layout.css" rel="stylesheet"/>
     <link href="/skills/editor/styles/components.css" rel="stylesheet"/>
     <script>
-      // Resolve the theme before first paint so a light preference does not
-      // flash the dark palette. The storage key and the dark default mirror
-      // core/theme.js; keep the two in sync.
       (function () {
         let preference = null;
         try {
@@ -26,35 +23,7 @@
 </head>
 <body>
 <div class="canvas" id="canvas"></div>
-<script id="starterTemplate" type="text/plain">package external
-
-import gradum.SkillResult
-import gradum.makeSuccess
-import gradum.skill.Skill
-import gradum.skill.SkillContext
-import gradum.skill.dsl.SchemaBuilder
-import gradum.skill.dsl.string
-
-class HelloSkill : Skill() {
-  override val alias: String = "hello"
-  override val skillName: String = "hello"
-  override val description: String = "Greets someone by name."
-
-  override fun execute(arguments: Map<String, Any>, context: SkillContext): SkillResult {
-    val name: String = arguments["name"] as? String ?: "world"
-    return makeSuccess {
-      string("greeting", "Hello, $name!")
-    }
-  }
-
-  override val schemaProperties: SchemaBuilder.() -> Unit = {
-    string(
-      name = "name",
-      description = "Who to greet.",
-      required = false
-    )
-  }
-}
+<script id="starterTemplate" type="text/plain">
 </script>
 <script src="/skills/editor/main.js" type="module"></script>
 </body>

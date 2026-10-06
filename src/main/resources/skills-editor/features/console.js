@@ -7,8 +7,10 @@ function createLine({message, tone, time}) {
   const stamp = document.createElement("span");
   stamp.className = "output-time";
   stamp.textContent = time || formatTime();
-  line.appendChild(stamp);
-  line.appendChild(document.createTextNode(message));
+  const text = document.createElement("span");
+  text.className = "output-text";
+  text.textContent = message;
+  line.append(stamp, text);
   return line;
 }
 
