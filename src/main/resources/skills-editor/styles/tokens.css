@@ -1,57 +1,34 @@
 /* Design tokens. Every visual value in the editor resolves to one of these
    variables so the whole surface can be re-themed from a single place. */
 :root {
-    /* Surfaces: the backdrop is lighter, the panels are darker. The panels are
-       slightly translucent so the ambient glow behind them bleeds through. */
     --bg-canvas: #212327;
-    --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --bg-raised: #393b40;
     --bg-popup: #2b2d31;
-    /* Popups sit on top of an island of the same family, so a border alone
-       reads flat; the shadow is what lifts them off. Tinted navy rather than
-       black: a neutral black over a blue-grey surface reads as a smudge, where a
-       shadow carrying the surface's own hue reads as depth. The light theme
-       takes a cooler, fainter ink, since paper shows a hard shadow as dirt. */
     --shadow-popup: 0 4px 12px rgb(9 13 24 / 40%);
-
-    /* Menubar menu highlight. The bar sits straight on the canvas rather than on
-       an island, so a solid fill would read as a hard block; a translucent wash
-       keeps it tied to whatever is behind it. */
-    --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
-
-    /* Ambient glow painted behind the whole window. Derived from the accent so
-       it tracks the brand blue and only its strength differs between themes. */
+    --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --glow: color-mix(in srgb, var(--accent) 34%, transparent);
+    --bg-menu: color-mix(in srgb, var(--bg-raised) 62%, transparent);
 
     /* Lines */
     --border: #393b40;
-    --border-strong: #4e5157;
-
-    /* Frame drawn around a non-ASCII glyph in the code overlay, so a fullwidth
-       （ is not read as an ASCII ( at a glance. Yellow on purpose: the mark only
-       works if it catches the eye before the glyph does, so it is the one accent
-       in the code pane allowed to out-shout the syntax colours. Kept as its own
-       token rather than aliased to --warning, whose meaning is a problem in the
-       file and has no business restyling how a glyph is framed. */
     --glyph-box: #e7bc4b;
-
-    /* Scrollbar slider over the minimap. A translucent grey block rather than an
-       accent tint, so it reads as a scrollbar instead of a highlight on the code
-       while still letting the scaled code show through. */
+    --border-strong: #4e5157;
     --scroll-thumb: color-mix(in srgb, var(--border-strong) 40%, transparent);
 
     /* Content */
     --text: #dfe1e5;
     --text-dim: #a9b0b8;
     --text-mute: #6f737a;
+    --code-text: #c0c4cb;
 
     /* Accent */
     --accent: #3574f0;
     --accent-hover: #3d7ef5;
     --accent-pressed: #2b65d9;
-    --accent-selection: #273355;
     --accent-outline: #4b6eaf;
+    --accent-selection: #273355;
     --match-bg: color-mix(in srgb, var(--accent) 30%, transparent);
+    --match-border: color-mix(in srgb, var(--accent) 65%, transparent);
 
     /* Semantic */
     --error: #db5c5c;
@@ -72,11 +49,6 @@
        with the theme like every other colour. */
     --icon-kotlin-wedge: #2f2936;
     --icon-kotlin-body: #a571e6;
-
-    /* Completion kind marks. Each round letter icon ships twice — the dark
-       twin (expui/nodes/*_dark.svg) here, the light one below — and splits
-       into a disc and an ink, so the popup's marks repaint with the theme
-       the way the brand mark does. */
     --icon-node-val-bg: #2f2936;
     --icon-node-val-ink: #b589ec;
     --icon-node-fun-bg: #402929;
@@ -87,8 +59,6 @@
     --icon-node-word-ink: #c77d55;
     --icon-node-snippet-ink: #ced0d6;
 
-    /* Assets: an inline mask tinted at its use site, so the shape lives here and
-       the colour comes from the semantic palette above. */
     --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='M0 3 L1.5 1 L3 3 L4.5 1 L6 3' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
 
     /* Radii */
@@ -109,9 +79,6 @@
     --font-size-ui: 13px;
     --font-size-small: 12px;
     --font-size-code: 13px;
-    /* Integer on purpose: the code surface is two stacked layers (the highlight
-       overlay and the textarea), and a fractional line box lets them round to
-       different device pixels and drift apart line by line. */
     --line-height-code: 20px;
     --weight-regular: 400;
     --weight-medium: 500;
@@ -130,6 +97,7 @@
     --rail-width: 208px;
     --bottom-height: 200px;
     --minimap-width: 128px;
+    --blur-popup: 10px;
 }
 
 /* Light theme. The page puts data-theme="light" on <html> when the user picks
@@ -157,6 +125,7 @@
     --text: #1f2329;
     --text-dim: #545b64;
     --text-mute: #8a919b;
+    --code-text: #1f2329;
 
     /* Accent */
     --accent: #3574f0;

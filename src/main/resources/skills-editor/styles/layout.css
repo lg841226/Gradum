@@ -558,6 +558,10 @@ body.is-dragging .code-pane {
     z-index: 1;
     overflow: hidden;
     pointer-events: none;
+    /* What the syntax classes do not claim — the plain runs — reads in the softer
+       code tone rather than inheriting the UI's --text. The minimap's clone takes
+       this rule too, so the two surfaces stay the same tone. */
+    color: var(--code-text);
 }
 
 .highlight code {
@@ -605,11 +609,15 @@ body.is-dragging .code-pane {
     z-index: -1;
     position: absolute;
     background: var(--match-bg);
+    border: 1px solid var(--match-border);
     height: var(--line-height-code);
 }
 
+/* The caret's line is a wash, not a slab: one pass of the raised surface
+   over the code, so the current line reads as a step above the rest without
+   closing off a band of its own. */
 .highlight .line.active {
-    background: var(--bg-raised);
+    background: color-mix(in srgb, var(--bg-raised) 35%, transparent);
 }
 
 .highlight .line.errline {
@@ -706,17 +714,21 @@ body.is-dragging .code-pane {
    reads as a continuation of the text rather than a menu dropped over it. The
    panel is a fixed frame — padding, border, shadow — sized to its widest row
    up to a cap; the list inside it is what scrolls, so the air between the
-   rows and the rounded border holds still while the rows travel. */
+   rows and the rounded border holds still while the rows travel. The sheet is
+   frosted: its colour stands at 65% over a blur of whatever code lies behind
+   it, so the buffer reads through as light through glass. */
 .completion {
     top: 0;
     left: 0;
     z-index: 6;
     min-width: 220px;
     max-width: 420px;
-    padding: var(--space-1) 0;
+    padding: 6px 0;
     position: absolute;
     color: var(--text);
-    background: var(--bg-popup);
+    background: color-mix(in srgb, var(--bg-popup) 65%, transparent);
+    backdrop-filter: blur(var(--blur-popup));
+    -webkit-backdrop-filter: blur(var(--blur-popup));
     font-size: var(--font-size-code);
     font-family: var(--font-mono), monospace;
     box-shadow: var(--shadow-popup);

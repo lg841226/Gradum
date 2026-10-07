@@ -71,7 +71,7 @@ export const icons = {
     + ' fill="currentColor" stroke="none"/>',
 
   // expui/actions/minimap.svg. Four bars of alternating length: the platform's
-  // minimap mark, grey rewritten to currentColor like the rest of the set.
+  // minimap mark, gray rewritten to currentColor like the rest of the set.
   minimap: '<rect x="2" y="3" width="12" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
     + '<rect x="2" y="6" width="8" height="1" rx="0.5" fill="currentColor" stroke="none"/>'
     + '<rect x="2" y="9" width="12" height="1" rx="0.5" fill="currentColor" stroke="none"/>'

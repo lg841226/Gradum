@@ -2,7 +2,9 @@
 // tool window sits at the bottom, whether the rail and the tree are folded,
 // whether the editor is split into two views, whether the minimap strip shows,
 // and how wide and tall the user dragged the panels. Keeping them is what makes
-// a refreshed page look the way it was left.
+// a refreshed page look the way it was left. Which file held the focus is a
+// choice like the rest: it rides along here by name, so a refresh comes back to
+// the document the user was reading instead of falling to the default skill.
 //
 // Only choices are kept. The size-driven overrides (autoRail / autoBottom) are
 // recomputed from the window on every boot, and the documents come back from the
@@ -15,6 +17,7 @@ export const STORAGE_KEY = "gradum.skillsEditor.layout";
 const LAYOUT_KEYS = {
   view: "string",
   panel: "string",
+  openFile: "string",
   railWidth: "number",
   collapsed: "boolean",
   bottomHeight: "number",
@@ -57,11 +60,22 @@ export function loadLayout() {
 
 // The store subscriber that writes the layout back. It compares against what it
 // last wrote, because the store also reports the caret on every move and there is
-// no reason to touch storage for a change the layout did not make.
+// no reason to touch storage for a change the layout did not make. The open file
+// is read from the focused document as the state changes; until a document
+// exists — the first writes of a fresh boot — the value loaded from storage
+// stands in, so those writes cannot blank out what the last session remembered.
 export function createLayoutWriter() {
   let lastWritten = "";
+  let openFile = "";
   return (state) => {
-    const serialized = JSON.stringify(pickLayout(state));
+    const focused = state.docs.find((doc) => doc.id === state.activeId);
+    if (focused) {
+      openFile = focused.name;
+    } else if (openFile === "" && typeof state.openFile === "string") {
+      openFile = state.openFile;
+    }
+
+    const serialized = JSON.stringify(pickLayout({...state, openFile}));
     if (serialized === lastWritten) {
       return;
     }

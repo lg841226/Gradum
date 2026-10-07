@@ -136,7 +136,9 @@ try {
       // The rail stays empty until the server becomes reachable.
     });
 
-  void tabs.open(DEFAULT_SKILL);
+  // The file that held the focus comes back with the layout; a first visit —
+  // or storage with nothing in it — starts on the default skill instead.
+  void tabs.open(store.getState().openFile || DEFAULT_SKILL);
 
   // Everything above has run synchronously, so the restored layout is already in
   // the grid. Two frames let the browser paint that first frame with animation

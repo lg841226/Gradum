@@ -247,6 +247,34 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       drawMatch(text, open);
       drawMatch(text, close);
     }
+
+    // Where two boxes meet — an empty pair reads as one merged block — their
+    // facing borders would double into a seam, so those two edges come off and
+    // only the outer frame remains. Boxes are compared by measured position
+    // rather than by drawing order, because the drawing follows the pairs and
+    // a nested pair draws its outer end first.
+    const byLine = new Map();
+    for (const box of matches) {
+      const siblings = byLine.get(box.parentElement);
+      if (siblings) {
+        siblings.push(box);
+      } else {
+        byLine.set(box.parentElement, [box]);
+      }
+    }
+    for (const siblings of byLine.values()) {
+      siblings.sort((a, b) => parseFloat(a.style.left) - parseFloat(b.style.left));
+      for (let i = 1; i < siblings.length; i++) {
+        const left = siblings[i - 1];
+        const right = siblings[i];
+        const leftEdge = parseFloat(left.style.left) + parseFloat(left.style.width);
+        const gap = leftEdge - parseFloat(right.style.left);
+        if (Math.abs(gap) < 0.5) {
+          left.style.borderRightWidth = "0";
+          right.style.borderLeftWidth = "0";
+        }
+      }
+    }
   }
 
   // One end of a matched pair: a child of the line it sits on, positioned
