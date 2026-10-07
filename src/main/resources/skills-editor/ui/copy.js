@@ -72,6 +72,10 @@ export const copy = {
     emptyHint: "Choose a skill in Skill Explorer, or create a new one with the Add skill button.",
   },
 
+  completion: {
+    label: "Code completion",
+  },
+
   statusBar: {
     lineEnding: "LF",
     encoding: "UTF-8",

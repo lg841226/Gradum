@@ -289,6 +289,50 @@ function deleteRanges(text, cursors, direction, grain) {
   return {text: buffer, cursors: next};
 }
 
+// The edit a bracket key asks for, as pure as the rest of this file. An opener
+// lays its pair down with the caret kept between the two characters — one
+// commit, one undo step for both — and a closer already sitting in front of an
+// empty caret is stepped over, so typing ')' completes the pair instead of
+// doubling it. A selection types over itself and never steps; cursors that
+// disagree on the spot take the mixed road, the ones before a closer travelling
+// and the rest inserting. Deletion is deliberately left ordinary: taking out
+// one bracket never reaches for its partner. Returns null for any key that is
+// not a bracket.
+const PAIRS = {"(": ")", "[": "]", "{": "}"};
+const CLOSERS = new Set(Object.values(PAIRS));
+
+function typedBracket(text, cursors, key) {
+  if (Object.hasOwn(PAIRS, key)) {
+    const edit = insertText(text, cursors, key + PAIRS[key]);
+    edit.cursors = edit.cursors.map((cursor) => ({
+      anchor: cursor.anchor - 1,
+      head: cursor.head - 1,
+    }));
+    return edit;
+  }
+  if (!CLOSERS.has(key)) {
+    return null;
+  }
+
+  const steps = cursors.map((cursor) => {
+    const {start, end} = rangeOf(cursor);
+    return start === end && text[start] === key;
+  });
+  const chunks = new Map();
+  cursors.forEach((cursor, index) => {
+    const {start} = rangeOf(cursor);
+    chunks.set(start, steps[index] ? "" : key);
+  });
+
+  const edit = insertText(text, cursors, (buffer, start) => chunks.get(start));
+  edit.cursors = edit.cursors.map((cursor, index) => (
+    steps[index]
+      ? {anchor: cursor.anchor + 1, head: cursor.head + 1}
+      : cursor
+  ));
+  return edit;
+}
+
 export {
   deleteRanges,
   insertText,
@@ -299,6 +343,7 @@ export {
   normalize,
   offsetAtColumn,
   rangeOf,
+  typedBracket,
   wordLeftAt,
   wordRightAt,
 };

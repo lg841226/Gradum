@@ -2,6 +2,7 @@ import {codeMetrics, displayColumns, FALLBACK_METRICS} from "../core/dom.js";
 import {activeDoc} from "../core/store.js";
 import {createTabStrip} from "../ui/components/tab.js";
 import {bracketDepth, changedLines, indentWidth, matchPairs} from "./analysis.js";
+import {createCompletion} from "./completion.js";
 import {markGlyphs, tokenize} from "./syntax.js";
 import {
   deleteRanges,
@@ -12,6 +13,7 @@ import {
   moveCursor,
   normalize,
   offsetAtColumn,
+  typedBracket,
 } from "./multicursor.js";
 import {recordEdit, redo as redoHistory, seedHistory, undo as undoHistory} from "./history.js";
 
@@ -446,6 +448,13 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     if (blinkChanged) {
       restartBlink();
     }
+
+    // The completion list rides the caret's coattails: every caret draw
+    // revalidates it, so a click, an undo or the other pane's edit dismisses
+    // or refreshes the popup in the same frame the caret moves — while the
+    // keystroke that may *raise* it answers only from the input, never from
+    // this echo.
+    completion.onCaretMove();
   }
 
   function lineNumberAt(offset) {
@@ -539,6 +548,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     source.value = doc ? doc.source : "";
     source.readOnly = !doc;
     setSourceVisible(Boolean(doc));
+    completion.close();
 
     // The platform leaves the selection wherever a fresh value puts it; the
     // caret list adopts that as its primary entry, and a document with no
@@ -571,6 +581,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     source.scrollTop = scrollTop;
     source.scrollLeft = scrollLeft;
     cursors = [{anchor: source.selectionStart, head: source.selectionEnd}];
+    completion.close();
 
     renderHighlight(text);
     updateSelection();
@@ -580,20 +591,20 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   const pane = {
     root,
     main,
-    tabStrip,
     source,
-    highlightCode,
     markers,
     metrics,
-    measureMetrics,
-    renderHighlight,
+    tabStrip,
+    highlightCode,
     loadDoc,
+    advance,
     adoptText,
     syncScroll,
-    updateSelection,
     updateCaret,
+    measureMetrics,
+    updateSelection,
+    renderHighlight,
     updateActiveLine,
-    advance,
     syncCursors: syncCursorsFromSource,
   };
 
@@ -614,6 +625,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     if (docId) {
       recordEdit(docId, {text: edit.text, cursors: [...cursors]});
     }
+    completion.onEdit();
   }
 
   // A restored snapshot travels the same road an edit does — minus the
@@ -626,6 +638,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     cursors = normalize(snapshot.cursors, snapshot.text);
     writeCursors();
     onInput(pane);
+    completion.onEdit();
   }
 
   // A caret on the line below (or above) the outermost one, at the same
@@ -723,6 +736,21 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
     return null;
   }
 
+  // The completion popup is built once per pane, closed over this pane's own
+  // textarea, code box and edit path, and driven from the three events below:
+  // the input (may raise it), the committed edit (may only refresh it) and
+  // the caret draw (may refresh or dismiss it).
+  const completion = createCompletion({
+    source,
+    code,
+    store,
+    caretPosition,
+    metrics,
+    getCursors: () => cursors,
+    commit: commitEdit,
+    isComposing: () => composing,
+  });
+
   source.addEventListener("input", (event) => {
     // A native edit — typing, pasting, cutting with one caret — has already
     // moved the platform's range, so the list collapses to match and the
@@ -736,6 +764,7 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       }
     }
     onInput(pane);
+    completion.onTextInput(event);
   });
   source.addEventListener("scroll", syncScroll);
   source.addEventListener("focus", () => {
@@ -750,6 +779,8 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
   // history once, after the input that carries it has settled.
   source.addEventListener("compositionstart", () => {
     composing = true;
+    completion.close();
+
     if (cursors.length > 1) {
       cursors = [{anchor: source.selectionStart, head: source.selectionEnd}];
       updateSelection();
@@ -811,9 +842,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
 
     const mod = event.metaKey || event.ctrlKey;
 
-    // Undo and redo answer from the shared stack whatever mode the caret is
-    // in — the platform's private history dies the first time the editor
-    // writes the buffer itself, so the platform no longer owns these keys.
     if (mod && !event.shiftKey && (event.key === "z" || event.key === "Z")) {
       event.preventDefault();
       restoreHistory(undoHistory(currentDocId()));
@@ -832,8 +860,10 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       return;
     }
 
-    // A caret on the line below or above the outermost one — one press, one
-    // new caret, marching through the file at the same column.
+    if (completion.keydown(event)) {
+      return;
+    }
+
     if (mod && event.altKey && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
       event.preventDefault();
       addCursorVertical(event.key === "ArrowDown" ? 1 : -1);
@@ -852,9 +882,6 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       return;
     }
 
-    // Enter answers for any caret count, because the platform's own newline
-    // knows nothing of the indent: each caret splits its line and the next
-    // one starts at that caret's bracket level, two spaces a level.
     if (event.key === "Enter") {
       event.preventDefault();
       const newline = (text, at) => {
@@ -865,12 +892,23 @@ export function createCodePane(store, {onInput, onFocus, onRun}) {
       return;
     }
 
-    // Below this line every key moves or edits *all* the carets; with one
-    // caret the platform keeps its native behavior and the input listener
-    // records the result — Tab and Enter answered themselves above, because
-    // the platform has no indent to offer. Anything unhandled — Page keys,
-    // function keys — still falls through to that native path, which
-    // collapses the list.
+    // An opener pairs itself and parks the caret in the middle of the two; a
+    // closer already waiting in front of an empty caret is stepped over rather
+    // than doubled. The step moves no text, so it travels the caret road and
+    // leaves the history alone.
+    if (!mod && !event.altKey) {
+      const bracket = typedBracket(source.value, cursors, event.key);
+      if (bracket) {
+        event.preventDefault();
+        if (bracket.text === source.value) {
+          setCursors(bracket.cursors);
+        } else {
+          commitEdit(bracket);
+        }
+        return;
+      }
+    }
+
     if (cursors.length <= 1) {
       return;
     }

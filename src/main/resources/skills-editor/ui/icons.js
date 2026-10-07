@@ -3,7 +3,7 @@
 //
 // Vendored from the IntelliJ platform, all under Apache 2.0,
 // Copyright 2000-2025 JetBrains s.r.o. and contributors:
-//   lib/intellij.platform.ide.jar          expui/{actions,toolwindows,general,status,run,build}/*
+//   lib/intellij.platform.ide.jar      expui/{actions,toolwindows,general,status,run,build,nodes}/*
 //   plugins/Kotlin/lib/intellij.kotlin.base.resources.jar
 //                                          org/jetbrains/kotlin/idea/icons/expui/kotlin_dark.svg
 //
@@ -12,7 +12,8 @@
 // Kotlin brand mark is a filled sprite, so its two stops read the
 // --icon-kotlin-* tokens (via inline fill, since a presentation attribute
 // cannot hold var()) and flip with the theme; the coloured status icons keep
-// their own palette.
+// their own palette, and the completion kind marks keep theirs while reading
+// --icon-node-* the same way, so they show their dark twin when the theme does.
 
 export const icons = {
   // expui/general/add.svg
@@ -161,4 +162,55 @@ export const icons = {
   // Drawn at the same 1 stroke as the run icon it stands in for, so swapping one
   // for the other does not read as a change in weight.
   spinner: '<path d="M13.5 8a5.5 5.5 0 1 1-3.8-5.23" stroke-width="1"/>',
+
+  // Completion row marks: the platform's own round letter icons, one per kind
+  // — a property, a method, a class, a live template, a plain variable. These
+  // keep their own palette instead of following currentColor, the way the Kotlin
+  // brand mark does: the disc and the ink each read an --icon-node-* token, so
+  // the theme swap paints the _dark.svg twin of every mark.
+  //
+  // expui/nodes/property.svg / property_dark.svg
+  "completion-val": '<circle cx="8" cy="8" r="6.5"'
+    + ' style="fill:var(--icon-node-val-bg);stroke:var(--icon-node-val-ink)"/>'
+    + '<path d="M8.57081 5C7.72702 5 7.06335 5.37098 6.68265 5.99832V5.12281H5.7002V12'
+    + 'H6.70312V9.52032C7.08689 10.1272 7.74186 10.4854 8.57081 10.4854C10.0291 10.4854'
+    + ' 11.0474 9.36988 11.0474 7.74269C11.0474 6.1155 10.0291 5 8.57081 5ZM8.36101 9.5848'
+    + 'C7.38367 9.5848 6.70312 8.8326 6.70312 7.74269C6.70312 6.65278 7.38367 5.90058'
+    + ' 8.36101 5.90058C9.33324 5.90058 10.0036 6.65278 10.0036 7.74269C10.0036 8.8326'
+    + ' 9.33324 9.5848 8.36101 9.5848Z" style="fill:var(--icon-node-val-ink)"/>',
+
+  // expui/nodes/method.svg / method_dark.svg
+  "completion-fun": '<circle cx="8" cy="8" r="6.5"'
+    + ' style="fill:var(--icon-node-fun-bg);stroke:var(--icon-node-fun-ink)"/>'
+    + '<path d="M10.0657 5.24573C9.25361 5.24573 8.636 5.6473 8.29593 6.31537C8.00368 5.64257'
+    + ' 7.40552 5.24573 6.6071 5.24573C5.84915 5.24573 5.28147 5.60946 4.96189 6.24862V5.37188H4'
+    + 'V10.7543H4.99869V7.59001C4.99869 6.68068 5.5138 6.10775 6.32852 6.10775C7.0749 6.10775'
+    + ' 7.50591 6.61761 7.50591 7.43758V10.7543H8.49409V7.59001C8.49409 6.68068 9.01971 6.10775'
+    + ' 9.82392 6.10775C10.5756 6.10775 11.0013 6.61761 11.0013 7.43758V10.7543H12V7.35874'
+    + 'C12 6.07096 11.2168 5.24573 10.0657 5.24573Z" style="fill:var(--icon-node-fun-ink)"/>',
+
+  // expui/nodes/class.svg / class_dark.svg
+  "completion-type": '<circle cx="8" cy="8" r="6.5"'
+    + ' style="fill:var(--icon-node-type-bg);stroke:var(--icon-node-type-ink)"/>'
+    + '<path d="M8.13295 11.5C9.61223 11.5 10.8836 10.6105 11.2075 9.33909H10.2213'
+    + 'C9.90229 10.0739 9.11914 10.6057 8.13295 10.6057C6.77936 10.6057 5.80284 9.51796'
+    + ' 5.80284 8C5.80284 6.48204 6.77936 5.39434 8.13295 5.39434C9.11914 5.39434 9.90229 5.92611'
+    + ' 10.2213 6.66091H11.2075C10.8836 5.3895 9.61223 4.5 8.13295 4.5C6.21859 4.5 4.79248 5.99378'
+    + ' 4.79248 8C4.79248 10.0062 6.21859 11.5 8.13295 11.5Z"'
+    + ' style="fill:var(--icon-node-type-ink)"/>',
+
+  // expui/nodes/template.svg / template_dark.svg
+  "completion-snippet": '<path d="M3.5 13.5H12.5"'
+    + ' style="stroke:var(--icon-node-snippet-ink)" stroke-linecap="round"/>'
+    + '<path d="M14 11.5H2C1.72386 11.5 1.5 11.2761 1.5 11V10C1.5 9.72386 1.72386 9.5 2 9.5H7'
+    + 'L5.54631 4.41208C5.27253 3.45386 5.99203 2.5 6.9886 2.5H9.0114C10.008 2.5 10.7275 3.45386'
+    + ' 10.4537 4.41208L9 9.5H14C14.2761 9.5 14.5 9.72386 14.5 10V11C14.5 11.2761 14.2761 11.5'
+    + ' 14 11.5Z" style="stroke:var(--icon-node-snippet-ink)" stroke-linecap="round"'
+    + ' stroke-linejoin="round"/>',
+
+  // expui/nodes/variable.svg / variable_dark.svg
+  "completion-word": '<circle cx="8" cy="8" r="6.5"'
+    + ' style="fill:var(--icon-node-word-bg);stroke:var(--icon-node-word-ink)"/>'
+    + '<path d="M7.5459 11.4H8.46582L10.8213 5.40002H9.79004L8.04395 10.1051L6.23926 5.40002'
+    + 'H5.17871L7.5459 11.4Z" style="fill:var(--icon-node-word-ink)"/>',
 };

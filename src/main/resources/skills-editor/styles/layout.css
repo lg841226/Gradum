@@ -691,6 +691,124 @@ body.is-dragging .code-pane {
     opacity: 0;
 }
 
+/* The completion panel floats inside the same code box the caret draws in, as a
+   sibling of the text layers — a re-render of the highlight never touches it —
+   and takes its position from JS, since only the caret's own measurement knows
+   which side of the line has room. Rows are one code line tall, so the list
+   reads as a continuation of the text rather than a menu dropped over it. The
+   panel is a fixed frame — padding, border, shadow — sized to its widest row
+   up to a cap; the list inside it is what scrolls, so the air between the
+   rows and the rounded border holds still while the rows travel. */
+.completion {
+    top: 0;
+    left: 0;
+    z-index: 6;
+    min-width: 220px;
+    max-width: 420px;
+    padding: var(--space-1) 0;
+    position: absolute;
+    color: var(--text);
+    background: var(--bg-popup);
+    font-size: var(--font-size-code);
+    font-family: var(--font-mono), monospace;
+    box-shadow: var(--shadow-popup);
+    border-radius: var(--radius-island);
+    border: 1px solid var(--border);
+    width: max-content;
+    will-change: transform;
+    animation: completion-fade var(--motion-fast) var(--ease-standard);
+}
+
+.completion[hidden] {
+    display: none;
+}
+
+/* The scroll surface: ten code lines tall before it moves, and `relative` so a
+   row's offset measures against the list itself — the keep-in-view arithmetic
+   needs exactly that. It carries the other half of the open animation. */
+.completion-list {
+    position: relative;
+    overflow-y: auto;
+    max-height: 200px;
+    scrollbar-width: thin;
+    animation: completion-grow var(--motion-fast) var(--ease-standard);
+}
+
+/* The fade rides the panel because its place is a translate only JS writes —
+   a scale in the same property would drag that translate with it — so the
+   scale rides the list, which carries no transform of its own. The display
+   flip that opens the panel replays both on every open. */
+@keyframes completion-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes completion-grow {
+    from {
+        scale: .96;
+    }
+}
+
+/* Every row carries a side margin, so the selected row's highlight reads as a
+   rounded swatch floating inside the popup instead of a band welded to its
+   edges — and because all rows carry it, selection never shifts the text. */
+.completion-row {
+    gap: var(--space-2);
+    display: flex;
+    align-items: center;
+    height: var(--line-height-code);
+    padding: 0 var(--space-2);
+    margin: 0 var(--space-1);
+}
+
+/* The swatch must lift off the popup rather than sink into it: the selection
+   token is tuned for the canvas and reads darker than the night popup now is,
+   so the row would disappear. Mixing the accent into the popup's own surface
+   keeps the brand blue visible on both themes — a pale wash over paper, a lit
+   blue over night — and tracks whatever background the panel is given. */
+.completion-row.is-selected {
+    background: color-mix(in srgb, var(--accent) 25%, var(--bg-popup));
+    border-radius: 5px;
+}
+
+/* One mark per kind — the platform's round letter icons, disc and ink carried
+   by --icon-node-* tokens so the theme swap paints each mark's dark twin: a
+   purple property, a red method, a blue class, an orange variable. The keyword
+   rows carry a letter instead of a glyph — the K is the mark, the token colour
+   says the rest. */
+.completion-kind-kw {
+    color: var(--syn-keyword);
+    flex: none;
+    width: 16px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.completion-icon {
+    flex: none;
+}
+
+.completion-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* The letters the prefix matched take the brand blue — the row's own kind
+   colour carries the icon and the type line, not the match. */
+.completion-label .match {
+    color: var(--accent);
+}
+
+.completion-detail {
+    flex: none;
+    color: var(--text-mute);
+    white-space: nowrap;
+}
+
 
 /* The strip rides the right edge of the editor body with no seam or floor of its
    own, so the scaled code and the slider are the only things drawn in it. It

@@ -6,7 +6,7 @@
     --bg-canvas: #212327;
     --bg-island: color-mix(in srgb, #121317 88%, transparent);
     --bg-raised: #393b40;
-    --bg-popup: #43454a;
+    --bg-popup: #2b2d31;
     /* Popups sit on top of an island of the same family, so a border alone
        reads flat; the shadow is what lifts them off. Tinted navy rather than
        black: a neutral black over a blue-grey surface reads as a smudge, where a
@@ -72,6 +72,20 @@
        with the theme like every other colour. */
     --icon-kotlin-wedge: #2f2936;
     --icon-kotlin-body: #a571e6;
+
+    /* Completion kind marks. Each round letter icon ships twice — the dark
+       twin (expui/nodes/*_dark.svg) here, the light one below — and splits
+       into a disc and an ink, so the popup's marks repaint with the theme
+       the way the brand mark does. */
+    --icon-node-val-bg: #2f2936;
+    --icon-node-val-ink: #b589ec;
+    --icon-node-fun-bg: #402929;
+    --icon-node-fun-ink: #db5c5c;
+    --icon-node-type-bg: #25324d;
+    --icon-node-type-ink: #548af7;
+    --icon-node-word-bg: #45322b;
+    --icon-node-word-ink: #c77d55;
+    --icon-node-snippet-ink: #ced0d6;
 
     /* Assets: an inline mask tinted at its use site, so the shape lives here and
        the colour comes from the semantic palette above. */
@@ -168,4 +182,15 @@
     /* Kotlin file mark: the platform's light variant (expui/kotlin.svg). */
     --icon-kotlin-wedge: #faf5ff;
     --icon-kotlin-body: #834df0;
+
+    /* Completion kind marks: the platform's light variants (expui/nodes/*.svg). */
+    --icon-node-val-bg: #faf5ff;
+    --icon-node-val-ink: #834df0;
+    --icon-node-fun-bg: #fff7f7;
+    --icon-node-fun-ink: #db3b4b;
+    --icon-node-type-bg: #e7effd;
+    --icon-node-type-ink: #3574f0;
+    --icon-node-word-bg: #fff4eb;
+    --icon-node-word-ink: #e66d17;
+    --icon-node-snippet-ink: #6c707e;
 }

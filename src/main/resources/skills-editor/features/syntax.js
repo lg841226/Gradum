@@ -5,7 +5,7 @@ import {escapeHtml} from "../core/dom.js";
 // layer, and the glyph framing keeps a fullwidth character from reading as
 // its ASCII twin at a glance. Everything here is pure text to text.
 
-const KOTLIN_KEYWORDS = [
+export const KOTLIN_KEYWORDS = [
   "package", "import", "class", "object", "interface", "fun", "val", "var",
   "override", "private", "public", "protected", "internal", "return", "if", "else", "when",
   "for", "while", "do", "try", "catch", "finally", "throw", "is", "in", "as", "null", "true",
